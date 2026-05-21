@@ -1,4 +1,4 @@
-namespace Workslip.Jobs;
+namespace Workslip.Application.Jobs;
 
 public static class JobRequestValidator
 {

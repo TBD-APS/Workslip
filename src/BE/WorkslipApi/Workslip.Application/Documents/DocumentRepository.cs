@@ -1,4 +1,4 @@
-namespace Workslip.Documents;
+namespace Workslip.Application.Documents;
 
 public sealed record ReportQuery(Guid? OrganizationId, Guid? DocumentTypeId, string? Status, string? ReviewStatus, int Limit, int Offset);
 

@@ -1,8 +1,7 @@
 using Dapper;
-using Workslip.Data;
 using Microsoft.AspNetCore.Hosting;
 
-namespace Workslip.Migrations;
+namespace Workslip.Infrastructure.Migrations;
 
 public sealed class SqlMigrationRunner(ISqlConnectionFactory connectionFactory, IWebHostEnvironment environment)
 {

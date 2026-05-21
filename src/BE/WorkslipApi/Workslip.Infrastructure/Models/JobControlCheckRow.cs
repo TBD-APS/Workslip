@@ -1,3 +1,5 @@
+namespace Workslip.Infrastructure.Models;
+
 public sealed class JobControlCheckRow
 {
     public Guid Id { get; init; }

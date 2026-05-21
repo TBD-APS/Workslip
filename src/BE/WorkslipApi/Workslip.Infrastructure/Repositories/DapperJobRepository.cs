@@ -3,9 +3,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Dapper;
 using Workslip.Domain;
-using Workslip.Jobs;
+using Workslip.Application.Jobs;
+using Workslip.Infrastructure.Models;
 
-namespace Workslip.Data;
+namespace Workslip.Infrastructure.Repositories;
 
 public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory) : IJobRepository
 {

@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# .NET build artifacts
+bin/
+obj/
+Debug/
+Release/
+*.user
+*.suo
+*.pdb
+*.dll
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+dist/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+__azurite_db*
+.local/
+__pycache__/
+*.pyc
+.venv/
+BE/DocumentApi/UploadedFiles/
+
+# Windows reserved names
+nul
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Deployment
+.vercel
+.turbo

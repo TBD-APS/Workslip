@@ -1,8 +1,8 @@
-using Workslip.Data;
-using Workslip.Documents;
-using Workslip.Migrations;
-using Workslip.Jobs;
 using Microsoft.Extensions.DependencyInjection;
+using Workslip.Application.Documents;
+using Workslip.Application.Jobs;
+using Workslip.Infrastructure.Migrations;
+using Workslip.Infrastructure.Repositories;
 
 namespace Workslip.Infrastructure;
 

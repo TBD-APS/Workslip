@@ -1,4 +1,4 @@
-namespace Workslip.Documents;
+namespace Workslip.Application.Documents;
 
 public sealed record StoredDocumentFile(
     string StorageAccountName,

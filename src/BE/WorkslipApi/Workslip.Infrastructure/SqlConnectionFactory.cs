@@ -2,7 +2,7 @@ using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 
-namespace Workslip.Data;
+namespace Workslip.Infrastructure;
 
 public interface ISqlConnectionFactory
 {
