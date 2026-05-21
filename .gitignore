@@ -1,57 +1,83 @@
-# Dependencies
-node_modules/
-
-# Next.js build output
-.next/
-out/
-
-# .NET build artifacts
-bin/
-obj/
-Debug/
-Release/
-*.user
-*.suo
-*.pdb
-*.dll
-
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
+# Build output / generated artifacts
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
 dist/
+build/
+out/
+.next/
+.turbo/
+.vercel/
+*.tsbuildinfo
+*.dll
+*.pdb
+*.exe
+*.cache
 
-# Environment & secrets
+# Dependencies / package caches
+node_modules/
+packages/
+.nuget/
+
+# Local environment / secrets
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.sample
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+secrets.json
 
-# IDE
+# IDE / editor local state
 .vs/
 .vscode/
 .idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
 *.swp
 *.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Temp
-__azurite_db*
-.local/
-__pycache__/
-*.pyc
-.venv/
-BE/DocumentApi/UploadedFiles/
-
-# Windows reserved names
-nul
 
 # Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
+pnpm-debug.log*
 
-# Deployment
-.vercel
-.turbo
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local runtime/temp data
+__azurite_db*
+.local/
+__pycache__/
+*.py[cod]
+.venv/
+UploadedFiles/
+
+# .NET build/test artifacts anywhere in repo
+**/[Bb]in/
+**/[Oo]bj/
+**/[Dd]ebug/
+**/[Rr]elease/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Tool/generated local state
+.hermes-context
+**/skills-lock.json
+
+# Obsidian local/plugin state (notes stay tracked)
+Docs/.obsidian/plugins/
+Docs/.obsidian/workspace*.json
+Docs/.obsidian/cache/
+
+# Windows reserved names
+nul
