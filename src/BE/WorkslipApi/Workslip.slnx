@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Workslip.Api.csproj" />
+  <Project Path="Workslip.Application/Workslip.Application.csproj" />
+  <Project Path="Workslip.Domain/Workslip.Domain.csproj" />
+  <Project Path="Workslip.Infrastructure/Workslip.Infrastructure.csproj" />
+</Solution>

@@ -26,7 +26,7 @@ MVP'en er jobs-baseret:
 
 ```text
 WorkslipApi/
-  Workslip.sln
+  Workslip.slnx
   Workslip.Api.csproj
   Program.cs
   Endpoints/
@@ -78,7 +78,7 @@ Use these names consistently:
 
 | Layer | Name |
 |---|---|
-| Solution | `Workslip.sln` |
+| Solution | `Workslip.slnx` |
 | API project | `Workslip.Api` |
 | Domain project | `Workslip.Domain` |
 | Application project | `Workslip.Application` |
