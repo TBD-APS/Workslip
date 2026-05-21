@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.7" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.14.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Migrations\*.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="Workslip.Application\Workslip.Application.csproj" />
+    <ProjectReference Include="Workslip.Domain\Workslip.Domain.csproj" />
+    <ProjectReference Include="Workslip.Infrastructure\Workslip.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Workslip.Application\**\*.cs" />
+    <Compile Remove="Workslip.Domain\**\*.cs" />
+    <Compile Remove="Workslip.Infrastructure\**\*.cs" />
+    <Content Remove="Workslip.Application\**\*" />
+    <Content Remove="Workslip.Domain\**\*" />
+    <Content Remove="Workslip.Infrastructure\**\*" />
+    <None Remove="Workslip.Application\**\*" />
+    <None Remove="Workslip.Domain\**\*" />
+    <None Remove="Workslip.Infrastructure\**\*" />
+  </ItemGroup>
+
+</Project>

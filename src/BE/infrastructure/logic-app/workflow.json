@@ -1,0 +1,123 @@
+{
+  "metadata": {
+    "notes": {},
+    "agentType": "autonomous"
+  },
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "triggers": {
+    "When_a_blob_is_added_or_modified_(properties_only)_(V2)": {
+      "recurrence": {
+        "interval": 3,
+        "frequency": "Minute"
+      },
+      "evaluatedRecurrence": {
+        "interval": 3,
+        "frequency": "Minute"
+      },
+      "splitOn": "@triggerBody()",
+      "metadata": {
+        "JTJmdXBsb2Fkcw==": "/uploads"
+      },
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['azureblob']['connectionId']"
+          }
+        },
+        "method": "get",
+        "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('__STORAGE_ACCOUNT_NAME__'))}/triggers/batch/onupdatedfile",
+        "queries": {
+          "folderId": "JTJmdXBsb2Fkcw==",
+          "maxFileCount": 10,
+          "checkBothCreatedAndModifiedDateTime": false
+        }
+      }
+    }
+  },
+  "actions": {
+    "Get_blob_content_(V2)": {
+      "runAfter": {},
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['azureblob']['connectionId']"
+          }
+        },
+        "method": "get",
+        "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('__STORAGE_ACCOUNT_NAME__'))}/files/@{encodeURIComponent(encodeURIComponent(triggerBody()?['Name']))}/content",
+        "queries": {
+          "inferContentType": true
+        }
+      }
+    },
+    "Analyze_Document_for_Prebuilt_or_Custom_models_(v4.x_API)": {
+      "runAfter": {
+        "Get_blob_content_(V2)": [
+          "Succeeded"
+        ]
+      },
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['formrecognizer']['connectionId']"
+          }
+        },
+        "method": "post",
+        "body": "@body('Get_blob_content_(V2)')",
+        "path": "/connectorinternaldocumentintelligence/documentModels/@{encodeURIComponent('sexymodel')}:analyze",
+        "queries": {
+          "api-version": "2024-11-30"
+        }
+      }
+    },
+    "Agent": {
+      "runAfter": {
+        "Compose": [
+          "Succeeded"
+        ]
+      },
+      "limit": {
+        "count": 100
+      },
+      "tools": {},
+      "type": "Agent",
+      "inputs": {
+        "parameters": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "Du er en ekspert i at analysere kontekst ud fra en rapport. Så der hvor der er stavefejl, dem retter du. \n\n@{outputs('Compose')}\n"
+            }
+          ],
+          "agentModelType": "AzureOpenAI",
+          "agentModelSettings": {
+            "agentHistoryReductionSettings": {
+              "agentHistoryReductionType": "maximumTokenCountReduction",
+              "maximumTokenCount": 128000
+            }
+          }
+        }
+      }
+    },
+    "Compose": {
+      "runAfter": {
+        "Analyze_Document_for_Prebuilt_or_Custom_models_(v4.x_API)": [
+          "Succeeded"
+        ]
+      },
+      "type": "Compose",
+      "inputs": "@body('Analyze_Document_for_Prebuilt_or_Custom_models_(v4.x_API)')?['analyzeResult']?['pages']"
+    }
+  },
+  "outputs": {},
+  "parameters": {
+    "$connections": {
+      "type": "Object",
+      "defaultValue": {}
+    }
+  }
+}

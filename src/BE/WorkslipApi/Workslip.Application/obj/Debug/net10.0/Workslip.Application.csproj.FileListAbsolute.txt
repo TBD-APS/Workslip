@@ -1,0 +1,15 @@
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\bin\Debug\net10.0\Workslip.Application.deps.json
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\bin\Debug\net10.0\Workslip.Application.dll
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\bin\Debug\net10.0\Workslip.Application.pdb
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\bin\Debug\net10.0\Workslip.Domain.dll
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\bin\Debug\net10.0\Workslip.Domain.pdb
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\Workslip.Application.csproj.AssemblyReference.cache
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\Workslip.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\Workslip.Application.AssemblyInfoInputs.cache
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\Workslip.Application.AssemblyInfo.cs
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\Workslip.Application.csproj.CoreCompileInputs.cache
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\Workslip.CB276C73.Up2Date
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\Workslip.Application.dll
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\refint\Workslip.Application.dll
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\Workslip.Application.pdb
+C:\Workslip\src\BE\WorkslipApi\Workslip.Application\obj\Debug\net10.0\ref\Workslip.Application.dll
