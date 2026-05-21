@@ -1,11 +1,15 @@
 using Dapper;
 using Workslip.Infrastructure.Models;
+using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Schema;
 
-public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory)
+public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory, IDatabaseRetryPolicy retryPolicy)
 {
-    public async Task ApplyAsync(CancellationToken cancellationToken)
+    public Task ApplyAsync(CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("schema.apply", ApplyCoreAsync, cancellationToken);
+
+    private async Task ApplyCoreAsync(CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
 

@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure;
 
@@ -9,16 +10,25 @@ public interface ISqlConnectionFactory
     Task<IDbConnection> OpenConnectionAsync(CancellationToken cancellationToken);
 }
 
-public sealed class SqlConnectionFactory(IConfiguration configuration) : ISqlConnectionFactory
+public sealed class SqlConnectionFactory(IConfiguration configuration, IDatabaseRetryPolicy retryPolicy) : ISqlConnectionFactory
 {
-    public async Task<IDbConnection> OpenConnectionAsync(CancellationToken cancellationToken)
-    {
-        var connectionString = ResolveConnectionString(configuration);
+    public Task<IDbConnection> OpenConnectionAsync(CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("sql.open_connection", async token =>
+        {
+            var connectionString = ResolveConnectionString(configuration);
+            var connection = new SqlConnection(connectionString);
 
-        var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
-        return connection;
-    }
+            try
+            {
+                await connection.OpenAsync(token);
+                return (IDbConnection)connection;
+            }
+            catch
+            {
+                await connection.DisposeAsync();
+                throw;
+            }
+        }, cancellationToken);
 
     public static string ResolveConnectionString(IConfiguration configuration)
     {

@@ -46,16 +46,12 @@ public static class DocumentFilePurposes
 {
     public const string OriginalUpload = "OriginalUpload";
     public const string GeneratedPdf = "GeneratedPdf";
-    public const string OcrJson = "OcrJson";
-    public const string AiJson = "AiJson";
     public const string Attachment = "Attachment";
 
     public static readonly ISet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         OriginalUpload,
         GeneratedPdf,
-        OcrJson,
-        AiJson,
         Attachment,
     };
 }

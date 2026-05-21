@@ -2,12 +2,16 @@ using Dapper;
 using Microsoft.Data.SqlClient;
 using Workslip.Application.Organizations;
 using Workslip.Infrastructure.Models;
+using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Repositories;
 
-public sealed class DapperOrganizationRepository(ISqlConnectionFactory connectionFactory) : IOrganizationRepository
+public sealed class DapperOrganizationRepository(ISqlConnectionFactory connectionFactory, IDatabaseRetryPolicy retryPolicy) : IOrganizationRepository
 {
-    public async Task<bool> CvrExistsAsync(string normalizedCvr, CancellationToken cancellationToken)
+    public Task<bool> CvrExistsAsync(string normalizedCvr, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("organizations.cvr_exists", token => CvrExistsAsyncCoreAsync(normalizedCvr, token), cancellationToken);
+
+    private async Task<bool> CvrExistsAsyncCoreAsync(string normalizedCvr, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var count = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
@@ -18,7 +22,10 @@ public sealed class DapperOrganizationRepository(ISqlConnectionFactory connectio
         return count > 0;
     }
 
-    public async Task<OrganizationOnboardingResponse?> CreateAsync(CreateOrganizationRequest request, string normalizedCvr, CancellationToken cancellationToken)
+    public Task<OrganizationOnboardingResponse?> CreateAsync(CreateOrganizationRequest request, string normalizedCvr, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("organizations.create", token => CreateAsyncCoreAsync(request, normalizedCvr, token), cancellationToken);
+
+    private async Task<OrganizationOnboardingResponse?> CreateAsyncCoreAsync(CreateOrganizationRequest request, string normalizedCvr, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         using var transaction = connection.BeginTransaction();
@@ -77,7 +84,10 @@ public sealed class DapperOrganizationRepository(ISqlConnectionFactory connectio
             new OrganizationUserResponse(userId, organizationId, request.AdminDisplayName.Trim(), NullIfWhiteSpace(request.AdminEmail), NullIfWhiteSpace(request.AdminPhone), "Admin", now, now));
     }
 
-    public async Task<CurrentUserResponse?> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken)
+    public Task<CurrentUserResponse?> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("organizations.current_user", token => GetCurrentUserAsyncCoreAsync(userId, token), cancellationToken);
+
+    private async Task<CurrentUserResponse?> GetCurrentUserAsyncCoreAsync(Guid userId, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var row = await connection.QuerySingleOrDefaultAsync<CurrentUserRow>(new CommandDefinition(

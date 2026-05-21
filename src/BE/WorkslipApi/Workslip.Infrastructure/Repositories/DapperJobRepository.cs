@@ -5,14 +5,18 @@ using Dapper;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
 using Workslip.Infrastructure.Models;
+using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Repositories;
 
-public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory) : IJobRepository
+public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory, IDatabaseRetryPolicy retryPolicy) : IJobRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<JobReportResponse> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken)
+    public Task<JobReportResponse> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.create", token => CreateAsyncCoreAsync(request, token), cancellationToken);
+
+    private async Task<JobReportResponse> CreateAsyncCoreAsync(CreateJobRequest request, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         using var transaction = connection.BeginTransaction();
@@ -67,7 +71,10 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
         return (await GetAsync(reportId, cancellationToken))!;
     }
 
-    public async Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.list", token => ListAsyncCoreAsync(query, token), cancellationToken);
+
+    private async Task<IReadOnlyList<JobListItemResponse>> ListAsyncCoreAsync(JobQuery query, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var rows = await connection.QueryAsync<JobReportRow>(new CommandDefinition(
@@ -106,7 +113,10 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
             row.SubmittedAt)).ToArray();
     }
 
-    public async Task<JobReportResponse?> GetAsync(Guid id, CancellationToken cancellationToken)
+    public Task<JobReportResponse?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.get", token => GetAsyncCoreAsync(id, token), cancellationToken);
+
+    private async Task<JobReportResponse?> GetAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var row = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
@@ -132,7 +142,10 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
         return ToResponse(row, subcategories, checks);
     }
 
-    public async Task<JobReportResponse?> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken)
+    public Task<JobReportResponse?> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.update", token => UpdateAsyncCoreAsync(id, request, token), cancellationToken);
+
+    private async Task<JobReportResponse?> UpdateAsyncCoreAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         using var transaction = connection.BeginTransaction();
@@ -211,7 +224,10 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
         return await GetAsync(id, cancellationToken);
     }
 
-    public async Task<JobReportResponse?> TransitionAsync(Guid id, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
+    public Task<JobReportResponse?> TransitionAsync(Guid id, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.transition", token => TransitionAsyncCoreAsync(id, nextStatus, actorId, token), cancellationToken);
+
+    private async Task<JobReportResponse?> TransitionAsyncCoreAsync(Guid id, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         using var transaction = connection.BeginTransaction();
