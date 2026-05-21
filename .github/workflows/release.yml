@@ -1,0 +1,19 @@
+name: Linear Release
+
+on:
+  push:
+    branches: [main] # Skift til master eller prod hvis nødvendigt
+
+jobs:
+  linear-release:
+    runs-on: ubuntu-latest
+    steps:
+      # VIGTIGT: fetch-depth: 0 er påkrævet for at actionen kan læse hele commit-historikken
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+
+      - name: Run Linear Release Sync
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
