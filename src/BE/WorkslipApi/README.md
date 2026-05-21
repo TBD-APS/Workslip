@@ -100,6 +100,12 @@ Connection string lookup currently supports:
 
 Local development can use SQL Server LocalDB or another SQL Server-compatible connection string.
 
+Logging uses Serilog:
+
+- Console logging is configured through `Serilog:WriteTo`.
+- Request logging is enabled through `UseSerilogRequestLogging()`.
+- Application Insights logging uses the deployed `APPLICATIONINSIGHTS_CONNECTION_STRING` setting.
+
 ## Migrations
 
 SQL migrations live in:

@@ -16,6 +16,7 @@ out/
 *.exe
 *.cache
 
+*tmp*
 # Dependencies / package caches
 node_modules/
 packages/
