@@ -1,4 +1,5 @@
 using Workslip.Api.Endpoints;
+using Workslip.Api.Middleware;
 using Workslip.Infrastructure;
 using Workslip.Infrastructure.Schema;
 using Scalar.AspNetCore;
@@ -20,6 +21,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
+
+app.UseMiddleware<GlobalExceptionMiddleware>();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 //app.MapDocumentEndpoints();
