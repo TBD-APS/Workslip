@@ -2,8 +2,8 @@ using System.Data;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Dapper;
-using Workslip.Domain;
 using Workslip.Application.Jobs;
+using Workslip.Domain;
 using Workslip.Infrastructure.Models;
 
 namespace Workslip.Infrastructure.Repositories;
@@ -23,12 +23,12 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
         await connection.ExecuteAsync(new CommandDefinition(
             """
             insert into dbo.JobReports (
-                Id, OrganizationId, ReportNumber, Status, CustomerName, CustomerAddress, ContactPerson, Phone,
+                Id, OrganizationId, CustomerId, ReportNumber, Status, CustomerName, CustomerAddress, CustomerEmail, ContactPerson, Phone,
                 ReportDate, TaskDescription, CustomerObservations, InstallationTypesJson, WorkKind, CustomWorkKind,
                 Remarks, ClosureFlagsJson, PayloadJson, CreatedAt, UpdatedAt, SubmittedAt
             )
             values (
-                @Id, @OrganizationId, @ReportNumber, @Status, @CustomerName, @CustomerAddress, @ContactPerson, @Phone,
+                @Id, @OrganizationId, @CustomerId, @ReportNumber, @Status, @CustomerName, @CustomerAddress, @CustomerEmail, @ContactPerson, @Phone,
                 @ReportDate, @TaskDescription, @CustomerObservations, @InstallationTypesJson, @WorkKind, @CustomWorkKind,
                 @Remarks, @ClosureFlagsJson, @PayloadJson, @CreatedAt, @UpdatedAt, null
             );
@@ -37,13 +37,15 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
             {
                 Id = reportId,
                 request.OrganizationId,
+                request.CustomerId,
                 request.ReportNumber,
                 Status = JobStatus.Draft.ToString(),
                 request.CustomerName,
                 request.CustomerAddress,
+                request.CustomerEmail,
                 request.ContactPerson,
                 request.Phone,
-                request.ReportDate,
+                ReportDate = ToDateTime(request.ReportDate),
                 request.TaskDescription,
                 request.CustomerObservations,
                 InstallationTypesJson = ToJson(request.InstallationTypes),
@@ -58,7 +60,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
             transaction,
             cancellationToken: cancellationToken));
 
-        await UpsertControlChecksAsync(connection, transaction, reportId, request.ControlChecks, now, cancellationToken);
+        await ReplaceControlCategoriesAsync(connection, transaction, reportId, request.ControlCategories, now, cancellationToken);
         await InsertEventAsync(connection, transaction, reportId, null, "created", null, ToJsonNode(new { reportId }), now, cancellationToken);
 
         transaction.Commit();
@@ -89,10 +91,12 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
         return rows.Select(row => new JobListItemResponse(
             row.Id,
             row.OrganizationId,
+            row.CustomerId,
             row.ReportNumber,
             ParseStatus(row.Status),
             row.CustomerName,
             row.CustomerAddress,
+            row.CustomerEmail,
             ToDateOnly(row.ReportDate),
             FromJsonList(row.InstallationTypesJson),
             row.WorkKind,
@@ -115,12 +119,17 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
             return null;
         }
 
-        var checks = await connection.QueryAsync<JobControlCheckRow>(new CommandDefinition(
-            "select * from dbo.JobControlChecks where ReportId = @Id order by StageId, ColumnId, ItemId;",
+        var subcategories = await connection.QueryAsync<JobControlSubcategoryRow>(new CommandDefinition(
+            "select * from dbo.JobControlSubcategories where ReportId = @Id order by CategoryId, SubcategoryId;",
             new { Id = id },
             cancellationToken: cancellationToken));
 
-        return ToResponse(row, checks);
+        var checks = await connection.QueryAsync<JobControlCheckRow>(new CommandDefinition(
+            "select * from dbo.JobControlChecks where ReportId = @Id order by CategoryId, SubcategoryId, ItemId;",
+            new { Id = id },
+            cancellationToken: cancellationToken));
+
+        return ToResponse(row, subcategories, checks);
     }
 
     public async Task<JobReportResponse?> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken)
@@ -143,9 +152,11 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
         await connection.ExecuteAsync(new CommandDefinition(
             """
             update dbo.JobReports
-            set ReportNumber = coalesce(@ReportNumber, ReportNumber),
+            set CustomerId = @CustomerId,
+                ReportNumber = coalesce(@ReportNumber, ReportNumber),
                 CustomerName = coalesce(@CustomerName, CustomerName),
                 CustomerAddress = coalesce(@CustomerAddress, CustomerAddress),
+                CustomerEmail = @CustomerEmail,
                 ContactPerson = @ContactPerson,
                 Phone = @Phone,
                 ReportDate = coalesce(@ReportDate, ReportDate),
@@ -163,12 +174,14 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
             new
             {
                 Id = id,
+                request.CustomerId,
                 request.ReportNumber,
                 request.CustomerName,
                 request.CustomerAddress,
+                request.CustomerEmail,
                 request.ContactPerson,
                 request.Phone,
-                request.ReportDate,
+                ReportDate = ToDateTime(request.ReportDate),
                 request.TaskDescription,
                 request.CustomerObservations,
                 InstallationTypesJson = request.InstallationTypes is null ? null : ToJson(request.InstallationTypes),
@@ -182,14 +195,14 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
             transaction,
             cancellationToken: cancellationToken));
 
-        if (request.ControlChecks is not null)
+        if (request.ControlCategories is not null)
         {
             await connection.ExecuteAsync(new CommandDefinition(
-                "delete from dbo.JobControlChecks where ReportId = @Id;",
+                "delete from dbo.JobControlSubcategories where ReportId = @Id;",
                 new { Id = id },
                 transaction,
                 cancellationToken: cancellationToken));
-            await UpsertControlChecksAsync(connection, transaction, id, request.ControlChecks, now, cancellationToken);
+            await ReplaceControlCategoriesAsync(connection, transaction, id, request.ControlCategories, now, cancellationToken);
         }
 
         await InsertEventAsync(connection, transaction, id, null, "updated", ToJsonNode(existing), ToJsonNode(request), now, cancellationToken);
@@ -239,35 +252,62 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
         return await GetAsync(id, cancellationToken);
     }
 
-    private static async Task UpsertControlChecksAsync(
+    private static async Task ReplaceControlCategoriesAsync(
         IDbConnection connection,
         IDbTransaction transaction,
         Guid reportId,
-        IReadOnlyList<ControlCheckRequest> checks,
+        IReadOnlyList<ControlCategoryRequest> categories,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        foreach (var check in checks)
+        foreach (var category in categories)
         {
-            await connection.ExecuteAsync(new CommandDefinition(
-                """
-                insert into dbo.JobControlChecks (Id, ReportId, StageId, ColumnId, ItemId, Checked, Note, CreatedAt, UpdatedAt)
-                values (@Id, @ReportId, @StageId, @ColumnId, @ItemId, @Checked, @Note, @CreatedAt, @UpdatedAt);
-                """,
-                new
+            foreach (var subcategory in category.Subcategories)
+            {
+                var subcategoryDecisionId = Guid.NewGuid();
+                await connection.ExecuteAsync(new CommandDefinition(
+                    """
+                    insert into dbo.JobControlSubcategories (Id, ReportId, CategoryId, SubcategoryId, IsIrrelevant, Note, CreatedAt, UpdatedAt)
+                    values (@Id, @ReportId, @CategoryId, @SubcategoryId, @IsIrrelevant, @Note, @CreatedAt, @UpdatedAt);
+                    """,
+                    new
+                    {
+                        Id = subcategoryDecisionId,
+                        ReportId = reportId,
+                        category.CategoryId,
+                        subcategory.SubcategoryId,
+                        subcategory.IsIrrelevant,
+                        subcategory.Note,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    },
+                    transaction,
+                    cancellationToken: cancellationToken));
+
+                foreach (var check in subcategory.ControlChecks)
                 {
-                    Id = Guid.NewGuid(),
-                    ReportId = reportId,
-                    check.StageId,
-                    check.ColumnId,
-                    check.ItemId,
-                    check.Checked,
-                    check.Note,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                },
-                transaction,
-                cancellationToken: cancellationToken));
+                    await connection.ExecuteAsync(new CommandDefinition(
+                        """
+                        insert into dbo.JobControlChecks (Id, ReportId, SubcategoryDecisionId, CategoryId, SubcategoryId, ItemId, Checked, Note, CreatedAt, UpdatedAt)
+                        values (@Id, @ReportId, @SubcategoryDecisionId, @CategoryId, @SubcategoryId, @ItemId, @Checked, @Note, @CreatedAt, @UpdatedAt);
+                        """,
+                        new
+                        {
+                            Id = Guid.NewGuid(),
+                            ReportId = reportId,
+                            SubcategoryDecisionId = subcategoryDecisionId,
+                            category.CategoryId,
+                            subcategory.SubcategoryId,
+                            check.ItemId,
+                            check.Checked,
+                            check.Note,
+                            CreatedAt = now,
+                            UpdatedAt = now
+                        },
+                        transaction,
+                        cancellationToken: cancellationToken));
+                }
+            }
         }
     }
 
@@ -301,14 +341,45 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
             cancellationToken: cancellationToken));
     }
 
-    private static JobReportResponse ToResponse(JobReportRow row, IEnumerable<JobControlCheckRow> checks) =>
-        new(
+    private static JobReportResponse ToResponse(
+        JobReportRow row,
+        IEnumerable<JobControlSubcategoryRow> subcategories,
+        IEnumerable<JobControlCheckRow> checks)
+    {
+        var checksBySubcategory = checks
+            .GroupBy(check => check.SubcategoryDecisionId)
+            .ToDictionary(group => group.Key, group => group.Select(check => new ControlCheckResponse(
+                check.Id,
+                check.ItemId,
+                check.Checked,
+                check.Note,
+                check.CreatedAt,
+                check.UpdatedAt)).ToArray() as IReadOnlyList<ControlCheckResponse>);
+
+        var subcategoryResponses = subcategories.Select(subcategory => new ControlSubcategoryResponse(
+            subcategory.Id,
+            subcategory.CategoryId,
+            subcategory.SubcategoryId,
+            subcategory.IsIrrelevant,
+            subcategory.Note,
+            checksBySubcategory.TryGetValue(subcategory.Id, out var subcategoryChecks) ? subcategoryChecks : [],
+            subcategory.CreatedAt,
+            subcategory.UpdatedAt)).ToArray();
+
+        var categoryResponses = subcategoryResponses
+            .GroupBy(subcategory => subcategory.CategoryId)
+            .Select(group => new ControlCategoryResponse(group.Key, group.ToArray()))
+            .ToArray();
+
+        return new(
             row.Id,
             row.OrganizationId,
+            row.CustomerId,
             row.ReportNumber,
             ParseStatus(row.Status),
             row.CustomerName,
             row.CustomerAddress,
+            row.CustomerEmail,
             row.ContactPerson,
             row.Phone,
             ToDateOnly(row.ReportDate),
@@ -320,20 +391,16 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory)
             row.Remarks,
             FromJsonList(row.ClosureFlagsJson),
             string.IsNullOrWhiteSpace(row.PayloadJson) ? null : JsonNode.Parse(row.PayloadJson) as JsonObject,
-            checks.Select(check => new ControlCheckResponse(
-                check.Id,
-                check.StageId,
-                check.ColumnId,
-                check.ItemId,
-                check.Checked,
-                check.Note,
-                check.CreatedAt,
-                check.UpdatedAt)).ToArray(),
+            categoryResponses,
             row.CreatedAt,
             row.UpdatedAt,
             row.SubmittedAt);
+    }
 
     private static JobStatus ParseStatus(string status) => Enum.Parse<JobStatus>(status, ignoreCase: true);
+
+    private static DateTime? ToDateTime(DateOnly? value) =>
+        value is null ? null : value.Value.ToDateTime(TimeOnly.MinValue);
 
     private static DateOnly? ToDateOnly(DateTime? value) =>
         value is null ? null : DateOnly.FromDateTime(value.Value);

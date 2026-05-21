@@ -17,9 +17,7 @@ public static class JobEndpoints
             var errors = JobRequestValidator.ValidateCreate(request);
             if (errors.Count > 0)
             {
-                return Results.ValidationProblem(errors
-                    .GroupBy(error => error.Field)
-                    .ToDictionary(group => group.Key, group => group.Select(error => error.Message).ToArray()));
+                return Results.ValidationProblem(ToProblem(errors));
             }
 
             var created = await repository.CreateAsync(request, cancellationToken);
@@ -50,6 +48,12 @@ public static class JobEndpoints
             IJobRepository repository,
             CancellationToken cancellationToken) =>
         {
+            var errors = JobRequestValidator.ValidateUpdate(request);
+            if (errors.Count > 0)
+            {
+                return Results.ValidationProblem(ToProblem(errors));
+            }
+
             var updated = await repository.UpdateAsync(id, request, cancellationToken);
             return updated is null ? Results.NotFound() : Results.Ok(updated);
         });
@@ -85,4 +89,8 @@ public static class JobEndpoints
 
         return app;
     }
+
+    private static Dictionary<string, string[]> ToProblem(IEnumerable<JobValidationError> errors) =>
+        errors.GroupBy(error => error.Field)
+            .ToDictionary(group => group.Key, group => group.Select(error => error.Message).ToArray());
 }

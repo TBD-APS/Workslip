@@ -1,14 +1,12 @@
 namespace Workslip.Infrastructure.Models;
 
-public sealed class JobControlCheckRow
+public sealed class JobControlSubcategoryRow
 {
     public Guid Id { get; init; }
     public Guid ReportId { get; init; }
-    public Guid SubcategoryDecisionId { get; init; }
     public string CategoryId { get; init; } = string.Empty;
     public string SubcategoryId { get; init; } = string.Empty;
-    public string ItemId { get; init; } = string.Empty;
-    public bool Checked { get; init; }
+    public bool IsIrrelevant { get; init; }
     public string? Note { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }

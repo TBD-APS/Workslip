@@ -31,6 +31,8 @@ WorkslipApi/
   Program.cs
   Endpoints/
     JobEndpoints.cs
+    OrganizationEndpoints.cs
+    AuthEndpoints.cs
     DocumentEndpoints.cs        # parkeret/future-scope; ikke mappet i Program.cs
   Workslip.Domain/
     Workslip.Domain.csproj
@@ -51,6 +53,14 @@ WorkslipApi/
 ### Health
 
 - `GET /health`
+
+### Organizations
+
+- `POST /api/organizations`
+
+### Auth/current user
+
+- `GET /api/auth/me?userId={userId}`
 
 ### Jobs
 
@@ -100,6 +110,8 @@ The active MVP migration creates the jobs-oriented tables:
 
 - `Organizations`
 - `Users`
+- `Organizations` with unique 8-digit `Cvr`
+- `Users` with organization-scoped roles
 - `JobReports`
 - `JobControlChecks`
 - `JobEvents`

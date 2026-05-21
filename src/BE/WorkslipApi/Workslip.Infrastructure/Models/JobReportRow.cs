@@ -4,10 +4,12 @@ public sealed class JobReportRow
 {
     public Guid Id { get; init; }
     public Guid OrganizationId { get; init; }
+    public Guid? CustomerId { get; init; }
     public string ReportNumber { get; init; } = "";
     public string Status { get; init; } = "";
     public string CustomerName { get; init; } = "";
     public string CustomerAddress { get; init; } = "";
+    public string? CustomerEmail { get; init; }
     public string? ContactPerson { get; init; }
     public string? Phone { get; init; }
     public DateTime? ReportDate { get; init; }
