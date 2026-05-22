@@ -4,6 +4,7 @@ using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 using Workslip.Api.Endpoints;
 using Workslip.Api.Middleware;
 using Workslip.Infrastructure;
+using Workslip.Infrastructure.Configuration;
 using Workslip.Infrastructure.Schema;
 using Scalar.AspNetCore;
 
@@ -80,9 +81,6 @@ finally
 }
 
 static string? ResolveApplicationInsightsConnectionString(IConfiguration configuration) =>
-    FirstConfigured(
+    ConfiguredValues.FirstConfigured(
         configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"],
         configuration["ApplicationInsights:ConnectionString"]);
-
-static string? FirstConfigured(params string?[] values) =>
-    values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));

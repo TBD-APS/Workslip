@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Workslip.Infrastructure.Configuration;
 using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure;
@@ -32,7 +33,7 @@ public sealed class SqlConnectionFactory(IConfiguration configuration, IDatabase
 
     public static string ResolveConnectionString(IConfiguration configuration)
     {
-        var connectionString = FirstConfigured(
+        var connectionString = ConfiguredValues.FirstConfigured(
             configuration.GetConnectionString("JobDB"),
             configuration["Sql:ConnectionString"]);
 
@@ -41,6 +42,4 @@ public sealed class SqlConnectionFactory(IConfiguration configuration, IDatabase
                 "Missing SQL connection string. Configure ConnectionStrings:JobDB or Sql:ConnectionString.");
     }
 
-    private static string? FirstConfigured(params string?[] values) =>
-        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 }
