@@ -6,11 +6,6 @@ param storageAccountName string       = take('st${companyName}${toLower(environm
 param logicAppName string             = 'la-${companyName}-${toLower(environment)}'
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
 param appConfigurationName string      = take('appcs-${companyName}-${toLower(environment)}', 50)
-param apiAppServiceName string         = 'app-${companyName}-${toLower(environment)}'
-param apiAppServicePlanName string     = 'plan-api-${companyName}-${toLower(environment)}'
-param apiAppServicePlanSkuName string  = 'B1'
-param apiAppServicePlanSkuTier string  = 'Basic'
-param apiRuntimeStack string           = 'DOTNETCORE|10.0'
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
@@ -267,56 +262,6 @@ resource sqlConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-02-01
 
 
 // ──────────────────────────────────────────────────────────────────────────────
-// API App Service
-// Hosts Workslip.Api with user-assigned managed identity. The shared identity has
-// Key Vault Secrets User and App Configuration Data Reader access above.
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource apiHostingPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
-  name: apiAppServicePlanName
-  location: location
-  kind: 'linux'
-  sku: {
-    name: apiAppServicePlanSkuName
-    tier: apiAppServicePlanSkuTier
-    size: apiAppServicePlanSkuName
-    capacity: 1
-  }
-  tags: tags
-  properties: {
-    reserved: true
-  }
-}
-
-resource apiAppService 'Microsoft.Web/sites@2023-01-01' = {
-  name: apiAppServiceName
-  location: location
-  kind: 'app,linux'
-  tags: tags
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
-  }
-  properties: {
-    serverFarmId: apiHostingPlan.id
-    httpsOnly: true
-    siteConfig: {
-      linuxFxVersion: apiRuntimeStack
-      alwaysOn: true
-      minTlsVersion: '1.2'
-      ftpsState: 'Disabled'
-      appSettings: [
-        { name: 'ASPNETCORE_ENVIRONMENT',             value: environment == 'prod' ? 'Production' : 'Staging' }
-        { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
-        { name: 'AZURE_CLIENT_ID',                    value: identity.properties.clientId }
-        { name: 'AZURE_APP_CONFIG_ENDPOINT',          value: appConfiguration.properties.endpoint }
-        { name: 'KEY_VAULT_URL',                      value: keyVault.properties.vaultUri }
-      ]
-    }
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // Function App
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -456,6 +401,4 @@ output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.Connecti
 output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
 output DOCUMENT_INTELLIGENCE_ENDPOINT string   = documentIntelligence.properties.endpoint
 output DOCUMENT_INTELLIGENCE_NAME string       = documentIntelligenceName
-output API_APP_SERVICE_NAME string              = apiAppService.name
-output API_APP_SERVICE_DEFAULT_HOSTNAME string  = apiAppService.properties.defaultHostName
 output AZURE_APP_CONFIG_ENDPOINT string         = appConfiguration.properties.endpoint

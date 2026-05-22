@@ -115,7 +115,7 @@ Azure deployments can load centralized configuration from Azure App Configuratio
 - `AZURE_APP_CONFIG_ENDPOINT`
 - `AzureAppConfiguration:Endpoint`
 
-The API uses `DefaultAzureCredential`. Azure App Service sets `AZURE_CLIENT_ID` for the user-assigned managed identity; local development can use developer credentials instead. Key Vault references in App Configuration are resolved with the same credential, so secrets stay out of source and App Service settings.
+The API uses `DefaultAzureCredential`. Deployed hosts can set `AZURE_CLIENT_ID` for the user-assigned managed identity; local development can use developer credentials instead. Key Vault references in App Configuration are resolved with the same credential, so secrets stay out of source and host settings.
 
 Logging uses Serilog:
 
