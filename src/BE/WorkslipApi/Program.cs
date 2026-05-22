@@ -1,4 +1,5 @@
 using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.Extensions.Caching.Hybrid;
 using Serilog;
 using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 using Workslip.Application;
@@ -36,6 +37,7 @@ try
         }
     });
     builder.Services.AddOpenApi();
+    builder.Services.AddHybridCache();
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
 
@@ -69,7 +71,11 @@ try
     });
     app.UseMiddleware<GlobalExceptionMiddleware>();
 
-    app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+    app.MapGet("/health", (HttpContext httpContext) =>
+    {
+        HttpCacheHeaders.SetPublicHealthCache(httpContext);
+        return Results.Ok(new { status = "ok" });
+    });
     app.MapOrganizationEndpoints();
     app.MapAuthEndpoints();
     app.MapJobEndpoints();

@@ -8,8 +8,9 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth").WithTags("auth");
 
-        group.MapGet("/me", async (Guid userId, IAuthService service, CancellationToken cancellationToken) =>
+        group.MapGet("/me", async (Guid userId, HttpContext httpContext, IAuthService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.GetCurrentUserAsync(userId, cancellationToken);
             return result.Status switch
             {
