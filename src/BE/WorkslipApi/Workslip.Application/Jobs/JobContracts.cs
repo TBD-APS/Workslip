@@ -10,12 +10,10 @@ public sealed record ControlCheckRequest(
 
 public sealed record ControlSubcategoryRequest(
     string SubcategoryId,
-    bool IsIrrelevant,
-    string? Note,
     IReadOnlyList<ControlCheckRequest> ControlChecks);
 
-public sealed record ControlCategoryRequest(
-    string CategoryId,
+public sealed record ControlInstallationTypeRequest(
+    string InstallationTypeId,
     IReadOnlyList<ControlSubcategoryRequest> Subcategories);
 
 public sealed record ControlCheckResponse(
@@ -28,16 +26,14 @@ public sealed record ControlCheckResponse(
 
 public sealed record ControlSubcategoryResponse(
     Guid Id,
-    string CategoryId,
+    string InstallationTypeId,
     string SubcategoryId,
-    bool IsIrrelevant,
-    string? Note,
     IReadOnlyList<ControlCheckResponse> ControlChecks,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
-public sealed record ControlCategoryResponse(
-    string CategoryId,
+public sealed record ControlInstallationTypeResponse(
+    string InstallationTypeId,
     IReadOnlyList<ControlSubcategoryResponse> Subcategories);
 
 public sealed record CreateJobRequest(
@@ -52,13 +48,14 @@ public sealed record CreateJobRequest(
     DateOnly? ReportDate,
     string TaskDescription,
     string? CustomerObservations,
+    string? TechnicalObservations,
     IReadOnlyList<string> InstallationTypes,
     string WorkKind,
     string? CustomWorkKind,
     string? Remarks,
     IReadOnlyList<string> ClosureFlags,
     JsonObject? Payload,
-    IReadOnlyList<ControlCategoryRequest> ControlCategories);
+    IReadOnlyList<ControlInstallationTypeRequest> ControlInstallationTypes);
 
 public sealed record UpdateJobRequest(
     Guid? CustomerId,
@@ -71,13 +68,14 @@ public sealed record UpdateJobRequest(
     DateOnly? ReportDate,
     string? TaskDescription,
     string? CustomerObservations,
+    string? TechnicalObservations,
     IReadOnlyList<string>? InstallationTypes,
     string? WorkKind,
     string? CustomWorkKind,
     string? Remarks,
     IReadOnlyList<string>? ClosureFlags,
     JsonObject? Payload,
-    IReadOnlyList<ControlCategoryRequest>? ControlCategories);
+    IReadOnlyList<ControlInstallationTypeRequest>? ControlInstallationTypes);
 
 public sealed record JobListItemResponse(
     Guid Id,
@@ -110,13 +108,14 @@ public sealed record JobReportResponse(
     DateOnly? ReportDate,
     string TaskDescription,
     string? CustomerObservations,
+    string? TechnicalObservations,
     IReadOnlyList<string> InstallationTypes,
     string WorkKind,
     string? CustomWorkKind,
     string? Remarks,
     IReadOnlyList<string> ClosureFlags,
     JsonObject? Payload,
-    IReadOnlyList<ControlCategoryResponse> ControlCategories,
+    IReadOnlyList<ControlInstallationTypeResponse> ControlInstallationTypes,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt);

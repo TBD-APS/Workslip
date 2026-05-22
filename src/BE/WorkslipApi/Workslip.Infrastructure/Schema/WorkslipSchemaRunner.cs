@@ -1,4 +1,5 @@
 using Dapper;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Workslip.Infrastructure.Models;
 using Workslip.Infrastructure.Resilience;
@@ -12,6 +13,8 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
 
     private async Task ApplyCoreAsync(CancellationToken cancellationToken)
     {
+        await EnsureLocalDatabaseExistsAsync(cancellationToken);
+
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
 
         var expectedTableNames = WorkslipDatabaseModel.Tables.Select(table => table.Name).ToArray();
@@ -44,8 +47,102 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
                 cancellationToken: cancellationToken));
         }
 
+        await ApplySchemaUpgradesAsync(connection, cancellationToken);
         await ValidateColumnsAsync(connection, cancellationToken);
         await SeedJobTaxonomyAsync(connection, cancellationToken);
+    }
+
+    private async Task EnsureLocalDatabaseExistsAsync(CancellationToken cancellationToken)
+    {
+        var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
+        var builder = new SqlConnectionStringBuilder(connectionString);
+
+        if (string.IsNullOrWhiteSpace(builder.InitialCatalog)
+            || !builder.DataSource.Contains("(localdb)", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var databaseName = builder.InitialCatalog;
+        builder.InitialCatalog = "master";
+
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var databaseExists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            "select case when db_id(@DatabaseName) is null then 0 else 1 end;",
+            new { DatabaseName = databaseName },
+            cancellationToken: cancellationToken));
+
+        if (databaseExists == 1)
+        {
+            return;
+        }
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            $"create database {QuoteSqlIdentifier(databaseName)};",
+            cancellationToken: cancellationToken));
+    }
+
+    private static string QuoteSqlIdentifier(string value) =>
+        $"[{value.Replace("]", "]]", StringComparison.Ordinal)}]";
+
+    private static async Task ApplySchemaUpgradesAsync(
+        System.Data.IDbConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            if object_id('dbo.JobReports', 'U') is not null
+               and col_length('dbo.JobReports', 'TechnicalObservations') is null
+            begin
+                alter table dbo.JobReports add TechnicalObservations nvarchar(max) null;
+            end;
+            """,
+            cancellationToken: cancellationToken));
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            if object_id('dbo.JobControlChecks', 'U') is not null
+               and object_id('dbo.FK_JobControlChecks_JobControlSubcategories', 'F') is not null
+            begin
+                alter table dbo.JobControlChecks drop constraint FK_JobControlChecks_JobControlSubcategories;
+            end;
+            """,
+            cancellationToken: cancellationToken));
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            if object_id('dbo.JobControlChecks', 'U') is not null
+               and col_length('dbo.JobControlChecks', 'CategoryId') is not null
+            begin
+                declare @constraintName sysname;
+
+                select @constraintName = constraints.name
+                from sys.default_constraints constraints
+                inner join sys.columns columns on columns.default_object_id = constraints.object_id
+                where constraints.parent_object_id = object_id('dbo.JobControlChecks')
+                  and columns.name = 'CategoryId';
+
+                if @constraintName is not null
+                begin
+                    declare @dropDefaultConstraintSql nvarchar(max) = N'alter table dbo.JobControlChecks drop constraint ' + quotename(@constraintName);
+                    exec sp_executesql @dropDefaultConstraintSql;
+                end;
+
+                alter table dbo.JobControlChecks drop column CategoryId;
+            end;
+            """,
+            cancellationToken: cancellationToken));
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            if object_id('dbo.JobControlSubcategories', 'U') is not null
+            begin
+                drop table dbo.JobControlSubcategories;
+            end;
+            """,
+            cancellationToken: cancellationToken));
     }
 
     private async Task SeedJobTaxonomyAsync(

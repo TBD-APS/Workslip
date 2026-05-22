@@ -33,19 +33,16 @@ WorkslipApi/
     JobEndpoints.cs
     OrganizationEndpoints.cs
     AuthEndpoints.cs
-    DocumentEndpoints.cs        # parkeret/future-scope; ikke mappet i Program.cs
   Workslip.Domain/
     Workslip.Domain.csproj
   Workslip.Application/
     Workslip.Application.csproj
     Jobs/
-    Documents/                  # parkeret/future-scope
   Workslip.Infrastructure/
     Workslip.Infrastructure.csproj
     Repositories/
-    Migrations/
-  Migrations/
-    001_init_job.sql
+    Models/
+    Schema/
 ```
 
 ## Current active endpoints
@@ -119,13 +116,11 @@ Logging uses Serilog:
 - Request logging is enabled through `UseSerilogRequestLogging()`.
 - Application Insights logging uses the deployed `APPLICATIONINSIGHTS_CONNECTION_STRING` setting.
 
-## Migrations
+## Database schema
 
-SQL migrations live in:
+Database schema is generated from code models in `Workslip.Infrastructure/Models` and applied by `Workslip.Infrastructure/Schema/WorkslipSchemaRunner`.
 
-`Migrations/*.sql`
-
-The active MVP migration creates the jobs-oriented tables:
+The active MVP schema creates the jobs-oriented tables:
 
 - `Organizations`
 - `Users`
@@ -134,11 +129,3 @@ The active MVP migration creates the jobs-oriented tables:
 - `JobReports`
 - `JobControlChecks`
 - `JobEvents`
-
-## Future-scope document code
-
-Some generic document classes still exist under `Documents/` and `DocumentEndpoints.cs`, but endpoints are not mapped in `Program.cs`.
-
-Treat that code as parked/future-scope unless the product direction explicitly reopens scanning, OCR, generic document types or PDF/document ingestion.
-
-For now, frontend and backend work should target `/api/jobs` and the jobs data model.

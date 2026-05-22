@@ -68,7 +68,6 @@ try
     app.UseMiddleware<GlobalExceptionMiddleware>();
 
     app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
-    //app.MapDocumentEndpoints();
     app.MapOrganizationEndpoints();
     app.MapAuthEndpoints();
     app.MapJobEndpoints();

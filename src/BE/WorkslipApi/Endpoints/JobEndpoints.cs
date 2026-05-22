@@ -30,14 +30,14 @@ public static class JobEndpoints
 
             var created = await repository.CreateAsync(request, cancellationToken);
             logger.LogInformation(
-                "Job created. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. InstallationTypeCount: {InstallationTypeCount}. ControlCategoryCount: {ControlCategoryCount}.",
+                "Job created. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. InstallationTypeCount: {InstallationTypeCount}. ControlInstallationTypeCount: {ControlInstallationTypeCount}.",
                 created.Id,
                 created.OrganizationId,
                 created.Status,
                 created.ReportNumber,
                 created.WorkKind,
                 created.InstallationTypes.Count,
-                created.ControlCategories.Count);
+                created.ControlInstallationTypes.Count);
 
             return Results.Created($"/api/jobs/{created.Id}", created);
         });
@@ -111,14 +111,14 @@ public static class JobEndpoints
             }
 
             logger.LogInformation(
-                "Job updated. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. InstallationTypeCount: {InstallationTypeCount}. ControlCategoryCount: {ControlCategoryCount}.",
+                "Job updated. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. InstallationTypeCount: {InstallationTypeCount}. ControlInstallationTypeCount: {ControlInstallationTypeCount}.",
                 updated.Id,
                 updated.OrganizationId,
                 updated.Status,
                 updated.ReportNumber,
                 updated.WorkKind,
                 updated.InstallationTypes.Count,
-                updated.ControlCategories.Count);
+                updated.ControlInstallationTypes.Count);
 
             return Results.Ok(updated);
         });

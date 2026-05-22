@@ -15,6 +15,7 @@ public sealed class JobReportRow
     public DateTime? ReportDate { get; init; }
     public string TaskDescription { get; init; } = "";
     public string? CustomerObservations { get; init; }
+    public string? TechnicalObservations { get; init; }
     public string InstallationTypesJson { get; init; } = "[]";
     public string WorkKind { get; init; } = "";
     public string? CustomWorkKind { get; init; }

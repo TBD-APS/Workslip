@@ -14,7 +14,7 @@ public static class JobRequestValidator
         ValidateInstallationTypes(request.InstallationTypes, errors);
         ValidateWorkKind(request.WorkKind, request.CustomWorkKind, taxonomy, errors);
         ValidateClosureFlags(request.ClosureFlags, taxonomy, errors);
-        ValidateControlCategories(request.ControlCategories, errors);
+        ValidateControlInstallationTypes(request.ControlInstallationTypes, request.InstallationTypes, "controlInstallationTypes", errors);
 
         return errors;
     }
@@ -38,9 +38,9 @@ public static class JobRequestValidator
             ValidateClosureFlags(request.ClosureFlags, taxonomy, errors);
         }
 
-        if (request.ControlCategories is not null)
+        if (request.ControlInstallationTypes is not null)
         {
-            ValidateControlCategories(request.ControlCategories, errors);
+            ValidateControlInstallationTypes(request.ControlInstallationTypes, request.InstallationTypes, "controlInstallationTypes", errors);
         }
 
         return errors;
@@ -110,55 +110,59 @@ public static class JobRequestValidator
         }
     }
 
-    private static void ValidateControlCategories(IReadOnlyList<ControlCategoryRequest> categories, List<JobValidationError> errors)
+    private static void ValidateControlInstallationTypes(
+        IReadOnlyList<ControlInstallationTypeRequest> installationTypes,
+        IReadOnlyList<string>? selectedInstallationTypes,
+        string field,
+        List<JobValidationError> errors)
     {
-        if (categories.Count == 0)
+        if (installationTypes.Count == 0)
         {
-            errors.Add(new("controlCategories", "At least one control category is required."));
+            errors.Add(new(field, "At least one control installation type is required."));
             return;
         }
 
-        AddDuplicateErrors(categories.Select(category => category.CategoryId), "controlCategories", errors);
+        AddDuplicateErrors(installationTypes.Select(installationType => installationType.InstallationTypeId), field, errors);
+        var selected = selectedInstallationTypes?.Where(value => !string.IsNullOrWhiteSpace(value)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        for (var categoryIndex = 0; categoryIndex < categories.Count; categoryIndex++)
+        for (var installationTypeIndex = 0; installationTypeIndex < installationTypes.Count; installationTypeIndex++)
         {
-            var category = categories[categoryIndex];
-            var categoryField = $"controlCategories[{categoryIndex}]";
-            Required(category.CategoryId, $"{categoryField}.categoryId", errors);
+            var installationType = installationTypes[installationTypeIndex];
+            var installationTypeField = $"{field}[{installationTypeIndex}]";
+            Required(installationType.InstallationTypeId, $"{installationTypeField}.installationTypeId", errors);
 
-            if (category.Subcategories.Count == 0)
+            if (selected is not null && !string.IsNullOrWhiteSpace(installationType.InstallationTypeId) && !selected.Contains(installationType.InstallationTypeId))
             {
-                errors.Add(new($"{categoryField}.subcategories", "At least one subcategory is required."));
+                errors.Add(new($"{installationTypeField}.installationTypeId", "Control installation type must be selected on the job."));
+            }
+
+            if (installationType.Subcategories.Count == 0)
+            {
+                errors.Add(new($"{installationTypeField}.subcategories", "At least one subcategory is required."));
                 continue;
             }
 
-            AddDuplicateErrors(category.Subcategories.Select(subcategory => subcategory.SubcategoryId), $"{categoryField}.subcategories", errors);
+            AddDuplicateErrors(installationType.Subcategories.Select(subcategory => subcategory.SubcategoryId), $"{installationTypeField}.subcategories", errors);
 
-            for (var subcategoryIndex = 0; subcategoryIndex < category.Subcategories.Count; subcategoryIndex++)
+            for (var subcategoryIndex = 0; subcategoryIndex < installationType.Subcategories.Count; subcategoryIndex++)
             {
-                var subcategory = category.Subcategories[subcategoryIndex];
-                var subcategoryField = $"{categoryField}.subcategories[{subcategoryIndex}]";
+                var subcategory = installationType.Subcategories[subcategoryIndex];
+                var subcategoryField = $"{installationTypeField}.subcategories[{subcategoryIndex}]";
                 Required(subcategory.SubcategoryId, $"{subcategoryField}.subcategoryId", errors);
                 AddDuplicateErrors(subcategory.ControlChecks.Select(check => check.ItemId), $"{subcategoryField}.controlChecks", errors);
 
                 var checkedItems = subcategory.ControlChecks.Where(check => check.Checked).ToArray();
-                if (subcategory.IsIrrelevant)
+                var checkedIrrelevantItems = checkedItems.Where(check => IsIrrelevantItem(check.ItemId)).ToArray();
+                if (checkedIrrelevantItems.Length > 0 && checkedItems.Length > checkedIrrelevantItems.Length)
                 {
-                    if (checkedItems.Length > 0)
-                    {
-                        errors.Add(new(subcategoryField, "An irrelevant subcategory cannot also have a selected control item."));
-                    }
-
-                    continue;
-                }
-
-                if (checkedItems.Length != 1)
-                {
-                    errors.Add(new(subcategoryField, "Select exactly one control item or mark the subcategory irrelevant."));
+                    errors.Add(new(subcategoryField, "Irrelevant cannot be combined with other selected control items."));
                 }
             }
         }
     }
+
+    private static bool IsIrrelevantItem(string itemId) =>
+        itemId.EndsWith("-irrelevant", StringComparison.OrdinalIgnoreCase);
 
     private static void AddDuplicateErrors(IEnumerable<string> values, string field, List<JobValidationError> errors)
     {

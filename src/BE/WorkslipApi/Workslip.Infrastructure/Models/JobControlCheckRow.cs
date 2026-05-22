@@ -5,7 +5,7 @@ public sealed class JobControlCheckRow
     public Guid Id { get; init; }
     public Guid ReportId { get; init; }
     public Guid SubcategoryDecisionId { get; init; }
-    public string CategoryId { get; init; } = string.Empty;
+    public string InstallationTypeId { get; init; } = string.Empty;
     public string SubcategoryId { get; init; } = string.Empty;
     public string ItemId { get; init; } = string.Empty;
     public bool Checked { get; init; }

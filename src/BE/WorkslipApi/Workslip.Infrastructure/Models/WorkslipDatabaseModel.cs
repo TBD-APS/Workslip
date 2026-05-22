@@ -113,6 +113,7 @@ public static class WorkslipDatabaseModel
                 Column.OptionalDate(nameof(JobReportRow.ReportDate)),
                 Column.RequiredString(nameof(JobReportRow.TaskDescription)),
                 Column.OptionalString(nameof(JobReportRow.CustomerObservations)),
+                Column.OptionalString(nameof(JobReportRow.TechnicalObservations)),
                 Column.RequiredString(nameof(JobReportRow.InstallationTypesJson), defaultSql: "'[]'"),
                 Column.RequiredString(nameof(JobReportRow.WorkKind), 80),
                 Column.OptionalString(nameof(JobReportRow.CustomWorkKind), 160),
@@ -137,23 +138,21 @@ public static class WorkslipDatabaseModel
             ]),
 
         new(
-            "JobControlSubcategories",
+            "JobControlSubcategoryDecisions",
             typeof(JobControlSubcategoryRow),
             [
                 Column.RequiredGuid(nameof(JobControlSubcategoryRow.Id)),
                 Column.RequiredGuid(nameof(JobControlSubcategoryRow.ReportId)),
-                Column.RequiredString(nameof(JobControlSubcategoryRow.CategoryId), 100),
+                Column.RequiredString(nameof(JobControlSubcategoryRow.InstallationTypeId), 100),
                 Column.RequiredString(nameof(JobControlSubcategoryRow.SubcategoryId), 100),
-                Column.RequiredBit(nameof(JobControlSubcategoryRow.IsIrrelevant)),
-                Column.OptionalString(nameof(JobControlSubcategoryRow.Note)),
                 Column.RequiredDateTimeOffset(nameof(JobControlSubcategoryRow.CreatedAt)),
                 Column.RequiredDateTimeOffset(nameof(JobControlSubcategoryRow.UpdatedAt))
             ],
             [
-                "constraint FK_JobControlSubcategories_JobReports foreign key (ReportId) references dbo.JobReports(Id) on delete cascade"
+                "constraint FK_JobControlSubcategoryDecisions_JobReports foreign key (ReportId) references dbo.JobReports(Id) on delete cascade"
             ],
             [
-                "create unique index UX_JobControlSubcategories_Report_Category_Subcategory on dbo.JobControlSubcategories (ReportId, CategoryId, SubcategoryId);"
+                "create unique index UX_JobControlSubcategoryDecisions_Report_Installation_Subcategory on dbo.JobControlSubcategoryDecisions (ReportId, InstallationTypeId, SubcategoryId);"
             ]),
 
         new(
@@ -163,7 +162,7 @@ public static class WorkslipDatabaseModel
                 Column.RequiredGuid(nameof(JobControlCheckRow.Id)),
                 Column.RequiredGuid(nameof(JobControlCheckRow.ReportId)),
                 Column.RequiredGuid(nameof(JobControlCheckRow.SubcategoryDecisionId)),
-                Column.RequiredString(nameof(JobControlCheckRow.CategoryId), 100),
+                Column.RequiredString(nameof(JobControlCheckRow.InstallationTypeId), 100),
                 Column.RequiredString(nameof(JobControlCheckRow.SubcategoryId), 100),
                 Column.RequiredString(nameof(JobControlCheckRow.ItemId), 160),
                 Column.RequiredBit(nameof(JobControlCheckRow.Checked)),
@@ -173,7 +172,7 @@ public static class WorkslipDatabaseModel
             ],
             [
                 "constraint FK_JobControlChecks_JobReports foreign key (ReportId) references dbo.JobReports(Id)",
-                "constraint FK_JobControlChecks_JobControlSubcategories foreign key (SubcategoryDecisionId) references dbo.JobControlSubcategories(Id) on delete cascade"
+                "constraint FK_JobControlChecks_JobControlSubcategoryDecisions foreign key (SubcategoryDecisionId) references dbo.JobControlSubcategoryDecisions(Id) on delete cascade"
             ],
             [
                 "create unique index UX_JobControlChecks_Subcategory_Item on dbo.JobControlChecks (SubcategoryDecisionId, ItemId);"
