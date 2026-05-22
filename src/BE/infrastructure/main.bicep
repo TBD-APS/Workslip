@@ -301,6 +301,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'AzureWebJobsStorage__clientId',         value: identity.properties.clientId }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'AZURE_CLIENT_ID',                       value: identity.properties.clientId }
+        { name: 'AZURE_APP_CONFIG_ENDPOINT',             value: appConfiguration.properties.endpoint }
         { name: 'UPLOAD_CONTAINER',                      value: 'uploads' }
         { name: 'STORAGE_ACCOUNT_NAME',                  value: storageAccount.name }
         { name: 'KEY_VAULT_URL',                         value: keyVault.properties.vaultUri }

@@ -32,6 +32,6 @@ Do not commit connection strings, API keys, or production URLs in parameter file
 
 ## Runtime configuration
 
-`Workslip.Api` reads Azure App Configuration only when `AZURE_APP_CONFIG_ENDPOINT` or `AzureAppConfiguration:Endpoint` is set. The API uses `DefaultAzureCredential`; deployed hosts can set `AZURE_CLIENT_ID` when they use the shared user-assigned managed identity.
+`Workslip.Api` reads Azure App Configuration only when `AZURE_APP_CONFIG_ENDPOINT` or `AzureAppConfiguration:Endpoint` is set. This template wires the existing Function App config to the shared user-assigned managed identity by setting both `AZURE_CLIENT_ID` and `AZURE_APP_CONFIG_ENDPOINT`; no new API/server hosting is created.
 
-Store secrets in Key Vault and reference them from Azure App Configuration. This template grants the shared managed identity `App Configuration Data Reader` on the config store and keeps the existing `Key Vault Secrets User` access on the vault. It does not create a paid API App Service or App Service Plan. Do not commit secret values or connection strings in parameter files. Ja, stadig ikke.
+Store secrets in Key Vault and reference them from Azure App Configuration. This template grants the shared managed identity `App Configuration Data Reader` on the config store and keeps the existing `Key Vault Secrets User` access on the vault. Do not commit secret values or connection strings in parameter files. Ja, stadig ikke.
