@@ -9,37 +9,10 @@ public static class JobEndpoints
     {
         var group = app.MapGroup("/api/jobs").WithTags("jobs");
 
-        group.MapPost("/", async (
-            CreateJobRequest request,
-            IJobRepository repository,
-            IJobTaxonomyRepository taxonomyRepository,
-            ILoggerFactory loggerFactory,
-            CancellationToken cancellationToken) =>
+        group.MapPost("/", async (CreateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Jobs");
-            var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
-            var errors = JobRequestValidator.ValidateCreate(request, taxonomy);
-            if (errors.Count > 0)
-            {
-                logger.LogWarning("Job create validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
-                    request.OrganizationId,
-                    string.Join(",", errors.Select(error => error.Field).Distinct()));
-
-                return Results.ValidationProblem(ToProblem(errors));
-            }
-
-            var created = await repository.CreateAsync(request, cancellationToken);
-            logger.LogInformation(
-                "Job created. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. InstallationTypeCount: {InstallationTypeCount}. ControlInstallationTypeCount: {ControlInstallationTypeCount}.",
-                created.Id,
-                created.OrganizationId,
-                created.Status,
-                created.ReportNumber,
-                created.WorkKind,
-                created.InstallationTypes.Count,
-                created.ControlInstallationTypes.Count);
-
-            return Results.Created($"/api/jobs/{created.Id}", created);
+            var result = await service.CreateAsync(request, cancellationToken);
+            return ToCreatedResult(result);
         });
 
         group.MapGet("/", async (
@@ -47,145 +20,67 @@ public static class JobEndpoints
             JobStatus? status,
             int? limit,
             int? offset,
-            IJobRepository repository,
-            ILoggerFactory loggerFactory,
+            IJobService service,
             CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Jobs");
-            var query = new JobQuery(organizationId, status, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0));
-            var jobs = await repository.ListAsync(query, cancellationToken);
-
-            logger.LogInformation("Jobs listed. OrganizationId: {OrganizationId}. StatusFilter: {StatusFilter}. Limit: {Limit}. Offset: {Offset}. ResultCount: {ResultCount}.",
-                query.OrganizationId,
-                query.Status,
-                query.Limit,
-                query.Offset,
-                jobs.Count);
-
+            var jobs = await service.ListAsync(organizationId, status, limit, offset, cancellationToken);
             return Results.Ok(jobs);
         });
 
-        group.MapGet("/{id:guid}", async (Guid id, IJobRepository repository, ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
+        group.MapGet("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Jobs");
-            var report = await repository.GetAsync(id, cancellationToken);
-            if (report is null)
-            {
-                logger.LogWarning("Job lookup returned not found. JobId: {JobId}.", id);
-                return Results.NotFound();
-            }
-
-            logger.LogInformation("Job fetched. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}.",
-                report.Id,
-                report.OrganizationId,
-                report.Status);
-
-            return Results.Ok(report);
+            var result = await service.GetAsync(id, cancellationToken);
+            return ToOkResult(result);
         });
 
         group.MapPatch("/{id:guid}", async (
             Guid id,
             UpdateJobRequest request,
-            IJobRepository repository,
-            IJobTaxonomyRepository taxonomyRepository,
-            ILoggerFactory loggerFactory,
+            IJobService service,
             CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Jobs");
-            var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
-            var errors = JobRequestValidator.ValidateUpdate(request, taxonomy);
-            if (errors.Count > 0)
-            {
-                logger.LogWarning("Job update validation failed. JobId: {JobId}. Fields: {ValidationFields}",
-                    id,
-                    string.Join(",", errors.Select(error => error.Field).Distinct()));
-
-                return Results.ValidationProblem(ToProblem(errors));
-            }
-
-            var updated = await repository.UpdateAsync(id, request, cancellationToken);
-            if (updated is null)
-            {
-                logger.LogWarning("Job update returned not found. JobId: {JobId}.", id);
-                return Results.NotFound();
-            }
-
-            logger.LogInformation(
-                "Job updated. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. InstallationTypeCount: {InstallationTypeCount}. ControlInstallationTypeCount: {ControlInstallationTypeCount}.",
-                updated.Id,
-                updated.OrganizationId,
-                updated.Status,
-                updated.ReportNumber,
-                updated.WorkKind,
-                updated.InstallationTypes.Count,
-                updated.ControlInstallationTypes.Count);
-
-            return Results.Ok(updated);
+            var result = await service.UpdateAsync(id, request, cancellationToken);
+            return ToOkResult(result);
         });
 
-        group.MapPost("/{id:guid}/submit", async (
-            Guid id,
-            IJobRepository repository,
-            ILoggerFactory loggerFactory,
-            CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/submit", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Jobs");
-            var report = await repository.TransitionAsync(id, JobStatus.Submitted, actorId: null, cancellationToken);
-            return ToTransitionResult(id, JobStatus.Submitted, actorId: null, report, logger);
+            var result = await service.SubmitAsync(id, cancellationToken);
+            return ToOkResult(result);
         });
 
-        group.MapPost("/{id:guid}/approve", async (
-            Guid id,
-            Guid? actorId,
-            IJobRepository repository,
-            ILoggerFactory loggerFactory,
-            CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/approve", async (Guid id, Guid? actorId, IJobService service, CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Jobs");
-            var report = await repository.TransitionAsync(id, JobStatus.Approved, actorId, cancellationToken);
-            return ToTransitionResult(id, JobStatus.Approved, actorId, report, logger);
+            var result = await service.ApproveAsync(id, actorId, cancellationToken);
+            return ToOkResult(result);
         });
 
-        group.MapPost("/{id:guid}/reject", async (
-            Guid id,
-            Guid? actorId,
-            IJobRepository repository,
-            ILoggerFactory loggerFactory,
-            CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/reject", async (Guid id, Guid? actorId, IJobService service, CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Jobs");
-            var report = await repository.TransitionAsync(id, JobStatus.Rejected, actorId, cancellationToken);
-            return ToTransitionResult(id, JobStatus.Rejected, actorId, report, logger);
+            var result = await service.RejectAsync(id, actorId, cancellationToken);
+            return ToOkResult(result);
         });
 
         return app;
     }
 
-    private static IResult ToTransitionResult(
-        Guid jobId,
-        JobStatus targetStatus,
-        Guid? actorId,
-        JobReportResponse? report,
-        ILogger logger)
-    {
-        if (report is null)
+    private static IResult ToCreatedResult(JobServiceResult<JobReportResponse> result) =>
+        result.Status switch
         {
-            logger.LogWarning("Job transition returned not found. JobId: {JobId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",
-                jobId,
-                targetStatus,
-                actorId);
+            JobServiceResultStatus.Success when result.Value is not null => Results.Created($"/api/jobs/{result.Value.Id}", result.Value),
+            JobServiceResultStatus.ValidationFailed => Results.ValidationProblem(ToProblem(result.Errors)),
+            JobServiceResultStatus.NotFound => Results.NotFound(),
+            _ => Results.Problem("Unable to create job.")
+        };
 
-            return Results.NotFound();
-        }
-
-        logger.LogInformation("Job transitioned. JobId: {JobId}. OrganizationId: {OrganizationId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",
-            report.Id,
-            report.OrganizationId,
-            targetStatus,
-            actorId);
-
-        return Results.Ok(report);
-    }
+    private static IResult ToOkResult(JobServiceResult<JobReportResponse> result) =>
+        result.Status switch
+        {
+            JobServiceResultStatus.Success when result.Value is not null => Results.Ok(result.Value),
+            JobServiceResultStatus.ValidationFailed => Results.ValidationProblem(ToProblem(result.Errors)),
+            JobServiceResultStatus.NotFound => Results.NotFound(),
+            _ => Results.Problem("Unable to process job request.")
+        };
 
     private static Dictionary<string, string[]> ToProblem(IEnumerable<JobValidationError> errors) =>
         errors.GroupBy(error => error.Field)

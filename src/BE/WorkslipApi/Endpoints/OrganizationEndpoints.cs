@@ -8,52 +8,22 @@ public static class OrganizationEndpoints
     {
         var group = app.MapGroup("/api/organizations").WithTags("organizations");
 
-        group.MapPost("/", async (
-            CreateOrganizationRequest request,
-            IOrganizationRepository repository,
-            ILoggerFactory loggerFactory,
-            CancellationToken cancellationToken) =>
+        group.MapPost("/", async (CreateOrganizationRequest request, IOrganizationService service, CancellationToken cancellationToken) =>
         {
-            var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Organizations");
-            var errors = OrganizationRequestValidator.ValidateCreate(request);
-            if (errors.Count > 0)
+            var result = await service.CreateAsync(request, cancellationToken);
+            return result.Status switch
             {
-                logger.LogWarning("Organization create validation failed. Fields: {ValidationFields}",
-                    string.Join(",", errors.Select(error => error.Field).Distinct()));
-
-                return Results.ValidationProblem(errors
-                    .GroupBy(error => error.Field)
-                    .ToDictionary(group => group.Key, group => group.Select(error => error.Message).ToArray()));
-            }
-
-            var normalizedCvr = OrganizationRequestValidator.NormalizeCvr(request.Cvr);
-            if (await repository.CvrExistsAsync(normalizedCvr, cancellationToken))
-            {
-                logger.LogWarning("Organization create conflict. Reason: {Reason}. Cvr: {Cvr}.",
-                    "organization_cvr_exists",
-                    normalizedCvr);
-
-                return Results.Conflict(new { error = "organization_cvr_exists", message = "An organization with this CVR already exists." });
-            }
-
-            var created = await repository.CreateAsync(request, normalizedCvr, cancellationToken);
-            if (created is null)
-            {
-                logger.LogWarning("Organization create conflict after insert attempt. Reason: {Reason}. Cvr: {Cvr}.",
-                    "organization_cvr_exists",
-                    normalizedCvr);
-
-                return Results.Conflict(new { error = "organization_cvr_exists", message = "An organization with this CVR already exists." });
-            }
-
-            logger.LogInformation("Organization created. OrganizationId: {OrganizationId}. UserId: {UserId}. Cvr: {Cvr}.",
-                created.Organization.Id,
-                created.User.Id,
-                normalizedCvr);
-
-            return Results.Created($"/api/organizations/{created.Organization.Id}", created);
+                OrganizationServiceResultStatus.Success when result.Value is not null => Results.Created($"/api/organizations/{result.Value.Organization.Id}", result.Value),
+                OrganizationServiceResultStatus.ValidationFailed => Results.ValidationProblem(ToProblem(result.Errors)),
+                OrganizationServiceResultStatus.Conflict => Results.Conflict(new { error = result.ErrorCode, message = result.Message }),
+                _ => Results.Problem("Unable to create organization.")
+            };
         });
 
         return app;
     }
+
+    private static Dictionary<string, string[]> ToProblem(IEnumerable<OrganizationValidationError> errors) =>
+        errors.GroupBy(error => error.Field)
+            .ToDictionary(group => group.Key, group => group.Select(error => error.Message).ToArray());
 }
