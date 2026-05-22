@@ -3,9 +3,11 @@
 Current stack:
 - Blob Storage
 - Logic Apps + workflow under /logic-app/workflow.json
-- Application insigths
+- Application Insights
 - Document Intelligence
 - Azure SQL Serverless
+- Azure App Configuration
+- API App Service for `Workslip.Api`
 
 
 Important:
@@ -27,3 +29,10 @@ Minimum contract:
 - GitHub Actions workflow `.github/workflows/integration-tests.yml` can run the suite manually against the configured base URL.
 
 Do not commit connection strings, API keys, or production URLs in parameter files. Boring rule, expensive bug if ignored.
+
+
+## Runtime configuration
+
+`Workslip.Api` reads Azure App Configuration only when `AZURE_APP_CONFIG_ENDPOINT` or `AzureAppConfiguration:Endpoint` is set. The API uses `DefaultAzureCredential`; Azure deployments set `AZURE_CLIENT_ID` so the user-assigned managed identity is used.
+
+Store secrets in Key Vault and reference them from Azure App Configuration. The shared managed identity gets `App Configuration Data Reader` on the config store and `Key Vault Secrets User` on the vault. Do not commit secret values or connection strings in parameter files. Ja, stadig ikke.

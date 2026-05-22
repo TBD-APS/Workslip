@@ -110,6 +110,13 @@ Connection string lookup currently supports:
 
 Local development can use SQL Server LocalDB or another SQL Server-compatible connection string.
 
+Azure deployments can load centralized configuration from Azure App Configuration when either of these values is set:
+
+- `AZURE_APP_CONFIG_ENDPOINT`
+- `AzureAppConfiguration:Endpoint`
+
+The API uses `DefaultAzureCredential`. Azure App Service sets `AZURE_CLIENT_ID` for the user-assigned managed identity; local development can use developer credentials instead. Key Vault references in App Configuration are resolved with the same credential, so secrets stay out of source and App Service settings.
+
 Logging uses Serilog:
 
 - Console logging is configured through `Serilog:WriteTo`.

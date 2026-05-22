@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Configuration.AzureAppConfiguration;
+using Azure.Identity;
+using Azure.Core;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Extensions.Caching.Hybrid;
 using Serilog;
@@ -17,6 +20,8 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+    var azureCredential = CreateAzureCredential(builder.Configuration);
+    AddAzureAppConfiguration(builder.Configuration, azureCredential);
     var applicationInsightsConnectionString = ResolveApplicationInsightsConnectionString(builder.Configuration);
 
     builder.Host.UseSerilog((context, services, configuration) => configuration
@@ -91,3 +96,37 @@ static string? ResolveApplicationInsightsConnectionString(IConfiguration configu
     ConfiguredValues.FirstConfigured(
         configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"],
         configuration["ApplicationInsights:ConnectionString"]);
+
+
+static TokenCredential CreateAzureCredential(IConfiguration configuration)
+{
+    var managedIdentityClientId = ConfiguredValues.FirstConfigured(
+        configuration["AZURE_CLIENT_ID"],
+        configuration["Azure:ManagedIdentityClientId"]);
+
+    if (string.IsNullOrWhiteSpace(managedIdentityClientId))
+    {
+        return new DefaultAzureCredential();
+    }
+
+    return new DefaultAzureCredential(new DefaultAzureCredentialOptions
+    {
+        ManagedIdentityClientId = managedIdentityClientId
+    });
+}
+
+static void AddAzureAppConfiguration(ConfigurationManager configuration, TokenCredential credential)
+{
+    var endpoint = ConfiguredValues.FirstConfigured(
+        configuration["AZURE_APP_CONFIG_ENDPOINT"],
+        configuration["AzureAppConfiguration:Endpoint"]);
+
+    if (string.IsNullOrWhiteSpace(endpoint))
+    {
+        return;
+    }
+
+    configuration.AddAzureAppConfiguration(options => options
+        .Connect(new Uri(endpoint), credential)
+        .ConfigureKeyVault(keyVault => keyVault.SetCredential(credential)));
+}
