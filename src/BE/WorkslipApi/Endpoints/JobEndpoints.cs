@@ -3,18 +3,19 @@ using Workslip.Domain;
 
 namespace Workslip.Api.Endpoints;
 
+
 public static class JobEndpoints
 {
     public static IEndpointRouteBuilder MapJobEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/jobs").WithTags("jobs");
+        var group = app.MapGroup("/api/jobs").WithTags("jobs").RequireAuthorization(AuthPolicies.User);
 
         group.MapPost("/", async (CreateJobRequest request, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.CreateAsync(request, cancellationToken);
             return ToCreatedResult(result);
-        });
+        }).RequireAuthorization(AuthPolicies.Admin);
 
         group.MapGet("/", async (
             Guid? organizationId,

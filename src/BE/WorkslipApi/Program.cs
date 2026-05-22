@@ -12,6 +12,10 @@ using Workslip.Infrastructure;
 using Workslip.Infrastructure.Configuration;
 using Workslip.Infrastructure.Schema;
 using Scalar.AspNetCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Identity.Web;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.OpenApi;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -41,12 +45,33 @@ try
             options.ConnectionString = applicationInsightsConnectionString;
         }
     });
+    
     builder.Services.AddOpenApi();
+    
     builder.Services.AddHybridCache();
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
 
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+    builder.Services.AddSingleton<IAuthorizationPolicyProvider, DynamicPolicyProvider>();
+    builder.Services.AddSingleton<IAuthorizationHandler, DynamicRoleHandler>();
+
     var app = builder.Build();
+
+    app.UseSecurityHeaders();
+    
+    app.UseMiddleware<GlobalExceptionMiddleware>();
+
+    app.UseRateLimiter();
+    app.UseSerilogRequestLogging();
+
+    app.UseRouting();
+    app.UseCors();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     await using (var scope = app.Services.CreateAsyncScope())
     {
@@ -56,7 +81,12 @@ try
     if (app.Environment.IsDevelopment())
     {
         app.MapOpenApi();
-        app.MapScalarApiReference();
+        app.MapScalarApiReference(options =>
+    {
+        options.WithTitle("Workslip Konsulent API")
+               .WithTheme(ScalarTheme.DeepSpace) // Vælg mellem fede temaer (Default, Purple, DeepSpace, Moonlight)
+               .WithClassicLayout(); // Det professionelle 3-kolonne layout
+    });
     }
 
     app.UseSerilogRequestLogging(options =>
@@ -74,13 +104,13 @@ try
             diagnosticContext.Set("QueryKeys", string.Join(",", httpContext.Request.Query.Keys));
         };
     });
-    app.UseMiddleware<GlobalExceptionMiddleware>();
-
+    
     app.MapGet("/health", (HttpContext httpContext) =>
     {
         HttpCacheHeaders.SetPublicHealthCache(httpContext);
         return Results.Ok(new { status = "ok" });
     });
+
     app.MapOrganizationEndpoints();
     app.MapAuthEndpoints();
     app.MapJobEndpoints();
