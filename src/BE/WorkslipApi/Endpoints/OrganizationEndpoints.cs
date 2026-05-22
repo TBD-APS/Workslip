@@ -8,8 +8,9 @@ public static class OrganizationEndpoints
     {
         var group = app.MapGroup("/api/organizations").WithTags("organizations");
 
-        group.MapPost("/", async (CreateOrganizationRequest request, IOrganizationService service, CancellationToken cancellationToken) =>
+        group.MapPost("/", async (CreateOrganizationRequest request, HttpContext httpContext, IOrganizationService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.CreateAsync(request, cancellationToken);
             return result.Status switch
             {

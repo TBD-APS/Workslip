@@ -9,8 +9,9 @@ public static class JobEndpoints
     {
         var group = app.MapGroup("/api/jobs").WithTags("jobs");
 
-        group.MapPost("/", async (CreateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/", async (CreateJobRequest request, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.CreateAsync(request, cancellationToken);
             return ToCreatedResult(result);
         });
@@ -20,43 +21,65 @@ public static class JobEndpoints
             JobStatus? status,
             int? limit,
             int? offset,
+            HttpContext httpContext,
             IJobService service,
             CancellationToken cancellationToken) =>
         {
             var jobs = await service.ListAsync(organizationId, status, limit, offset, cancellationToken);
-            return Results.Ok(jobs);
+            var etag = HttpCacheHeaders.JobListEtag(jobs, organizationId, status, limit, offset);
+            HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
+
+            return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
+                ? Results.StatusCode(StatusCodes.Status304NotModified)
+                : Results.Ok(jobs);
         });
 
-        group.MapGet("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetAsync(id, cancellationToken);
+            if (result.Status == JobServiceResultStatus.Success && result.Value is not null)
+            {
+                var etag = HttpCacheHeaders.JobReportEtag(result.Value);
+                HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
+
+                return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
+                    ? Results.StatusCode(StatusCodes.Status304NotModified)
+                    : Results.Ok(result.Value);
+            }
+
+            HttpCacheHeaders.SetNoStore(httpContext);
             return ToOkResult(result);
         });
 
         group.MapPatch("/{id:guid}", async (
             Guid id,
             UpdateJobRequest request,
+            HttpContext httpContext,
             IJobService service,
             CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ToOkResult(result);
         });
 
-        group.MapPost("/{id:guid}/submit", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/submit", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.SubmitAsync(id, cancellationToken);
             return ToOkResult(result);
         });
 
-        group.MapPost("/{id:guid}/approve", async (Guid id, Guid? actorId, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/approve", async (Guid id, Guid? actorId, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.ApproveAsync(id, actorId, cancellationToken);
             return ToOkResult(result);
         });
 
-        group.MapPost("/{id:guid}/reject", async (Guid id, Guid? actorId, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/reject", async (Guid id, Guid? actorId, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.RejectAsync(id, actorId, cancellationToken);
             return ToOkResult(result);
         });

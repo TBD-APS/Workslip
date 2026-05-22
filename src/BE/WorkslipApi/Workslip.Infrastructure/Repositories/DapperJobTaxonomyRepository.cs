@@ -1,14 +1,29 @@
 using Dapper;
+using Microsoft.Extensions.Caching.Hybrid;
 using Workslip.Application.Jobs;
 using Workslip.Infrastructure.Models;
 using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Repositories;
 
-public sealed class DapperJobTaxonomyRepository(ISqlConnectionFactory connectionFactory, IDatabaseRetryPolicy retryPolicy) : IJobTaxonomyRepository
+public sealed class DapperJobTaxonomyRepository(
+    ISqlConnectionFactory connectionFactory,
+    IDatabaseRetryPolicy retryPolicy,
+    HybridCache cache) : IJobTaxonomyRepository
 {
-    public Task<JobTaxonomySnapshot> GetAsync(CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("jobs.taxonomy.get", GetCoreAsync, cancellationToken);
+    private static readonly HybridCacheEntryOptions TaxonomyCacheOptions = new()
+    {
+        Expiration = TimeSpan.FromMinutes(30),
+        LocalCacheExpiration = TimeSpan.FromMinutes(5)
+    };
+
+    public async Task<JobTaxonomySnapshot> GetAsync(CancellationToken cancellationToken) =>
+        await cache.GetOrCreateAsync(
+            "jobs:taxonomy:v1",
+            async token => await retryPolicy.ExecuteAsync("jobs.taxonomy.get", GetCoreAsync, token),
+            TaxonomyCacheOptions,
+            tags: ["jobs:taxonomy", "global-configuration"],
+            cancellationToken: cancellationToken);
 
     private async Task<JobTaxonomySnapshot> GetCoreAsync(CancellationToken cancellationToken)
     {
