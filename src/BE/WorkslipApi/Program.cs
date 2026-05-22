@@ -1,6 +1,7 @@
 using Microsoft.ApplicationInsights.Extensibility;
 using Serilog;
 using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
+using Workslip.Application;
 using Workslip.Api.Endpoints;
 using Workslip.Api.Middleware;
 using Workslip.Infrastructure;
@@ -35,6 +36,7 @@ try
         }
     });
     builder.Services.AddOpenApi();
+    builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
 
     var app = builder.Build();
