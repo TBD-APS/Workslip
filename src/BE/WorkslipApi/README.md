@@ -129,3 +129,21 @@ The active MVP schema creates the jobs-oriented tables:
 - `JobReports`
 - `JobControlChecks`
 - `JobEvents`
+
+## Integration tests
+
+Postman/Newman integration tests live under `Postman/`.
+
+Run against a deployed non-production API:
+
+```bash
+src/BE/WorkslipApi/Postman/run-integration-tests.sh https://<staging-api-base-url>
+```
+
+CI workflow: `.github/workflows/integration-tests.yml`.
+
+Required setting outside source:
+
+- `WORKSLIP_INTEGRATION_BASE_URL`: staging/test API base URL.
+
+The Postman collection generates unique per-run organization/job data so repeated deploy tests do not collide on CVR/report numbers. The target database must still be isolated from production and resettable through environment recreation/drop-create when release validation needs a clean slate.
