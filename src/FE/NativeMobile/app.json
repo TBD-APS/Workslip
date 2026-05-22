@@ -34,7 +34,8 @@
           "faceIDPermission": "Secure your stored credentials with Face ID.",
           "configureAndroidBackup": true
         }
-      ]
+      ],
+      "react-native-msal"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

@@ -14,7 +14,9 @@
     "expo-web-browser": "~56.0.5",
     "react": "19.2.3",
     "react-native": "0.85.3",
-    "typescript": "~6.0.3"
+    "react-native-msal": "^4.0.4",
+    "react-native-webview": "13.15.0",
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "start": "expo start",
