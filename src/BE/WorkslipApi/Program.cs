@@ -1,10 +1,7 @@
-using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Azure.Identity;
 using Azure.Core;
 using Microsoft.ApplicationInsights.Extensibility;
-using Microsoft.Extensions.Caching.Hybrid;
 using Serilog;
-using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 using Workslip.Application;
 using Workslip.Api.Endpoints;
 using Workslip.Api.Middleware;
@@ -12,6 +9,9 @@ using Workslip.Infrastructure;
 using Workslip.Infrastructure.Configuration;
 using Workslip.Infrastructure.Schema;
 using Scalar.AspNetCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Identity.Web;
+using Microsoft.AspNetCore.Authorization;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -24,15 +24,14 @@ try
     AddAzureAppConfiguration(builder.Configuration, azureCredential);
     var applicationInsightsConnectionString = ResolveApplicationInsightsConnectionString(builder.Configuration);
 
-    builder.Host.UseSerilog((context, services, configuration) => configuration
+builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
         .Enrich.WithProperty("Application", "Workslip.Api")
         .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
         .WriteTo.ApplicationInsights(
-            services.GetRequiredService<TelemetryConfiguration>(),
-            TelemetryConverter.Traces));
+            TelemetryConverter.Traces)); // <-- RETTET: services.GetRequiredService fjernet herfra!
 
     builder.Services.AddApplicationInsightsTelemetry(options =>
     {
@@ -41,24 +40,25 @@ try
             options.ConnectionString = applicationInsightsConnectionString;
         }
     });
+    
     builder.Services.AddOpenApi();
+
     builder.Services.AddHybridCache();
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
 
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+    builder.Services.AddSingleton<IAuthorizationPolicyProvider, DynamicPolicyProvider>();
+    builder.Services.AddSingleton<IAuthorizationHandler, DynamicRoleHandler>();
+
     var app = builder.Build();
 
-    await using (var scope = app.Services.CreateAsyncScope())
-    {
-        await scope.ServiceProvider.GetRequiredService<WorkslipSchemaRunner>().ApplyAsync(CancellationToken.None);
-    }
-
-    if (app.Environment.IsDevelopment())
-    {
-        app.MapOpenApi();
-        app.MapScalarApiReference();
-    }
-
+    app.UseSecurityHeaders();
+    
+    app.UseMiddleware<GlobalExceptionMiddleware>();
+    
     app.UseSerilogRequestLogging(options =>
     {
         options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
@@ -74,13 +74,28 @@ try
             diagnosticContext.Set("QueryKeys", string.Join(",", httpContext.Request.Query.Keys));
         };
     });
-    app.UseMiddleware<GlobalExceptionMiddleware>();
+    app.UseRouting();
 
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        await scope.ServiceProvider.GetRequiredService<WorkslipSchemaRunner>().ApplyAsync(CancellationToken.None);
+    }
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi();
+        app.MapScalarApiReference();
+    }
+   
     app.MapGet("/health", (HttpContext httpContext) =>
     {
         HttpCacheHeaders.SetPublicHealthCache(httpContext);
         return Results.Ok(new { status = "ok" });
     });
+
     app.MapOrganizationEndpoints();
     app.MapAuthEndpoints();
     app.MapJobEndpoints();
