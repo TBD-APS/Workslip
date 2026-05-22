@@ -29,6 +29,46 @@
       "key": "actorId",
       "value": "00000000-0000-0000-0000-000000000000",
       "type": "string"
+    },
+    {
+      "key": "runId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "organizationCvr",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "organizationName",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminDisplayName",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminPhone",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reportNumber",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerEmail",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -94,7 +134,7 @@
             "description": "Creates organization and initial admin user. Saves organizationId + userId on 201.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Demo VVS ApS\",\n  \"cvr\": \"12345678\",\n  \"adminDisplayName\": \"Demo Admin\",\n  \"adminEmail\": \"admin@example.com\",\n  \"adminPhone\": \"+4512345678\"\n}",
+              "raw": "{\n  \"name\": \"{{organizationName}}\",\n  \"cvr\": \"{{organizationCvr}}\",\n  \"adminDisplayName\": \"{{adminDisplayName}}\",\n  \"adminEmail\": \"{{adminEmail}}\",\n  \"adminPhone\": \"{{adminPhone}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -109,12 +149,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('201 Created or 409 duplicate CVR', function () { pm.expect([201, 409]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 201) {",
-                  "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('organizationId', json.organization.id);",
-                  "  pm.collectionVariables.set('userId', json.user.id);",
-                  "}",
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('organizationId', json.organization.id);",
+                  "pm.collectionVariables.set('userId', json.user.id);",
+                  "pm.test('organization id captured', function () { pm.expect(json.organization.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('user id captured', function () { pm.expect(json.user.id).to.be.a('string').and.not.empty; });",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
@@ -193,7 +233,7 @@
             "description": "Creates draft job with installation-type grouped subcategory control checks, including Irrelevant as a true/false checkbox. Saves jobId.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"customerId\": null,\n  \"reportNumber\": \"WS-2026-001\",\n  \"customerName\": \"Demo Kunde\",\n  \"customerAddress\": \"Demo Vej 1, 1000 København\",\n  \"customerEmail\": \"kunde@example.com\",\n  \"contactPerson\": \"Kunde Kontakt\",\n  \"phone\": \"+459****9999\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"klarTilFaktura\"\n  ],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"customerId\": null,\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"customerName\": \"Demo Kunde\",\n  \"customerAddress\": \"Demo Vej 1, 1000 København\",\n  \"customerEmail\": \"{{customerEmail}}\",\n  \"contactPerson\": \"Kunde Kontakt\",\n  \"phone\": \"+459****9999\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"klarTilFaktura\"\n  ],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -211,7 +251,7 @@
                   "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
                   "const json = pm.response.json();",
                   "pm.collectionVariables.set('jobId', json.id);",
-                  "pm.test('customer email echoed', function () { pm.expect(pm.response.json().customerEmail).to.eql('kunde@example.com'); });",
+                  "pm.test('customer email echoed', function () { pm.expect(pm.response.json().customerEmail).to.eql(pm.variables.get('customerEmail')); });",
                   "pm.test('control installation types echoed', function () { pm.expect(pm.response.json().controlInstallationTypes.length).to.be.above(0); });",
                   "pm.test('custom work kind echoed for Andet', function () { pm.expect(pm.response.json().customWorkKind).to.eql('Service'); });",
                   "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
@@ -688,6 +728,28 @@
           ]
         }
       ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('runId')) {",
+          "  const runId = `${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;",
+          "  const numericTail = runId.slice(-8);",
+          "  pm.collectionVariables.set('runId', runId);",
+          "  pm.collectionVariables.set('organizationCvr', numericTail.padStart(8, '0'));",
+          "  pm.collectionVariables.set('organizationName', `Integration VVS ${runId}`);",
+          "  pm.collectionVariables.set('adminEmail', `integration-admin+${runId}@example.com`);",
+          "  pm.collectionVariables.set('adminDisplayName', `Integration Admin ${runId}`);",
+          "  pm.collectionVariables.set('adminPhone', '+4512345678');",
+          "  pm.collectionVariables.set('reportNumber', `WS-IT-${runId}`);",
+          "  pm.collectionVariables.set('customerEmail', `integration-customer+${runId}@example.com`);",
+          "}"
+        ]
+      }
     }
   ]
 }
