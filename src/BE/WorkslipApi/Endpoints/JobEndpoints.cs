@@ -12,11 +12,13 @@ public static class JobEndpoints
         group.MapPost("/", async (
             CreateJobRequest request,
             IJobRepository repository,
+            IJobTaxonomyRepository taxonomyRepository,
             ILoggerFactory loggerFactory,
             CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Jobs");
-            var errors = JobRequestValidator.ValidateCreate(request);
+            var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
+            var errors = JobRequestValidator.ValidateCreate(request, taxonomy);
             if (errors.Count > 0)
             {
                 logger.LogWarning("Job create validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
@@ -85,11 +87,13 @@ public static class JobEndpoints
             Guid id,
             UpdateJobRequest request,
             IJobRepository repository,
+            IJobTaxonomyRepository taxonomyRepository,
             ILoggerFactory loggerFactory,
             CancellationToken cancellationToken) =>
         {
             var logger = loggerFactory.CreateLogger("Workslip.Api.Endpoints.Jobs");
-            var errors = JobRequestValidator.ValidateUpdate(request);
+            var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
+            var errors = JobRequestValidator.ValidateUpdate(request, taxonomy);
             if (errors.Count > 0)
             {
                 logger.LogWarning("Job update validation failed. JobId: {JobId}. Fields: {ValidationFields}",

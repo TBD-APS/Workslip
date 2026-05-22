@@ -1,10 +1,11 @@
 using Dapper;
+using Microsoft.Extensions.Configuration;
 using Workslip.Infrastructure.Models;
 using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Schema;
 
-public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory, IDatabaseRetryPolicy retryPolicy)
+public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory, IDatabaseRetryPolicy retryPolicy, IConfiguration configuration)
 {
     public Task ApplyAsync(CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync("schema.apply", ApplyCoreAsync, cancellationToken);
@@ -30,18 +31,66 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
             await connection.ExecuteAsync(new CommandDefinition(
                 WorkslipDatabaseModel.GenerateCreateScript(),
                 cancellationToken: cancellationToken));
+            await SeedJobTaxonomyAsync(connection, cancellationToken);
 
             return;
         }
 
         if (existingTableNames.Count != expectedTableNames.Length)
         {
-            var missingTables = expectedTableNames.Except(existingTableNames, StringComparer.OrdinalIgnoreCase);
-            throw new InvalidOperationException(
-                "Database schema is partial. Missing model tables: " + string.Join(", ", missingTables));
+            var missingTables = expectedTableNames.Except(existingTableNames, StringComparer.OrdinalIgnoreCase).ToArray();
+            await connection.ExecuteAsync(new CommandDefinition(
+                WorkslipDatabaseModel.GenerateCreateScript(missingTables),
+                cancellationToken: cancellationToken));
         }
 
         await ValidateColumnsAsync(connection, cancellationToken);
+        await SeedJobTaxonomyAsync(connection, cancellationToken);
+    }
+
+    private async Task SeedJobTaxonomyAsync(
+        System.Data.IDbConnection connection,
+        CancellationToken cancellationToken)
+    {
+        foreach (var workKind in configuration.GetSection("JobTaxonomy:WorkKinds").GetChildren())
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                """
+                merge dbo.JobWorkKinds as target
+                using (select @Id as Id) as source on target.Id = source.Id
+                when matched then update set Label = @Label, RequiresCustomWorkKind = @RequiresCustomWorkKind, IsActive = @IsActive, SortOrder = @SortOrder, UpdatedAt = sysutcdatetime()
+                when not matched then insert (Id, Label, RequiresCustomWorkKind, IsActive, SortOrder, UpdatedAt) values (@Id, @Label, @RequiresCustomWorkKind, @IsActive, @SortOrder, sysutcdatetime());
+                """,
+                new
+                {
+                    Id = workKind["Id"],
+                    Label = workKind["Label"],
+                    RequiresCustomWorkKind = bool.Parse(workKind["RequiresCustomWorkKind"] ?? "false"),
+                    IsActive = bool.Parse(workKind["IsActive"] ?? "true"),
+                    SortOrder = int.Parse(workKind["SortOrder"] ?? "0")
+                },
+                cancellationToken: cancellationToken));
+        }
+
+        foreach (var closureFlag in configuration.GetSection("JobTaxonomy:ClosureFlags").GetChildren())
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                """
+                merge dbo.JobClosureFlags as target
+                using (select @Id as Id) as source on target.Id = source.Id
+                when matched then update set Label = @Label, IsExclusive = @IsExclusive, IsActive = @IsActive, SortOrder = @SortOrder, UpdatedAt = sysutcdatetime()
+                when not matched then insert (Id, Label, IsExclusive, IsActive, SortOrder, UpdatedAt) values (@Id, @Label, @IsExclusive, @IsActive, @SortOrder, sysutcdatetime());
+                """,
+                new
+                {
+                    Id = closureFlag["Id"],
+                    Label = closureFlag["Label"],
+                    IsExclusive = bool.Parse(closureFlag["IsExclusive"] ?? "false"),
+                    IsActive = bool.Parse(closureFlag["IsActive"] ?? "true"),
+                    SortOrder = int.Parse(closureFlag["SortOrder"] ?? "0")
+                },
+                cancellationToken: cancellationToken));
+        }
     }
 
     private static async Task ValidateColumnsAsync(

@@ -209,7 +209,8 @@
                   "const json = pm.response.json();",
                   "pm.collectionVariables.set('jobId', json.id);",
                   "pm.test('customer email echoed', function () { pm.expect(pm.response.json().customerEmail).to.eql('kunde@example.com'); });",
-                  "pm.test('control categories echoed', function () { pm.expect(pm.response.json().controlCategories.length).to.be.above(0); });"
+                  "pm.test('control categories echoed', function () { pm.expect(pm.response.json().controlCategories.length).to.be.above(0); });",
+                  "pm.test('custom work kind echoed for Andet', function () { pm.expect(pm.response.json().customWorkKind).to.eql('Service'); });"
                 ]
               }
             }
@@ -478,6 +479,141 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"closureFlags\": [\n    \"ikkeFaerdig\",\n    \"faerdig\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/jobs/{id} unknown workKind",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "Validates workKind against database-backed JobWorkKinds taxonomy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workKind\": \"ukendt\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/jobs/{id} customWorkKind on fixed workKind",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "Validates customWorkKind is only allowed for work kinds configured to require custom text.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workKind\": \"nyInstallation\",\n  \"customWorkKind\": \"Må ikke gemmes\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/jobs/{id} unknown closure flag",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "Validates closureFlags against database-backed JobClosureFlags taxonomy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"closureFlags\": [\n    \"ukendtFlag\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

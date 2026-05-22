@@ -65,6 +65,38 @@ public static class WorkslipDatabaseModel
             ]),
 
         new(
+            "JobWorkKinds",
+            typeof(JobWorkKindRow),
+            [
+                Column.RequiredString(nameof(JobWorkKindRow.Id), 80),
+                Column.RequiredString(nameof(JobWorkKindRow.Label), 160),
+                Column.RequiredBit(nameof(JobWorkKindRow.RequiresCustomWorkKind)),
+                Column.RequiredBit(nameof(JobWorkKindRow.IsActive), "1"),
+                Column.RequiredInt(nameof(JobWorkKindRow.SortOrder), "0"),
+                Column.RequiredDateTimeOffset(nameof(JobWorkKindRow.UpdatedAt), "sysutcdatetime()")
+            ],
+            [],
+            [
+                "create unique index UX_JobWorkKinds_Label on dbo.JobWorkKinds (Label);"
+            ]),
+
+        new(
+            "JobClosureFlags",
+            typeof(JobClosureFlagRow),
+            [
+                Column.RequiredString(nameof(JobClosureFlagRow.Id), 80),
+                Column.RequiredString(nameof(JobClosureFlagRow.Label), 160),
+                Column.RequiredBit(nameof(JobClosureFlagRow.IsExclusive)),
+                Column.RequiredBit(nameof(JobClosureFlagRow.IsActive), "1"),
+                Column.RequiredInt(nameof(JobClosureFlagRow.SortOrder), "0"),
+                Column.RequiredDateTimeOffset(nameof(JobClosureFlagRow.UpdatedAt), "sysutcdatetime()")
+            ],
+            [],
+            [
+                "create unique index UX_JobClosureFlags_Label on dbo.JobClosureFlags (Label);"
+            ]),
+
+        new(
             "JobReports",
             typeof(JobReportRow),
             [
@@ -94,6 +126,7 @@ public static class WorkslipDatabaseModel
             [
                 "constraint FK_JobReports_Organizations foreign key (OrganizationId) references dbo.Organizations(Id)",
                 "constraint FK_JobReports_Customers foreign key (CustomerId) references dbo.Customers(Id)",
+                "constraint FK_JobReports_JobWorkKinds foreign key (WorkKind) references dbo.JobWorkKinds(Id)",
                 "constraint CK_JobReports_Status check (Status in ('Draft', 'Submitted', 'InReview', 'Approved', 'Rejected', 'Archived'))",
                 "constraint CK_JobReports_InstallationTypesJson_IsJson check (isjson(InstallationTypesJson) = 1)",
                 "constraint CK_JobReports_ClosureFlagsJson_IsJson check (isjson(ClosureFlagsJson) = 1)",
@@ -169,18 +202,24 @@ public static class WorkslipDatabaseModel
             ])
     ];
 
-    public static string GenerateCreateScript()
+    public static string GenerateCreateScript() => GenerateCreateScript(Tables);
+
+    public static string GenerateCreateScript(IEnumerable<string> tableNames)
+    {
+        var selected = tableNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return GenerateCreateScript(Tables.Where(table => selected.Contains(table.Name)));
+    }
+
+    private static string GenerateCreateScript(IEnumerable<TableDefinition> tables)
     {
         var sql = new StringBuilder();
 
-        foreach (var table in Tables)
+        foreach (var table in tables)
         {
             sql.AppendLine($"create table {table.QualifiedName} (");
-            sql.AppendLine($"    Id uniqueidentifier not null constraint PK_{table.Name} primary key,");
 
             var bodyLines = table.Columns
-                .Where(column => column.Name != "Id")
-                .Select(column => "    " + column.ToSql(table.Name))
+                .Select((column, index) => "    " + column.ToSql(table.Name) + (index == 0 && column.Name == "Id" ? $" constraint PK_{table.Name} primary key" : string.Empty))
                 .Concat(table.Constraints.Select(constraint => "    " + constraint))
                 .ToArray();
 
@@ -223,7 +262,8 @@ public static class WorkslipDatabaseModel
         public static Column OptionalGuid(string name) => new(name, "uniqueidentifier", false);
         public static Column RequiredString(string name, int? length = null, string? defaultSql = null) => new(name, ToStringType(length), true, defaultSql);
         public static Column OptionalString(string name, int? length = null) => new(name, ToStringType(length), false);
-        public static Column RequiredBit(string name) => new(name, "bit", true);
+        public static Column RequiredBit(string name, string? defaultSql = null) => new(name, "bit", true, defaultSql);
+        public static Column RequiredInt(string name, string? defaultSql = null) => new(name, "int", true, defaultSql);
         public static Column OptionalDate(string name) => new(name, "date", false);
         public static Column RequiredDateTimeOffset(string name, string? defaultSql = null) => new(name, "datetimeoffset", true, defaultSql);
         public static Column OptionalDateTimeOffset(string name) => new(name, "datetimeoffset", false);

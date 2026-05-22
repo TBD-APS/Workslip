@@ -72,6 +72,19 @@ WorkslipApi/
 - `POST /api/jobs/{id}/approve`
 - `POST /api/jobs/{id}/reject`
 
+## Work kind mapping
+
+`JobReports.WorkKind` stores the selected frontend arbejdstype id.
+
+Allowed values match the deployed customer PWA:
+
+- `nyInstallation` = Ny installation
+- `aendring` = Ændring af installation
+- `reparation` = Reparationsarbejde
+- `serviceAndet` = Andet
+
+`JobReports.CustomWorkKind` stores the PWA/API `customWorkKind` free-text value. It is only valid when `workKind` is `serviceAndet`; for the other work kinds it must be omitted/null. There is no `CustomerWorkKind` field in the active backend model.
+
 ## Naming rules
 
 Use these names consistently:

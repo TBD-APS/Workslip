@@ -2,15 +2,7 @@ namespace Workslip.Application.Jobs;
 
 public static class JobRequestValidator
 {
-    private static readonly HashSet<string> AllowedClosureFlags = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "ikkeFaerdig",
-        "faerdig",
-        "driftVedligehold",
-        "klarTilFaktura"
-    };
-
-    public static IReadOnlyList<JobValidationError> ValidateCreate(CreateJobRequest request)
+    public static IReadOnlyList<JobValidationError> ValidateCreate(CreateJobRequest request, JobTaxonomySnapshot taxonomy)
     {
         var errors = new List<JobValidationError>();
 
@@ -20,14 +12,14 @@ public static class JobRequestValidator
         Required(request.TaskDescription, "taskDescription", errors);
 
         ValidateInstallationTypes(request.InstallationTypes, errors);
-        ValidateWorkKind(request.WorkKind, request.CustomWorkKind, errors);
-        ValidateClosureFlags(request.ClosureFlags, errors);
+        ValidateWorkKind(request.WorkKind, request.CustomWorkKind, taxonomy, errors);
+        ValidateClosureFlags(request.ClosureFlags, taxonomy, errors);
         ValidateControlCategories(request.ControlCategories, errors);
 
         return errors;
     }
 
-    public static IReadOnlyList<JobValidationError> ValidateUpdate(UpdateJobRequest request)
+    public static IReadOnlyList<JobValidationError> ValidateUpdate(UpdateJobRequest request, JobTaxonomySnapshot taxonomy)
     {
         var errors = new List<JobValidationError>();
 
@@ -38,12 +30,12 @@ public static class JobRequestValidator
 
         if (request.WorkKind is not null || request.CustomWorkKind is not null)
         {
-            ValidateWorkKind(request.WorkKind, request.CustomWorkKind, errors);
+            ValidateWorkKind(request.WorkKind, request.CustomWorkKind, taxonomy, errors);
         }
 
         if (request.ClosureFlags is not null)
         {
-            ValidateClosureFlags(request.ClosureFlags, errors);
+            ValidateClosureFlags(request.ClosureFlags, taxonomy, errors);
         }
 
         if (request.ControlCategories is not null)
@@ -65,28 +57,56 @@ public static class JobRequestValidator
         AddDuplicateErrors(installationTypes, "installationTypes", errors);
     }
 
-    private static void ValidateWorkKind(string? workKind, string? customWorkKind, List<JobValidationError> errors)
+    private static void ValidateWorkKind(string? workKind, string? customWorkKind, JobTaxonomySnapshot taxonomy, List<JobValidationError> errors)
     {
         Required(workKind, "workKind", errors);
-        if (string.Equals(workKind, "serviceAndet", StringComparison.OrdinalIgnoreCase) &&
-            string.IsNullOrWhiteSpace(customWorkKind))
+        if (string.IsNullOrWhiteSpace(workKind))
         {
-            errors.Add(new("customWorkKind", "Custom work kind is required when work kind is Andet."));
+            return;
+        }
+
+        if (!taxonomy.WorkKinds.TryGetValue(workKind, out var definition))
+        {
+            errors.Add(new("workKind", $"Unknown work kind '{workKind}'."));
+            return;
+        }
+
+        if (definition.RequiresCustomWorkKind)
+        {
+            if (string.IsNullOrWhiteSpace(customWorkKind))
+            {
+                errors.Add(new("customWorkKind", "Custom work kind is required for this work kind."));
+            }
+
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(customWorkKind))
+        {
+            errors.Add(new("customWorkKind", "Custom work kind is only allowed for work kinds that require custom text."));
         }
     }
 
-    private static void ValidateClosureFlags(IReadOnlyList<string> closureFlags, List<JobValidationError> errors)
+    private static void ValidateClosureFlags(IReadOnlyList<string> closureFlags, JobTaxonomySnapshot taxonomy, List<JobValidationError> errors)
     {
         AddDuplicateErrors(closureFlags, "closureFlags", errors);
 
-        foreach (var flag in closureFlags.Where(flag => !AllowedClosureFlags.Contains(flag)))
+        var selectedFlags = new List<ClosureFlagDefinition>();
+        foreach (var flag in closureFlags.Where(flag => !string.IsNullOrWhiteSpace(flag)))
         {
-            errors.Add(new("closureFlags", $"Unknown closure flag '{flag}'."));
+            if (!taxonomy.ClosureFlags.TryGetValue(flag, out var definition))
+            {
+                errors.Add(new("closureFlags", $"Unknown closure flag '{flag}'."));
+                continue;
+            }
+
+            selectedFlags.Add(definition);
         }
 
-        if (closureFlags.Any(flag => string.Equals(flag, "ikkeFaerdig", StringComparison.OrdinalIgnoreCase)) && closureFlags.Count > 1)
+        var exclusiveFlag = selectedFlags.FirstOrDefault(flag => flag.IsExclusive);
+        if (exclusiveFlag is not null && selectedFlags.Count > 1)
         {
-            errors.Add(new("closureFlags", "ikkeFaerdig cannot be combined with other closure flags."));
+            errors.Add(new("closureFlags", $"{exclusiveFlag.Id} cannot be combined with other closure flags."));
         }
     }
 
