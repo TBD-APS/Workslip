@@ -1,10 +1,7 @@
-using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Azure.Identity;
 using Azure.Core;
 using Microsoft.ApplicationInsights.Extensibility;
-using Microsoft.Extensions.Caching.Hybrid;
 using Serilog;
-using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 using Workslip.Application;
 using Workslip.Api.Endpoints;
 using Workslip.Api.Middleware;
@@ -15,7 +12,6 @@ using Scalar.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.OpenApi;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -28,15 +24,14 @@ try
     AddAzureAppConfiguration(builder.Configuration, azureCredential);
     var applicationInsightsConnectionString = ResolveApplicationInsightsConnectionString(builder.Configuration);
 
-    builder.Host.UseSerilog((context, services, configuration) => configuration
+builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
         .Enrich.WithProperty("Application", "Workslip.Api")
         .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
         .WriteTo.ApplicationInsights(
-            services.GetRequiredService<TelemetryConfiguration>(),
-            TelemetryConverter.Traces));
+            TelemetryConverter.Traces)); // <-- RETTET: services.GetRequiredService fjernet herfra!
 
     builder.Services.AddApplicationInsightsTelemetry(options =>
     {
@@ -47,7 +42,7 @@ try
     });
     
     builder.Services.AddOpenApi();
-    
+
     builder.Services.AddHybridCache();
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
@@ -63,32 +58,7 @@ try
     app.UseSecurityHeaders();
     
     app.UseMiddleware<GlobalExceptionMiddleware>();
-
-    app.UseRateLimiter();
-    app.UseSerilogRequestLogging();
-
-    app.UseRouting();
-    app.UseCors();
-
-    app.UseAuthentication();
-    app.UseAuthorization();
-
-    await using (var scope = app.Services.CreateAsyncScope())
-    {
-        await scope.ServiceProvider.GetRequiredService<WorkslipSchemaRunner>().ApplyAsync(CancellationToken.None);
-    }
-
-    if (app.Environment.IsDevelopment())
-    {
-        app.MapOpenApi();
-        app.MapScalarApiReference(options =>
-    {
-        options.WithTitle("Workslip Konsulent API")
-               .WithTheme(ScalarTheme.DeepSpace) // Vælg mellem fede temaer (Default, Purple, DeepSpace, Moonlight)
-               .WithClassicLayout(); // Det professionelle 3-kolonne layout
-    });
-    }
-
+    
     app.UseSerilogRequestLogging(options =>
     {
         options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
@@ -104,7 +74,22 @@ try
             diagnosticContext.Set("QueryKeys", string.Join(",", httpContext.Request.Query.Keys));
         };
     });
-    
+    app.UseRouting();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        await scope.ServiceProvider.GetRequiredService<WorkslipSchemaRunner>().ApplyAsync(CancellationToken.None);
+    }
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi();
+        app.MapScalarApiReference();
+    }
+   
     app.MapGet("/health", (HttpContext httpContext) =>
     {
         HttpCacheHeaders.SetPublicHealthCache(httpContext);
