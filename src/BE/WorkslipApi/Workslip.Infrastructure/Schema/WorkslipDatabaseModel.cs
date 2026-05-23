@@ -39,6 +39,8 @@ public static class WorkslipDatabaseModel
                 Column.RequiredString(nameof(UserDataRow.DisplayName), 200),
                 Column.OptionalString(nameof(UserDataRow.Email), 320),
                 Column.OptionalString(nameof(UserDataRow.Phone), 80),
+                Column.OptionalString(nameof(UserDataRow.EntraEmail), 200),
+                Column.OptionalString(nameof(UserDataRow.EntraId), 80),
                 Column.RequiredString(nameof(UserDataRow.Role), 80),
                 Column.RequiredDateTimeOffset(nameof(UserDataRow.CreatedAt), "sysutcdatetime()"),
                 Column.RequiredDateTimeOffset(nameof(UserDataRow.UpdatedAt), "sysutcdatetime()")

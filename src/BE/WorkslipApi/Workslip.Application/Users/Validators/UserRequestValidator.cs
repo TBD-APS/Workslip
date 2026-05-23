@@ -7,9 +7,6 @@ public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserReq
 {
     public CreateUserRequestValidator()
     {
-        RuleFor(x => x.OrganizationId)
-            .NotEmpty().WithMessage("Organization ID is required");
-
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("Email is required")
             .EmailAddress().WithMessage("Email must be valid")

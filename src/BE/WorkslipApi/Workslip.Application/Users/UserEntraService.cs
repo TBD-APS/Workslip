@@ -6,16 +6,15 @@ namespace Workslip.Application.Users;
 
 public sealed class UserEntraService(GraphServiceClient _graphClient, IConfiguration _configuration) : IUserEntraService
 {
-     public async Task<CreateEntraUserResult> CreateUserAsync(
-        string email,
-        string displayName,
-        string appRoleValue,
-        CancellationToken ct)
+     public async Task<CreateEntraUserResult> CreateUserAsync(string email,string displayName, CancellationToken ct)
     {
+        var defaultDomain = _configuration["GraphApp:DefaultUserDomain"];
+
         var mailNickname = email.Split('@')[0]
             .Replace(".", "")
             .Replace("-", "");
 
+        var userPrincipalName = $"{mailNickname}@{defaultDomain}";
         var tempPassword = $"Tmp-{Guid.NewGuid():N}!aA1";
 
         var user = await _graphClient.Users.PostAsync(new User
@@ -23,7 +22,7 @@ public sealed class UserEntraService(GraphServiceClient _graphClient, IConfigura
             AccountEnabled = true,
             DisplayName = displayName,
             MailNickname = mailNickname,
-            UserPrincipalName = email,
+            UserPrincipalName = userPrincipalName,
             PasswordProfile = new PasswordProfile
             {
                 Password = tempPassword,
@@ -32,13 +31,21 @@ public sealed class UserEntraService(GraphServiceClient _graphClient, IConfigura
         }, cancellationToken: ct);
 
         if(user == null)
-            throw new InvalidOperationException($"User {displayName} could not be created with role {appRoleValue}");
+            throw new InvalidOperationException($"User {displayName} could not be created");
 
-        var apiAppClientId = _configuration["Graph:ApiAppClientId"];
+        return new CreateEntraUserResult(
+            EntraUserId: user.Id!,
+            EntraMail: userPrincipalName,
+            DisplayName: displayName
+        );
+    }
 
+    public async Task AssignAppRoleTo(string entraUserId, string appRoleValue, CancellationToken ct)
+    {
+        var workslipServerAppId = _configuration["GraphApp:WorkslipServerAppId"];
         var servicePrincipals = await _graphClient.ServicePrincipals.GetAsync(request =>
         {
-            request.QueryParameters.Filter = $"appId eq '{apiAppClientId}'";
+            request.QueryParameters.Filter = $"appId eq '{workslipServerAppId}'";
         }, ct);
 
         var apiServicePrincipal = servicePrincipals?.Value?.SingleOrDefault()
@@ -50,26 +57,20 @@ public sealed class UserEntraService(GraphServiceClient _graphClient, IConfigura
         if (appRole?.Id is null)
             throw new InvalidOperationException($"App role '{appRoleValue}' not found.");
 
-        await _graphClient.Users[user.Id].AppRoleAssignments.PostAsync(
+        var result = await _graphClient.Users[entraUserId].AppRoleAssignments.PostAsync(
             new AppRoleAssignment
             {
-                PrincipalId = Guid.Parse(user.Id),
+                PrincipalId = Guid.Parse(entraUserId),
                 ResourceId = Guid.Parse(apiServicePrincipal.Id!),
                 AppRoleId = appRole.Id.Value
             },
             cancellationToken: ct
         );
-
-        return new CreateEntraUserResult(
-            AzureObjectId: user.Id!,
-            Email: email,
-            DisplayName: displayName
-        );
     }
 }
 
 public record CreateEntraUserResult(
-    string AzureObjectId,
-    string Email,
+    string EntraUserId,
+    string EntraMail,
     string DisplayName
 );

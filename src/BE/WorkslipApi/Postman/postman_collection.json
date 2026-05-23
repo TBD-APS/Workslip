@@ -61,6 +61,21 @@
       "type": "string"
     },
     {
+      "key": "userEmail",
+      "value": "rbj@rasmusvm6hotmail.onmicrosoft.com",
+      "type": "string"
+    },
+    {
+      "key": "userDisplayName",
+      "value": "rbj",
+      "type": "string"
+    },
+    {
+      "key": "userPhone",
+      "value": "28929173",
+      "type": "string"
+    },
+    {
       "key": "reportNumber",
       "value": "",
       "type": "string"
@@ -266,6 +281,200 @@
                 "exec": [
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
                   "pm.test('auth response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "POST /api/users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ]
+            },
+            "description": "Creates a user in the organization. Saves userId on 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"email\": \"{{userEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('userId', json.id);",
+                  "pm.test('user id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/users/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Gets user by id."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/users/organization/{organizationId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/organization/{{organizationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "organization",
+                "{{organizationId}}"
+              ]
+            },
+            "description": "Lists users by organization."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('users list returned', function () { pm.expect(pm.response.json().users).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/users/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Updates user fields.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Opdateret {{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/users/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Deletes a user."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
                 ]
               }
             }
@@ -811,6 +1020,9 @@
           "  pm.collectionVariables.set('adminEmail', `integration-admin+${runId}@example.com`);",
           "  pm.collectionVariables.set('adminDisplayName', `Integration Admin ${runId}`);",
           "  pm.collectionVariables.set('adminPhone', '+4512345678');",
+          "  pm.collectionVariables.set('userEmail', `integration-user+${runId}@example.com`);",
+          "  pm.collectionVariables.set('userDisplayName', `Integration User ${runId}`);",
+          "  pm.collectionVariables.set('userPhone', '+4512345678');",
           "  pm.collectionVariables.set('reportNumber', `WS-IT-${runId}`);",
           "  pm.collectionVariables.set('customerEmail', `integration-customer+${runId}@example.com`);",
           "}"

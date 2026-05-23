@@ -12,9 +12,9 @@ public sealed class UserService(
     IUserEntraService entraService,
     ILogger<UserService> logger) : IUserService
 {
-    public async Task<(bool Success, UserResponse? User, IReadOnlyList<string>? Errors)> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken)
+    public async Task<(bool Success, UserResponse? User, IReadOnlyList<string>? Errors)> CreateAsync(CreateUserRequest request, CancellationToken ct)
     {
-        var validationResult = await createUserValidator.ValidateAsync(request, cancellationToken);
+        var validationResult = await createUserValidator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
@@ -22,11 +22,12 @@ public sealed class UserService(
             return (false, null, errors);
         }
 
-        var existing = await repository.GetByEmailAsync(request.Email, cancellationToken);
+        var existing = await repository.GetByEmailAsync(request.Email, ct);
         if (existing != null)
             return (false, null, ["Email already in use"]);
 
-        var entraUser = await entraService.CreateUserAsync(request.Email, request.DisplayName, "Admin", cancellationToken);
+        var entraUser = await entraService.CreateUserAsync(request.Email, request.DisplayName, ct);
+        await entraService.AssignAppRoleTo(entraUser.EntraUserId, "Admin", ct);
 
         var user = new UserDataRow
         {
@@ -34,13 +35,15 @@ public sealed class UserService(
             OrganizationId = request.OrganizationId,
             Email = request.Email,
             DisplayName = request.DisplayName,
+            EntraEmail = entraUser.EntraMail,
+            EntraId = entraUser.EntraUserId,
             Phone = request.Phone,
             Role = request.Role,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
-        var userId = await repository.CreateAsync(user, cancellationToken);
+        var userId = await repository.CreateAsync(user, ct);
         user.Id = userId;
 
         logger.LogInformation("User created. UserId: {UserId}. OrganizationId: {OrganizationId}. Role: {Role}.", user.Id, user.OrganizationId, user.Role);

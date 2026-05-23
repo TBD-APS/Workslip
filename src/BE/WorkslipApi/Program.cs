@@ -49,11 +49,11 @@ try
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
 
+    var tenantId = builder.Configuration["GraphApp:TenantId"];
+    var clientId = builder.Configuration["GraphApp:ClientId"];
+    var clientSecret = builder.Configuration["GraphApp:ClientSecret"];
     builder.Services.AddSingleton<GraphServiceClient>(sp =>
     {
-        var tenantId = builder.Configuration["GraphApp:TenantId"];
-        var clientId = builder.Configuration["GraphApp:ClientId"];
-        var clientSecret = builder.Configuration["GraphApp:ClientSecret"];
 
         var credential = new ClientSecretCredential(
             tenantId,
