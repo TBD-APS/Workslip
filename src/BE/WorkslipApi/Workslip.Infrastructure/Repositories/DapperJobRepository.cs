@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 using Dapper;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
-using Workslip.Infrastructure.Models;
+using Workslip.Domain.Models;
 using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Repositories;

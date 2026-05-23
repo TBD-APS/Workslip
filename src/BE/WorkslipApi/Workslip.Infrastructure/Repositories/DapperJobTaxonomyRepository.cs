@@ -1,7 +1,7 @@
 using Dapper;
 using Microsoft.Extensions.Caching.Hybrid;
 using Workslip.Application.Jobs;
-using Workslip.Infrastructure.Models;
+using Workslip.Domain.Models;
 using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Repositories;

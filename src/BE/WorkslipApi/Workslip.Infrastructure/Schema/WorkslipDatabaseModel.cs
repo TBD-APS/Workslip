@@ -1,6 +1,7 @@
 using System.Text;
+using Workslip.Domain.Models;
 
-namespace Workslip.Infrastructure.Models;
+namespace Workslip.Infrastructure.Schema;
 
 /// <summary>
 /// Code-level source of truth for SQL Server schema generation.

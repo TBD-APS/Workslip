@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 
 namespace Workslip.Application.Organizations;
@@ -35,15 +36,19 @@ public interface IAuthService
 
 public sealed class OrganizationService(
     IOrganizationRepository repository,
+    IValidator<CreateOrganizationRequest> createOrganizationValidator,
     ILogger<OrganizationService> logger) : IOrganizationService
 {
     public async Task<OrganizationServiceResult<OrganizationOnboardingResponse>> CreateAsync(
         CreateOrganizationRequest request,
         CancellationToken cancellationToken)
     {
-        var errors = OrganizationRequestValidator.ValidateCreate(request);
-        if (errors.Count > 0)
+        var validationResult = await createOrganizationValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
         {
+            var errors = validationResult.Errors
+                .Select(e => new OrganizationValidationError(e.PropertyName, e.ErrorMessage))
+                .ToList();
             logger.LogWarning("Organization create validation failed. Fields: {ValidationFields}",
                 ValidationFields(errors));
 

@@ -1,3 +1,5 @@
+using Workslip.Domain.Models;
+
 namespace Workslip.Application.Jobs;
 
 public static class JobRequestValidator

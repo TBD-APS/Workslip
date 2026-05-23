@@ -1,4 +1,4 @@
-namespace Workslip.Application.Jobs;
+namespace Workslip.Domain.Models;
 
 public sealed record WorkKindDefinition(
     string Id,
@@ -14,7 +14,4 @@ public sealed record JobTaxonomySnapshot(
     IReadOnlyDictionary<string, WorkKindDefinition> WorkKinds,
     IReadOnlyDictionary<string, ClosureFlagDefinition> ClosureFlags);
 
-public interface IJobTaxonomyRepository
-{
-    Task<JobTaxonomySnapshot> GetAsync(CancellationToken cancellationToken);
-}
+
