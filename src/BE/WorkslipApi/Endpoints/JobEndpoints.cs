@@ -8,14 +8,14 @@ public static class JobEndpoints
 {
     public static IEndpointRouteBuilder MapJobEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/jobs").WithTags("jobs").RequireAuthorization(AuthPolicies.User);
+        var group = app.MapGroup("/api/jobs").WithTags("jobs").RequireAuthorization(AuthPolicies.RequireUser);
 
         group.MapPost("/", async (CreateJobRequest request, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.CreateAsync(request, cancellationToken);
             return ToCreatedResult(result);
-        }).RequireAuthorization(AuthPolicies.Admin);
+        }).WithDisplayName("Create job").RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapGet("/", async (
             Guid? organizationId,
@@ -33,7 +33,7 @@ public static class JobEndpoints
             return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
                 ? Results.StatusCode(StatusCodes.Status304NotModified)
                 : Results.Ok(jobs);
-        });
+        }).WithDisplayName("Get All Jobs");
 
         group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
@@ -50,7 +50,7 @@ public static class JobEndpoints
 
             HttpCacheHeaders.SetNoStore(httpContext);
             return ToOkResult(result);
-        });
+        }).WithDisplayName("Get single job");
 
         group.MapPatch("/{id:guid}", async (
             Guid id,
@@ -62,7 +62,7 @@ public static class JobEndpoints
             HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ToOkResult(result);
-        });
+        }).WithDisplayName("Updte job");
 
         group.MapPost("/{id:guid}/submit", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {

@@ -8,7 +8,7 @@ public static class UserEndpoints
     {
         var group = app.MapGroup("/api/users")
             .WithTags("users")
-            .RequireAuthorization(AuthPolicies.Admin);
+            .RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/", async (CreateUserRequest request, UserService service, CancellationToken cancellationToken) =>
         {

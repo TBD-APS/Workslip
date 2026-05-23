@@ -7,7 +7,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:5000",
+      "value": "http://localhost:5262",
       "type": "string"
     },
     {
@@ -69,8 +69,73 @@
       "key": "customerEmail",
       "value": "",
       "type": "string"
-    }
+    },
+    {
+    "key": "tenantId",
+    "value": "64ce3484-dfcb-4a30-87c5-b1a09da33d33"
+    },
+    {
+      "key": "azureClientId",
+      "value": "67882e61-7227-4c8a-bc55-dd36b2c59005"
+    },
+    {
+      "key": "apiScope",
+      "value": "api://4b36d921-1eaa-4d29-a1ba-412f07eaefe6/access_as_user"
+    },
+    {
+      "key": "azureClientSecret",
+      "value": "Ciq8Q~oTodNM8eW9-vAaX4wuqN~0Sj0NiUYW~asq"
+    } 
   ],
+    "auth": {
+  "type": "oauth2",
+  "oauth2": [
+    {
+      "key": "grant_type",
+      "value": "authorization_code_with_pkce",
+      "type": "string"
+    },
+    {
+      "key": "callbackUrl",
+      "value": "https://oauth.pstmn.io/v1/callback",
+      "type": "string"
+    },
+    {
+      "key": "useBrowser",
+      "value": true,
+      "type": "boolean"
+    },
+    {
+      "key": "authUrl",
+      "value": "https://login.microsoftonline.com/64ce3484-dfcb-4a30-87c5-b1a09da33d33/oauth2/v2.0/authorize",
+      "type": "string"
+    },
+    {
+      "key": "accessTokenUrl",
+      "value": "https://login.microsoftonline.com/64ce3484-dfcb-4a30-87c5-b1a09da33d33/oauth2/v2.0/token",
+      "type": "string"
+    },
+    {
+      "key": "clientId",
+      "value": "67882e61-7227-4c8a-bc55-dd36b2c59005",
+      "type": "string"
+    },
+    {
+      "key": "clientSecret",
+      "value": "{{azureClientSecret}}",
+      "type": "string"
+    },
+    {
+      "key": "scope",
+      "value": "api://4b36d921-1eaa-4d29-a1ba-412f07eaefe6/access_as_user",
+      "type": "string"
+    },
+    {
+      "key": "client_authentication",
+      "value": "header",
+      "type": "string"
+    }
+  ]},
   "item": [
     {
       "name": "Health",
