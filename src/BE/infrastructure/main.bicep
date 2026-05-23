@@ -8,6 +8,8 @@ param appConfigurationName string      = take('appcs-${companyName}-${toLower(en
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
+param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
+param emailServiceName string = take('email-${companyName}-${toLower(environment)}', 64)
 // ── Role definition IDs ───────────────────────────────────────────────────────
 // Centralised here so they're easy to audit and update.
 var roles = {
@@ -188,6 +190,52 @@ resource diRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Azure Communication Services
+// Used for sending invite emails to new users via the ACS Email SDK.
+// Authenticated through the shared user-assigned managed identity.
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource communicationService 'Microsoft.Communication/communicationServices@2023-04-01' = {
+  name: communicationServiceName
+  location: 'global'
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
+  properties: {
+    dataLocation: 'Europe'
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ACS Email Communication Service + Domain
+// Required for sending emails via ACS. The Azure-managed domain auto-generates
+// a sender address: DoNotReply@<emailServiceName>.azurecomm.net
+// After deployment, link this domain to the ACS resource in the portal:
+//   ACS resource → Email → Connected domains → Add
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource emailService 'Microsoft.Communication/emailServices@2023-04-01' = {
+  name: emailServiceName
+  location: 'global'
+  tags: tags
+  properties: {
+    dataLocation: 'Europe'
+  }
+}
+
+resource emailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = {
+  name: 'AzureManagedDomain'
+  parent: emailService
+  location: 'global'
+  tags: tags
+  properties: {
+    domainManagement: 'AzureManaged'
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Logic App Connections
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -277,3 +325,5 @@ output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
 output DOCUMENT_INTELLIGENCE_ENDPOINT string   = documentIntelligence.properties.endpoint
 output DOCUMENT_INTELLIGENCE_NAME string       = documentIntelligenceName
 output AZURE_APP_CONFIG_ENDPOINT string         = appConfiguration.properties.endpoint
+output ACS_ENDPOINT string                     = 'https://${communicationService.properties.hostName}'
+output ACS_SENDER_ADDRESS string               = 'DoNotReply@${emailDomain.properties.mailFromSenderDomain}'

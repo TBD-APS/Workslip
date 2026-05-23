@@ -7,7 +7,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:5000",
+      "value": "http://localhost:5262",
       "type": "string"
     },
     {
@@ -37,27 +37,47 @@
     },
     {
       "key": "organizationCvr",
-      "value": "",
+      "value": "48498494",
       "type": "string"
     },
     {
       "key": "organizationName",
-      "value": "",
+      "value": "RBJ Teknisk",
       "type": "string"
     },
     {
-      "key": "adminEmail",
-      "value": "",
+      "key": "testEmail",
+      "value": "rbj@17v3ygzs.mailosaur.net",
       "type": "string"
     },
     {
       "key": "adminDisplayName",
-      "value": "",
+      "value": "Rasmus Bak",
       "type": "string"
     },
     {
       "key": "adminPhone",
+      "value": "28929173",
+      "type": "string"
+    },
+    {
+      "key": "userDisplayName",
+      "value": "rbj",
+      "type": "string"
+    },
+    {
+      "key": "userPhone",
+      "value": "28929173",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
       "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inviteBaseUrl",
+      "value": "http://localhost:5173/invite",
       "type": "string"
     },
     {
@@ -69,8 +89,77 @@
       "key": "customerEmail",
       "value": "",
       "type": "string"
-    }
+    },
+    {
+      "key": "tenantId",
+      "value": "64ce3484-dfcb-4a30-87c5-b1a09da33d33",
+      "type": "string"
+    },
+    {
+      "key": "azureClientId",
+      "value": "67882e61-7227-4c8a-bc55-dd36b2c59005",
+      "type": "string"
+    },
+    {
+      "key": "apiScope",
+      "value": "api://4b36d921-1eaa-4d29-a1ba-412f07eaefe6/access_as_user",
+      "type": "string"
+    },
+    {
+      "key": "inviteToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inviteEmail",
+      "value": "",
+      "type": "string"
+    } 
   ],
+    "auth": {
+  "type": "oauth2",
+  "oauth2": [
+    {
+      "key": "grant_type",
+      "value": "authorization_code_with_pkce",
+      "type": "string"
+    },
+    {
+      "key": "callbackUrl",
+      "value": "https://oauth.pstmn.io/v1/callback",
+      "type": "string"
+    },
+    {
+      "key": "useBrowser",
+      "value": true,
+      "type": "boolean"
+    },
+    {
+      "key": "authUrl",
+      "value": "https://login.microsoftonline.com/64ce3484-dfcb-4a30-87c5-b1a09da33d33/oauth2/v2.0/authorize",
+      "type": "string"
+    },
+    {
+      "key": "accessTokenUrl",
+      "value": "https://login.microsoftonline.com/64ce3484-dfcb-4a30-87c5-b1a09da33d33/oauth2/v2.0/token",
+      "type": "string"
+    },
+    {
+      "key": "clientId",
+      "value": "67882e61-7227-4c8a-bc55-dd36b2c59005",
+      "type": "string"
+    },
+    {
+      "key": "scope",
+      "value": "{{apiScope}} offline_access",
+      "type": "string"
+    },
+    {
+      "key": "client_authentication",
+      "value": "header",
+      "type": "string"
+    }
+  ]},
   "item": [
     {
       "name": "Health",
@@ -134,7 +223,7 @@
             "description": "Creates organization and initial admin user. Saves organizationId + userId on 201.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"{{organizationName}}\",\n  \"cvr\": \"{{organizationCvr}}\",\n  \"adminDisplayName\": \"{{adminDisplayName}}\",\n  \"adminEmail\": \"{{adminEmail}}\",\n  \"adminPhone\": \"{{adminPhone}}\"\n}",
+              "raw": "{\n  \"name\": \"{{organizationName}}\",\n  \"cvr\": \"{{organizationCvr}}\",\n  \"adminDisplayName\": \"{{adminDisplayName}}\",\n  \"adminEmail\": \"{{testEmail}}\",\n  \"adminPhone\": \"{{adminPhone}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -167,29 +256,250 @@
       "name": "Auth",
       "item": [
         {
-          "name": "GET /api/auth/me",
+          "name": "POST /api/auth/send-code",
           "request": {
-            "method": "GET",
-            "header": [],
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/api/auth/me?userId={{userId}}",
+              "raw": "{{baseUrl}}/api/auth/send-code",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "auth",
-                "me"
-              ],
-              "query": [
-                {
-                  "key": "userId",
-                  "value": "{{userId}}",
-                  "disabled": false
-                }
+                "send-code"
               ]
             },
-            "description": "Gets current user by query parameter userId."
+            "description": "Sends a 6-digit one-time code to the user's email. Always returns 200 to prevent email enumeration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/verify-code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-code",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-code"
+              ]
+            },
+            "description": "Verifies the one-time code and returns a local JWT token. Save token to authToken variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"code\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test('200 OK or 401 Unauthorized', function () { pm.expect([200, 401]).to.include(pm.response.code); });",
+                    "if (pm.response.code === 200) {",
+                    "  const json = pm.response.json();",
+                    "  pm.collectionVariables.set('authToken', json.token);",
+                    "  pm.test('token received', function () { pm.expect(json.token).to.be.a('string').and.not.empty; });",
+                    "  pm.test('token is JWT with 3 parts', function () { pm.expect(json.token.split('.')).to.have.length(3); });",
+                    "  pm.test('user info returned', function () { pm.expect(json.user.email).to.eql(pm.variables.get('testEmail')); });",
+                    "}"
+                  ]
+                }
+              }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "POST /api/users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ]
+            },
+            "description": "Creates a user in the organization. Saves userId on 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"email\": \"{{testEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('userId', json.id);",
+                  "pm.test('user id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/users/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Gets user by id."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/users/organization/{organizationId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/organization/{{organizationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "organization",
+                "{{organizationId}}"
+              ]
+            },
+            "description": "Lists users by organization."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('users list returned', function () { pm.expect(pm.response.json().users).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/users/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Updates user fields.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Opdateret {{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": [],
           "event": [
@@ -199,7 +509,223 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "pm.test('auth response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/users/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Deletes a user."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Invites",
+      "item": [
+        {
+          "name": "POST /api/users/invite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/invite",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "invite"
+              ]
+            },
+            "description": "Sends invite emails to new users. Requires Acs:Endpoint + Acs:SenderAddress configured.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"emails\": [\n    \"{{testEmail}}\"\n  ],\n  \"inviteBaseUrl\": \"{{inviteBaseUrl}}\",\n  \"role\": \"User\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('invite results returned', function () { pm.expect(pm.response.json().results).to.be.an('array'); });",
+                  "const json = pm.response.json();",
+                  "if (json.results.length > 0) {",
+                  "  pm.test('each result has email, success, and optional inviteLink', function () {",
+                  "    json.results.forEach(function(r) {",
+                  "      pm.expect(r.email).to.be.a('string').and.not.empty;",
+                  "      pm.expect(r.success).to.be.a('boolean');",
+                  "      if (r.success && r.inviteLink) {",
+                  "        const token = r.inviteLink.split('/').pop();",
+                  "        pm.collectionVariables.set('inviteToken', token);",
+                  "        pm.collectionVariables.set('inviteEmail', r.email);",
+                  "      }",
+                  "    });",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/verify-invite (valid token)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-invite",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-invite"]
+            },
+            "description": "Verifies a valid invite token captured from invite creation. Creates the user and returns a LocalJwt on success.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const token = pm.collectionVariables.get('inviteToken');",
+                  "if (!token) {",
+                  "  pm.test('skipped — no invite token captured', function () { pm.expect(true).to.eql(true); });",
+                  "} else {",
+                  "  pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "  const json = pm.response.json();",
+                  "  pm.test('returns JWT token', function () {",
+                  "    pm.expect(json.token).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.tokenType).to.eql('Bearer');",
+                  "    pm.expect(json.expiresIn).to.be.a('number');",
+                  "    pm.expect(json.token.split('.')).to.have.length(3);",
+                  "  });",
+                  "  pm.test('user info returned', function () {",
+                  "    pm.expect(json.user.email).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.userId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.organizationId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.role).to.be.a('string');",
+                  "  });",
+                  "  pm.collectionVariables.set('authToken', json.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/verify-invite (consumed token)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-invite",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-invite"]
+            },
+            "description": "Verifies the same token again - expects 400 because it was already consumed. The user was already created on first use.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const token = pm.collectionVariables.get('inviteToken');",
+                  "if (!token) {",
+                  "  pm.test('skipped — no invite token captured', function () { pm.expect(true).to.eql(true); });",
+                  "} else {",
+                  "  pm.test('400 Bad Request — invite already consumed', function () { pm.response.to.have.status(400); });",
+                  "  pm.test('error message', function () {",
+                  "    pm.expect(pm.response.json().error).to.be.a('string');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/verify-invite (invalid token)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-invite",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-invite"]
+            },
+            "description": "Verifies a non-existent token - expects 400 with error.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"invlaid0000000000000000000000000\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request — invite not found', function () { pm.response.to.have.status(400); });",
+                  "pm.test('error message', function () {",
+                  "  pm.expect(pm.response.json().error).to.be.a('string');",
+                  "});"
                 ]
               }
             }
@@ -742,9 +1268,12 @@
           "  pm.collectionVariables.set('runId', runId);",
           "  pm.collectionVariables.set('organizationCvr', numericTail.padStart(8, '0'));",
           "  pm.collectionVariables.set('organizationName', `Integration VVS ${runId}`);",
-          "  pm.collectionVariables.set('adminEmail', `integration-admin+${runId}@example.com`);",
+          "  pm.collectionVariables.set('testEmail', `rbj+${runId}@17v3ygzs.mailosaur.net`);",
           "  pm.collectionVariables.set('adminDisplayName', `Integration Admin ${runId}`);",
           "  pm.collectionVariables.set('adminPhone', '+4512345678');",
+          "  pm.collectionVariables.set('userDisplayName', `Integration User ${runId}`);",
+          "  pm.collectionVariables.set('inviteBaseUrl', 'http://localhost:5173/invite');",
+          "  pm.collectionVariables.set('userPhone', '+4512345678');",
           "  pm.collectionVariables.set('reportNumber', `WS-IT-${runId}`);",
           "  pm.collectionVariables.set('customerEmail', `integration-customer+${runId}@example.com`);",
           "}"

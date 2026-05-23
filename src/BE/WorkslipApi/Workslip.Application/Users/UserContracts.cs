@@ -25,3 +25,20 @@ public sealed record UserResponse(
 public sealed record UserListResponse(
     IReadOnlyList<UserResponse> Users,
     int Total);
+
+public sealed record InviteUsersRequest(
+    Guid OrganizationId,
+    IReadOnlyList<string> Emails,
+    string InviteBaseUrl,
+    string? Role);
+
+public sealed record InviteUserResult(
+    string Email,
+    bool Success,
+    string? Error,
+    string? InviteLink);
+
+public sealed record InviteUsersResponse(
+    IReadOnlyList<InviteUserResult> Results);
+
+public sealed record VerifyInviteRequest(string Token);

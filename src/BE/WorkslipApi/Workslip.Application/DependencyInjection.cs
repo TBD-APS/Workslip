@@ -1,6 +1,7 @@
 using System.Reflection;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Jobs.Validators;
 using Workslip.Application.Organizations;
@@ -14,8 +15,10 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
 {
     services.AddScoped<IJobService, JobService>();
     services.AddScoped<IOrganizationService, OrganizationService>();
-    services.AddScoped<UserService>();
-    
+    services.AddScoped<IUserService, UserService>();
+    services.AddScoped<IUserEntraService, UserEntraService>();
+    services.AddScoped<IAuthService, AuthService>();
+
     // Add FluentValidation validators (scans the entire assembly)
     services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
     return services;

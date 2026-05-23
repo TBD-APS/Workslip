@@ -1,8 +1,8 @@
 using Azure.Identity;
 using Azure.Core;
-using Microsoft.ApplicationInsights.Extensibility;
 using Serilog;
 using Workslip.Application;
+using Workslip.Api;
 using Workslip.Api.Endpoints;
 using Workslip.Api.Middleware;
 using Workslip.Infrastructure;
@@ -12,45 +12,65 @@ using Scalar.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
-    .CreateBootstrapLogger();
-
+using Microsoft.Graph;
+Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 try
 {
     var builder = WebApplication.CreateBuilder(args);
     var azureCredential = CreateAzureCredential(builder.Configuration);
     AddAzureAppConfiguration(builder.Configuration, azureCredential);
-    var applicationInsightsConnectionString = ResolveApplicationInsightsConnectionString(builder.Configuration);
 
-builder.Host.UseSerilog((context, services, configuration) => configuration
+    builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
         .Enrich.WithProperty("Application", "Workslip.Api")
         .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
         .WriteTo.ApplicationInsights(
-            TelemetryConverter.Traces)); // <-- RETTET: services.GetRequiredService fjernet herfra!
+            TelemetryConverter.Traces));  
 
-    builder.Services.AddApplicationInsightsTelemetry(options =>
+    var applicationInsightsConnectionString = ResolveApplicationInsightsConnectionString(builder.Configuration);
+    if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
     {
-        if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
+        builder.Services.AddApplicationInsightsTelemetry(options =>
         {
             options.ConnectionString = applicationInsightsConnectionString;
-        }
-    });
+        });
+    }
     
     builder.Services.AddOpenApi();
 
     builder.Services.AddHybridCache();
+    builder.Services.AddSingleton<TokenCredential>(azureCredential);
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
 
+    var tenantId = builder.Configuration["GraphApp:TenantId"];
+    var clientId = builder.Configuration["GraphApp:ClientId"];
+    var clientSecret = builder.Configuration["GraphApp:ClientSecret"];
+    builder.Services.AddSingleton<GraphServiceClient>(sp =>
+    {
+
+        var credential = new ClientSecretCredential(
+            tenantId,
+            clientId,
+            clientSecret
+        );
+
+        return new GraphServiceClient(
+            credential,
+            new[] { "https://graph.microsoft.com/.default" }
+        );
+    });
+
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+    builder.Services.AddAuthentication()
+    .AddJwtBearer("LocalJwt", options =>
+    {
+        options.TokenValidationParameters = JwtHelper.GetTokenValidationParameters(builder.Configuration);
+    });
 
     builder.Services.AddAuthorization();
 

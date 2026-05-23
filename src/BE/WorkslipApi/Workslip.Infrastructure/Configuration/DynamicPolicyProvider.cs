@@ -19,12 +19,12 @@ public class DynamicPolicyProvider : IAuthorizationPolicyProvider
 
         if (!string.IsNullOrEmpty(requiredRole))
         {
-            var policy = new AuthorizationPolicyBuilder();
-            policy.AddRequirements(new DynamicRoleRequirement(requiredRole));
+            var policy = new AuthorizationPolicyBuilder()
+                .AddAuthenticationSchemes("Bearer", "LocalJwt")
+                .AddRequirements(new DynamicRoleRequirement(requiredRole));
             return Task.FromResult<AuthorizationPolicy?>(policy.Build());
         }
 
-        // Hvis policien ikke findes i vores dynamiske opsætning, så lad .NET lede efter standard-policies
         return _fallbackProvider.GetPolicyAsync(policyName);
     }
 

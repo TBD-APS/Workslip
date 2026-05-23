@@ -44,10 +44,11 @@ public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory
     public async Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken)
     {
         const string sql = @"
-            INSERT INTO dbo.Users (Id, OrganizationId, Email, DisplayName, Phone, Role, CreatedAt, UpdatedAt)
-            VALUES (@Id, @OrganizationId, @Email, @DisplayName, @Phone, @Role, @CreatedAt, @UpdatedAt)";
+            INSERT INTO dbo.Users (Id, OrganizationId, Email, DisplayName, Phone, EntraEmail, EntraId, Role, CreatedAt, UpdatedAt)
+            VALUES (@Id, @OrganizationId, @Email, @DisplayName, @Phone, @EntraEmail, @EntraId, @Role, @CreatedAt, @UpdatedAt)";
 
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
+        
         var row = new UserDataRow
         {
             Id = user.Id,
@@ -55,10 +56,13 @@ public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory
             Email = user.Email,
             DisplayName = user.DisplayName,
             Phone = user.Phone,
+            EntraEmail = user.EntraEmail,
+            EntraId = user.EntraId,
             Role = user.Role,
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
         };
+
         await connection.ExecuteAsync(sql, row);
         return user.Id;
     }
