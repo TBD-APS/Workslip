@@ -25,10 +25,14 @@ public static class AuthEndpoints
             return Results.Ok(token);
         });
 
-        group.MapPost("/verify-invite", async (VerifyInviteRequest request, IUserService service, CancellationToken cancellationToken) =>
+        group.MapPost("/verify-invite", async (VerifyInviteRequest request, IUserService service, IConfiguration configuration, CancellationToken cancellationToken) =>
         {
-            var result = await service.VerifyInviteAsync(request, cancellationToken);
-            return result.Valid ? Results.Ok(result) : Results.BadRequest(new { error = result.Error });
+            var user = await service.VerifyInviteAsync(request, cancellationToken);
+            if (user is null)
+                return Results.BadRequest(new { error = "Invitationen er ugyldig, brugt eller udløbet." });
+
+            var token = JwtHelper.GenerateToken(user, configuration);
+            return Results.Ok(token);
         });
         return app;
     }

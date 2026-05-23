@@ -42,11 +42,3 @@ public sealed record InviteUsersResponse(
     IReadOnlyList<InviteUserResult> Results);
 
 public sealed record VerifyInviteRequest(string Token);
-
-public sealed record VerifyInviteResponse(
-    bool Valid,
-    Guid? OrganizationId,
-    string? OrganizationName,
-    string? Email,
-    string? Role,
-    string? Error);

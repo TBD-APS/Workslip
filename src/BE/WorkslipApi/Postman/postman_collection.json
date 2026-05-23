@@ -82,7 +82,7 @@
     },
     {
       "key": "inviteBaseUrl",
-      "value": "http://localhost:5173/invite",
+      "value": "http://localhost:5262/api/auth/verify-invite",
       "type": "string"
     },
     {
@@ -111,6 +111,16 @@
     {
       "key": "azureClientSecret",
       "value": "Ciq8Q~oTodNM8eW9-vAaX4wuqN~0Sj0NiUYW~asq"
+    },
+    {
+      "key": "inviteToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inviteEmail",
+      "value": "",
+      "type": "string"
     } 
   ],
     "auth": {
@@ -391,95 +401,7 @@
                   ]
                 }
               }
-            ]
-          },
-          {
-            "name": "POST /api/auth/verify-invite",
-            "request": {
-              "method": "POST",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "url": {
-                "raw": "{{baseUrl}}/api/auth/verify-invite",
-                "host": ["{{baseUrl}}"],
-                "path": ["api", "auth", "verify-invite"]
-              },
-              "description": "Verifies an invite token. Returns org info on success without requiring auth.",
-              "body": {
-                "mode": "raw",
-                "raw": "{\n  \"token\": \"00000000000000000000000000000000\"\n}",
-                "options": {
-                  "raw": {
-                    "language": "json"
-                  }
-                }
-              }
-            },
-            "response": [],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "pm.test('200 OK or 400 Bad Request', function () { pm.expect([200, 400]).to.include(pm.response.code); });",
-                    "if (pm.response.code === 200) {",
-                    "  const json = pm.response.json();",
-                    "  pm.test('valid invite returns org info', function () {",
-                    "    pm.expect(json.valid).to.eql(true);",
-                    "    pm.expect(json.organizationId).to.be.a('string').and.not.empty;",
-                    "    pm.expect(json.email).to.be.a('string').and.not.empty;",
-                    "  });",
-                    "}"
-                  ]
-                }
-            }
           ]
-        },
-        {
-          "name": "GET /api/users/invites",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/users/invites?email={{userEmail}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "users", "invites"],
-              "query": [
-                {
-                  "key": "email",
-                  "value": "{{userEmail}}"
-                }
-              ]
-            },
-            "description": "Retrieves active (non-consumed, non-expired) invite tokens for the given email. Requires auth.",
-            "response": [],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                    "if (pm.response.code === 200) {",
-                    "  pm.test('invites returned as array', function () { pm.expect(pm.response.json()).to.be.an('array'); });",
-                    "  pm.test('each invite has token and expiresAt', function () {",
-                    "    const invites = pm.response.json();",
-                    "    invites.forEach(function(inv) {",
-                    "      pm.expect(inv.token).to.be.a('string').and.not.empty;",
-                    "      pm.expect(inv.expiresAt).to.be.a('string');",
-                    "    });",
-                    "  });",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          }
         }
       ]
     },
@@ -722,9 +644,184 @@
                   "    json.results.forEach(function(r) {",
                   "      pm.expect(r.email).to.be.a('string').and.not.empty;",
                   "      pm.expect(r.success).to.be.a('boolean');",
+                  "      if (r.success && r.inviteLink) {",
+                  "        const token = r.inviteLink.split('/').pop();",
+                  "        pm.collectionVariables.set('inviteToken', token);",
+                  "        pm.collectionVariables.set('inviteEmail', r.email);",
+                  "      }",
                   "    });",
                   "  });",
                   "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/users/invites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/invites?email={{userEmail}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "invites"],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "{{userEmail}}"
+                }
+              ]
+            },
+            "description": "Retrieves active (non-consumed, non-expired) invite tokens for the given email. Saves the first token to inviteToken variable for downstream verify-invite tests.",
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                    "const invites = pm.response.json();",
+                    "pm.test('invites returned as array', function () { pm.expect(invites).to.be.an('array'); });",
+                    "if (invites.length > 0) {",
+                    "  const token = invites[0].token;",
+                    "  pm.collectionVariables.set('inviteToken', token);",
+                    "  pm.collectionVariables.set('inviteEmail', invites[0].email);",
+                    "  pm.test('invite token captured for verify test', function () {",
+                    "    pm.expect(token).to.be.a('string').and.not.empty;",
+                    "  });",
+                    "}",
+                    "invites.forEach(function(inv) {",
+                    "  pm.expect(inv.token).to.be.a('string').and.not.empty;",
+                    "  pm.expect(inv.expiresAt).to.be.a('string');",
+                    "});"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Verify Invite",
+      "item": [
+        {
+          "name": "POST /api/auth/verify-invite (valid token)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-invite",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-invite"]
+            },
+            "description": "Verifies a valid invite token captured from invite creation. Creates the user and returns a LocalJwt on success.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const token = pm.collectionVariables.get('inviteToken');",
+                  "if (!token) {",
+                  "  pm.test('skipped — no invite token captured', function () { pm.expect(true).to.eql(true); });",
+                  "} else {",
+                  "  pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "  const json = pm.response.json();",
+                  "  pm.test('returns JWT token', function () {",
+                  "    pm.expect(json.token).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.tokenType).to.eql('Bearer');",
+                  "    pm.expect(json.expiresIn).to.be.a('number');",
+                  "    pm.expect(json.token.split('.')).to.have.length(3);",
+                  "  });",
+                  "  pm.test('user info returned', function () {",
+                  "    pm.expect(json.user.email).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.userId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.organizationId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.role).to.be.a('string');",
+                  "  });",
+                  "  pm.collectionVariables.set('authToken', json.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/verify-invite (consumed token)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-invite",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-invite"]
+            },
+            "description": "Verifies the same token again - expects 400 because it was already consumed. The user was already created on first use.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const token = pm.collectionVariables.get('inviteToken');",
+                  "if (!token) {",
+                  "  pm.test('skipped — no invite token captured', function () { pm.expect(true).to.eql(true); });",
+                  "} else {",
+                  "  pm.test('400 Bad Request — invite already consumed', function () { pm.response.to.have.status(400); });",
+                  "  pm.test('error message', function () {",
+                  "    pm.expect(pm.response.json().error).to.be.a('string');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/verify-invite (invalid token)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-invite",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-invite"]
+            },
+            "description": "Verifies a non-existent token - expects 400 with error.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"invlaid0000000000000000000000000\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request — invite not found', function () { pm.response.to.have.status(400); });",
+                  "pm.test('error message', function () {",
+                  "  pm.expect(pm.response.json().error).to.be.a('string');",
+                  "});"
                 ]
               }
             }
@@ -1272,7 +1369,7 @@
           "  pm.collectionVariables.set('adminPhone', '+4512345678');",
           "  pm.collectionVariables.set('userEmail', `integration-user+${runId}@example.com`);",
           "  pm.collectionVariables.set('userDisplayName', `Integration User ${runId}`);",
-          "  pm.collectionVariables.set('inviteBaseUrl', 'http://localhost:5173/invite');",
+          "  pm.collectionVariables.set('inviteBaseUrl', 'http://localhost:5262/invite');",
           "  pm.collectionVariables.set('userPhone', '+4512345678');",
           "  pm.collectionVariables.set('reportNumber', `WS-IT-${runId}`);",
           "  pm.collectionVariables.set('customerEmail', `integration-customer+${runId}@example.com`);",

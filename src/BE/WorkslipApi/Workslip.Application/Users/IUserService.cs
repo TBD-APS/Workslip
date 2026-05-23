@@ -1,3 +1,4 @@
+using Workslip.Application.Auth;
 using Workslip.Domain.Models;
 
 namespace Workslip.Application.Users;
@@ -18,5 +19,5 @@ public interface IUserService
 
     Task<IReadOnlyList<InviteTokenRow>> GetInvitesByEmailAsync(string email, CancellationToken cancellationToken);
 
-    Task<VerifyInviteResponse> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken);
+    Task<AuthUserInfo?> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken);
 }

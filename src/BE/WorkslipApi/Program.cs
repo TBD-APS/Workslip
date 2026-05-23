@@ -13,16 +13,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Graph;
-
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
-
 try
 {
     var builder = WebApplication.CreateBuilder(args);
     var azureCredential = CreateAzureCredential(builder.Configuration);
     AddAzureAppConfiguration(builder.Configuration, azureCredential);
-
-    var applicationInsightsConnectionString = ResolveApplicationInsightsConnectionString(builder.Configuration);
 
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
@@ -31,15 +27,16 @@ try
         .Enrich.WithProperty("Application", "Workslip.Api")
         .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
         .WriteTo.ApplicationInsights(
-            TelemetryConverter.Traces)); // <-- RETTET: services.GetRequiredService fjernet herfra!
+            TelemetryConverter.Traces));  
 
-    builder.Services.AddApplicationInsightsTelemetry(options =>
+    var applicationInsightsConnectionString = ResolveApplicationInsightsConnectionString(builder.Configuration);
+    if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
     {
-        if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
+        builder.Services.AddApplicationInsightsTelemetry(options =>
         {
             options.ConnectionString = applicationInsightsConnectionString;
-        }
-    });
+        });
+    }
     
     builder.Services.AddOpenApi();
 
