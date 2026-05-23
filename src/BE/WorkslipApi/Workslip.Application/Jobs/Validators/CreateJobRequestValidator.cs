@@ -48,36 +48,42 @@ public class CreateJobRequestValidator : AbstractValidator<CreateJobRequest>
             {
                 installationType.RuleFor(x => x.InstallationTypeId)
                     .NotEmpty().WithMessage("Installation type ID is required.");
-
+                    
                 installationType.RuleFor(x => x.Subcategories)
                     .NotEmpty().WithMessage("At least one subcategory is required.");
-
+                    
                 installationType.RuleForEach(x => x.Subcategories)
                     .ChildRules(subcategory =>
                     {
                         subcategory.RuleFor(x => x.SubcategoryId)
                             .NotEmpty().WithMessage("Subcategory ID is required.");
-
-                        subcategory.RuleFor(x => x.ControlChecks)
-                            .NotEmpty().WithMessage("At least one control check is required.");
-
-                        subcategory.RuleForEach(x => x.ControlChecks)
-                            .ChildRules(check =>
+                            
+                       /* subcategory.RuleForEach(x => x.ControlChecks)
+                            .ChildRules(subSubcategory =>
                             {
-                                check.RuleFor(x => x.ItemId)
-                                    .NotEmpty().WithMessage("Item ID is required.");
-
-                                check.RuleFor(x => x.Checked)
-                                    .NotNull().WithMessage("Checked value is required.");
-
-                                check.RuleFor(x => x.Note)
-                                    .MaximumLength(500).WithMessage("Note must not exceed 500 characters.");
-                            });
+                                subSubcategory.RuleFor(x => x.ItemId)
+                                    .NotEmpty().WithMessage("At least one control check is required.")
+                                    .Must(HaveNoDuplicates).WithMessage("Duplicate control check is not allowed.");
+                                    
+                                subSubcategory.RuleForEach(x => x.ControlChecks)
+                                    .ChildRules(check =>
+                                    {
+                                        check.RuleFor(x => x.ItemId)
+                                            .NotEmpty().WithMessage("Item ID is required.");
+                                            
+                                        check.RuleFor(x => x.Checked)
+                                            .NotNull().WithMessage("Checked value is required.");
+                                            
+                                        check.RuleFor(x => x.Note)
+                                            .MaximumLength(500).WithMessage("Note must not exceed 500 characters.");
+                                    });
+                            });*/
                     });
+                    
             });
     }
 
-    private bool HaveNoDuplicates(IReadOnlyList<string>? items)
+    private bool HaveNoDuplicates(IReadOnlyList<string> items)
     {
         if (items == null) return true;
         return items.Where(i => !string.IsNullOrWhiteSpace(i))
@@ -85,43 +91,57 @@ public class CreateJobRequestValidator : AbstractValidator<CreateJobRequest>
                    .All(g => g.Count() <= 1);
     }
 
-    private bool BeValidWorkKind(string? workKind)
+    private bool BeValidWorkKind(string workKind)
     {
         if (string.IsNullOrWhiteSpace(workKind))
             return false;
-
+            
+        // Valid work kinds based on the domain model
         var validWorkKinds = new[] { "nyInstallation", "aendring", "reparation", "serviceAndet" };
-        return validWorkKinds.Contains(workKind!, StringComparer.OrdinalIgnoreCase);
+        return validWorkKinds.Contains(workKind, StringComparer.OrdinalIgnoreCase);
     }
 
-    private bool BeValidCustomWorkKindWhenRequired(string? workKind, string? customWorkKind)
+    private bool BeValidCustomWorkKindWhenRequired(string workKind, string? customWorkKind)
     {
         if (string.IsNullOrWhiteSpace(workKind))
-            return true;
-
-        var workKindLower = workKind!.ToLower();
+            return true; // Let the NotEmpty rule handle this
+            
+        // Work kinds that require custom work kind
+        var workKindLower = workKind.ToLower();
         return !(workKindLower == "serviceandet" && string.IsNullOrWhiteSpace(customWorkKind));
     }
 
-    private bool BeValidCustomWorkKindWhenNotRequired(string? workKind, string? customWorkKind)
+    private bool BeValidCustomWorkKindWhenNotRequired(string workKind, string? customWorkKind)
     {
         if (string.IsNullOrWhiteSpace(workKind) || string.IsNullOrWhiteSpace(customWorkKind))
-            return true;
-
-        var workKindLower = workKind!.ToLower();
+            return true; // Let other rules handle empty cases
+            
+        // Work kinds that do NOT allow custom work kind
+        var workKindLower = workKind.ToLower();
         return !(workKindLower == "serviceandet" && !string.IsNullOrWhiteSpace(customWorkKind));
     }
 
-    private bool NotContainExclusiveWithOthers(IReadOnlyList<string>? closureFlags)
+    private bool NotContainExclusiveWithOthers(IReadOnlyList<string> closureFlags)
     {
         if (closureFlags == null) return true;
-
-        var exclusiveFlags = new[] { "afvigelse" };
-
-        var hasExclusive = closureFlags.Any(flag =>
-            !string.IsNullOrWhiteSpace(flag) &&
+        
+        // Exclusive closure flags that cannot be combined with others
+        var exclusiveFlags = new[] { "afvigelse" }; // Example exclusive flag
+        
+        var hasExclusive = closureFlags.Any(flag => 
+            !string.IsNullOrWhiteSpace(flag) && 
             exclusiveFlags.Contains(flag.Trim(), StringComparer.OrdinalIgnoreCase));
-
+            
         return !hasExclusive || closureFlags.Count <= 1;
+    }
+
+    private bool NotHaveIrrelevantWithOthers(IReadOnlyList<ControlCheckRequest> checks)
+    {
+        if (checks == null) return true;
+        
+        var checkedItems = checks.Where(c => c.Checked).ToArray();
+        var checkedIrrelevantItems = checkedItems.Where(c => c.ItemId.EndsWith("-irrelevant", StringComparison.OrdinalIgnoreCase)).ToArray();
+        
+        return !(checkedIrrelevantItems.Length > 0 && checkedItems.Length > checkedIrrelevantItems.Length);
     }
 }
