@@ -80,7 +80,8 @@
     },
     {
       "key": "apiScope",
-      "value": "api://4b36d921-1eaa-4d29-a1ba-412f07eaefe6/access_as_user"
+      "value": "api://4b36d921-1eaa-4d29-a1ba-412f07eaefe6/access_as_user",
+      "type": "string"
     },
     {
       "key": "azureClientSecret",
@@ -127,7 +128,7 @@
     },
     {
       "key": "scope",
-      "value": "api://4b36d921-1eaa-4d29-a1ba-412f07eaefe6/access_as_user",
+      "value": "{{apiScope}} offline_access",
       "type": "string"
     },
     {

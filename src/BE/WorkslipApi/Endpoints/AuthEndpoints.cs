@@ -9,10 +9,13 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth").WithTags("auth").RequireAuthorization(AuthPolicies.RequireSuperAdmin);
 
-        group.MapPost("test", async () =>
+        group.MapPost("admin/user", async () =>
         {
             return Results.Ok();
         });
+
+
+
         return app;
     }
 }

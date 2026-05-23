@@ -14,19 +14,19 @@ using Microsoft.Identity.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.Graph;
 
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
-    .CreateBootstrapLogger();
+Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 
 try
 {
     var builder = WebApplication.CreateBuilder(args);
     var azureCredential = CreateAzureCredential(builder.Configuration);
     AddAzureAppConfiguration(builder.Configuration, azureCredential);
+
     var applicationInsightsConnectionString = ResolveApplicationInsightsConnectionString(builder.Configuration);
 
-builder.Host.UseSerilog((context, services, configuration) => configuration
+    builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
@@ -48,6 +48,24 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     builder.Services.AddHybridCache();
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
+
+    builder.Services.AddSingleton<GraphServiceClient>(sp =>
+    {
+        var tenantId = builder.Configuration["GraphApp:TenantId"];
+        var clientId = builder.Configuration["GraphApp:ClientId"];
+        var clientSecret = builder.Configuration["GraphApp:ClientSecret"];
+
+        var credential = new ClientSecretCredential(
+            tenantId,
+            clientId,
+            clientSecret
+        );
+
+        return new GraphServiceClient(
+            credential,
+            new[] { "https://graph.microsoft.com/.default" }
+        );
+    });
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));

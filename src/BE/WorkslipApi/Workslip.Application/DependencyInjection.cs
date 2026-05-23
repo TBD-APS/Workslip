@@ -14,8 +14,9 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
 {
     services.AddScoped<IJobService, JobService>();
     services.AddScoped<IOrganizationService, OrganizationService>();
-    services.AddScoped<UserService>();
-    
+    services.AddScoped<IUserService, UserService>();
+    services.AddScoped<IUserEntraService, UserEntraService>();
+
     // Add FluentValidation validators (scans the entire assembly)
     services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
     return services;

@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using Microsoft.Graph;
 using Workslip.Domain.Models;
 
 namespace Workslip.Application.Users;
@@ -8,11 +9,10 @@ public sealed class UserService(
     IUserRepository repository,
     IValidator<CreateUserRequest> createUserValidator,
     IValidator<UpdateUserRequest> updateUserValidator,
+    IUserEntraService entraService,
     ILogger<UserService> logger) : IUserService
 {
-    public async Task<(bool Success, UserResponse? User, IReadOnlyList<string>? Errors)> CreateAsync(
-        CreateUserRequest request,
-        CancellationToken cancellationToken)
+    public async Task<(bool Success, UserResponse? User, IReadOnlyList<string>? Errors)> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await createUserValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
@@ -25,6 +25,8 @@ public sealed class UserService(
         var existing = await repository.GetByEmailAsync(request.Email, cancellationToken);
         if (existing != null)
             return (false, null, ["Email already in use"]);
+
+        var entraUser = await entraService.CreateUserAsync(request.Email, request.DisplayName, "Admin", cancellationToken);
 
         var user = new UserDataRow
         {
