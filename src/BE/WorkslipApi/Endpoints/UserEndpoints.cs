@@ -55,6 +55,18 @@ public static class UserEndpoints
             return Results.NoContent();
         });
 
+        group.MapPost("/invite", async (InviteUsersRequest request, IUserService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.InviteUsersAsync(request, cancellationToken);
+            return Results.Ok(result);
+        });
+
+        group.MapGet("/invites", async (string email, IUserService service, CancellationToken cancellationToken) =>
+        {
+            var invites = await service.GetInvitesByEmailAsync(email, cancellationToken);
+            return Results.Ok(invites);
+        });
+
         return app;
     }
 }

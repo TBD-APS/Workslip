@@ -1,3 +1,5 @@
+using Workslip.Domain.Models;
+
 namespace Workslip.Application.Users;
 
 public interface IUserService
@@ -11,4 +13,10 @@ public interface IUserService
     Task<(bool Success, UserResponse? User, IReadOnlyList<string>? Errors)> UpdateAsync(Guid userId, UpdateUserRequest request, CancellationToken cancellationToken);
 
     Task<(bool Success, IReadOnlyList<string>? Errors)> DeleteAsync(Guid userId, CancellationToken cancellationToken);
+
+    Task<InviteUsersResponse> InviteUsersAsync(InviteUsersRequest request, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<InviteTokenRow>> GetInvitesByEmailAsync(string email, CancellationToken cancellationToken);
+
+    Task<VerifyInviteResponse> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken);
 }

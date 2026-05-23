@@ -201,6 +201,27 @@ public static class WorkslipDatabaseModel
             ],
             [
                 "create index IX_JobEvents_Report_CreatedAt on dbo.JobEvents (ReportId, CreatedAt desc);"
+            ]),
+
+        new(
+            "InviteTokens",
+            typeof(InviteTokenRow),
+            [
+                Column.RequiredGuid(nameof(InviteTokenRow.Id)),
+                Column.RequiredGuid(nameof(InviteTokenRow.OrganizationId)),
+                Column.RequiredString(nameof(InviteTokenRow.Email), 320),
+                Column.RequiredString(nameof(InviteTokenRow.Token), 64),
+                Column.OptionalString(nameof(InviteTokenRow.Role), 80),
+                Column.RequiredDateTimeOffset(nameof(InviteTokenRow.ExpiresAt)),
+                Column.RequiredBit(nameof(InviteTokenRow.Consumed), "0"),
+                Column.RequiredDateTimeOffset(nameof(InviteTokenRow.CreatedAt), "sysutcdatetime()")
+            ],
+            [
+                "constraint FK_InviteTokens_Organizations foreign key (OrganizationId) references dbo.Organizations(Id)"
+            ],
+            [
+                "create unique index UX_InviteTokens_Token on dbo.InviteTokens (Token);",
+                "create index IX_InviteTokens_Email on dbo.InviteTokens (Email) where Consumed = 0;"
             ])
     ];
 

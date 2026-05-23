@@ -1,8 +1,8 @@
 using Azure.Identity;
 using Azure.Core;
-using Microsoft.ApplicationInsights.Extensibility;
 using Serilog;
 using Workslip.Application;
+using Workslip.Api;
 using Workslip.Api.Endpoints;
 using Workslip.Api.Middleware;
 using Workslip.Infrastructure;
@@ -12,8 +12,6 @@ using Scalar.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using Microsoft.Graph;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
@@ -46,6 +44,7 @@ try
     builder.Services.AddOpenApi();
 
     builder.Services.AddHybridCache();
+    builder.Services.AddSingleton<TokenCredential>(azureCredential);
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
 
@@ -68,7 +67,13 @@ try
     });
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+    builder.Services.AddAuthentication()
+    .AddJwtBearer("LocalJwt", options =>
+    {
+        options.TokenValidationParameters = JwtHelper.GetTokenValidationParameters(builder.Configuration);
+    });
 
     builder.Services.AddAuthorization();
 
