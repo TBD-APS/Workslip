@@ -15,30 +15,32 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Graph;
+using Microsoft.ApplicationInsights.Extensibility;
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 try
 {
     var builder = WebApplication.CreateBuilder(args);
     var azureCredential = CreateAzureCredential(builder.Configuration);
     AddAzureAppConfiguration(builder.Configuration, azureCredential);
-
-    builder.Host.UseSerilog((context, services, configuration) => configuration
-        .ReadFrom.Configuration(context.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext()
-        .Enrich.WithProperty("Application", "Workslip.Api")
-        .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
-        .WriteTo.ApplicationInsights(
-            TelemetryConverter.Traces));  
-
+    
     var applicationInsightsConnectionString = ResolveApplicationInsightsConnectionString(builder.Configuration);
-    if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
+
+    builder.Host.UseSerilog((context, services, configuration) =>
     {
-        builder.Services.AddApplicationInsightsTelemetry(options =>
+        configuration
+            .ReadFrom.Configuration(context.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+            .Enrich.WithProperty("Application", "Workslip.Api")
+            .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName);
+
+        if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
         {
-            options.ConnectionString = applicationInsightsConnectionString;
-        });
-    }
+            configuration.WriteTo.ApplicationInsights(
+                services.GetRequiredService<TelemetryConfiguration>(),
+                TelemetryConverter.Traces);
+        }
+    });
     
     builder.Services.AddOpenApi();
 
@@ -90,17 +92,15 @@ try
     
     app.UseSerilogRequestLogging(options =>
     {
-        options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+        options.MessageTemplate = "{RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
         options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
         {
             diagnosticContext.Set("TraceId", httpContext.TraceIdentifier);
             diagnosticContext.Set("RequestId", httpContext.Request.Headers.TryGetValue("X-Request-ID", out var requestId) ? requestId.ToString() : httpContext.TraceIdentifier);
             diagnosticContext.Set("Host", httpContext.Request.Host.Value);
-            diagnosticContext.Set("Scheme", httpContext.Request.Scheme);
-            diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString());
-            diagnosticContext.Set("UserAgent", httpContext.Request.Headers.UserAgent.ToString());
             diagnosticContext.Set("Endpoint", httpContext.GetEndpoint()?.DisplayName);
             diagnosticContext.Set("QueryKeys", string.Join(",", httpContext.Request.Query.Keys));
+            diagnosticContext.Set("SourceContext", string.Empty);
         };
     });
     app.UseRouting();

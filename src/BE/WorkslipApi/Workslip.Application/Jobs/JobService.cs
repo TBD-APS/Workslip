@@ -156,6 +156,7 @@ public sealed class JobService(
         }
 
         await InvalidateJobCachesAsync(id, cancellationToken);
+        
         logger.LogInformation(
             "Job updated. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. InstallationTypeCount: {InstallationTypeCount}. ControlInstallationTypeCount: {ControlInstallationTypeCount}.",
             updated.Id,
