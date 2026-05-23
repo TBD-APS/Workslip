@@ -1,22 +1,30 @@
+using FluentValidation;
+using Microsoft.Extensions.Logging;
 using Workslip.Application.Users;
+
 namespace Workslip.Application.Users;
 
-public sealed class UserService(IUserRepository repository)
+public sealed class UserService(
+    IUserRepository repository,
+    IValidator<CreateUserRequest> createUserValidator,
+    IValidator<UpdateUserRequest> updateUserValidator,
+    ILogger<UserService> logger) : IUserService
 {
-    private static readonly string[] ValidRoles = ["Superadmin", "Admin", "User"];
-
-    public async Task<(bool Success, UserResponse? User, string? Error)> CreateAsync(
+    public async Task<(bool Success, UserResponse? User, IReadOnlyList<string>? Errors)> CreateAsync(
         CreateUserRequest request,
         CancellationToken cancellationToken)
     {
-        // Validate role
-        if (!ValidRoles.Contains(request.Role))
-            return (false, null, "Invalid role");
+        var validationResult = await createUserValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+            logger.LogWarning("User create validation failed. Errors: {Errors}", string.Join(", ", errors));
+            return (false, null, errors);
+        }
 
-        // Check email doesn't exist
         var existing = await repository.GetByEmailAsync(request.Email, cancellationToken);
         if (existing != null)
-            return (false, null, "Email already in use");
+            return (false, null, ["Email already in use"]);
 
         var user = new UserData
         {
@@ -33,21 +41,23 @@ public sealed class UserService(IUserRepository repository)
         var userId = await repository.CreateAsync(user, cancellationToken);
         user.Id = userId;
 
+        logger.LogInformation("User created. UserId: {UserId}. OrganizationId: {OrganizationId}. Role: {Role}.", user.Id, user.OrganizationId, user.Role);
+
         return (true, MapToResponse(user), null);
     }
 
-    public async Task<(bool Success, UserResponse? User, string? Error)> GetAsync(
+    public async Task<(bool Success, UserResponse? User, IReadOnlyList<string>? Errors)> GetAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
         var user = await repository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
-            return (false, null, "User not found");
+            return (false, null, ["User not found"]);
 
         return (true, MapToResponse(user), null);
     }
 
-    public async Task<(bool Success, UserListResponse? Users, string? Error)> GetByOrganizationAsync(
+    public async Task<(bool Success, UserListResponse? Users, IReadOnlyList<string>? Errors)> GetByOrganizationAsync(
         Guid organizationId,
         CancellationToken cancellationToken)
     {
@@ -58,18 +68,22 @@ public sealed class UserService(IUserRepository repository)
         return (true, new UserListResponse(responses, count), null);
     }
 
-    public async Task<(bool Success, UserResponse? User, string? Error)> UpdateAsync(
+    public async Task<(bool Success, UserResponse? User, IReadOnlyList<string>? Errors)> UpdateAsync(
         Guid userId,
         UpdateUserRequest request,
         CancellationToken cancellationToken)
     {
+        var validationResult = await updateUserValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+            logger.LogWarning("User update validation failed. Errors: {Errors}", string.Join(", ", errors));
+            return (false, null, errors);
+        }
+
         var user = await repository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
-            return (false, null, "User not found");
-
-        // Validate role if provided
-        if (!string.IsNullOrEmpty(request.Role) && !ValidRoles.Contains(request.Role))
-            return (false, null, "Invalid role");
+            return (false, null, ["User not found"]);
 
         if (!string.IsNullOrEmpty(request.DisplayName))
             user.DisplayName = request.DisplayName;
@@ -84,18 +98,22 @@ public sealed class UserService(IUserRepository repository)
 
         await repository.UpdateAsync(user, cancellationToken);
 
+        logger.LogInformation("User updated. UserId: {UserId}.", userId);
+
         return (true, MapToResponse(user), null);
     }
 
-    public async Task<(bool Success, string? Error)> DeleteAsync(
+    public async Task<(bool Success, IReadOnlyList<string>? Errors)> DeleteAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
         var user = await repository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
-            return (false, "User not found");
+            return (false, ["User not found"]);
 
         await repository.DeleteAsync(userId, cancellationToken);
+
+        logger.LogInformation("User deleted. UserId: {UserId}.", userId);
 
         return (true, null);
     }

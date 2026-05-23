@@ -1,16 +1,16 @@
 using Dapper;
 using Workslip.Application.Users;
-using Workslip.Infrastructure.Models;
+using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Repositories;
 
-public sealed class DapperUserRepository(SqlConnectionFactory connectionFactory) : IUserRepository
+public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory) : IUserRepository
 {
     public async Task<UserData?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         const string sql = "SELECT Id, OrganizationId, Email, DisplayName, Phone, Role, CreatedAt, UpdatedAt FROM dbo.Users WHERE Id = @Id";
 
-        using var connection = connectionFactory.Create();
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var row = await connection.QuerySingleOrDefaultAsync<UserRow?>(sql, new { Id = id });
         return row != null ? MapToData(row) : null;
     }
@@ -19,7 +19,7 @@ public sealed class DapperUserRepository(SqlConnectionFactory connectionFactory)
     {
         const string sql = "SELECT Id, OrganizationId, Email, DisplayName, Phone, Role, CreatedAt, UpdatedAt FROM dbo.Users WHERE Email = @Email";
 
-        using var connection = connectionFactory.Create();
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var row = await connection.QuerySingleOrDefaultAsync<UserRow?>(sql, new { Email = email });
         return row != null ? MapToData(row) : null;
     }
@@ -28,7 +28,7 @@ public sealed class DapperUserRepository(SqlConnectionFactory connectionFactory)
     {
         const string sql = "SELECT Id, OrganizationId, Email, DisplayName, Phone, Role, CreatedAt, UpdatedAt FROM dbo.Users WHERE OrganizationId = @OrganizationId ORDER BY CreatedAt DESC";
 
-        using var connection = connectionFactory.Create();
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var rows = await connection.QueryAsync<UserRow>(sql, new { OrganizationId = organizationId });
         return rows.Select(MapToData).ToList();
     }
@@ -37,7 +37,7 @@ public sealed class DapperUserRepository(SqlConnectionFactory connectionFactory)
     {
         const string sql = "SELECT COUNT(*) FROM dbo.Users WHERE OrganizationId = @OrganizationId";
 
-        using var connection = connectionFactory.Create();
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         return await connection.QuerySingleAsync<int>(sql, new { OrganizationId = organizationId });
     }
 
@@ -47,7 +47,7 @@ public sealed class DapperUserRepository(SqlConnectionFactory connectionFactory)
             INSERT INTO dbo.Users (Id, OrganizationId, Email, DisplayName, Phone, Role, CreatedAt, UpdatedAt)
             VALUES (@Id, @OrganizationId, @Email, @DisplayName, @Phone, @Role, @CreatedAt, @UpdatedAt)";
 
-        using var connection = connectionFactory.Create();
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var row = new UserRow
         {
             Id = user.Id,
@@ -70,7 +70,7 @@ public sealed class DapperUserRepository(SqlConnectionFactory connectionFactory)
             SET DisplayName = @DisplayName, Phone = @Phone, Role = @Role, UpdatedAt = @UpdatedAt
             WHERE Id = @Id";
 
-        using var connection = connectionFactory.Create();
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var row = new UserRow
         {
             Id = user.Id,
@@ -86,7 +86,7 @@ public sealed class DapperUserRepository(SqlConnectionFactory connectionFactory)
     {
         const string sql = "DELETE FROM dbo.Users WHERE Id = @Id";
 
-        using var connection = connectionFactory.Create();
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         await connection.ExecuteAsync(sql, new { Id = id });
     }
 

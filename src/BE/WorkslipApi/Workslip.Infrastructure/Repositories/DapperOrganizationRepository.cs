@@ -1,7 +1,6 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Workslip.Application.Organizations;
-using Workslip.Infrastructure.Models;
 using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Repositories;

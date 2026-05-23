@@ -4,7 +4,7 @@ public sealed record CreateUserRequest(
     Guid OrganizationId,
     string Email,
     string DisplayName,
-    string? Phone,
+    string Phone,
     string Role);
 
 public sealed record UpdateUserRequest(
@@ -17,7 +17,7 @@ public sealed record UserResponse(
     Guid OrganizationId,
     string Email,
     string DisplayName,
-    string? Phone,
+    string Phone,
     string Role,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);

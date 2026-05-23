@@ -54,26 +54,6 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]!;
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.RequireHttpsMetadata = false; // local dev only
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = jwtIssuer,
-
-            ValidateAudience = true,
-            ValidAudience = jwtAudience,
-
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtSigningKey)
-            ),
-
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.FromMinutes(1)
-        };
-    })
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
 
     builder.Services.AddAuthorization();

@@ -29,11 +29,6 @@ public interface IOrganizationService
     Task<OrganizationServiceResult<OrganizationOnboardingResponse>> CreateAsync(CreateOrganizationRequest request, CancellationToken cancellationToken);
 }
 
-public interface IAuthService
-{
-    Task<OrganizationServiceResult<CurrentUserResponse>> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken);
-}
-
 public sealed class OrganizationService(
     IOrganizationRepository repository,
     IValidator<CreateOrganizationRequest> createOrganizationValidator,
@@ -91,24 +86,3 @@ public sealed class OrganizationService(
         string.Join(",", errors.Select(error => error.Field).Distinct());
 }
 
-public sealed class AuthService(
-    IOrganizationRepository repository,
-    ILogger<AuthService> logger) : IAuthService
-{
-    public async Task<OrganizationServiceResult<CurrentUserResponse>> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var user = await repository.GetCurrentUserAsync(userId, cancellationToken);
-        if (user is null)
-        {
-            logger.LogWarning("Current user lookup returned not found. UserId: {UserId}.", userId);
-            return OrganizationServiceResult<CurrentUserResponse>.NotFound();
-        }
-
-        logger.LogInformation("Current user fetched. UserId: {UserId}. OrganizationId: {OrganizationId}. Role: {Role}.",
-            user.Id,
-            user.Organization.Id,
-            user.Role);
-
-        return OrganizationServiceResult<CurrentUserResponse>.Success(user);
-    }
-}
