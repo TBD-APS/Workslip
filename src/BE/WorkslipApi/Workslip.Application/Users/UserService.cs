@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using Workslip.Application.Auth;
 using Workslip.Application.Organizations;
 using Workslip.Domain.Models;
 
@@ -182,22 +183,60 @@ public sealed class UserService(
         return await inviteRepository.GetByEmailAsync(email, cancellationToken);
     }
 
-    public async Task<VerifyInviteResponse> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken)
+    public async Task<AuthUserInfo?> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken)
     {
         var invite = await inviteRepository.GetByTokenAsync(request.Token, cancellationToken);
         if (invite is null)
-            return new VerifyInviteResponse(false, null, null, null, null, "Invitation not found.");
+        {
+            logger.LogWarning("Invite verification failed: token not found.");
+            return null;
+        }
 
         if (invite.Consumed)
-            return new VerifyInviteResponse(false, null, null, null, null, "Invitation has already been used.");
+        {
+            logger.LogWarning("Invite verification failed: already consumed. Token: {Token}", invite.Token);
+            return null;
+        }
 
         if (DateTimeOffset.UtcNow > invite.ExpiresAt)
-            return new VerifyInviteResponse(false, null, null, null, null, "Invitation has expired.");
+        {
+            logger.LogWarning("Invite verification failed: expired. Token: {Token}", invite.Token);
+            return null;
+        }
 
+        var existing = await repository.GetByEmailAsync(invite.Email, cancellationToken);
+        if (existing is not null)
+        {
+            logger.LogWarning("Invite verification failed: user already exists. Email: {Email}", invite.Email);
+            return null;
+        }
+
+        var nickName = invite.Email.Split('@')[0];
+        var entraUser = await entraService.CreateUserAsync(invite.Email, nickName, cancellationToken);
+        await entraService.AssignAppRoleTo(entraUser.EntraUserId, "User", cancellationToken);
+        
+        var user = new UserDataRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = invite.OrganizationId,
+            Email = invite.Email,
+            DisplayName = nickName,
+            EntraEmail = entraUser.EntraMail,
+            EntraId = entraUser.EntraUserId,
+            Role = invite.Role ?? "User",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        var userId = await repository.CreateAsync(user, cancellationToken);
         await inviteRepository.MarkConsumedAsync(invite.Id, cancellationToken);
 
         var org = await organizationRepository.GetByIdAsync(invite.OrganizationId, cancellationToken);
-        return new VerifyInviteResponse(true, invite.OrganizationId, org?.Name, invite.Email, invite.Role, null);
+
+        logger.LogInformation("Invite accepted. UserId: {UserId}. Organization: {Org}. Email: {Email}. Role: {Role}.",
+            userId, org?.Name ?? invite.OrganizationId.ToString(), invite.Email, user.Role);
+
+        return new AuthUserInfo(userId, invite.OrganizationId, invite.Email, user.DisplayName, user.Role);
     }
 
     private static UserResponse MapToResponse(UserDataRow user) =>

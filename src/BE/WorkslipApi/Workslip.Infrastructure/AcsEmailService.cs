@@ -13,7 +13,7 @@ public sealed class AcsEmailService(
     ILogger<AcsEmailService> logger)
     : IEmailService
 {
-    private readonly Uri _acsEndpoint = new(
+    private readonly string _acsEndpoint = new(
         configuration["Acs:Endpoint"]
         ?? configuration["ACS_ENDPOINT"]
         ?? throw new InvalidOperationException("ACS endpoint is not configured. Set Acs:Endpoint or ACS_ENDPOINT."));
@@ -23,7 +23,7 @@ public sealed class AcsEmailService(
 
     public async Task SendInviteEmailAsync(string toEmail, string inviteLink, CancellationToken cancellationToken)
     {
-        var emailClient = new EmailClient(_acsEndpoint, credential);
+        var emailClient = new EmailClient(_acsEndpoint);
 
         var emailContent = new EmailContent("Du er blevet inviteret til Workslip")
         {
@@ -72,7 +72,7 @@ public sealed class AcsEmailService(
 
     public async Task SendOtcEmailAsync(string toEmail, string code, CancellationToken cancellationToken)
     {
-        var emailClient = new EmailClient(_acsEndpoint, credential);
+        var emailClient = new EmailClient(_acsEndpoint);
 
         var emailContent = new EmailContent("Din midlertidige adgangskode til Workslip")
         {
