@@ -32,16 +32,16 @@ public static class WorkslipDatabaseModel
 
         new(
             "Users",
-            typeof(UserRow),
+            typeof(UserDataRow),
             [
-                Column.RequiredGuid(nameof(UserRow.Id)),
-                Column.RequiredGuid(nameof(UserRow.OrganizationId)),
-                Column.RequiredString(nameof(UserRow.DisplayName), 200),
-                Column.OptionalString(nameof(UserRow.Email), 320),
-                Column.OptionalString(nameof(UserRow.Phone), 80),
-                Column.RequiredString(nameof(UserRow.Role), 80),
-                Column.RequiredDateTimeOffset(nameof(UserRow.CreatedAt), "sysutcdatetime()"),
-                Column.RequiredDateTimeOffset(nameof(UserRow.UpdatedAt), "sysutcdatetime()")
+                Column.RequiredGuid(nameof(UserDataRow.Id)),
+                Column.RequiredGuid(nameof(UserDataRow.OrganizationId)),
+                Column.RequiredString(nameof(UserDataRow.DisplayName), 200),
+                Column.OptionalString(nameof(UserDataRow.Email), 320),
+                Column.OptionalString(nameof(UserDataRow.Phone), 80),
+                Column.RequiredString(nameof(UserDataRow.Role), 80),
+                Column.RequiredDateTimeOffset(nameof(UserDataRow.CreatedAt), "sysutcdatetime()"),
+                Column.RequiredDateTimeOffset(nameof(UserDataRow.UpdatedAt), "sysutcdatetime()")
             ],
             [
                 "constraint FK_Users_Organizations foreign key (OrganizationId) references dbo.Organizations(Id)"

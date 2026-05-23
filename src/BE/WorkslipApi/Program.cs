@@ -49,10 +49,6 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
 
-    var jwtIssuer = builder.Configuration["Jwt:Issuer"]!;
-    var jwtAudience = builder.Configuration["Jwt:Audience"]!;
-    var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]!;
-
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
 

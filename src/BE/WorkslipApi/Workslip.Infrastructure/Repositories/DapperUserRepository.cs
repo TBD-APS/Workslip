@@ -6,30 +6,30 @@ namespace Workslip.Infrastructure.Repositories;
 
 public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory) : IUserRepository
 {
-    public async Task<UserData?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         const string sql = "SELECT Id, OrganizationId, Email, DisplayName, Phone, Role, CreatedAt, UpdatedAt FROM dbo.Users WHERE Id = @Id";
 
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
-        var row = await connection.QuerySingleOrDefaultAsync<UserRow?>(sql, new { Id = id });
+        var row = await connection.QuerySingleOrDefaultAsync<UserDataRow?>(sql, new { Id = id });
         return row != null ? MapToData(row) : null;
     }
 
-    public async Task<UserData?> GetByEmailAsync(string email, CancellationToken cancellationToken)
+    public async Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken)
     {
         const string sql = "SELECT Id, OrganizationId, Email, DisplayName, Phone, Role, CreatedAt, UpdatedAt FROM dbo.Users WHERE Email = @Email";
 
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
-        var row = await connection.QuerySingleOrDefaultAsync<UserRow?>(sql, new { Email = email });
+        var row = await connection.QuerySingleOrDefaultAsync<UserDataRow?>(sql, new { Email = email });
         return row != null ? MapToData(row) : null;
     }
 
-    public async Task<IReadOnlyList<UserData>> GetByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken)
     {
         const string sql = "SELECT Id, OrganizationId, Email, DisplayName, Phone, Role, CreatedAt, UpdatedAt FROM dbo.Users WHERE OrganizationId = @OrganizationId ORDER BY CreatedAt DESC";
 
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
-        var rows = await connection.QueryAsync<UserRow>(sql, new { OrganizationId = organizationId });
+        var rows = await connection.QueryAsync<UserDataRow>(sql, new { OrganizationId = organizationId });
         return rows.Select(MapToData).ToList();
     }
 
@@ -41,14 +41,14 @@ public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory
         return await connection.QuerySingleAsync<int>(sql, new { OrganizationId = organizationId });
     }
 
-    public async Task<Guid> CreateAsync(UserData user, CancellationToken cancellationToken)
+    public async Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken)
     {
         const string sql = @"
             INSERT INTO dbo.Users (Id, OrganizationId, Email, DisplayName, Phone, Role, CreatedAt, UpdatedAt)
             VALUES (@Id, @OrganizationId, @Email, @DisplayName, @Phone, @Role, @CreatedAt, @UpdatedAt)";
 
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
-        var row = new UserRow
+        var row = new UserDataRow
         {
             Id = user.Id,
             OrganizationId = user.OrganizationId,
@@ -63,7 +63,7 @@ public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory
         return user.Id;
     }
 
-    public async Task UpdateAsync(UserData user, CancellationToken cancellationToken)
+    public async Task UpdateAsync(UserDataRow user, CancellationToken cancellationToken)
     {
         const string sql = @"
             UPDATE dbo.Users
@@ -71,7 +71,7 @@ public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory
             WHERE Id = @Id";
 
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
-        var row = new UserRow
+        var row = new UserDataRow
         {
             Id = user.Id,
             DisplayName = user.DisplayName,
@@ -90,7 +90,7 @@ public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory
         await connection.ExecuteAsync(sql, new { Id = id });
     }
 
-    private static UserData MapToData(UserRow row) =>
+    private static UserDataRow MapToData(UserDataRow row) =>
         new()
         {
             Id = row.Id,

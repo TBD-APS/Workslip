@@ -1,6 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.Logging;
-using Workslip.Application.Users;
+using Workslip.Domain.Models;
 
 namespace Workslip.Application.Users;
 
@@ -26,7 +26,7 @@ public sealed class UserService(
         if (existing != null)
             return (false, null, ["Email already in use"]);
 
-        var user = new UserData
+        var user = new UserDataRow
         {
             Id = Guid.NewGuid(),
             OrganizationId = request.OrganizationId,
@@ -118,7 +118,7 @@ public sealed class UserService(
         return (true, null);
     }
 
-    private static UserResponse MapToResponse(UserData user) =>
+    private static UserResponse MapToResponse(UserDataRow user) =>
         new(
             user.Id,
             user.OrganizationId,

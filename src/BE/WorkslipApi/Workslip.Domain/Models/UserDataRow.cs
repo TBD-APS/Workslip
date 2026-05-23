@@ -1,6 +1,6 @@
-namespace Workslip.Application.Users;
+namespace Workslip.Domain.Models;
 
-public sealed class UserData
+public sealed class UserDataRow
 {
     public Guid Id { get; set; }
     public Guid OrganizationId { get; set; }
