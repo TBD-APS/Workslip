@@ -1,6 +1,8 @@
 using Azure.Identity;
 using Azure.Core;
+using QuestPDF.Infrastructure;
 using Serilog;
+using Workslip.Api.Services;
 using Workslip.Application;
 using Workslip.Api;
 using Workslip.Api.Endpoints;
@@ -44,6 +46,9 @@ try
     builder.Services.AddSingleton<TokenCredential>(azureCredential);
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
+
+    QuestPDF.Settings.License = LicenseType.Community;
+    builder.Services.AddSingleton<IJobReportPdfService, JobReportPdfService>();
 
     var tenantId = builder.Configuration["GraphApp:TenantId"];
     var clientId = builder.Configuration["GraphApp:ClientId"];

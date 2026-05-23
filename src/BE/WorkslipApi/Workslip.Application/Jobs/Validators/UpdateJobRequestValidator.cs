@@ -119,7 +119,7 @@ public class UpdateJobRequestValidator : AbstractValidator<UpdateJobRequest>
             return true;
 
         var workKindLower = workKind!.ToLower();
-        return !(workKindLower == "serviceandet" && !string.IsNullOrWhiteSpace(customWorkKind));
+        return !(workKindLower != "serviceandet" && !string.IsNullOrWhiteSpace(customWorkKind));
     }
 
     private bool NotContainExclusiveWithOthers(IReadOnlyList<string>? closureFlags)

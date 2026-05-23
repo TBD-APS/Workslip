@@ -23,7 +23,8 @@ public class CreateJobRequestValidator : AbstractValidator<CreateJobRequest>
         RuleFor(x => x.InstallationTypes)
             .NotEmpty().WithMessage("Select at least one installation type.")
             .Must(HaveNoDuplicates).WithMessage("Duplicate installation type is not allowed.");
-            
+
+           
         RuleFor(x => x.WorkKind)
             .NotEmpty().WithMessage("Work kind is required.")
             .Must(BeValidWorkKind).WithMessage("Unknown work kind '{PropertyValue}'.")
@@ -58,26 +59,21 @@ public class CreateJobRequestValidator : AbstractValidator<CreateJobRequest>
                         subcategory.RuleFor(x => x.SubcategoryId)
                             .NotEmpty().WithMessage("Subcategory ID is required.");
                             
-                       /* subcategory.RuleForEach(x => x.ControlChecks)
-                            .ChildRules(subSubcategory =>
+                        subcategory.RuleFor(x => x.ControlChecks)
+                            .NotEmpty().WithMessage("At least one control check is required.");
+
+                        subcategory.RuleForEach(x => x.ControlChecks)
+                            .ChildRules(check =>
                             {
-                                subSubcategory.RuleFor(x => x.ItemId)
-                                    .NotEmpty().WithMessage("At least one control check is required.")
-                                    .Must(HaveNoDuplicates).WithMessage("Duplicate control check is not allowed.");
-                                    
-                                subSubcategory.RuleForEach(x => x.ControlChecks)
-                                    .ChildRules(check =>
-                                    {
-                                        check.RuleFor(x => x.ItemId)
-                                            .NotEmpty().WithMessage("Item ID is required.");
-                                            
-                                        check.RuleFor(x => x.Checked)
-                                            .NotNull().WithMessage("Checked value is required.");
-                                            
-                                        check.RuleFor(x => x.Note)
-                                            .MaximumLength(500).WithMessage("Note must not exceed 500 characters.");
-                                    });
-                            });*/
+                                check.RuleFor(x => x.ItemId)
+                                    .NotEmpty().WithMessage("Item ID is required.");
+
+                                check.RuleFor(x => x.Checked)
+                                    .NotNull().WithMessage("Checked value is required.");
+
+                                check.RuleFor(x => x.Note)
+                                    .MaximumLength(500).WithMessage("Note must not exceed 500 characters.");
+                            });
                     });
                     
             });
@@ -118,7 +114,7 @@ public class CreateJobRequestValidator : AbstractValidator<CreateJobRequest>
             
         // Work kinds that do NOT allow custom work kind
         var workKindLower = workKind.ToLower();
-        return !(workKindLower == "serviceandet" && !string.IsNullOrWhiteSpace(customWorkKind));
+        return !(workKindLower != "serviceandet" && !string.IsNullOrWhiteSpace(customWorkKind));
     }
 
     private bool NotContainExclusiveWithOthers(IReadOnlyList<string> closureFlags)

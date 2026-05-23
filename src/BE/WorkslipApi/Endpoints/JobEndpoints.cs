@@ -1,3 +1,4 @@
+using Workslip.Api.Services;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
 
@@ -50,6 +51,16 @@ public static class JobEndpoints
 
             HttpCacheHeaders.SetNoStore(httpContext);
             return ToOkResult(result);
+        });
+
+        group.MapGet("/{id:guid}/report", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetAsync(id, cancellationToken);
+            if (result.Status != JobServiceResultStatus.Success || result.Value is null)
+                return Results.NotFound();
+
+            var pdf = pdfService.Generate(result.Value, result.Value.Status);
+            return Results.File(pdf, "application/pdf", $"rapport-{result.Value.ReportNumber}.pdf");
         });
 
         group.MapPatch("/{id:guid}", async (
