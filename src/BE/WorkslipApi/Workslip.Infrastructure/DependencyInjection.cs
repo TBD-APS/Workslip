@@ -1,9 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
-using Workslip.Application.Jobs;
-using Workslip.Application.Organizations;
 using Workslip.Infrastructure.Schema;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
+using Workslip.Application.Jobs;
+using Workslip.Application.Organizations;
+using Workslip.Application.Users;
 
 namespace Workslip.Infrastructure;
 
@@ -16,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<IJobRepository, DapperJobRepository>();
         services.AddScoped<IJobTaxonomyRepository, DapperJobTaxonomyRepository>();
         services.AddScoped<IOrganizationRepository, DapperOrganizationRepository>();
+        services.AddScoped<IUserRepository, DapperUserRepository>();
         services.AddScoped<WorkslipSchemaRunner>();
 
         return services;

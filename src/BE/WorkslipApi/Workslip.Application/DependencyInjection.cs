@@ -1,17 +1,23 @@
+using System.Reflection;
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Workslip.Application.Jobs;
+using Workslip.Application.Jobs.Validators;
 using Workslip.Application.Organizations;
+using Workslip.Application.Users;
 
 namespace Workslip.Application;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddWorkslipApplication(this IServiceCollection services)
-    {
-        services.AddScoped<IJobService, JobService>();
-        services.AddScoped<IOrganizationService, OrganizationService>();
-        services.AddScoped<IAuthService, AuthService>();
-
-        return services;
-    }
+public static IServiceCollection AddWorkslipApplication(this IServiceCollection services)
+{
+    services.AddScoped<IJobService, JobService>();
+    services.AddScoped<IOrganizationService, OrganizationService>();
+    services.AddScoped<UserService>();
+    
+    // Add FluentValidation validators (scans the entire assembly)
+    services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+    return services;
+}
 }

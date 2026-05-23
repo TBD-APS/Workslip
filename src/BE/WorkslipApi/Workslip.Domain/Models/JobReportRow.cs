@@ -1,4 +1,4 @@
-namespace Workslip.Infrastructure.Models;
+namespace Workslip.Domain.Models;
 
 public sealed class JobReportRow
 {

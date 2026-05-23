@@ -12,6 +12,8 @@ using Scalar.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -49,6 +51,8 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+    builder.Services.AddAuthorization();
 
     builder.Services.AddSingleton<IAuthorizationPolicyProvider, DynamicPolicyProvider>();
     builder.Services.AddSingleton<IAuthorizationHandler, DynamicRoleHandler>();
@@ -98,6 +102,7 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 
     app.MapOrganizationEndpoints();
     app.MapAuthEndpoints();
+    app.MapUserEndpoints();
     app.MapJobEndpoints();
 
     await app.RunAsync();

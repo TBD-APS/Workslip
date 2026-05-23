@@ -1,6 +1,8 @@
+using FluentValidation;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Workslip.Domain;
+using Workslip.Domain.Models;
 
 namespace Workslip.Application.Jobs;
 
@@ -34,8 +36,9 @@ public interface IJobService
 
 public sealed class JobService(
     IJobRepository repository,
-    IJobTaxonomyRepository taxonomyRepository,
     HybridCache cache,
+    IValidator<CreateJobRequest> createJobValidator,
+    IValidator<UpdateJobRequest> updateJobValidator,
     ILogger<JobService> logger) : IJobService
 {
     private static readonly HybridCacheEntryOptions JobReportCacheOptions = new()
@@ -52,10 +55,12 @@ public sealed class JobService(
 
     public async Task<JobServiceResult<JobReportResponse>> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken)
     {
-        var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
-        var errors = JobRequestValidator.ValidateCreate(request, taxonomy);
-        if (errors.Count > 0)
+        var validationResult = await createJobValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
         {
+            var errors = validationResult.Errors
+                .Select(e => new JobValidationError(e.PropertyName, e.ErrorMessage))
+                .ToList();
             logger.LogWarning("Job create validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
                 request.OrganizationId,
                 ValidationFields(errors));
@@ -87,6 +92,7 @@ public sealed class JobService(
     {
         var query = new JobQuery(organizationId, status, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0));
         var cacheKey = $"jobs:list:organization={query.OrganizationId?.ToString("N") ?? "all"}:status={query.Status?.ToString() ?? "all"}:limit={query.Limit}:offset={query.Offset}";
+        
         var jobs = await cache.GetOrCreateAsync(
             cacheKey,
             async token => (await repository.ListAsync(query, token)).ToArray(),
@@ -129,10 +135,12 @@ public sealed class JobService(
 
     public async Task<JobServiceResult<JobReportResponse>> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken)
     {
-        var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
-        var errors = JobRequestValidator.ValidateUpdate(request, taxonomy);
-        if (errors.Count > 0)
+        var validationResult = await updateJobValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
         {
+            var errors = validationResult.Errors
+                .Select(e => new JobValidationError(e.PropertyName, e.ErrorMessage))
+                .ToList();
             logger.LogWarning("Job update validation failed. JobId: {JobId}. Fields: {ValidationFields}",
                 id,
                 ValidationFields(errors));

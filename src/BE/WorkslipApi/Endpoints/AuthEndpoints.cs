@@ -8,18 +8,6 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth").WithTags("auth");
 
-        group.MapGet("/me", async (Guid userId, HttpContext httpContext, IAuthService service, CancellationToken cancellationToken) =>
-        {
-            HttpCacheHeaders.SetNoStore(httpContext);
-            var result = await service.GetCurrentUserAsync(userId, cancellationToken);
-            return result.Status switch
-            {
-                OrganizationServiceResultStatus.Success when result.Value is not null => Results.Ok(result.Value),
-                OrganizationServiceResultStatus.NotFound => Results.NotFound(),
-                _ => Results.Problem("Unable to get current user.")
-            };
-        });
-
         return app;
     }
 }
