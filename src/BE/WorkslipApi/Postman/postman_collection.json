@@ -46,8 +46,8 @@
       "type": "string"
     },
     {
-      "key": "adminEmail",
-      "value": "rbj{}@17v3ygzs.mailosaur.net",
+      "key": "testEmail",
+      "value": "rbj@17v3ygzs.mailosaur.net",
       "type": "string"
     },
     {
@@ -58,11 +58,6 @@
     {
       "key": "adminPhone",
       "value": "28929173",
-      "type": "string"
-    },
-    {
-      "key": "userEmail",
-      "value": "rbj@rasmusvm6hotmail.onmicrosoft.com",
       "type": "string"
     },
     {
@@ -82,7 +77,7 @@
     },
     {
       "key": "inviteBaseUrl",
-      "value": "http://localhost:5262/api/auth/verify-invite",
+      "value": "http://localhost:5173/invite",
       "type": "string"
     },
     {
@@ -96,21 +91,19 @@
       "type": "string"
     },
     {
-    "key": "tenantId",
-    "value": "64ce3484-dfcb-4a30-87c5-b1a09da33d33"
+      "key": "tenantId",
+      "value": "64ce3484-dfcb-4a30-87c5-b1a09da33d33",
+      "type": "string"
     },
     {
       "key": "azureClientId",
-      "value": "67882e61-7227-4c8a-bc55-dd36b2c59005"
+      "value": "67882e61-7227-4c8a-bc55-dd36b2c59005",
+      "type": "string"
     },
     {
       "key": "apiScope",
       "value": "api://4b36d921-1eaa-4d29-a1ba-412f07eaefe6/access_as_user",
       "type": "string"
-    },
-    {
-      "key": "azureClientSecret",
-      "value": "Ciq8Q~oTodNM8eW9-vAaX4wuqN~0Sj0NiUYW~asq"
     },
     {
       "key": "inviteToken",
@@ -154,11 +147,6 @@
     {
       "key": "clientId",
       "value": "67882e61-7227-4c8a-bc55-dd36b2c59005",
-      "type": "string"
-    },
-    {
-      "key": "clientSecret",
-      "value": "{{azureClientSecret}}",
       "type": "string"
     },
     {
@@ -235,7 +223,7 @@
             "description": "Creates organization and initial admin user. Saves organizationId + userId on 201.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"{{organizationName}}\",\n  \"cvr\": \"{{organizationCvr}}\",\n  \"adminDisplayName\": \"{{adminDisplayName}}\",\n  \"adminEmail\": \"{{adminEmail}}\",\n  \"adminPhone\": \"{{adminPhone}}\"\n}",
+              "raw": "{\n  \"name\": \"{{organizationName}}\",\n  \"cvr\": \"{{organizationCvr}}\",\n  \"adminDisplayName\": \"{{adminDisplayName}}\",\n  \"adminEmail\": \"{{testEmail}}\",\n  \"adminPhone\": \"{{adminPhone}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -268,45 +256,6 @@
       "name": "Auth",
       "item": [
         {
-          "name": "GET /api/auth/me",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me?userId={{userId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "me"
-              ],
-              "query": [
-                {
-                  "key": "userId",
-                  "value": "{{userId}}",
-                  "disabled": false
-                }
-              ]
-            },
-            "description": "Gets current user by query parameter userId."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "pm.test('auth response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "POST /api/auth/send-code",
           "request": {
             "method": "POST",
@@ -330,7 +279,7 @@
             "description": "Sends a 6-digit one-time code to the user's email. Always returns 200 to prevent email enumeration.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{adminEmail}}\"\n}",
+              "raw": "{\n  \"email\": \"{{testEmail}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -375,7 +324,7 @@
             "description": "Verifies the one-time code and returns a local JWT token. Save token to authToken variable.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"code\": \"123456\"\n}",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"code\": \"123456\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -383,9 +332,9 @@
               }
             }
           },
-            "response": [],
-            "event": [
-              {
+          "response": [],
+          "event": [
+            {
                 "listen": "test",
                 "script": {
                   "type": "text/javascript",
@@ -396,7 +345,7 @@
                     "  pm.collectionVariables.set('authToken', json.token);",
                     "  pm.test('token received', function () { pm.expect(json.token).to.be.a('string').and.not.empty; });",
                     "  pm.test('token is JWT with 3 parts', function () { pm.expect(json.token.split('.')).to.have.length(3); });",
-                    "  pm.test('user info returned', function () { pm.expect(json.user.email).to.eql(pm.variables.get('adminEmail')); });",
+                    "  pm.test('user info returned', function () { pm.expect(json.user.email).to.eql(pm.variables.get('testEmail')); });",
                     "}"
                   ]
                 }
@@ -431,7 +380,7 @@
             "description": "Creates a user in the organization. Saves userId on 201.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"email\": \"{{userEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"email\": \"{{testEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -596,7 +545,12 @@
               }
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "name": "Invites",
+      "item": [
         {
           "name": "POST /api/users/invite",
           "request": {
@@ -621,7 +575,7 @@
             "description": "Sends invite emails to new users. Requires Acs:Endpoint + Acs:SenderAddress configured.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"emails\": [\n    \"{{userEmail}}\"\n  ],\n  \"inviteBaseUrl\": \"{{inviteBaseUrl}}\",\n  \"role\": \"User\"\n}",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"emails\": [\n    \"{{testEmail}}\"\n  ],\n  \"inviteBaseUrl\": \"{{inviteBaseUrl}}\",\n  \"role\": \"User\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -663,13 +617,13 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/users/invites?email={{userEmail}}",
+              "raw": "{{baseUrl}}/api/users/invites?email={{testEmail}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "users", "invites"],
               "query": [
                 {
                   "key": "email",
-                  "value": "{{userEmail}}"
+                  "value": "{{testEmail}}"
                 }
               ]
             },
@@ -701,12 +655,7 @@
               }
             ]
           }
-        }
-      ]
-    },
-    {
-      "name": "Verify Invite",
-      "item": [
+        },
         {
           "name": "POST /api/auth/verify-invite (valid token)",
           "request": {
@@ -1364,12 +1313,11 @@
           "  pm.collectionVariables.set('runId', runId);",
           "  pm.collectionVariables.set('organizationCvr', numericTail.padStart(8, '0'));",
           "  pm.collectionVariables.set('organizationName', `Integration VVS ${runId}`);",
-          "  pm.collectionVariables.set('adminEmail', `integration-admin+${runId}@example.com`);",
+          "  pm.collectionVariables.set('testEmail', `rbj+${runId}@17v3ygzs.mailosaur.net`);",
           "  pm.collectionVariables.set('adminDisplayName', `Integration Admin ${runId}`);",
           "  pm.collectionVariables.set('adminPhone', '+4512345678');",
-          "  pm.collectionVariables.set('userEmail', `integration-user+${runId}@example.com`);",
           "  pm.collectionVariables.set('userDisplayName', `Integration User ${runId}`);",
-          "  pm.collectionVariables.set('inviteBaseUrl', 'http://localhost:5262/invite');",
+          "  pm.collectionVariables.set('inviteBaseUrl', 'http://localhost:5173/invite');",
           "  pm.collectionVariables.set('userPhone', '+4512345678');",
           "  pm.collectionVariables.set('reportNumber', `WS-IT-${runId}`);",
           "  pm.collectionVariables.set('customerEmail', `integration-customer+${runId}@example.com`);",

@@ -168,7 +168,7 @@ public sealed class UserService(
                 results.Add(new InviteUserResult(email, true, null, inviteLink));
                 logger.LogInformation("Invite sent to {Email}. Token: {Token}", email, token);
             }
-            catch (Exception ex)
+            catch (InvalidOperationException ex)
             {
                 logger.LogError(ex, "Failed to send invite to {Email}.", email);
                 results.Add(new InviteUserResult(email, false, "Failed to send invite email.", null));
