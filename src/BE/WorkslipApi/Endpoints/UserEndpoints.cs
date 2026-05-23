@@ -61,12 +61,6 @@ public static class UserEndpoints
             return Results.Ok(result);
         });
 
-        group.MapGet("/invites", async (string email, IUserService service, CancellationToken cancellationToken) =>
-        {
-            var invites = await service.GetInvitesByEmailAsync(email, cancellationToken);
-            return Results.Ok(invites);
-        });
-
         return app;
     }
 }

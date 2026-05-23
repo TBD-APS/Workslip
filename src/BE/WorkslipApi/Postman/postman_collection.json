@@ -612,51 +612,6 @@
           ]
         },
         {
-          "name": "GET /api/users/invites",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/users/invites?email={{testEmail}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "users", "invites"],
-              "query": [
-                {
-                  "key": "email",
-                  "value": "{{testEmail}}"
-                }
-              ]
-            },
-            "description": "Retrieves active (non-consumed, non-expired) invite tokens for the given email. Saves the first token to inviteToken variable for downstream verify-invite tests.",
-            "response": [],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                    "const invites = pm.response.json();",
-                    "pm.test('invites returned as array', function () { pm.expect(invites).to.be.an('array'); });",
-                    "if (invites.length > 0) {",
-                    "  const token = invites[0].token;",
-                    "  pm.collectionVariables.set('inviteToken', token);",
-                    "  pm.collectionVariables.set('inviteEmail', invites[0].email);",
-                    "  pm.test('invite token captured for verify test', function () {",
-                    "    pm.expect(token).to.be.a('string').and.not.empty;",
-                    "  });",
-                    "}",
-                    "invites.forEach(function(inv) {",
-                    "  pm.expect(inv.token).to.be.a('string').and.not.empty;",
-                    "  pm.expect(inv.expiresAt).to.be.a('string');",
-                    "});"
-                  ]
-                }
-              }
-            ]
-          }
-        },
-        {
           "name": "POST /api/auth/verify-invite (valid token)",
           "request": {
             "method": "POST",

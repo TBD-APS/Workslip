@@ -1,10 +1,11 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 
 namespace Workslip.Application.Users;
 
-public sealed class UserEntraService(GraphServiceClient _graphClient, IConfiguration _configuration) : IUserEntraService
+public sealed class UserEntraService(ILogger<UserEntraService> logger, GraphServiceClient _graphClient, IConfiguration _configuration) : IUserEntraService
 {
      public async Task<CreateEntraUserResult> CreateUserAsync(string email,string displayName, CancellationToken ct)
     {
@@ -31,7 +32,10 @@ public sealed class UserEntraService(GraphServiceClient _graphClient, IConfigura
         }, cancellationToken: ct);
 
         if(user == null)
+        {
+            logger.LogError("Failed to create user {Email}", email);
             throw new InvalidOperationException($"User {displayName} could not be created");
+        }
 
         return new CreateEntraUserResult(
             EntraUserId: user.Id!,
@@ -57,7 +61,7 @@ public sealed class UserEntraService(GraphServiceClient _graphClient, IConfigura
         if (appRole?.Id is null)
             throw new InvalidOperationException($"App role '{appRoleValue}' not found.");
 
-        var result = await _graphClient.Users[entraUserId].AppRoleAssignments.PostAsync(
+        await _graphClient.Users[entraUserId].AppRoleAssignments.PostAsync(
             new AppRoleAssignment
             {
                 PrincipalId = Guid.Parse(entraUserId),

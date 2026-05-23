@@ -8,7 +8,5 @@ public interface IInviteRepository
 
     Task<InviteTokenRow?> GetByTokenAsync(string token, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<InviteTokenRow>> GetByEmailAsync(string email, CancellationToken cancellationToken);
-
     Task MarkConsumedAsync(Guid id, CancellationToken cancellationToken);
 }

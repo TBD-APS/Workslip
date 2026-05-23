@@ -178,11 +178,6 @@ public sealed class UserService(
         return new InviteUsersResponse(results);
     }
 
-    public async Task<IReadOnlyList<InviteTokenRow>> GetInvitesByEmailAsync(string email, CancellationToken cancellationToken)
-    {
-        return await inviteRepository.GetByEmailAsync(email, cancellationToken);
-    }
-
     public async Task<AuthUserInfo?> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken)
     {
         var invite = await inviteRepository.GetByTokenAsync(request.Token, cancellationToken);
