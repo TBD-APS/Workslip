@@ -1,9 +1,10 @@
 param companyName string = ''
 param location string = resourceGroup().location
-param environment string = 'dev'
+param environment string = ''
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param logicAppName string             = 'la-${companyName}-${toLower(environment)}'
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
+param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
 param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
@@ -40,6 +41,21 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
 // Monitoring
 // ──────────────────────────────────────────────────────────────────────────────
 
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+  name: logAnalyticsName
+  location: location
+  tags: tags
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    workspaceCapping: {
+      dailyQuotaGb: 1 // <-- Mindst mulige loft i Azure. Langt under de 5 GB gratis om måneden.
+    }
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
+  }
+}
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: appInsightsName
@@ -48,6 +64,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   tags: tags
   properties: {
     Application_Type: 'web'
+    WorkspaceResourceId: logAnalyticsWorkspace.id
   }
 }
 
@@ -193,29 +210,25 @@ resource communicationService 'Microsoft.Communication/communicationServices@202
     type: 'UserAssigned'
     userAssignedIdentities: { '${identity.id}': {} }
   }
+  properties: {
+    // VIGTIGT 2: Data-lokationen skal være 'europe' i præcis dette felt
+    dataLocation: 'europe' 
+  }
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// ACS Email Communication Service + Domain
-// Required for sending emails via ACS. The Azure-managed domain auto-generates
-// a sender address: DoNotReply@<emailServiceName>.azurecomm.net
-// After deployment, link this domain to the ACS resource in the portal:
-//   ACS resource → Email → Connected domains → Add
-// ──────────────────────────────────────────────────────────────────────────────
 
 resource emailService 'Microsoft.Communication/emailServices@2023-04-01' = {
   name: emailServiceName
-  location: location
+  location: 'global'
   tags: tags
   properties: {
-    dataLocation: location
+    dataLocation: 'europe' 
   }
 }
 
 resource emailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = {
   name: 'AzureManagedDomain'
   parent: emailService
-  location: location
+  location: 'global'
   tags: tags
   properties: {
     domainManagement: 'AzureManaged'
