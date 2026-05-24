@@ -1,8 +1,8 @@
 param(
     [Parameter(Position=0)]
     [string]$Environment = "dev",
-    [string]$Location = "westeurope",
-    [string]$COMPANY_NAME = "rbj"
+    [string]$Location = "denmarkeast",
+    [string]$COMPANY_NAME = "npteknik"
 )
 
 $RESOURCE_GROUP = "rg-$COMPANY_NAME-$Environment"

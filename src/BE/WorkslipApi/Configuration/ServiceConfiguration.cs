@@ -25,9 +25,9 @@ public static class ServiceConfiguration
 
         builder.Services.AddSingleton<GraphServiceClient>(sp =>
         {
-            var tenantId = configuration["GraphApp:TenantId"];
-            var clientId = configuration["GraphApp:ClientId"];
-            var clientSecret = configuration["GraphApp:ClientSecret"];
+            var tenantId = configuration["Azure:GraphApp:TenantId"];
+            var clientId = configuration["Azure:GraphApp:ClientId"];
+            var clientSecret = configuration["Azure:GraphApp:ClientSecret"];
 
             var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
             return new GraphServiceClient(credential, ["https://graph.microsoft.com/.default"]);
