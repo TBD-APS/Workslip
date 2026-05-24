@@ -16,3 +16,5 @@ public sealed record AuthTokenResponse(
     string TokenType,
     int ExpiresIn,
     AuthUserInfo User);
+
+public sealed record VerifyInviteRequest(string Token);

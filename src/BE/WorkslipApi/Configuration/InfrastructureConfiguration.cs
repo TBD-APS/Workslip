@@ -25,24 +25,20 @@ public static class InfrastructureConfiguration
 
     private static TokenCredential CreateAzureCredential(IConfiguration configuration)
     {
-        var managedIdentityClientId = ConfiguredValues.FirstConfigured(
-            configuration["AZURE_CLIENT_ID"],
-            configuration["Azure:ManagedIdentityClientId"]);
+        var mangedIdentity = ConfiguredValues.FirstConfigured(configuration["Azure:ManagedIdentity:ClientId"]);
 
-        if (string.IsNullOrWhiteSpace(managedIdentityClientId))
+        if (string.IsNullOrWhiteSpace(mangedIdentity))
             return new DefaultAzureCredential();
 
         return new DefaultAzureCredential(new DefaultAzureCredentialOptions
         {
-            ManagedIdentityClientId = managedIdentityClientId
+            ManagedIdentityClientId = mangedIdentity
         });
     }
 
     private static void AddAzureAppConfiguration(ConfigurationManager configuration, TokenCredential credential)
     {
-        var endpoint = ConfiguredValues.FirstConfigured(
-            configuration["AZURE_APP_CONFIG_ENDPOINT"],
-            configuration["AzureAppConfiguration:Endpoint"]);
+        var endpoint = ConfiguredValues.FirstConfigured(configuration["Azure:AppConfiguration:Endpoint"]);
 
         if (string.IsNullOrWhiteSpace(endpoint))
             return;

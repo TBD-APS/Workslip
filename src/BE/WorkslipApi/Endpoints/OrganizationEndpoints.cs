@@ -12,7 +12,7 @@ public static class OrganizationEndpoints
         group.MapPost("/", async (CreateOrganizationRequest request, IOrganizationService service, CancellationToken cancellationToken) =>
         {
             var result = await service.CreateAsync(request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, v => $"/api/organizations/{v.Organization.Id}");
+            return ResultExtensions.ToHttpResult(result);
         });
 
         return app;

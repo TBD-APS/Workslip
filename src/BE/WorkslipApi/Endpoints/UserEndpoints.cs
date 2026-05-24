@@ -1,3 +1,5 @@
+using Workslip.Api.Helpers;
+using Workslip.Application.Invitations;
 using Workslip.Application.Users;
 
 namespace Workslip.Api.Endpoints;
@@ -12,50 +14,35 @@ public static class UserEndpoints
 
         group.MapPost("/", async (CreateUserRequest request, IUserService service, CancellationToken cancellationToken) =>
         {
-            var (success, user, errors) = await service.CreateAsync(request, cancellationToken);
-            if (!success)
-                return Results.BadRequest(new { errors });
-
-            return Results.Created($"/api/users/{user?.Id}", user);
+            var result = await service.CreateAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
         });
 
         group.MapGet("/{id}", async (Guid id, IUserService service, CancellationToken cancellationToken) =>
         {
-            var (success, user, errors) = await service.GetAsync(id, cancellationToken);
-            if (!success)
-                return Results.NotFound(new { errors });
-
-            return Results.Ok(user);
+            var result = await service.GetAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
         });
 
         group.MapGet("/organization/{organizationId}", async (Guid organizationId, IUserService service, CancellationToken cancellationToken) =>
         {
-            var (success, users, errors) = await service.GetByOrganizationAsync(organizationId, cancellationToken);
-            if (!success)
-                return Results.BadRequest(new { errors });
-
-            return Results.Ok(users);
+            var result = await service.GetByOrganizationAsync(organizationId, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
         });
 
         group.MapPatch("/{id}", async (Guid id, UpdateUserRequest request, IUserService service, CancellationToken cancellationToken) =>
         {
-            var (success, user, errors) = await service.UpdateAsync(id, request, cancellationToken);
-            if (!success)
-                return Results.BadRequest(new { errors });
-
-            return Results.Ok(user);
+            var result = await service.UpdateAsync(id, request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
         });
 
         group.MapDelete("/{id}", async (Guid id, IUserService service, CancellationToken cancellationToken) =>
         {
-            var (success, errors) = await service.DeleteAsync(id, cancellationToken);
-            if (!success)
-                return Results.NotFound(new { errors });
-
-            return Results.NoContent();
+            var result = await service.DeleteAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
         });
 
-        group.MapPost("/invite", async (InviteUsersRequest request, IUserService service, CancellationToken cancellationToken) =>
+        group.MapPost("/invite", async (InviteUsersRequest request, IInvitationService service, CancellationToken cancellationToken) =>
         {
             var result = await service.InviteUsersAsync(request, cancellationToken);
             return Results.Ok(result);

@@ -2,7 +2,8 @@ param(
     [Parameter(Position=0)]
     [string]$Environment = "dev",
     [string]$Location = "westeurope",
-    [string]$COMPANY_NAME = "npteknik"
+    [string]$COMPANY_NAME = "npteknikaps",
+    [string]$GlobalAdminId = "141e797e-ee4a-41fd-9778-5430ed0a712e"
 )
 
 $RESOURCE_GROUP = "rg-$COMPANY_NAME-$Environment"
@@ -64,7 +65,8 @@ az deployment group create `
     --mode Incremental `
     --template-file $TEMPLATE `
     --parameters companyName=$COMPANY_NAME `
-    --parameters environment=$Environment
+    --parameters environment=$Environment `
+    --parameters globalAdminId=$GlobalAdminId `
 
 Write-Host "Deployment complete: $DEPLOY_NAME" -ForegroundColor Green
 Write-Host "Resource group: $RESOURCE_GROUP"

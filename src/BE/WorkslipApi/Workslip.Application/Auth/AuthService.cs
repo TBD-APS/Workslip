@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using Ardalis.Result;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Users;
 
@@ -20,7 +21,6 @@ public sealed class AuthService(
         var email = request.Email.Trim().ToLowerInvariant();
         var user = await userRepository.GetByEmailAsync(email, cancellationToken);
 
-        // Always return success to avoid email enumeration
         if (user is null)
         {
             logger.LogInformation("Login code requested for unknown email: {Email}", email);
@@ -38,47 +38,47 @@ public sealed class AuthService(
         logger.LogInformation("Login code sent to {Email}. ExpiresAt: {ExpiresAt}", email, expiresAt);
     }
 
-    public Task<AuthUserInfo?> VerifyLoginCodeAsync(VerifyCodeRequest request, CancellationToken cancellationToken)
+    public Task<Result<AuthUserInfo>> VerifyLoginCodeAsync(VerifyCodeRequest request, CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
 
         if (!_otcStore.TryRemove(email, out var entry))
         {
             logger.LogWarning("Login code verification failed: no code requested for {Email}", email);
-            return Task.FromResult<AuthUserInfo?>(null);
+            return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
 
         if (DateTimeOffset.UtcNow > entry.ExpiresAt)
         {
             logger.LogWarning("Login code verification failed: code expired for {Email}", email);
-            return Task.FromResult<AuthUserInfo?>(null);
+            return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
 
         var inputHash = HashCode(request.Code.Trim());
-        if (! CryptographicOperations.FixedTimeEquals(entry.CodeHash, inputHash))
+        if (!CryptographicOperations.FixedTimeEquals(entry.CodeHash, inputHash))
         {
             logger.LogWarning("Login code verification failed: invalid code for {Email}", email);
-            return Task.FromResult<AuthUserInfo?>(null);
+            return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
 
         return ResolveUserAsync(email, cancellationToken);
     }
 
-    private async Task<AuthUserInfo?> ResolveUserAsync(string email, CancellationToken cancellationToken)
+    private async Task<Result<AuthUserInfo>> ResolveUserAsync(string email, CancellationToken cancellationToken)
     {
         var user = await userRepository.GetByEmailAsync(email, cancellationToken);
         if (user is null)
         {
             logger.LogError("User not found after successful code verification: {Email}", email);
-            return null;
+            return Result<AuthUserInfo>.Unauthorized();
         }
 
-        return new AuthUserInfo(
+        return Result<AuthUserInfo>.Success(new AuthUserInfo(
             user.Id,
             user.OrganizationId,
             user.Email,
             user.DisplayName,
-            user.Role);
+            user.Role));
     }
 
     private static string GenerateCode()
