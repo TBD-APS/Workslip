@@ -129,4 +129,3 @@ public sealed record JobEventResponse(
     JsonObject? After,
     DateTimeOffset CreatedAt);
 
-public sealed record JobValidationError(string Field, string Message);

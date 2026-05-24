@@ -1,6 +1,7 @@
 param companyName string = ''
-param location string = resourceGroup().location
 param environment string = ''
+param globalAdminId string = ''
+param location string = resourceGroup().location
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param logicAppName string             = 'la-${companyName}-${toLower(environment)}'
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
@@ -18,6 +19,9 @@ var roles = {
   cognitiveServicesUser:   'a97b65f3-24c7-4388-baec-2e87135dc908'
   storageBlobContributor:  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
   appConfigurationDataReader: '516239f1-63e1-4d78-a4de-a74fb236a071'
+  keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
+  keyVaultSecretsUserRole: '4633458b-17de-408a-b874-0445c86b69e6'
+  appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
 }
 
 var tags = {
@@ -81,13 +85,20 @@ resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-0
   sku: {
     name: 'free'
   }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
   tags: tags
   properties: {
+    
     publicNetworkAccess: 'Enabled'
     disableLocalAuth: true
+    
   }
 }
 
+//Other apps can read directly from app config (azure functions, web api osv..)
 resource appConfigurationRoleIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid('${appConfiguration.id}${identity.id}${roles.appConfigurationDataReader}')
   scope: appConfiguration
@@ -95,6 +106,34 @@ resource appConfigurationRoleIdentity 'Microsoft.Authorization/roleAssignments@2
     principalId: identity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.appConfigurationDataReader)
+  }
+}
+
+//App configuration can read key vault refs from the keyvault directly
+resource keyVaultSecretsUserForApp 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, identity.id, roles.keyVaultSecretsUserRole)
+  scope: keyVault
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.keyVaultSecretsUserRole
+    )
+  }
+}
+
+//I as admin have full control over app config
+resource appConfigurationDataOwnerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(appConfiguration.id, globalAdminId, roles.appConfigurationDataOwnerRole)
+  scope: appConfiguration
+  properties: {
+    principalId: globalAdminId
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.appConfigurationDataOwnerRole
+    )
   }
 }
 
@@ -114,6 +153,20 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
     enablePurgeProtection: true
+  }
+}
+
+//I as admin have full control over keyvault
+resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, globalAdminId, roles.keyVaultAdministrator)
+  scope: keyVault
+  properties: {
+    principalId: globalAdminId
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.keyVaultAdministrator
+    )
   }
 }
 

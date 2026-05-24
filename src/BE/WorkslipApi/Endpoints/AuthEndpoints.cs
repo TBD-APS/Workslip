@@ -1,4 +1,6 @@
+using Workslip.Api.Helpers;
 using Workslip.Application.Auth;
+using Workslip.Application.Invitations;
 using Workslip.Application.Users;
 
 namespace Workslip.Api.Endpoints;
@@ -17,23 +19,16 @@ public static class AuthEndpoints
 
         group.MapPost("/verify-code", async (VerifyCodeRequest request, IAuthService service, IConfiguration configuration, CancellationToken cancellationToken) =>
         {
-            var user = await service.VerifyLoginCodeAsync(request, cancellationToken);
-            if (user is null)
-                return Results.Unauthorized();
-
-            var token = JwtHelper.GenerateToken(user, configuration);
-            return Results.Ok(token);
+            var result = await service.VerifyLoginCodeAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
         });
 
-        group.MapPost("/verify-invite", async (VerifyInviteRequest request, IUserService service, IConfiguration configuration, CancellationToken cancellationToken) =>
+        group.MapPost("/verify-invite", async (VerifyInviteRequest request, IInvitationService service, IConfiguration configuration, CancellationToken cancellationToken) =>
         {
-            var user = await service.VerifyInviteAsync(request, cancellationToken);
-            if (user is null)
-                return Results.BadRequest(new { error = "Invitationen er ugyldig, brugt eller udløbet." });
-
-            var token = JwtHelper.GenerateToken(user, configuration);
-            return Results.Ok(token);
+            var result = await service.VerifyInviteAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
         });
+
         return app;
     }
 }

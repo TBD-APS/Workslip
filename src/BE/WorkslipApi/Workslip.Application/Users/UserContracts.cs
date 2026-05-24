@@ -41,4 +41,3 @@ public sealed record InviteUserResult(
 public sealed record InviteUsersResponse(
     IReadOnlyList<InviteUserResult> Results);
 
-public sealed record VerifyInviteRequest(string Token);
