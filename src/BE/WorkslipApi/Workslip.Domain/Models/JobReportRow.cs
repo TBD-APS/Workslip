@@ -22,6 +22,7 @@ public sealed class JobReportRow
     public string? Remarks { get; init; }
     public string ClosureFlagsJson { get; init; } = "[]";
     public string? PayloadJson { get; init; }
+    public Guid? AssignedUserId { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
     public DateTimeOffset? SubmittedAt { get; init; }

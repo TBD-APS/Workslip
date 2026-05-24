@@ -22,6 +22,12 @@ var roles = {
   keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
   keyVaultSecretsUserRole: '4633458b-17de-408a-b874-0445c86b69e6'
   appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
+  
+  
+  UserReadWriteAll: '741f1ec0-4c47-4952-b971-50c2d3d7d31f'
+  ApplicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
+  AppRoleAssignmentReadWriteAll: '06b03e2b-286b-4043-9a0b-116a43319a53'
+  UserAuthenticationMethodReadWriteAll: '48db3110-388d-4be9-b467-36e2f11ffc8f'
 }
 
 var tags = {
@@ -39,6 +45,62 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
   location: location
   tags: tags
 }
+
+/*
+resource identityForAppRegistration1 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: '${identity.name}+1'
+  scope: identity
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.UserReadWriteAll
+    )
+  }
+}
+
+resource identityForAppRegistration2 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: '${identity.name}+2'
+  scope: identity
+  properties: {
+    principalId: identity.properties.principalId
+    
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.ApplicationReadAll
+    )
+  }
+}
+
+resource identityForAppRegistration3 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: '${identity.name}+3'
+  scope: identity
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.AppRoleAssignmentReadWriteAll
+    )
+  }
+}
+
+resource identityForAppRegistration4 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: '${identity.name}+4'
+  scope: identity
+  properties: {
+    principalId: identity.properties.principalId
+    
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.UserAuthenticationMethodReadWriteAll
+    )
+  }
+}
+*/
 
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -119,16 +181,18 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
     graphClientSecretKeyvault: keyVaultConfigs.outputs.graphAppClientSecretUri
 
     acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
-    acsSenderAddress:  emailDomain.properties.mailFromSenderDomain
+    acsSenderAddress:  '${senderUsername.properties.username}@${emailDomain.properties.fromSenderDomain}'
     acsEndpoint: 'https://${communicationService.properties.hostName}'
     
     storageAccountName: storageAccount.name
     applicationInsightsConnectionString: appInsights.properties.ConnectionString
+
+    sqlConnectionString: keyVaultConfigs.outputs.sqlConnectionstring
   }
 }
 
 
-//Other apps can read directly from app config (azure functions, web api osv..)
+//Added so other apps can read directly from app config (azure functions, web api osv..)
 resource appConfigurationRoleIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid('${appConfiguration.id}${identity.id}${roles.appConfigurationDataReader}')
   scope: appConfiguration
@@ -192,6 +256,7 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
     graphAppClientSecret: 'gFB8Q~Qc_FKeKWrfqnGjOqLqTu1Ds6rcZ8dyvbK5'
+    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=sqldb-${companyName}-dev;User ID=${secureAdmin};Password=${securePw};Encrypt=True;TrustServerCertificate=False;'
   }
 }
 
@@ -209,6 +274,68 @@ resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Entra App Registrations
+// OAuth setup and passkey validation.
+// ──────────────────────────────────────────────────────────────────────────────
+
+module EntraAppRegistrations './entraRegistrations.bicep' = {
+  name: 'entraApps'
+  params: {
+    globalAdminId: globalAdminId
+    environment: environment
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SQL Server + database
+// Data and stuff
+// ──────────────────────────────────────────────────────────────────────────────
+
+@sys.secure()
+param secureAdmin string = 'rbjadmin'
+@sys.secure()
+param securePw string ='Num64bqe!'
+
+resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
+  name: 'sql-${companyName}-server'
+  location: location
+  properties: {
+    administratorLogin: secureAdmin
+    administratorLoginPassword: securePw
+    version: '12.0'
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
+  parent: sqlServer
+  name: 'sql-${companyName}-db-${environment}'
+  location: location
+  sku: {
+    name: 'GP_S_Gen5_1' // General Purpose, Serverless, Gen5 (Kræves for Free Offer)
+    tier: 'GeneralPurpose'
+    family: 'Gen5'
+    capacity: 1 // 1 vCore
+  }
+  properties: {
+    collation: 'SQL_Latin1_General_CP1_CI_AS'
+    maxSizeBytes: 34359738368 // 32 GB (Det maksimale tilladte for den gratis aftale)
+    
+    // Vi vælger Serverless, så den pauser automatisk når du ikke bruger den (sparer på de gratis sekunder)
+    requestedBackupStorageRedundancy: 'Local'
+  }
+}
+
+
+resource firewallAllowAzureIPs 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
+  parent: sqlServer
+  name: 'AllowAzureServices'
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '0.0.0.0'
+  }
+}
 
 // ──────────────────────────────────────────────────────────
 // Storage Account
@@ -272,8 +399,10 @@ resource communicationService 'Microsoft.Communication/communicationServices@202
     userAssignedIdentities: { '${identity.id}': {} }
   }
   properties: {
-    // VIGTIGT 2: Data-lokationen skal være 'europe' i præcis dette felt
     dataLocation: 'europe' 
+    linkedDomains: [
+      emailDomain.id
+    ]
   }
 }
 
@@ -296,7 +425,14 @@ resource emailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' 
   }
 }
 
-
+resource senderUsername 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-03-31' = {
+  parent: emailDomain
+  name: 'DoNotReply'
+  properties: {
+    displayName: 'Workslip'
+    username: 'DoNotReply'
+  }
+}
 // ──────────────────────────────────────────────────────────────────────────────
 // Outputs
 // ──────────────────────────────────────────────────────────────────────────────
@@ -307,7 +443,6 @@ output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
 output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
-//output DOCUMENT_INTELLIGENCE_ENDPOINT string   = documentIntelligence.properties.endpoint
 output DOCUMENT_INTELLIGENCE_NAME string       = documentIntelligenceName
 output AZURE_APP_CONFIG_ENDPOINT string         = appConfiguration.properties.endpoint
 output ACS_ENDPOINT string                     = 'https://${communicationService.properties.hostName}'

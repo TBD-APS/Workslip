@@ -16,7 +16,6 @@ resource staticConfigValues 'Microsoft.AppConfiguration/configurationStores/keyV
 
 var appConfigValues = {
   'Azure:AdOAuth:TenantId': tenant().tenantId
-  'Azure:AdOAuth:Instance': 'https://login.microsoftonline.com/'
 
   // Authorization policies
   'Authorization:Policies:RequireSuperadmin': 'SuperAdmin'

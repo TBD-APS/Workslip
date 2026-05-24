@@ -8,7 +8,7 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    var applicationInsightsConnectionString = InfrastructureConfiguration.ResolveApplicationInsightsConnectionString(builder.Configuration);
+    var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
     builder.ConfigureInfrastructure();
     builder.ConfigureLogging(applicationInsightsConnectionString);

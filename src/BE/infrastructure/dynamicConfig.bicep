@@ -11,6 +11,7 @@ param acsSenderAddress string
 param acsConnectionString string
 param storageAccountName string
 param applicationInsightsConnectionString string
+param sqlConnectionString string
 @secure()
 param graphClientSecretKeyvault string
 
@@ -122,9 +123,7 @@ resource configGraphAppClientSecret 'Microsoft.AppConfiguration/configurationSto
   parent: appConfiguration
   name: 'Azure:GraphApp:ClientSecret'
   properties: {
-    value: string({
-      uri: graphClientSecretKeyvault
-    })
+    value: graphClientSecretKeyvault
     contentType: keyVaultReferenceContentType
   }
 }
@@ -133,9 +132,16 @@ resource acsConnectionStringSecret 'Microsoft.AppConfiguration/configurationStor
   parent: appConfiguration
   name: 'Azure:Acs:Connectionstring'
   properties: {
-    value: string({
-      uri: acsConnectionString
-    })
+    value: acsConnectionString
+    contentType: keyVaultReferenceContentType
+  }
+}
+
+resource SqlConnectionString 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+  parent: appConfiguration
+  name: 'Azure:Sql:Connectionstring'
+  properties: {
+    value: sqlConnectionString
     contentType: keyVaultReferenceContentType
   }
 }

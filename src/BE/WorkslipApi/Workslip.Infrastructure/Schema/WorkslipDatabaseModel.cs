@@ -122,19 +122,21 @@ public static class WorkslipDatabaseModel
                 Column.OptionalString(nameof(JobReportRow.CustomWorkKind), 160),
                 Column.OptionalString(nameof(JobReportRow.Remarks)),
                 Column.RequiredString(nameof(JobReportRow.ClosureFlagsJson), defaultSql: "'[]'"),
-                Column.OptionalString(nameof(JobReportRow.PayloadJson)),
-                Column.RequiredDateTimeOffset(nameof(JobReportRow.CreatedAt)),
-                Column.RequiredDateTimeOffset(nameof(JobReportRow.UpdatedAt)),
-                Column.OptionalDateTimeOffset(nameof(JobReportRow.SubmittedAt))
+                 Column.OptionalString(nameof(JobReportRow.PayloadJson)),
+                 Column.OptionalGuid(nameof(JobReportRow.AssignedUserId)),
+                 Column.RequiredDateTimeOffset(nameof(JobReportRow.CreatedAt)),
+                 Column.RequiredDateTimeOffset(nameof(JobReportRow.UpdatedAt)),
+                 Column.OptionalDateTimeOffset(nameof(JobReportRow.SubmittedAt))
             ],
             [
                 "constraint FK_JobReports_Organizations foreign key (OrganizationId) references dbo.Organizations(Id)",
                 "constraint FK_JobReports_Customers foreign key (CustomerId) references dbo.Customers(Id)",
                 "constraint FK_JobReports_JobWorkKinds foreign key (WorkKind) references dbo.JobWorkKinds(Id)",
-                "constraint CK_JobReports_Status check (Status in ('Draft', 'Submitted', 'InReview', 'Approved', 'Rejected', 'Archived'))",
-                "constraint CK_JobReports_InstallationTypesJson_IsJson check (isjson(InstallationTypesJson) = 1)",
-                "constraint CK_JobReports_ClosureFlagsJson_IsJson check (isjson(ClosureFlagsJson) = 1)",
-                "constraint CK_JobReports_PayloadJson_IsJson check (PayloadJson is null or isjson(PayloadJson) = 1)"
+                 "constraint CK_JobReports_Status check (Status in ('Draft', 'Submitted', 'InReview', 'Approved', 'Rejected', 'Archived'))",
+                 "constraint CK_JobReports_InstallationTypesJson_IsJson check (isjson(InstallationTypesJson) = 1)",
+                 "constraint CK_JobReports_ClosureFlagsJson_IsJson check (isjson(ClosureFlagsJson) = 1)",
+                 "constraint CK_JobReports_PayloadJson_IsJson check (PayloadJson is null or isjson(PayloadJson) = 1)",
+                 "constraint FK_JobReports_AssignedUsers foreign key (AssignedUserId) references dbo.Users(Id)"
             ],
             [
                 "create index IX_JobReports_Organization_Status_UpdatedAt on dbo.JobReports (OrganizationId, Status, UpdatedAt desc);"

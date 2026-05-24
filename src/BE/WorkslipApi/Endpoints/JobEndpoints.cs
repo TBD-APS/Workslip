@@ -91,6 +91,13 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
+        group.MapPost("/{id:guid}/assign", async (Guid id, Guid? userId, IJobService jobService, CancellationToken cancellationToken) =>
+        {
+            
+            var result = await jobService.AssignAsync(id, userId, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+
         group.MapPost("/{id:guid}/links", async (Guid id, CreateJobLinkRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.CreateLinkAsync(id, request, cancellationToken);

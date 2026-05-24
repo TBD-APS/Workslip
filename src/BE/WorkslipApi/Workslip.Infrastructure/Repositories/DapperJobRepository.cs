@@ -96,22 +96,23 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             },
             cancellationToken: cancellationToken));
 
-        return rows.Select(row => new JobListItemResponse(
-            row.Id,
-            row.OrganizationId,
-            row.CustomerId,
-            row.ReportNumber,
-            ParseStatus(row.Status),
-            row.CustomerName,
-            row.CustomerAddress,
-            row.CustomerEmail,
-            ToDateOnly(row.ReportDate),
-            FromJsonList(row.InstallationTypesJson),
-            row.WorkKind,
-            row.CustomWorkKind,
-            row.CreatedAt,
-            row.UpdatedAt,
-            row.SubmittedAt)).ToArray();
+         return rows.Select(row => new JobListItemResponse(
+             row.Id,
+             row.OrganizationId,
+             row.CustomerId,
+             row.ReportNumber,
+             ParseStatus(row.Status),
+             row.CustomerName,
+             row.CustomerAddress,
+             row.CustomerEmail,
+             ToDateOnly(row.ReportDate),
+             FromJsonList(row.InstallationTypesJson),
+             row.WorkKind,
+             row.CustomWorkKind,
+             row.CreatedAt,
+             row.UpdatedAt,
+             row.SubmittedAt,
+             row.AssignedUserId.HasValue ? new AssignedUserResponse(row.AssignedUserId.Value, "") : null)).ToArray();
     }
 
     public Task<JobReportResponse?> GetAsync(Guid id, CancellationToken cancellationToken) =>
@@ -273,42 +274,106 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         return await GetAsync(id, cancellationToken);
     }
 
-    public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("jobs.delete", token => DeleteAsyncCoreAsync(id, token), cancellationToken);
+     public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken) =>
+         retryPolicy.ExecuteAsync("jobs.delete", token => DeleteAsyncCoreAsync(id, token), cancellationToken);
 
-    private async Task<bool> DeleteAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
-    {
-        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
-        using var transaction = connection.BeginTransaction();
+     private async Task<bool> DeleteAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
+     {
+         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
+         using var transaction = connection.BeginTransaction();
 
-        var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
-            "select * from dbo.JobReports where Id = @Id;",
-            new { Id = id },
-            transaction,
-            cancellationToken: cancellationToken));
+         var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
+             "select * from dbo.JobReports where Id = @Id;",
+             new { Id = id },
+             transaction,
+             cancellationToken: cancellationToken));
 
-        if (existing is null)
-        {
-            return false;
-        }
+         if (existing is null)
+         {
+             return false;
+         }
 
-        await connection.ExecuteAsync(new CommandDefinition(
-            "delete from dbo.JobReportLinks where SourceReportId = @Id or TargetReportId = @Id;",
-            new { Id = id },
-            transaction,
-            cancellationToken: cancellationToken));
+         await connection.ExecuteAsync(new CommandDefinition(
+             "delete from dbo.JobReportLinks where SourceReportId = @Id or TargetReportId = @Id;",
+             new { Id = id },
+             transaction,
+             cancellationToken: cancellationToken));
 
-        await InsertEventAsync(connection, transaction, id, null, "deleted", ToJsonNode(existing), null, DateTimeOffset.UtcNow, cancellationToken);
+         await InsertEventAsync(connection, transaction, id, null, "deleted", ToJsonNode(existing), null, DateTimeOffset.UtcNow, cancellationToken);
 
-        await connection.ExecuteAsync(new CommandDefinition(
-            "delete from dbo.JobReports where Id = @Id;",
-            new { Id = id },
-            transaction,
-            cancellationToken: cancellationToken));
+         await connection.ExecuteAsync(new CommandDefinition(
+             "delete from dbo.JobReports where Id = @Id;",
+             new { Id = id },
+             transaction,
+             cancellationToken: cancellationToken));
 
-        transaction.Commit();
-        return true;
-    }
+         transaction.Commit();
+         return true;
+     }
+
+     public Task<JobReportResponse?> AssignAsync(Guid jobId, Guid? userId, Guid? actorId, CancellationToken cancellationToken) =>
+         retryPolicy.ExecuteAsync("jobs.assign", token => AssignAsyncCoreAsync(jobId, userId, actorId, token), cancellationToken);
+
+     private async Task<JobReportResponse?> AssignAsyncCoreAsync(Guid jobId, Guid? userId, Guid? actorId, CancellationToken cancellationToken)
+     {
+         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
+         using var transaction = connection.BeginTransaction();
+
+         // Get the existing job
+         var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
+             "select * from dbo.JobReports where Id = @Id;",
+             new { Id = jobId },
+             transaction,
+             cancellationToken: cancellationToken));
+
+         if (existing is null)
+         {
+             return null;
+         }
+
+         // If userId is provided, validate that the user exists, is active, and belongs to the same organization
+         if (userId.HasValue)
+         {
+             var user = await connection.QuerySingleOrDefaultAsync(new CommandDefinition(
+                 "select Id, DisplayName from dbo.Users where Id = @UserId and IsActive = 1 and OrganizationId = @OrgId;",
+                 new { UserId = userId.Value, OrgId = existing.OrganizationId },
+                 transaction,
+                 cancellationToken: cancellationToken));
+
+             if (user is null)
+             {
+                 return null; // User doesn't exist, is inactive, or belongs to different organization
+             }
+         }
+
+         // Check if assignment is actually changing
+         if (existing.AssignedUserId == userId)
+         {
+             // No change needed, return current job
+             return await GetAsync(jobId, cancellationToken);
+         }
+
+         var now = DateTimeOffset.UtcNow;
+         
+         // Update the assigned user
+         await connection.ExecuteAsync(new CommandDefinition(
+             "update dbo.JobReports set AssignedUserId = @AssignedUserId, UpdatedAt = @UpdatedAt where Id = @Id;",
+             new { Id = jobId, AssignedUserId = userId, UpdatedAt = now },
+             transaction,
+             cancellationToken: cancellationToken));
+
+         // Determine event type based on whether this is initial assignment or reassignment
+         string eventType = existing.AssignedUserId.HasValue ? "reassigned" : "assigned";
+         
+         // Create before/after snapshots for the event
+         var before = JsonNode.Parse(JsonSerializer.Serialize(new { AssignedUserId = existing.AssignedUserId }, JsonOptions))?.AsObject();
+         var after = JsonNode.Parse(JsonSerializer.Serialize(new { AssignedUserId = userId }, JsonOptions))?.AsObject();
+
+         await InsertEventAsync(connection, transaction, jobId, actorId, eventType, before, after, now, cancellationToken);
+         
+         transaction.Commit();
+         return await GetAsync(jobId, cancellationToken);
+     }
 
     private static async Task ReplaceControlInstallationTypesAsync(
         IDbConnection connection,
@@ -461,32 +526,33 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             .Select(group => new ControlInstallationTypeResponse(group.Key, group.ToArray()))
             .ToArray();
 
-        return new(
-            row.Id,
-            row.OrganizationId,
-            row.CustomerId,
-            row.ReportNumber,
-            ParseStatus(row.Status),
-            row.CustomerName,
-            row.CustomerAddress,
-            row.CustomerEmail,
-            row.ContactPerson,
-            row.Phone,
-            ToDateOnly(row.ReportDate),
-            row.TaskDescription,
-            row.CustomerObservations,
-            row.TechnicalObservations,
-            FromJsonList(row.InstallationTypesJson),
-            row.WorkKind,
-            row.CustomWorkKind,
-            row.Remarks,
-            FromJsonList(row.ClosureFlagsJson),
-            string.IsNullOrWhiteSpace(row.PayloadJson) ? null : JsonNode.Parse(row.PayloadJson) as JsonObject,
-            installationTypeResponses,
-            links,
-            row.CreatedAt,
-            row.UpdatedAt,
-            row.SubmittedAt);
+         return new(
+             row.Id,
+             row.OrganizationId,
+             row.CustomerId,
+             row.ReportNumber,
+             ParseStatus(row.Status),
+             row.CustomerName,
+             row.CustomerAddress,
+             row.CustomerEmail,
+             row.ContactPerson,
+             row.Phone,
+             ToDateOnly(row.ReportDate),
+             row.TaskDescription,
+             row.CustomerObservations,
+             row.TechnicalObservations,
+             FromJsonList(row.InstallationTypesJson),
+             row.WorkKind,
+             row.CustomWorkKind,
+             row.Remarks,
+             FromJsonList(row.ClosureFlagsJson),
+             string.IsNullOrWhiteSpace(row.PayloadJson) ? null : JsonNode.Parse(row.PayloadJson) as JsonObject,
+             installationTypeResponses,
+             links,
+             row.CreatedAt,
+             row.UpdatedAt,
+             row.SubmittedAt,
+             row.AssignedUserId.HasValue ? new AssignedUserResponse(row.AssignedUserId.Value, "") : null);
     }
 
     private static JobStatus ParseStatus(string status) => Enum.Parse<JobStatus>(status, ignoreCase: true);

@@ -1377,31 +1377,75 @@
             }
           ]
         },
-        {
-          "name": "DELETE /api/jobs/{id}/links/{linkId}",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links/{{linkId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "jobs", "{{jobId}}", "links", "{{linkId}}"]
-            },
-            "description": "Removes a link between two jobs."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        }
+         {
+           "name": "DELETE /api/jobs/{id}/links/{linkId}",
+           "request": {
+             "method": "DELETE",
+             "header": [],
+             "url": {
+               "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links/{{linkId}}",
+               "host": ["{{baseUrl}}"],
+               "path": ["api", "jobs", "{{jobId}}", "links", "{{linkId}}"]
+             },
+             "description": "Removes a link between two jobs."
+           },
+           "response": [],
+           "event": [
+             {
+               "listen": "test",
+               "script": {
+                 "type": "text/javascript",
+                 "exec": [
+                   "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                 ]
+               }
+             }
+           ]
+         },
+         {
+           "name": "POST /api/jobs/{id}/assign",
+           "request": {
+             "method": "POST",
+             "header": [
+               {
+                 "key": "Content-Type",
+                 "value": "application/json"
+               }
+             ],
+             "url": {
+               "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign",
+               "host": ["{{baseUrl}}"],
+               "path": ["api", "jobs", "{{jobId}}", "assign"]
+             },
+             "description": "Assigns a job to a user in the same organization. Returns 400 if user doesn't exist, is inactive, or belongs to different organization."
+           },
+           "body": {
+             "mode": "raw",
+             "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+           }
+         },
+         {
+           "name": "POST /api/jobs/{id}/assign/null (unassign)",
+           "request": {
+             "method": "POST",
+             "header": [
+               {
+                 "key": "Content-Type",
+                 "value": "application/json"
+               }
+             ],
+             "url": {
+               "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign",
+               "host": ["{{baseUrl}}"],
+               "path": ["api", "jobs", "{{jobId}}", "assign"]
+             },
+             "description": "Unassigns a job by setting userId to null."
+           },
+           "body": {
+             "mode": "raw",
+             "raw": "{\n  \"userId\": null\n}"
+           }
+         }
       ]
     }
   ],

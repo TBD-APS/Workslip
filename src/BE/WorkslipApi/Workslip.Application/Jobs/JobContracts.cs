@@ -92,7 +92,8 @@ public sealed record JobListItemResponse(
     string? CustomWorkKind,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? SubmittedAt);
+    DateTimeOffset? SubmittedAt,
+    AssignedUserResponse? AssignedUser);
 
 public sealed record JobReportResponse(
     Guid Id,
@@ -119,7 +120,8 @@ public sealed record JobReportResponse(
     IReadOnlyList<JobLinkInfoResponse> Links,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? SubmittedAt);
+    DateTimeOffset? SubmittedAt,
+    AssignedUserResponse? AssignedUser);
 
 public sealed record CreateJobLinkRequest(
     Guid TargetReportId,
@@ -141,6 +143,10 @@ public sealed record JobLinkResponse(
     string LinkedStatus,
     string LinkType,
     DateTimeOffset CreatedAt);
+
+public sealed record AssignedUserResponse(
+    Guid Id,
+    string DisplayName);
 
 public sealed record JobEventResponse(
     Guid Id,

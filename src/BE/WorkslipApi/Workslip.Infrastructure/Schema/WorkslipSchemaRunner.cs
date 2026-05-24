@@ -134,14 +134,24 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
             """,
             cancellationToken: cancellationToken));
 
-        await connection.ExecuteAsync(new CommandDefinition(
-            """
-            if object_id('dbo.JobControlSubcategories', 'U') is not null
-            begin
-                drop table dbo.JobControlSubcategories;
-            end;
-            """,
-            cancellationToken: cancellationToken));
+         await connection.ExecuteAsync(new CommandDefinition(
+             """
+             if object_id('dbo.JobControlSubcategories', 'U') is not null
+             begin
+                 drop table dbo.JobControlSubcategories;
+             end;
+             """,
+             cancellationToken: cancellationToken));
+
+         await connection.ExecuteAsync(new CommandDefinition(
+             """
+             if object_id('dbo.JobReports', 'U') is not null
+                and col_length('dbo.JobReports', 'AssignedUserId') is null
+             begin
+                 alter table dbo.JobReports add AssignedUserId uniqueidentifier null;
+             end;
+             """,
+             cancellationToken: cancellationToken));
 
         await connection.ExecuteAsync(new CommandDefinition(
             """

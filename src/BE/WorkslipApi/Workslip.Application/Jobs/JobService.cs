@@ -15,6 +15,7 @@ public interface IJobService
     Task<Result<JobReportResponse>> SubmitAsync(Guid id, CancellationToken cancellationToken);
     Task<Result<JobReportResponse>> ApproveAsync(Guid id, Guid? actorId, CancellationToken cancellationToken);
     Task<Result<JobReportResponse>> RejectAsync(Guid id, Guid? actorId, CancellationToken cancellationToken);
+    Task<Result<JobReportResponse>> AssignAsync(Guid jobId, Guid? userId, CancellationToken cancellationToken);
     Task<Result<JobLinkResponse>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken);
     Task<Result<IReadOnlyList<JobLinkResponse>>> GetLinksAsync(Guid reportId, CancellationToken cancellationToken);
     Task<Result> DeleteLinkAsync(Guid reportId, Guid linkId, CancellationToken cancellationToken);
@@ -278,20 +279,34 @@ public sealed class JobService(
         return Result.Success();
     }
 
-    public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken)
-    {
-        var deleted = await repository.DeleteAsync(id, cancellationToken);
-        if (!deleted)
-        {
-            logger.LogWarning("Job delete returned not found. JobId: {JobId}.", id);
-            return Result.NotFound();
-        }
+     public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken)
+     {
+         var deleted = await repository.DeleteAsync(id, cancellationToken);
+         if (!deleted)
+         {
+             logger.LogWarning("Job delete returned not found. JobId: {JobId}.", id);
+             return Result.NotFound();
+         }
 
-        await InvalidateJobCachesAsync(id, cancellationToken);
-        logger.LogInformation("Job deleted. JobId: {JobId}.", id);
+         await InvalidateJobCachesAsync(id, cancellationToken);
+         logger.LogInformation("Job deleted. JobId: {JobId}.", id);
 
-        return Result.NoContent();
-    }
+         return Result.NoContent();
+     }
+
+     public async Task<Result<JobReportResponse>> AssignAsync(Guid jobId, Guid? userId, CancellationToken cancellationToken)
+     {
+         var assigned = await repository.AssignAsync(jobId, userId, actorId: null, cancellationToken);
+         if (assigned is null)
+         {
+             return Result<JobReportResponse>.NotFound(); 
+         }
+
+         await InvalidateJobCachesAsync(jobId, cancellationToken);
+         logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserId: {AssignedUserId}.", jobId, userId);
+
+         return Result<JobReportResponse>.Success(assigned);
+     }
 
     private async Task InvalidateJobCachesAsync(Guid id, CancellationToken cancellationToken)
     {
