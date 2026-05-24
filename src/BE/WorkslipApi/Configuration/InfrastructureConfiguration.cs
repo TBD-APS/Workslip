@@ -21,9 +21,7 @@ public static class InfrastructureConfiguration
     }
 
     public static string? ResolveApplicationInsightsConnectionString(IConfiguration configuration) =>
-        ConfiguredValues.FirstConfigured(
-            configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"],
-            configuration["ApplicationInsights:ConnectionString"]);
+        ConfiguredValues.FirstConfigured(configuration["Azure:ApplicationInsights:ConnectionString"]);
 
     private static TokenCredential CreateAzureCredential(IConfiguration configuration)
     {

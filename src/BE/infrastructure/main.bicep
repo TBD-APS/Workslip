@@ -1,19 +1,20 @@
 param companyName string = ''
 param location string = resourceGroup().location
-param environment string = 'dev'
+param environment string = ''
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param logicAppName string             = 'la-${companyName}-${toLower(environment)}'
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
-param appConfigurationName string      = take('appcs-${companyName}-${toLower(environment)}', 50)
+param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
+param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
-param emailServiceName string = take('email-${companyName}-${toLower(environment)}', 64)
+param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
+
 // ── Role definition IDs ───────────────────────────────────────────────────────
 // Centralised here so they're easy to audit and update.
 var roles = {
-  keyVaultSecretsUser:     '4633458b-436e-492d-b285-4f6b7b5e48d1'
   cognitiveServicesUser:   'a97b65f3-24c7-4388-baec-2e87135dc908'
   storageBlobContributor:  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
   appConfigurationDataReader: '516239f1-63e1-4d78-a4de-a74fb236a071'
@@ -40,6 +41,21 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
 // Monitoring
 // ──────────────────────────────────────────────────────────────────────────────
 
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+  name: logAnalyticsName
+  location: location
+  tags: tags
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    workspaceCapping: {
+      dailyQuotaGb: 1 // <-- Mindst mulige loft i Azure. Langt under de 5 GB gratis om måneden.
+    }
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
+  }
+}
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: appInsightsName
@@ -48,6 +64,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   tags: tags
   properties: {
     Application_Type: 'web'
+    WorkspaceResourceId: logAnalyticsWorkspace.id
   }
 }
 
@@ -100,16 +117,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
   }
 }
 
-resource kvRoleIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid('${keyVault.id}${identity.id}${roles.keyVaultSecretsUser}')
-  scope: keyVault
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.keyVaultSecretsUser)
-  }
-}
-
 // ──────────────────────────────────────────────────────────
 // Storage Account
 // Used for document storage and workflow assets.
@@ -159,8 +166,8 @@ resource storageRoleBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Document Intelligence
-// ──────────────────────────────────────────────────────────────────────────────
-
+// ──────────────────────────────────────────────────────────────────────────────/
+/*
 resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   name: documentIntelligenceName
   location: location
@@ -187,7 +194,7 @@ resource diRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.cognitiveServicesUser)
   }
 }
-
+*/
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Azure Communication Services
@@ -204,24 +211,17 @@ resource communicationService 'Microsoft.Communication/communicationServices@202
     userAssignedIdentities: { '${identity.id}': {} }
   }
   properties: {
-    dataLocation: 'Europe'
+    // VIGTIGT 2: Data-lokationen skal være 'europe' i præcis dette felt
+    dataLocation: 'europe' 
   }
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// ACS Email Communication Service + Domain
-// Required for sending emails via ACS. The Azure-managed domain auto-generates
-// a sender address: DoNotReply@<emailServiceName>.azurecomm.net
-// After deployment, link this domain to the ACS resource in the portal:
-//   ACS resource → Email → Connected domains → Add
-// ──────────────────────────────────────────────────────────────────────────────
 
 resource emailService 'Microsoft.Communication/emailServices@2023-04-01' = {
   name: emailServiceName
   location: 'global'
   tags: tags
   properties: {
-    dataLocation: 'Europe'
+    dataLocation: 'europe' 
   }
 }
 
@@ -235,6 +235,7 @@ resource emailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' 
   }
 }
 
+/*
 // ──────────────────────────────────────────────────────────────────────────────
 // Logic App Connections
 // ──────────────────────────────────────────────────────────────────────────────
@@ -311,6 +312,7 @@ resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
     }
   }
 }
+*/
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Outputs
@@ -322,7 +324,7 @@ output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
 output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
-output DOCUMENT_INTELLIGENCE_ENDPOINT string   = documentIntelligence.properties.endpoint
+//output DOCUMENT_INTELLIGENCE_ENDPOINT string   = documentIntelligence.properties.endpoint
 output DOCUMENT_INTELLIGENCE_NAME string       = documentIntelligenceName
 output AZURE_APP_CONFIG_ENDPOINT string         = appConfiguration.properties.endpoint
 output ACS_ENDPOINT string                     = 'https://${communicationService.properties.hostName}'

@@ -13,7 +13,7 @@ public sealed class UserEntraService(
 {
      public async Task<CreateEntraUserResult> CreateUserAsync(string email, string displayName, CancellationToken ct)
     {
-        var defaultDomain = configuration["GraphApp:DefaultUserDomain"];
+        var defaultDomain = configuration["Azure:GraphApp:DefaultUserDomain"];
 
         var mailNickname = email.Split('@')[0].Replace(".", "").Replace("-", "");
 
@@ -60,7 +60,7 @@ public sealed class UserEntraService(
 
     public async Task AssignAppRoleTo(string entraUserId, string appRoleValue, CancellationToken ct)
     {
-        var workslipServerAppId = configuration["GraphApp:WorkslipServerAppId"];
+        var workslipServerAppId = configuration["Azure:GraphApp:WorkslipServerAppId"];
 
         logger.LogInformation("Graph fetching service principal. CorrelationId={CorrelationId} AppId={AppId}", correlationIdAccessor.CorrelationId, workslipServerAppId);
 

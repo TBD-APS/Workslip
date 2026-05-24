@@ -36,4 +36,3 @@ public sealed record CurrentUserResponse(
     string Role,
     OrganizationResponse Organization);
 
-public sealed record OrganizationValidationError(string Field, string Message);

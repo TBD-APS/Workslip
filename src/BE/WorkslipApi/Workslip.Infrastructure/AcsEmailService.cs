@@ -14,12 +14,11 @@ public sealed class AcsEmailService(
     : IEmailService
 {
     private readonly string _acsEndpoint = new(
-        configuration["Acs:Endpoint"]
-        ?? configuration["ACS_ENDPOINT"]
+        configuration["Azure:Acs:Endpoint"]
         ?? throw new InvalidOperationException("ACS endpoint is not configured. Set Acs:Endpoint or ACS_ENDPOINT."));
 
-    private readonly string _senderAddress = configuration["Acs:SenderAddress"]
-        ?? throw new InvalidOperationException("ACS sender address is not configured. Set Acs:SenderAddress.");
+    private readonly string _senderAddress = configuration["Azure:Acs:SenderAddress"]
+        ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:SenderAddress.");
 
     public async Task SendInviteEmailAsync(string toEmail, string inviteLink, CancellationToken cancellationToken)
     {

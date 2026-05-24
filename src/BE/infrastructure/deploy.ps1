@@ -2,13 +2,12 @@ param(
     [Parameter(Position=0)]
     [string]$Environment = "dev",
     [string]$Location = "westeurope",
-    [string]$COMPANY_NAME = "rbj"
+    [string]$COMPANY_NAME = "npteknik"
 )
 
 $RESOURCE_GROUP = "rg-$COMPANY_NAME-$Environment"
 $INFRA_DIR = Split-Path -Parent $PSCommandPath
 $TEMPLATE = Join-Path $INFRA_DIR "main.bicep"
-$PARAMETERS = Join-Path $INFRA_DIR "parameters.$Environment.json"
 $DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format 'yyyyMMddHHmmss')"
 
 # ─── checks ───────────────────────────────────────────
@@ -46,7 +45,6 @@ Write-Host "Registering resource providers…" -ForegroundColor Cyan
      }
 }
 
-
 # ─── resource group ───────────────────────────────────
 Write-Host "Ensuring resource group…" -ForegroundColor Cyan
 $exists = az group exists --name $RESOURCE_GROUP -o tsv
@@ -60,21 +58,13 @@ if ($exists -eq "false") {
 # ─── deploy ───────────────────────────────────────────
 Write-Host "Deploying Bicep template…" -ForegroundColor Cyan
 
-if (Test-Path $PARAMETERS) {
-    az deployment group create `
-        --resource-group $RESOURCE_GROUP `
-        --name $DEPLOY_NAME `
-        --mode Incremental `
-        --template-file $TEMPLATE `
-        --parameters $PARAMETERS `
-        --parameters companyName=$COMPANY_NAME
-} else {
-    az deployment group create `
-        --mode Incremental `
-        --resource-group $RESOURCE_GROUP `
-        --name $DEPLOY_NAME `
-        --template-file $TEMPLATE
-}
+az deployment group create `
+    --resource-group $RESOURCE_GROUP `
+    --name $DEPLOY_NAME `
+    --mode Incremental `
+    --template-file $TEMPLATE `
+    --parameters companyName=$COMPANY_NAME `
+    --parameters environment=$Environment
 
 Write-Host "Deployment complete: $DEPLOY_NAME" -ForegroundColor Green
 Write-Host "Resource group: $RESOURCE_GROUP"

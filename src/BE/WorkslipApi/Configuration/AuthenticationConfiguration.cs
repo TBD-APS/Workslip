@@ -11,7 +11,7 @@ public static class AuthenticationConfiguration
         var configuration = builder.Configuration;
 
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
+            .AddMicrosoftIdentityWebApi(configuration.GetSection("Azure:Ad"));
 
         builder.Services.AddAuthentication()
             .AddJwtBearer("LocalJwt", options =>
