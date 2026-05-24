@@ -8,6 +8,16 @@ public static class LoggingConfiguration
 {
     public static WebApplicationBuilder ConfigureLogging(this WebApplicationBuilder builder, string? applicationInsightsConnectionString)
     {
+        if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
+        {
+            builder.Services.AddApplicationInsightsTelemetry(options =>
+            {
+                options.ConnectionString = applicationInsightsConnectionString;
+            });
+
+            builder.Services.AddSingleton<ITelemetryInitializer, CorrelationTelemetryInitializer>();
+        }
+
         builder.Host.UseSerilog((context, services, configuration) =>
         {
             configuration
@@ -24,13 +34,6 @@ public static class LoggingConfiguration
                 configuration.WriteTo.ApplicationInsights(
                     services.GetRequiredService<TelemetryConfiguration>(),
                     TelemetryConverter.Traces);
-
-                builder.Services.AddApplicationInsightsTelemetry(options =>
-                {
-                    options.ConnectionString = applicationInsightsConnectionString;
-                });
-
-                builder.Services.AddSingleton<ITelemetryInitializer, CorrelationTelemetryInitializer>();
             }
         });
 

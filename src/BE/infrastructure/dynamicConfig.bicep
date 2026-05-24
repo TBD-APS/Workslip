@@ -123,25 +123,25 @@ resource configGraphAppClientSecret 'Microsoft.AppConfiguration/configurationSto
   parent: appConfiguration
   name: 'Azure:GraphApp:ClientSecret'
   properties: {
-    value: graphClientSecretKeyvault
+    value: string({ uri: graphClientSecretKeyvault })
     contentType: keyVaultReferenceContentType
   }
 }
 
 resource acsConnectionStringSecret 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
-  name: 'Azure:Acs:Connectionstring'
+  name: 'Azure:Acs:ConnectionString'
   properties: {
-    value: acsConnectionString
+    value: string({ uri: acsConnectionString })
     contentType: keyVaultReferenceContentType
   }
 }
 
 resource SqlConnectionString 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
-  name: 'Azure:Sql:Connectionstring'
+  name: 'Azure:Sql:ConnectionString'
   properties: {
-    value: sqlConnectionString
+    value: string({ uri: sqlConnectionString })
     contentType: keyVaultReferenceContentType
   }
 }
