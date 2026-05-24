@@ -7,6 +7,7 @@ using Workslip.Application;
 using Workslip.Api;
 using Workslip.Api.Endpoints;
 using Workslip.Api.Middleware;
+using Workslip.Api.Telemetry;
 using Workslip.Infrastructure;
 using Workslip.Infrastructure.Configuration;
 using Workslip.Infrastructure.Schema;
@@ -41,9 +42,16 @@ try
             configuration.WriteTo.ApplicationInsights(
                 services.GetRequiredService<TelemetryConfiguration>(),
                 TelemetryConverter.Traces);
+            builder.Services.AddApplicationInsightsTelemetry(options =>
+            {
+                options.ConnectionString = applicationInsightsConnectionString;
+            });
+            builder.Services.AddSingleton<ITelemetryInitializer, CorrelationTelemetryInitializer>();
         }
     });
     
+
+
     builder.Services.AddOpenApi();
 
     builder.Services.AddHybridCache();
@@ -52,7 +60,7 @@ try
     builder.Services.AddWorkslipInfrastructure();
 
     builder.Services.AddHttpContextAccessor();
-    builder.Services.AddScoped<ICorrelationIdAccessor, CorrelationIdAccessor>();
+    builder.Services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
 
     QuestPDF.Settings.License = LicenseType.Community;
     builder.Services.AddSingleton<IJobReportPdfService, JobReportPdfService>();

@@ -14,10 +14,13 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
-            logger.LogWarning("Request aborted by client. {Method} {Path}. TraceId: {TraceId}",
+            var traceId = GetTraceId(context);
+            var correlationId = context.Items["CorrelationId"]?.ToString() ?? traceId;
+            logger.LogWarning("Request aborted by client. {Method} {Path}. CorrelationId: {CorrelationId} TraceId: {TraceId}",
                 context.Request.Method,
                 context.Request.Path,
-                GetTraceId(context));
+                correlationId,
+                traceId);
         }
         catch (Exception exception)
         {
@@ -28,11 +31,13 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
     private async Task WriteProblemResponseAsync(HttpContext context, Exception exception)
     {
         var traceId = GetTraceId(context);
+        var correlationId = context.Items["CorrelationId"]?.ToString() ?? traceId;
 
         logger.LogError(exception,
-            "Unhandled exception while processing {Method} {Path}. TraceId: {TraceId}",
+            "Unhandled exception while processing {Method} {Path}. CorrelationId: {CorrelationId} TraceId: {TraceId}",
             context.Request.Method,
             context.Request.Path,
+            correlationId,
             traceId);
 
         if (context.Response.HasStarted)
@@ -49,10 +54,11 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
         {
             Status = StatusCodes.Status500InternalServerError,
             Title = "An unexpected error occurred.",
-            Detail = "The request could not be completed. Contact support with the traceId.",
+            Detail = "The request could not be completed. Contact support with the correlationId or traceId.",
             Instance = context.Request.Path
         };
         problem.Extensions["traceId"] = traceId;
+        problem.Extensions["correlationId"] = correlationId;
 
         await context.Response.WriteAsJsonAsync(problem);
     }
