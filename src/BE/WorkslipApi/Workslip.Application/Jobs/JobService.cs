@@ -15,10 +15,15 @@ public interface IJobService
     Task<Result<JobReportResponse>> SubmitAsync(Guid id, CancellationToken cancellationToken);
     Task<Result<JobReportResponse>> ApproveAsync(Guid id, Guid? actorId, CancellationToken cancellationToken);
     Task<Result<JobReportResponse>> RejectAsync(Guid id, Guid? actorId, CancellationToken cancellationToken);
+    Task<Result<JobLinkResponse>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken);
+    Task<Result<IReadOnlyList<JobLinkResponse>>> GetLinksAsync(Guid reportId, CancellationToken cancellationToken);
+    Task<Result> DeleteLinkAsync(Guid reportId, Guid linkId, CancellationToken cancellationToken);
+    Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken);
 }
 
 public sealed class JobService(
     IJobRepository repository,
+    IJobLinkRepository linkRepository,
     HybridCache cache,
     IValidator<CreateJobRequest> createJobValidator,
     IValidator<UpdateJobRequest> updateJobValidator,
@@ -195,6 +200,97 @@ public sealed class JobService(
             actorId);
 
         return Result<JobReportResponse>.Success(report);
+    }
+
+    public async Task<Result<JobLinkResponse>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
+    {
+        if (reportId == request.TargetReportId)
+        {
+            return Result<JobLinkResponse>.Invalid(new List<ValidationError>
+            {
+                new() { Identifier = "TargetReportId", ErrorMessage = "En sag kan ikke linkes til sig selv." }
+            });
+        }
+
+        var report = await repository.GetAsync(reportId, cancellationToken);
+        if (report is null)
+        {
+            return Result<JobLinkResponse>.NotFound();
+        }
+
+        var target = await repository.GetAsync(request.TargetReportId, cancellationToken);
+        if (target is null)
+        {
+            return Result<JobLinkResponse>.Invalid(new List<ValidationError>
+            {
+                new() { Identifier = "TargetReportId", ErrorMessage = "Den valgte sag findes ikke." }
+            });
+        }
+
+        if (report.OrganizationId != target.OrganizationId)
+        {
+            return Result<JobLinkResponse>.Invalid(new List<ValidationError>
+            {
+                new() { Identifier = "TargetReportId", ErrorMessage = "Kunne ikke finde den sag du referer til." }
+            });
+        }
+
+        var link = await linkRepository.CreateLinkAsync(reportId, request.TargetReportId, request.LinkType, cancellationToken);
+        logger.LogInformation("Job link created. SourceReportId: {SourceReportId}. TargetReportId: {TargetReportId}. LinkType: {LinkType}.",
+            reportId, request.TargetReportId, request.LinkType);
+
+        return Result<JobLinkResponse>.Success(link);
+    }
+
+    public async Task<Result<IReadOnlyList<JobLinkResponse>>> GetLinksAsync(Guid reportId, CancellationToken cancellationToken)
+    {
+        var report = await repository.GetAsync(reportId, cancellationToken);
+        if (report is null)
+        {
+            return Result<IReadOnlyList<JobLinkResponse>>.NotFound();
+        }
+
+        var links = await linkRepository.GetLinksAsync(reportId, cancellationToken);
+        return Result<IReadOnlyList<JobLinkResponse>>.Success(links);
+    }
+
+    public async Task<Result> DeleteLinkAsync(Guid reportId, Guid linkId, CancellationToken cancellationToken)
+    {
+        var report = await repository.GetAsync(reportId, cancellationToken);
+        if (report is null)
+        {
+            return Result.NotFound();
+        }
+
+        var link = await linkRepository.GetLinkAsync(linkId, cancellationToken);
+        if (link is null)
+        {
+            return Result.NotFound();
+        }
+
+        var deleted = await linkRepository.DeleteLinkAsync(linkId, cancellationToken);
+        if (!deleted)
+        {
+            return Result.NotFound();
+        }
+
+        logger.LogInformation("Job link deleted. LinkId: {LinkId}. ReportId: {ReportId}.", linkId, reportId);
+        return Result.Success();
+    }
+
+    public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var deleted = await repository.DeleteAsync(id, cancellationToken);
+        if (!deleted)
+        {
+            logger.LogWarning("Job delete returned not found. JobId: {JobId}.", id);
+            return Result.NotFound();
+        }
+
+        await InvalidateJobCachesAsync(id, cancellationToken);
+        logger.LogInformation("Job deleted. JobId: {JobId}.", id);
+
+        return Result.NoContent();
     }
 
     private async Task InvalidateJobCachesAsync(Guid id, CancellationToken cancellationToken)

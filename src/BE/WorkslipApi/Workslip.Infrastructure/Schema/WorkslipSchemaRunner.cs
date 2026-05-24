@@ -142,6 +142,26 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
             end;
             """,
             cancellationToken: cancellationToken));
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            if object_id('dbo.JobReportLinks', 'U') is null
+            begin
+                create table dbo.JobReportLinks (
+                    Id uniqueidentifier not null constraint PK_JobReportLinks primary key,
+                    SourceReportId uniqueidentifier not null,
+                    TargetReportId uniqueidentifier not null,
+                    LinkType nvarchar(80) not null,
+                    CreatedAt datetimeoffset not null,
+                    constraint FK_JobReportLinks_SourceReport foreign key (SourceReportId) references dbo.JobReports(Id),
+                    constraint FK_JobReportLinks_TargetReport foreign key (TargetReportId) references dbo.JobReports(Id),
+                    constraint CK_JobReportLinks_NoSelfLink check (SourceReportId != TargetReportId)
+                );
+                create unique index UX_JobReportLinks_Pair on dbo.JobReportLinks (SourceReportId, TargetReportId);
+                create index IX_JobReportLinks_TargetReport on dbo.JobReportLinks (TargetReportId);
+            end;
+            """,
+            cancellationToken: cancellationToken));
     }
 
     private async Task SeedJobTaxonomyAsync(

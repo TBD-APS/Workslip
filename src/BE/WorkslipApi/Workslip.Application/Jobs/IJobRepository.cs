@@ -11,4 +11,5 @@ public interface IJobRepository
     Task<JobReportResponse?> GetAsync(Guid id, CancellationToken cancellationToken);
     Task<JobReportResponse?> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken);
     Task<JobReportResponse?> TransitionAsync(Guid id, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken);
+    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken);
 }

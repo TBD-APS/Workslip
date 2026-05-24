@@ -116,9 +116,31 @@ public sealed record JobReportResponse(
     IReadOnlyList<string> ClosureFlags,
     JsonObject? Payload,
     IReadOnlyList<ControlInstallationTypeResponse> ControlInstallationTypes,
+    IReadOnlyList<JobLinkInfoResponse> Links,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt);
+
+public sealed record CreateJobLinkRequest(
+    Guid TargetReportId,
+    string LinkType);
+
+public sealed record JobLinkInfoResponse(
+    Guid LinkedReportId,
+    string LinkedReportNumber,
+    string LinkedCustomerName,
+    string LinkedStatus,
+    string LinkType);
+
+public sealed record JobLinkResponse(
+    Guid Id,
+    Guid ReportId,
+    Guid LinkedReportId,
+    string LinkedReportNumber,
+    string LinkedCustomerName,
+    string LinkedStatus,
+    string LinkType,
+    DateTimeOffset CreatedAt);
 
 public sealed record JobEventResponse(
     Guid Id,

@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
         services.AddScoped<IJobRepository, DapperJobRepository>();
+        services.AddScoped<IJobLinkRepository, DapperJobLinkRepository>();
         services.AddScoped<IJobTaxonomyRepository, DapperJobTaxonomyRepository>();
         services.AddScoped<IOrganizationRepository, DapperOrganizationRepository>();
         services.AddScoped<IUserRepository, DapperUserRepository>();

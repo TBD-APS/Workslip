@@ -140,7 +140,9 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             new { Id = id },
             cancellationToken: cancellationToken));
 
-        return ToResponse(row, subcategories, checks);
+        var links = await LoadLinksAsync(connection, id, cancellationToken);
+
+        return ToResponse(row, subcategories, checks, links);
     }
 
     public Task<JobReportResponse?> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken) =>
@@ -271,6 +273,43 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         return await GetAsync(id, cancellationToken);
     }
 
+    public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.delete", token => DeleteAsyncCoreAsync(id, token), cancellationToken);
+
+    private async Task<bool> DeleteAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
+    {
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
+        using var transaction = connection.BeginTransaction();
+
+        var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
+            "select * from dbo.JobReports where Id = @Id;",
+            new { Id = id },
+            transaction,
+            cancellationToken: cancellationToken));
+
+        if (existing is null)
+        {
+            return false;
+        }
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            "delete from dbo.JobReportLinks where SourceReportId = @Id or TargetReportId = @Id;",
+            new { Id = id },
+            transaction,
+            cancellationToken: cancellationToken));
+
+        await InsertEventAsync(connection, transaction, id, null, "deleted", ToJsonNode(existing), null, DateTimeOffset.UtcNow, cancellationToken);
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            "delete from dbo.JobReports where Id = @Id;",
+            new { Id = id },
+            transaction,
+            cancellationToken: cancellationToken));
+
+        transaction.Commit();
+        return true;
+    }
+
     private static async Task ReplaceControlInstallationTypesAsync(
         IDbConnection connection,
         IDbTransaction transaction,
@@ -358,10 +397,46 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             cancellationToken: cancellationToken));
     }
 
+    private static async Task<IReadOnlyList<JobLinkInfoResponse>> LoadLinksAsync(
+        IDbConnection connection,
+        Guid reportId,
+        CancellationToken cancellationToken)
+    {
+        var links = await connection.QueryAsync<JobReportLinkRow>(new CommandDefinition(
+            "select * from dbo.JobReportLinks where SourceReportId = @Id or TargetReportId = @Id;",
+            new { Id = reportId },
+            cancellationToken: cancellationToken));
+
+        var linkedIds = links.Select(link =>
+            link.SourceReportId == reportId ? link.TargetReportId : link.SourceReportId).Distinct().ToArray();
+
+        if (linkedIds.Length == 0)
+            return [];
+
+        var linkedReports = (await connection.QueryAsync<JobReportRow>(new CommandDefinition(
+            "select * from dbo.JobReports where Id in @Ids;",
+            new { Ids = linkedIds },
+            cancellationToken: cancellationToken)))
+            .ToDictionary(r => r.Id);
+
+        return links.Select(link =>
+        {
+            var linkedId = link.SourceReportId == reportId ? link.TargetReportId : link.SourceReportId;
+            var linked = linkedReports.GetValueOrDefault(linkedId);
+            return new JobLinkInfoResponse(
+                linkedId,
+                linked?.ReportNumber ?? "",
+                linked?.CustomerName ?? "",
+                linked?.Status ?? "",
+                link.LinkType);
+        }).ToArray();
+    }
+
     private static JobReportResponse ToResponse(
         JobReportRow row,
         IEnumerable<JobControlSubcategoryRow> subcategories,
-        IEnumerable<JobControlCheckRow> checks)
+        IEnumerable<JobControlCheckRow> checks,
+        IReadOnlyList<JobLinkInfoResponse> links)
     {
         var checksBySubcategory = checks
             .GroupBy(check => check.SubcategoryDecisionId)
@@ -408,6 +483,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             FromJsonList(row.ClosureFlagsJson),
             string.IsNullOrWhiteSpace(row.PayloadJson) ? null : JsonNode.Parse(row.PayloadJson) as JsonObject,
             installationTypeResponses,
+            links,
             row.CreatedAt,
             row.UpdatedAt,
             row.SubmittedAt);

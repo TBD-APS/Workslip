@@ -93,10 +93,40 @@ resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-0
   properties: {
     
     publicNetworkAccess: 'Enabled'
-    disableLocalAuth: true
-    
+    disableLocalAuth: false
   }
 }
+
+module staticConfig './staticConfig.bicep' = {
+  name: 'static-config-values'
+  params: {
+    appConfigurationName: appConfiguration.name
+  }
+}
+
+module dynamicAppConfigValues './dynamicConfig.bicep' = {
+  name: 'app-config-values'
+  params: {
+    appConfigurationName: appConfiguration.name
+
+    managedIdentityClientId: identity.properties.clientId
+    appConfigurationEndpoint: 'https://${appConfiguration.name}.azconfig.io'
+    
+    azureAdOAuthClientId: '67882e61-7227-4c8a-bc55-dd36b2c59005'
+    workslipServerAppId: '4b36d921-1eaa-4d29-a1ba-412f07eaefe6'
+    graphAppClientId: '6af642a7-7877-4668-84d3-53dc52a9c796'
+    graphAppUserDomain: 'rasmusvm6hotmail.onmicrosoft.com'
+    graphClientSecretKeyvault: keyVaultConfigs.outputs.graphAppClientSecretUri
+
+    acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
+    acsSenderAddress:  emailDomain.properties.mailFromSenderDomain
+    acsEndpoint: 'https://${communicationService.properties.hostName}'
+    
+    storageAccountName: storageAccount.name
+    applicationInsightsConnectionString: appInsights.properties.ConnectionString
+  }
+}
+
 
 //Other apps can read directly from app config (azure functions, web api osv..)
 resource appConfigurationRoleIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -156,6 +186,15 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
   }
 }
 
+module keyVaultConfigs './keyvaultConfig.bicep' = {
+  name: 'key-vault-secrets'
+  params: {
+    keyVaultName: keyVault.name
+    communicationServiceName: communicationService.name
+    graphAppClientSecret: 'gFB8Q~Qc_FKeKWrfqnGjOqLqTu1Ds6rcZ8dyvbK5'
+  }
+}
+
 //I as admin have full control over keyvault
 resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, globalAdminId, roles.keyVaultAdministrator)
@@ -169,6 +208,7 @@ resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments
     )
   }
 }
+
 
 // ──────────────────────────────────────────────────────────
 // Storage Account
@@ -218,38 +258,6 @@ resource storageRoleBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Document Intelligence
-// ──────────────────────────────────────────────────────────────────────────────/
-/*
-resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
-  name: documentIntelligenceName
-  location: location
-  kind: 'FormRecognizer'
-  sku: { name: 'F0' }
-  tags: tags
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
-  }
-  properties: {
-    restore: false
-    customSubDomainName: documentIntelligenceName
-    publicNetworkAccess: 'Enabled'
-  }
-}
-
-resource diRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid('${documentIntelligence.id}${identity.id}${roles.cognitiveServicesUser}')
-  scope: documentIntelligence
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.cognitiveServicesUser)
-  }
-}
-*/
-
-// ──────────────────────────────────────────────────────────────────────────────
 // Azure Communication Services
 // Used for sending invite emails to new users via the ACS Email SDK.
 // Authenticated through the shared user-assigned managed identity.
@@ -288,84 +296,6 @@ resource emailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' 
   }
 }
 
-/*
-// ──────────────────────────────────────────────────────────────────────────────
-// Logic App Connections
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource blobConnection 'Microsoft.Web/connections@2016-06-01' = {
-  name: 'azureblob'
-  location: location
-  properties: {
-    displayName: 'azureblob'
-    api: {
-      id: subscriptionResourceId('Microsoft.Web/locations/managedApis', location, 'azureblob')
-    }
-  }
-}
-
-resource formRecognizerConnection 'Microsoft.Web/connections@2016-06-01' = {
-  name: 'formrecognizer'
-  location: location
-  properties: {
-    displayName: 'formrecognizer'
-    api: {
-      id: subscriptionResourceId('Microsoft.Web/locations/managedApis', location, 'formrecognizer')
-    }
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Logic App Workflow
-// ──────────────────────────────────────────────────────────────────────────────
-
-var workflowTemplate = loadTextContent('./logic-app/workflow.json')
-var workflowDefinition = json(
-  replace(workflowTemplate, '__STORAGE_ACCOUNT_NAME__', storageAccountName)
-)
-
-resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
-  name: logicAppName
-  location: location
-  tags: tags
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
-  }
-  properties: {
-    state: 'Enabled'
-    definition: workflowDefinition
-    parameters: {
-      '$connections': {
-        value: {
-          azureblob: {
-            connectionId: blobConnection.id
-            connectionName: 'azureblob'
-            connectionProperties: {
-              authentication: {
-                type: 'ManagedServiceIdentity'
-                identity: identity.id
-              }
-            }
-            id: subscriptionResourceId('Microsoft.Web/locations/managedApis', location, 'azureblob')
-          }
-          formrecognizer: {
-            connectionId: formRecognizerConnection.id
-            connectionName: 'formrecognizer'
-            connectionProperties: {
-              authentication: {
-                type: 'ManagedServiceIdentity'
-                identity: identity.id
-              }
-            }
-            id: subscriptionResourceId('Microsoft.Web/locations/managedApis', location, 'formrecognizer')
-          }
-        }
-      }
-    }
-  }
-}
-*/
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Outputs

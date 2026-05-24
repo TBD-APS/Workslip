@@ -141,6 +141,26 @@ public static class WorkslipDatabaseModel
             ]),
 
         new(
+            "JobReportLinks",
+            typeof(JobReportLinkRow),
+            [
+                Column.RequiredGuid(nameof(JobReportLinkRow.Id)),
+                Column.RequiredGuid(nameof(JobReportLinkRow.SourceReportId)),
+                Column.RequiredGuid(nameof(JobReportLinkRow.TargetReportId)),
+                Column.RequiredString(nameof(JobReportLinkRow.LinkType), 80),
+                Column.RequiredDateTimeOffset(nameof(JobReportLinkRow.CreatedAt))
+            ],
+            [
+                "constraint FK_JobReportLinks_SourceReport foreign key (SourceReportId) references dbo.JobReports(Id)",
+                "constraint FK_JobReportLinks_TargetReport foreign key (TargetReportId) references dbo.JobReports(Id)",
+                "constraint CK_JobReportLinks_NoSelfLink check (SourceReportId != TargetReportId)"
+            ],
+            [
+                "create unique index UX_JobReportLinks_Pair on dbo.JobReportLinks (SourceReportId, TargetReportId);",
+                "create index IX_JobReportLinks_TargetReport on dbo.JobReportLinks (TargetReportId);"
+            ]),
+
+        new(
             "JobControlSubcategoryDecisions",
             typeof(JobControlSubcategoryRow),
             [

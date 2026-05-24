@@ -114,6 +114,16 @@
       "key": "inviteEmail",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "linkId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetJobId",
+      "value": "00000000-0000-0000-0000-000000000000",
+      "type": "string"
     } 
   ],
     "auth": {
@@ -1269,6 +1279,124 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/jobs/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}"]
+            },
+            "description": "Deletes a job and its links. Requires admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/jobs/{id}/links",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "links"]
+            },
+            "description": "Creates a bi-directional link between two jobs. Saves linkId on success.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetReportId\": \"{{targetJobId}}\",\n  \"linkType\": \"related\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('linkId', json.id);",
+                  "pm.test('link id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('linked report info returned', function () { pm.expect(json.linkedReportNumber).to.be.a('string'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/jobs/{id}/links",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "links"]
+            },
+            "description": "Gets all links for a job (both directions)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/jobs/{id}/links/{linkId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links/{{linkId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}", "links", "{{linkId}}"]
+            },
+            "description": "Removes a link between two jobs."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
                 ]
               }
             }
