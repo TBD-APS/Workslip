@@ -32,7 +32,9 @@ try
             .ReadFrom.Services(services)
             .Enrich.FromLogContext()
             .Enrich.WithProperty("Application", "Workslip.Api")
-            .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName);
+            .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
+            .WriteTo.Seq("http://localhost:5341")
+            .WriteTo.Console();
 
         if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
         {
@@ -49,12 +51,16 @@ try
     builder.Services.AddWorkslipApplication();
     builder.Services.AddWorkslipInfrastructure();
 
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<ICorrelationIdAccessor, CorrelationIdAccessor>();
+
     QuestPDF.Settings.License = LicenseType.Community;
     builder.Services.AddSingleton<IJobReportPdfService, JobReportPdfService>();
 
     var tenantId = builder.Configuration["GraphApp:TenantId"];
     var clientId = builder.Configuration["GraphApp:ClientId"];
     var clientSecret = builder.Configuration["GraphApp:ClientSecret"];
+
     builder.Services.AddSingleton<GraphServiceClient>(sp =>
     {
 
@@ -89,6 +95,7 @@ try
     app.UseSecurityHeaders();
     
     app.UseMiddleware<GlobalExceptionMiddleware>();
+    app.UseMiddleware<CorrelationIdMiddleware>();
     
     app.UseSerilogRequestLogging(options =>
     {

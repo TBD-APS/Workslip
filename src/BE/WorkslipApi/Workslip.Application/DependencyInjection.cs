@@ -3,7 +3,6 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
-using Workslip.Application.Jobs.Validators;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 
