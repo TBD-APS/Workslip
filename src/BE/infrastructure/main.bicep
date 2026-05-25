@@ -8,6 +8,11 @@ param logicAppName string             = 'la-${companyName}-${toLower(environment
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
 param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
 param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
+@allowed([
+  'Default'
+  'Recover'
+])
+param appConfigurationCreateMode string = 'Default'
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
@@ -85,10 +90,8 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 // should be Key Vault references, resolved through the same identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
-var uniqueSuffix = substring(uniqueString(subscription().id, resourceGroup().id, companyName, environment), 0, 5)
-
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' = {
-  name: '${appConfigurationName}-${uniqueSuffix}'
+  name: appConfigurationName
   location: location
   sku: {
     name: 'free'
@@ -99,7 +102,7 @@ resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-0
   }
   tags: tags
   properties: {
-
+    createMode: appConfigurationCreateMode
     publicNetworkAccess: 'Enabled'
     disableLocalAuth: false
   }
@@ -133,7 +136,6 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
     sqlConnectionString: keyVaultConfigs.outputs.sqlConnectionstring
   }
 }
-
 
 //Added so other apps can read directly from app config (azure functions, web api osv..)
 resource appConfigurationRoleIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -180,7 +182,7 @@ resource appConfigurationDataOwnerForAdmin 'Microsoft.Authorization/roleAssignme
 // ──────────────────────────────────────────────────────────────────────────────
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
-  name: '${keyVaultName}-${uniqueSuffix}'
+  name: keyVaultName
   location: location
   tags: tags
   properties: {
@@ -224,8 +226,8 @@ resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments
 module EntraAppRegistrations './entraRegistrations.bicep' = {
   name: 'entraApps'
   params: {
-    globalAdminId: globalAdminId
     environment: environment
+    globalAdminId: globalAdminId
   }
 }
 

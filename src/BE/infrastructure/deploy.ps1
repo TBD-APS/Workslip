@@ -1,6 +1,6 @@
 param(
     [Parameter(Position=0)]
-    [string]$Environment = "dev",
+    [string]$Environment = "udv",
     [string]$Location = "westeurope",
     [string]$COMPANY_NAME = "npteknik",
     [string]$GlobalAdminId = "141e797e-ee4a-41fd-9778-5430ed0a712e"
