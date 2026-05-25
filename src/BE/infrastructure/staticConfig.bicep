@@ -21,8 +21,9 @@ var appConfigValues = {
   'Azure:AdOAuth:Instance': 'https://login.microsoftonline.com/'
   'Azure:AdOAuth:Domain': 'rasmusvm6@hotmail.onmicrosoft.com'
   
-
- 	
+  //LocalJwt
+  'Jwt:Issuer': 'WorkslipApiLocal'
+  'Jwt:Audience': 'WorkslipClientLocal'
   // Authorization policies
   'Authorization:Policies:RequireSuperadmin': 'SuperAdmin'
   'Authorization:Policies:RequireAdmin': 'Admin'

@@ -120,6 +120,7 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
   params: {
     appConfigurationName: appConfiguration.name
 
+    jwtSigninKey: keyVaultConfigs.outputs.jwtSigninKey
     managedIdentityClientId: identity.properties.clientId
     appConfigurationEndpoint: 'https://${appConfiguration.name}.azconfig.io'
 

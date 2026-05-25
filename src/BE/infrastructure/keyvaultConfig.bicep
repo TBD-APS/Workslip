@@ -25,6 +25,15 @@ resource sqlConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01
   }
 }
 
+var generatedSigningKey = base64(uniqueString(subscription().id, resourceGroup().id))
+resource localJwtSigninKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'Jwt--SigninKey'
+  properties: {
+    value: generatedSigningKey
+  }
+}
 
 output acsConnectionStringSecretUri string = acsConnectionStringSecret.properties.secretUri
 output sqlConnectionstring string = sqlConnectionStringSecret.properties.secretUri
+output jwtSigninKey string = localJwtSigninKey.properties.secretUri

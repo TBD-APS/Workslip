@@ -11,6 +11,8 @@ param storageAccountName string
 param applicationInsightsConnectionString string
 @secure()
 param sqlConnectionString string
+@secure()
+param jwtSigninKey string
 
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
   name: appConfigurationName
@@ -107,6 +109,15 @@ resource SqlConnectionString 'Microsoft.AppConfiguration/configurationStores/key
   name: 'Azure:Sql:ConnectionString'
   properties: {
     value: string({ uri: sqlConnectionString })
+    contentType: keyVaultReferenceContentType
+  }
+}
+
+resource JwtSigninKeySecret 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+  parent: appConfiguration
+  name: 'Jwt-SigningKey'
+  properties: {
+    value: string({ uri: jwtSigninKey })
     contentType: keyVaultReferenceContentType
   }
 }

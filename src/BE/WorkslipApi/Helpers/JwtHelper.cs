@@ -49,7 +49,8 @@ public static class JwtHelper
     public static TokenValidationParameters GetTokenValidationParameters(IConfiguration configuration)
     {
         var jwtSection = configuration.GetSection("Jwt");
-        var signingKey = jwtSection["SigningKey"]!;
+
+        var signingKey = configuration["Jwt-SigningKey"]!;
         var issuer = jwtSection["Issuer"]!;
         var audience = jwtSection["Audience"]!;
 
@@ -61,7 +62,7 @@ public static class JwtHelper
             ValidateIssuerSigningKey = true,
             ValidIssuer = issuer,
             ValidAudience = audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey ?? string.Empty)),
             ClockSkew = TimeSpan.Zero,
         };
     }
