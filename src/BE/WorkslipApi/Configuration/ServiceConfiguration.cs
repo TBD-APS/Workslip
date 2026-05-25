@@ -30,7 +30,7 @@ public static class ServiceConfiguration
             if(managedIdentityClientId == null)
                 return new GraphServiceClient(new DefaultAzureCredential());
 
-            var credential = new ManagedIdentityCredential(managedIdentityClientId);
+            var credential = new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(managedIdentityClientId));
             return new GraphServiceClient(credential, ["https://graph.microsoft.com/.default"]);
         });
 

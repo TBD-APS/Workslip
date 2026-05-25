@@ -15,8 +15,14 @@ resource staticConfigValues 'Microsoft.AppConfiguration/configurationStores/keyV
 ]
 
 var appConfigValues = {
-  'Azure:AdOAuth:TenantId': tenant().tenantId
 
+  //OAuth
+  'Azure:AdOAuth:TenantId': tenant().tenantId
+  'Azure:AdOAuth:Instance': 'https://login.microsoftonline.com/'
+  'Azure:AdOAuth:Domain': 'rasmusvm6@hotmail.onmicrosoft.com'
+  
+
+ 	
   // Authorization policies
   'Authorization:Policies:RequireSuperadmin': 'SuperAdmin'
   'Authorization:Policies:RequireAdmin': 'Admin'
