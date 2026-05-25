@@ -9,8 +9,7 @@ public static class PipelineConfiguration
     {
         app.UseSecurityHeaders();
 
-        app.UseMiddleware<GlobalExceptionMiddleware>();
-        app.UseMiddleware<CorrelationIdMiddleware>();
+         app.UseMiddleware<CorrelationIdMiddleware>();
 
         app.UseSerilogRequestLogging(options =>
         {
@@ -22,9 +21,10 @@ public static class PipelineConfiguration
                 diagnosticContext.Set("Host", httpContext.Request.Host.Value);
                 diagnosticContext.Set("Endpoint", httpContext.GetEndpoint()?.DisplayName);
                 diagnosticContext.Set("QueryKeys", string.Join(",", httpContext.Request.Query.Keys));
-                diagnosticContext.Set("SourceContext", string.Empty);
             };
         });
+        
+        app.UseMiddleware<GlobalExceptionMiddleware>();
 
         app.UseRouting();
         app.UseAuthentication();

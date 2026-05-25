@@ -8,6 +8,11 @@ param logicAppName string             = 'la-${companyName}-${toLower(environment
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
 param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
 param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
+@allowed([
+  'Default'
+  'Recover'
+])
+param appConfigurationCreateMode string = 'Default'
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
@@ -23,8 +28,8 @@ var roles = {
   keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
   keyVaultSecretsUserRole: '4633458b-17de-408a-b874-0445c86b69e6'
   appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
-  
-  
+
+
   UserReadWriteAll: '741f1ec0-4c47-4952-b971-50c2d3d7d31f'
   ApplicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
   AppRoleAssignmentReadWriteAll: '06b03e2b-286b-4043-9a0b-116a43319a53'
@@ -46,63 +51,6 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
   location: location
   tags: tags
 }
-
-/*
-resource identityForAppRegistration1 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: '${identity.name}+1'
-  scope: identity
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      roles.UserReadWriteAll
-    )
-  }
-}
-
-resource identityForAppRegistration2 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: '${identity.name}+2'
-  scope: identity
-  properties: {
-    principalId: identity.properties.principalId
-    
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      roles.ApplicationReadAll
-    )
-  }
-}
-
-resource identityForAppRegistration3 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: '${identity.name}+3'
-  scope: identity
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      roles.AppRoleAssignmentReadWriteAll
-    )
-  }
-}
-
-resource identityForAppRegistration4 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: '${identity.name}+4'
-  scope: identity
-  properties: {
-    principalId: identity.properties.principalId
-    
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      roles.UserAuthenticationMethodReadWriteAll
-    )
-  }
-}
-*/
-
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Monitoring
@@ -142,10 +90,8 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 // should be Key Vault references, resolved through the same identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
-var uniqueSuffix = substring(uniqueString(subscription().id, resourceGroup().id, companyName, environment), 0, 4)
-
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' = {
-  name: '${appConfigurationName}-${uniqueSuffix}'
+  name: appConfigurationName
   location: location
   sku: {
     name: 'free'
@@ -156,7 +102,7 @@ resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-0
   }
   tags: tags
   properties: {
-    
+    createMode: appConfigurationCreateMode
     publicNetworkAccess: 'Enabled'
     disableLocalAuth: false
   }
@@ -176,21 +122,20 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
 
     managedIdentityClientId: identity.properties.clientId
     appConfigurationEndpoint: 'https://${appConfiguration.name}.azconfig.io'
-    
+
     azureAdOAuthClientId: EntraAppRegistrations.outputs.OAuthClientId
     oauthServerAppId: EntraAppRegistrations.outputs.OAuthAppId
 
     acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
     acsSenderAddress:  '${senderUsername.properties.username}@${emailDomain.properties.fromSenderDomain}'
     acsEndpoint: 'https://${communicationService.properties.hostName}'
-    
+
     storageAccountName: storageAccount.name
     applicationInsightsConnectionString: appInsights.properties.ConnectionString
 
     sqlConnectionString: keyVaultConfigs.outputs.sqlConnectionstring
   }
 }
-
 
 //Added so other apps can read directly from app config (azure functions, web api osv..)
 resource appConfigurationRoleIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -255,7 +200,7 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
   params: {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
-    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=sqldb-${companyName}-${environment}; Authentication=Active Directory Default; TrustServerCertificate=False;'
+    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment}; TrustServerCertificate=False; Authentication="Active Directory Default";'
   }
 }
 
@@ -281,8 +226,8 @@ resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments
 module EntraAppRegistrations './entraRegistrations.bicep' = {
   name: 'entraApps'
   params: {
-    globalAdminId: globalAdminId
     environment: environment
+    globalAdminId: globalAdminId
   }
 }
 
@@ -298,7 +243,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   properties: {
     administrators: {
       administratorType: 'ActiveDirectory'
-      principalType: 'User' 
+      principalType: 'User'
       login: secureAdminName
       sid: globalAdminId
       tenantId: subscription().tenantId
@@ -323,13 +268,13 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   properties: {
     collation: 'SQL_Latin1_General_CP1_CI_AS'
     maxSizeBytes: 34359738368 // 32 GB (Det maksimale tilladte for den gratis aftale)
-    
+
     // Vi vælger Serverless, så den pauser automatisk når du ikke bruger den (sparer på de gratis sekunder)
     requestedBackupStorageRedundancy: 'Local'
   }
 }
 
-var developerIp = '192.168.0.66'
+var developerIp = '83.93.49.174'
 resource firewallAllowAzureIPs 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
   parent: sqlServer
   name: 'AllowAzureServices'
@@ -401,7 +346,7 @@ resource communicationService 'Microsoft.Communication/communicationServices@202
     userAssignedIdentities: { '${identity.id}': {} }
   }
   properties: {
-    dataLocation: 'europe' 
+    dataLocation: 'europe'
     linkedDomains: [
       emailDomain.id
     ]
@@ -413,7 +358,7 @@ resource emailService 'Microsoft.Communication/emailServices@2023-04-01' = {
   location: 'global'
   tags: tags
   properties: {
-    dataLocation: 'europe' 
+    dataLocation: 'europe'
   }
 }
 
@@ -447,5 +392,7 @@ output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.Connecti
 output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
 output DOCUMENT_INTELLIGENCE_NAME string       = documentIntelligenceName
 output AZURE_APP_CONFIG_ENDPOINT string         = appConfiguration.properties.endpoint
+output AZURE_AD_OAUTH_APP_OBJECT_ID string      = EntraAppRegistrations.outputs.OAuthClientId
+output AZURE_AD_OAUTH_APP_CLIENT_ID string      = EntraAppRegistrations.outputs.OAuthAppId
 output ACS_ENDPOINT string                     = 'https://${communicationService.properties.hostName}'
 output ACS_SENDER_ADDRESS string               = 'DoNotReply@${emailDomain.properties.mailFromSenderDomain}'

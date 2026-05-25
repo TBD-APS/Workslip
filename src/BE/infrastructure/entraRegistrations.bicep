@@ -1,8 +1,10 @@
 extension microsoftGraphV1
+
 param environment string
 param globalAdminId string
 
-var uniqueSuffix = substring(uniqueString(subscription().id, resourceGroup().id, environment), 0, 4)
+var uniqueSuffix = substring(uniqueString(subscription().id, resourceGroup().id, environment), 0, 5)
+
 resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
   uniqueName: 'Oauth-server-${environment}-${uniqueSuffix}'
   displayName: 'Oauth server ${environment}'
@@ -10,16 +12,15 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
   publicClient: {
     redirectUris: [
       'nativepasskeydemo://auth'
-      'http://localhost'
-      'https://oauth.pstmn.io/v1/callback'
     ]
   }
   owners: {relationships: [
     globalAdminId
   ]}
+
   appRoles: [
     {
-      id: guid('SuperAdmin')
+      id: guid('SuperAdmin', environment)
       allowedMemberTypes: [
         'User'
       ]
@@ -29,7 +30,7 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
       isEnabled: true
     }
     {
-      id: guid('Admin')
+      id: guid('Admin', environment)
       allowedMemberTypes: [
         'User'
       ]
@@ -39,7 +40,7 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
       isEnabled: true
     }
     {
-      id: guid('User')
+      id: guid('User', environment)
       allowedMemberTypes: [
         'User'
       ]
@@ -51,6 +52,7 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
   ]
 
   api: {
+    requestedAccessTokenVersion: 2
     oauth2PermissionScopes: [
       {
         id: guid('access_as_user')
@@ -68,7 +70,10 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
 
 resource OAuthServerServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' = {
   appId: OAuthServerApp.appId
-  
+  tags: [
+    'WindowsAzureActiveDirectoryIntegratedApp'
+  ]
 }
-output OAuthAppId string = OAuthServerApp.appId
-output OAuthClientId string = OAuthServerApp.id
+
+output OAuthClientId string = OAuthServerApp.appId
+output OAuthAppId string = OAuthServerApp.id

@@ -1,10 +1,12 @@
 param(
     [Parameter(Position=0)]
-    [string]$Environment = "dev",
+    [string]$Environment = "udv",
     [string]$Location = "westeurope",
-    [string]$COMPANY_NAME = "npteknik1",
+    [string]$COMPANY_NAME = "npteknik",
     [string]$GlobalAdminId = "141e797e-ee4a-41fd-9778-5430ed0a712e"
 )
+
+$ErrorActionPreference = "Stop"
 
 $RESOURCE_GROUP = "rg-$COMPANY_NAME-$Environment"
 $INFRA_DIR = Split-Path -Parent $PSCommandPath
@@ -26,6 +28,7 @@ if (-not (Test-Path $TEMPLATE)) {
 Write-Host "Checking Azure login…" -ForegroundColor Cyan
 $account = az account show --query id -o tsv 2>$null
 if (-not $account) {
+
     Write-Host "   Not logged in. Starting device login…"
     az login --use-device-code
     $account = az account show --query id -o tsv
@@ -59,7 +62,7 @@ if ($exists -eq "false") {
 # ─── deploy azure ressources ───────────────────────────────────────────
 Write-Host "Deploying Bicep template…" -ForegroundColor Cyan
 
-az deployment group create `
+$DeploymentJson = az deployment group create `
    --resource-group $RESOURCE_GROUP `
    --name $DEPLOY_NAME `
    --mode Incremental `
@@ -67,14 +70,21 @@ az deployment group create `
    --parameters companyName=$COMPANY_NAME `
    --parameters environment=$Environment `
    --parameters globalAdminId=$GlobalAdminId `
+   -o json
 
+if ($LASTEXITCODE -ne 0 -or -not $DeploymentJson) {
+    throw "Azure deployment failed: $DEPLOY_NAME"
+}
+
+$DeploymentResult = $DeploymentJson | ConvertFrom-Json
+$DeploymentOutputs = $DeploymentResult.properties.outputs
 
 Write-Host "Deployment complete: $DEPLOY_NAME" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
 
 
 # ─── Add Graph roles to Managed Identity ───────────────────────────────────────────
 
-Write-Host "Starting up azure Graph Role permissions on Managed Identity" 
+Write-Host "Starting up azure Graph Role permissions on Managed Identity"
 
 $ManagedIdentityName = "id-$COMPANY_NAME-$ENVIRONMENT"
 $ResourceGroupName = "rg-$COMPANY_NAME-$ENVIRONMENT"
@@ -142,57 +152,49 @@ foreach ($Role in $Roles) {
 # ─── OAuth app registration client secret ─────────────────────────────────────
 Write-Host "Ensuring OAuth app registration client secret..." -ForegroundColor Cyan
 
-$AppConfigurationNamePrefix = "appcs-$COMPANY_NAME-$($Environment.ToLowerInvariant())"
-$AppConfigurationName = $AppConfigurationNamePrefix
-if ($AppConfigurationName.Length -gt 50) {
-    $AppConfigurationName = $AppConfigurationName.Substring(0, 50)
-}
+function Get-ResourceNameFromEndpoint {
+    param([string]$Endpoint)
 
-$ExactAppConfigurationName = az appconfig show `
-  --name $AppConfigurationName `
-  --resource-group $ResourceGroupName `
-  --query name `
-  -o tsv 2>$null
-
-if ($ExactAppConfigurationName) {
-    $AppConfigurationName = $ExactAppConfigurationName
-} else {
-    $MatchingAppConfigurations = @(az appconfig list `
-      --resource-group $ResourceGroupName `
-      --query "[?starts_with(name, '$AppConfigurationNamePrefix')].name" `
-      -o json | ConvertFrom-Json)
-
-    if ($MatchingAppConfigurations.Count -ne 1) {
-        throw "Expected exactly one App Configuration store with prefix '$AppConfigurationNamePrefix' in $ResourceGroupName, found $($MatchingAppConfigurations.Count)."
+    if ([string]::IsNullOrWhiteSpace($Endpoint)) {
+        return $null
     }
 
-    $AppConfigurationName = $MatchingAppConfigurations[0]
+    return ([System.Uri]$Endpoint).Host.Split('.')[0]
 }
 
-$KeyVaultNameRaw = "kv-$COMPANY_NAME-$($Environment.ToLowerInvariant())"
-if ($KeyVaultNameRaw.Length -gt 24) {
-    $KeyVaultName = $KeyVaultNameRaw.Substring(0, 24)
-} else {
-    $KeyVaultName = $KeyVaultNameRaw
+$AppConfigurationName = Get-ResourceNameFromEndpoint $DeploymentOutputs.AZURE_APP_CONFIG_ENDPOINT.value
+$KeyVaultName = Get-ResourceNameFromEndpoint $DeploymentOutputs.KEY_VAULT_URI.value
+
+if ([string]::IsNullOrWhiteSpace($AppConfigurationName)) {
+    throw "Could not resolve App Configuration name from deployment output AZURE_APP_CONFIG_ENDPOINT."
 }
 
-$OAuthClientId = az appconfig kv show `
-  --name $AppConfigurationName `
-  --key "Azure:AdOAuth:ClientId" `
-  --query value `
-  -o tsv
+if ([string]::IsNullOrWhiteSpace($KeyVaultName)) {
+    throw "Could not resolve Key Vault name from deployment output KEY_VAULT_URI."
+}
 
-if (-not $OAuthClientId) {
-    throw "Could not read Azure:AdOAuth:ClientId from App Configuration: $AppConfigurationName"
+$OAuthAppObjectId = $DeploymentOutputs.AZURE_AD_OAUTH_APP_OBJECT_ID.value
+
+if ([string]::IsNullOrWhiteSpace($OAuthAppObjectId)) {
+    $OAuthAppObjectId = az appconfig kv show `
+      --name $AppConfigurationName `
+      --key "Azure:AdOAuth:ClientId" `
+      --auth-mode login `
+      --query value `
+      -o tsv
+
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($OAuthAppObjectId)) {
+        throw "Could not resolve OAuth app registration object id from deployment output or App Configuration: $AppConfigurationName"
+    }
 }
 
 $OAuthApp = az ad app show `
-  --id $OAuthClientId `
+  --id $OAuthAppObjectId `
   --query "{id:id, appId:appId, displayName:displayName, passwordCredentials:passwordCredentials}" `
   -o json | ConvertFrom-Json
 
-if (-not $OAuthApp -or -not $OAuthApp.id) {
-    throw "OAuth app registration not found for client id: $OAuthClientId"
+if (-not $OAuthApp -or [string]::IsNullOrWhiteSpace($OAuthApp.id)) {
+    throw "OAuth app registration not found for object id: $OAuthAppObjectId"
 }
 
 $OAuthClientSecretKey = "Azure:AdOAuth:ClientSecret"
@@ -200,45 +202,73 @@ $OAuthClientSecretName = "Azure--AdOAuth--ClientSecret"
 $OAuthCredentialDisplayName = "workslip-deploy-$Environment-oauth-client-secret"
 $OAuthSecretEndDateUtc = "2299-12-31T23:59:59Z"
 
+$PreviousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $ExistingOAuthSecret = az keyvault secret show `
   --vault-name $KeyVaultName `
   --name $OAuthClientSecretName `
   --query id `
   -o tsv 2>$null
+$SecretLookupExitCode = $LASTEXITCODE
+$ErrorActionPreference = $PreviousErrorActionPreference
+
+if ($SecretLookupExitCode -ne 0) {
+    $ExistingOAuthSecret = $null
+}
 
 $ExistingOAuthCredential = $OAuthApp.passwordCredentials | Where-Object {
     $_.displayName -eq $OAuthCredentialDisplayName -and
     ([DateTime]$_.endDateTime).ToUniversalTime() -gt (Get-Date).ToUniversalTime().AddDays(30)
 } | Select-Object -First 1
 
-if ($ExistingOAuthCredential -and $ExistingOAuthSecret) {
-    $OAuthSecretIdentifier = $ExistingOAuthSecret
-    Write-Host "OAuth client secret already exists and Key Vault secret is present ✅"
-} else {
-    Write-Host "Creating OAuth client secret..."
+function New-OAuthClientSecretInKeyVault {
+    param(
+        [Parameter(Mandatory=$true)] [string]$Reason
+    )
+
+    Write-Host $Reason
 
     $OAuthClientSecret = az ad app credential reset `
-      --id $OAuthApp.appId `
+      --id $OAuthApp.id `
       --append `
       --display-name $OAuthCredentialDisplayName `
       --end-date $OAuthSecretEndDateUtc `
       --query password `
       -o tsv
 
-    if (-not $OAuthClientSecret) {
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($OAuthClientSecret)) {
         throw "Azure CLI did not return OAuth client secret."
     }
 
-    $OAuthSecretIdentifier = az keyvault secret set `
-      --vault-name $KeyVaultName `
-      --name $OAuthClientSecretName `
-      --value $OAuthClientSecret `
-      --expires $OAuthSecretEndDateUtc `
-      --query id `
-      -o tsv
+    try {
+        $OAuthSecretIdentifier = az keyvault secret set `
+          --vault-name $KeyVaultName `
+          --name $OAuthClientSecretName `
+          --value $OAuthClientSecret `
+          --expires $OAuthSecretEndDateUtc `
+          --query id `
+          -o tsv
 
-    $OAuthClientSecret = $null
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($OAuthSecretIdentifier)) {
+            throw "Could not store OAuth client secret in Key Vault: $KeyVaultName"
+        }
 
+        return $OAuthSecretIdentifier
+    }
+    finally {
+        $OAuthClientSecret = $null
+    }
+}
+
+if ($ExistingOAuthCredential -and $ExistingOAuthSecret) {
+    $OAuthSecretIdentifier = $ExistingOAuthSecret
+    Write-Host "OAuth client secret already exists and Key Vault secret is present ✅"
+} elseif ($ExistingOAuthCredential -and -not $ExistingOAuthSecret) {
+    Write-Host "OAuth app credential exists, but Key Vault secret '$OAuthClientSecretName' is missing in '$KeyVaultName'. Existing credential values cannot be read back. Rotating OAuth client secret..."
+    $OAuthSecretIdentifier = New-OAuthClientSecretInKeyVault -Reason "Creating replacement OAuth client secret and storing it in Key Vault..."
+    Write-Host "OAuth client secret rotated and stored in Key Vault ✅"
+} else {
+    $OAuthSecretIdentifier = New-OAuthClientSecretInKeyVault -Reason "No matching OAuth app credential found. Creating OAuth client secret..."
     Write-Host "OAuth client secret created and stored in Key Vault ✅"
 }
 
@@ -246,7 +276,12 @@ az appconfig kv set-keyvault `
   --name $AppConfigurationName `
   --key $OAuthClientSecretKey `
   --secret-identifier $OAuthSecretIdentifier `
+  --auth-mode login `
   --yes `
   -o none
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not store OAuth client secret Key Vault reference in App Configuration: $AppConfigurationName"
+}
 
 Write-Host "OAuth client secret reference stored in App Configuration ✅"
