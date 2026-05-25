@@ -1,7 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Workslip.Application.Organizations;
-using Workslip.Infrastructure.Models;
+using Workslip.Domain.Models;
 using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Repositories;
@@ -20,6 +20,18 @@ public sealed class DapperOrganizationRepository(ISqlConnectionFactory connectio
             cancellationToken: cancellationToken));
 
         return count > 0;
+    }
+
+    public Task<OrganizationRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("organizations.get_by_id", token => GetByIdAsyncCoreAsync(id, token), cancellationToken);
+
+    private async Task<OrganizationRow?> GetByIdAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
+    {
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
+        return await connection.QuerySingleOrDefaultAsync<OrganizationRow>(new CommandDefinition(
+            "select Id, Name, Cvr, CreatedAt, UpdatedAt from dbo.Organizations where Id = @Id;",
+            new { Id = id },
+            cancellationToken: cancellationToken));
     }
 
     public Task<OrganizationOnboardingResponse?> CreateAsync(CreateOrganizationRequest request, string normalizedCvr, CancellationToken cancellationToken) =>

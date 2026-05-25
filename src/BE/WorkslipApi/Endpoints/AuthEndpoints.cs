@@ -1,4 +1,7 @@
-using Workslip.Application.Organizations;
+using Workslip.Api.Helpers;
+using Workslip.Application.Auth;
+using Workslip.Application.Invitations;
+using Workslip.Application.Users;
 
 namespace Workslip.Api.Endpoints;
 
@@ -8,15 +11,22 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth").WithTags("auth");
 
-        group.MapGet("/me", async (Guid userId, IAuthService service, CancellationToken cancellationToken) =>
+        group.MapPost("/send-code", async (SendCodeRequest request, IAuthService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.GetCurrentUserAsync(userId, cancellationToken);
-            return result.Status switch
-            {
-                OrganizationServiceResultStatus.Success when result.Value is not null => Results.Ok(result.Value),
-                OrganizationServiceResultStatus.NotFound => Results.NotFound(),
-                _ => Results.Problem("Unable to get current user.")
-            };
+            await service.SendLoginCodeAsync(request, cancellationToken);
+            return Results.Ok(new { message = "Hvis e-mailen findes, er en kode sendt." });
+        });
+
+        group.MapPost("/verify-code", async (VerifyCodeRequest request, IAuthService service, IConfiguration configuration, CancellationToken cancellationToken) =>
+        {
+            var result = await service.VerifyLoginCodeAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
+        });
+
+        group.MapPost("/verify-invite", async (VerifyInviteRequest request, IInvitationService service, IConfiguration configuration, CancellationToken cancellationToken) =>
+        {
+            var result = await service.VerifyInviteAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
         });
 
         return app;

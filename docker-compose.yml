@@ -1,0 +1,13 @@
+services:
+
+  seq:
+    image: datalust/seq:latest
+    container_name: workslip-seq
+    ports:
+      - "5341:80"
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_NOAUTHENTICATION=true
+
+volumes:
+  seq-data:

@@ -2,16 +2,14 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
+using Workslip.Application;
 
 namespace Workslip.Infrastructure.Resilience;
 
-public interface IDatabaseRetryPolicy
-{
-    Task ExecuteAsync(string operationName, Func<CancellationToken, Task> operation, CancellationToken cancellationToken);
-    Task<T> ExecuteAsync<T>(string operationName, Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken);
-}
 
-public sealed class PollyDatabaseRetryPolicy(ILogger<PollyDatabaseRetryPolicy> logger) : IDatabaseRetryPolicy
+public sealed class PollyDatabaseRetryPolicy(
+    ILogger<PollyDatabaseRetryPolicy> logger,
+    ICorrelationIdAccessor correlationIdAccessor) : IDatabaseRetryPolicy
 {
     private const int MaxRetryAttempts = 3;
 
@@ -24,6 +22,7 @@ public sealed class PollyDatabaseRetryPolicy(ILogger<PollyDatabaseRetryPolicy> l
 
     public async Task<T> ExecuteAsync<T>(string operationName, Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken)
     {
+
         var pipeline = new ResiliencePipelineBuilder<T>()
             .AddRetry(new RetryStrategyOptions<T>
             {
@@ -35,9 +34,10 @@ public sealed class PollyDatabaseRetryPolicy(ILogger<PollyDatabaseRetryPolicy> l
                 OnRetry = args =>
                 {
                     var exception = args.Outcome.Exception;
-                    logger.LogWarning(
+                    logger.LogError(
                         exception,
-                        "Database operation retrying. Operation={DatabaseOperation} Attempt={RetryAttempt} DelayMs={RetryDelayMs} ExceptionType={ExceptionType} SqlErrorNumber={SqlErrorNumber}",
+                        "DB retrying. CorrelationId={CorrelationId} Operation={Operation} Attempt={RetryAttempt} DelayMs={RetryDelayMs} ExceptionType={ExceptionType} SqlErrorNumber={SqlErrorNumber}",
+                        correlationIdAccessor.CorrelationId,
                         operationName,
                         args.AttemptNumber + 1,
                         args.RetryDelay.TotalMilliseconds,
@@ -49,7 +49,16 @@ public sealed class PollyDatabaseRetryPolicy(ILogger<PollyDatabaseRetryPolicy> l
             })
             .Build();
 
-        return await pipeline.ExecuteAsync(async token => await operation(token), cancellationToken);
+        try
+        {
+            var result = await pipeline.ExecuteAsync(async token => await operation(token), cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "DB operation failed. CorrelationId={CorrelationId} Operation={Operation}",correlationIdAccessor.CorrelationId, operationName);
+            throw;
+        }
     }
 
     private static bool IsRetryable(Exception? exception) => exception switch

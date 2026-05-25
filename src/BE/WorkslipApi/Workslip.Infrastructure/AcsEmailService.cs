@@ -1,0 +1,120 @@
+using Azure;
+using Azure.Communication.Email;
+using Azure.Core;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Workslip.Application;
+
+namespace Workslip.Infrastructure;
+
+public sealed class AcsEmailService(
+    IConfiguration configuration,
+    ILogger<AcsEmailService> logger,
+    ICorrelationIdAccessor correlationIdAccessor)
+    : IEmailService
+{
+    private readonly string _acsEndpoint = new(
+        configuration["Azure:Acs:Endpoint"]
+        ?? throw new InvalidOperationException("ACS endpoint is not configured. Set Acs:Endpoint or ACS_ENDPOINT."));
+
+    private readonly string _senderAddress = configuration["Azure:Acs:SenderAddress"]
+        ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:SenderAddress.");
+
+    public async Task SendInviteEmailAsync(string toEmail, string inviteLink, CancellationToken cancellationToken)
+    {
+        var emailClient = new EmailClient(_acsEndpoint);
+
+        var emailContent = new EmailContent("Du er blevet inviteret til Workslip")
+        {
+            Html = $"""
+            <html>
+              <body style="font-family: Arial, sans-serif; padding: 24px;">
+                <h2>Velkommen til Workslip</h2>
+                <p>Du er blevet inviteret til at deltage i Workslip.</p>
+                <p>
+                  <a href="{inviteLink}"
+                     style="display: inline-block; padding: 12px 24px; background-color: #0057b7; color: #fff; text-decoration: none; border-radius: 6px;">
+                    Accepter invitation
+                  </a>
+                </p>
+                <p>Linket udløber om 7 dage.</p>
+                <hr/>
+                <p style="color: #666; font-size: 12px;">Workslip – automatisk invitation</p>
+              </body>
+            </html>
+            """,
+            PlainText = $"""
+            Du er blevet inviteret til Workslip.
+            Klik på følgende link for at acceptere invitationen:
+            {inviteLink}
+            Linket udløber om 7 dage.
+            """
+        };
+
+        var message = new EmailMessage(
+            _senderAddress,
+            new EmailRecipients([new EmailAddress(toEmail)]),
+            emailContent);
+
+        var startTime = DateTimeOffset.UtcNow;
+        logger.LogInformation("ACS sending invite email. CorrelationId={CorrelationId} To={Email} Sender={Sender}", correlationIdAccessor.CorrelationId, toEmail, _senderAddress);
+
+        try
+        {
+            var result = await emailClient.SendAsync(WaitUntil.Completed, message, cancellationToken);
+            logger.LogInformation("ACS invite email sent. CorrelationId={CorrelationId} To={Email} Status={Status}", correlationIdAccessor.CorrelationId, toEmail, result.Value.Status);
+        }
+        catch (RequestFailedException ex)
+        {
+            logger.LogError(ex, "ACS invite email failed. CorrelationId={CorrelationId} To={Email} ErrorCode={ErrorCode}", correlationIdAccessor.CorrelationId, toEmail, ex.ErrorCode);
+            throw;
+        }
+    }
+
+    public async Task SendOtcEmailAsync(string toEmail, string code, CancellationToken cancellationToken)
+    {
+        var emailClient = new EmailClient(_acsEndpoint);
+
+        var emailContent = new EmailContent("Din midlertidige adgangskode til Workslip")
+        {
+            Html = $"""
+            <html>
+              <body style="font-family: Arial, sans-serif; padding: 24px;">
+                <h2>Midlertidig adgangskode</h2>
+                <p>Du har anmodet om en midlertidig adgangskode til Workslip.</p>
+                <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 16px; background-color: #f5f5f5; border-radius: 8px;">
+                  {code}
+                </p>
+                <p>Koden udløber om 10 minutter.</p>
+                <p>Hvis du ikke har bedt om denne kode, kan du ignorere denne email.</p>
+                <hr/>
+                <p style="color: #666; font-size: 12px;">Workslip – midlertidig adgangskode</p>
+              </body>
+            </html>
+            """,
+            PlainText = $"""
+            Din midlertidige adgangskode til Workslip: {code}
+            Koden udløber om 10 minutter.
+            Hvis du ikke har bedt om denne kode, kan du ignorere denne email.
+            """
+        };
+
+        var message = new EmailMessage(
+            _senderAddress,
+            new EmailRecipients([new EmailAddress(toEmail)]),
+            emailContent);
+
+        logger.LogInformation("ACS sending OTC email. CorrelationId={CorrelationId} To={Email} Sender={Sender}",correlationIdAccessor.CorrelationId, toEmail, _senderAddress);
+
+        try
+        {
+            var result = await emailClient.SendAsync(WaitUntil.Completed, message, cancellationToken);
+            logger.LogInformation("ACS OTC email sent. CorrelationId={CorrelationId} To={Email} Status={Status}", correlationIdAccessor.CorrelationId, toEmail, result.Value.Status);
+        }
+        catch (RequestFailedException ex)
+        {
+            logger.LogError(ex,"ACS OTC email failed. CorrelationId={CorrelationId} To={Email} ErrorCode={ErrorCode}", correlationIdAccessor.CorrelationId, toEmail, ex.ErrorCode);
+            throw;
+        }
+    }
+}
