@@ -136,13 +136,13 @@ public sealed class JobReportPdfService : IJobReportPdfService
             {
                 row.RelativeItem().Column(c =>
                 {
-                    c.Item().Element(e => Field(e, "Kunde", job.CustomerName));
+                    c.Item().Element(e => Field(e, "Kunde", job.CustomerName ?? "-"));
                     c.Item().Element(e => Field(e, "Email", job.CustomerEmail ?? "-"));
                 });
                 row.ConstantItem(20);
                 row.RelativeItem().Column(c =>
                 {
-                    c.Item().Element(e => Field(e, "Adresse", job.CustomerAddress));
+                    c.Item().Element(e => Field(e, "Adresse", job.CustomerAddress ?? "-"));
                     c.Item().Element(e => Field(e, "Kontaktperson", job.ContactPerson ?? "-"));
                     c.Item().Element(e => Field(e, "Telefon", job.Phone ?? "-"));
                 });
@@ -174,7 +174,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
             col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Column(c =>
             {
-                c.Item().Text(job.TaskDescription).FontSize(9).FontColor(TextDark);
+                c.Item().Text(job.TaskDescription ?? "-").FontSize(9).FontColor(TextDark);
                 if (!string.IsNullOrEmpty(job.CustomerObservations))
                 {
                     c.Item().PaddingTop(6).LineHorizontal(0.5f).LineColor(BorderColor);

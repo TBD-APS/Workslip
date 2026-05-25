@@ -106,38 +106,62 @@ public static class WorkslipDatabaseModel
                 Column.RequiredGuid(nameof(JobReportRow.Id)),
                 Column.RequiredGuid(nameof(JobReportRow.OrganizationId)),
                 Column.OptionalGuid(nameof(JobReportRow.CustomerId)),
-                Column.RequiredString(nameof(JobReportRow.ReportNumber), 80),
+                Column.OptionalString(nameof(JobReportRow.ReportNumber), 80),
                 Column.RequiredString(nameof(JobReportRow.Status), 40),
-                Column.RequiredString(nameof(JobReportRow.CustomerName), 240),
-                Column.RequiredString(nameof(JobReportRow.CustomerAddress), 500),
+                Column.OptionalString(nameof(JobReportRow.CustomerName), 240),
+                Column.OptionalString(nameof(JobReportRow.CustomerAddress), 500),
                 Column.OptionalString(nameof(JobReportRow.CustomerEmail), 320),
                 Column.OptionalString(nameof(JobReportRow.ContactPerson), 200),
                 Column.OptionalString(nameof(JobReportRow.Phone), 80),
                 Column.OptionalDate(nameof(JobReportRow.ReportDate)),
-                Column.RequiredString(nameof(JobReportRow.TaskDescription)),
+                Column.OptionalString(nameof(JobReportRow.TaskDescription)),
                 Column.OptionalString(nameof(JobReportRow.CustomerObservations)),
                 Column.OptionalString(nameof(JobReportRow.TechnicalObservations)),
                 Column.RequiredString(nameof(JobReportRow.InstallationTypesJson), defaultSql: "'[]'"),
-                Column.RequiredString(nameof(JobReportRow.WorkKind), 80),
+                Column.OptionalString(nameof(JobReportRow.WorkKind), 80),
                 Column.OptionalString(nameof(JobReportRow.CustomWorkKind), 160),
                 Column.OptionalString(nameof(JobReportRow.Remarks)),
                 Column.RequiredString(nameof(JobReportRow.ClosureFlagsJson), defaultSql: "'[]'"),
-                Column.OptionalString(nameof(JobReportRow.PayloadJson)),
-                Column.RequiredDateTimeOffset(nameof(JobReportRow.CreatedAt)),
-                Column.RequiredDateTimeOffset(nameof(JobReportRow.UpdatedAt)),
-                Column.OptionalDateTimeOffset(nameof(JobReportRow.SubmittedAt))
+                 Column.OptionalString(nameof(JobReportRow.PayloadJson)),
+                 Column.OptionalGuid(nameof(JobReportRow.AssignedUserId)),
+                 Column.RequiredDateTimeOffset(nameof(JobReportRow.CreatedAt)),
+                 Column.RequiredDateTimeOffset(nameof(JobReportRow.UpdatedAt)),
+                 Column.OptionalDateTimeOffset(nameof(JobReportRow.SubmittedAt)),
+                 Column.OptionalDateTimeOffset(nameof(JobReportRow.DeletionScheduledAt))
             ],
             [
                 "constraint FK_JobReports_Organizations foreign key (OrganizationId) references dbo.Organizations(Id)",
                 "constraint FK_JobReports_Customers foreign key (CustomerId) references dbo.Customers(Id)",
                 "constraint FK_JobReports_JobWorkKinds foreign key (WorkKind) references dbo.JobWorkKinds(Id)",
-                "constraint CK_JobReports_Status check (Status in ('Draft', 'Submitted', 'InReview', 'Approved', 'Rejected', 'Archived'))",
-                "constraint CK_JobReports_InstallationTypesJson_IsJson check (isjson(InstallationTypesJson) = 1)",
-                "constraint CK_JobReports_ClosureFlagsJson_IsJson check (isjson(ClosureFlagsJson) = 1)",
-                "constraint CK_JobReports_PayloadJson_IsJson check (PayloadJson is null or isjson(PayloadJson) = 1)"
+                 "constraint CK_JobReports_Status check (Status in ('Draft', 'Submitted', 'InReview', 'Approved', 'Rejected', 'Archived'))",
+                 "constraint CK_JobReports_InstallationTypesJson_IsJson check (isjson(InstallationTypesJson) = 1)",
+                 "constraint CK_JobReports_ClosureFlagsJson_IsJson check (isjson(ClosureFlagsJson) = 1)",
+                 "constraint CK_JobReports_PayloadJson_IsJson check (PayloadJson is null or isjson(PayloadJson) = 1)",
+                 "constraint FK_JobReports_AssignedUsers foreign key (AssignedUserId) references dbo.Users(Id)"
             ],
             [
-                "create index IX_JobReports_Organization_Status_UpdatedAt on dbo.JobReports (OrganizationId, Status, UpdatedAt desc);"
+                "create index IX_JobReports_Organization_Status_UpdatedAt on dbo.JobReports (OrganizationId, Status, UpdatedAt desc);",
+                "create index IX_JobReports_DeletionScheduledAt on dbo.JobReports (DeletionScheduledAt) where DeletionScheduledAt is not null;"
+            ]),
+
+        new(
+            "JobReportLinks",
+            typeof(JobReportLinkRow),
+            [
+                Column.RequiredGuid(nameof(JobReportLinkRow.Id)),
+                Column.RequiredGuid(nameof(JobReportLinkRow.SourceReportId)),
+                Column.RequiredGuid(nameof(JobReportLinkRow.TargetReportId)),
+                Column.RequiredString(nameof(JobReportLinkRow.LinkType), 80),
+                Column.RequiredDateTimeOffset(nameof(JobReportLinkRow.CreatedAt))
+            ],
+            [
+                "constraint FK_JobReportLinks_SourceReport foreign key (SourceReportId) references dbo.JobReports(Id)",
+                "constraint FK_JobReportLinks_TargetReport foreign key (TargetReportId) references dbo.JobReports(Id)",
+                "constraint CK_JobReportLinks_NoSelfLink check (SourceReportId != TargetReportId)"
+            ],
+            [
+                "create unique index UX_JobReportLinks_Pair on dbo.JobReportLinks (SourceReportId, TargetReportId);",
+                "create index IX_JobReportLinks_TargetReport on dbo.JobReportLinks (TargetReportId);"
             ]),
 
         new(

@@ -43,8 +43,12 @@ public sealed class SqlConnectionFactory(
     public static string ResolveConnectionString(IConfiguration configuration)
     {
         var connectionString = ConfiguredValues.FirstConfigured(
-            configuration.GetConnectionString("JobDB"),
-            configuration["Sql:ConnectionString"]);
+            configuration["Azure:Sql:ConnectionString"]);
+
+        var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+
+        
+
 
         return connectionString ?? throw new InvalidOperationException("Missing SQL connection string. Configure ConnectionStrings:JobDB or Sql:ConnectionString.");
     }

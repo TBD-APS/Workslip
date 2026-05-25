@@ -51,6 +51,18 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result);
         });
 
+        group.MapGet("/{id:guid}/report-summary", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetReportSummaryAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
+
+        group.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetHistoryAsync(id, limit, offset, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
+
         group.MapGet("/{id:guid}/report", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
         {
             var result = await service.GetAsync(id, cancellationToken);
@@ -82,6 +94,43 @@ public static class JobEndpoints
         group.MapPost("/{id:guid}/reject", async (Guid id, Guid? actorId, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.RejectAsync(id, actorId, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
+
+        group.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.DeleteAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+
+        group.MapPost("/{id:guid}/restore", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.RestoreDeletionAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+
+        group.MapPost("/{id:guid}/assign", async (Guid id, Guid? userId, IJobService jobService, CancellationToken cancellationToken) =>
+        {
+            
+            var result = await jobService.AssignAsync(id, userId, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+
+        group.MapPost("/{id:guid}/links", async (Guid id, CreateJobLinkRequest request, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.CreateLinkAsync(id, request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
+
+        group.MapGet("/{id:guid}/links", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetLinksAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
+
+        group.MapDelete("/{id:guid}/links/{linkId:guid}", async (Guid id, Guid linkId, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.DeleteLinkAsync(id, linkId, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
         });
 

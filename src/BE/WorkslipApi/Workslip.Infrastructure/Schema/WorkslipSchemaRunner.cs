@@ -66,8 +66,7 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
         builder.InitialCatalog = "master";
 
         await using var connection = new SqlConnection(builder.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
-
+        
         var databaseExists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
             "select case when db_id(@DatabaseName) is null then 0 else 1 end;",
             new { DatabaseName = databaseName },
@@ -96,6 +95,19 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
                and col_length('dbo.JobReports', 'TechnicalObservations') is null
             begin
                 alter table dbo.JobReports add TechnicalObservations nvarchar(max) null;
+            end;
+            """,
+            cancellationToken: cancellationToken));
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            if object_id('dbo.JobReports', 'U') is not null
+            begin
+                alter table dbo.JobReports alter column ReportNumber nvarchar(80) null;
+                alter table dbo.JobReports alter column CustomerName nvarchar(240) null;
+                alter table dbo.JobReports alter column CustomerAddress nvarchar(500) null;
+                alter table dbo.JobReports alter column TaskDescription nvarchar(max) null;
+                alter table dbo.JobReports alter column WorkKind nvarchar(80) null;
             end;
             """,
             cancellationToken: cancellationToken));
@@ -134,11 +146,58 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
             """,
             cancellationToken: cancellationToken));
 
+         await connection.ExecuteAsync(new CommandDefinition(
+             """
+             if object_id('dbo.JobControlSubcategories', 'U') is not null
+             begin
+                 drop table dbo.JobControlSubcategories;
+             end;
+             """,
+             cancellationToken: cancellationToken));
+
+         await connection.ExecuteAsync(new CommandDefinition(
+             """
+             if object_id('dbo.JobReports', 'U') is not null
+                and col_length('dbo.JobReports', 'AssignedUserId') is null
+             begin
+                 alter table dbo.JobReports add AssignedUserId uniqueidentifier null;
+             end;
+             """,
+             cancellationToken: cancellationToken));
+
         await connection.ExecuteAsync(new CommandDefinition(
             """
-            if object_id('dbo.JobControlSubcategories', 'U') is not null
+            if object_id('dbo.JobReports', 'U') is not null
+               and col_length('dbo.JobReports', 'DeletionScheduledAt') is null
             begin
-                drop table dbo.JobControlSubcategories;
+                alter table dbo.JobReports add DeletionScheduledAt datetimeoffset null;
+            end;
+
+            if object_id('dbo.JobReports', 'U') is not null
+               and col_length('dbo.JobReports', 'DeletionScheduledAt') is not null
+               and not exists (select 1 from sys.indexes where name = 'IX_JobReports_DeletionScheduledAt' and object_id = object_id('dbo.JobReports'))
+            begin
+                exec(N'create index IX_JobReports_DeletionScheduledAt on dbo.JobReports (DeletionScheduledAt) where DeletionScheduledAt is not null;');
+            end;
+            """,
+            cancellationToken: cancellationToken));
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            if object_id('dbo.JobReportLinks', 'U') is null
+            begin
+                create table dbo.JobReportLinks (
+                    Id uniqueidentifier not null constraint PK_JobReportLinks primary key,
+                    SourceReportId uniqueidentifier not null,
+                    TargetReportId uniqueidentifier not null,
+                    LinkType nvarchar(80) not null,
+                    CreatedAt datetimeoffset not null,
+                    constraint FK_JobReportLinks_SourceReport foreign key (SourceReportId) references dbo.JobReports(Id),
+                    constraint FK_JobReportLinks_TargetReport foreign key (TargetReportId) references dbo.JobReports(Id),
+                    constraint CK_JobReportLinks_NoSelfLink check (SourceReportId != TargetReportId)
+                );
+                create unique index UX_JobReportLinks_Pair on dbo.JobReportLinks (SourceReportId, TargetReportId);
+                create index IX_JobReportLinks_TargetReport on dbo.JobReportLinks (TargetReportId);
             end;
             """,
             cancellationToken: cancellationToken));
