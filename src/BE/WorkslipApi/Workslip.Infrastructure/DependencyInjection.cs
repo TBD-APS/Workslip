@@ -6,6 +6,7 @@ using Workslip.Application;
 using Workslip.Application.Jobs;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
+using Workslip.Infrastructure.Jobs;
 
 namespace Workslip.Infrastructure;
 
@@ -23,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<IInviteRepository, DapperInviteRepository>();
         services.AddScoped<IEmailService, AcsEmailService>();
         services.AddScoped<WorkslipSchemaRunner>();
+        services.AddHostedService<JobDeletionCleanupService>();
 
         return services;
     }

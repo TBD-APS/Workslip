@@ -12,6 +12,7 @@ namespace Workslip.Infrastructure.Repositories;
 public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory, IDatabaseRetryPolicy retryPolicy) : IJobRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan DeletionRetentionPeriod = TimeSpan.FromDays(30);
 
     public Task<JobReportResponse> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync("jobs.create", token => CreateAsyncCoreAsync(request, token), cancellationToken);
@@ -53,11 +54,11 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
                 request.TaskDescription,
                 request.CustomerObservations,
                 request.TechnicalObservations,
-                InstallationTypesJson = ToJson(request.InstallationTypes),
-                request.WorkKind,
+                InstallationTypesJson = ToJson(request.InstallationTypes ?? []),
+                WorkKind = NormalizeOptional(request.WorkKind),
                 request.CustomWorkKind,
                 request.Remarks,
-                ClosureFlagsJson = ToJson(request.ClosureFlags),
+                ClosureFlagsJson = ToJson(request.ClosureFlags ?? []),
                 PayloadJson = request.Payload?.ToJsonString(JsonOptions),
                 CreatedAt = now,
                 UpdatedAt = now
@@ -84,6 +85,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             from dbo.JobReports
             where (@OrganizationId is null or OrganizationId = @OrganizationId)
               and (@Status is null or Status = @Status)
+              and DeletionScheduledAt is null
             order by UpdatedAt desc
             offset @Offset rows fetch next @Limit rows only;
             """,
@@ -112,7 +114,8 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              row.CreatedAt,
              row.UpdatedAt,
              row.SubmittedAt,
-             row.AssignedUserId.HasValue ? new AssignedUserResponse(row.AssignedUserId.Value, "") : null)).ToArray();
+             row.AssignedUserId.HasValue ? new AssignedUserResponse(row.AssignedUserId.Value, "") : null,
+             row.DeletionScheduledAt)).ToArray();
     }
 
     public Task<JobReportResponse?> GetAsync(Guid id, CancellationToken cancellationToken) =>
@@ -144,6 +147,36 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         var links = await LoadLinksAsync(connection, id, cancellationToken);
 
         return ToResponse(row, subcategories, checks, links);
+    }
+
+    public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, int limit, int offset, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.events", token => GetEventsAsyncCoreAsync(id, limit, offset, token), cancellationToken);
+
+    private async Task<IReadOnlyList<JobEventResponse>?> GetEventsAsyncCoreAsync(Guid id, int limit, int offset, CancellationToken cancellationToken)
+    {
+        using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
+        var exists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            "select count(1) from dbo.JobReports where Id = @Id;",
+            new { Id = id },
+            cancellationToken: cancellationToken));
+
+        if (exists == 0)
+        {
+            return null;
+        }
+
+        var rows = await connection.QueryAsync<JobEventRow>(new CommandDefinition(
+            """
+            select *
+            from dbo.JobEvents
+            where ReportId = @Id
+            order by CreatedAt desc
+            offset @Offset rows fetch next @Limit rows only;
+            """,
+            new { Id = id, Limit = limit, Offset = offset },
+            cancellationToken: cancellationToken));
+
+        return rows.Select(ToEventResponse).ToArray();
     }
 
     public Task<JobReportResponse?> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken) =>
@@ -204,7 +237,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
                 request.CustomerObservations,
                 request.TechnicalObservations,
                 InstallationTypesJson = request.InstallationTypes is null ? null : ToJson(request.InstallationTypes),
-                request.WorkKind,
+                WorkKind = NormalizeOptional(request.WorkKind),
                 request.CustomWorkKind,
                 request.Remarks,
                 ClosureFlagsJson = request.ClosureFlags is null ? null : ToJson(request.ClosureFlags),
@@ -293,22 +326,117 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              return false;
          }
 
+         if (existing.DeletionScheduledAt.HasValue)
+         {
+             transaction.Commit();
+             return true;
+         }
+
+         var now = DateTimeOffset.UtcNow;
+         var deletionScheduledAt = now.Add(DeletionRetentionPeriod);
+
          await connection.ExecuteAsync(new CommandDefinition(
-             "delete from dbo.JobReportLinks where SourceReportId = @Id or TargetReportId = @Id;",
+             "update dbo.JobReports set DeletionScheduledAt = @DeletionScheduledAt, UpdatedAt = @UpdatedAt where Id = @Id;",
+             new { Id = id, DeletionScheduledAt = deletionScheduledAt, UpdatedAt = now },
+             transaction,
+             cancellationToken: cancellationToken));
+
+         await InsertEventAsync(
+             connection,
+             transaction,
+             id,
+             null,
+             "deletionScheduled",
+             ToJsonNode(existing),
+             ToJsonNode(new { deletionScheduledAt }),
+             now,
+             cancellationToken);
+
+         transaction.Commit();
+         return true;
+     }
+
+     public Task<JobReportResponse?> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken) =>
+         retryPolicy.ExecuteAsync("jobs.restore-deletion", token => RestoreDeletionAsyncCoreAsync(id, token), cancellationToken);
+
+     private async Task<JobReportResponse?> RestoreDeletionAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
+     {
+         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
+         using var transaction = connection.BeginTransaction();
+
+         var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
+             "select * from dbo.JobReports where Id = @Id;",
              new { Id = id },
              transaction,
              cancellationToken: cancellationToken));
 
-         await InsertEventAsync(connection, transaction, id, null, "deleted", ToJsonNode(existing), null, DateTimeOffset.UtcNow, cancellationToken);
+         if (existing is null)
+         {
+             return null;
+         }
+
+         if (!existing.DeletionScheduledAt.HasValue)
+         {
+             transaction.Commit();
+             return await GetAsync(id, cancellationToken);
+         }
+
+         var now = DateTimeOffset.UtcNow;
+         await connection.ExecuteAsync(new CommandDefinition(
+             "update dbo.JobReports set DeletionScheduledAt = null, UpdatedAt = @UpdatedAt where Id = @Id;",
+             new { Id = id, UpdatedAt = now },
+             transaction,
+             cancellationToken: cancellationToken));
+
+         await InsertEventAsync(
+             connection,
+             transaction,
+             id,
+             null,
+             "deletionRestored",
+             ToJsonNode(existing),
+             ToJsonNode(new { deletionScheduledAt = (DateTimeOffset?)null }),
+             now,
+             cancellationToken);
+
+         transaction.Commit();
+         return await GetAsync(id, cancellationToken);
+     }
+
+     public Task<int> PurgeDeletionScheduledBeforeAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>
+         retryPolicy.ExecuteAsync("jobs.purge-scheduled-deletions", token => PurgeDeletionScheduledBeforeAsyncCoreAsync(cutoff, token), cancellationToken);
+
+     private async Task<int> PurgeDeletionScheduledBeforeAsyncCoreAsync(DateTimeOffset cutoff, CancellationToken cancellationToken)
+     {
+         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
+         using var transaction = connection.BeginTransaction();
+
+         var dueJobIds = (await connection.QueryAsync<Guid>(new CommandDefinition(
+             "select Id from dbo.JobReports where DeletionScheduledAt is not null and DeletionScheduledAt <= @Cutoff;",
+             new { Cutoff = cutoff },
+             transaction,
+             cancellationToken: cancellationToken))).ToArray();
+
+         if (dueJobIds.Length == 0)
+         {
+             transaction.Commit();
+             return 0;
+         }
 
          await connection.ExecuteAsync(new CommandDefinition(
-             "delete from dbo.JobReports where Id = @Id;",
-             new { Id = id },
+             "delete from dbo.JobReportLinks where SourceReportId in @Ids or TargetReportId in @Ids;",
+             new { Ids = dueJobIds },
+             transaction,
+             cancellationToken: cancellationToken));
+
+         var deletedCount = await connection.ExecuteAsync(new CommandDefinition(
+             "delete from dbo.JobReports where Id in @Ids and DeletionScheduledAt is not null and DeletionScheduledAt <= @Cutoff;",
+             new { Ids = dueJobIds, Cutoff = cutoff },
              transaction,
              cancellationToken: cancellationToken));
 
          transaction.Commit();
-         return true;
+         return deletedCount;
      }
 
      public Task<JobReportResponse?> AssignAsync(Guid jobId, Guid? userId, Guid? actorId, CancellationToken cancellationToken) =>
@@ -379,10 +507,15 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         IDbConnection connection,
         IDbTransaction transaction,
         Guid reportId,
-        IReadOnlyList<ControlInstallationTypeRequest> installationTypes,
+        IReadOnlyList<ControlInstallationTypeRequest>? installationTypes,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        if (installationTypes is null)
+        {
+            return;
+        }
+
         foreach (var installationType in installationTypes)
         {
             foreach (var subcategory in installationType.Subcategories)
@@ -552,10 +685,23 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              row.CreatedAt,
              row.UpdatedAt,
              row.SubmittedAt,
-             row.AssignedUserId.HasValue ? new AssignedUserResponse(row.AssignedUserId.Value, "") : null);
+             row.AssignedUserId.HasValue ? new AssignedUserResponse(row.AssignedUserId.Value, "") : null,
+             row.DeletionScheduledAt);
     }
 
     private static JobStatus ParseStatus(string status) => Enum.Parse<JobStatus>(status, ignoreCase: true);
+
+    private static JobEventResponse ToEventResponse(JobEventRow row) => new(
+        row.Id,
+        row.ReportId,
+        row.ActorId,
+        row.EventType,
+        ToJsonObject(row.BeforeJson),
+        ToJsonObject(row.AfterJson),
+        row.CreatedAt);
+
+    private static JsonObject? ToJsonObject(string? json) =>
+        string.IsNullOrWhiteSpace(json) ? null : JsonNode.Parse(json) as JsonObject;
 
     private static DateTime? ToDateTime(DateOnly? value) =>
         value is null ? null : value.Value.ToDateTime(TimeOnly.MinValue);
@@ -564,6 +710,9 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         value is null ? null : DateOnly.FromDateTime(value.Value);
 
     private static string ToJson<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 
     private static JsonObject ToJsonNode<T>(T value) =>
         JsonSerializer.SerializeToNode(value, JsonOptions)?.AsObject() ?? [];

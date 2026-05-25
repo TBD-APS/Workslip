@@ -2,18 +2,15 @@ param appConfigurationName string
 param managedIdentityClientId string
 param appConfigurationEndpoint string
 param azureAdOAuthClientId string
-param workslipServerAppId string
-param graphAppClientId string
-param graphAppUserDomain string
+param oauthServerAppId string
 param acsEndpoint string
 param acsSenderAddress string
 @secure()
 param acsConnectionString string
 param storageAccountName string
 param applicationInsightsConnectionString string
-param sqlConnectionString string
 @secure()
-param graphClientSecretKeyvault string
+param sqlConnectionString string
 
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
   name: appConfigurationName
@@ -47,39 +44,16 @@ resource configAdOAuthAudience 'Microsoft.AppConfiguration/configurationStores/k
   parent: appConfiguration
   name: 'Azure:AdOAuth:Audience'
   properties: {
-    value: 'api://${workslipServerAppId}'
+    value: 'api://${oauthServerAppId}'
   }
 }
 
-resource configGraphAppTenantId 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
-  parent: appConfiguration
-  name: 'Azure:GraphApp:TenantId'
-  properties: {
-    value: tenant().tenantId
-  }
-}
 
-resource configGraphAppClientId 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+resource configOAuthServerAppId 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
-  name: 'Azure:GraphApp:ClientId'
+  name: 'Azure:GraphApp:OAuthAppId'
   properties: {
-    value: graphAppClientId
-  }
-}
-
-resource configGraphAppDefaultUserDomain 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
-  parent: appConfiguration
-  name: 'Azure:GraphApp:DefaultUserDomain'
-  properties: {
-    value: graphAppUserDomain
-  }
-}
-
-resource configGraphAppWorkslipServerAppId 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
-  parent: appConfiguration
-  name: 'Azure:GraphApp:WorkslipServerAppId'
-  properties: {
-    value: workslipServerAppId
+    value: oauthServerAppId
   }
 }
 
@@ -118,15 +92,6 @@ resource configApplicationInsightsConnectionString 'Microsoft.AppConfiguration/c
 //KEY VAULT REFERENCES
 
 var keyVaultReferenceContentType = 'application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8'
-
-resource configGraphAppClientSecret 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
-  parent: appConfiguration
-  name: 'Azure:GraphApp:ClientSecret'
-  properties: {
-    value: string({ uri: graphClientSecretKeyvault })
-    contentType: keyVaultReferenceContentType
-  }
-}
 
 resource acsConnectionStringSecret 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration

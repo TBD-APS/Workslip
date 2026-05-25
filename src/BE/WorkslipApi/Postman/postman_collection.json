@@ -124,52 +124,22 @@
       "key": "targetJobId",
       "value": "00000000-0000-0000-0000-000000000000",
       "type": "string"
-    } 
-  ],
-    "auth": {
-  "type": "oauth2",
-  "oauth2": [
-    {
-      "key": "grant_type",
-      "value": "authorization_code_with_pkce",
-      "type": "string"
     },
     {
-      "key": "callbackUrl",
-      "value": "https://oauth.pstmn.io/v1/callback",
-      "type": "string"
-    },
-    {
-      "key": "useBrowser",
-      "value": true,
-      "type": "boolean"
-    },
-    {
-      "key": "authUrl",
-      "value": "https://login.microsoftonline.com/64ce3484-dfcb-4a30-87c5-b1a09da33d33/oauth2/v2.0/authorize",
-      "type": "string"
-    },
-    {
-      "key": "accessTokenUrl",
-      "value": "https://login.microsoftonline.com/64ce3484-dfcb-4a30-87c5-b1a09da33d33/oauth2/v2.0/token",
-      "type": "string"
-    },
-    {
-      "key": "clientId",
-      "value": "67882e61-7227-4c8a-bc55-dd36b2c59005",
-      "type": "string"
-    },
-    {
-      "key": "scope",
-      "value": "{{apiScope}} offline_access",
-      "type": "string"
-    },
-    {
-      "key": "client_authentication",
-      "value": "header",
-      "type": "string"
+      "key": "draftJobId",
+      "value": ""
     }
-  ]},
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
   "item": [
     {
       "name": "Health",
@@ -248,7 +218,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
                   "pm.collectionVariables.set('organizationId', json.organization.id);",
                   "pm.collectionVariables.set('userId', json.user.id);",
@@ -345,21 +315,21 @@
           "response": [],
           "event": [
             {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "pm.test('200 OK or 401 Unauthorized', function () { pm.expect([200, 401]).to.include(pm.response.code); });",
-                    "if (pm.response.code === 200) {",
-                    "  const json = pm.response.json();",
-                    "  pm.collectionVariables.set('authToken', json.token);",
-                    "  pm.test('token received', function () { pm.expect(json.token).to.be.a('string').and.not.empty; });",
-                    "  pm.test('token is JWT with 3 parts', function () { pm.expect(json.token.split('.')).to.have.length(3); });",
-                    "  pm.test('user info returned', function () { pm.expect(json.user.email).to.eql(pm.variables.get('testEmail')); });",
-                    "}"
-                  ]
-                }
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 401 Unauthorized', function () { pm.expect([200, 401]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('authToken', json.token);",
+                  "  pm.test('token received', function () { pm.expect(json.token).to.be.a('string').and.not.empty; });",
+                  "  pm.test('token is JWT with 3 parts', function () { pm.expect(json.token.split('.')).to.have.length(3); });",
+                  "  pm.test('user info returned', function () { pm.expect(json.user.email).to.eql(pm.variables.get('testEmail')); });",
+                  "}"
+                ]
               }
+            }
           ]
         }
       ]
@@ -405,7 +375,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
                   "pm.collectionVariables.set('userId', json.id);",
                   "pm.test('user id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
@@ -625,17 +595,32 @@
           "name": "POST /api/auth/verify-invite (valid token)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/auth/verify-invite",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "verify-invite"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-invite"
+              ]
             },
             "description": "Verifies a valid invite token captured from invite creation. Creates the user and returns a LocalJwt on success.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "response": [],
@@ -674,17 +659,32 @@
           "name": "POST /api/auth/verify-invite (consumed token)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/auth/verify-invite",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "verify-invite"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-invite"
+              ]
             },
             "description": "Verifies the same token again - expects 400 because it was already consumed. The user was already created on first use.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "response": [],
@@ -712,17 +712,32 @@
           "name": "POST /api/auth/verify-invite (invalid token)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/auth/verify-invite",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "verify-invite"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-invite"
+              ]
             },
             "description": "Verifies a non-existent token - expects 400 with error.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"token\": \"invlaid0000000000000000000000000\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "response": [],
@@ -769,7 +784,7 @@
             "description": "Creates draft job with installation-type grouped subcategory control checks, including Irrelevant as a true/false checkbox. Saves jobId.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"customerId\": null,\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"customerName\": \"Demo Kunde\",\n  \"customerAddress\": \"Demo Vej 1, 1000 København\",\n  \"customerEmail\": \"{{customerEmail}}\",\n  \"contactPerson\": \"Kunde Kontakt\",\n  \"phone\": \"+459****9999\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"nyInstallation\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"klarTilFaktura\"\n  ],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"customerId\": null,\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"customerName\": \"Demo Kunde\",\n  \"customerAddress\": \"Demo Vej 1, 1000 København\",\n  \"customerEmail\": \"{{customerEmail}}\",\n  \"contactPerson\": \"Kunde Kontakt\",\n  \"phone\": \"+459****9999\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"klarTilFaktura\"\n  ],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -784,17 +799,182 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
                   "pm.collectionVariables.set('jobId', json.id);",
                   "pm.test('customer email echoed', function () { pm.expect(pm.response.json().customerEmail).to.eql(pm.variables.get('customerEmail')); });",
                   "pm.test('control installation types echoed', function () { pm.expect(pm.response.json().controlInstallationTypes.length).to.be.above(0); });",
                   "pm.test('custom work kind echoed for Andet', function () { pm.expect(pm.response.json().customWorkKind).to.eql('Service'); });",
+                  "pm.test('new job is not scheduled for deletion', function () { pm.expect(json.deletionScheduledAt).to.be.oneOf([null, undefined]); });",
                   "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
             }
           ]
+        },
+        {
+          "name": "POST /api/jobs draft incomplete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                ""
+              ]
+            },
+            "description": "RBJ-69: Saves incomplete job as Draft without requiring submit-only fields.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"payload\": {\n    \"source\": \"postman\",\n    \"draft\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('draftJobId', json.id);",
+                  "pm.test('draft status saved', function () { pm.expect(json.status).to.be.oneOf(['Draft', 0]); });",
+                  "pm.test('draft allows missing submit-only fields', function () { pm.expect(json.customerName).to.be.oneOf([null, '']); pm.expect(json.workKind).to.be.oneOf([null, '']); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/jobs/{draftJobId}/submit invalid incomplete draft",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{draftJobId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{draftJobId}}",
+                "submit"
+              ]
+            },
+            "description": "RBJ-69: Submit validates completeness and rejects incomplete drafts."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test('submit returns field errors', function () { pm.expect(json.errors).to.be.an('object'); pm.expect(json.errors).to.have.property('ReportNumber'); pm.expect(json.errors).to.have.property('CustomerName'); pm.expect(json.errors).to.have.property('CustomerAddress'); pm.expect(json.errors).to.have.property('TaskDescription'); pm.expect(json.errors).to.have.property('InstallationTypes'); pm.expect(json.errors).to.have.property('WorkKind'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "PATCH /api/jobs/{draftJobId} complete draft",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{draftJobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{draftJobId}}"
+              ]
+            },
+            "description": "RBJ-69: Completes a previously incomplete draft.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reportNumber\": \"{{reportNumber}}-DRAFT\",\n  \"customerName\": \"Draft Kunde\",\n  \"customerAddress\": \"Draft Vej 2, 1000 København\",\n  \"customerEmail\": \"{{customerEmail}}\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Draft er nu udfyldt.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"nyInstallation\",\n  \"closureFlags\": [\n    \"faerdig\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('draft completion echoed', function () { pm.expect(json.id).to.eql(pm.variables.get('draftJobId')); pm.expect(json.status).to.be.oneOf(['Draft', 0]); pm.expect(json.customerName).to.eql('Draft Kunde'); pm.expect(json.workKind).to.eql('nyInstallation'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "POST /api/jobs/{draftJobId}/submit completed draft",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{draftJobId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{draftJobId}}",
+                "submit"
+              ]
+            },
+            "description": "RBJ-69: Completed draft can be submitted."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('completed draft submitted', function () { pm.expect(json.id).to.eql(pm.variables.get('draftJobId')); pm.expect(json.status).to.be.oneOf(['Submitted', 1]); pm.expect(json.submittedAt).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "response": []
         },
         {
           "name": "GET /api/jobs",
@@ -881,6 +1061,78 @@
                   "  pm.test('job detail uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
                   "  pm.test('job detail sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
                   "  pm.collectionVariables.set('jobEtag', pm.response.headers.get('ETag'));",
+                  "  pm.test('job detail exposes deletion schedule', function () { const json = pm.response.json(); pm.expect(json).to.have.property('deletionScheduledAt'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/jobs/{id}/report-summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/report-summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "report-summary"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('summary has customer view', function () { pm.expect(json.customer).to.be.an('object'); pm.expect(json.customer.name).to.be.a('string').and.not.empty; });",
+                  "  pm.test('summary has work labels', function () { pm.expect(json.work).to.be.an('object'); pm.expect(json.work.workKindLabel).to.be.a('string').and.not.empty; });",
+                  "  pm.test('summary has observations', function () { pm.expect(json.observations).to.be.an('object'); pm.expect(json.observations.taskDescription).to.be.a('string').and.not.empty; });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/jobs/{id}/history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "history"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('history is an array', function () { pm.expect(json).to.be.an('array'); });",
+                  "  pm.test('history contains event type when non-empty', function () { if (json.length > 0) pm.expect(json[0].eventType).to.be.a('string').and.not.empty; });",
                   "}"
                 ]
               }
@@ -1291,10 +1543,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "jobs", "{{jobId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}"
+              ]
             },
-            "description": "Deletes a job and its links. Requires admin."
+            "description": "Schedules a job for deletion after the retention period. Requires admin."
           },
           "response": [],
           "event": [
@@ -1304,6 +1562,42 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/jobs/{id}/restore",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/restore",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "restore"
+              ]
+            },
+            "description": "Restores a job before its scheduled deletion runs. Requires admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('job deletion schedule cleared', function () { pm.expect(json.deletionScheduledAt).to.be.oneOf([null, undefined]); });",
+                  "}"
                 ]
               }
             }
@@ -1321,8 +1615,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "jobs", "{{jobId}}", "links"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "links"
+              ]
             },
             "description": "Creates a bi-directional link between two jobs. Saves linkId on success.",
             "body": {
@@ -1359,8 +1660,15 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "jobs", "{{jobId}}", "links"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "links"
+              ]
             },
             "description": "Gets all links for a job (both directions)."
           },
@@ -1377,75 +1685,97 @@
             }
           ]
         },
-         {
-           "name": "DELETE /api/jobs/{id}/links/{linkId}",
-           "request": {
-             "method": "DELETE",
-             "header": [],
-             "url": {
-               "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links/{{linkId}}",
-               "host": ["{{baseUrl}}"],
-               "path": ["api", "jobs", "{{jobId}}", "links", "{{linkId}}"]
-             },
-             "description": "Removes a link between two jobs."
-           },
-           "response": [],
-           "event": [
-             {
-               "listen": "test",
-               "script": {
-                 "type": "text/javascript",
-                 "exec": [
-                   "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
-                 ]
-               }
-             }
-           ]
-         },
-         {
-           "name": "POST /api/jobs/{id}/assign",
-           "request": {
-             "method": "POST",
-             "header": [
-               {
-                 "key": "Content-Type",
-                 "value": "application/json"
-               }
-             ],
-             "url": {
-               "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign",
-               "host": ["{{baseUrl}}"],
-               "path": ["api", "jobs", "{{jobId}}", "assign"]
-             },
-             "description": "Assigns a job to a user in the same organization. Returns 400 if user doesn't exist, is inactive, or belongs to different organization."
-           },
-           "body": {
-             "mode": "raw",
-             "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
-           }
-         },
-         {
-           "name": "POST /api/jobs/{id}/assign/null (unassign)",
-           "request": {
-             "method": "POST",
-             "header": [
-               {
-                 "key": "Content-Type",
-                 "value": "application/json"
-               }
-             ],
-             "url": {
-               "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign",
-               "host": ["{{baseUrl}}"],
-               "path": ["api", "jobs", "{{jobId}}", "assign"]
-             },
-             "description": "Unassigns a job by setting userId to null."
-           },
-           "body": {
-             "mode": "raw",
-             "raw": "{\n  \"userId\": null\n}"
-           }
-         }
+        {
+          "name": "DELETE /api/jobs/{id}/links/{linkId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links/{{linkId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "links",
+                "{{linkId}}"
+              ]
+            },
+            "description": "Removes a link between two jobs."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/jobs/{id}/assign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "assign"
+              ]
+            },
+            "description": "Assigns a job to a user in the same organization. Returns 400 if user doesn't exist, is inactive, or belongs to different organization."
+          },
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+          }
+        },
+        {
+          "name": "POST /api/jobs/{id}/assign/null (unassign)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "assign"
+              ]
+            },
+            "description": "Unassigns a job by setting userId to null."
+          },
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"userId\": null\n}"
+          }
+        }
       ]
     }
   ],

@@ -35,8 +35,8 @@ Write-Host "Subscription: $account"
 # ─── register providers ───────────────────────────────
 Write-Host "Registering resource providers…" -ForegroundColor Cyan
 @("Microsoft.Web", "Microsoft.Storage",
-   "Microsoft.Logic", "Microsoft.OperationalInsights", "Microsoft.Insights",
-   "Microsoft.KeyVault", "Microsoft.CognitiveServices") | ForEach-Object {
+   "Microsoft.OperationalInsights", "Microsoft.Insights",
+   "Microsoft.KeyVault", "Microsoft.AppConfiguration") | ForEach-Object {
      $state = az provider show --namespace $_ --query registrationState -o tsv 2>$null
      if ($state -ne "Registered") {
          Write-Host "   Registering $_ …"
@@ -56,7 +56,7 @@ if ($exists -eq "false") {
     Write-Host "   $RESOURCE_GROUP ✅"
 }
 
-# ─── deploy ───────────────────────────────────────────
+# ─── deploy azure ressources ───────────────────────────────────────────
 Write-Host "Deploying Bicep template…" -ForegroundColor Cyan
 
 az deployment group create `
@@ -68,13 +68,18 @@ az deployment group create `
    --parameters environment=$Environment `
    --parameters globalAdminId=$GlobalAdminId `
 
+
 Write-Host "Deployment complete: $DEPLOY_NAME" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
+
+
+# ─── Add Graph roles to Managed Identity ───────────────────────────────────────────
+
 Write-Host "Starting up azure Graph Role permissions on Managed Identity" 
 
 $ManagedIdentityName = "id-$COMPANY_NAME-$ENVIRONMENT"
 $ResourceGroupName = "rg-$COMPANY_NAME-$ENVIRONMENT"
 
-$MiPrincipalId = az identity show `
+$ManagedIdentityPrincipalId = az identity show `
   --name $ManagedIdentityName `
   --resource-group $ResourceGroupName `
   --query principalId `
@@ -88,7 +93,7 @@ $GraphSpId = $GraphSp.id
 
 $ExistingAssignments = az rest `
   --method GET `
-  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$MiPrincipalId/appRoleAssignments" `
+  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$ManagedIdentityPrincipalId/appRoleAssignments" `
   | ConvertFrom-Json
 
 $Roles = @(
@@ -117,7 +122,7 @@ foreach ($Role in $Roles) {
   Write-Host "Assigning: $Role"
 
     $bodyObject = @{
-    principalId = $MiPrincipalId
+    principalId = $ManagedIdentityPrincipalId
     resourceId  = $GraphSpId
     appRoleId   = $RoleId
     }
@@ -127,9 +132,121 @@ foreach ($Role in $Roles) {
 
     az rest `
     --method POST `
-    --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$MiPrincipalId/appRoleAssignments" `
+    --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$ManagedIdentityPrincipalId/appRoleAssignments" `
     --headers "Content-Type=application/json" `
     --body "@$tempBodyFile"
 
     Remove-Item $tempBodyFile
 }
+
+# ─── OAuth app registration client secret ─────────────────────────────────────
+Write-Host "Ensuring OAuth app registration client secret..." -ForegroundColor Cyan
+
+$AppConfigurationNamePrefix = "appcs-$COMPANY_NAME-$($Environment.ToLowerInvariant())"
+$AppConfigurationName = $AppConfigurationNamePrefix
+if ($AppConfigurationName.Length -gt 50) {
+    $AppConfigurationName = $AppConfigurationName.Substring(0, 50)
+}
+
+$ExactAppConfigurationName = az appconfig show `
+  --name $AppConfigurationName `
+  --resource-group $ResourceGroupName `
+  --query name `
+  -o tsv 2>$null
+
+if ($ExactAppConfigurationName) {
+    $AppConfigurationName = $ExactAppConfigurationName
+} else {
+    $MatchingAppConfigurations = @(az appconfig list `
+      --resource-group $ResourceGroupName `
+      --query "[?starts_with(name, '$AppConfigurationNamePrefix')].name" `
+      -o json | ConvertFrom-Json)
+
+    if ($MatchingAppConfigurations.Count -ne 1) {
+        throw "Expected exactly one App Configuration store with prefix '$AppConfigurationNamePrefix' in $ResourceGroupName, found $($MatchingAppConfigurations.Count)."
+    }
+
+    $AppConfigurationName = $MatchingAppConfigurations[0]
+}
+
+$KeyVaultNameRaw = "kv-$COMPANY_NAME-$($Environment.ToLowerInvariant())"
+if ($KeyVaultNameRaw.Length -gt 24) {
+    $KeyVaultName = $KeyVaultNameRaw.Substring(0, 24)
+} else {
+    $KeyVaultName = $KeyVaultNameRaw
+}
+
+$OAuthClientId = az appconfig kv show `
+  --name $AppConfigurationName `
+  --key "Azure:AdOAuth:ClientId" `
+  --query value `
+  -o tsv
+
+if (-not $OAuthClientId) {
+    throw "Could not read Azure:AdOAuth:ClientId from App Configuration: $AppConfigurationName"
+}
+
+$OAuthApp = az ad app show `
+  --id $OAuthClientId `
+  --query "{id:id, appId:appId, displayName:displayName, passwordCredentials:passwordCredentials}" `
+  -o json | ConvertFrom-Json
+
+if (-not $OAuthApp -or -not $OAuthApp.id) {
+    throw "OAuth app registration not found for client id: $OAuthClientId"
+}
+
+$OAuthClientSecretKey = "Azure:AdOAuth:ClientSecret"
+$OAuthClientSecretName = "Azure--AdOAuth--ClientSecret"
+$OAuthCredentialDisplayName = "workslip-deploy-$Environment-oauth-client-secret"
+$OAuthSecretEndDateUtc = "2299-12-31T23:59:59Z"
+
+$ExistingOAuthSecret = az keyvault secret show `
+  --vault-name $KeyVaultName `
+  --name $OAuthClientSecretName `
+  --query id `
+  -o tsv 2>$null
+
+$ExistingOAuthCredential = $OAuthApp.passwordCredentials | Where-Object {
+    $_.displayName -eq $OAuthCredentialDisplayName -and
+    ([DateTime]$_.endDateTime).ToUniversalTime() -gt (Get-Date).ToUniversalTime().AddDays(30)
+} | Select-Object -First 1
+
+if ($ExistingOAuthCredential -and $ExistingOAuthSecret) {
+    $OAuthSecretIdentifier = $ExistingOAuthSecret
+    Write-Host "OAuth client secret already exists and Key Vault secret is present ✅"
+} else {
+    Write-Host "Creating OAuth client secret..."
+
+    $OAuthClientSecret = az ad app credential reset `
+      --id $OAuthApp.appId `
+      --append `
+      --display-name $OAuthCredentialDisplayName `
+      --end-date $OAuthSecretEndDateUtc `
+      --query password `
+      -o tsv
+
+    if (-not $OAuthClientSecret) {
+        throw "Azure CLI did not return OAuth client secret."
+    }
+
+    $OAuthSecretIdentifier = az keyvault secret set `
+      --vault-name $KeyVaultName `
+      --name $OAuthClientSecretName `
+      --value $OAuthClientSecret `
+      --expires $OAuthSecretEndDateUtc `
+      --query id `
+      -o tsv
+
+    $OAuthClientSecret = $null
+
+    Write-Host "OAuth client secret created and stored in Key Vault ✅"
+}
+
+az appconfig kv set-keyvault `
+  --name $AppConfigurationName `
+  --key $OAuthClientSecretKey `
+  --secret-identifier $OAuthSecretIdentifier `
+  --yes `
+  -o none
+
+Write-Host "OAuth client secret reference stored in App Configuration ✅"

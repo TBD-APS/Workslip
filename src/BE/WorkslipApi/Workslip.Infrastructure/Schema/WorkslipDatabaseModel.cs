@@ -106,19 +106,19 @@ public static class WorkslipDatabaseModel
                 Column.RequiredGuid(nameof(JobReportRow.Id)),
                 Column.RequiredGuid(nameof(JobReportRow.OrganizationId)),
                 Column.OptionalGuid(nameof(JobReportRow.CustomerId)),
-                Column.RequiredString(nameof(JobReportRow.ReportNumber), 80),
+                Column.OptionalString(nameof(JobReportRow.ReportNumber), 80),
                 Column.RequiredString(nameof(JobReportRow.Status), 40),
-                Column.RequiredString(nameof(JobReportRow.CustomerName), 240),
-                Column.RequiredString(nameof(JobReportRow.CustomerAddress), 500),
+                Column.OptionalString(nameof(JobReportRow.CustomerName), 240),
+                Column.OptionalString(nameof(JobReportRow.CustomerAddress), 500),
                 Column.OptionalString(nameof(JobReportRow.CustomerEmail), 320),
                 Column.OptionalString(nameof(JobReportRow.ContactPerson), 200),
                 Column.OptionalString(nameof(JobReportRow.Phone), 80),
                 Column.OptionalDate(nameof(JobReportRow.ReportDate)),
-                Column.RequiredString(nameof(JobReportRow.TaskDescription)),
+                Column.OptionalString(nameof(JobReportRow.TaskDescription)),
                 Column.OptionalString(nameof(JobReportRow.CustomerObservations)),
                 Column.OptionalString(nameof(JobReportRow.TechnicalObservations)),
                 Column.RequiredString(nameof(JobReportRow.InstallationTypesJson), defaultSql: "'[]'"),
-                Column.RequiredString(nameof(JobReportRow.WorkKind), 80),
+                Column.OptionalString(nameof(JobReportRow.WorkKind), 80),
                 Column.OptionalString(nameof(JobReportRow.CustomWorkKind), 160),
                 Column.OptionalString(nameof(JobReportRow.Remarks)),
                 Column.RequiredString(nameof(JobReportRow.ClosureFlagsJson), defaultSql: "'[]'"),
@@ -126,7 +126,8 @@ public static class WorkslipDatabaseModel
                  Column.OptionalGuid(nameof(JobReportRow.AssignedUserId)),
                  Column.RequiredDateTimeOffset(nameof(JobReportRow.CreatedAt)),
                  Column.RequiredDateTimeOffset(nameof(JobReportRow.UpdatedAt)),
-                 Column.OptionalDateTimeOffset(nameof(JobReportRow.SubmittedAt))
+                 Column.OptionalDateTimeOffset(nameof(JobReportRow.SubmittedAt)),
+                 Column.OptionalDateTimeOffset(nameof(JobReportRow.DeletionScheduledAt))
             ],
             [
                 "constraint FK_JobReports_Organizations foreign key (OrganizationId) references dbo.Organizations(Id)",
@@ -139,7 +140,8 @@ public static class WorkslipDatabaseModel
                  "constraint FK_JobReports_AssignedUsers foreign key (AssignedUserId) references dbo.Users(Id)"
             ],
             [
-                "create index IX_JobReports_Organization_Status_UpdatedAt on dbo.JobReports (OrganizationId, Status, UpdatedAt desc);"
+                "create index IX_JobReports_Organization_Status_UpdatedAt on dbo.JobReports (OrganizationId, Status, UpdatedAt desc);",
+                "create index IX_JobReports_DeletionScheduledAt on dbo.JobReports (DeletionScheduledAt) where DeletionScheduledAt is not null;"
             ]),
 
         new(

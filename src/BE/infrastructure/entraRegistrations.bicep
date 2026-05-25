@@ -2,14 +2,16 @@ extension microsoftGraphV1
 param environment string
 param globalAdminId string
 
-resource ServerApp 'Microsoft.Graph/applications@v1.0' = {
-  uniqueName: 'Oauth-server-${environment}'
+var uniqueSuffix = substring(uniqueString(subscription().id, resourceGroup().id, environment), 0, 4)
+resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
+  uniqueName: 'Oauth-server-${environment}-${uniqueSuffix}'
   displayName: 'Oauth server ${environment}'
   signInAudience: 'AzureADMyOrg'
   publicClient: {
     redirectUris: [
       'nativepasskeydemo://auth'
       'http://localhost'
+      'https://oauth.pstmn.io/v1/callback'
     ]
   }
   owners: {relationships: [
@@ -64,10 +66,9 @@ resource ServerApp 'Microsoft.Graph/applications@v1.0' = {
   }
 }
 
-resource ServerServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' = {
-  appId: ServerApp.appId
+resource OAuthServerServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' = {
+  appId: OAuthServerApp.appId
   
 }
-
-
-output workslipServerId string = ServerApp.id
+output OAuthAppId string = OAuthServerApp.appId
+output OAuthClientId string = OAuthServerApp.id

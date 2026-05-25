@@ -20,13 +20,9 @@ public static class InfrastructureConfiguration
         return builder;
     }
 
-    public static string? ResolveApplicationInsightsConnectionString(IConfiguration configuration) =>
-        ConfiguredValues.FirstConfigured(configuration["Azure:ApplicationInsights:ConnectionString"]);
-
     private static TokenCredential CreateAzureCredential(IConfiguration configuration)
     {
-        var mangedIdentity = ConfiguredValues.FirstConfigured(configuration["Azure:ManagedIdentity:ClientId"]);
-
+        var mangedIdentity = configuration["Azure:ManagedIdentity:ClientId"];
         if (string.IsNullOrWhiteSpace(mangedIdentity))
             return new DefaultAzureCredential();
 
@@ -38,7 +34,7 @@ public static class InfrastructureConfiguration
 
     private static void AddAzureAppConfiguration(ConfigurationManager configuration, TokenCredential credential)
     {
-        var endpoint = ConfiguredValues.FirstConfigured(configuration["Azure:AppConfiguration:Endpoint"]);
+        var endpoint = configuration["Azure:AppConfiguration:Endpoint"];
 
         if (string.IsNullOrWhiteSpace(endpoint))
             return;

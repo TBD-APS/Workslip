@@ -2,6 +2,7 @@ param companyName string = ''
 param environment string = ''
 param globalAdminId string = ''
 param location string = resourceGroup().location
+param secureAdminName string = 'rbjadmin'
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param logicAppName string             = 'la-${companyName}-${toLower(environment)}'
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
@@ -141,8 +142,10 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 // should be Key Vault references, resolved through the same identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
+var uniqueSuffix = substring(uniqueString(subscription().id, resourceGroup().id, companyName, environment), 0, 4)
+
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' = {
-  name: appConfigurationName
+  name: '${appConfigurationName}-${uniqueSuffix}'
   location: location
   sku: {
     name: 'free'
@@ -174,11 +177,8 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
     managedIdentityClientId: identity.properties.clientId
     appConfigurationEndpoint: 'https://${appConfiguration.name}.azconfig.io'
     
-    azureAdOAuthClientId: '67882e61-7227-4c8a-bc55-dd36b2c59005'
-    workslipServerAppId: '4b36d921-1eaa-4d29-a1ba-412f07eaefe6'
-    graphAppClientId: '6af642a7-7877-4668-84d3-53dc52a9c796'
-    graphAppUserDomain: 'rasmusvm6hotmail.onmicrosoft.com'
-    graphClientSecretKeyvault: keyVaultConfigs.outputs.graphAppClientSecretUri
+    azureAdOAuthClientId: EntraAppRegistrations.outputs.OAuthClientId
+    oauthServerAppId: EntraAppRegistrations.outputs.OAuthAppId
 
     acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
     acsSenderAddress:  '${senderUsername.properties.username}@${emailDomain.properties.fromSenderDomain}'
@@ -255,8 +255,7 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
   params: {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
-    graphAppClientSecret: 'gFB8Q~Qc_FKeKWrfqnGjOqLqTu1Ds6rcZ8dyvbK5'
-    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=sqldb-${companyName}-dev;User ID=${secureAdmin};Password=${securePw};Encrypt=True;TrustServerCertificate=False;'
+    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=sqldb-${companyName}-${environment}; Authentication=Active Directory Default; TrustServerCertificate=False;'
   }
 }
 
@@ -292,17 +291,19 @@ module EntraAppRegistrations './entraRegistrations.bicep' = {
 // Data and stuff
 // ──────────────────────────────────────────────────────────────────────────────
 
-@sys.secure()
-param secureAdmin string = 'rbjadmin'
-@sys.secure()
-param securePw string ='Num64bqe!'
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
-  name: 'sql-${companyName}-server'
+  name: 'db-${companyName}-server'
   location: location
   properties: {
-    administratorLogin: secureAdmin
-    administratorLoginPassword: securePw
+    administrators: {
+      administratorType: 'ActiveDirectory'
+      principalType: 'User' 
+      login: secureAdminName
+      sid: globalAdminId
+      tenantId: subscription().tenantId
+      azureADOnlyAuthentication: true // <-- DETTE DEAKTIVERER SQL PASSWORDS PERMANENT
+    }
     version: '12.0'
     publicNetworkAccess: 'Enabled'
   }
@@ -310,7 +311,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
 
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   parent: sqlServer
-  name: 'sql-${companyName}-db-${environment}'
+  name: 'db-${companyName}-${environment}'
   location: location
   sku: {
     name: 'GP_S_Gen5_1' // General Purpose, Serverless, Gen5 (Kræves for Free Offer)
@@ -318,6 +319,7 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
     family: 'Gen5'
     capacity: 1 // 1 vCore
   }
+
   properties: {
     collation: 'SQL_Latin1_General_CP1_CI_AS'
     maxSizeBytes: 34359738368 // 32 GB (Det maksimale tilladte for den gratis aftale)
@@ -327,13 +329,13 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   }
 }
 
-
+var developerIp = '192.168.0.66'
 resource firewallAllowAzureIPs 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
   parent: sqlServer
   name: 'AllowAzureServices'
   properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '0.0.0.0'
+    startIpAddress: developerIp
+    endIpAddress: developerIp
   }
 }
 

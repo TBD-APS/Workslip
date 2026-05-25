@@ -44,8 +44,8 @@ public sealed class DapperJobLinkRepository(ISqlConnectionFactory connectionFact
             linkId,
             sourceReportId,
             targetReportId,
-            linked.ReportNumber,
-            linked.CustomerName,
+            linked.ReportNumber ?? string.Empty,
+            linked.CustomerName ?? string.Empty,
             linked.Status,
             linkType,
             now);
