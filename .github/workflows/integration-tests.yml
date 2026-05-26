@@ -23,6 +23,7 @@ jobs:
         env:
           INPUT_BASE_URL: ${{ inputs.base_url }}
           SECRET_BASE_URL: ${{ secrets.WORKSLIP_INTEGRATION_BASE_URL }}
+          WORKSLIP_AUTH_TOKEN: ${{ secrets.WORKSLIP_AUTH_TOKEN }}
         run: |
           set -euo pipefail
           base_url="$INPUT_BASE_URL"

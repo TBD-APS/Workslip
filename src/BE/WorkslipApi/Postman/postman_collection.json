@@ -128,6 +128,10 @@
     {
       "key": "draftJobId",
       "value": ""
+    },
+    {
+      "key": "customDraftJobId",
+      "value": ""
     }
   ],
   "auth": {
@@ -225,6 +229,55 @@
                   "pm.test('organization id captured', function () { pm.expect(json.organization.id).to.be.a('string').and.not.empty; });",
                   "pm.test('user id captured', function () { pm.expect(json.user.id).to.be.a('string').and.not.empty; });",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/organizations invalid validation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizations",
+                ""
+              ]
+            },
+            "description": "Covers FluentValidation edge cases for required organization fields, CVR length/digits, and admin email format.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"cvr\": \"12A\",\n  \"adminDisplayName\": \"\",\n  \"adminEmail\": \"not-an-email\",\n  \"adminPhone\": \"123456789012345678901\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "const errors = json.errors || {};",
+                  "const keys = Object.keys(errors);",
+                  "pm.test('organization validation fields returned', function () { pm.expect(keys).to.include.members(['Name', 'Cvr', 'AdminDisplayName', 'AdminEmail']); });"
                 ]
               }
             }
@@ -386,6 +439,55 @@
           ]
         },
         {
+          "name": "POST /api/users invalid validation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                ""
+              ]
+            },
+            "description": "Covers create-user validation: email format, display name required, phone max length, and allowed roles.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"email\": \"not-an-email\",\n  \"displayName\": \"\",\n  \"phone\": \"123456789012345678901\",\n  \"role\": \"Owner\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "const errors = json.errors || {};",
+                  "const keys = Object.keys(errors);",
+                  "pm.test('create user validation fields returned', function () { pm.expect(keys).to.include.members(['Email', 'DisplayName', 'Phone', 'Role']); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "GET /api/users/{id}",
           "request": {
             "method": "GET",
@@ -490,6 +592,55 @@
                 "exec": [
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/users/{id} invalid validation",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Covers update-user validation before repository lookup.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"phone\": \"123456789012345678901\",\n  \"role\": \"Owner\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "const errors = json.errors || {};",
+                  "const keys = Object.keys(errors);",
+                  "pm.test('update user validation fields returned', function () { pm.expect(keys).to.include.members(['DisplayName', 'Phone', 'Role']); });"
                 ]
               }
             }
@@ -862,6 +1013,194 @@
           "response": []
         },
         {
+          "name": "POST /api/jobs invalid shape validation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                ""
+              ]
+            },
+            "description": "Covers create-job shape validation and impossible-from-PWA duplicate/nested payload edge cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"reportNumber\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerName\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerAddress\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerEmail\": \"not-an-email\",\n  \"contactPerson\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"phone\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"installationTypes\": [\n    \"vand\",\n    \"VAND\"\n  ],\n  \"workKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customWorkKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"FAERDIG\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"\",\n              \"checked\": true,\n              \"note\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "const errors = json.errors || {};",
+                  "const keys = Object.keys(errors);",
+                  "pm.test('job shape validation fields returned', function () {",
+                  "  pm.expect(keys).to.include.members(['OrganizationId', 'ReportNumber', 'CustomerName', 'CustomerAddress', 'CustomerEmail', 'ContactPerson', 'Phone', 'InstallationTypes', 'WorkKind', 'CustomWorkKind', 'ClosureFlags']);",
+                  "  pm.expect(keys.some(k => k.includes('ControlInstallationTypes') && k.includes('InstallationTypeId'))).to.eql(true);",
+                  "  pm.expect(keys.some(k => k.includes('Subcategories') && k.includes('SubcategoryId'))).to.eql(true);",
+                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('ItemId'))).to.eql(true);",
+                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('Note'))).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/jobs customWorkKind without workKind",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                ""
+              ]
+            },
+            "description": "Covers Application taxonomy validation: customWorkKind cannot be sent without workKind.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"customWorkKind\": \"Standalone custom value\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "const errors = json.errors || {};",
+                  "const keys = Object.keys(errors);",
+                  "pm.test('custom work kind requires work kind', function () { pm.expect(keys).to.include('CustomWorkKind'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/jobs serviceAndet draft missing customWorkKind",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                ""
+              ]
+            },
+            "description": "Draft may save serviceAndet without customWorkKind; submit validation must reject it because PWA shows \"Ret opgavetype\" for Andet.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"reportNumber\": \"CUSTOM-REQ-{{runId}}\",\n  \"customerName\": \"Custom WorkKind Kunde\",\n  \"customerAddress\": \"Testvej 2, 8000 Aarhus\",\n  \"customerEmail\": \"custom-required@example.com\",\n  \"taskDescription\": \"PWA Andet kræver ret opgavetype før submit.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"closureFlags\": [\n    \"faerdig\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK draft accepted before submit', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('customDraftJobId', json.id);",
+                  "pm.test('custom draft id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/jobs/{customDraftJobId}/submit missing customWorkKind",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{customDraftJobId}}/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{customDraftJobId}}",
+                "submit"
+              ]
+            },
+            "description": "Covers submit-time taxonomy completeness for the PWA Andet flow."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "const errors = json.errors || {};",
+                  "const keys = Object.keys(errors);",
+                  "pm.test('submit requires custom work kind for serviceAndet', function () { pm.expect(keys).to.include('CustomWorkKind'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "POST /api/jobs/{draftJobId}/submit invalid incomplete draft",
           "request": {
             "method": "POST",
@@ -886,9 +1225,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
                   "const json = pm.response.json();",
-                  "pm.test('submit returns field errors', function () { pm.expect(json.errors).to.be.an('object'); pm.expect(json.errors).to.have.property('ReportNumber'); pm.expect(json.errors).to.have.property('CustomerName'); pm.expect(json.errors).to.have.property('CustomerAddress'); pm.expect(json.errors).to.have.property('TaskDescription'); pm.expect(json.errors).to.have.property('InstallationTypes'); pm.expect(json.errors).to.have.property('WorkKind'); });"
+                  "const errors = json.errors || {};",
+                  "const keys = Object.keys(errors);",
+                  "pm.test('submit incomplete draft fields returned', function () { pm.expect(keys).to.include.members(['ReportNumber', 'CustomerName', 'CustomerAddress', 'TaskDescription', 'InstallationTypes', 'WorkKind']); });"
                 ]
               }
             }
@@ -1140,6 +1481,42 @@
           ]
         },
         {
+          "name": "GET /api/jobs/{id}/history pagination clamps",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/history?limit=999&offset=-10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "history"
+              ]
+            },
+            "description": "Covers history endpoint limit/offset edge-case normalization."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('history clamp still returns bounded array', function () { pm.expect(json).to.be.an('array'); pm.expect(json.length).to.be.at.most(200); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "GET /api/jobs/{id}/report",
           "request": {
             "method": "GET",
@@ -1238,6 +1615,61 @@
                 "exec": [
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/jobs/{id} invalid shape validation",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "Covers update-job shape validation and duplicate/nested edge cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reportNumber\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerName\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerAddress\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerEmail\": \"not-an-email\",\n  \"contactPerson\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"phone\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"installationTypes\": [\n    \"vand\",\n    \"VAND\"\n  ],\n  \"workKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customWorkKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"FAERDIG\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"\",\n              \"checked\": true,\n              \"note\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "const errors = json.errors || {};",
+                  "const keys = Object.keys(errors);",
+                  "pm.test('job shape validation fields returned', function () {",
+                  "  pm.expect(keys).to.include.members(['ReportNumber', 'CustomerName', 'CustomerAddress', 'CustomerEmail', 'ContactPerson', 'Phone', 'InstallationTypes', 'WorkKind', 'CustomWorkKind', 'ClosureFlags']);",
+                  "  pm.expect(keys.some(k => k.includes('ControlInstallationTypes') && k.includes('InstallationTypeId'))).to.eql(true);",
+                  "  pm.expect(keys.some(k => k.includes('Subcategories') && k.includes('SubcategoryId'))).to.eql(true);",
+                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('ItemId'))).to.eql(true);",
+                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('Note'))).to.eql(true);",
+                  "});"
                 ]
               }
             }
@@ -1654,6 +2086,56 @@
           ]
         },
         {
+          "name": "POST /api/jobs/{id}/links self link invalid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "links"
+              ]
+            },
+            "description": "Covers job link edge case: a job cannot link to itself.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetReportId\": \"{{jobId}}\",\n  \"linkType\": \"related\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "const errors = json.errors || {};",
+                  "const keys = Object.keys(errors);",
+                  "pm.test('self-link validation field returned', function () { pm.expect(keys).to.include('TargetReportId'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "GET /api/jobs/{id}/links",
           "request": {
             "method": "GET",
@@ -1729,7 +2211,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign",
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign?userId={{userId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1740,12 +2222,25 @@
                 "assign"
               ]
             },
-            "description": "Assigns a job to a user in the same organization. Returns 400 if user doesn't exist, is inactive, or belongs to different organization."
+            "description": "Assigns a job to a user through the query-bound userId parameter."
           },
           "body": {
             "mode": "raw",
             "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) { pm.test('assigned user returned when available', function () { pm.expect(pm.response.json().assignedUser).to.exist; }); }",
+                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "POST /api/jobs/{id}/assign/null (unassign)",
@@ -1769,12 +2264,25 @@
                 "assign"
               ]
             },
-            "description": "Unassigns a job by setting userId to null."
+            "description": "Unassigns a job by omitting the query-bound userId parameter."
           },
           "body": {
             "mode": "raw",
             "raw": "{\n  \"userId\": null\n}"
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) { pm.test('assigned user cleared', function () { pm.expect(pm.response.json().assignedUser).to.be.oneOf([null, undefined]); }); }",
+                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     }

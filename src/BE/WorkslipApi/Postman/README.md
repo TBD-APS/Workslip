@@ -10,6 +10,10 @@ Required runtime variable:
 
 - `baseUrl`: base URL for the deployed Workslip API, for example `https://<staging-app>.azurewebsites.net`.
 
+Optional runtime variable:
+
+- `WORKSLIP_AUTH_TOKEN`: bearer token used for protected endpoints when the target environment does not allow the collection to obtain one via `POST /api/auth/verify-code`. The runner passes it as Postman `authToken`; leave it unset locally if the auth folder can capture a token itself.
+
 No secrets belong in the Postman environment file. Store deploy-specific values as GitHub Secrets/Variables or local shell environment variables.
 
 ## Test data strategy
@@ -42,6 +46,12 @@ Equivalent without argv:
 WORKSLIP_INTEGRATION_BASE_URL=https://<staging-api-base-url> ./run-integration-tests.sh
 ```
 
+With a pre-issued test bearer token:
+
+```bash
+WORKSLIP_AUTH_TOKEN=<token> ./run-integration-tests.sh https://<staging-api-base-url>
+```
+
 The runner refuses URLs that do not look like localhost/test/staging unless `ALLOW_PRODUCTION_INTEGRATION_TESTS=true` is explicitly set.
 
 ## CI run
@@ -52,5 +62,9 @@ Configure one of:
 
 - Repository secret `WORKSLIP_INTEGRATION_BASE_URL`; or
 - manual workflow input `base_url`.
+
+Optional secret:
+
+- `WORKSLIP_AUTH_TOKEN` when the staging environment requires a pre-issued bearer token for protected endpoints.
 
 Then run workflow `Workslip Integration Tests`.
