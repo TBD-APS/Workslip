@@ -14,7 +14,7 @@ public static class JwtHelper
         var signingKey = jwtSection["SigningKey"]!;
         var issuer = jwtSection["Issuer"]!;
         var audience = jwtSection["Audience"]!;
-        var expiryMinutes = int.TryParse(jwtSection["ExpiryMinutes"], out var m) ? m : 60;
+        var expiryMinutes = 60;
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -50,9 +50,9 @@ public static class JwtHelper
     {
         var jwtSection = configuration.GetSection("Jwt");
 
-        var signingKey = configuration["Jwt-SigningKey"]!;
         var issuer = jwtSection["Issuer"]!;
         var audience = jwtSection["Audience"]!;
+        var signingKey = jwtSection["SigningKey"]!;
 
         return new TokenValidationParameters
         {

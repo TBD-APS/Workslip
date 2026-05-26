@@ -19,7 +19,7 @@ var appConfigValues = {
   //OAuth
   'Azure:AdOAuth:TenantId': tenant().tenantId
   'Azure:AdOAuth:Instance': 'https://login.microsoftonline.com/'
-  'Azure:AdOAuth:Domain': 'rasmusvm6@hotmail.onmicrosoft.com'
+  'Azure:AdOAuth:Domain': 'rasmusvm6hotmail.onmicrosoft.com'
   
   //LocalJwt
   'Jwt:Issuer': 'WorkslipApiLocal'
