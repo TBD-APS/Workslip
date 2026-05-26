@@ -13,6 +13,7 @@ public sealed record CreateWorksheetRequest(
     decimal HoursWorked,
     bool SleptOnJob);
 
+
 /// <summary>
 /// Response contract representing a worksheet.
 /// </summary>
@@ -30,4 +31,5 @@ public sealed record WorksheetResponse(
 public interface IWorksheetService
 {
     Task<Result<WorksheetResponse>> CreateAsync(CreateWorksheetRequest request, CancellationToken cancellationToken);
+    Task<Result<WorksheetResponse>> DeleteAsync(string worksheetId, string jobId, CancellationToken cancellationToken);
 }
