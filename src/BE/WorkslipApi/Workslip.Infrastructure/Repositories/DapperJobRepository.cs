@@ -14,10 +14,10 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly TimeSpan DeletionRetentionPeriod = TimeSpan.FromDays(30);
 
-    public Task<JobReportResponse> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("jobs.create", token => CreateAsyncCoreAsync(request, token), cancellationToken);
+    public Task<JobReportResponse> CreateAsync(Guid organizationId, CreateJobRequest request, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.create", token => CreateAsyncCoreAsync(organizationId, request, token), cancellationToken);
 
-    private async Task<JobReportResponse> CreateAsyncCoreAsync(CreateJobRequest request, CancellationToken cancellationToken)
+    private async Task<JobReportResponse> CreateAsyncCoreAsync(Guid organizationId, CreateJobRequest request, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         using var transaction = connection.BeginTransaction();
@@ -41,7 +41,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             new
             {
                 Id = reportId,
-                request.OrganizationId,
+                OrganizationId = organizationId,
                 request.CustomerId,
                 request.ReportNumber,
                 Status = JobStatus.Draft.ToString(),
@@ -66,11 +66,11 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             transaction,
             cancellationToken: cancellationToken));
 
-        await ReplaceControlInstallationTypesAsync(connection, transaction, reportId, request.ControlInstallationTypes, now, cancellationToken);
-        await InsertEventAsync(connection, transaction, reportId, null, "created", null, ToJsonNode(new { reportId }), now, cancellationToken);
+        await ReplaceControlInstallationTypesAsync(connection, transaction, organizationId, reportId, request.ControlInstallationTypes, now, cancellationToken);
+        await InsertEventAsync(connection, transaction, organizationId, reportId, null, "created", null, ToJsonNode(new { reportId }), now, cancellationToken);
 
         transaction.Commit();
-        return (await GetAsync(reportId, cancellationToken))!;
+        return (await GetAsync(reportId, organizationId, cancellationToken))!;
     }
 
     public Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
@@ -83,9 +83,8 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             """
             select *
             from dbo.JobReports
-            where (@OrganizationId is null or OrganizationId = @OrganizationId)
+            where OrganizationId = @OrganizationId
               and (@Status is null or Status = @Status)
-              and DeletionScheduledAt is null
             order by UpdatedAt desc
             offset @Offset rows fetch next @Limit rows only;
             """,
@@ -115,18 +114,19 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              row.UpdatedAt,
              row.SubmittedAt,
              row.AssignedUserId.HasValue ? new AssignedUserResponse(row.AssignedUserId.Value, "") : null,
+             row.IsSoftDeleted,
              row.DeletionScheduledAt)).ToArray();
     }
 
-    public Task<JobReportResponse?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("jobs.get", token => GetAsyncCoreAsync(id, token), cancellationToken);
+    public Task<JobReportResponse?> GetAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.get", token => GetAsyncCoreAsync(id, organizationId, token), cancellationToken);
 
-    private async Task<JobReportResponse?> GetAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
+    private async Task<JobReportResponse?> GetAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var row = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
-            "select * from dbo.JobReports where Id = @Id;",
-            new { Id = id },
+            "select * from dbo.JobReports where Id = @Id and OrganizationId = @OrganizationId;",
+            new { Id = id, OrganizationId = organizationId },
             cancellationToken: cancellationToken));
 
         if (row is null)
@@ -135,29 +135,29 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         }
 
         var subcategories = await connection.QueryAsync<JobControlSubcategoryRow>(new CommandDefinition(
-            "select * from dbo.JobControlSubcategoryDecisions where ReportId = @Id order by InstallationTypeId, SubcategoryId;",
-            new { Id = id },
+            "select * from dbo.JobControlSubcategoryDecisions where ReportId = @Id and OrganizationId = @OrganizationId order by InstallationTypeId, SubcategoryId;",
+            new { Id = id, OrganizationId = organizationId },
             cancellationToken: cancellationToken));
 
         var checks = await connection.QueryAsync<JobControlCheckRow>(new CommandDefinition(
-            "select * from dbo.JobControlChecks where ReportId = @Id order by InstallationTypeId, SubcategoryId, ItemId;",
-            new { Id = id },
+            "select * from dbo.JobControlChecks where ReportId = @Id and OrganizationId = @OrganizationId order by InstallationTypeId, SubcategoryId, ItemId;",
+            new { Id = id, OrganizationId = organizationId },
             cancellationToken: cancellationToken));
 
-        var links = await LoadLinksAsync(connection, id, cancellationToken);
+        var links = await LoadLinksAsync(connection, organizationId, id, cancellationToken);
 
         return ToResponse(row, subcategories, checks, links);
     }
 
-    public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, int limit, int offset, CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("jobs.events", token => GetEventsAsyncCoreAsync(id, limit, offset, token), cancellationToken);
+    public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.events", token => GetEventsAsyncCoreAsync(id, organizationId, limit, offset, token), cancellationToken);
 
-    private async Task<IReadOnlyList<JobEventResponse>?> GetEventsAsyncCoreAsync(Guid id, int limit, int offset, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<JobEventResponse>?> GetEventsAsyncCoreAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var exists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
-            "select count(1) from dbo.JobReports where Id = @Id;",
-            new { Id = id },
+            "select count(1) from dbo.JobReports where Id = @Id and OrganizationId = @OrganizationId;",
+            new { Id = id, OrganizationId = organizationId },
             cancellationToken: cancellationToken));
 
         if (exists == 0)
@@ -170,26 +170,27 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             select *
             from dbo.JobEvents
             where ReportId = @Id
+              and OrganizationId = @OrganizationId
             order by CreatedAt desc
             offset @Offset rows fetch next @Limit rows only;
             """,
-            new { Id = id, Limit = limit, Offset = offset },
+            new { Id = id, OrganizationId = organizationId, Limit = limit, Offset = offset },
             cancellationToken: cancellationToken));
 
         return rows.Select(ToEventResponse).ToArray();
     }
 
-    public Task<JobReportResponse?> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("jobs.update", token => UpdateAsyncCoreAsync(id, request, token), cancellationToken);
+    public Task<JobReportResponse?> UpdateAsync(Guid id, Guid organizationId, UpdateJobRequest request, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.update", token => UpdateAsyncCoreAsync(id, organizationId, request, token), cancellationToken);
 
-    private async Task<JobReportResponse?> UpdateAsyncCoreAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken)
+    private async Task<JobReportResponse?> UpdateAsyncCoreAsync(Guid id, Guid organizationId, UpdateJobRequest request, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         using var transaction = connection.BeginTransaction();
 
         var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
-            "select * from dbo.JobReports where Id = @Id;",
-            new { Id = id },
+            "select * from dbo.JobReports where Id = @Id and OrganizationId = @OrganizationId;",
+            new { Id = id, OrganizationId = organizationId },
             transaction,
             cancellationToken: cancellationToken));
 
@@ -220,11 +221,12 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
                 ClosureFlagsJson = coalesce(@ClosureFlagsJson, ClosureFlagsJson),
                 PayloadJson = coalesce(@PayloadJson, PayloadJson),
                 UpdatedAt = @UpdatedAt
-            where Id = @Id;
+            where Id = @Id and OrganizationId = @OrganizationId;
             """,
             new
             {
                 Id = id,
+                OrganizationId = organizationId,
                 request.CustomerId,
                 request.ReportNumber,
                 request.CustomerName,
@@ -250,30 +252,30 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         if (request.ControlInstallationTypes is not null)
         {
             await connection.ExecuteAsync(new CommandDefinition(
-                "delete from dbo.JobControlSubcategoryDecisions where ReportId = @Id;",
-                new { Id = id },
+                "delete from dbo.JobControlSubcategoryDecisions where ReportId = @Id and OrganizationId = @OrganizationId;",
+                new { Id = id, OrganizationId = organizationId },
                 transaction,
                 cancellationToken: cancellationToken));
-            await ReplaceControlInstallationTypesAsync(connection, transaction, id, request.ControlInstallationTypes, now, cancellationToken);
+            await ReplaceControlInstallationTypesAsync(connection, transaction, organizationId, id, request.ControlInstallationTypes, now, cancellationToken);
         }
 
-        await InsertEventAsync(connection, transaction, id, null, "updated", ToJsonNode(existing), ToJsonNode(request), now, cancellationToken);
+        await InsertEventAsync(connection, transaction, organizationId, id, null, "updated", ToJsonNode(existing), ToJsonNode(request), now, cancellationToken);
         transaction.Commit();
 
-        return await GetAsync(id, cancellationToken);
+        return await GetAsync(id, organizationId, cancellationToken);
     }
 
-    public Task<JobReportResponse?> TransitionAsync(Guid id, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("jobs.transition", token => TransitionAsyncCoreAsync(id, nextStatus, actorId, token), cancellationToken);
+    public Task<JobReportResponse?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("jobs.transition", token => TransitionAsyncCoreAsync(id, organizationId, nextStatus, actorId, token), cancellationToken);
 
-    private async Task<JobReportResponse?> TransitionAsyncCoreAsync(Guid id, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
+    private async Task<JobReportResponse?> TransitionAsyncCoreAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
     {
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         using var transaction = connection.BeginTransaction();
 
         var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
-            "select * from dbo.JobReports where Id = @Id;",
-            new { Id = id },
+            "select * from dbo.JobReports where Id = @Id and OrganizationId = @OrganizationId;",
+            new { Id = id, OrganizationId = organizationId },
             transaction,
             cancellationToken: cancellationToken));
 
@@ -295,55 +297,56 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             set Status = @Status,
                 UpdatedAt = @UpdatedAt,
                 SubmittedAt = case when @Status = 'Submitted' then @UpdatedAt else SubmittedAt end
-            where Id = @Id;
+            where Id = @Id and OrganizationId = @OrganizationId;
             """,
-            new { Id = id, Status = nextStatus.ToString(), UpdatedAt = now },
+            new { Id = id, OrganizationId = organizationId, Status = nextStatus.ToString(), UpdatedAt = now },
             transaction,
             cancellationToken: cancellationToken));
 
-        await InsertEventAsync(connection, transaction, id, actorId, nextStatus.ToString().ToLowerInvariant(), ToJsonNode(existing), ToJsonNode(new { status = nextStatus.ToString() }), now, cancellationToken);
+        await InsertEventAsync(connection, transaction, organizationId, id, actorId, nextStatus.ToString().ToLowerInvariant(), ToJsonNode(existing), ToJsonNode(new { status = nextStatus.ToString() }), now, cancellationToken);
         transaction.Commit();
 
-        return await GetAsync(id, cancellationToken);
+        return await GetAsync(id, organizationId, cancellationToken);
     }
 
-     public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken) =>
-         retryPolicy.ExecuteAsync("jobs.delete", token => DeleteAsyncCoreAsync(id, token), cancellationToken);
+     public Task<JobReportResponse?> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
+         retryPolicy.ExecuteAsync("jobs.delete", token => DeleteAsyncCoreAsync(id, organizationId, token), cancellationToken);
 
-     private async Task<bool> DeleteAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
+     private async Task<JobReportResponse?> DeleteAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
      {
          using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
          using var transaction = connection.BeginTransaction();
 
          var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
-             "select * from dbo.JobReports where Id = @Id;",
-             new { Id = id },
+             "select * from dbo.JobReports where Id = @Id and OrganizationId = @OrganizationId;",
+             new { Id = id, OrganizationId = organizationId },
              transaction,
              cancellationToken: cancellationToken));
 
          if (existing is null)
          {
-             return false;
+             return null;
          }
 
-         if (existing.DeletionScheduledAt.HasValue)
+         if (existing.IsSoftDeleted || existing.DeletionScheduledAt.HasValue)
          {
              transaction.Commit();
-             return true;
+             return await GetAsync(id, organizationId, cancellationToken);
          }
 
          var now = DateTimeOffset.UtcNow;
          var deletionScheduledAt = now.Add(DeletionRetentionPeriod);
 
          await connection.ExecuteAsync(new CommandDefinition(
-             "update dbo.JobReports set DeletionScheduledAt = @DeletionScheduledAt, UpdatedAt = @UpdatedAt where Id = @Id;",
-             new { Id = id, DeletionScheduledAt = deletionScheduledAt, UpdatedAt = now },
+             "update dbo.JobReports set IsSoftDeleted = 1, DeletionScheduledAt = @DeletionScheduledAt, UpdatedAt = @UpdatedAt where Id = @Id and OrganizationId = @OrganizationId;",
+             new { Id = id, OrganizationId = organizationId, DeletionScheduledAt = deletionScheduledAt, UpdatedAt = now },
              transaction,
              cancellationToken: cancellationToken));
 
          await InsertEventAsync(
              connection,
              transaction,
+             organizationId,
              id,
              null,
              "deletionScheduled",
@@ -353,20 +356,20 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              cancellationToken);
 
          transaction.Commit();
-         return true;
+         return await GetAsync(id, organizationId, cancellationToken);
      }
 
-     public Task<JobReportResponse?> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken) =>
-         retryPolicy.ExecuteAsync("jobs.restore-deletion", token => RestoreDeletionAsyncCoreAsync(id, token), cancellationToken);
+     public Task<JobReportResponse?> RestoreDeletionAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
+         retryPolicy.ExecuteAsync("jobs.restore-deletion", token => RestoreDeletionAsyncCoreAsync(id, organizationId, token), cancellationToken);
 
-     private async Task<JobReportResponse?> RestoreDeletionAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
+     private async Task<JobReportResponse?> RestoreDeletionAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
      {
          using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
          using var transaction = connection.BeginTransaction();
 
          var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
-             "select * from dbo.JobReports where Id = @Id;",
-             new { Id = id },
+             "select * from dbo.JobReports where Id = @Id and OrganizationId = @OrganizationId;",
+             new { Id = id, OrganizationId = organizationId },
              transaction,
              cancellationToken: cancellationToken));
 
@@ -375,22 +378,23 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              return null;
          }
 
-         if (!existing.DeletionScheduledAt.HasValue)
+         if (!existing.IsSoftDeleted && !existing.DeletionScheduledAt.HasValue)
          {
              transaction.Commit();
-             return await GetAsync(id, cancellationToken);
+             return await GetAsync(id, organizationId, cancellationToken);
          }
 
          var now = DateTimeOffset.UtcNow;
          await connection.ExecuteAsync(new CommandDefinition(
-             "update dbo.JobReports set DeletionScheduledAt = null, UpdatedAt = @UpdatedAt where Id = @Id;",
-             new { Id = id, UpdatedAt = now },
+             "update dbo.JobReports set IsSoftDeleted = 0, DeletionScheduledAt = null, UpdatedAt = @UpdatedAt where Id = @Id and OrganizationId = @OrganizationId;",
+             new { Id = id, OrganizationId = organizationId, UpdatedAt = now },
              transaction,
              cancellationToken: cancellationToken));
 
          await InsertEventAsync(
              connection,
              transaction,
+             organizationId,
              id,
              null,
              "deletionRestored",
@@ -400,7 +404,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              cancellationToken);
 
          transaction.Commit();
-         return await GetAsync(id, cancellationToken);
+         return await GetAsync(id, organizationId, cancellationToken);
      }
 
      public Task<int> PurgeDeletionScheduledBeforeAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>
@@ -439,18 +443,18 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
          return deletedCount;
      }
 
-     public Task<JobReportResponse?> AssignAsync(Guid jobId, Guid? userId, Guid? actorId, CancellationToken cancellationToken) =>
-         retryPolicy.ExecuteAsync("jobs.assign", token => AssignAsyncCoreAsync(jobId, userId, actorId, token), cancellationToken);
+     public Task<JobReportResponse?> AssignAsync(Guid jobId, Guid organizationId, Guid? userId, Guid? actorId, CancellationToken cancellationToken) =>
+         retryPolicy.ExecuteAsync("jobs.assign", token => AssignAsyncCoreAsync(jobId, organizationId, userId, actorId, token), cancellationToken);
 
-     private async Task<JobReportResponse?> AssignAsyncCoreAsync(Guid jobId, Guid? userId, Guid? actorId, CancellationToken cancellationToken)
+     private async Task<JobReportResponse?> AssignAsyncCoreAsync(Guid jobId, Guid organizationId, Guid? userId, Guid? actorId, CancellationToken cancellationToken)
      {
          using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
          using var transaction = connection.BeginTransaction();
 
          // Get the existing job
          var existing = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
-             "select * from dbo.JobReports where Id = @Id;",
-             new { Id = jobId },
+             "select * from dbo.JobReports where Id = @Id and OrganizationId = @OrganizationId;",
+             new { Id = jobId, OrganizationId = organizationId },
              transaction,
              cancellationToken: cancellationToken));
 
@@ -463,8 +467,8 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
          if (userId.HasValue)
          {
              var user = await connection.QuerySingleOrDefaultAsync(new CommandDefinition(
-                 "select Id, DisplayName from dbo.Users where Id = @UserId and IsActive = 1 and OrganizationId = @OrgId;",
-                 new { UserId = userId.Value, OrgId = existing.OrganizationId },
+                 "select Id, DisplayName from dbo.Users where Id = @UserId and OrganizationId = @OrganizationId;",
+                 new { UserId = userId.Value, OrganizationId = organizationId },
                  transaction,
                  cancellationToken: cancellationToken));
 
@@ -478,15 +482,15 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
          if (existing.AssignedUserId == userId)
          {
              // No change needed, return current job
-             return await GetAsync(jobId, cancellationToken);
+             return await GetAsync(jobId, organizationId, cancellationToken);
          }
 
          var now = DateTimeOffset.UtcNow;
          
          // Update the assigned user
          await connection.ExecuteAsync(new CommandDefinition(
-             "update dbo.JobReports set AssignedUserId = @AssignedUserId, UpdatedAt = @UpdatedAt where Id = @Id;",
-             new { Id = jobId, AssignedUserId = userId, UpdatedAt = now },
+             "update dbo.JobReports set AssignedUserId = @AssignedUserId, UpdatedAt = @UpdatedAt where Id = @Id and OrganizationId = @OrganizationId;",
+             new { Id = jobId, OrganizationId = organizationId, AssignedUserId = userId, UpdatedAt = now },
              transaction,
              cancellationToken: cancellationToken));
 
@@ -497,15 +501,16 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
          var before = JsonNode.Parse(JsonSerializer.Serialize(new { AssignedUserId = existing.AssignedUserId }, JsonOptions))?.AsObject();
          var after = JsonNode.Parse(JsonSerializer.Serialize(new { AssignedUserId = userId }, JsonOptions))?.AsObject();
 
-         await InsertEventAsync(connection, transaction, jobId, actorId, eventType, before, after, now, cancellationToken);
+         await InsertEventAsync(connection, transaction, organizationId, jobId, actorId, eventType, before, after, now, cancellationToken);
          
          transaction.Commit();
-         return await GetAsync(jobId, cancellationToken);
+         return await GetAsync(jobId, organizationId, cancellationToken);
      }
 
     private static async Task ReplaceControlInstallationTypesAsync(
         IDbConnection connection,
         IDbTransaction transaction,
+        Guid organizationId,
         Guid reportId,
         IReadOnlyList<ControlInstallationTypeRequest>? installationTypes,
         DateTimeOffset now,
@@ -523,12 +528,13 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
                 var subcategoryDecisionId = Guid.NewGuid();
                 await connection.ExecuteAsync(new CommandDefinition(
                     """
-                    insert into dbo.JobControlSubcategoryDecisions (Id, ReportId, InstallationTypeId, SubcategoryId, CreatedAt, UpdatedAt)
-                    values (@Id, @ReportId, @InstallationTypeId, @SubcategoryId, @CreatedAt, @UpdatedAt);
+                    insert into dbo.JobControlSubcategoryDecisions (Id, OrganizationId, ReportId, InstallationTypeId, SubcategoryId, CreatedAt, UpdatedAt)
+                    values (@Id, @OrganizationId, @ReportId, @InstallationTypeId, @SubcategoryId, @CreatedAt, @UpdatedAt);
                     """,
                     new
                     {
                         Id = subcategoryDecisionId,
+                        OrganizationId = organizationId,
                         ReportId = reportId,
                         InstallationTypeId = installationType.InstallationTypeId,
                         subcategory.SubcategoryId,
@@ -542,12 +548,13 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
                 {
                     await connection.ExecuteAsync(new CommandDefinition(
                         """
-                        insert into dbo.JobControlChecks (Id, ReportId, SubcategoryDecisionId, InstallationTypeId, SubcategoryId, ItemId, Checked, Note, CreatedAt, UpdatedAt)
-                        values (@Id, @ReportId, @SubcategoryDecisionId, @InstallationTypeId, @SubcategoryId, @ItemId, @Checked, @Note, @CreatedAt, @UpdatedAt);
+                        insert into dbo.JobControlChecks (Id, OrganizationId, ReportId, SubcategoryDecisionId, InstallationTypeId, SubcategoryId, ItemId, Checked, Note, CreatedAt, UpdatedAt)
+                        values (@Id, @OrganizationId, @ReportId, @SubcategoryDecisionId, @InstallationTypeId, @SubcategoryId, @ItemId, @Checked, @Note, @CreatedAt, @UpdatedAt);
                         """,
                         new
                         {
                             Id = Guid.NewGuid(),
+                            OrganizationId = organizationId,
                             ReportId = reportId,
                             SubcategoryDecisionId = subcategoryDecisionId,
                             InstallationTypeId = installationType.InstallationTypeId,
@@ -568,6 +575,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
     private static async Task InsertEventAsync(
         IDbConnection connection,
         IDbTransaction transaction,
+        Guid organizationId,
         Guid reportId,
         Guid? actorId,
         string eventType,
@@ -578,12 +586,13 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
     {
         await connection.ExecuteAsync(new CommandDefinition(
             """
-            insert into dbo.JobEvents (Id, ReportId, ActorId, EventType, BeforeJson, AfterJson, CreatedAt)
-            values (@Id, @ReportId, @ActorId, @EventType, @BeforeJson, @AfterJson, @CreatedAt);
+            insert into dbo.JobEvents (Id, OrganizationId, ReportId, ActorId, EventType, BeforeJson, AfterJson, CreatedAt)
+            values (@Id, @OrganizationId, @ReportId, @ActorId, @EventType, @BeforeJson, @AfterJson, @CreatedAt);
             """,
             new
             {
                 Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
                 ReportId = reportId,
                 ActorId = actorId,
                 EventType = eventType,
@@ -597,12 +606,13 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
 
     private static async Task<IReadOnlyList<JobLinkInfoResponse>> LoadLinksAsync(
         IDbConnection connection,
+        Guid organizationId,
         Guid reportId,
         CancellationToken cancellationToken)
     {
         var links = await connection.QueryAsync<JobReportLinkRow>(new CommandDefinition(
-            "select * from dbo.JobReportLinks where SourceReportId = @Id or TargetReportId = @Id;",
-            new { Id = reportId },
+            "select * from dbo.JobReportLinks where OrganizationId = @OrganizationId and (SourceReportId = @Id or TargetReportId = @Id);",
+            new { Id = reportId, OrganizationId = organizationId },
             cancellationToken: cancellationToken));
 
         var linkedIds = links.Select(link =>
@@ -612,8 +622,8 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             return [];
 
         var linkedReports = (await connection.QueryAsync<JobReportRow>(new CommandDefinition(
-            "select * from dbo.JobReports where Id in @Ids;",
-            new { Ids = linkedIds },
+            "select * from dbo.JobReports where OrganizationId = @OrganizationId and Id in @Ids;",
+            new { Ids = linkedIds, OrganizationId = organizationId },
             cancellationToken: cancellationToken)))
             .ToDictionary(r => r.Id);
 
@@ -686,6 +696,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              row.UpdatedAt,
              row.SubmittedAt,
              row.AssignedUserId.HasValue ? new AssignedUserResponse(row.AssignedUserId.Value, "") : null,
+             row.IsSoftDeleted,
              row.DeletionScheduledAt);
     }
 

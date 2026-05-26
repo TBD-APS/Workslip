@@ -1,6 +1,7 @@
 using Ardalis.Result;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using Workslip.Application.Auth;
 using Workslip.Domain.Models;
 
 namespace Workslip.Application.Users;
@@ -10,6 +11,7 @@ public sealed class UserService(
     IValidator<CreateUserRequest> createUserValidator,
     IValidator<UpdateUserRequest> updateUserValidator,
     IUserEntraService entraService,
+    ICurrentUserContext currentUser,
     ILogger<UserService> logger) : IUserService
 {
     public async Task<Result<UserResponse>> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken)
@@ -44,7 +46,7 @@ public sealed class UserService(
         var user = new UserDataRow
         {
             Id = Guid.NewGuid(),
-            OrganizationId = request.OrganizationId,
+            OrganizationId = new Guid("F01CC945-5BD1-4C81-993E-56A468235256"),
             Email = request.Email,
             DisplayName = request.DisplayName,
             EntraEmail = entraUser.EntraMail,
@@ -67,7 +69,13 @@ public sealed class UserService(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var user = await repository.GetByIdAsync(userId, cancellationToken);
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<UserResponse>.Unauthorized();
+        }
+
+        var user = await repository.GetByIdAsync(userId, organizationId.Value, cancellationToken);
         if (user == null)
         {
             logger.LogInformation("User not found. UserId: {UserId}.", userId);
@@ -78,11 +86,16 @@ public sealed class UserService(
     }
 
     public async Task<Result<UserListResponse>> GetByOrganizationAsync(
-        Guid organizationId,
         CancellationToken cancellationToken)
     {
-        var users = await repository.GetByOrganizationIdAsync(organizationId, cancellationToken);
-        var count = await repository.GetCountByOrganizationIdAsync(organizationId, cancellationToken);
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<UserListResponse>.Unauthorized();
+        }
+
+        var users = await repository.GetByOrganizationIdAsync(organizationId.Value, cancellationToken);
+        var count = await repository.GetCountByOrganizationIdAsync(organizationId.Value, cancellationToken);
 
         var responses = users.Select(MapToResponse).ToList();
         return Result<UserListResponse>.Success(new UserListResponse(responses, count));
@@ -110,7 +123,13 @@ public sealed class UserService(
             return Result<UserResponse>.Invalid(errors);
         }
 
-        var user = await repository.GetByIdAsync(userId, cancellationToken);
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<UserResponse>.Unauthorized();
+        }
+
+        var user = await repository.GetByIdAsync(userId, organizationId.Value, cancellationToken);
         if (user == null)
         {
             logger.LogInformation("User not found for update. UserId: {UserId}.", userId);
@@ -128,7 +147,7 @@ public sealed class UserService(
 
         user.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await repository.UpdateAsync(user, cancellationToken);
+        await repository.UpdateAsync(user, currentUser.OrganizationId!.Value, cancellationToken);
 
         logger.LogInformation("User updated. UserId: {UserId}.", userId);
 
@@ -139,14 +158,20 @@ public sealed class UserService(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var user = await repository.GetByIdAsync(userId, cancellationToken);
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result.Unauthorized();
+        }
+
+        var user = await repository.GetByIdAsync(userId, organizationId.Value, cancellationToken);
         if (user == null)
         {
             logger.LogInformation("User not found for deletion. UserId: {UserId}.", userId);
             return Result.NotFound();
         }
 
-        await repository.DeleteAsync(userId, cancellationToken);
+        await repository.DeleteAsync(userId, organizationId.Value, cancellationToken);
 
         logger.LogInformation("User deleted. UserId: {UserId}.", userId);
 

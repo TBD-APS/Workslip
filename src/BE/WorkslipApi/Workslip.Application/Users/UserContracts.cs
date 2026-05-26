@@ -1,7 +1,6 @@
 namespace Workslip.Application.Users;
 
 public sealed record CreateUserRequest(
-    Guid OrganizationId,
     string Email,
     string DisplayName,
     string Phone,
@@ -27,7 +26,6 @@ public sealed record UserListResponse(
     int Total);
 
 public sealed record InviteUsersRequest(
-    Guid OrganizationId,
     IReadOnlyList<string> Emails,
     string InviteBaseUrl,
     string? Role);

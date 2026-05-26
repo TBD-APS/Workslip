@@ -32,8 +32,8 @@ public static class AuthEndpoints
         group.MapPost("/invite", async (InviteUsersRequest request, IInvitationService service, CancellationToken cancellationToken) =>
         {
             var result = await service.InviteUsersAsync(request, cancellationToken);
-            return Results.Ok(result);
-        });
+            return ResultExtensions.ToHttpResult(result);
+        }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         return app;
     }

@@ -6,9 +6,6 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
 {
     public CreateJobRequestValidator()
     {
-        RuleFor(x => x.OrganizationId)
-            .NotEmpty().WithMessage("Organization ID is required.");
-
         RuleFor(x => x.ReportNumber)
             .MaximumLength(80).WithMessage("Report number must not exceed 80 characters.");
 

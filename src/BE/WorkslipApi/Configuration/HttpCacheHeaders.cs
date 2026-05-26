@@ -43,18 +43,18 @@ public static class HttpCacheHeaders
     }
 
     public static string JobReportEtag(JobReportResponse report) => ToWeakEtag(
-        $"job:{report.Id:N}:{report.UpdatedAt.ToUnixTimeMilliseconds()}:{report.SubmittedAt?.ToUnixTimeMilliseconds() ?? 0}");
+        $"job:{report.OrganizationId:N}:{report.Id:N}:{report.UpdatedAt.ToUnixTimeMilliseconds()}:{report.SubmittedAt?.ToUnixTimeMilliseconds() ?? 0}");
 
     public static string JobListEtag(
         IEnumerable<JobListItemResponse> jobs,
-        Guid? organizationId,
+        Guid organizationId,
         JobStatus? status,
         int? limit,
         int? offset)
     {
         var builder = new StringBuilder()
             .Append("jobs:list:")
-            .Append(organizationId?.ToString("N") ?? "all")
+            .Append(organizationId.ToString("N"))
             .Append(':')
             .Append(status?.ToString() ?? "all")
             .Append(':')

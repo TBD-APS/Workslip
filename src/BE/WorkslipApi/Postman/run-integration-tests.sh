@@ -20,4 +20,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COLLECTION="$SCRIPT_DIR/postman_collection.json"
 ENVIRONMENT="$SCRIPT_DIR/workslip.integration.postman_environment.json"
 
-npx --yes newman run "$COLLECTION"   --environment "$ENVIRONMENT"   --env-var "baseUrl=$BASE_URL"   --reporters cli   --timeout-request 30000   --bail
+args=(
+  run "$COLLECTION"
+  --environment "$ENVIRONMENT"
+  --env-var "baseUrl=$BASE_URL"
+  --reporters cli
+  --timeout-request 30000
+  --bail
+)
+
+if [ -n "${WORKSLIP_AUTH_TOKEN:-}" ]; then
+  args+=(--env-var "authToken=$WORKSLIP_AUTH_TOKEN")
+fi
+
+npx --yes newman "${args[@]}"

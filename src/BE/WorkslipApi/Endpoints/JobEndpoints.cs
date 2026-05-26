@@ -1,5 +1,8 @@
+using ArdalisResultStatus = Ardalis.Result.ResultStatus;
 using Workslip.Api.Helpers;
 using Workslip.Api.Services;
+using Workslip.Api.ViewModels;
+using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
 
@@ -14,25 +17,31 @@ public static class JobEndpoints
         group.MapPost("/", async (CreateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.CreateAsync(request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapGet("/", async (
-            Guid? organizationId,
             JobStatus? status,
             int? limit,
             int? offset,
             HttpContext httpContext,
+            ICurrentUserContext currentUser,
             IJobService service,
             CancellationToken cancellationToken) =>
         {
-            var jobs = await service.ListAsync(organizationId, status, limit, offset, cancellationToken);
-            var etag = HttpCacheHeaders.JobListEtag(jobs, organizationId, status, limit, offset);
+            var result = await service.ListAsync(status, limit, offset, cancellationToken);
+            if (!result.IsSuccess)
+            {
+                return ResultExtensions.ToHttpResult(result);
+            }
+
+            var jobs = result.Value;
+            var etag = HttpCacheHeaders.JobListEtag(jobs, currentUser.OrganizationId!.Value, status, limit, offset);
             HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
 
             return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
                 ? Results.StatusCode(StatusCodes.Status304NotModified)
-                : Results.Ok(jobs);
+                : Results.Ok(jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
         });
 
         group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
@@ -45,7 +54,7 @@ public static class JobEndpoints
 
                 return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
                     ? Results.StatusCode(StatusCodes.Status304NotModified)
-                    : Results.Ok(result.Value);
+                    : Results.Ok(JobViewModelBuilder.ToJob(result.Value));
             }
 
             return ResultExtensions.ToHttpResult(result);
@@ -54,7 +63,7 @@ public static class JobEndpoints
         group.MapGet("/{id:guid}/report-summary", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetReportSummaryAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         });
 
         group.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, IJobService service, CancellationToken cancellationToken) =>
@@ -67,7 +76,14 @@ public static class JobEndpoints
         {
             var result = await service.GetAsync(id, cancellationToken);
             if (!result.IsSuccess)
-                return Results.NotFound();
+            {
+                return result.Status switch
+                {
+                    ArdalisResultStatus.Unauthorized => Results.Unauthorized(),
+                    ArdalisResultStatus.Forbidden => Results.Forbid(),
+                    _ => Results.NotFound()
+                };
+            }
 
             var pdf = pdfService.Generate(result.Value, result.Value.Status);
             return Results.File(pdf, "application/pdf", $"rapport-{result.Value.ReportNumber}.pdf");
@@ -76,56 +92,56 @@ public static class JobEndpoints
         group.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.UpdateAsync(id, request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         });
 
         group.MapPost("/{id:guid}/submit", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.SubmitAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         });
 
-        group.MapPost("/{id:guid}/approve", async (Guid id, Guid? actorId, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/approve", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.ApproveAsync(id, actorId, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            var result = await service.ApproveAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         });
 
-        group.MapPost("/{id:guid}/reject", async (Guid id, Guid? actorId, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/reject", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.RejectAsync(id, actorId, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            var result = await service.RejectAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         });
 
         group.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/{id:guid}/restore", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.RestoreDeletionAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/{id:guid}/assign", async (Guid id, Guid? userId, IJobService jobService, CancellationToken cancellationToken) =>
         {
             
             var result = await jobService.AssignAsync(id, userId, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/{id:guid}/links", async (Guid id, CreateJobLinkRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.CreateLinkAsync(id, request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToLink);
         });
 
         group.MapGet("/{id:guid}/links", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetLinksAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return ResultExtensions.ToHttpResult(result, links => links.Select(JobViewModelBuilder.ToLink).ToArray());
         });
 
         group.MapDelete("/{id:guid}/links/{linkId:guid}", async (Guid id, Guid linkId, IJobService service, CancellationToken cancellationToken) =>

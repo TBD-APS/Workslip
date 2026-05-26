@@ -21,21 +21,23 @@ public sealed class UserEntraService(
 
         logger.LogInformation("Graph creating user. CorrelationId={CorrelationId} Email={Email} Upn={Upn}",correlationIdAccessor.CorrelationId, email, userPrincipalName);
 
+        var newUser = new User
+        {
+            AccountEnabled = true,
+            DisplayName = displayName,
+            MailNickname = mailNickname,
+            UserPrincipalName = userPrincipalName,
+            PasswordProfile = new PasswordProfile
+            {
+                Password = $"Tmp-{Guid.NewGuid():N}!aA1",
+                ForceChangePasswordNextSignIn = true
+            }
+        };
+
         User? user;
         try
         {
-            user = await graphClient.Users.PostAsync(new User
-            {
-                AccountEnabled = true,
-                DisplayName = displayName,
-                MailNickname = mailNickname,
-                UserPrincipalName = userPrincipalName,
-                PasswordProfile = new PasswordProfile
-                {
-                    Password = $"Tmp-{Guid.NewGuid():N}!aA1",
-                    ForceChangePasswordNextSignIn = true
-                }
-            }, cancellationToken: ct);
+            user = await graphClient.Users.PostAsync(newUser, cancellationToken: ct);
         }
         catch (InvalidOperationException ex)
         {

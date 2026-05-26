@@ -3,6 +3,7 @@ namespace Workslip.Domain.Models;
 public sealed class JobControlCheckRow
 {
     public Guid Id { get; init; }
+    public Guid OrganizationId { get; init; }
     public Guid ReportId { get; init; }
     public Guid SubcategoryDecisionId { get; init; }
     public string InstallationTypeId { get; init; } = string.Empty;

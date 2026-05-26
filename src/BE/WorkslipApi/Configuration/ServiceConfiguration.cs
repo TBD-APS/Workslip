@@ -1,7 +1,10 @@
 using Azure.Core;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Graph;
+using Workslip.Api.Helpers;
 using Workslip.Api.Services;
 using Workslip.Application;
+using Workslip.Application.Auth;
 using Workslip.Infrastructure;
 
 namespace Workslip.Api.Configuration;
@@ -14,9 +17,12 @@ public static class ServiceConfiguration
 
         builder.Services.AddOpenApi();
         builder.Services.AddHybridCache();
+        builder.Services.AddMemoryCache();
 
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
+        builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+        builder.Services.AddTransient<IClaimsTransformation, WorkslipUserClaimsTransformation>();
 
         builder.Services.AddWorkslipApplication();
         builder.Services.AddWorkslipInfrastructure();
