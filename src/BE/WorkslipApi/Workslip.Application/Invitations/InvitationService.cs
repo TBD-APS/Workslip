@@ -13,10 +13,17 @@ public sealed class InvitationService(
     IUserEntraService entraService,
     IOrganizationRepository organizationRepository,
     IEmailService emailService,
+    ICurrentUserContext currentUser,
     ILogger<InvitationService> logger) : IInvitationService
 {
-    public async Task<InviteUsersResponse> InviteUsersAsync(InviteUsersRequest request, CancellationToken cancellationToken)
+    public async Task<Result<InviteUsersResponse>> InviteUsersAsync(InviteUsersRequest request, CancellationToken cancellationToken)
     {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<InviteUsersResponse>.Unauthorized();
+        }
+
         var results = new List<InviteUserResult>();
 
         foreach (var email in request.Emails)
@@ -40,7 +47,7 @@ public sealed class InvitationService(
             var inviteRow = new InviteTokenRow
             {
                 Id = Guid.NewGuid(),
-                OrganizationId = request.OrganizationId,
+                OrganizationId = organizationId.Value,
                 Email = email,
                 Token = token,
                 Role = request.Role,
@@ -63,7 +70,7 @@ public sealed class InvitationService(
             }
         }
 
-        return new InviteUsersResponse(results);
+        return Result<InviteUsersResponse>.Success(new InviteUsersResponse(results));
     }
 
     public async Task<Result<AuthUserInfo>> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken)

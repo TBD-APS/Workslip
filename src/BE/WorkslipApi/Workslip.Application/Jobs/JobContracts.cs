@@ -37,7 +37,6 @@ public sealed record ControlInstallationTypeResponse(
     IReadOnlyList<ControlSubcategoryResponse> Subcategories);
 
 public sealed record CreateJobRequest(
-    Guid OrganizationId,
     Guid? CustomerId,
     string? ReportNumber,
     string? CustomerName,
@@ -94,6 +93,7 @@ public sealed record JobListItemResponse(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
     AssignedUserResponse? AssignedUser,
+    bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt);
 
 public sealed record JobReportResponse(
@@ -123,6 +123,7 @@ public sealed record JobReportResponse(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
     AssignedUserResponse? AssignedUser,
+    bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt);
 
 public sealed record CreateJobLinkRequest(
@@ -164,6 +165,7 @@ public sealed record JobReportSummaryResponse(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
     AssignedUserResponse? AssignedUser,
+    bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt);
 
 public sealed record JobReportSummaryCustomerResponse(

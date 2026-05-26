@@ -102,7 +102,7 @@
     },
     {
       "key": "apiScope",
-      "value": "api://4b36d921-1eaa-4d29-a1ba-412f07eaefe6/access_as_user",
+      "value": "api://7cf8e087-d981-47b9-b0ab-6680da239b94/access_as_user",
       "type": "string"
     },
     {
@@ -204,7 +204,7 @@
                 "organizations"
               ]
             },
-            "description": "Creates organization and initial admin user. Saves organizationId + userId on 201.",
+            "description": "Creates organization and initial admin user. Saves organizationId + userId on 200.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"{{organizationName}}\",\n  \"cvr\": \"{{organizationCvr}}\",\n  \"adminDisplayName\": \"{{adminDisplayName}}\",\n  \"adminEmail\": \"{{testEmail}}\",\n  \"adminPhone\": \"{{adminPhone}}\"\n}",
@@ -224,6 +224,7 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
+                  "pm.test('organization view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => { pm.expect(json.organization).to.not.have.property(field); pm.expect(json.user).to.not.have.property(field); }); });",
                   "pm.collectionVariables.set('organizationId', json.organization.id);",
                   "pm.collectionVariables.set('userId', json.user.id);",
                   "pm.test('organization id captured', function () { pm.expect(json.organization.id).to.be.a('string').and.not.empty; });",
@@ -413,7 +414,7 @@
             "description": "Creates a user in the organization. Saves userId on 201.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"email\": \"{{testEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -430,6 +431,7 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
+                  "pm.test('user view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
                   "pm.collectionVariables.set('userId', json.id);",
                   "pm.test('user id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
                   "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
@@ -462,7 +464,7 @@
             "description": "Covers create-user validation: email format, display name required, phone max length, and allowed roles.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"email\": \"not-an-email\",\n  \"displayName\": \"\",\n  \"phone\": \"123456789012345678901\",\n  \"role\": \"Owner\"\n}",
+              "raw": "{\n  \"email\": \"not-an-email\",\n  \"displayName\": \"\",\n  \"phone\": \"123456789012345678901\",\n  \"role\": \"Owner\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -512,27 +514,29 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });"
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('user view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "}"
                 ]
               }
             }
           ]
         },
         {
-          "name": "GET /api/users/organization/{organizationId}",
+          "name": "GET /api/users",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/users/organization/{{organizationId}}",
+              "raw": "{{baseUrl}}/api/users/",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
-                "users",
-                "organization",
-                "{{organizationId}}"
+                "users"
               ]
             },
             "description": "Lists users by organization."
@@ -545,6 +549,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('user list view model hides internal timestamps', function () { if (json.users.length > 0) ['createdAt', 'updatedAt'].forEach(field => pm.expect(json.users[0]).to.not.have.property(field)); });",
                   "pm.test('users list returned', function () { pm.expect(pm.response.json().users).to.be.an('array'); });"
                 ]
               }
@@ -591,7 +597,11 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('user view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "}"
                 ]
               }
             }
@@ -706,7 +716,7 @@
             "description": "Sends invite emails to new users. Requires Acs:Endpoint + Acs:SenderAddress configured.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"emails\": [\n    \"{{testEmail}}\"\n  ],\n  \"inviteBaseUrl\": \"{{inviteBaseUrl}}\",\n  \"role\": \"User\"\n}",
+              "raw": "{\n  \"emails\": [\n    \"{{testEmail}}\"\n  ],\n  \"inviteBaseUrl\": \"{{inviteBaseUrl}}\",\n  \"role\": \"User\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -935,7 +945,7 @@
             "description": "Creates draft job with installation-type grouped subcategory control checks, including Irrelevant as a true/false checkbox. Saves jobId.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"customerId\": null,\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"customerName\": \"Demo Kunde\",\n  \"customerAddress\": \"Demo Vej 1, 1000 København\",\n  \"customerEmail\": \"{{customerEmail}}\",\n  \"contactPerson\": \"Kunde Kontakt\",\n  \"phone\": \"+459****9999\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"klarTilFaktura\"\n  ],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
+              "raw": "{\n  \"customerId\": null,\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"customerName\": \"Demo Kunde\",\n  \"customerAddress\": \"Demo Vej 1, 1000 København\",\n  \"customerEmail\": \"{{customerEmail}}\",\n  \"contactPerson\": \"Kunde Kontakt\",\n  \"phone\": \"+459****9999\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"klarTilFaktura\"\n  ],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -952,11 +962,14 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
+                  "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
+                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.collectionVariables.set('jobId', json.id);",
                   "pm.test('customer email echoed', function () { pm.expect(pm.response.json().customerEmail).to.eql(pm.variables.get('customerEmail')); });",
                   "pm.test('control installation types echoed', function () { pm.expect(pm.response.json().controlInstallationTypes.length).to.be.above(0); });",
                   "pm.test('custom work kind echoed for Andet', function () { pm.expect(pm.response.json().customWorkKind).to.eql('Service'); });",
-                  "pm.test('new job is not scheduled for deletion', function () { pm.expect(json.deletionScheduledAt).to.be.oneOf([null, undefined]); });",
+                  "pm.test('control view model hides internal timestamps', function () { const subcategory = json.controlInstallationTypes?.[0]?.subcategories?.[0]; if (subcategory) { pm.expect(subcategory).to.not.have.property('createdAt'); pm.expect(subcategory).to.not.have.property('updatedAt'); const check = subcategory.controlChecks?.[0]; if (check) { pm.expect(check).to.not.have.property('createdAt'); pm.expect(check).to.not.have.property('updatedAt'); } } });",
                   "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
@@ -964,7 +977,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs draft incomplete",
+          "name": "POST /api/jobs incomplete draft save",
           "request": {
             "method": "POST",
             "header": [
@@ -984,10 +997,10 @@
                 ""
               ]
             },
-            "description": "RBJ-69: Saves incomplete job as Draft without requiring submit-only fields.",
+            "description": "RBJ-69: POST /api/jobs always saves Draft. Completeness is validated by POST /api/jobs/{id}/submit; payload is metadata and must not carry workflow flags.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"payload\": {\n    \"source\": \"postman\",\n    \"draft\": true\n  }\n}",
+              "raw": "{\n  \"payload\": {\n    \"source\": \"postman\",\n    \"scenario\": \"incomplete-draft-save\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1003,6 +1016,9 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
+                  "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
+                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.collectionVariables.set('draftJobId', json.id);",
                   "pm.test('draft status saved', function () { pm.expect(json.status).to.be.oneOf(['Draft', 0]); });",
                   "pm.test('draft allows missing submit-only fields', function () { pm.expect(json.customerName).to.be.oneOf([null, '']); pm.expect(json.workKind).to.be.oneOf([null, '']); });"
@@ -1036,7 +1052,7 @@
             "description": "Covers create-job shape validation and impossible-from-PWA duplicate/nested payload edge cases.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"00000000-0000-0000-0000-000000000000\",\n  \"reportNumber\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerName\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerAddress\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerEmail\": \"not-an-email\",\n  \"contactPerson\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"phone\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"installationTypes\": [\n    \"vand\",\n    \"VAND\"\n  ],\n  \"workKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customWorkKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"FAERDIG\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"\",\n              \"checked\": true,\n              \"note\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}",
+              "raw": "{\n  \"reportNumber\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerName\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerAddress\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerEmail\": \"not-an-email\",\n  \"contactPerson\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"phone\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"installationTypes\": [\n    \"vand\",\n    \"VAND\"\n  ],\n  \"workKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customWorkKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"FAERDIG\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"\",\n              \"checked\": true,\n              \"note\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1056,7 +1072,7 @@
                   "const errors = json.errors || {};",
                   "const keys = Object.keys(errors);",
                   "pm.test('job shape validation fields returned', function () {",
-                  "  pm.expect(keys).to.include.members(['OrganizationId', 'ReportNumber', 'CustomerName', 'CustomerAddress', 'CustomerEmail', 'ContactPerson', 'Phone', 'InstallationTypes', 'WorkKind', 'CustomWorkKind', 'ClosureFlags']);",
+                  "  pm.expect(keys).to.include.members(['ReportNumber', 'CustomerName', 'CustomerAddress', 'CustomerEmail', 'ContactPerson', 'Phone', 'InstallationTypes', 'WorkKind', 'CustomWorkKind', 'ClosureFlags']);",
                   "  pm.expect(keys.some(k => k.includes('ControlInstallationTypes') && k.includes('InstallationTypeId'))).to.eql(true);",
                   "  pm.expect(keys.some(k => k.includes('Subcategories') && k.includes('SubcategoryId'))).to.eql(true);",
                   "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('ItemId'))).to.eql(true);",
@@ -1091,7 +1107,7 @@
             "description": "Covers Application taxonomy validation: customWorkKind cannot be sent without workKind.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"customWorkKind\": \"Standalone custom value\"\n}",
+              "raw": "{\n  \"customWorkKind\": \"Standalone custom value\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1140,7 +1156,7 @@
             "description": "Draft may save serviceAndet without customWorkKind; submit validation must reject it because PWA shows \"Ret opgavetype\" for Andet.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"reportNumber\": \"CUSTOM-REQ-{{runId}}\",\n  \"customerName\": \"Custom WorkKind Kunde\",\n  \"customerAddress\": \"Testvej 2, 8000 Aarhus\",\n  \"customerEmail\": \"custom-required@example.com\",\n  \"taskDescription\": \"PWA Andet kræver ret opgavetype før submit.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"closureFlags\": [\n    \"faerdig\"\n  ]\n}",
+              "raw": "{\n  \"reportNumber\": \"CUSTOM-REQ-{{runId}}\",\n  \"customerName\": \"Custom WorkKind Kunde\",\n  \"customerAddress\": \"Testvej 2, 8000 Aarhus\",\n  \"customerEmail\": \"custom-required@example.com\",\n  \"taskDescription\": \"PWA Andet kræver ret opgavetype før submit.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"closureFlags\": [\n    \"faerdig\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1276,6 +1292,9 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
+                  "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
+                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.test('draft completion echoed', function () { pm.expect(json.id).to.eql(pm.variables.get('draftJobId')); pm.expect(json.status).to.be.oneOf(['Draft', 0]); pm.expect(json.customerName).to.eql('Draft Kunde'); pm.expect(json.workKind).to.eql('nyInstallation'); });"
                 ]
               }
@@ -1310,7 +1329,10 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.test('completed draft submitted', function () { pm.expect(json.id).to.eql(pm.variables.get('draftJobId')); pm.expect(json.status).to.be.oneOf(['Submitted', 1]); pm.expect(json.submittedAt).to.be.a('string'); });"
+                  "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
+                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
+                  "pm.test('completed draft submitted', function () { pm.expect(json.id).to.eql(pm.variables.get('draftJobId')); pm.expect(json.status).to.be.oneOf(['Submitted', 1]); });"
                 ]
               }
             }
@@ -1323,7 +1345,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/?organizationId={{organizationId}}&limit=50&offset=0",
+              "raw": "{{baseUrl}}/api/jobs/?limit=50&offset=0",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1332,11 +1354,6 @@
                 "jobs"
               ],
               "query": [
-                {
-                  "key": "organizationId",
-                  "value": "{{organizationId}}",
-                  "disabled": false
-                },
                 {
                   "key": "status",
                   "value": "Draft",
@@ -1354,7 +1371,7 @@
                 }
               ]
             },
-            "description": "Lists jobs. Optional filters: organizationId, status, limit, offset."
+            "description": "Lists jobs. Optional filters: status, limit, offset."
           },
           "response": [],
           "event": [
@@ -1364,8 +1381,11 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
                   "pm.test('jobs list uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
                   "pm.test('jobs list sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
+                  "pm.test('job list view model hides internal timestamps', function () { if (json.length > 0) ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json[0]).to.not.have.property(field)); });",
+                  "pm.test('job list view model exposes softDeleted flag', function () { if (json.length > 0) pm.expect(json[0].softDeleted).to.be.a('boolean'); });",
                   "pm.collectionVariables.set('jobsListEtag', pm.response.headers.get('ETag'));"
                 ]
               }
@@ -1402,7 +1422,11 @@
                   "  pm.test('job detail uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
                   "  pm.test('job detail sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
                   "  pm.collectionVariables.set('jobEtag', pm.response.headers.get('ETag'));",
-                  "  pm.test('job detail exposes deletion schedule', function () { const json = pm.response.json(); pm.expect(json).to.have.property('deletionScheduledAt'); });",
+                  "  const json = pm.response.json();",
+                  "  const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
+                  "  pm.test('job detail view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "  pm.test('job detail view model exposes softDeleted flag', function () { pm.expect(json.softDeleted).to.be.a('boolean'); });",
+                  "  pm.test('job detail controls hide internal timestamps', function () { const subcategory = json.controlInstallationTypes?.[0]?.subcategories?.[0]; if (subcategory) { pm.expect(subcategory).to.not.have.property('createdAt'); pm.expect(subcategory).to.not.have.property('updatedAt'); const check = subcategory.controlChecks?.[0]; if (check) { pm.expect(check).to.not.have.property('createdAt'); pm.expect(check).to.not.have.property('updatedAt'); } } });",
                   "}"
                 ]
               }
@@ -1436,6 +1460,8 @@
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
                   "if (pm.response.code === 200) {",
                   "  const json = pm.response.json();",
+                  "  pm.test('summary view model hides internal timestamps', function () { ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "  pm.test('summary view model exposes softDeleted flag', function () { pm.expect(json.softDeleted).to.be.a('boolean'); });",
                   "  pm.test('summary has customer view', function () { pm.expect(json.customer).to.be.an('object'); pm.expect(json.customer.name).to.be.a('string').and.not.empty; });",
                   "  pm.test('summary has work labels', function () { pm.expect(json.work).to.be.an('object'); pm.expect(json.work.workKindLabel).to.be.a('string').and.not.empty; });",
                   "  pm.test('summary has observations', function () { pm.expect(json.observations).to.be.an('object'); pm.expect(json.observations.taskDescription).to.be.a('string').and.not.empty; });",
@@ -1724,15 +1750,9 @@
                 "{{jobId}}",
                 "approve"
               ],
-              "query": [
-                {
-                  "key": "actorId",
-                  "value": "{{actorId}}",
-                  "disabled": true
-                }
-              ]
+              "query": []
             },
-            "description": "Transitions Submitted/InReview job to Approved. Optional actorId query parameter."
+            "description": "Transitions Submitted/InReview job to Approved. Actor is read from the bearer token."
           },
           "response": [],
           "event": [
@@ -1764,15 +1784,9 @@
                 "{{jobId}}",
                 "reject"
               ],
-              "query": [
-                {
-                  "key": "actorId",
-                  "value": "{{actorId}}",
-                  "disabled": true
-                }
-              ]
+              "query": []
             },
-            "description": "Transitions Submitted/InReview job to Rejected. Optional actorId query parameter."
+            "description": "Transitions Submitted/InReview job to Rejected. Actor is read from the bearer token."
           },
           "response": [],
           "event": [
@@ -1993,7 +2007,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('delete response marks job softDeleted', function () { pm.expect(json.softDeleted).to.eql(true); });",
+                  "  pm.test('delete response hides internal timestamps', function () { ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "}"
                 ]
               }
             }
@@ -2028,7 +2047,8 @@
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
                   "if (pm.response.code === 200) {",
                   "  const json = pm.response.json();",
-                  "  pm.test('job deletion schedule cleared', function () { pm.expect(json.deletionScheduledAt).to.be.oneOf([null, undefined]); });",
+                  "  pm.test('restore response view model hides internal timestamps', function () { ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "  pm.test('restore response marks job active', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "}"
                 ]
               }
@@ -2079,6 +2099,7 @@
                   "const json = pm.response.json();",
                   "pm.collectionVariables.set('linkId', json.id);",
                   "pm.test('link id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('link view model hides internal timestamp', function () { pm.expect(json).to.not.have.property('createdAt'); });",
                   "pm.test('linked report info returned', function () { pm.expect(json.linkedReportNumber).to.be.a('string'); });"
                 ]
               }

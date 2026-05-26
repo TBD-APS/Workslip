@@ -10,10 +10,12 @@ public static class AuthenticationConfiguration
     {
         var configuration = builder.Configuration;
 
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        builder.Services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddMicrosoftIdentityWebApi(configuration.GetSection("Azure:AdOAuth"));
 
-        builder.Services.AddAuthentication()
+        builder.Services
+            .AddAuthentication()
             .AddJwtBearer("LocalJwt", options =>
             {
                 options.TokenValidationParameters = JwtHelper.GetTokenValidationParameters(configuration);
