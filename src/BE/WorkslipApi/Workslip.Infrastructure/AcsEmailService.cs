@@ -14,7 +14,7 @@ public sealed class AcsEmailService(
     : IEmailService
 {
     private readonly string _acsEndpoint = new(
-        configuration["Azure:Acs:Endpoint"]
+        configuration["Azure:Acs:ConnectionString"]
         ?? throw new InvalidOperationException("ACS endpoint is not configured. Set Acs:Endpoint or ACS_ENDPOINT."));
 
     private readonly string _senderAddress = configuration["Azure:Acs:SenderAddress"]

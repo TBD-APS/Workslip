@@ -66,6 +66,20 @@ public sealed class JobService(
             return Result<JobReportResponse>.Invalid(errors);
         }
 
+        var taxonomyErrors = await ValidateDraftTaxonomyAsync(
+            request.WorkKind,
+            request.CustomWorkKind,
+            request.ClosureFlags,
+            cancellationToken);
+        if (taxonomyErrors.Count != 0)
+        {
+            logger.LogWarning("Job create taxonomy validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
+                request.OrganizationId,
+                ValidationFields(taxonomyErrors));
+
+            return Result<JobReportResponse>.Invalid(taxonomyErrors);
+        }
+
         var created = await repository.CreateAsync(request, cancellationToken);
         await InvalidateJobCachesAsync(created.Id, cancellationToken);
         logger.LogInformation(
@@ -191,6 +205,20 @@ public sealed class JobService(
                 ValidationFields(errors));
 
             return Result<JobReportResponse>.Invalid(errors);
+        }
+
+        var taxonomyErrors = await ValidateDraftTaxonomyAsync(
+            request.WorkKind,
+            request.CustomWorkKind,
+            request.ClosureFlags,
+            cancellationToken);
+        if (taxonomyErrors.Count != 0)
+        {
+            logger.LogWarning("Job update taxonomy validation failed. JobId: {JobId}. Fields: {ValidationFields}",
+                id,
+                ValidationFields(taxonomyErrors));
+
+            return Result<JobReportResponse>.Invalid(taxonomyErrors);
         }
 
         var updated = await repository.UpdateAsync(id, request, cancellationToken);
@@ -435,6 +463,67 @@ public sealed class JobService(
             report.SubmittedAt,
             report.AssignedUser,
             report.DeletionScheduledAt);
+    }
+
+    private async Task<List<ValidationError>> ValidateDraftTaxonomyAsync(
+        string? workKind,
+        string? customWorkKind,
+        IReadOnlyList<string>? closureFlags,
+        CancellationToken cancellationToken)
+    {
+        var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
+        return ValidateDraftTaxonomy(workKind, customWorkKind, closureFlags, taxonomy);
+    }
+
+    private static List<ValidationError> ValidateDraftTaxonomy(
+        string? workKind,
+        string? customWorkKind,
+        IReadOnlyList<string>? closureFlags,
+        JobTaxonomySnapshot taxonomy)
+    {
+        var errors = new List<ValidationError>();
+        var normalizedWorkKind = string.IsNullOrWhiteSpace(workKind) ? null : workKind.Trim();
+
+        if (normalizedWorkKind is null)
+        {
+            if (!string.IsNullOrWhiteSpace(customWorkKind))
+            {
+                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.CustomWorkKind), ErrorMessage = "Custom work kind requires a work kind." });
+            }
+        }
+        else if (!taxonomy.WorkKinds.TryGetValue(normalizedWorkKind, out var workKindDefinition))
+        {
+            errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = $"Unknown work kind '{normalizedWorkKind}'." });
+        }
+        else if (!workKindDefinition.RequiresCustomWorkKind && !string.IsNullOrWhiteSpace(customWorkKind))
+        {
+            errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.CustomWorkKind), ErrorMessage = "Custom work kind is only allowed for work kinds that require custom text." });
+        }
+
+        if (closureFlags is not null)
+        {
+            var normalizedClosureFlags = closureFlags
+                .Where(flag => !string.IsNullOrWhiteSpace(flag))
+                .Select(flag => flag.Trim())
+                .ToArray();
+
+            foreach (var flagId in normalizedClosureFlags.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!taxonomy.ClosureFlags.ContainsKey(flagId))
+                {
+                    errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.ClosureFlags), ErrorMessage = $"Unknown closure flag '{flagId}'." });
+                }
+            }
+
+            var hasExclusiveFlag = normalizedClosureFlags.Any(flagId =>
+                taxonomy.ClosureFlags.TryGetValue(flagId, out var flag) && flag.IsExclusive);
+            if (hasExclusiveFlag && normalizedClosureFlags.Length > 1)
+            {
+                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.ClosureFlags), ErrorMessage = "Exclusive closure flags cannot be combined with other closure flags." });
+            }
+        }
+
+        return errors;
     }
 
     private static List<ValidationError> ValidateReadyForSubmission(JobReportResponse report, JobTaxonomySnapshot taxonomy)

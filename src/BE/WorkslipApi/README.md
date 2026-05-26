@@ -82,6 +82,8 @@ Allowed values match the deployed customer PWA:
 
 `JobReports.CustomWorkKind` stores the PWA/API `customWorkKind` free-text value. It is only valid when `workKind` is `serviceAndet`; for the other work kinds it must be omitted/null. There is no `CustomerWorkKind` field in the active backend model.
 
+`JobTaxonomy` in configuration seeds `dbo.JobWorkKinds` and `dbo.JobClosureFlags` at startup. Keep API validation and FK data aligned through this taxonomy instead of hardcoding duplicate work-kind lists in validators.
+
 ## Naming rules
 
 Use these names consistently:

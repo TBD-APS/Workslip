@@ -59,14 +59,6 @@ resource configOAuthServerAppId 'Microsoft.AppConfiguration/configurationStores/
   }
 }
 
-resource configAcsEndpoint 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
-  parent: appConfiguration
-  name: 'Azure:Acs:Endpoint'
-  properties: {
-    value: acsEndpoint
-  }
-}
-
 resource configAcsSenderAddress 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
   name: 'Azure:Acs:SenderAddress'
@@ -115,7 +107,7 @@ resource SqlConnectionString 'Microsoft.AppConfiguration/configurationStores/key
 
 resource JwtSigninKeySecret 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
-  name: 'Jwt-SigningKey'
+  name: 'Jwt:SigningKey'
   properties: {
     value: string({ uri: jwtSigninKey })
     contentType: keyVaultReferenceContentType

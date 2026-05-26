@@ -11,7 +11,7 @@ public static class JwtHelper
     public static AuthTokenResponse GenerateToken(AuthUserInfo user, IConfiguration configuration)
     {
         var jwtSection = configuration.GetSection("Jwt");
-        var signingKey = jwtSection["SigningKey"]!;
+        var signingKey = configuration["Jwt-SigningKey"]!;
         var issuer = jwtSection["Issuer"]!;
         var audience = jwtSection["Audience"]!;
         var expiryMinutes = int.TryParse(jwtSection["ExpiryMinutes"], out var m) ? m : 60;
@@ -50,9 +50,9 @@ public static class JwtHelper
     {
         var jwtSection = configuration.GetSection("Jwt");
 
-        var signingKey = configuration["Jwt-SigningKey"]!;
         var issuer = jwtSection["Issuer"]!;
         var audience = jwtSection["Audience"]!;
+        var signingKey = configuration["Jwt-SigningKey"]!;
 
         return new TokenValidationParameters
         {

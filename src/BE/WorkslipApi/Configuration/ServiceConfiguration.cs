@@ -1,4 +1,4 @@
-using Azure.Identity;
+using Azure.Core;
 using Microsoft.Graph;
 using Workslip.Api.Services;
 using Workslip.Application;
@@ -25,12 +25,7 @@ public static class ServiceConfiguration
 
         builder.Services.AddSingleton<GraphServiceClient>(sp =>
         {
-            var managedIdentityClientId = configuration["Azure:ManagedIdentity:ClientId"]; 
-
-            if(managedIdentityClientId == null)
-                return new GraphServiceClient(new DefaultAzureCredential());
-
-            var credential = new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(managedIdentityClientId));
+            var credential = sp.GetRequiredService<TokenCredential>();
             return new GraphServiceClient(credential, ["https://graph.microsoft.com/.default"]);
         });
 

@@ -32,17 +32,13 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
             .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate installation type is not allowed.");
 
         RuleFor(x => x.WorkKind)
-            .Must(JobRequestValidationRules.BeKnownWorkKind).WithMessage("Unknown work kind '{PropertyValue}'.");
+            .MaximumLength(80).WithMessage("Work kind must not exceed 80 characters.");
 
         RuleFor(x => x.CustomWorkKind)
-            .MaximumLength(160).WithMessage("Custom work kind must not exceed 160 characters.")
-            .Must((request, customWorkKind) => JobRequestValidationRules.NotHaveCustomWorkKindOnFixedWorkKind(request.WorkKind, customWorkKind))
-            .WithMessage("Custom work kind is only allowed for work kinds that require custom text.");
+            .MaximumLength(160).WithMessage("Custom work kind must not exceed 160 characters.");
 
         RuleFor(x => x.ClosureFlags)
-            .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate closure flag is not allowed.")
-            .Must(JobRequestValidationRules.NotContainExclusiveWithOthers)
-            .WithMessage("'{PropertyValue}' cannot be combined with other closure flags.");
+            .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate closure flag is not allowed.");
 
         When(x => x.ControlInstallationTypes is not null, () =>
         {
