@@ -11,6 +11,19 @@ import { useAuthRequest, useAutoDiscovery, exchangeCodeAsync } from 'expo-auth-s
 import * as SecureStore from 'expo-secure-store';
 
 import { azureConfig, scopes, redirectUri, getDiscoveryUrl } from './config';
+{
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from 'react';
+import { useAuthRequest, useAutoDiscovery, exchangeCodeAsync } from 'expo-auth-session';
+import * as SecureStore from 'expo-secure-store';
+
+import { azureConfig, scopes, redirectUri, getDiscoveryUrl } from './config';
 
 type User = {
   sub: string;
@@ -162,6 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [promptAsync]);
 
   const logout = useCallback(async () => {
+    tokensRef.current = null;
+    await clearStorage();
     tokensRef.current = null;
     await clearStorage();
     setState({
