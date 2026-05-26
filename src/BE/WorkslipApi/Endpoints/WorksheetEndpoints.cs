@@ -1,4 +1,5 @@
-﻿using Workslip.Application.Auth;
+﻿using Workslip.Api.Helpers;
+using Workslip.Application.Worksheets;
 
 namespace Workslip.Api.Endpoints
 {
@@ -8,9 +9,10 @@ namespace Workslip.Api.Endpoints
         {
             var group = app.MapGroup("/api/worksheet").WithTags("worksheet");
 
-            group.MapPost("/orginization/{orginizationId}/jobs/{jobId}/worksheets", x =>
+            group.MapPost("/organization/{organizationId}/jobs/{jobId}/worksheets", async (CreateWorksheetRequest request, IWorksheetService service, CancellationToken cancellationToken) =>
             {
-                return null;
+                var result = await service.CreateAsync(request, cancellationToken);
+                return ResultExtensions.ToHttpResult(result);
             });
 
             return app;

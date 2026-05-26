@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddScoped<IJobLinkRepository, DapperJobLinkRepository>();
         services.AddScoped<IJobTaxonomyRepository, DapperJobTaxonomyRepository>();
         services.AddScoped<IOrganizationRepository, DapperOrganizationRepository>();
+        services.AddScoped<IWorksheetRepository, DapperWorksheetRepository>();
         services.AddScoped<IUserRepository, DapperUserRepository>();
         services.AddScoped<IInviteRepository, DapperInviteRepository>();
         services.AddScoped<IEmailService, AcsEmailService>();
