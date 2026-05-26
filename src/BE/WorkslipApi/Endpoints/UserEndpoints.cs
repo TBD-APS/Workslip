@@ -22,7 +22,7 @@ public static class UserEndpoints
         {
             var result = await service.GetAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
-        });
+        }).RequireAuthorization(AuthPolicies.RequireUser);
 
         group.MapGet("/organization/{organizationId}", async (Guid organizationId, IUserService service, CancellationToken cancellationToken) =>
         {
@@ -34,18 +34,12 @@ public static class UserEndpoints
         {
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
-        });
+        }).RequireAuthorization(AuthPolicies.RequireUser); 
 
         group.MapDelete("/{id}", async (Guid id, IUserService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
-        });
-
-        group.MapPost("/invite", async (InviteUsersRequest request, IInvitationService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.InviteUsersAsync(request, cancellationToken);
-            return Results.Ok(result);
         });
 
         return app;

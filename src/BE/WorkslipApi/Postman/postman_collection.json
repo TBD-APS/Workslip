@@ -532,7 +532,7 @@
       "name": "Invites",
       "item": [
         {
-          "name": "POST /api/users/invite",
+          "name": "POST /api/auth/invite",
           "request": {
             "method": "POST",
             "header": [
@@ -542,7 +542,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/users/invite",
+              "raw": "{{baseUrl}}/api/auth/invite",
               "host": [
                 "{{baseUrl}}"
               ],

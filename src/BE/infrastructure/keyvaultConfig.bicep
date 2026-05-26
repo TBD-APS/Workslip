@@ -25,7 +25,7 @@ resource sqlConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01
   }
 }
 
-var generatedSigningKey = uniqueString(subscription().id, resourceGroup().id, 'verysecretkeyformylocaljwt')
+var generatedSigningKey = guid(subscription().id, resourceGroup().id, 'verysecretkeyformylocaljwt')
 resource localJwtSigninKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'Jwt--SigningKey'

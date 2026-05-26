@@ -10,13 +10,11 @@ public static class JwtHelper
 {
     public static AuthTokenResponse GenerateToken(AuthUserInfo user, IConfiguration configuration)
     {
-        var jwtSection = configuration.GetSection("Jwt");
-        var signingKey = jwtSection["SigningKey"]!;
-        var issuer = jwtSection["Issuer"]!;
-        var audience = jwtSection["Audience"]!;
+
+        var tokenSection = GetTokenSection(configuration);
         var expiryMinutes = 60;
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenSection.SigningKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
@@ -31,8 +29,8 @@ public static class JwtHelper
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(expiryMinutes);
 
         var token = new JwtSecurityToken(
-            issuer: issuer,
-            audience: audience,
+            issuer: tokenSection.Issuer,
+            audience: tokenSection.Audience,
             claims: claims,
             expires: expiresAt.UtcDateTime,
             signingCredentials: credentials);
@@ -48,22 +46,37 @@ public static class JwtHelper
 
     public static TokenValidationParameters GetTokenValidationParameters(IConfiguration configuration)
     {
-        var jwtSection = configuration.GetSection("Jwt");
-
-        var issuer = jwtSection["Issuer"]!;
-        var audience = jwtSection["Audience"]!;
-        var signingKey = jwtSection["SigningKey"]!;
-
+        var tokenSection = GetTokenSection(configuration); 
         return new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = issuer,
-            ValidAudience = audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey ?? string.Empty)),
+            ValidIssuer = tokenSection.Issuer,
+            ValidAudience = tokenSection.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenSection.SigningKey ?? string.Empty)),
             ClockSkew = TimeSpan.Zero,
         };
     }
+
+    private static TokenSection GetTokenSection(IConfiguration configuration)
+    {
+        var jwtSection = configuration.GetSection("Jwt");
+
+        return new TokenSection()
+        {
+            Issuer = jwtSection["Issuer"]!,
+            Audience = jwtSection["Audience"]!,
+            SigningKey = jwtSection["SigningKey"]!
+        };
+    }
+
+    private record TokenSection
+    {
+        public required string Issuer { get; set; }
+        public required string Audience { get; set; }
+        public required string SigningKey { get; set; }
+    }
+    
 }

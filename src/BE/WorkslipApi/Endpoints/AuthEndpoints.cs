@@ -29,6 +29,12 @@ public static class AuthEndpoints
             return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
         });
 
+        group.MapPost("/invite", async (InviteUsersRequest request, IInvitationService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.InviteUsersAsync(request, cancellationToken);
+            return Results.Ok(result);
+        });
+
         return app;
     }
 }
