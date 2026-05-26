@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "NativeMobile",
+    "slug": "NativeMobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "nativepasskeydemo",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nativemobile.demo",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Secure your stored credentials with Face ID."
+      }
+    },
+    "android": {
+      "package": "com.nativemobile.demo",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "plugins": [
+      "expo-web-browser",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Secure your stored credentials with Face ID.",
+          "configureAndroidBackup": true
+        }
+      ],
+      "react-native-msal"
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b371618e-a321-4a08-a1c8-8eb39d9f9628"
+      }
+    }
+  }
+}
