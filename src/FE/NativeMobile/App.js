@@ -1,47 +1,43 @@
-import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
+import { LogtoProvider, type LogtoConfig } from '@logto/rn';
+import { useLogto } from '@logto/rn';
+import { Button } from 'react-native';
 
-import { AuthProvider, useAuth } from './src/auth/AuthContext';
-import LoginScreen from './src/screens/LoginScreen';
-import HomeScreen from './src/screens/HomeScreen';
+const config: LogtoConfig = {
+  endpoint: 'https://x2b5in.logto.app/',
+  appId: 'kfajj4qa53aqzxn0fu8bc',
+};
 
-WebBrowser.maybeCompleteAuthSession();
+const App = () => (
+  <LogtoProvider config={config}>
+    <YourAppContent />
+  </LogtoProvider>
+);
 
-function Root() {
-  const { isAuthenticated, isLoading } = useAuth();
+const Content = () => {
+  const { signIn, signOut, isAuthenticated } = useLogto();
 
-  if (isLoading) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
-
-  return isAuthenticated ? <HomeScreen /> : <LoginScreen />;
-}
-
-export default function App() {
   return (
-    <AuthProvider>
-      <StatusBar style="auto" />
-      <Root />
-    </AuthProvider>
+    <div>
+      {isAuthenticated ? (
+        <Button title="Sign out" onPress={async () => signOut()} />
+      ) : (
+        <Button title="Sign in" onPress={async () => signIn('nativepasskeydemo://callback')} />
+      )}
+    </div>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
-});
+const Content = () => {
+  const { getIdTokenClaims, isAuthenticated } = useLogto();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      getIdTokenClaims().then((claims) => {
+        setUser(claims); // { sub: '...', ... }
+      });
+    }
+  }, [isAuthenticated, getIdTokenClaims]);
+
+ // ...
+};
