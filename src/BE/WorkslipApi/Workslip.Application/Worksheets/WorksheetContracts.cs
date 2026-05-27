@@ -6,7 +6,6 @@ namespace Workslip.Application.Worksheets;
 /// Request contract for creating a worksheet.
 /// </summary>
 public sealed record CreateWorksheetRequest(
-    Guid OrganizationId,
     Guid JobId,
     Guid UserId,
     DateOnly WorkDate,

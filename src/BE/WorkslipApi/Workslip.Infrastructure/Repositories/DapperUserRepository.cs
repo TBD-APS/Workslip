@@ -24,26 +24,37 @@ public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory
         return row != null ? MapToData(row) : null;
     }
 
-    public async Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, string? email, CancellationToken cancellationToken)
+    public async Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, IReadOnlyCollection<string> emailCandidates, CancellationToken cancellationToken)
     {
         const string sql = """
             SELECT TOP (1) Id, OrganizationId, Email, DisplayName, Phone, EntraEmail, EntraId, Role, CreatedAt, UpdatedAt
             FROM dbo.Users
             WHERE (@EntraId IS NOT NULL AND EntraId = @EntraId)
-               OR (@Email IS NOT NULL AND (Email = @Email OR EntraEmail = @Email))
+               OR (@HasEmailCandidates = 1 AND (
+                    LOWER(LTRIM(RTRIM(ISNULL(Email, '')))) IN @EmailCandidates
+                    OR LOWER(LTRIM(RTRIM(ISNULL(EntraEmail, '')))) IN @EmailCandidates))
             ORDER BY
                 CASE
                     WHEN @EntraId IS NOT NULL AND EntraId = @EntraId THEN 0
-                    WHEN @Email IS NOT NULL AND EntraEmail = @Email THEN 1
-                    ELSE 2
+                    WHEN @HasEmailCandidates = 1 AND LOWER(LTRIM(RTRIM(ISNULL(EntraEmail, '')))) IN @EmailCandidates THEN 1
+                    WHEN @HasEmailCandidates = 1 AND LOWER(LTRIM(RTRIM(ISNULL(Email, '')))) IN @EmailCandidates THEN 2
+                    ELSE 3
                 END,
                 CreatedAt DESC
             """;
 
+        var normalizedEmailCandidates = NormalizeEmailCandidates(emailCandidates);
+        var sqlEmailCandidates = normalizedEmailCandidates.Length > 0 ? normalizedEmailCandidates : ["__no_email_candidate__"];
+
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var row = await connection.QueryFirstOrDefaultAsync<UserDataRow?>(new CommandDefinition(
             sql,
-            new { EntraId = NullIfWhiteSpace(entraId), Email = NullIfWhiteSpace(email) },
+            new
+            {
+                EntraId = NullIfWhiteSpace(entraId),
+                HasEmailCandidates = normalizedEmailCandidates.Length > 0 ? 1 : 0,
+                EmailCandidates = sqlEmailCandidates
+            },
             cancellationToken: cancellationToken));
         return row != null ? MapToData(row) : null;
     }
@@ -72,7 +83,7 @@ public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory
             VALUES (@Id, @OrganizationId, @Email, @DisplayName, @Phone, @EntraEmail, @EntraId, @Role, @CreatedAt, @UpdatedAt)";
 
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
-        
+
         var row = new UserDataRow
         {
             Id = user.Id,
@@ -118,6 +129,14 @@ public sealed class DapperUserRepository(ISqlConnectionFactory connectionFactory
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         await connection.ExecuteAsync(sql, new { Id = id, OrganizationId = organizationId });
     }
+
+    private static string[] NormalizeEmailCandidates(IEnumerable<string> emailCandidates) =>
+        emailCandidates
+            .Select(candidate => NullIfWhiteSpace(candidate)?.ToLowerInvariant())
+            .Where(candidate => candidate is not null)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Cast<string>()
+            .ToArray();
 
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

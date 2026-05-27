@@ -9,7 +9,7 @@ const config: LogtoConfig = {
 
 const App = () => (
   <LogtoProvider config={config}>
-    <YourAppContent />
+    <Content />
   </LogtoProvider>
 );
 

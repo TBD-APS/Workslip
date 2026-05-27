@@ -6,7 +6,7 @@ public interface IUserRepository
 {
     Task<UserDataRow?> GetByIdAsync(Guid id, Guid organizationId, CancellationToken cancellationToken);
     Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken);
-    Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, string? email, CancellationToken cancellationToken);
+    Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, IReadOnlyCollection<string> emailCandidates, CancellationToken cancellationToken);
     Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken);
     Task<int> GetCountByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken);
     Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken);

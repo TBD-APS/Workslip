@@ -15,6 +15,8 @@ public sealed class WorkslipUserClaimsTransformation(
     private const string RolesClaim = "roles";
     private const string EntraObjectIdClaim = "oid";
     private const string EntraObjectIdSchemaClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
+    private const string GuestUserMarker = "#ext#@";
+    private static readonly string[] EmailClaimTypes = [ClaimTypes.Email, "email", "preferred_username", ClaimTypes.Upn, "upn", "unique_name"];
     private static readonly MemoryCacheEntryOptions UserCacheOptions = new()
     {
         AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
@@ -38,29 +40,27 @@ public sealed class WorkslipUserClaimsTransformation(
         }
 
         var entraId = FirstClaimValue(principal, EntraObjectIdClaim, EntraObjectIdSchemaClaim);
-        var email = FirstClaimValue(principal, ClaimTypes.Email, "email", "preferred_username", ClaimTypes.Upn, "upn");
-        if (string.IsNullOrWhiteSpace(entraId) && string.IsNullOrWhiteSpace(email))
+        var emailCandidates = GetEmailCandidates(principal);
+        if (string.IsNullOrWhiteSpace(entraId) && emailCandidates.Count == 0)
         {
             return principal;
         }
 
-        var cacheKey = !string.IsNullOrWhiteSpace(entraId)
-            ? $"auth:user:entra:{entraId}"
-            : $"auth:user:email:{email!.Trim().ToLowerInvariant()}";
-
-        if (!cache.TryGetValue(cacheKey, out CachedWorkslipUser? user))
+        var cacheKeys = BuildCacheKeys(entraId, emailCandidates);
+        if (!TryGetCachedUser(cacheKeys, out var user))
         {
-            var row = await users.GetByExternalIdentityAsync(entraId, email, CancellationToken.None);
+            var row = await users.GetByExternalIdentityAsync(entraId, emailCandidates, CancellationToken.None);
             if (row is null)
             {
-                logger.LogWarning("Authenticated Entra user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailPresent={EmailPresent}.",
+                logger.LogWarning(
+                    "Authenticated Entra user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
                     !string.IsNullOrWhiteSpace(entraId),
-                    !string.IsNullOrWhiteSpace(email));
+                    emailCandidates.Count);
                 return principal;
             }
 
-            user = new CachedWorkslipUser(row.Id, row.OrganizationId, row.Role);
-            cache.Set(cacheKey, user, UserCacheOptions);
+            user = new CachedWorkslipUser(row.Id, row.OrganizationId, NormalizeRole(row.Role));
+            CacheUser(cacheKeys, user);
         }
 
         if (user is null)
@@ -72,6 +72,28 @@ public sealed class WorkslipUserClaimsTransformation(
         return principal;
     }
 
+    private bool TryGetCachedUser(IReadOnlyList<string> cacheKeys, out CachedWorkslipUser? user)
+    {
+        foreach (var cacheKey in cacheKeys)
+        {
+            if (cache.TryGetValue(cacheKey, out user))
+            {
+                return true;
+            }
+        }
+
+        user = null;
+        return false;
+    }
+
+    private void CacheUser(IReadOnlyList<string> cacheKeys, CachedWorkslipUser user)
+    {
+        foreach (var cacheKey in cacheKeys)
+        {
+            cache.Set(cacheKey, user, UserCacheOptions);
+        }
+    }
+
     private static bool HasClaim(ClaimsPrincipal principal, string type) =>
         principal.Claims.Any(claim => claim.Type == type && !string.IsNullOrWhiteSpace(claim.Value));
 
@@ -79,6 +101,87 @@ public sealed class WorkslipUserClaimsTransformation(
         claimTypes
             .Select(type => principal.FindFirst(type)?.Value)
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+    private static IReadOnlyList<string> GetEmailCandidates(ClaimsPrincipal principal) =>
+        EmailClaimTypes
+            .SelectMany(type => principal.FindAll(type).Select(claim => claim.Value))
+            .SelectMany(ExpandEmailCandidate)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static IEnumerable<string> ExpandEmailCandidate(string? rawValue)
+    {
+        var normalized = NormalizeValue(rawValue, lowercase: true);
+        if (normalized is null)
+        {
+            yield break;
+        }
+
+        yield return normalized;
+
+        var guestEmail = TryExtractGuestEmail(normalized);
+        if (!string.IsNullOrWhiteSpace(guestEmail) && !string.Equals(guestEmail, normalized, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return guestEmail;
+        }
+    }
+
+    private static IReadOnlyList<string> BuildCacheKeys(string? entraId, IReadOnlyList<string> emailCandidates)
+    {
+        var cacheKeys = new List<string>();
+        var normalizedEntraId = NormalizeValue(entraId, lowercase: true);
+        if (normalizedEntraId is not null)
+        {
+            cacheKeys.Add($"auth:user:entra:{normalizedEntraId}");
+        }
+
+        cacheKeys.AddRange(emailCandidates.Select(email => $"auth:user:email:{email}"));
+        return cacheKeys;
+    }
+
+    private static string? TryExtractGuestEmail(string normalizedValue)
+    {
+        var markerIndex = normalizedValue.IndexOf(GuestUserMarker, StringComparison.Ordinal);
+        if (markerIndex <= 0)
+        {
+            return null;
+        }
+
+        var alias = normalizedValue[..markerIndex];
+        var separatorIndex = alias.LastIndexOf('_');
+        if (separatorIndex <= 0 || separatorIndex == alias.Length - 1)
+        {
+            return null;
+        }
+
+        var localPart = alias[..separatorIndex];
+        var domainPart = alias[(separatorIndex + 1)..];
+        if (!domainPart.Contains('.'))
+        {
+            return null;
+        }
+
+        return $"{localPart}@{domainPart}";
+    }
+
+    private static string NormalizeRole(string role)
+    {
+        var normalized = NormalizeValue(role, lowercase: false);
+        return normalized?.ToLowerInvariant() switch
+        {
+            "superadmin" => "Superadmin",
+            "admin" => "Admin",
+            "user" => "User",
+            _ => normalized ?? role
+        };
+    }
+
+    private static string? NormalizeValue(string? value, bool lowercase) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : lowercase
+                ? value.Trim().ToLowerInvariant()
+                : value.Trim();
 
     private static void ReplaceWorkslipClaims(ClaimsIdentity identity, CachedWorkslipUser user)
     {

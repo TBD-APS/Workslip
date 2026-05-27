@@ -280,6 +280,34 @@ public static class WorkslipDatabaseModel
             [
                 "create unique index UX_InviteTokens_Token on dbo.InviteTokens (Token);",
                 "create index IX_InviteTokens_Email on dbo.InviteTokens (Email) where Consumed = 0;"
+            ]),
+
+        new(
+            "Worksheets",
+            typeof(WorksheetRow),
+            [
+                Column.RequiredGuid(nameof(WorksheetRow.Id)),
+                Column.RequiredGuid(nameof(WorksheetRow.OrganizationId)),
+                Column.RequiredGuid(nameof(WorksheetRow.JobId)),
+                Column.RequiredGuid(nameof(WorksheetRow.UserId)),
+                Column.OptionalDate(nameof(WorksheetRow.WorkDate)),
+                Column.RequiredDecimal(nameof(WorksheetRow.HoursWorked)), // Allow up to 999.99 hours
+                Column.RequiredBit(nameof(WorksheetRow.SleptOnJob)),
+                Column.RequiredDateTimeOffset(nameof(WorksheetRow.CreatedAt), "sysutcdatetime()"),
+                Column.RequiredDateTimeOffset(nameof(WorksheetRow.UpdatedAt), "sysutcdatetime()")
+            ],
+            [
+                "constraint FK_Worksheets_Organizations foreign key (OrganizationId) references dbo.Organizations(Id)",
+                "constraint FK_Worksheets_Jobs foreign key (JobId) references dbo.JobReports(Id)", // Using JobReports for JobId
+                "constraint FK_Worksheets_Users foreign key (UserId) references dbo.Users(Id)",
+                "constraint CK_Worksheets_HoursWorked check (HoursWorked >= 0 and HoursWorked <= 24)", // Enforce business rule at DB level
+                "constraint CK_Worksheets_HoursWorked_Increment check ((HoursWorked * 4) % 1 = 0)" // Ensures quarter-hour increments
+            ],
+            [
+                "create unique index UX_Worksheets_Organization_Id on dbo.Worksheets (OrganizationId, Id);",
+                "create index IX_Worksheets_JobId on dbo.Worksheets (JobId);",
+                "create index IX_Worksheets_UserId on dbo.Worksheets (UserId);",
+                "create index IX_Worksheets_WorkDate on dbo.Worksheets (WorkDate);"
             ])
     ];
 
@@ -346,6 +374,7 @@ public static class WorkslipDatabaseModel
         public static Column RequiredBit(string name, string? defaultSql = null) => new(name, "bit", true, defaultSql);
         public static Column RequiredInt(string name, string? defaultSql = null) => new(name, "int", true, defaultSql);
         public static Column OptionalDate(string name) => new(name, "date", false);
+        public static Column RequiredDecimal(string name) => new (name, "decimal", true);
         public static Column RequiredDateTimeOffset(string name, string? defaultSql = null) => new(name, "datetimeoffset", true, defaultSql);
         public static Column OptionalDateTimeOffset(string name) => new(name, "datetimeoffset", false);
 
