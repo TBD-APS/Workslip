@@ -120,7 +120,7 @@ public sealed record JobReportResponse(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
-    IReadOnlyList<WorksheetEntryResponse> Worksheets,
+    IReadOnlyList<WorksheetUserGroupResponse> Worksheets,
     bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt,
     decimal? TotalHours);
@@ -146,10 +146,14 @@ public sealed record JobLinkResponse(
     string LinkType,
     DateTimeOffset CreatedAt);
 
-public sealed record WorksheetEntryResponse(
-    string DisplayName,
+public sealed record WorksheetDayEntry(
     DateOnly WorkDate,
     decimal HoursWorked);
+
+public sealed record WorksheetUserGroupResponse(
+    string DisplayName,
+    decimal TotalHours,
+    IReadOnlyList<WorksheetDayEntry> Entries);
 
 public sealed record AssignedUserResponse(
     Guid Id,

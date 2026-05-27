@@ -28,10 +28,14 @@ public sealed record CustomerViewModel(
     string? ContactPerson,
     string? Phone);
 
-public sealed record WorksheetEntryViewModel(
-    string DisplayName,
+public sealed record WorksheetDayViewModel(
     DateOnly WorkDate,
     decimal HoursWorked);
+
+public sealed record WorksheetUserGroupViewModel(
+    string DisplayName,
+    decimal TotalHours,
+    IReadOnlyList<WorksheetDayViewModel> Entries);
 
 public sealed record JobListItemViewModel(
     Guid Id,
@@ -66,7 +70,7 @@ public sealed record JobViewModel(
     IReadOnlyList<ControlInstallationTypeViewModel> ControlInstallationTypes,
     IReadOnlyList<JobLinkInfoResponse> Links,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
-    IReadOnlyList<WorksheetEntryViewModel> Worksheets,
+    IReadOnlyList<WorksheetUserGroupViewModel> Worksheets,
     bool SoftDeleted,
     decimal? TotalHours);
 
@@ -127,7 +131,7 @@ public static class JobViewModelBuilder
         job.ControlInstallationTypes.Select(ToControlInstallationType).ToArray(),
         job.Links,
         job.AssignedUsers,
-        job.Worksheets.Select(ToWorksheetEntry).ToArray(),
+        job.Worksheets.Select(ToWorksheetUserGroup).ToArray(),
         job.SoftDeleted,
         job.TotalHours);
 
@@ -153,10 +157,14 @@ public static class JobViewModelBuilder
         link.LinkedStatus,
         link.LinkType);
 
-    private static WorksheetEntryViewModel ToWorksheetEntry(WorksheetEntryResponse entry) => new(
-        entry.DisplayName,
+    private static WorksheetDayViewModel ToWorksheetDay(WorksheetDayEntry entry) => new(
         entry.WorkDate,
         entry.HoursWorked);
+
+    private static WorksheetUserGroupViewModel ToWorksheetUserGroup(WorksheetUserGroupResponse group) => new(
+        group.DisplayName,
+        group.TotalHours,
+        group.Entries.Select(ToWorksheetDay).ToArray());
 
     private static CustomerViewModel? ToCustomerViewModel(CustomerInfo? customer) =>
         customer is null ? null : new(
