@@ -164,7 +164,7 @@
       "name": "Health",
       "item": [
         {
-          "name": "GET /health",
+          "name": "/health",
           "request": {
             "method": "GET",
             "header": [],
@@ -200,7 +200,7 @@
       "name": "Organizations",
       "item": [
         {
-          "name": "POST /api/organizations",
+          "name": "/api/organizations",
           "request": {
             "method": "POST",
             "header": [
@@ -253,7 +253,7 @@
           ]
         },
         {
-          "name": "POST /api/organizations invalid validation",
+          "name": "/api/organizations invalid validation",
           "request": {
             "method": "POST",
             "header": [
@@ -307,7 +307,7 @@
       "name": "Auth",
       "item": [
         {
-          "name": "POST /api/auth/send-code",
+          "name": "/api/auth/send-code",
           "request": {
             "method": "POST",
             "header": [
@@ -352,7 +352,7 @@
           ]
         },
         {
-          "name": "POST /api/auth/verify-code",
+          "name": "/api/auth/verify-code",
           "request": {
             "method": "POST",
             "header": [
@@ -409,7 +409,7 @@
       "name": "Users",
       "item": [
         {
-          "name": "POST /api/users",
+          "name": "/api/users",
           "request": {
             "method": "POST",
             "header": [
@@ -459,7 +459,7 @@
           ]
         },
         {
-          "name": "POST /api/users invalid validation",
+          "name": "/api/users invalid validation",
           "request": {
             "method": "POST",
             "header": [
@@ -508,7 +508,7 @@
           ]
         },
         {
-          "name": "GET /api/users/{id}",
+          "name": "/api/users/{id}",
           "request": {
             "method": "GET",
             "header": [],
@@ -543,7 +543,7 @@
           ]
         },
         {
-          "name": "GET /api/users",
+          "name": "/api/users",
           "request": {
             "method": "GET",
             "header": [],
@@ -576,7 +576,7 @@
           ]
         },
         {
-          "name": "PATCH /api/users/{id}",
+          "name": "/api/users/{id}",
           "request": {
             "method": "PATCH",
             "header": [
@@ -626,7 +626,7 @@
           ]
         },
         {
-          "name": "PATCH /api/users/{id} invalid validation",
+          "name": "/api/users/{id} invalid validation",
           "request": {
             "method": "PATCH",
             "header": [
@@ -675,7 +675,7 @@
           ]
         },
         {
-          "name": "DELETE /api/users/{id}",
+          "name": "/api/users/{id}",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -711,7 +711,7 @@
       "name": "Invites",
       "item": [
         {
-          "name": "POST /api/auth/invite",
+          "name": "/api/auth/invite",
           "request": {
             "method": "POST",
             "header": [
@@ -771,7 +771,7 @@
           ]
         },
         {
-          "name": "POST /api/auth/verify-invite (valid token)",
+          "name": "/api/auth/verify-invite (valid token)",
           "request": {
             "method": "POST",
             "header": [
@@ -835,7 +835,7 @@
           ]
         },
         {
-          "name": "POST /api/auth/verify-invite (consumed token)",
+          "name": "/api/auth/verify-invite (consumed token)",
           "request": {
             "method": "POST",
             "header": [
@@ -888,7 +888,7 @@
           ]
         },
         {
-          "name": "POST /api/auth/verify-invite (invalid token)",
+          "name": "/api/auth/verify-invite (invalid token)",
           "request": {
             "method": "POST",
             "header": [
@@ -941,7 +941,7 @@
       "name": "Jobs",
       "item": [
         {
-          "name": "POST /api/jobs",
+          "name": "/api/jobs",
           "request": {
             "method": "POST",
             "header": [
@@ -996,114 +996,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs incomplete draft save",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                ""
-              ]
-            },
-            "description": "RBJ-69: POST /api/jobs always saves Draft. Completeness is validated by POST /api/jobs/{id}/submit; payload is metadata and must not carry workflow flags.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"payload\": {\n    \"source\": \"postman\",\n    \"scenario\": \"incomplete-draft-save\"\n  }\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
-                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
-                  "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
-                  "pm.collectionVariables.set('draftJobId', json.id);",
-                  "pm.test('draft status saved', function () { pm.expect(json.status).to.be.oneOf(['Draft', 0]); });",
-                  "pm.test('draft allows missing submit-only fields', function () { pm.expect(json.customerName).to.be.oneOf([null, '']); pm.expect(json.workKind).to.be.oneOf([null, '']); });"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "POST /api/jobs invalid shape validation",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                ""
-              ]
-            },
-            "description": "Covers create-job shape validation and impossible-from-PWA duplicate/nested payload edge cases.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reportNumber\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerName\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerAddress\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerEmail\": \"not-an-email\",\n  \"contactPerson\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"phone\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"installationTypes\": [\n    \"vand\",\n    \"VAND\"\n  ],\n  \"workKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customWorkKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"FAERDIG\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"\",\n              \"checked\": true,\n              \"note\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
-                  "const json = pm.response.json();",
-                  "const errors = json.errors || {};",
-                  "const keys = Object.keys(errors);",
-                  "pm.test('job shape validation fields returned', function () {",
-                  "  pm.expect(keys).to.include.members(['ReportNumber', 'CustomerName', 'CustomerAddress', 'CustomerEmail', 'ContactPerson', 'Phone', 'InstallationTypes', 'WorkKind', 'CustomWorkKind', 'ClosureFlags']);",
-                  "  pm.expect(keys.some(k => k.includes('ControlInstallationTypes') && k.includes('InstallationTypeId'))).to.eql(true);",
-                  "  pm.expect(keys.some(k => k.includes('Subcategories') && k.includes('SubcategoryId'))).to.eql(true);",
-                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('ItemId'))).to.eql(true);",
-                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('Note'))).to.eql(true);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/jobs customWorkKind without workKind",
+          "name": "/api/jobs customWorkKind without workKind",
           "request": {
             "method": "POST",
             "header": [
@@ -1152,7 +1045,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs serviceAndet draft missing customWorkKind",
+          "name": "/api/jobs serviceAndet draft missing customWorkKind",
           "request": {
             "method": "POST",
             "header": [
@@ -1200,7 +1093,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{customDraftJobId}/submit missing customWorkKind",
+          "name": "/api/jobs/{customDraftJobId}/submit missing customWorkKind",
           "request": {
             "method": "POST",
             "header": [],
@@ -1236,7 +1129,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{draftJobId}/submit invalid incomplete draft",
+          "name": "/api/jobs/{draftJobId}/submit invalid incomplete draft",
           "request": {
             "method": "POST",
             "header": [],
@@ -1272,7 +1165,7 @@
           "response": []
         },
         {
-          "name": "PATCH /api/jobs/{draftJobId} complete draft",
+          "name": "/api/jobs/{draftJobId} complete draft",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1322,7 +1215,7 @@
           "response": []
         },
         {
-          "name": "POST /api/jobs/{draftJobId}/submit completed draft",
+          "name": "/api/jobs/{draftJobId}/submit completed draft",
           "request": {
             "method": "POST",
             "header": [],
@@ -1359,7 +1252,7 @@
           "response": []
         },
         {
-          "name": "GET /api/jobs",
+          "name": "/api/jobs",
           "request": {
             "method": "GET",
             "header": [],
@@ -1413,7 +1306,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}",
+          "name": "/api/jobs/{id}",
           "request": {
             "method": "GET",
             "header": [],
@@ -1453,7 +1346,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/report-summary",
+          "name": "/api/jobs/{id}/report-summary",
           "request": {
             "method": "GET",
             "header": [],
@@ -1491,7 +1384,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/history",
+          "name": "/api/jobs/{id}/history",
           "request": {
             "method": "GET",
             "header": [],
@@ -1526,7 +1419,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/report",
+          "name": "/api/jobs/{id}/report",
           "request": {
             "method": "GET",
             "header": [],
@@ -1548,7 +1441,7 @@
           "response": []
         },
         {
-          "name": "GET /api/jobs/{id} with If-None-Match",
+          "name": "/api/jobs/{id} with If-None-Match",
           "request": {
             "method": "GET",
             "header": [
@@ -1585,7 +1478,7 @@
           ]
         },
         {
-          "name": "PATCH /api/jobs/{id}",
+          "name": "/api/jobs/{id}",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1631,7 +1524,7 @@
           ]
         },
         {
-          "name": "PATCH /api/jobs/{id} invalid shape validation",
+          "name": "/api/jobs/{id} invalid shape validation",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1686,7 +1579,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/submit",
+          "name": "/api/jobs/{id}/submit",
           "request": {
             "method": "POST",
             "header": [],
@@ -1719,7 +1612,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/approve",
+          "name": "/api/jobs/{id}/approve",
           "request": {
             "method": "POST",
             "header": [],
@@ -1753,7 +1646,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/reject",
+          "name": "/api/jobs/{id}/reject",
           "request": {
             "method": "POST",
             "header": [],
@@ -1787,7 +1680,7 @@
           ]
         },
         {
-          "name": "PATCH /api/jobs/{id} invalid closure flags",
+          "name": "/api/jobs/{id} invalid closure flags",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1832,7 +1725,7 @@
           ]
         },
         {
-          "name": "PATCH /api/jobs/{id} unknown workKind",
+          "name": "/api/jobs/{id} unknown workKind",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1877,7 +1770,7 @@
           ]
         },
         {
-          "name": "PATCH /api/jobs/{id} customWorkKind on fixed workKind",
+          "name": "/api/jobs/{id} customWorkKind on fixed workKind",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1922,7 +1815,7 @@
           ]
         },
         {
-          "name": "PATCH /api/jobs/{id} unknown closure flag",
+          "name": "/api/jobs/{id} unknown closure flag",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1967,7 +1860,7 @@
           ]
         },
         {
-          "name": "DELETE /api/jobs/{id}",
+          "name": "/api/jobs/{id}",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -2003,7 +1896,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/restore/deletion",
+          "name": "/api/jobs/{id}/restore/deletion",
           "request": {
             "method": "POST",
             "header": [],
@@ -2041,7 +1934,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/links",
+          "name": "/api/jobs/{id}/links",
           "request": {
             "method": "POST",
             "header": [
@@ -2092,7 +1985,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/links self link invalid",
+          "name": "/api/jobs/{id}/links self link invalid",
           "request": {
             "method": "POST",
             "header": [
@@ -2142,7 +2035,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/links",
+          "name": "/api/jobs/{id}/links",
           "request": {
             "method": "GET",
             "header": [],
@@ -2174,7 +2067,7 @@
           ]
         },
         {
-          "name": "DELETE /api/jobs/{id}/links/{linkId}",
+          "name": "/api/jobs/{id}/links/{linkId}",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -2207,7 +2100,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/assign",
+          "name": "/api/jobs/{id}/assign",
           "request": {
             "method": "POST",
             "header": [
@@ -2267,7 +2160,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/history after assign",
+          "name": "/api/jobs/{id}/history after assign",
           "request": {
             "method": "GET",
             "header": [],
@@ -2305,7 +2198,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/assign empty userIds invalid",
+          "name": "/api/jobs/{id}/assign empty userIds invalid",
           "request": {
             "method": "POST",
             "header": [
