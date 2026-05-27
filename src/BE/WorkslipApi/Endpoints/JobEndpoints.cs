@@ -72,7 +72,7 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result);
         });
 
-        group.MapGet("/{id:guid}/report", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
+        group.MapGet("/{id:guid}/report/pdf", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
         {
             var result = await service.GetAsync(id, cancellationToken);
             if (!result.IsSuccess)
@@ -95,21 +95,9 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         });
 
-        group.MapPost("/{id:guid}/submit", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.SubmitAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
-        });
-
-        group.MapPost("/{id:guid}/approve", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.ApproveAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
-        });
-
-        group.MapPost("/{id:guid}/reject", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.RejectAsync(id, cancellationToken);
+            var result = await service.ChangeStatusAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         });
 
@@ -119,37 +107,19 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
-        group.MapPost("/{id:guid}/restore", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/restore/deletion", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.RestoreDeletionAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
-        group.MapPost("/{id:guid}/assign", async (Guid id, Guid? userId, IJobService jobService, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
         {
-            
-            var result = await jobService.AssignAsync(id, userId, cancellationToken);
+            var result = await jobService.AssignAsync(id, request.UserIds, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
-        group.MapPost("/{id:guid}/links", async (Guid id, CreateJobLinkRequest request, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.CreateLinkAsync(id, request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToLink);
-        });
-
-        group.MapGet("/{id:guid}/links", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.GetLinksAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, links => links.Select(JobViewModelBuilder.ToLink).ToArray());
-        });
-
-        group.MapDelete("/{id:guid}/links/{linkId:guid}", async (Guid id, Guid linkId, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.DeleteLinkAsync(id, linkId, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
-        });
-
+       
         return app;
     }
 }

@@ -47,6 +47,7 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
         }
 
         await ValidateColumnsAsync(connection, cancellationToken);
+        await BackfillJobAssignmentsAsync(connection, cancellationToken);
         await SeedJobTaxonomyAsync(connection, cancellationToken);
     }
 
@@ -128,6 +129,35 @@ public sealed class WorkslipSchemaRunner(ISqlConnectionFactory connectionFactory
                 },
                 cancellationToken: cancellationToken));
         }
+    }
+
+    private static async Task BackfillJobAssignmentsAsync(
+        System.Data.IDbConnection connection,
+        CancellationToken cancellationToken)
+    {
+        var hasLegacyAssignedUserId = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            "select case when col_length('dbo.JobReports', 'AssignedUserId') is null then 0 else 1 end;",
+            cancellationToken: cancellationToken));
+
+        if (hasLegacyAssignedUserId == 0)
+        {
+            return;
+        }
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            insert into dbo.JobAssignments (Id, OrganizationId, ReportId, UserId, AssignedByUserId, AssignedAt)
+            select newid(), report.OrganizationId, report.Id, report.AssignedUserId, report.AssignedUserId, report.CreatedAt
+            from dbo.JobReports report
+            where report.AssignedUserId is not null
+              and not exists (
+                  select 1
+                  from dbo.JobAssignments assignment
+                  where assignment.OrganizationId = report.OrganizationId
+                    and assignment.ReportId = report.Id
+                    and assignment.UserId = report.AssignedUserId);
+            """,
+            cancellationToken: cancellationToken));
     }
 
     private static async Task ValidateColumnsAsync(

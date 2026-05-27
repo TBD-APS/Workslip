@@ -12,7 +12,7 @@
     },
     {
       "key": "organizationId",
-      "value": "00000000-0000-0000-0000-000000000000",
+      "value": "f01cc945-5bd1-4c81-993e-56a468235256",
       "type": "string"
     },
     {
@@ -22,7 +22,7 @@
     },
     {
       "key": "jobId",
-      "value": "00000000-0000-0000-0000-000000000000",
+      "value": "f4efdcdf-9d2c-407a-a7ba-be0dcc245826",
       "type": "string"
     },
     {
@@ -132,6 +132,21 @@
     {
       "key": "customDraftJobId",
       "value": ""
+    },
+    {
+      "key": "creatorUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assigneeUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assigneeEmail",
+      "value": "assignee@example.com",
+      "type": "string"
     }
   ],
   "auth": {
@@ -149,7 +164,7 @@
       "name": "Health",
       "item": [
         {
-          "name": "GET /health",
+          "name": "/health",
           "request": {
             "method": "GET",
             "header": [],
@@ -185,7 +200,7 @@
       "name": "Organizations",
       "item": [
         {
-          "name": "POST /api/organizations",
+          "name": "/api/organizations",
           "request": {
             "method": "POST",
             "header": [
@@ -226,9 +241,11 @@
                   "const json = pm.response.json();",
                   "pm.test('organization view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => { pm.expect(json.organization).to.not.have.property(field); pm.expect(json.user).to.not.have.property(field); }); });",
                   "pm.collectionVariables.set('organizationId', json.organization.id);",
+                  "pm.collectionVariables.set('actorId', json.user.id);",
+                  "pm.collectionVariables.set('creatorUserId', json.user.id);",
                   "pm.collectionVariables.set('userId', json.user.id);",
                   "pm.test('organization id captured', function () { pm.expect(json.organization.id).to.be.a('string').and.not.empty; });",
-                  "pm.test('user id captured', function () { pm.expect(json.user.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('creator user id captured', function () { pm.expect(json.user.id).to.be.a('string').and.not.empty; });",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
@@ -236,7 +253,7 @@
           ]
         },
         {
-          "name": "POST /api/organizations invalid validation",
+          "name": "/api/organizations invalid validation",
           "request": {
             "method": "POST",
             "header": [
@@ -290,7 +307,7 @@
       "name": "Auth",
       "item": [
         {
-          "name": "POST /api/auth/send-code",
+          "name": "/api/auth/send-code",
           "request": {
             "method": "POST",
             "header": [
@@ -335,7 +352,7 @@
           ]
         },
         {
-          "name": "POST /api/auth/verify-code",
+          "name": "/api/auth/verify-code",
           "request": {
             "method": "POST",
             "header": [
@@ -392,7 +409,7 @@
       "name": "Users",
       "item": [
         {
-          "name": "POST /api/users",
+          "name": "/api/users",
           "request": {
             "method": "POST",
             "header": [
@@ -414,7 +431,7 @@
             "description": "Creates a user in the organization. Saves userId on 201.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
+              "raw": "{\n  \"email\": \"{{assigneeEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -433,7 +450,8 @@
                   "const json = pm.response.json();",
                   "pm.test('user view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
                   "pm.collectionVariables.set('userId', json.id);",
-                  "pm.test('user id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
+                  "pm.collectionVariables.set('assigneeUserId', json.id);",
+                  "pm.test('assignee user id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
                   "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
@@ -441,7 +459,7 @@
           ]
         },
         {
-          "name": "POST /api/users invalid validation",
+          "name": "/api/users invalid validation",
           "request": {
             "method": "POST",
             "header": [
@@ -490,7 +508,7 @@
           ]
         },
         {
-          "name": "GET /api/users/{id}",
+          "name": "/api/users/{id}",
           "request": {
             "method": "GET",
             "header": [],
@@ -525,7 +543,7 @@
           ]
         },
         {
-          "name": "GET /api/users",
+          "name": "/api/users",
           "request": {
             "method": "GET",
             "header": [],
@@ -558,7 +576,7 @@
           ]
         },
         {
-          "name": "PATCH /api/users/{id}",
+          "name": "/api/users/{id}",
           "request": {
             "method": "PATCH",
             "header": [
@@ -608,7 +626,7 @@
           ]
         },
         {
-          "name": "PATCH /api/users/{id} invalid validation",
+          "name": "/api/users/{id} invalid validation",
           "request": {
             "method": "PATCH",
             "header": [
@@ -657,7 +675,7 @@
           ]
         },
         {
-          "name": "DELETE /api/users/{id}",
+          "name": "/api/users/{id}",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -693,7 +711,7 @@
       "name": "Invites",
       "item": [
         {
-          "name": "POST /api/auth/invite",
+          "name": "/api/auth/invite",
           "request": {
             "method": "POST",
             "header": [
@@ -753,7 +771,7 @@
           ]
         },
         {
-          "name": "POST /api/auth/verify-invite (valid token)",
+          "name": "/api/auth/verify-invite (valid token)",
           "request": {
             "method": "POST",
             "header": [
@@ -817,7 +835,7 @@
           ]
         },
         {
-          "name": "POST /api/auth/verify-invite (consumed token)",
+          "name": "/api/auth/verify-invite (consumed token)",
           "request": {
             "method": "POST",
             "header": [
@@ -870,7 +888,7 @@
           ]
         },
         {
-          "name": "POST /api/auth/verify-invite (invalid token)",
+          "name": "/api/auth/verify-invite (invalid token)",
           "request": {
             "method": "POST",
             "header": [
@@ -923,7 +941,7 @@
       "name": "Jobs",
       "item": [
         {
-          "name": "POST /api/jobs",
+          "name": "/api/jobs",
           "request": {
             "method": "POST",
             "header": [
@@ -945,7 +963,7 @@
             "description": "Creates draft job with installation-type grouped subcategory control checks, including Irrelevant as a true/false checkbox. Saves jobId.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customerId\": null,\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"customerName\": \"Demo Kunde\",\n  \"customerAddress\": \"Demo Vej 1, 1000 København\",\n  \"customerEmail\": \"{{customerEmail}}\",\n  \"contactPerson\": \"Kunde Kontakt\",\n  \"phone\": \"+459****9999\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"klarTilFaktura\"\n  ],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
+              "raw": "{\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Demo Kunde\",\n    \"address\": \"Demo Vej 1, 1000 København\",\n    \"email\": \"{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\"\n],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -966,117 +984,11 @@
                   "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
                   "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.collectionVariables.set('jobId', json.id);",
-                  "pm.test('customer email echoed', function () { pm.expect(pm.response.json().customerEmail).to.eql(pm.variables.get('customerEmail')); });",
-                  "pm.test('control installation types echoed', function () { pm.expect(pm.response.json().controlInstallationTypes.length).to.be.above(0); });",
-                  "pm.test('custom work kind echoed for Andet', function () { pm.expect(pm.response.json().customWorkKind).to.eql('Service'); });",
-                  "pm.test('control view model hides internal timestamps', function () { const subcategory = json.controlInstallationTypes?.[0]?.subcategories?.[0]; if (subcategory) { pm.expect(subcategory).to.not.have.property('createdAt'); pm.expect(subcategory).to.not.have.property('updatedAt'); const check = subcategory.controlChecks?.[0]; if (check) { pm.expect(check).to.not.have.property('createdAt'); pm.expect(check).to.not.have.property('updatedAt'); } } });",
-                  "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/jobs incomplete draft save",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                ""
-              ]
-            },
-            "description": "RBJ-69: POST /api/jobs always saves Draft. Completeness is validated by POST /api/jobs/{id}/submit; payload is metadata and must not carry workflow flags.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"payload\": {\n    \"source\": \"postman\",\n    \"scenario\": \"incomplete-draft-save\"\n  }\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
-                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
-                  "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
-                  "pm.collectionVariables.set('draftJobId', json.id);",
-                  "pm.test('draft status saved', function () { pm.expect(json.status).to.be.oneOf(['Draft', 0]); });",
-                  "pm.test('draft allows missing submit-only fields', function () { pm.expect(json.customerName).to.be.oneOf([null, '']); pm.expect(json.workKind).to.be.oneOf([null, '']); });"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "POST /api/jobs invalid shape validation",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                ""
-              ]
-            },
-            "description": "Covers create-job shape validation and impossible-from-PWA duplicate/nested payload edge cases.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reportNumber\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerName\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerAddress\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerEmail\": \"not-an-email\",\n  \"contactPerson\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"phone\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"installationTypes\": [\n    \"vand\",\n    \"VAND\"\n  ],\n  \"workKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customWorkKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"FAERDIG\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"\",\n              \"checked\": true,\n              \"note\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
-                  "const json = pm.response.json();",
-                  "const errors = json.errors || {};",
-                  "const keys = Object.keys(errors);",
-                  "pm.test('job shape validation fields returned', function () {",
-                  "  pm.expect(keys).to.include.members(['ReportNumber', 'CustomerName', 'CustomerAddress', 'CustomerEmail', 'ContactPerson', 'Phone', 'InstallationTypes', 'WorkKind', 'CustomWorkKind', 'ClosureFlags']);",
-                  "  pm.expect(keys.some(k => k.includes('ControlInstallationTypes') && k.includes('InstallationTypeId'))).to.eql(true);",
-                  "  pm.expect(keys.some(k => k.includes('Subcategories') && k.includes('SubcategoryId'))).to.eql(true);",
-                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('ItemId'))).to.eql(true);",
-                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('Note'))).to.eql(true);",
+                  "pm.test('customer email echoed', function () { pm.expect(json.customer.email).to.eql(pm.variables.get('customerEmail')); });",
+                  "pm.test('control installation types echoed', function () { pm.expect(json.controlInstallationTypes.length).to.be.above(0); });",
+                  "pm.test('creator auto-assigned', function () {",
+                  "  pm.expect(json.assignedUsers).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(json.assignedUsers.map(user => user.id)).to.include(pm.variables.get('creatorUserId'));",
                   "});"
                 ]
               }
@@ -1084,263 +996,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs customWorkKind without workKind",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                ""
-              ]
-            },
-            "description": "Covers Application taxonomy validation: customWorkKind cannot be sent without workKind.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"customWorkKind\": \"Standalone custom value\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
-                  "const json = pm.response.json();",
-                  "const errors = json.errors || {};",
-                  "const keys = Object.keys(errors);",
-                  "pm.test('custom work kind requires work kind', function () { pm.expect(keys).to.include('CustomWorkKind'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/jobs serviceAndet draft missing customWorkKind",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                ""
-              ]
-            },
-            "description": "Draft may save serviceAndet without customWorkKind; submit validation must reject it because PWA shows \"Ret opgavetype\" for Andet.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reportNumber\": \"CUSTOM-REQ-{{runId}}\",\n  \"customerName\": \"Custom WorkKind Kunde\",\n  \"customerAddress\": \"Testvej 2, 8000 Aarhus\",\n  \"customerEmail\": \"custom-required@example.com\",\n  \"taskDescription\": \"PWA Andet kræver ret opgavetype før submit.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"closureFlags\": [\n    \"faerdig\"\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK draft accepted before submit', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "pm.collectionVariables.set('customDraftJobId', json.id);",
-                  "pm.test('custom draft id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/jobs/{customDraftJobId}/submit missing customWorkKind",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{customDraftJobId}}/submit",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{customDraftJobId}}",
-                "submit"
-              ]
-            },
-            "description": "Covers submit-time taxonomy completeness for the PWA Andet flow."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
-                  "const json = pm.response.json();",
-                  "const errors = json.errors || {};",
-                  "const keys = Object.keys(errors);",
-                  "pm.test('submit requires custom work kind for serviceAndet', function () { pm.expect(keys).to.include('CustomWorkKind'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/jobs/{draftJobId}/submit invalid incomplete draft",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{draftJobId}}/submit",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{draftJobId}}",
-                "submit"
-              ]
-            },
-            "description": "RBJ-69: Submit validates completeness and rejects incomplete drafts."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
-                  "const json = pm.response.json();",
-                  "const errors = json.errors || {};",
-                  "const keys = Object.keys(errors);",
-                  "pm.test('submit incomplete draft fields returned', function () { pm.expect(keys).to.include.members(['ReportNumber', 'CustomerName', 'CustomerAddress', 'TaskDescription', 'InstallationTypes', 'WorkKind']); });"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "PATCH /api/jobs/{draftJobId} complete draft",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{draftJobId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{draftJobId}}"
-              ]
-            },
-            "description": "RBJ-69: Completes a previously incomplete draft.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reportNumber\": \"{{reportNumber}}-DRAFT\",\n  \"customerName\": \"Draft Kunde\",\n  \"customerAddress\": \"Draft Vej 2, 1000 København\",\n  \"customerEmail\": \"{{customerEmail}}\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Draft er nu udfyldt.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"nyInstallation\",\n  \"closureFlags\": [\n    \"faerdig\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
-                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
-                  "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
-                  "pm.test('draft completion echoed', function () { pm.expect(json.id).to.eql(pm.variables.get('draftJobId')); pm.expect(json.status).to.be.oneOf(['Draft', 0]); pm.expect(json.customerName).to.eql('Draft Kunde'); pm.expect(json.workKind).to.eql('nyInstallation'); });"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "POST /api/jobs/{draftJobId}/submit completed draft",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{draftJobId}}/submit",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{draftJobId}}",
-                "submit"
-              ]
-            },
-            "description": "RBJ-69: Completed draft can be submitted."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
-                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
-                  "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
-                  "pm.test('completed draft submitted', function () { pm.expect(json.id).to.eql(pm.variables.get('draftJobId')); pm.expect(json.status).to.be.oneOf(['Submitted', 1]); });"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "GET /api/jobs",
+          "name": "/api/jobs",
           "request": {
             "method": "GET",
             "header": [],
@@ -1385,6 +1041,7 @@
                   "pm.test('jobs list uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
                   "pm.test('jobs list sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
                   "pm.test('job list view model hides internal timestamps', function () { if (json.length > 0) ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json[0]).to.not.have.property(field)); });",
+                  "pm.test('job list view model exposes assignedUsers array', function () { if (json.length > 0) pm.expect(json[0].assignedUsers).to.be.an('array'); });",
                   "pm.test('job list view model exposes softDeleted flag', function () { if (json.length > 0) pm.expect(json[0].softDeleted).to.be.a('boolean'); });",
                   "pm.collectionVariables.set('jobsListEtag', pm.response.headers.get('ETag'));"
                 ]
@@ -1393,7 +1050,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}",
+          "name": "/api/jobs/{id}",
           "request": {
             "method": "GET",
             "header": [],
@@ -1425,8 +1082,7 @@
                   "  const json = pm.response.json();",
                   "  const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
                   "  pm.test('job detail view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
-                  "  pm.test('job detail view model exposes softDeleted flag', function () { pm.expect(json.softDeleted).to.be.a('boolean'); });",
-                  "  pm.test('job detail controls hide internal timestamps', function () { const subcategory = json.controlInstallationTypes?.[0]?.subcategories?.[0]; if (subcategory) { pm.expect(subcategory).to.not.have.property('createdAt'); pm.expect(subcategory).to.not.have.property('updatedAt'); const check = subcategory.controlChecks?.[0]; if (check) { pm.expect(check).to.not.have.property('createdAt'); pm.expect(check).to.not.have.property('updatedAt'); } } });",
+                  "  pm.test('job detail exposes assignedUsers array', function () { pm.expect(json.assignedUsers).to.be.an('array'); });",
                   "}"
                 ]
               }
@@ -1434,7 +1090,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/report-summary",
+          "name": "/api/jobs/{id}/report-summary",
           "request": {
             "method": "GET",
             "header": [],
@@ -1472,7 +1128,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/history",
+          "name": "/api/jobs/{id}/history",
           "request": {
             "method": "GET",
             "header": [],
@@ -1507,12 +1163,12 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/history pagination clamps",
+          "name": "/api/jobs/{id}/report/pdf",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/history?limit=999&offset=-10",
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/report/pdf",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1520,43 +1176,8 @@
                 "api",
                 "jobs",
                 "{{jobId}}",
-                "history"
-              ]
-            },
-            "description": "Covers history endpoint limit/offset edge-case normalization."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  pm.test('history clamp still returns bounded array', function () { pm.expect(json).to.be.an('array'); pm.expect(json.length).to.be.at.most(200); });",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "GET /api/jobs/{id}/report",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/report",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}",
-                "report"
+                "report",
+                "pdf"
               ]
             },
             "description": "Exports the job report as a 4V05 PDF matching the original paper report layout."
@@ -1564,7 +1185,7 @@
           "response": []
         },
         {
-          "name": "GET /api/jobs/{id} with If-None-Match",
+          "name": "/api/jobs/{id} with If-None-Match",
           "request": {
             "method": "GET",
             "header": [
@@ -1601,7 +1222,7 @@
           ]
         },
         {
-          "name": "PATCH /api/jobs/{id}",
+          "name": "/api/jobs/{id}",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1624,7 +1245,7 @@
             "description": "Updates job fields, customer email, closure flags, and installation-type grouped control checks.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customerEmail\": \"opdateret-kunde@example.com\",\n  \"remarks\": \"Opdateret fra Postman.\",\n  \"closureFlags\": [\n    \"faerdig\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": true,\n              \"note\": \"Fortsat OK\"\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Opdateret teknisk observation.\"\n}",
+              "raw": "{\n  \"customer\": {\n    \"email\": \"opdateret-kunde@example.com\"\n  },\n  \"remarks\": \"Opdateret fra Postman.\",\n  \"closureFlags\": [\n    \"faerdig\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": true,\n              \"note\": \"Fortsat OK\"\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Opdateret teknisk observation.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1647,9 +1268,9 @@
           ]
         },
         {
-          "name": "PATCH /api/jobs/{id} invalid shape validation",
+          "name": "/api/jobs/{id}/status",
           "request": {
-            "method": "PATCH",
+            "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
@@ -1657,57 +1278,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}"
-              ]
-            },
-            "description": "Covers update-job shape validation and duplicate/nested edge cases.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reportNumber\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerName\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerAddress\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customerEmail\": \"not-an-email\",\n  \"contactPerson\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"phone\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"installationTypes\": [\n    \"vand\",\n    \"VAND\"\n  ],\n  \"workKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"customWorkKind\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"closureFlags\": [\n    \"faerdig\",\n    \"FAERDIG\"\n  ],\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"\",\n              \"checked\": true,\n              \"note\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n            }\n          ]\n        }\n      ]\n    }\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
-                  "const json = pm.response.json();",
-                  "const errors = json.errors || {};",
-                  "const keys = Object.keys(errors);",
-                  "pm.test('job shape validation fields returned', function () {",
-                  "  pm.expect(keys).to.include.members(['ReportNumber', 'CustomerName', 'CustomerAddress', 'CustomerEmail', 'ContactPerson', 'Phone', 'InstallationTypes', 'WorkKind', 'CustomWorkKind', 'ClosureFlags']);",
-                  "  pm.expect(keys.some(k => k.includes('ControlInstallationTypes') && k.includes('InstallationTypeId'))).to.eql(true);",
-                  "  pm.expect(keys.some(k => k.includes('Subcategories') && k.includes('SubcategoryId'))).to.eql(true);",
-                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('ItemId'))).to.eql(true);",
-                  "  pm.expect(keys.some(k => k.includes('ControlChecks') && k.includes('Note'))).to.eql(true);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/jobs/{id}/submit",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/submit",
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/status",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1715,10 +1286,19 @@
                 "api",
                 "jobs",
                 "{{jobId}}",
-                "submit"
+                "status"
               ]
             },
-            "description": "Transitions Draft/Rejected job to Submitted."
+            "description": "Transitions job to Submitted, Approved, or Rejected. Status is sent in the request body.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Submitted\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": [],
           "event": [
@@ -1735,255 +1315,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/approve",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/approve",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}",
-                "approve"
-              ],
-              "query": []
-            },
-            "description": "Transitions Submitted/InReview job to Approved. Actor is read from the bearer token."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/jobs/{id}/reject",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/reject",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}",
-                "reject"
-              ],
-              "query": []
-            },
-            "description": "Transitions Submitted/InReview job to Rejected. Actor is read from the bearer token."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "PATCH /api/jobs/{id} invalid closure flags",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}"
-              ]
-            },
-            "description": "Validates closure flag exclusivity: ikkeFaerdig cannot combine with other flags.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"closureFlags\": [\n    \"ikkeFaerdig\",\n    \"faerdig\"\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "PATCH /api/jobs/{id} unknown workKind",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}"
-              ]
-            },
-            "description": "Validates workKind against database-backed JobWorkKinds taxonomy.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"workKind\": \"ukendt\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "PATCH /api/jobs/{id} customWorkKind on fixed workKind",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}"
-              ]
-            },
-            "description": "Validates customWorkKind is only allowed for work kinds configured to require custom text.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"workKind\": \"nyInstallation\",\n  \"customWorkKind\": \"Må ikke gemmes\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "PATCH /api/jobs/{id} unknown closure flag",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}"
-              ]
-            },
-            "description": "Validates closureFlags against database-backed JobClosureFlags taxonomy.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"closureFlags\": [\n    \"ukendtFlag\"\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "DELETE /api/jobs/{id}",
+          "name": "/api/jobs/{id}",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -2019,12 +1351,12 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/restore",
+          "name": "/api/jobs/{id}/restore/deletion",
           "request": {
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/restore",
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/restore/deletion",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2032,7 +1364,8 @@
                 "api",
                 "jobs",
                 "{{jobId}}",
-                "restore"
+                "restore",
+                "deletion"
               ]
             },
             "description": "Restores a job before its scheduled deletion runs. Requires admin."
@@ -2056,7 +1389,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/links",
+          "name": "/api/jobs/{id}/links",
           "request": {
             "method": "POST",
             "header": [
@@ -2107,7 +1440,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/links self link invalid",
+          "name": "/api/jobs/{id}/links self link invalid",
           "request": {
             "method": "POST",
             "header": [
@@ -2157,7 +1490,7 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/links",
+          "name": "/api/jobs/{id}/links",
           "request": {
             "method": "GET",
             "header": [],
@@ -2189,7 +1522,7 @@
           ]
         },
         {
-          "name": "DELETE /api/jobs/{id}/links/{linkId}",
+          "name": "/api/jobs/{id}/links/{linkId}",
           "request": {
             "method": "DELETE",
             "header": [],
@@ -2222,49 +1555,7 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/assign",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign?userId={{userId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}",
-                "assign"
-              ]
-            },
-            "description": "Assigns a job to a user through the query-bound userId parameter."
-          },
-          "body": {
-            "mode": "raw",
-            "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) { pm.test('assigned user returned when available', function () { pm.expect(pm.response.json().assignedUser).to.exist; }); }",
-                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/jobs/{id}/assign/null (unassign)",
+          "name": "/api/jobs/{id}/assign",
           "request": {
             "method": "POST",
             "header": [
@@ -2285,11 +1576,20 @@
                 "assign"
               ]
             },
-            "description": "Unassigns a job by omitting the query-bound userId parameter."
+            "description": "Assigns a job to a user through the query-bound userId parameter.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [\n    \"{{creatorUserId}}\",\n    \"{{assigneeUserId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "body": {
             "mode": "raw",
-            "raw": "{\n  \"userId\": null\n}"
+            "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
           },
           "event": [
             {
@@ -2298,7 +1598,16 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) { pm.test('assigned user cleared', function () { pm.expect(pm.response.json().assignedUser).to.be.oneOf([null, undefined]); }); }",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const ids = json.assignedUsers.map(user => user.id);",
+                  "  pm.test('multiple assigned users returned', function () {",
+                  "    pm.expect(json.assignedUsers).to.be.an('array');",
+                  "    pm.expect(ids).to.include(pm.variables.get('creatorUserId'));",
+                  "    pm.expect(ids).to.include(pm.variables.get('assigneeUserId'));",
+                  "  });",
+                  "  pm.test('legacy assignedUser removed', function () { pm.expect(json).to.not.have.property('assignedUser'); });",
+                  "}",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
@@ -2320,7 +1629,8 @@
           "  pm.collectionVariables.set('runId', runId);",
           "  pm.collectionVariables.set('organizationCvr', numericTail.padStart(8, '0'));",
           "  pm.collectionVariables.set('organizationName', `Integration VVS ${runId}`);",
-          "  pm.collectionVariables.set('testEmail', `rbj+${runId}@17v3ygzs.mailosaur.net`);",
+          "  pm.collectionVariables.set('testEmail', `rbj@17v3ygzs.mailosaur.net`);",
+          "  pm.collectionVariables.set('assigneeEmail', `assignee+${runId}@17v3ygzs.mailosaur.net`);",
           "  pm.collectionVariables.set('adminDisplayName', `Integration Admin ${runId}`);",
           "  pm.collectionVariables.set('adminPhone', '+4512345678');",
           "  pm.collectionVariables.set('userDisplayName', `Integration User ${runId}`);",

@@ -9,21 +9,9 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
         RuleFor(x => x.ReportNumber)
             .MaximumLength(80).WithMessage("Report number must not exceed 80 characters.");
 
-        RuleFor(x => x.CustomerName)
-            .MaximumLength(240).WithMessage("Customer name must not exceed 240 characters.");
-
-        RuleFor(x => x.CustomerAddress)
-            .MaximumLength(500).WithMessage("Customer address must not exceed 500 characters.");
-
-        RuleFor(x => x.CustomerEmail)
-            .EmailAddress().WithMessage("Customer email is invalid.")
-            .When(x => !string.IsNullOrWhiteSpace(x.CustomerEmail));
-
-        RuleFor(x => x.ContactPerson)
-            .MaximumLength(200).WithMessage("Contact person must not exceed 200 characters.");
-
-        RuleFor(x => x.Phone)
-            .MaximumLength(80).WithMessage("Phone must not exceed 80 characters.");
+        RuleFor(x => x.Customer)
+            .SetValidator(new CustomerInfoValidator()!)
+            .When(x => x.Customer is not null);
 
         RuleFor(x => x.InstallationTypes)
             .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate installation type is not allowed.");

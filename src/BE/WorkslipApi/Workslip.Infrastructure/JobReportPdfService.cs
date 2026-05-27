@@ -136,15 +136,15 @@ public sealed class JobReportPdfService : IJobReportPdfService
             {
                 row.RelativeItem().Column(c =>
                 {
-                    c.Item().Element(e => Field(e, "Kunde", job.CustomerName ?? "-"));
-                    c.Item().Element(e => Field(e, "Email", job.CustomerEmail ?? "-"));
+                    c.Item().Element(e => Field(e, "Kunde", job.Customer?.Name ?? "-"));
+                    c.Item().Element(e => Field(e, "Email", job.Customer?.Email ?? "-"));
                 });
                 row.ConstantItem(20);
                 row.RelativeItem().Column(c =>
                 {
-                    c.Item().Element(e => Field(e, "Adresse", job.CustomerAddress ?? "-"));
-                    c.Item().Element(e => Field(e, "Kontaktperson", job.ContactPerson ?? "-"));
-                    c.Item().Element(e => Field(e, "Telefon", job.Phone ?? "-"));
+                    c.Item().Element(e => Field(e, "Adresse", job.Customer?.Address ?? "-"));
+                    c.Item().Element(e => Field(e, "Kontaktperson", job.Customer?.ContactPerson ?? "-"));
+                    c.Item().Element(e => Field(e, "Telefon", job.Customer?.Phone ?? "-"));
                 });
             });
         });

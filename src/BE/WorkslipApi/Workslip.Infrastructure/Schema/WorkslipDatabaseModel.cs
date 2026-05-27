@@ -128,28 +128,48 @@ public static class WorkslipDatabaseModel
                 Column.OptionalString(nameof(JobReportRow.CustomWorkKind), 160),
                 Column.OptionalString(nameof(JobReportRow.Remarks)),
                 Column.RequiredString(nameof(JobReportRow.ClosureFlagsJson), defaultSql: "'[]'"),
-                 Column.OptionalString(nameof(JobReportRow.PayloadJson)),
-                 Column.OptionalGuid(nameof(JobReportRow.AssignedUserId)),
-                 Column.RequiredBit(nameof(JobReportRow.IsSoftDeleted), "0"),
-                 Column.RequiredDateTimeOffset(nameof(JobReportRow.CreatedAt)),
-                 Column.RequiredDateTimeOffset(nameof(JobReportRow.UpdatedAt)),
-                 Column.OptionalDateTimeOffset(nameof(JobReportRow.SubmittedAt)),
-                 Column.OptionalDateTimeOffset(nameof(JobReportRow.DeletionScheduledAt))
+                Column.OptionalString(nameof(JobReportRow.PayloadJson)),
+                Column.RequiredBit(nameof(JobReportRow.IsSoftDeleted), "0"),
+                Column.RequiredDateTimeOffset(nameof(JobReportRow.CreatedAt)),
+                Column.RequiredDateTimeOffset(nameof(JobReportRow.UpdatedAt)),
+                Column.OptionalDateTimeOffset(nameof(JobReportRow.SubmittedAt)),
+                Column.OptionalDateTimeOffset(nameof(JobReportRow.DeletionScheduledAt))
             ],
             [
                 "constraint FK_JobReports_Organizations foreign key (OrganizationId) references dbo.Organizations(Id)",
                 "constraint FK_JobReports_Customers foreign key (OrganizationId, CustomerId) references dbo.Customers(OrganizationId, Id)",
                 "constraint FK_JobReports_JobWorkKinds foreign key (WorkKind) references dbo.JobWorkKinds(Id)",
-                 "constraint CK_JobReports_Status check (Status in ('Draft', 'Submitted', 'InReview', 'Approved', 'Rejected', 'Archived'))",
-                 "constraint CK_JobReports_InstallationTypesJson_IsJson check (isjson(InstallationTypesJson) = 1)",
-                 "constraint CK_JobReports_ClosureFlagsJson_IsJson check (isjson(ClosureFlagsJson) = 1)",
-                 "constraint CK_JobReports_PayloadJson_IsJson check (PayloadJson is null or isjson(PayloadJson) = 1)",
-                 "constraint FK_JobReports_AssignedUsers foreign key (OrganizationId, AssignedUserId) references dbo.Users(OrganizationId, Id)"
+                "constraint CK_JobReports_Status check (Status in ('Draft', 'Submitted', 'InReview', 'Approved', 'Rejected', 'Archived'))",
+                "constraint CK_JobReports_InstallationTypesJson_IsJson check (isjson(InstallationTypesJson) = 1)",
+                "constraint CK_JobReports_ClosureFlagsJson_IsJson check (isjson(ClosureFlagsJson) = 1)",
+                "constraint CK_JobReports_PayloadJson_IsJson check (PayloadJson is null or isjson(PayloadJson) = 1)"
             ],
             [
                 "create unique index UX_JobReports_Organization_Id on dbo.JobReports (OrganizationId, Id);",
                 "create index IX_JobReports_Organization_Status_UpdatedAt on dbo.JobReports (OrganizationId, Status, UpdatedAt desc);",
                 "create index IX_JobReports_DeletionScheduledAt on dbo.JobReports (DeletionScheduledAt) where DeletionScheduledAt is not null;"
+            ]),
+
+        new(
+            "JobAssignments",
+            typeof(JobAssignmentRow),
+            [
+                Column.RequiredGuid(nameof(JobAssignmentRow.Id)),
+                Column.RequiredGuid(nameof(JobAssignmentRow.OrganizationId)),
+                Column.RequiredGuid(nameof(JobAssignmentRow.ReportId)),
+                Column.RequiredGuid(nameof(JobAssignmentRow.UserId)),
+                Column.OptionalGuid(nameof(JobAssignmentRow.AssignedByUserId)),
+                Column.RequiredDateTimeOffset(nameof(JobAssignmentRow.AssignedAt))
+            ],
+            [
+                "constraint FK_JobAssignments_Organizations foreign key (OrganizationId) references dbo.Organizations(Id)",
+                "constraint FK_JobAssignments_JobReports foreign key (OrganizationId, ReportId) references dbo.JobReports(OrganizationId, Id) on delete cascade",
+                "constraint FK_JobAssignments_Users foreign key (OrganizationId, UserId) references dbo.Users(OrganizationId, Id)",
+                "constraint FK_JobAssignments_AssignedByUsers foreign key (OrganizationId, AssignedByUserId) references dbo.Users(OrganizationId, Id)"
+            ],
+            [
+                "create unique index UX_JobAssignments_Report_User on dbo.JobAssignments (OrganizationId, ReportId, UserId);",
+                "create index IX_JobAssignments_User on dbo.JobAssignments (OrganizationId, UserId);"
             ]),
 
         new(

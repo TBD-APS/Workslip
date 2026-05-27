@@ -87,3 +87,26 @@ group.MapPost("/verify-code", async (VerifyCodeRequest request, IAuthService ser
 3. Never call `Results.BadRequest`, `Results.NotFound`, `Results.Ok` directly in endpoints (except caching, list endpoints, or non-Result responses).
 4. All success responses are `200 OK` (not `201 Created`) — no `Location` headers.
 5. `SetNoStore` is unnecessary on write endpoints — remove it.
+
+# Available Tools
+
+## ripgrep (rg)
+Fast code search. Preferred over `grep`/`Select-String`.
+```
+rg "pattern" --include "*.cs"         # search C# files
+rg -l "pattern"                       # list matching files only
+rg "pattern" --context 3              # show context
+rg "pattern" -g "!tests/*"           # exclude tests
+```
+
+## repomix
+Packs repo into single file for AI context sharing.
+```
+repomix --include "**/*.cs" --output context.txt
+```
+
+## Cody CLI (@sourcegraph/cody)
+AI-powered code search. Requires Sourcegraph login (`cody login`).
+```
+cody search "semantic query here"
+```

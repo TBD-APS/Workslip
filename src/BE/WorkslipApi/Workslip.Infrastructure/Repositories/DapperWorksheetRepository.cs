@@ -20,4 +20,10 @@ public sealed class DapperWorksheetRepository : IWorksheetRepository
         // No logic - structure only
         throw new NotImplementedException();
     }
+
+    public Task<WorksheetResponse> DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken)
+    {
+        // No logic - structure only
+        throw new NotImplementedException();
+    }
 }
