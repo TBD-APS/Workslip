@@ -9,9 +9,10 @@ namespace Workslip.Api.Endpoints
         {
             var group = app.MapGroup("/api/worksheets").WithTags("worksheet");
 
-            group.MapPost("/jobs/{jobId}", async (CreateWorksheetRequest request, IWorksheetService service, CancellationToken cancellationToken) =>
+            group.MapPost("/jobs/{jobId:guid}", async (Guid jobId, CreateWorksheetRequest request, IWorksheetService service, CancellationToken cancellationToken) =>
             {
-                var result = await service.CreateAsync(request, cancellationToken);
+                var upsertRequest = request with { JobId = jobId };
+                var result = await service.UpsertAsync(upsertRequest, cancellationToken);
                 return ResultExtensions.ToHttpResult(result);
             });
 

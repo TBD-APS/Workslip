@@ -21,7 +21,7 @@ public class WorksheetService : IWorksheetService
         _logger = logger;
     }
 
-    public async Task<Result<WorksheetResponse>> CreateAsync(CreateWorksheetRequest request, CancellationToken cancellationToken)
+    public async Task<Result<WorksheetResponse>> UpsertAsync(CreateWorksheetRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
 
@@ -35,7 +35,7 @@ public class WorksheetService : IWorksheetService
                 })
                 .ToList();
 
-            _logger.LogWarning("Worksheet create validation failed. Fields: {Fields}",
+            _logger.LogWarning("Worksheet upsert validation failed. Fields: {Fields}",
                 string.Join(", ", errors.Select(e => e.Identifier).Distinct()));
 
             return Result<WorksheetResponse>.Invalid(errors);
@@ -43,17 +43,17 @@ public class WorksheetService : IWorksheetService
 
         try
         {
-            var response = await _repository.CreateAsync(request, cancellationToken);
+            var response = await _repository.UpsertAsync(request, cancellationToken);
             return Result<WorksheetResponse>.Success(response);
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Worksheet creation failed due to business rule violation");
+            _logger.LogWarning(ex, "Worksheet upsert failed due to business rule violation");
             return Result<WorksheetResponse>.Conflict(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during worksheet creation");
+            _logger.LogError(ex, "Unexpected error during worksheet upsert");
             return Result<WorksheetResponse>.Error(ex.Message);
         }
     }
