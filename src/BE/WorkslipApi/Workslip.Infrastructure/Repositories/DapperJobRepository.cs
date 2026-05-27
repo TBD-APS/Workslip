@@ -656,7 +656,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         IEnumerable<JobControlCheckRow> checks,
         IReadOnlyList<JobLinkInfoResponse> links,
         IReadOnlyList<AssignedUserResponse> assignedUsers,
-        IReadOnlyList<WorksheetEntryResponse> worksheetEntries,
+        IReadOnlyList<WorksheetUserGroupResponse> worksheetEntries,
         decimal? totalHours = null)
     {
         var checksBySubcategory = checks
@@ -838,7 +838,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         public string DisplayName { get; init; } = "";
     }
 
-    private static async Task<IReadOnlyList<WorksheetEntryResponse>> GetWorksheetEntriesByJobAsync(
+    private static async Task<IReadOnlyList<WorksheetUserGroupResponse>> GetWorksheetEntriesByJobAsync(
         IDbConnection connection,
         Guid jobId,
         CancellationToken cancellationToken)
@@ -849,15 +849,20 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             from dbo.Worksheets w
             inner join dbo.Users u on u.Id = w.UserId
             where w.JobId = @JobId
-            order by w.WorkDate desc;
+            order by u.DisplayName, w.WorkDate desc;
             """,
             new { JobId = jobId },
             cancellationToken: cancellationToken));
 
-        return rows.Select(r => new WorksheetEntryResponse(
-            r.DisplayName,
-            DateOnly.FromDateTime(r.WorkDate),
-            r.HoursWorked)).ToArray();
+        return rows
+            .GroupBy(r => r.DisplayName)
+            .Select(g => new WorksheetUserGroupResponse(
+                g.Key,
+                g.Sum(r => r.HoursWorked),
+                g.Select(r => new WorksheetDayEntry(
+                    DateOnly.FromDateTime(r.WorkDate),
+                    r.HoursWorked)).ToArray() as IReadOnlyList<WorksheetDayEntry>))
+            .ToArray();
     }
 
     private sealed class JobTotalHoursProjection
