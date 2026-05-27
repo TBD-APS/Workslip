@@ -978,7 +978,7 @@
             "description": "Creates draft job with installation-type grouped subcategory control checks, including Irrelevant as a true/false checkbox. Saves jobId.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Demo Kunde\",\n    \"address\": \"Demo Vej 1, 1000 København\",\n    \"email\": \"{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"reportDate\": \"2026-05-21\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\"\n],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
+              "raw": "{\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Demo Kunde\",\n    \"address\": \"Demo Vej 1, 1000 København\",\n    \"email\": \"{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"reportDate\": \"2026-21-01\",\n  \"taskDescription\": \"Installer og kontroller anlæg.\",\n  \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n  \"installationTypes\": [\n    \"vand\"\n  ],\n  \"workKind\": \"serviceAndet\",\n  \"customWorkKind\": \"Service\",\n  \"remarks\": \"Ingen bemærkninger.\",\n  \"closureFlags\": [\n    \"faerdig\"\n],\n  \"payload\": {\n    \"source\": \"postman\",\n    \"demo\": true\n  },\n  \"controlInstallationTypes\": [\n    {\n      \"installationTypeId\": \"vand\",\n      \"subcategories\": [\n        {\n          \"subcategoryId\": \"forundersoegelse\",\n          \"controlChecks\": [\n            {\n              \"itemId\": \"vand-ansoegning\",\n              \"checked\": true,\n              \"note\": \"OK\"\n            },\n            {\n              \"itemId\": \"vandkvalitet\",\n              \"checked\": false,\n              \"note\": null\n            },\n            {\n              \"itemId\": \"vand-irrelevant\",\n              \"checked\": false,\n              \"note\": null\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1635,7 +1635,36 @@
       "name": "Worksheets",
       "item": [
         {
-          "name": "POST /api/worksheets/jobs/{jobId}",
+          "name": "/api/worksheets/jobs/{jobId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/worksheets/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "worksheets", "jobs", "{{jobId}}"]
+            },
+            "description": "Lists all worksheets for a given job."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('response is an array', function () {",
+                  "  pm.expect(json).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "/api/worksheets/jobs/{jobId}",
           "request": {
             "method": "POST",
             "header": [
@@ -1696,7 +1725,7 @@
           "response": []
         },
         {
-          "name": "DELETE /api/worksheets/{worksheetId}/jobs/{jobId}",
+          "name": "/api/worksheets/{worksheetId}/jobs/{jobId}",
           "request": {
             "method": "DELETE",
             "header": [],

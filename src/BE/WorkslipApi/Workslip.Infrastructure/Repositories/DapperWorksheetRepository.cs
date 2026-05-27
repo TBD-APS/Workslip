@@ -92,11 +92,40 @@ public sealed class DapperWorksheetRepository : IWorksheetRepository
                 worksheet.OrganizationId,
                 worksheet.JobId,
                 worksheet.UserId,
-                worksheet.WorkDate,
+                DateOnly.FromDateTime(worksheet.WorkDate),
                 worksheet.HoursWorked,
                 worksheet.SleptOnJob,
                 worksheet.CreatedAt,
                 worksheet.UpdatedAt);
+        }, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<WorksheetResponse>> ListByJobAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        return await _retryPolicy.ExecuteAsync("worksheets.list-by-job", async token =>
+        {
+            using var connection = await _connectionFactory.OpenConnectionAsync(token);
+
+            var rows = await connection.QueryAsync<WorksheetRow>(new CommandDefinition(
+                """
+                select *
+                from dbo.Worksheets
+                where JobId = @JobId
+                order by WorkDate desc, CreatedAt desc;
+                """,
+                new { JobId = jobId },
+                cancellationToken: token));
+
+            return rows.Select(w => new WorksheetResponse(
+                w.Id,
+                w.OrganizationId,
+                w.JobId,
+                w.UserId,
+                DateOnly.FromDateTime(w.WorkDate),
+                w.HoursWorked,
+                w.SleptOnJob,
+                w.CreatedAt,
+                w.UpdatedAt)).ToArray();
         }, cancellationToken);
     }
 

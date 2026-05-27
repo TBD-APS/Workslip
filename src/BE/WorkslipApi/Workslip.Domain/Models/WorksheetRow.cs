@@ -8,7 +8,7 @@ public sealed class WorksheetRow
     public Guid OrganizationId { get; set; }
     public Guid JobId { get; set; }
     public Guid UserId { get; set; }
-    public DateOnly WorkDate { get; set; }
+    public DateTime WorkDate { get; set; }
     public decimal HoursWorked { get; set; }
     public bool SleptOnJob { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

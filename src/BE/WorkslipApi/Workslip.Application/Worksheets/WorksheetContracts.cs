@@ -31,4 +31,5 @@ public interface IWorksheetService
 {
     Task<Result<WorksheetResponse>> UpsertAsync(CreateWorksheetRequest request, CancellationToken cancellationToken);
     Task<Result<WorksheetResponse>> DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken);
+    Task<Result<IReadOnlyList<WorksheetResponse>>> ListByJobAsync(Guid jobId, CancellationToken cancellationToken);
 }

@@ -101,6 +101,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             cancellationToken: cancellationToken))).ToArray();
 
         var assignedUsersByReport = await LoadAssignedUsersAsync(connection, query.OrganizationId, rows.Select(row => row.Id), cancellationToken);
+        var totalHoursByJob = await GetTotalHoursByJobAsync(connection, rows.Select(row => row.Id), cancellationToken);
 
          return rows.Select(row => new JobListItemResponse(
              row.Id,
@@ -117,7 +118,8 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              row.SubmittedAt,
              assignedUsersByReport.GetValueOrDefault(row.Id) ?? [],
              row.IsSoftDeleted,
-             row.DeletionScheduledAt)).ToArray();
+             row.DeletionScheduledAt,
+             totalHoursByJob.GetValueOrDefault(row.Id))).ToArray();
     }
 
     public Task<JobReportResponse?> GetAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
@@ -152,8 +154,10 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
 
         var links = await LoadLinksAsync(connection, organizationId, id, cancellationToken);
         var assignedUsers = await LoadAssignedUsersAsync(connection, organizationId, id, cancellationToken);
+        var totalHours = await GetTotalHoursByJobAsync(connection, [id], cancellationToken);
+        var worksheetEntries = await GetWorksheetEntriesByJobAsync(connection, id, cancellationToken);
 
-        return ToResponse(row, subcategories, checks, links, assignedUsers);
+        return ToResponse(row, subcategories, checks, links, assignedUsers, worksheetEntries, totalHours.GetValueOrDefault(id));
     }
 
     public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
@@ -651,7 +655,9 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         IEnumerable<JobControlSubcategoryRow> subcategories,
         IEnumerable<JobControlCheckRow> checks,
         IReadOnlyList<JobLinkInfoResponse> links,
-        IReadOnlyList<AssignedUserResponse> assignedUsers)
+        IReadOnlyList<AssignedUserResponse> assignedUsers,
+        IReadOnlyList<WorksheetEntryResponse> worksheetEntries,
+        decimal? totalHours = null)
     {
         var checksBySubcategory = checks
             .GroupBy(check => check.SubcategoryDecisionId)
@@ -697,9 +703,11 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
              row.CreatedAt,
              row.UpdatedAt,
              row.SubmittedAt,
-             assignedUsers,
+              assignedUsers,
+             worksheetEntries,
              row.IsSoftDeleted,
-             row.DeletionScheduledAt);
+             row.DeletionScheduledAt,
+             totalHours);
     }
 
     private static Guid[] NormalizeUserIds(IEnumerable<Guid> userIds) =>
@@ -821,6 +829,65 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
     {
         public Guid Id { get; init; }
         public string DisplayName { get; init; } = string.Empty;
+    }
+
+    private sealed class WorksheetEntryProjection
+    {
+        public DateTime WorkDate { get; init; }
+        public decimal HoursWorked { get; init; }
+        public string DisplayName { get; init; } = "";
+    }
+
+    private static async Task<IReadOnlyList<WorksheetEntryResponse>> GetWorksheetEntriesByJobAsync(
+        IDbConnection connection,
+        Guid jobId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await connection.QueryAsync<WorksheetEntryProjection>(new CommandDefinition(
+            """
+            select w.WorkDate, w.HoursWorked, u.DisplayName
+            from dbo.Worksheets w
+            inner join dbo.Users u on u.Id = w.UserId
+            where w.JobId = @JobId
+            order by w.WorkDate desc;
+            """,
+            new { JobId = jobId },
+            cancellationToken: cancellationToken));
+
+        return rows.Select(r => new WorksheetEntryResponse(
+            r.DisplayName,
+            DateOnly.FromDateTime(r.WorkDate),
+            r.HoursWorked)).ToArray();
+    }
+
+    private sealed class JobTotalHoursProjection
+    {
+        public Guid JobId { get; init; }
+        public decimal? TotalHours { get; init; }
+    }
+
+    private static async Task<IReadOnlyDictionary<Guid, decimal?>> GetTotalHoursByJobAsync(
+        IDbConnection connection,
+        IEnumerable<Guid> jobIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = jobIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, decimal?>();
+        }
+
+        var rows = await connection.QueryAsync<JobTotalHoursProjection>(new CommandDefinition(
+            """
+            select JobId, cast(sum(HoursWorked) as decimal(5,2)) as TotalHours
+            from dbo.Worksheets
+            where JobId in @JobIds
+            group by JobId;
+            """,
+            new { JobIds = ids },
+            cancellationToken: cancellationToken));
+
+        return rows.ToDictionary(r => r.JobId, r => r.TotalHours);
     }
 
     private static JobStatus ParseStatus(string status) => Enum.Parse<JobStatus>(status, ignoreCase: true);

@@ -28,6 +28,11 @@ public sealed record CustomerViewModel(
     string? ContactPerson,
     string? Phone);
 
+public sealed record WorksheetEntryViewModel(
+    string DisplayName,
+    DateOnly WorkDate,
+    decimal HoursWorked);
+
 public sealed record JobListItemViewModel(
     Guid Id,
     Guid OrganizationId,
@@ -39,7 +44,8 @@ public sealed record JobListItemViewModel(
     string? WorkKind,
     string? CustomWorkKind,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
-    bool SoftDeleted);
+    bool SoftDeleted,
+    decimal? TotalHours);
 
 public sealed record JobViewModel(
     Guid Id,
@@ -60,7 +66,9 @@ public sealed record JobViewModel(
     IReadOnlyList<ControlInstallationTypeViewModel> ControlInstallationTypes,
     IReadOnlyList<JobLinkInfoResponse> Links,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
-    bool SoftDeleted);
+    IReadOnlyList<WorksheetEntryViewModel> Worksheets,
+    bool SoftDeleted,
+    decimal? TotalHours);
 
 public sealed record JobReportSummaryViewModel(
     Guid Id,
@@ -97,7 +105,8 @@ public static class JobViewModelBuilder
         job.WorkKind,
         job.CustomWorkKind,
         job.AssignedUsers,
-        job.SoftDeleted);
+        job.SoftDeleted,
+        job.TotalHours);
 
     public static JobViewModel ToJob(JobReportResponse job) => new(
         job.Id,
@@ -118,7 +127,9 @@ public static class JobViewModelBuilder
         job.ControlInstallationTypes.Select(ToControlInstallationType).ToArray(),
         job.Links,
         job.AssignedUsers,
-        job.SoftDeleted);
+        job.Worksheets.Select(ToWorksheetEntry).ToArray(),
+        job.SoftDeleted,
+        job.TotalHours);
 
     public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
         summary.Id,
@@ -141,6 +152,11 @@ public static class JobViewModelBuilder
         link.LinkedCustomerName,
         link.LinkedStatus,
         link.LinkType);
+
+    private static WorksheetEntryViewModel ToWorksheetEntry(WorksheetEntryResponse entry) => new(
+        entry.DisplayName,
+        entry.WorkDate,
+        entry.HoursWorked);
 
     private static CustomerViewModel? ToCustomerViewModel(CustomerInfo? customer) =>
         customer is null ? null : new(

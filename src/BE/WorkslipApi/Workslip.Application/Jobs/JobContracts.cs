@@ -95,7 +95,8 @@ public sealed record JobListItemResponse(
     DateTimeOffset? SubmittedAt,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
-    DateTimeOffset? DeletionScheduledAt);
+    DateTimeOffset? DeletionScheduledAt,
+    decimal? TotalHours);
 
 public sealed record JobReportResponse(
     Guid Id,
@@ -119,8 +120,10 @@ public sealed record JobReportResponse(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
+    IReadOnlyList<WorksheetEntryResponse> Worksheets,
     bool SoftDeleted,
-    DateTimeOffset? DeletionScheduledAt);
+    DateTimeOffset? DeletionScheduledAt,
+    decimal? TotalHours);
 
 public sealed record CreateJobLinkRequest(
     Guid TargetReportId,
@@ -142,6 +145,11 @@ public sealed record JobLinkResponse(
     string LinkedStatus,
     string LinkType,
     DateTimeOffset CreatedAt);
+
+public sealed record WorksheetEntryResponse(
+    string DisplayName,
+    DateOnly WorkDate,
+    decimal HoursWorked);
 
 public sealed record AssignedUserResponse(
     Guid Id,

@@ -13,7 +13,8 @@ public class WorksheetService : IWorksheetService
     private readonly ICurrentUserContext _currentUserContext;
     private readonly ILogger<WorksheetService> _logger;
 
-    public WorksheetService(IWorksheetRepository repository, IValidator<CreateWorksheetRequest> validator, ICurrentUserContext currentUserContext, ILogger<WorksheetService> logger)
+    public WorksheetService(IWorksheetRepository repository, 
+        IValidator<CreateWorksheetRequest> validator, ICurrentUserContext currentUserContext, ILogger<WorksheetService> logger)
     {
         _repository = repository;
         _validator = validator;
@@ -23,6 +24,12 @@ public class WorksheetService : IWorksheetService
 
     public async Task<Result<WorksheetResponse>> UpsertAsync(CreateWorksheetRequest request, CancellationToken cancellationToken)
     {
+        var organizationId = _currentUserContext.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<WorksheetResponse>.Unauthorized();
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
 
         if (!validationResult.IsValid)
@@ -58,10 +65,36 @@ public class WorksheetService : IWorksheetService
         }
     }
 
+    public async Task<Result<IReadOnlyList<WorksheetResponse>>> ListByJobAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var organizationId = _currentUserContext.OrganizationId;
+            if (organizationId is null)
+            {
+                return Result<IReadOnlyList<WorksheetResponse>>.Unauthorized();
+            }
+
+            var worksheets = await _repository.ListByJobAsync(jobId, cancellationToken);
+            return Result<IReadOnlyList<WorksheetResponse>>.Success(worksheets);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error listing worksheets for job {JobId}", jobId);
+            return Result<IReadOnlyList<WorksheetResponse>>.Error(ex.Message);
+        }
+    }
+
     public async Task<Result<WorksheetResponse>> DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken)
     {
         try
         {
+            var organizationId = _currentUserContext.OrganizationId;
+            if (organizationId is null)
+            {
+                return Result<WorksheetResponse>.Unauthorized();
+            }
+
             await _repository.DeleteAsync(worksheetId, jobId, cancellationToken);
             return Result.Success();
         }

@@ -7,7 +7,13 @@ namespace Workslip.Api.Endpoints
     {
         public static IEndpointRouteBuilder MapWorkSheetEndpoints(this IEndpointRouteBuilder app)
         {
-            var group = app.MapGroup("/api/worksheets").WithTags("worksheet");
+            var group = app.MapGroup("/api/worksheets").WithTags("worksheet").RequireAuthorization(AuthPolicies.RequireUser); ;
+
+            group.MapGet("/jobs/{jobId:guid}", async (Guid jobId, IWorksheetService service, CancellationToken cancellationToken) =>
+            {
+                var result = await service.ListByJobAsync(jobId, cancellationToken);
+                return ResultExtensions.ToHttpResult(result);
+            });
 
             group.MapPost("/jobs/{jobId:guid}", async (Guid jobId, CreateWorksheetRequest request, IWorksheetService service, CancellationToken cancellationToken) =>
             {
