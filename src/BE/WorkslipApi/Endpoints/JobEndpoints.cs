@@ -95,21 +95,9 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         });
 
-        group.MapPost("/{id:guid}/submit", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.SubmitAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
-        });
-
-        group.MapPost("/{id:guid}/approve", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.ApproveAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
-        });
-
-        group.MapPost("/{id:guid}/reject", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.RejectAsync(id, cancellationToken);
+            var result = await service.ChangeStatusAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         });
 

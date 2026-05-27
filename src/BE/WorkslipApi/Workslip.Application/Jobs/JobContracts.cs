@@ -79,6 +79,9 @@ public sealed record UpdateJobRequest(
 public sealed record AssignJobRequest(
     IReadOnlyList<Guid>? UserIds);
 
+public sealed record ChangeJobStatusRequest(
+    JobStatus Status);
+
 public sealed record JobListItemResponse(
     Guid Id,
     Guid OrganizationId,

@@ -17,9 +17,7 @@ public interface IJobService
     Task<Result<JobReportSummaryResponse>> GetReportSummaryAsync(Guid id, CancellationToken cancellationToken);
     Task<Result<IReadOnlyList<JobEventResponse>>> GetHistoryAsync(Guid id, int? limit, int? offset, CancellationToken cancellationToken);
     Task<Result<JobReportResponse>> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken);
-    Task<Result<JobReportResponse>> SubmitAsync(Guid id, CancellationToken cancellationToken);
-    Task<Result<JobReportResponse>> ApproveAsync(Guid id, CancellationToken cancellationToken);
-    Task<Result<JobReportResponse>> RejectAsync(Guid id, CancellationToken cancellationToken);
+    Task<Result<JobReportResponse>> ChangeStatusAsync(Guid id, ChangeJobStatusRequest request, CancellationToken cancellationToken);
     Task<Result<JobReportResponse>> AssignAsync(Guid jobId, IReadOnlyList<Guid>? userIds, CancellationToken cancellationToken);
     Task<Result<JobLinkResponse>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken);
     Task<Result<IReadOnlyList<JobLinkResponse>>> GetLinksAsync(Guid reportId, CancellationToken cancellationToken);
@@ -36,6 +34,7 @@ public sealed class JobService(
     HybridCache cache,
     IValidator<CreateJobRequest> createJobValidator,
     IValidator<UpdateJobRequest> updateJobValidator,
+    IValidator<ChangeJobStatusRequest> changeJobStatusValidator,
     ICurrentUserContext currentUser,
     ILogger<JobService> logger) : IJobService
 {
@@ -280,40 +279,50 @@ public sealed class JobService(
         return Result<JobReportResponse>.Success(updated);
     }
 
-    public async Task<Result<JobReportResponse>> SubmitAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<Result<JobReportResponse>> ChangeStatusAsync(Guid id, ChangeJobStatusRequest request, CancellationToken cancellationToken)
     {
+        var validationResult = await changeJobStatusValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .Select(e => new ValidationError
+                {
+                    Identifier = e.PropertyName,
+                    ErrorMessage = e.ErrorMessage
+                })
+                .ToList();
+            return Result<JobReportResponse>.Invalid(errors);
+        }
+
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
             return Result<JobReportResponse>.Unauthorized();
         }
 
-        var current = await repository.GetAsync(id, organizationId.Value, cancellationToken);
-        if (current is null)
+        if (request.Status == JobStatus.Submitted)
         {
-            logger.LogWarning("Job submit returned not found. JobId: {JobId}.", id);
-            return Result<JobReportResponse>.NotFound();
+            var current = await repository.GetAsync(id, organizationId.Value, cancellationToken);
+            if (current is null)
+            {
+                logger.LogWarning("Job submit returned not found. JobId: {JobId}.", id);
+                return Result<JobReportResponse>.NotFound();
+            }
+
+            var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
+            var validationErrors = ValidateReadyForSubmission(current, taxonomy);
+            if (validationErrors.Count != 0)
+            {
+                logger.LogWarning("Job submit validation failed. JobId: {JobId}. Fields: {ValidationFields}",
+                    id,
+                    ValidationFields(validationErrors));
+
+                return Result<JobReportResponse>.Invalid(validationErrors);
+            }
         }
 
-        var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
-        var validationErrors = ValidateReadyForSubmission(current, taxonomy);
-        if (validationErrors.Count != 0)
-        {
-            logger.LogWarning("Job submit validation failed. JobId: {JobId}. Fields: {ValidationFields}",
-                id,
-                ValidationFields(validationErrors));
-
-            return Result<JobReportResponse>.Invalid(validationErrors);
-        }
-
-        return await TransitionAsync(id, JobStatus.Submitted, cancellationToken);
+        return await TransitionAsync(id, request.Status, cancellationToken);
     }
-
-    public Task<Result<JobReportResponse>> ApproveAsync(Guid id, CancellationToken cancellationToken) =>
-        TransitionAsync(id, JobStatus.Approved, cancellationToken);
-
-    public Task<Result<JobReportResponse>> RejectAsync(Guid id, CancellationToken cancellationToken) =>
-        TransitionAsync(id, JobStatus.Rejected, cancellationToken);
 
     private async Task<Result<JobReportResponse>> TransitionAsync(
         Guid id,
