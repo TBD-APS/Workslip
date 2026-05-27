@@ -37,13 +37,8 @@ public sealed record ControlInstallationTypeResponse(
     IReadOnlyList<ControlSubcategoryResponse> Subcategories);
 
 public sealed record CreateJobRequest(
-    Guid? CustomerId,
+    CustomerInfo? Customer,
     string? ReportNumber,
-    string? CustomerName,
-    string? CustomerAddress,
-    string? CustomerEmail,
-    string? ContactPerson,
-    string? Phone,
     DateOnly? ReportDate,
     string? TaskDescription,
     string? CustomerObservations,
@@ -57,13 +52,8 @@ public sealed record CreateJobRequest(
     IReadOnlyList<ControlInstallationTypeRequest>? ControlInstallationTypes);
 
 public sealed record UpdateJobRequest(
-    Guid? CustomerId,
+    CustomerInfo? Customer,
     string? ReportNumber,
-    string? CustomerName,
-    string? CustomerAddress,
-    string? CustomerEmail,
-    string? ContactPerson,
-    string? Phone,
     DateOnly? ReportDate,
     string? TaskDescription,
     string? CustomerObservations,
@@ -82,15 +72,20 @@ public sealed record AssignJobRequest(
 public sealed record ChangeJobStatusRequest(
     JobStatus Status);
 
+public sealed record CustomerInfo(
+    Guid? CustomerId,
+    string? Name,
+    string? Address,
+    string? Email,
+    string? ContactPerson,
+    string? Phone);
+
 public sealed record JobListItemResponse(
     Guid Id,
     Guid OrganizationId,
-    Guid? CustomerId,
+    CustomerInfo? Customer,
     string? ReportNumber,
     JobStatus Status,
-    string? CustomerName,
-    string? CustomerAddress,
-    string? CustomerEmail,
     DateOnly? ReportDate,
     IReadOnlyList<string> InstallationTypes,
     string? WorkKind,
@@ -105,14 +100,9 @@ public sealed record JobListItemResponse(
 public sealed record JobReportResponse(
     Guid Id,
     Guid OrganizationId,
-    Guid? CustomerId,
+    CustomerInfo? Customer,
     string? ReportNumber,
     JobStatus Status,
-    string? CustomerName,
-    string? CustomerAddress,
-    string? CustomerEmail,
-    string? ContactPerson,
-    string? Phone,
     DateOnly? ReportDate,
     string? TaskDescription,
     string? CustomerObservations,
@@ -162,7 +152,7 @@ public sealed record JobReportSummaryResponse(
     Guid OrganizationId,
     string? ReportNumber,
     JobStatus Status,
-    JobReportSummaryCustomerResponse Customer,
+    CustomerInfo Customer,
     JobReportSummaryWorkResponse Work,
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<ControlInstallationTypeResponse> ControlInstallationTypes,
@@ -173,14 +163,6 @@ public sealed record JobReportSummaryResponse(
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt);
-
-public sealed record JobReportSummaryCustomerResponse(
-    Guid? CustomerId,
-    string? Name,
-    string? Address,
-    string? Email,
-    string? ContactPerson,
-    string? Phone);
 
 public sealed record JobReportSummaryWorkResponse(
     string? WorkKind,

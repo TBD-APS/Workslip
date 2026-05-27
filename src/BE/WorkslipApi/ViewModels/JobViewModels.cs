@@ -20,15 +20,20 @@ public sealed record ControlInstallationTypeViewModel(
     string InstallationTypeId,
     IReadOnlyList<ControlSubcategoryViewModel> Subcategories);
 
+public sealed record CustomerViewModel(
+    Guid? CustomerId,
+    string? Name,
+    string? Address,
+    string? Email,
+    string? ContactPerson,
+    string? Phone);
+
 public sealed record JobListItemViewModel(
     Guid Id,
     Guid OrganizationId,
-    Guid? CustomerId,
+    CustomerViewModel? Customer,
     string? ReportNumber,
     JobStatus Status,
-    string? CustomerName,
-    string? CustomerAddress,
-    string? CustomerEmail,
     DateOnly? ReportDate,
     IReadOnlyList<string> InstallationTypes,
     string? WorkKind,
@@ -39,14 +44,9 @@ public sealed record JobListItemViewModel(
 public sealed record JobViewModel(
     Guid Id,
     Guid OrganizationId,
-    Guid? CustomerId,
+    CustomerViewModel? Customer,
     string? ReportNumber,
     JobStatus Status,
-    string? CustomerName,
-    string? CustomerAddress,
-    string? CustomerEmail,
-    string? ContactPerson,
-    string? Phone,
     DateOnly? ReportDate,
     string? TaskDescription,
     string? CustomerObservations,
@@ -67,7 +67,7 @@ public sealed record JobReportSummaryViewModel(
     Guid OrganizationId,
     string? ReportNumber,
     JobStatus Status,
-    JobReportSummaryCustomerResponse Customer,
+    CustomerInfo Customer,
     JobReportSummaryWorkResponse Work,
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<ControlInstallationTypeViewModel> ControlInstallationTypes,
@@ -89,12 +89,9 @@ public static class JobViewModelBuilder
     public static JobListItemViewModel ToListItem(JobListItemResponse job) => new(
         job.Id,
         job.OrganizationId,
-        job.CustomerId,
+        ToCustomerViewModel(job.Customer),
         job.ReportNumber,
         job.Status,
-        job.CustomerName,
-        job.CustomerAddress,
-        job.CustomerEmail,
         job.ReportDate,
         job.InstallationTypes,
         job.WorkKind,
@@ -105,14 +102,9 @@ public static class JobViewModelBuilder
     public static JobViewModel ToJob(JobReportResponse job) => new(
         job.Id,
         job.OrganizationId,
-        job.CustomerId,
+        ToCustomerViewModel(job.Customer),
         job.ReportNumber,
         job.Status,
-        job.CustomerName,
-        job.CustomerAddress,
-        job.CustomerEmail,
-        job.ContactPerson,
-        job.Phone,
         job.ReportDate,
         job.TaskDescription,
         job.CustomerObservations,
@@ -149,6 +141,15 @@ public static class JobViewModelBuilder
         link.LinkedCustomerName,
         link.LinkedStatus,
         link.LinkType);
+
+    private static CustomerViewModel? ToCustomerViewModel(CustomerInfo? customer) =>
+        customer is null ? null : new(
+            customer.CustomerId,
+            customer.Name,
+            customer.Address,
+            customer.Email,
+            customer.ContactPerson,
+            customer.Phone);
 
     private static ControlInstallationTypeViewModel ToControlInstallationType(ControlInstallationTypeResponse installationType) => new(
         installationType.InstallationTypeId,

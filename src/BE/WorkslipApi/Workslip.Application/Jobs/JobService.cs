@@ -147,9 +147,11 @@ public sealed class JobService(
             return Result<JobReportResponse>.Unauthorized();
         }
 
-        var cached = await cache.GetOrCreateAsync(JobReportCacheKey(id, organizationId.Value),
-            async token => CachedJobReport.From(await repository.GetAsync(id, organizationId.Value, token)), 
-            JobReportCacheOptions,tags: ["jobs", JobReportTag(id, organizationId.Value)],
+        var orgId = organizationId.Value;
+
+        var cached = await cache.GetOrCreateAsync(JobReportCacheKey(id, orgId),
+            async token => CachedJobReport.From(await repository.GetAsync(id, orgId, token)), 
+            JobReportCacheOptions,tags: ["jobs", JobReportTag(id, orgId)],
             cancellationToken: cancellationToken);
         
         if (!cached.Found || cached.Value is null)
@@ -569,13 +571,7 @@ public sealed class JobService(
             report.OrganizationId,
             report.ReportNumber,
             report.Status,
-            new JobReportSummaryCustomerResponse(
-                report.CustomerId,
-                report.CustomerName,
-                report.CustomerAddress,
-                report.CustomerEmail,
-                report.ContactPerson,
-                report.Phone),
+            report.Customer ?? new CustomerInfo(null, null, null, null, null, null),
             new JobReportSummaryWorkResponse(
                 report.WorkKind,
                 workKindLabel,
@@ -664,8 +660,8 @@ public sealed class JobService(
     {
         var errors = new List<ValidationError>();
         AddRequired(errors, nameof(JobReportResponse.ReportNumber), report.ReportNumber, "Report number is required.");
-        AddRequired(errors, nameof(JobReportResponse.CustomerName), report.CustomerName, "Customer name is required.");
-        AddRequired(errors, nameof(JobReportResponse.CustomerAddress), report.CustomerAddress, "Customer address is required.");
+        AddRequired(errors, $"{nameof(JobReportResponse.Customer)}.{nameof(CustomerInfo.Name)}", report.Customer?.Name, "Customer name is required.");
+        AddRequired(errors, $"{nameof(JobReportResponse.Customer)}.{nameof(CustomerInfo.Address)}", report.Customer?.Address, "Customer address is required.");
         AddRequired(errors, nameof(JobReportResponse.TaskDescription), report.TaskDescription, "Task description is required.");
 
         if (report.InstallationTypes.Count == 0)

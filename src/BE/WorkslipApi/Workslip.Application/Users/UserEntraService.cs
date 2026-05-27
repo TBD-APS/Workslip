@@ -39,7 +39,7 @@ public sealed class UserEntraService(
         {
             user = await graphClient.Users.PostAsync(newUser, cancellationToken: ct);
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex)
         {
             logger.LogError(ex, "Graph create user failed. CorrelationId={CorrelationId} Email={Email}", correlationIdAccessor.CorrelationId, email);
             throw;
