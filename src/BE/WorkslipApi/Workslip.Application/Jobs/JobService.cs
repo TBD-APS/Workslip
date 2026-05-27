@@ -388,6 +388,14 @@ public sealed class JobService(
             });
         }
 
+        if(report.Links.Any(x => x.LinkedReportId == request.TargetReportId))
+        {
+            return Result<JobLinkResponse>.Invalid(new List<ValidationError>
+            {
+                new() { Identifier = "TargetReportId", ErrorMessage = "Man kan ikke assigne samme sag to gange" }
+            });
+        }
+
         var link = await linkRepository.CreateLinkAsync(organizationId.Value, reportId, request.TargetReportId, request.LinkType, cancellationToken);
         await InvalidateJobCachesAsync(reportId, organizationId.Value, cancellationToken);
         await InvalidateJobCachesAsync(request.TargetReportId, organizationId.Value, cancellationToken);

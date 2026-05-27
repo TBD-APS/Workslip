@@ -119,7 +119,7 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
-        group.MapPost("/{id:guid}/restore", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/restore/deletion", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.RestoreDeletionAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
@@ -131,24 +131,7 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
-        group.MapPost("/{id:guid}/links", async (Guid id, CreateJobLinkRequest request, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.CreateLinkAsync(id, request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToLink);
-        });
-
-        group.MapGet("/{id:guid}/links", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.GetLinksAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, links => links.Select(JobViewModelBuilder.ToLink).ToArray());
-        });
-
-        group.MapDelete("/{id:guid}/links/{linkId:guid}", async (Guid id, Guid linkId, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.DeleteLinkAsync(id, linkId, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
-        });
-
+       
         return app;
     }
 }

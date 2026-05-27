@@ -2038,12 +2038,12 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/restore",
+          "name": "POST /api/jobs/{id}/restore/deletion",
           "request": {
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/restore",
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/restore/deletion",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2051,7 +2051,8 @@
                 "api",
                 "jobs",
                 "{{jobId}}",
-                "restore"
+                "restore",
+                "deletion"
               ]
             },
             "description": "Restores a job before its scheduled deletion runs. Requires admin."
