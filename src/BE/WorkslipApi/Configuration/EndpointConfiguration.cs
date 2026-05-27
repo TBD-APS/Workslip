@@ -24,6 +24,7 @@ public static class EndpointConfiguration
         app.MapUserEndpoints();
         app.MapJobEndpoints();
         app.MapJobLinkEndpoints();
+        app.MapWorkSheetEndpoints();
 
         return app;
     }

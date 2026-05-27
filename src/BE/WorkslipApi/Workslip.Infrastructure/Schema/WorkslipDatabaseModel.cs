@@ -374,7 +374,7 @@ public static class WorkslipDatabaseModel
         public static Column RequiredBit(string name, string? defaultSql = null) => new(name, "bit", true, defaultSql);
         public static Column RequiredInt(string name, string? defaultSql = null) => new(name, "int", true, defaultSql);
         public static Column OptionalDate(string name) => new(name, "date", false);
-        public static Column RequiredDecimal(string name) => new (name, "decimal", true);
+        public static Column RequiredDecimal(string name, int precision = 5, int scale = 2) => new (name, $"decimal({precision},{scale})", true);
         public static Column RequiredDateTimeOffset(string name, string? defaultSql = null) => new(name, "datetimeoffset", true, defaultSql);
         public static Column OptionalDateTimeOffset(string name) => new(name, "datetimeoffset", false);
 

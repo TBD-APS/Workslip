@@ -13,7 +13,8 @@ public class WorksheetService : IWorksheetService
     private readonly ICurrentUserContext _currentUserContext;
     private readonly ILogger<WorksheetService> _logger;
 
-    public WorksheetService(IWorksheetRepository repository, IValidator<CreateWorksheetRequest> validator, ICurrentUserContext currentUserContext, ILogger<WorksheetService> logger)
+    public WorksheetService(IWorksheetRepository repository, 
+        IValidator<CreateWorksheetRequest> validator, ICurrentUserContext currentUserContext, ILogger<WorksheetService> logger)
     {
         _repository = repository;
         _validator = validator;
@@ -21,8 +22,14 @@ public class WorksheetService : IWorksheetService
         _logger = logger;
     }
 
-    public async Task<Result<WorksheetResponse>> CreateAsync(CreateWorksheetRequest request, CancellationToken cancellationToken)
+    public async Task<Result<WorksheetResponse>> UpsertAsync(CreateWorksheetRequest request, CancellationToken cancellationToken)
     {
+        var organizationId = _currentUserContext.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<WorksheetResponse>.Unauthorized();
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
 
         if (!validationResult.IsValid)
@@ -35,7 +42,7 @@ public class WorksheetService : IWorksheetService
                 })
                 .ToList();
 
-            _logger.LogWarning("Worksheet create validation failed. Fields: {Fields}",
+            _logger.LogWarning("Worksheet upsert validation failed. Fields: {Fields}",
                 string.Join(", ", errors.Select(e => e.Identifier).Distinct()));
 
             return Result<WorksheetResponse>.Invalid(errors);
@@ -43,18 +50,38 @@ public class WorksheetService : IWorksheetService
 
         try
         {
-            var response = await _repository.CreateAsync(request, cancellationToken);
+            var response = await _repository.UpsertAsync(request, cancellationToken);
             return Result<WorksheetResponse>.Success(response);
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Worksheet creation failed due to business rule violation");
+            _logger.LogWarning(ex, "Worksheet upsert failed due to business rule violation");
             return Result<WorksheetResponse>.Conflict(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during worksheet creation");
+            _logger.LogError(ex, "Unexpected error during worksheet upsert");
             return Result<WorksheetResponse>.Error(ex.Message);
+        }
+    }
+
+    public async Task<Result<IReadOnlyList<WorksheetResponse>>> ListByJobAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var organizationId = _currentUserContext.OrganizationId;
+            if (organizationId is null)
+            {
+                return Result<IReadOnlyList<WorksheetResponse>>.Unauthorized();
+            }
+
+            var worksheets = await _repository.ListByJobAsync(jobId, cancellationToken);
+            return Result<IReadOnlyList<WorksheetResponse>>.Success(worksheets);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error listing worksheets for job {JobId}", jobId);
+            return Result<IReadOnlyList<WorksheetResponse>>.Error(ex.Message);
         }
     }
 
@@ -62,6 +89,12 @@ public class WorksheetService : IWorksheetService
     {
         try
         {
+            var organizationId = _currentUserContext.OrganizationId;
+            if (organizationId is null)
+            {
+                return Result<WorksheetResponse>.Unauthorized();
+            }
+
             await _repository.DeleteAsync(worksheetId, jobId, cancellationToken);
             return Result.Success();
         }
