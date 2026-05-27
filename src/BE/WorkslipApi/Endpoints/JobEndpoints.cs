@@ -125,10 +125,9 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
-        group.MapPost("/{id:guid}/assign", async (Guid id, Guid? userId, IJobService jobService, CancellationToken cancellationToken) =>
+        group.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
         {
-            
-            var result = await jobService.AssignAsync(id, userId, cancellationToken);
+            var result = await jobService.AssignAsync(id, request.UserIds, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 

@@ -6,7 +6,7 @@ public sealed record JobQuery(Guid OrganizationId, JobStatus? Status, int Limit,
 
 public interface IJobRepository
 {
-    Task<JobReportResponse> CreateAsync(Guid organizationId, CreateJobRequest request, CancellationToken cancellationToken);
+    Task<JobReportResponse> CreateAsync(Guid organizationId, CreateJobRequest request, IReadOnlyList<Guid> assignedUserIds, Guid? actorId, CancellationToken cancellationToken);
     Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken);
     Task<JobReportResponse?> GetAsync(Guid id, Guid organizationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken);
@@ -15,5 +15,5 @@ public interface IJobRepository
     Task<JobReportResponse?> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken);
     Task<JobReportResponse?> RestoreDeletionAsync(Guid id, Guid organizationId, CancellationToken cancellationToken);
     Task<int> PurgeDeletionScheduledBeforeAsync(DateTimeOffset cutoff, CancellationToken cancellationToken);
-    Task<JobReportResponse?> AssignAsync(Guid jobId, Guid organizationId, Guid? userId, Guid? actorId, CancellationToken cancellationToken);
+    Task<JobReportResponse?> AssignAsync(Guid jobId, Guid organizationId, IReadOnlyList<Guid> userIds, Guid? actorId, CancellationToken cancellationToken);
 }

@@ -76,6 +76,9 @@ public sealed record UpdateJobRequest(
     JsonObject? Payload,
     IReadOnlyList<ControlInstallationTypeRequest>? ControlInstallationTypes);
 
+public sealed record AssignJobRequest(
+    IReadOnlyList<Guid>? UserIds);
+
 public sealed record JobListItemResponse(
     Guid Id,
     Guid OrganizationId,
@@ -92,7 +95,7 @@ public sealed record JobListItemResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
-    AssignedUserResponse? AssignedUser,
+    IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt);
 
@@ -122,7 +125,7 @@ public sealed record JobReportResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
-    AssignedUserResponse? AssignedUser,
+    IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt);
 
@@ -164,7 +167,7 @@ public sealed record JobReportSummaryResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
-    AssignedUserResponse? AssignedUser,
+    IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt);
 

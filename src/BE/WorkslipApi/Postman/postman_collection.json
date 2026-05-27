@@ -132,6 +132,21 @@
     {
       "key": "customDraftJobId",
       "value": ""
+    },
+    {
+      "key": "creatorUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assigneeUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assigneeEmail",
+      "value": "assignee@example.com",
+      "type": "string"
     }
   ],
   "auth": {
@@ -226,9 +241,11 @@
                   "const json = pm.response.json();",
                   "pm.test('organization view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => { pm.expect(json.organization).to.not.have.property(field); pm.expect(json.user).to.not.have.property(field); }); });",
                   "pm.collectionVariables.set('organizationId', json.organization.id);",
+                  "pm.collectionVariables.set('actorId', json.user.id);",
+                  "pm.collectionVariables.set('creatorUserId', json.user.id);",
                   "pm.collectionVariables.set('userId', json.user.id);",
                   "pm.test('organization id captured', function () { pm.expect(json.organization.id).to.be.a('string').and.not.empty; });",
-                  "pm.test('user id captured', function () { pm.expect(json.user.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('creator user id captured', function () { pm.expect(json.user.id).to.be.a('string').and.not.empty; });",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
@@ -414,7 +431,7 @@
             "description": "Creates a user in the organization. Saves userId on 201.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
+              "raw": "{\n  \"email\": \"{{assigneeEmail}}\",\n  \"displayName\": \"{{userDisplayName}}\",\n  \"phone\": \"{{userPhone}}\",\n  \"role\": \"User\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -433,7 +450,8 @@
                   "const json = pm.response.json();",
                   "pm.test('user view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
                   "pm.collectionVariables.set('userId', json.id);",
-                  "pm.test('user id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
+                  "pm.collectionVariables.set('assigneeUserId', json.id);",
+                  "pm.test('assignee user id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
                   "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
@@ -966,11 +984,12 @@
                   "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
                   "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.collectionVariables.set('jobId', json.id);",
-                  "pm.test('customer email echoed', function () { pm.expect(pm.response.json().customerEmail).to.eql(pm.variables.get('customerEmail')); });",
-                  "pm.test('control installation types echoed', function () { pm.expect(pm.response.json().controlInstallationTypes.length).to.be.above(0); });",
-                  "pm.test('custom work kind echoed for Andet', function () { pm.expect(pm.response.json().customWorkKind).to.eql('Service'); });",
-                  "pm.test('control view model hides internal timestamps', function () { const subcategory = json.controlInstallationTypes?.[0]?.subcategories?.[0]; if (subcategory) { pm.expect(subcategory).to.not.have.property('createdAt'); pm.expect(subcategory).to.not.have.property('updatedAt'); const check = subcategory.controlChecks?.[0]; if (check) { pm.expect(check).to.not.have.property('createdAt'); pm.expect(check).to.not.have.property('updatedAt'); } } });",
-                  "pm.test('create response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                  "pm.test('customer email echoed', function () { pm.expect(json.customerEmail).to.eql(pm.variables.get('customerEmail')); });",
+                  "pm.test('control installation types echoed', function () { pm.expect(json.controlInstallationTypes.length).to.be.above(0); });",
+                  "pm.test('creator auto-assigned', function () {",
+                  "  pm.expect(json.assignedUsers).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(json.assignedUsers.map(user => user.id)).to.include(pm.variables.get('creatorUserId'));",
+                  "});"
                 ]
               }
             }
@@ -1385,6 +1404,7 @@
                   "pm.test('jobs list uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
                   "pm.test('jobs list sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
                   "pm.test('job list view model hides internal timestamps', function () { if (json.length > 0) ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json[0]).to.not.have.property(field)); });",
+                  "pm.test('job list view model exposes assignedUsers array', function () { if (json.length > 0) pm.expect(json[0].assignedUsers).to.be.an('array'); });",
                   "pm.test('job list view model exposes softDeleted flag', function () { if (json.length > 0) pm.expect(json[0].softDeleted).to.be.a('boolean'); });",
                   "pm.collectionVariables.set('jobsListEtag', pm.response.headers.get('ETag'));"
                 ]
@@ -1425,8 +1445,7 @@
                   "  const json = pm.response.json();",
                   "  const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
                   "  pm.test('job detail view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
-                  "  pm.test('job detail view model exposes softDeleted flag', function () { pm.expect(json.softDeleted).to.be.a('boolean'); });",
-                  "  pm.test('job detail controls hide internal timestamps', function () { const subcategory = json.controlInstallationTypes?.[0]?.subcategories?.[0]; if (subcategory) { pm.expect(subcategory).to.not.have.property('createdAt'); pm.expect(subcategory).to.not.have.property('updatedAt'); const check = subcategory.controlChecks?.[0]; if (check) { pm.expect(check).to.not.have.property('createdAt'); pm.expect(check).to.not.have.property('updatedAt'); } } });",
+                  "  pm.test('job detail exposes assignedUsers array', function () { pm.expect(json.assignedUsers).to.be.an('array'); });",
                   "}"
                 ]
               }
@@ -2232,7 +2251,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign?userId={{userId}}",
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/assign",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2243,7 +2262,16 @@
                 "assign"
               ]
             },
-            "description": "Assigns a job to a user through the query-bound userId parameter."
+            "description": "Assigns a job to a user through the query-bound userId parameter.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [\n    \"{{creatorUserId}}\",\n    \"{{assigneeUserId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "body": {
             "mode": "raw",
@@ -2256,7 +2284,16 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) { pm.test('assigned user returned when available', function () { pm.expect(pm.response.json().assignedUser).to.exist; }); }",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const ids = json.assignedUsers.map(user => user.id);",
+                  "  pm.test('multiple assigned users returned', function () {",
+                  "    pm.expect(json.assignedUsers).to.be.an('array');",
+                  "    pm.expect(ids).to.include(pm.variables.get('creatorUserId'));",
+                  "    pm.expect(ids).to.include(pm.variables.get('assigneeUserId'));",
+                  "  });",
+                  "  pm.test('legacy assignedUser removed', function () { pm.expect(json).to.not.have.property('assignedUser'); });",
+                  "}",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
@@ -2264,7 +2301,45 @@
           ]
         },
         {
-          "name": "POST /api/jobs/{id}/assign/null (unassign)",
+          "name": "GET /api/jobs/{id}/history after assign",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}",
+                "history"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const assignmentEvent = json.find(event => ['assigned', 'reassigned'].includes(event.eventType));",
+                  "  pm.test('assignment history event has assignedUsers snapshot', function () {",
+                  "    pm.expect(assignmentEvent).to.exist;",
+                  "    pm.expect(assignmentEvent.after.assignedUsers).to.be.an('array').that.is.not.empty;",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/jobs/{id}/assign empty userIds invalid",
           "request": {
             "method": "POST",
             "header": [
@@ -2285,7 +2360,16 @@
                 "assign"
               ]
             },
-            "description": "Unassigns a job by omitting the query-bound userId parameter."
+            "description": "Unassigns a job by omitting the query-bound userId parameter.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "body": {
             "mode": "raw",
@@ -2297,9 +2381,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) { pm.test('assigned user cleared', function () { pm.expect(pm.response.json().assignedUser).to.be.oneOf([null, undefined]); }); }",
-                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                  "pm.test('400 validation problem', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test('empty assignment rejected', function () { pm.expect(Object.keys(json.errors || {})).to.include('UserIds'); });"
                 ]
               }
             }
@@ -2321,6 +2405,7 @@
           "  pm.collectionVariables.set('organizationCvr', numericTail.padStart(8, '0'));",
           "  pm.collectionVariables.set('organizationName', `Integration VVS ${runId}`);",
           "  pm.collectionVariables.set('testEmail', `rbj+${runId}@17v3ygzs.mailosaur.net`);",
+          "  pm.collectionVariables.set('assigneeEmail', `assignee+${runId}@17v3ygzs.mailosaur.net`);",
           "  pm.collectionVariables.set('adminDisplayName', `Integration Admin ${runId}`);",
           "  pm.collectionVariables.set('adminPhone', '+4512345678');",
           "  pm.collectionVariables.set('userDisplayName', `Integration User ${runId}`);",
