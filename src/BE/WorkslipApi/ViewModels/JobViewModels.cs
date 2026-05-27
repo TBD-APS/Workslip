@@ -33,7 +33,7 @@ public sealed record JobListItemViewModel(
     IReadOnlyList<string> InstallationTypes,
     string? WorkKind,
     string? CustomWorkKind,
-    AssignedUserResponse? AssignedUser,
+    IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted);
 
 public sealed record JobViewModel(
@@ -59,7 +59,7 @@ public sealed record JobViewModel(
     JsonObject? Payload,
     IReadOnlyList<ControlInstallationTypeViewModel> ControlInstallationTypes,
     IReadOnlyList<JobLinkInfoResponse> Links,
-    AssignedUserResponse? AssignedUser,
+    IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted);
 
 public sealed record JobReportSummaryViewModel(
@@ -72,7 +72,7 @@ public sealed record JobReportSummaryViewModel(
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<ControlInstallationTypeViewModel> ControlInstallationTypes,
     IReadOnlyList<JobLinkInfoResponse> Links,
-    AssignedUserResponse? AssignedUser,
+    IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted);
 
 public sealed record JobLinkViewModel(
@@ -99,7 +99,7 @@ public static class JobViewModelBuilder
         job.InstallationTypes,
         job.WorkKind,
         job.CustomWorkKind,
-        job.AssignedUser,
+        job.AssignedUsers,
         job.SoftDeleted);
 
     public static JobViewModel ToJob(JobReportResponse job) => new(
@@ -125,7 +125,7 @@ public static class JobViewModelBuilder
         job.Payload,
         job.ControlInstallationTypes.Select(ToControlInstallationType).ToArray(),
         job.Links,
-        job.AssignedUser,
+        job.AssignedUsers,
         job.SoftDeleted);
 
     public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
@@ -138,7 +138,7 @@ public static class JobViewModelBuilder
         summary.Observations,
         summary.ControlInstallationTypes.Select(ToControlInstallationType).ToArray(),
         summary.Links,
-        summary.AssignedUser,
+        summary.AssignedUsers,
         summary.SoftDeleted);
 
     public static JobLinkViewModel ToLink(JobLinkResponse link) => new(
