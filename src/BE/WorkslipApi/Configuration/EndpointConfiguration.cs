@@ -23,6 +23,7 @@ public static class EndpointConfiguration
         app.MapAuthEndpoints();
         app.MapUserEndpoints();
         app.MapJobEndpoints();
+        app.MapJobLinkEndpoints();
 
         return app;
     }

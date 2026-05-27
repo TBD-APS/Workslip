@@ -148,12 +148,11 @@ public sealed class JobService(
             return Result<JobReportResponse>.Unauthorized();
         }
 
-        var cached = await cache.GetOrCreateAsync(
-            JobReportCacheKey(id, organizationId.Value),
-            async token => CachedJobReport.From(await repository.GetAsync(id, organizationId.Value, token)),
-            JobReportCacheOptions,
-            tags: ["jobs", JobReportTag(id, organizationId.Value)],
+        var cached = await cache.GetOrCreateAsync(JobReportCacheKey(id, organizationId.Value),
+            async token => CachedJobReport.From(await repository.GetAsync(id, organizationId.Value, token)), 
+            JobReportCacheOptions,tags: ["jobs", JobReportTag(id, organizationId.Value)],
             cancellationToken: cancellationToken);
+        
         if (!cached.Found || cached.Value is null)
         {
             logger.LogWarning("Job lookup returned not found. JobId: {JobId}.", id);

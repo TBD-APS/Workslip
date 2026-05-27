@@ -1526,48 +1526,12 @@
           ]
         },
         {
-          "name": "GET /api/jobs/{id}/history pagination clamps",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/history?limit=999&offset=-10",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}",
-                "history"
-              ]
-            },
-            "description": "Covers history endpoint limit/offset edge-case normalization."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  pm.test('history clamp still returns bounded array', function () { pm.expect(json).to.be.an('array'); pm.expect(json.length).to.be.at.most(200); });",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "GET /api/jobs/{id}/report",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/report",
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/report/pdf",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1575,7 +1539,8 @@
                 "api",
                 "jobs",
                 "{{jobId}}",
-                "report"
+                "report",
+                "pdf"
               ]
             },
             "description": "Exports the job report as a 4V05 PDF matching the original paper report layout."

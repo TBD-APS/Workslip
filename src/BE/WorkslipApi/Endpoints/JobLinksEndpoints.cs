@@ -6,7 +6,7 @@ namespace Workslip.Api.Endpoints
 {
     public static class JobLinksEndpoints
     {
-        public static IEndpointRouteBuilder MapJobEndpoints(this IEndpointRouteBuilder app)
+        public static IEndpointRouteBuilder MapJobLinkEndpoints(this IEndpointRouteBuilder app)
         {
             var group = app.MapGroup("/api/jobs").WithTags("jobs").RequireAuthorization(AuthPolicies.RequireUser);
 

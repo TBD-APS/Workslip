@@ -72,7 +72,7 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result);
         });
 
-        group.MapGet("/{id:guid}/report", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
+        group.MapGet("/{id:guid}/report/pdf", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
         {
             var result = await service.GetAsync(id, cancellationToken);
             if (!result.IsSuccess)
