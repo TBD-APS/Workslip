@@ -20,8 +20,11 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
-        group.MapGet("/", async (
-            JobStatus? status,
+        group.MapGet("/", async (JobStatus? status,
+            string? reportNumber,
+            string? customerName,
+            string? customerEmail,
+            string? customerAddress,
             int? limit,
             int? offset,
             HttpContext httpContext,
@@ -29,14 +32,14 @@ public static class JobEndpoints
             IJobService service,
             CancellationToken cancellationToken) =>
         {
-            var result = await service.ListAsync(status, limit, offset, cancellationToken);
+            var result = await service.ListAsync(status, reportNumber, customerName, customerEmail, customerAddress, limit, offset, cancellationToken);
             if (!result.IsSuccess)
             {
                 return ResultExtensions.ToHttpResult(result);
             }
 
             var jobs = result.Value;
-            var etag = HttpCacheHeaders.JobListEtag(jobs, currentUser.OrganizationId!.Value, status, limit, offset);
+            var etag = HttpCacheHeaders.JobListEtag(jobs, currentUser.OrganizationId!.Value, status, reportNumber, customerName, customerEmail, customerAddress, limit, offset);
             HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
 
             return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)

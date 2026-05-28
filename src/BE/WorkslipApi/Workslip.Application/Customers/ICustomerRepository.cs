@@ -1,0 +1,9 @@
+using System.Data;
+using Workslip.Application.Jobs;
+
+namespace Workslip.Application.Customers;
+
+public interface ICustomerRepository
+{
+    Task<Guid> UpsertByEmailAsync(Guid organizationId, CustomerInfo customer, IDbConnection connection, IDbTransaction transaction, CancellationToken cancellationToken);
+}

@@ -6,7 +6,7 @@ namespace Workslip.Application.Jobs
     public interface IJobService
     {
         Task<Result<JobReportResponse>> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken);
-        Task<Result<IReadOnlyList<JobListItemResponse>>> ListAsync(JobStatus? status, int? limit, int? offset, CancellationToken cancellationToken);
+        Task<Result<IReadOnlyList<JobListItemResponse>>> ListAsync(JobStatus? status, string? reportNumber, string? customerName, string? customerEmail, string? customerAddress, int? limit, int? offset, CancellationToken cancellationToken);
         Task<Result<JobReportResponse>> GetAsync(Guid id, CancellationToken cancellationToken);
         Task<Result<JobReportSummaryResponse>> GetReportSummaryAsync(Guid id, CancellationToken cancellationToken);
         Task<Result<IReadOnlyList<JobEventResponse>>> GetHistoryAsync(Guid id, int? limit, int? offset, CancellationToken cancellationToken);

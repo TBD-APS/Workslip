@@ -11,6 +11,7 @@ public static class EndpointConfiguration
         {
             app.MapOpenApi();
             app.MapScalarApiReference();
+            app.MapDevEndpoints();
         }
 
         app.MapGet("/health", (HttpContext httpContext) =>
