@@ -509,7 +509,7 @@ public sealed class JobService(
 
          foreach (var userId in normalizedUserIds)
          {
-             var assignedUser = await userRepository.GetByIdAsync(userId, organizationId.Value, cancellationToken);
+             var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
              if (assignedUser is null)
              {
                  var errors = new List<ValidationError>

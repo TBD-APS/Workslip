@@ -75,7 +75,7 @@ public sealed class UserService(
             return Result<UserResponse>.Unauthorized();
         }
 
-        var user = await repository.GetByIdAsync(userId, organizationId.Value, cancellationToken);
+        var user = await repository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
         {
             logger.LogInformation("User not found. UserId: {UserId}.", userId);
@@ -129,7 +129,7 @@ public sealed class UserService(
             return Result<UserResponse>.Unauthorized();
         }
 
-        var user = await repository.GetByIdAsync(userId, organizationId.Value, cancellationToken);
+        var user = await repository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
         {
             logger.LogInformation("User not found for update. UserId: {UserId}.", userId);
@@ -147,7 +147,7 @@ public sealed class UserService(
 
         user.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await repository.UpdateAsync(user, currentUser.OrganizationId!.Value, cancellationToken);
+        await repository.UpdateAsync(user, cancellationToken);
 
         logger.LogInformation("User updated. UserId: {UserId}.", userId);
 
@@ -164,14 +164,14 @@ public sealed class UserService(
             return Result.Unauthorized();
         }
 
-        var user = await repository.GetByIdAsync(userId, organizationId.Value, cancellationToken);
+        var user = await repository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
         {
             logger.LogInformation("User not found for deletion. UserId: {UserId}.", userId);
             return Result.NotFound();
         }
 
-        await repository.DeleteAsync(userId, organizationId.Value, cancellationToken);
+        await repository.DeleteAsync(userId, cancellationToken);
 
         logger.LogInformation("User deleted. UserId: {UserId}.", userId);
 
