@@ -3,6 +3,7 @@ using Workslip.Infrastructure.Schema;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Application;
+using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
@@ -17,6 +18,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IJobRepository, DapperJobRepository>();
         services.AddScoped<IJobLinkRepository, DapperJobLinkRepository>();
         services.AddScoped<IJobTaxonomyRepository, DapperJobTaxonomyRepository>();

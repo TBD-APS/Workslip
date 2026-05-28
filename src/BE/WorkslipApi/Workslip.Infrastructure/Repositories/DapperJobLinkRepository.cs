@@ -36,8 +36,13 @@ public sealed class DapperJobLinkRepository(ISqlConnectionFactory connectionFact
             },
             cancellationToken: cancellationToken));
 
-        var linked = await connection.QuerySingleAsync<JobReportRow>(new CommandDefinition(
-            "select * from dbo.JobReports where Id = @Id and OrganizationId = @OrganizationId;",
+        var linked = await connection.QuerySingleAsync<JobLinkReportProjection>(new CommandDefinition(
+            """
+            select report.ReportNumber, report.Status, c.Name as CustomerName
+            from dbo.JobReports report
+            left join dbo.Customers c on c.Id = report.CustomerId
+            where report.Id = @Id and report.OrganizationId = @OrganizationId;
+            """,
             new { Id = targetReportId, OrganizationId = organizationId },
             cancellationToken: cancellationToken));
 
@@ -47,7 +52,7 @@ public sealed class DapperJobLinkRepository(ISqlConnectionFactory connectionFact
             targetReportId,
             linked.ReportNumber ?? string.Empty,
             linked.CustomerName ?? string.Empty,
-            linked.Status,
+            linked.Status ?? string.Empty,
             linkType,
             now);
     }
@@ -69,8 +74,13 @@ public sealed class DapperJobLinkRepository(ISqlConnectionFactory connectionFact
 
         var linkedReports = linkedIds.Length == 0
             ? []
-            : (await connection.QueryAsync<JobReportRow>(new CommandDefinition(
-                "select * from dbo.JobReports where OrganizationId = @OrganizationId and Id in @Ids;",
+            : (await connection.QueryAsync<JobLinkReportProjection>(new CommandDefinition(
+                """
+                select report.Id, report.ReportNumber, report.Status, c.Name as CustomerName
+                from dbo.JobReports report
+                left join dbo.Customers c on c.Id = report.CustomerId
+                where report.OrganizationId = @OrganizationId and report.Id in @Ids;
+                """,
                 new { Ids = linkedIds, OrganizationId = organizationId },
                 cancellationToken: cancellationToken)))
                 .ToDictionary(r => r.Id);
@@ -126,5 +136,13 @@ public sealed class DapperJobLinkRepository(ISqlConnectionFactory connectionFact
             cancellationToken: cancellationToken));
 
         return affected > 0;
+    }
+
+    private sealed class JobLinkReportProjection
+    {
+        public Guid Id { get; init; }
+        public string? ReportNumber { get; init; }
+        public string? Status { get; init; }
+        public string? CustomerName { get; init; }
     }
 }

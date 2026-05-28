@@ -49,6 +49,10 @@ public static class HttpCacheHeaders
         IEnumerable<JobListItemResponse> jobs,
         Guid organizationId,
         JobStatus? status,
+        string? reportNumberSearch,
+        string? customerNameSearch,
+        string? customerEmailSearch,
+        string? customerAddressSearch,
         int? limit,
         int? offset)
     {
@@ -57,6 +61,14 @@ public static class HttpCacheHeaders
             .Append(organizationId.ToString("N"))
             .Append(':')
             .Append(status?.ToString() ?? "all")
+            .Append(':')
+            .Append(reportNumberSearch?.ToLowerInvariant() ?? "none")
+            .Append(':')
+            .Append(customerNameSearch?.ToLowerInvariant() ?? "none")
+            .Append(':')
+            .Append(customerEmailSearch?.ToLowerInvariant() ?? "none")
+            .Append(':')
+            .Append(customerAddressSearch?.ToLowerInvariant() ?? "none")
             .Append(':')
             .Append(limit?.ToString() ?? "default")
             .Append(':')

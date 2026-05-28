@@ -7,11 +7,6 @@ public sealed class JobReportRow
     public Guid? CustomerId { get; init; }
     public string? ReportNumber { get; init; }
     public string Status { get; init; } = "";
-    public string? CustomerName { get; init; }
-    public string? CustomerAddress { get; init; }
-    public string? CustomerEmail { get; init; }
-    public string? ContactPerson { get; init; }
-    public string? Phone { get; init; }
     public DateTime? ReportDate { get; init; }
     public string? TaskDescription { get; init; }
     public string? CustomerObservations { get; init; }

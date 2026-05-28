@@ -2,7 +2,7 @@ using Workslip.Domain;
 
 namespace Workslip.Application.Jobs;
 
-public sealed record JobQuery(Guid OrganizationId, JobStatus? Status, int Limit, int Offset);
+public sealed record JobQuery(Guid OrganizationId, JobStatus? Status, int Limit, int Offset, string? ReportNumberSearch = null, string? CustomerNameSearch = null, string? CustomerEmailSearch = null, string? CustomerAddressSearch = null);
 
 public interface IJobRepository
 {

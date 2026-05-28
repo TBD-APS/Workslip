@@ -421,6 +421,57 @@
       ]
     },
     {
+      "name": "Dev",
+      "item": [
+        {
+          "name": "/api/dev/token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/dev/token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dev", "token"]
+            },
+            "description": "DEV ONLY: Generates a valid LocalJwt token for any user by email. Bypasses the OTC email flow. Guarded behind IsDevelopment().",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('authToken', json.token);",
+                  "  pm.test('token received', function () { pm.expect(json.token).to.be.a('string').and.not.empty; });",
+                  "  pm.test('token is JWT with 3 parts', function () { pm.expect(json.token.split('.')).to.have.length(3); });",
+                  "  pm.test('user info returned', function () { pm.expect(json.user.email).to.eql(pm.variables.get('testEmail')); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Users",
       "item": [
         {
@@ -1031,6 +1082,26 @@
                   "disabled": true
                 },
                 {
+                  "key": "reportNumberSearch",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "customerNameSearch",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "customerEmailSearch",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "customerAddressSearch",
+                  "value": "",
+                  "disabled": true
+                },
+                {
                   "key": "limit",
                   "value": "50",
                   "disabled": false
@@ -1042,7 +1113,7 @@
                 }
               ]
             },
-            "description": "Lists jobs. Optional filters: status, limit, offset."
+            "description": "Lists jobs. Optional filters: status, reportNumberSearch, customerNameSearch, customerEmailSearch, customerAddressSearch, limit, offset."
           },
           "response": [],
           "event": [
@@ -1624,6 +1695,41 @@
                   "  pm.test('legacy assignedUser removed', function () { pm.expect(json).to.not.have.property('assignedUser'); });",
                   "}",
                   "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/jobs?customerNameSearch",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/?customerNameSearch=test",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs"],
+              "query": [
+                {
+                  "key": "customerNameSearch",
+                  "value": "test"
+                }
+              ]
+            },
+            "description": "Tests customer name search filter on the job list endpoint."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('response is an array', function () {",
+                  "  pm.expect(json).to.be.an('array');",
+                  "});"
                 ]
               }
             }

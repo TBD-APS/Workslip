@@ -2,6 +2,7 @@ using System.Data;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Dapper;
+using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
 using Workslip.Domain.Models;
@@ -9,7 +10,7 @@ using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure.Repositories;
 
-public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory, IDatabaseRetryPolicy retryPolicy) : IJobRepository
+public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory, IDatabaseRetryPolicy retryPolicy, ICustomerRepository customerRepository) : IJobRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly TimeSpan DeletionRetentionPeriod = TimeSpan.FromDays(30);
@@ -25,15 +26,21 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         var now = DateTimeOffset.UtcNow;
         var reportId = Guid.NewGuid();
 
+        Guid? customerId = null;
+        if (request.Customer?.Email is not null)
+        {
+            customerId = await customerRepository.UpsertByEmailAsync(organizationId, request.Customer, connection, transaction, cancellationToken);
+        }
+
         await connection.ExecuteAsync(new CommandDefinition(
             """
             insert into dbo.JobReports (
-                Id, OrganizationId, CustomerId, ReportNumber, Status, CustomerName, CustomerAddress, CustomerEmail, ContactPerson, Phone,
+                Id, OrganizationId, CustomerId, ReportNumber, Status,
                 ReportDate, TaskDescription, CustomerObservations, TechnicalObservations, InstallationTypesJson, WorkKind, CustomWorkKind,
                 Remarks, ClosureFlagsJson, PayloadJson, CreatedAt, UpdatedAt, SubmittedAt
             )
             values (
-                @Id, @OrganizationId, @CustomerId, @ReportNumber, @Status, @CustomerName, @CustomerAddress, @CustomerEmail, @ContactPerson, @Phone,
+                @Id, @OrganizationId, @CustomerId, @ReportNumber, @Status,
                 @ReportDate, @TaskDescription, @CustomerObservations, @TechnicalObservations, @InstallationTypesJson, @WorkKind, @CustomWorkKind,
                 @Remarks, @ClosureFlagsJson, @PayloadJson, @CreatedAt, @UpdatedAt, null
             );
@@ -42,14 +49,9 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             {
                 Id = reportId,
                 OrganizationId = organizationId,
-                CustomerId = request.Customer?.CustomerId,
+                CustomerId = customerId,
                 request.ReportNumber,
                 Status = JobStatus.Draft.ToString(),
-                CustomerName = request.Customer?.Name,
-                CustomerAddress = request.Customer?.Address,
-                CustomerEmail = request.Customer?.Email,
-                ContactPerson = request.Customer?.ContactPerson,
-                Phone = request.Customer?.Phone,
                 ReportDate = ToDateTime(request.ReportDate),
                 request.TaskDescription,
                 request.CustomerObservations,
@@ -84,10 +86,19 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var rows = (await connection.QueryAsync<JobReportRow>(new CommandDefinition(
             """
-            select report.*
+            select report.Id, report.OrganizationId, report.CustomerId, report.ReportNumber, report.Status,
+                   report.ReportDate, report.TaskDescription, report.CustomerObservations, report.TechnicalObservations,
+                   report.InstallationTypesJson, report.WorkKind, report.CustomWorkKind, report.Remarks,
+                   report.ClosureFlagsJson, report.PayloadJson, report.IsSoftDeleted,
+                   report.CreatedAt, report.UpdatedAt, report.SubmittedAt, report.DeletionScheduledAt
             from dbo.JobReports report
+            left join dbo.Customers c on c.Id = report.CustomerId
             where report.OrganizationId = @OrganizationId
               and (@Status is null or report.Status = @Status)
+              and (@ReportNumberLike is null or report.ReportNumber like @ReportNumberLike escape '\')
+              and (@CustomerNameLike is null or c.Name like @CustomerNameLike escape '\')
+              and (@CustomerEmailLike is null or c.Email like @CustomerEmailLike escape '\')
+              and (@CustomerAddressLike is null or c.Address like @CustomerAddressLike escape '\')
             order by report.UpdatedAt desc
             offset @Offset rows fetch next @Limit rows only;
             """,
@@ -95,6 +106,10 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             {
                 query.OrganizationId,
                 Status = query.Status?.ToString(),
+                CustomerNameLike = ToSearchLike(query.CustomerNameSearch),
+                CustomerEmailLike = ToSearchLike(query.CustomerEmailSearch),
+                CustomerAddressLike = ToSearchLike(query.CustomerAddressSearch),
+                ReportNumberLike = ToSearchLike(query.ReportNumberSearch),
                 query.Limit,
                 query.Offset
             },
@@ -103,23 +118,35 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         var assignedUsersByReport = await LoadAssignedUsersAsync(connection, query.OrganizationId, rows.Select(row => row.Id), cancellationToken);
         var totalHoursByJob = await GetTotalHoursByJobAsync(connection, rows.Select(row => row.Id), cancellationToken);
 
-         return rows.Select(row => new JobListItemResponse(
-             row.Id,
-             row.OrganizationId,
-             new CustomerInfo(row.CustomerId, row.CustomerName, row.CustomerAddress, row.CustomerEmail, null, null),
-             row.ReportNumber,
-             ParseStatus(row.Status),
-             ToDateOnly(row.ReportDate),
-             FromJsonList(row.InstallationTypesJson),
-             row.WorkKind,
-             row.CustomWorkKind,
-             row.CreatedAt,
-             row.UpdatedAt,
-             row.SubmittedAt,
-             assignedUsersByReport.GetValueOrDefault(row.Id) ?? [],
-             row.IsSoftDeleted,
-             row.DeletionScheduledAt,
-             totalHoursByJob.GetValueOrDefault(row.Id))).ToArray();
+        var customerIds = rows.Where(r => r.CustomerId.HasValue).Select(r => r.CustomerId!.Value).Distinct().ToArray();
+        var customers = customerIds.Length > 0
+            ? (await connection.QueryAsync<CustomerRow>(new CommandDefinition(
+                "select * from dbo.Customers where OrganizationId = @OrganizationId and Id in @Ids;",
+                new { OrganizationId = query.OrganizationId, Ids = customerIds },
+                cancellationToken: cancellationToken))).ToDictionary(c => c.Id)
+            : new Dictionary<Guid, CustomerRow>();
+
+         return rows.Select(row =>
+         {
+             var customer = row.CustomerId is not null ? customers.GetValueOrDefault(row.CustomerId.Value) : null;
+             return new JobListItemResponse(
+                 row.Id,
+                 row.OrganizationId,
+                 customer is not null ? new CustomerInfo(customer.Id, customer.Name, customer.Address, customer.Email, customer.ContactPerson, customer.Phone) : null,
+                 row.ReportNumber,
+                 ParseStatus(row.Status),
+                 ToDateOnly(row.ReportDate),
+                 FromJsonList(row.InstallationTypesJson),
+                 row.WorkKind,
+                 row.CustomWorkKind,
+                 row.CreatedAt,
+                 row.UpdatedAt,
+                 row.SubmittedAt,
+                 assignedUsersByReport.GetValueOrDefault(row.Id) ?? [],
+                 row.IsSoftDeleted,
+                 row.DeletionScheduledAt,
+                 totalHoursByJob.GetValueOrDefault(row.Id));
+         }).ToArray();
     }
 
     public Task<JobReportResponse?> GetAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
@@ -130,7 +157,11 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken);
         var row = await connection.QuerySingleOrDefaultAsync<JobReportRow>(new CommandDefinition(
             """
-            select report.*
+            select report.Id, report.OrganizationId, report.CustomerId, report.ReportNumber, report.Status,
+                   report.ReportDate, report.TaskDescription, report.CustomerObservations, report.TechnicalObservations,
+                   report.InstallationTypesJson, report.WorkKind, report.CustomWorkKind, report.Remarks,
+                   report.ClosureFlagsJson, report.PayloadJson, report.IsSoftDeleted,
+                   report.CreatedAt, report.UpdatedAt, report.SubmittedAt, report.DeletionScheduledAt
             from dbo.JobReports report
             where report.Id = @Id and report.OrganizationId = @OrganizationId;
             """,
@@ -140,6 +171,15 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         if (row is null)
         {
             return null;
+        }
+
+        CustomerRow? customer = null;
+        if (row.CustomerId.HasValue)
+        {
+            customer = await connection.QuerySingleOrDefaultAsync<CustomerRow>(new CommandDefinition(
+                "select * from dbo.Customers where Id = @Id and OrganizationId = @OrganizationId;",
+                new { Id = row.CustomerId.Value, OrganizationId = organizationId },
+                cancellationToken: cancellationToken));
         }
 
         var subcategories = await connection.QueryAsync<JobControlSubcategoryRow>(new CommandDefinition(
@@ -157,7 +197,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         var totalHours = await GetTotalHoursByJobAsync(connection, [id], cancellationToken);
         var worksheetEntries = await GetWorksheetEntriesByJobAsync(connection, id, cancellationToken);
 
-        return ToResponse(row, subcategories, checks, links, assignedUsers, worksheetEntries, totalHours.GetValueOrDefault(id));
+        return ToResponse(row, customer, subcategories, checks, links, assignedUsers, worksheetEntries, totalHours.GetValueOrDefault(id));
     }
 
     public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
@@ -211,16 +251,18 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         }
 
         var now = DateTimeOffset.UtcNow;
+
+        Guid? customerId = null;
+        if (request.Customer?.Email is not null)
+        {
+            customerId = await customerRepository.UpsertByEmailAsync(organizationId, request.Customer, connection, transaction, cancellationToken);
+        }
+
         await connection.ExecuteAsync(new CommandDefinition(
             """
             update dbo.JobReports
             set CustomerId = @CustomerId,
                 ReportNumber = coalesce(@ReportNumber, ReportNumber),
-                CustomerName = coalesce(@CustomerName, CustomerName),
-                CustomerAddress = coalesce(@CustomerAddress, CustomerAddress),
-                CustomerEmail = @CustomerEmail,
-                ContactPerson = @ContactPerson,
-                Phone = @Phone,
                 ReportDate = coalesce(@ReportDate, ReportDate),
                 TaskDescription = coalesce(@TaskDescription, TaskDescription),
                 CustomerObservations = @CustomerObservations,
@@ -238,13 +280,8 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             {
                 Id = id,
                 OrganizationId = organizationId,
-                CustomerId = request.Customer?.CustomerId,
+                CustomerId = customerId,
                 request.ReportNumber,
-                CustomerName = request.Customer?.Name,
-                CustomerAddress = request.Customer?.Address,
-                CustomerEmail = request.Customer?.Email,
-                ContactPerson = request.Customer?.ContactPerson,
-                Phone = request.Customer?.Phone,
                 ReportDate = ToDateTime(request.ReportDate),
                 request.TaskDescription,
                 request.CustomerObservations,
@@ -631,8 +668,13 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
         if (linkedIds.Length == 0)
             return [];
 
-        var linkedReports = (await connection.QueryAsync<JobReportRow>(new CommandDefinition(
-            "select * from dbo.JobReports where OrganizationId = @OrganizationId and Id in @Ids;",
+        var linkedReports = (await connection.QueryAsync<LinkedReportProjection>(new CommandDefinition(
+            """
+            select report.Id, report.ReportNumber, report.Status, c.Name as CustomerName
+            from dbo.JobReports report
+            left join dbo.Customers c on c.Id = report.CustomerId
+            where report.OrganizationId = @OrganizationId and report.Id in @Ids;
+            """,
             new { Ids = linkedIds, OrganizationId = organizationId },
             cancellationToken: cancellationToken)))
             .ToDictionary(r => r.Id);
@@ -652,6 +694,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
 
     private static JobReportResponse ToResponse(
         JobReportRow row,
+        CustomerRow? customer,
         IEnumerable<JobControlSubcategoryRow> subcategories,
         IEnumerable<JobControlCheckRow> checks,
         IReadOnlyList<JobLinkInfoResponse> links,
@@ -685,7 +728,7 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
          return new(
              row.Id,
              row.OrganizationId,
-             new CustomerInfo(row.CustomerId, row.CustomerName, row.CustomerAddress, row.CustomerEmail, row.ContactPerson, row.Phone),
+             customer is not null ? new CustomerInfo(customer.Id, customer.Name, customer.Address, customer.Email, customer.ContactPerson, customer.Phone) : null,
              row.ReportNumber,
              ParseStatus(row.Status),
              ToDateOnly(row.ReportDate),
@@ -818,6 +861,14 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
             .ToArray();
     }
 
+    private sealed class LinkedReportProjection
+    {
+        public Guid Id { get; init; }
+        public string? ReportNumber { get; init; }
+        public string? Status { get; init; }
+        public string? CustomerName { get; init; }
+    }
+
     private sealed class JobAssignmentUserProjection
     {
         public Guid ReportId { get; init; }
@@ -914,6 +965,17 @@ public sealed class DapperJobRepository(ISqlConnectionFactory connectionFactory,
 
     private static DateOnly? ToDateOnly(DateTime? value) =>
         value is null ? null : DateOnly.FromDateTime(value.Value);
+
+    private static string? ToSearchLike(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        var escaped = value
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
+        return $"%{escaped}%";
+    }
 
     private static string ToJson<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
 
