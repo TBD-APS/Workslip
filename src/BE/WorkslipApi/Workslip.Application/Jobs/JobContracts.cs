@@ -3,6 +3,12 @@ using Workslip.Domain;
 
 namespace Workslip.Application.Jobs;
 
+public sealed record JobQuery(Guid OrganizationId, JobStatus? Status, int Limit, int Offset,
+    string? ReportNumber = null,
+    string? CustomerName = null, 
+    string? CustomerEmail = null,
+    string? CustomerAddress = null);
+
 public sealed record ControlCheckRequest(
     string ItemId,
     bool Checked,

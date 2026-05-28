@@ -137,12 +137,4 @@ public sealed class DapperJobLinkRepository(ISqlConnectionFactory connectionFact
 
         return affected > 0;
     }
-
-    private sealed class JobLinkReportProjection
-    {
-        public Guid Id { get; init; }
-        public string? ReportNumber { get; init; }
-        public string? Status { get; init; }
-        public string? CustomerName { get; init; }
-    }
 }

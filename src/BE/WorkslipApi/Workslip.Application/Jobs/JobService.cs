@@ -36,7 +36,8 @@ public sealed class JobService(
     public async Task<Result<JobReportResponse>> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
-        if (organizationId is null)
+        var role = currentUser.Role;
+        if (organizationId is null || role is not "Admin")
         {
             return Result<JobReportResponse>.Unauthorized();
         }
@@ -133,7 +134,10 @@ public sealed class JobService(
         var normalizedEmailSearch = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim();
         var normalizedAddressSearch = string.IsNullOrWhiteSpace(customerAddress) ? null : customerAddress.Trim();
         var query = new JobQuery(organizationId.Value, status, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0), normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
-        var cacheKey = $"jobs:list:organization={query.OrganizationId:N}:status={query.Status?.ToString() ?? "all"}:reportNumberSearch={query.ReportNumberSearch ?? "none"}:customerNameSearch={query.CustomerNameSearch ?? "none"}:customerEmailSearch={query.CustomerEmailSearch ?? "none"}:customerAddressSearch={query.CustomerAddressSearch ?? "none"}:limit={query.Limit}:offset={query.Offset}";
+        
+        var cacheKey = $"jobs:list:organization={query.OrganizationId:N}:status={query.Status?.ToString() ?? "all"}" +
+            $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
+            $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
         
         var jobs = await cache.GetOrCreateAsync(
             cacheKey,
@@ -141,17 +145,6 @@ public sealed class JobService(
             JobListCacheOptions,
             tags: ["jobs", JobListTag(query.OrganizationId)],
             cancellationToken: cancellationToken);
-
-        logger.LogInformation("Jobs listed. OrganizationId: {OrganizationId}. StatusFilter: {StatusFilter}. ReportNumberSearch: {ReportNumberSearch}. CustomerNameSearch: {CustomerNameSearch}. CustomerEmailSearch: {CustomerEmailSearch}. CustomerAddressSearch: {CustomerAddressSearch}. Limit: {Limit}. Offset: {Offset}. ResultCount: {ResultCount}.",
-            query.OrganizationId,
-            query.Status,
-            query.ReportNumberSearch ?? "none",
-            query.CustomerNameSearch ?? "none",
-            query.CustomerEmailSearch ?? "none",
-            query.CustomerAddressSearch ?? "none",
-            query.Limit,
-            query.Offset,
-            jobs.Length);
 
         return Result<IReadOnlyList<JobListItemResponse>>.Success(jobs);
     }
