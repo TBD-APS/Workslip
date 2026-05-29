@@ -15,6 +15,7 @@ namespace Workslip.Application.Jobs
         Task<Result<JobReportResponse>> AssignAsync(Guid jobId, IReadOnlyList<Guid>? userIds, CancellationToken cancellationToken);
         Task<Result<JobLinkResponse>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken);
         Task<Result<IReadOnlyList<JobLinkResponse>>> GetLinksAsync(Guid reportId, CancellationToken cancellationToken);
+        Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(CancellationToken cancellationToken);
         Task<Result> DeleteLinkAsync(Guid reportId, Guid linkId, CancellationToken cancellationToken);
         Task<Result<JobReportResponse>> DeleteAsync(Guid id, CancellationToken cancellationToken);
         Task<Result<JobReportResponse>> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken);

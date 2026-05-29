@@ -15,6 +15,16 @@ public static class ServiceConfiguration
     {
         var configuration = builder.Configuration;
 
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("AllowFrontend", policy =>
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+            });
+        });
+
         builder.Services.AddOpenApi();
         builder.Services.AddHybridCache();
         builder.Services.AddMemoryCache();

@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
+using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Repositories;
 
@@ -29,7 +30,7 @@ public sealed class CustomerRepository : ICustomerRepository
             new
             {
                 OrganizationId = organizationId,
-                Name = customer.Name ?? "",
+                Name = customer.Name ?? string.Empty,
                 customer.Address,
                 Email = customer.Email!,
                 customer.ContactPerson,

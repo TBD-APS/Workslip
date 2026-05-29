@@ -1136,6 +1136,39 @@
           ]
         },
         {
+          "name": "/api/jobs/my-assigned",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/my-assigned",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "my-assigned"
+              ]
+            },
+            "description": "Gets all active jobs assigned to the authenticated user."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('returns an array of jobs', function () { pm.expect(json).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "/api/jobs/{id}",
           "request": {
             "method": "GET",
@@ -1707,8 +1740,8 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/jobs/?customerNameSearch=test",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "jobs"],
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "jobs" ],
               "query": [
                 {
                   "key": "customerNameSearch",

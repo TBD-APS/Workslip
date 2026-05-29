@@ -47,6 +47,12 @@ public static class JobEndpoints
                 : Results.Ok(jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
         });
 
+        group.MapGet("/my-assigned", async (IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetMyAssignedJobsAsync(cancellationToken);
+            return Results.Ok(result.Value.Select(JobViewModelBuilder.ToListItem));
+        });
+
         group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetAsync(id, cancellationToken);
