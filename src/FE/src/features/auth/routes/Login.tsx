@@ -1,83 +1,85 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { LogIn, AlertCircle, Mail, Loader2, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../../../providers/AuthContext';
 import { sendAuthCode } from '../api/devToken';
+import { toast } from 'sonner';
 
 const EmailSchema = z.object({
   email: z.string().email({ message: 'Ugyldig email adresse' }),
 });
 
 const CodeSchema = z.object({
-  code: z.string().min(6, { message: 'Koden skal være 6 tegn' }).max(6, { message: 'Koden skal være 6 tegn' }),
+  code: z.string().min(6, { message: 'Koden skal være 6 tegn' }),
 });
 
 type EmailFormValues = z.infer<typeof EmailSchema>;
 type CodeFormValues = z.infer<typeof CodeSchema>;
 
-type Step = 'email' | 'code' | 'verified';
-
 export const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [step, setStep] = useState<Step>('email');
+  const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
+  const codeInputRef = useRef<HTMLInputElement>(null);
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(EmailSchema),
   });
-
   const codeForm = useForm<CodeFormValues>({
     resolver: zodResolver(CodeSchema),
   });
 
-  const onSendCode = async (data: EmailFormValues) => {
+  useEffect(() => {
+    if (step === 'code' && codeInputRef.current) {
+      setTimeout(() => codeInputRef.current?.focus(), 50);
+    }
+  }, [step]);
+
+  const handleSendCode = async (data: EmailFormValues) => {
     setErrorMsg(null);
-    setIsSending(true);
+    setIsSubmitting(true);
     try {
       await sendAuthCode(data.email);
       setEmail(data.email);
       setStep('code');
+      toast.success('Tjek din indbakke – en kode er sendt.');
     } catch {
+      toast.error('Kunne ikke sende kode. Prøv igen.');
       setErrorMsg('Kunne ikke sende kode. Prøv igen.');
     } finally {
-      setIsSending(false);
+      setIsSubmitting(false);
     }
   };
 
-  const onVerifyCode = async (data: CodeFormValues) => {
+  const handleVerifyCode = async (data: CodeFormValues) => {
     setErrorMsg(null);
-    setIsVerifying(true);
+    setIsSubmitting(true);
     try {
       const success = await login(email, data.code);
       if (success) {
         navigate('/app');
       } else {
-        setErrorMsg('Forkert kode. Prøv igen.');
+        setErrorMsg('Ugyldig kode. Prøv igen.');
+        toast.error('Ugyldig kode. Prøv igen.');
       }
     } catch {
-      setErrorMsg('Noget gik galt. Prøv igen.');
+      setErrorMsg('Ugyldig kode. Prøv igen.');
+      toast.error('Ugyldig kode. Prøv igen.');
     } finally {
-      setIsVerifying(false);
+      setIsSubmitting(false);
     }
-  };
-
-  const goBack = () => {
-    setErrorMsg(null);
-    setStep('email');
   };
 
   return (
     <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>
       <div className="bg-glow-wrapper">
-        <div className="bg-glow bg-glow-1"></div>
-        <div className="bg-glow bg-glow-2"></div>
+        <div className="bg-glow bg-glow-1" />
+        <div className="bg-glow bg-glow-2" />
       </div>
 
       <div style={{
@@ -90,30 +92,23 @@ export const Login = () => {
         backdropFilter: 'blur(20px)',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
       }}>
-        <div style={{ textAlign: 'center', marginBottom: step === 'verified' ? '1rem' : '2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div className="logo" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
-            <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
+          <h2 style={{ marginBottom: '0.5rem' }}>Log ind på Workslip</h2>
           {step === 'email' && (
-            <>
-              <h2>Log ind på Workslip</h2>
-              <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Indtast din email for at logge ind</p>
-            </>
+            <p style={{ color: 'var(--text-secondary)' }}>Indtast din email for at få en engangskode</p>
           )}
           {step === 'code' && (
-            <>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <Mail size={32} style={{ margin: '0 auto', display: 'block', color: 'var(--text-secondary)' }} />
-              </div>
-              <h2>Tjek din indbakke</h2>
-              <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                En kode er sendt til <strong>{email}</strong>
-              </p>
-            </>
+            <div>
+              <p style={{ color: 'var(--text-secondary)' }}>En kode er sendt til</p>
+              <p style={{ fontWeight: 600, fontSize: '1.1rem', marginTop: '0.25rem' }}>{email}</p>
+            </div>
           )}
         </div>
 
@@ -130,13 +125,13 @@ export const Login = () => {
             alignItems: 'center',
             gap: '0.5rem'
           }}>
-            <AlertCircle size={16} />
+            <Loader2 size={16} />
             {errorMsg}
           </div>
         )}
 
         {step === 'email' && (
-          <form onSubmit={emailForm.handleSubmit(onSendCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <form onSubmit={emailForm.handleSubmit(handleSendCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="form-group">
               <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Email</label>
               <input 
@@ -144,11 +139,12 @@ export const Login = () => {
                 type="email" 
                 placeholder="dit@email.dk"
                 className="form-input"
+                autoComplete="email"
                 style={emailForm.formState.errors.email ? { borderColor: '#ef4444' } : {}}
               />
               {emailForm.formState.errors.email && (
-                <span style={{ color: '#ef4444', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                  <AlertCircle size={12} /> {emailForm.formState.errors.email.message}
+                <span style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>
+                  {emailForm.formState.errors.email.message}
                 </span>
               )}
             </div>
@@ -156,38 +152,57 @@ export const Login = () => {
             <button 
               type="submit" 
               className="btn btn-primary" 
-              disabled={isSending} 
+              disabled={isSubmitting} 
               style={{ 
                 width: '100%', 
-                marginTop: '0.5rem', 
-                opacity: isSending ? 0.7 : 1,
+                opacity: isSubmitting ? 0.7 : 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.5rem'
+                gap: '0.5rem',
+                position: 'relative',
+                overflow: 'hidden',
+                cursor: isSubmitting ? 'wait' : 'pointer'
               }}
             >
-              {isSending ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
-              {isSending ? 'Sender kode...' : 'Send kod'}
+              {isSubmitting && (
+                <span style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'inherit',
+                  backdropFilter: 'blur(2px)'
+                }}>
+                  <Loader2 className="animate-spin" size={18} />
+                </span>
+              )}
+              <Mail size={18} />
+              <span>{isSubmitting ? 'Sender kode...' : 'Send kode'}</span>
             </button>
           </form>
         )}
 
         {step === 'code' && (
-          <form onSubmit={codeForm.handleSubmit(onVerifyCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="form-group">
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>En gang kode</label>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Engangskode</label>
               <input 
+                ref={codeInputRef}
                 {...codeForm.register('code')}
                 type="text" 
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="123456"
                 className="form-input"
-                style={codeForm.formState.errors.code ? { borderColor: '#ef4444' } : {}}
+                maxLength={6}
                 autoComplete="one-time-code"
+                style={codeForm.formState.errors.code ? { borderColor: '#ef4444' } : {}}
               />
               {codeForm.formState.errors.code && (
-                <span style={{ color: '#ef4444', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                  <AlertCircle size={12} /> {codeForm.formState.errors.code.message}
+                <span style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>
+                  {codeForm.formState.errors.code.message}
                 </span>
               )}
             </div>
@@ -195,37 +210,39 @@ export const Login = () => {
             <button 
               type="submit" 
               className="btn btn-primary" 
-              disabled={isVerifying} 
+              disabled={isSubmitting} 
               style={{ 
                 width: '100%', 
-                marginTop: '0.5rem', 
-                opacity: isVerifying ? 0.7 : 1,
+                opacity: isSubmitting ? 0.7 : 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem'
               }}
             >
-              {isVerifying ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
-              {isVerifying ? 'Logger ind...' : 'Log ind'}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+              <span>Log ind</span>
             </button>
 
             <button 
               type="button"
-              onClick={goBack}
+              onClick={() => {
+                setErrorMsg(null);
+                codeForm.reset();
+                setStep('email');
+              }}
               style={{ 
                 width: '100%', 
-                marginTop: '0.5rem',
                 background: 'none',
-                border: '1px solid var(--surface-border)',
-                borderRadius: '8px',
-                padding: '0.75rem',
+                border: 'none',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
-                color: 'var(--text-secondary)'
+                color: 'var(--text-secondary)',
+                fontSize: '0.9rem',
+                padding: '0.75rem'
               }}
             >
               <ArrowLeft size={16} />
@@ -234,7 +251,7 @@ export const Login = () => {
           </form>
         )}
 
-        <div style={{ textAlign: 'center', marginTop: step === 'email' ? '2rem' : '1.5rem', fontSize: '0.9rem' }}>
+        <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.9rem' }}>
           <Link to="/" style={{ color: 'var(--text-secondary)' }}>← Tilbage til forsiden</Link>
         </div>
       </div>
