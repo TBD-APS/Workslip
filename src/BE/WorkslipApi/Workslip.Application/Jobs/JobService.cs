@@ -11,6 +11,7 @@ namespace Workslip.Application.Jobs;
 
 public sealed class JobService(
     IJobRepository repository,
+    IAssignmentRepository assignmentRepository,
     IJobLinkRepository linkRepository,
     IJobTaxonomyRepository taxonomyRepository,
     IUserRepository userRepository,
@@ -152,7 +153,7 @@ public sealed class JobService(
         return Result<IReadOnlyList<JobListItemResponse>>.Success(jobs);
     }
 
-    public async Task<Result<JobReportResponse>> GetAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<Result<JobReportResponse>> GetJobAsync(Guid id, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -184,7 +185,7 @@ public sealed class JobService(
 
     public async Task<Result<JobReportSummaryResponse>> GetReportSummaryAsync(Guid id, CancellationToken cancellationToken)
     {
-        var result = await GetAsync(id, cancellationToken);
+        var result = await GetJobAsync(id, cancellationToken);
         if (!result.IsSuccess)
         {
             return result.Status == ResultStatus.Unauthorized
@@ -421,24 +422,6 @@ public sealed class JobService(
         return Result<JobLinkResponse>.Success(link);
     }
 
-    public async Task<Result<IReadOnlyList<JobLinkResponse>>> GetLinksAsync(Guid reportId, CancellationToken cancellationToken)
-    {
-        var organizationId = currentUser.OrganizationId;
-        if (organizationId is null)
-        {
-            return Result<IReadOnlyList<JobLinkResponse>>.Unauthorized();
-        }
-
-        var report = await repository.GetAsync(reportId, organizationId.Value, cancellationToken);
-        if (report is null)
-        {
-            return Result<IReadOnlyList<JobLinkResponse>>.NotFound();
-        }
-
-        var links = await linkRepository.GetLinksAsync(organizationId.Value, reportId, cancellationToken);
-        return Result<IReadOnlyList<JobLinkResponse>>.Success(links);
-    }
-
     public async Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
@@ -449,7 +432,7 @@ public sealed class JobService(
             return Result<IReadOnlyList<JobListItemResponse>>.Unauthorized();
         }
 
-        var jobs = await repository.GetMyAssignedJobsAsync(organizationId.Value, userId.Value, cancellationToken);
+        var jobs = await assignmentRepository.GetMyAssignedJobsAsync(organizationId.Value, userId.Value, cancellationToken);
         
         return Result<IReadOnlyList<JobListItemResponse>>.Success(jobs);    
     }
@@ -563,7 +546,7 @@ public sealed class JobService(
              }
          }
 
-         var assigned = await repository.AssignAsync(jobId, organizationId.Value, normalizedUserIds, currentUser.UserId, cancellationToken);
+         var assigned = await assignmentRepository.AssignAsync(jobId, organizationId.Value, normalizedUserIds, currentUser.UserId, cancellationToken);
          if (assigned is null)
          {
              return Result<JobReportResponse>.NotFound();

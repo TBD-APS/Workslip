@@ -28,6 +28,7 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString, b => b.MigrationsAssembly("Workslip.Api"));
         });
 
+        services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
         services.AddScoped<ICustomerRepository, EfCustomerRepository>();
         services.AddScoped<IInviteRepository, EfInviteRepository>();
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
@@ -40,7 +41,6 @@ public static class DependencyInjection
         services.AddScoped<IEmailService, AcsEmailService>();
         services.AddHostedService<JobDeletionCleanupService>();
 
-        //services.AddScoped<WorkslipSchemaRunner>();
         return services;
     }
 }

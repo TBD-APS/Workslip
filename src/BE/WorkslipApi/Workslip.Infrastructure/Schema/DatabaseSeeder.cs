@@ -133,6 +133,38 @@ public static class DatabaseSeeder
             }
         }
 
+        var usersByJob = assignments
+            .GroupBy(a => a.ReportId)
+            .ToDictionary(g => g.Key, g => g.Select(a => a.UserId).ToArray());
+
+        var worksheets = new List<WorksheetRow>();
+        foreach (var job in jobs)
+        {
+            var assignedUserIds = usersByJob.GetValueOrDefault(job.Id, []);
+            if (assignedUserIds.Length == 0) continue;
+
+            var entryCount = faker.Random.Int(1, 5);
+            var usedDates = new HashSet<DateTime>();
+            for (var i = 0; i < entryCount; i++)
+            {
+                var userId = faker.PickRandom(assignedUserIds);
+                var workDate = faker.Date.Past(1);
+
+                worksheets.Add(new WorksheetRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organization.Id,
+                    JobId = job.Id,
+                    UserId = userId,
+                    WorkDate = workDate,
+                    HoursWorked = Math.Round(faker.Random.Decimal(1, 8) * 4, MidpointRounding.AwayFromZero) / 4,
+                    SleptOnJob = faker.Random.Bool(0.1f),
+                    CreatedAt = job.CreatedAt,
+                    UpdatedAt = job.UpdatedAt
+                });
+            }
+        }
+
         db.Organizations.Add(organization);
         db.JobWorkKinds.AddRange(jobWorkKinds);
         db.JobClosureFlags.AddRange(jobClosureFlags);
@@ -140,7 +172,8 @@ public static class DatabaseSeeder
         db.Users.AddRange(users);
         db.JobReports.AddRange(jobs);
         db.JobAssignments.AddRange(assignments);
+        db.Worksheets.AddRange(worksheets);
 
-        db.SaveChanges();
+        await db.SaveChangesAsync();
     }
 }

@@ -13,7 +13,7 @@ public class DynamicPolicyProvider : IAuthorizationPolicyProvider
         _configuration = configuration;
     }
 
-    public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
+    public async Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
         var requiredRole = _configuration[$"Authorization:Policies:{policyName}"];
 
@@ -22,10 +22,12 @@ public class DynamicPolicyProvider : IAuthorizationPolicyProvider
             var policy = new AuthorizationPolicyBuilder()
                 .AddAuthenticationSchemes("Bearer", "LocalJwt")
                 .AddRequirements(new DynamicRoleRequirement(requiredRole));
-            return Task.FromResult<AuthorizationPolicy?>(policy.Build());
+            var builtPolicy = policy.Build();
+            return builtPolicy;
         }
 
-        return _fallbackProvider.GetPolicyAsync(policyName);
+
+        return await _fallbackProvider.GetPolicyAsync(policyName);
     }
 
     public Task<AuthorizationPolicy> GetDefaultPolicyAsync() => _fallbackProvider.GetDefaultPolicyAsync();

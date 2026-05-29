@@ -1,14 +1,15 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Memory;
+using Workslip.Application.Auth;
 using Workslip.Application.Users;
 
 namespace Workslip.Api.Helpers;
 
-public sealed class WorkslipUserClaimsTransformation(
+public sealed class UserClaimsTransformation(
     IUserRepository users,
     IMemoryCache cache,
-    ILogger<WorkslipUserClaimsTransformation> logger) : IClaimsTransformation
+    ILogger<UserClaimsTransformation> logger) : IClaimsTransformation
 {
     private const string WorkslipUserIdClaim = "workslipUserId";
     private const string OrganizationIdClaim = "organizationId";
@@ -29,7 +30,7 @@ public sealed class WorkslipUserClaimsTransformation(
             return principal;
         }
 
-        if (HasClaim(principal, OrganizationIdClaim) && (HasClaim(principal, WorkslipUserIdClaim) || HasClaim(principal, ClaimTypes.NameIdentifier)))
+        if (HasClaim(principal, OrganizationIdClaim) && (HasClaim(principal, WorkslipUserIdClaim) || HasClaim(principal, ClaimTypes.NameIdentifier) || HasClaim(principal, ClaimTypes.Role)))
         {
             return principal;
         }
@@ -41,6 +42,7 @@ public sealed class WorkslipUserClaimsTransformation(
 
         var entraId = FirstClaimValue(principal, EntraObjectIdClaim, EntraObjectIdSchemaClaim);
         var emailCandidates = GetEmailCandidates(principal);
+
         if (string.IsNullOrWhiteSpace(entraId) && emailCandidates.Count == 0)
         {
             return principal;
@@ -52,8 +54,7 @@ public sealed class WorkslipUserClaimsTransformation(
             var row = await users.GetByExternalIdentityAsync(entraId, emailCandidates, CancellationToken.None);
             if (row is null)
             {
-                logger.LogWarning(
-                    "Authenticated Entra user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
+                logger.LogWarning(                    "Authenticated Entra user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
                     !string.IsNullOrWhiteSpace(entraId),
                     emailCandidates.Count);
                 return principal;

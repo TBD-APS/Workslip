@@ -23,6 +23,7 @@ public static class InfrastructureConfiguration
     private static TokenCredential CreateAzureCredential(IConfiguration configuration)
     {
         var mangedIdentity = configuration["Azure:ManagedIdentity:ClientId"];
+
         if (string.IsNullOrWhiteSpace(mangedIdentity))
             return new DefaultAzureCredential();
 

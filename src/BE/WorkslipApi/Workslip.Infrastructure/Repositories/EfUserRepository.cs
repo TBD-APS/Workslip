@@ -24,7 +24,7 @@ public sealed class EfUserRepository : IUserRepository
     public async Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) =>
         await _dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Email == email && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);
+            .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
 
     public async Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, IReadOnlyCollection<string> emailCandidates, CancellationToken cancellationToken)
     {

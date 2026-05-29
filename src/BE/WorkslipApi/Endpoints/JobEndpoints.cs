@@ -55,7 +55,7 @@ public static class JobEndpoints
 
         group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.GetAsync(id, cancellationToken);
+            var result = await service.GetJobAsync(id, cancellationToken);
             if (result.IsSuccess)
             {
                 var etag = HttpCacheHeaders.JobReportEtag(result.Value);
@@ -83,7 +83,7 @@ public static class JobEndpoints
 
         group.MapGet("/{id:guid}/report/pdf", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
         {
-            var result = await service.GetAsync(id, cancellationToken);
+            var result = await service.GetJobAsync(id, cancellationToken);
             if (!result.IsSuccess)
             {
                 return result.Status switch

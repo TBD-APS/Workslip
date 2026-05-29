@@ -69,65 +69,6 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
             now);
     }
 
-    public Task<IReadOnlyList<JobLinkResponse>> GetLinksAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync("links.list", token => GetLinksAsyncCoreAsync(organizationId, reportId, token), cancellationToken);
-
-    private async Task<IReadOnlyList<JobLinkResponse>> GetLinksAsyncCoreAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken)
-    {
-        if (organizationId != _currentUser.OrganizationId)
-            return [];
-
-        var links = await _dbContext.JobReportLinks
-            .AsNoTracking()
-            .Where(l => l.OrganizationId == organizationId && (l.SourceReportId == reportId || l.TargetReportId == reportId))
-            .ToListAsync(cancellationToken);
-
-        var linkedIds = links
-            .Select(l => l.SourceReportId == reportId ? l.TargetReportId : l.SourceReportId)
-            .Distinct()
-            .ToArray();
-
-        var linkedReports = linkedIds.Length == 0
-            ? []
-            : await _dbContext.JobReports
-                .AsNoTracking()
-                .Where(r => r.OrganizationId == organizationId && linkedIds.Contains(r.Id))
-                .Select(r => new { r.Id, r.ReportNumber, r.Status, r.CustomerId })
-                .ToDictionaryAsync(r => r.Id, cancellationToken);
-
-        var customerIds = linkedReports.Values
-            .Select(r => r.CustomerId)
-            .Where(id => id.HasValue)
-            .Select(id => id!.Value)
-            .Distinct()
-            .ToArray();
-
-        var customerNames = customerIds.Length == 0
-            ? []
-            : await _dbContext.Customers
-                .AsNoTracking()
-                .Where(c => customerIds.Contains(c.Id))
-                .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
-
-        return links.Select(link =>
-        {
-            var linkedId = link.SourceReportId == reportId ? link.TargetReportId : link.SourceReportId;
-            var linked = linkedReports.GetValueOrDefault(linkedId);
-            var name = linked?.CustomerId is not null
-                ? customerNames.GetValueOrDefault(linked.CustomerId.Value) ?? string.Empty : string.Empty;
-
-            return new JobLinkResponse(
-                link.Id,
-                reportId,
-                linkedId,
-                linked?.ReportNumber ?? string.Empty,
-                name,
-                linked?.Status ?? string.Empty,
-                link.LinkType,
-                link.CreatedAt);
-        }).ToArray();
-    }
-
     public Task<JobLinkResponse?> GetLinkAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("links.get", token => GetLinkAsyncCoreAsync(organizationId, linkId, token), cancellationToken);
 
@@ -167,5 +108,10 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
         _dbContext.JobReportLinks.Remove(row);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    public Task<IReadOnlyList<JobReportLinkRow>> GetLinkRowsAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
     }
 }
