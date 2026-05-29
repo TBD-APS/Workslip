@@ -4,8 +4,7 @@ namespace Workslip.Api.Helpers;
 
 public static class ResultExtensions
 {
-    public static Microsoft.AspNetCore.Http.IResult ToHttpResult(
-        Ardalis.Result.Result result)
+    public static Microsoft.AspNetCore.Http.IResult ToHttpResult(Result result)
     {
         return result.Status switch
         {
@@ -25,15 +24,12 @@ public static class ResultExtensions
         };
     }
 
-    public static Microsoft.AspNetCore.Http.IResult ToHttpResult<T>(
-        Ardalis.Result.Result<T> result)
+    public static Microsoft.AspNetCore.Http.IResult ToHttpResult<T>(Result<T> result)
     {
         return ToHttpResult(result, x => x);
     }
 
-    public static Microsoft.AspNetCore.Http.IResult ToHttpResult<T, TOut>(
-        Ardalis.Result.Result<T> result,
-        Func<T, TOut> map)
+    public static Microsoft.AspNetCore.Http.IResult ToHttpResult<T, TOut>(Result<T> result, Func<T, TOut> map)
     {
         return result.Status switch
         {

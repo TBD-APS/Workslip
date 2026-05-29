@@ -124,7 +124,7 @@ public sealed class JobService(
         {
             errors.Add(new() { Identifier = nameof(customerAddress), ErrorMessage = "Søgning på adresse skal være på mindst 2 tegn." });
         }
-        if (errors.Count != 0)
+        if (errors.Count > 0)
         {
             return Result<IReadOnlyList<JobListItemResponse>>.Invalid(errors);
         }
@@ -133,7 +133,8 @@ public sealed class JobService(
         var normalizedNameSearch = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
         var normalizedEmailSearch = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim();
         var normalizedAddressSearch = string.IsNullOrWhiteSpace(customerAddress) ? null : customerAddress.Trim();
-        var query = new JobQuery(organizationId.Value, status, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0), normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
+        var query = new JobQuery(organizationId.Value, status, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0), 
+            normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
         
         var cacheKey = $"jobs:list:organization={query.OrganizationId:N}:status={query.Status?.ToString() ?? "all"}" +
             $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
@@ -200,11 +201,7 @@ public sealed class JobService(
         return Result<JobReportSummaryResponse>.Success(summary);
     }
 
-    public async Task<Result<IReadOnlyList<JobEventResponse>>> GetHistoryAsync(
-        Guid id,
-        int? limit,
-        int? offset,
-        CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<JobEventResponse>>> GetHistoryAsync(Guid id, int? limit, int? offset, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -336,10 +333,7 @@ public sealed class JobService(
         return await TransitionAsync(id, request.Status, cancellationToken);
     }
 
-    private async Task<Result<JobReportResponse>> TransitionAsync(
-        Guid id,
-        JobStatus targetStatus,
-        CancellationToken cancellationToken)
+    private async Task<Result<JobReportResponse>> TransitionAsync(Guid id, JobStatus targetStatus, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -441,6 +435,21 @@ public sealed class JobService(
 
         var links = await linkRepository.GetLinksAsync(organizationId.Value, reportId, cancellationToken);
         return Result<IReadOnlyList<JobLinkResponse>>.Success(links);
+    }
+
+    public async Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        var userId = currentUser.UserId;
+
+        if (organizationId is null || userId is null)
+        {
+            return Result<IReadOnlyList<JobListItemResponse>>.Unauthorized();
+        }
+
+        var jobs = await repository.GetMyAssignedJobsAsync(organizationId.Value, userId.Value, cancellationToken);
+        
+        return Result<IReadOnlyList<JobListItemResponse>>.Success(jobs);    
     }
 
     public async Task<Result> DeleteLinkAsync(Guid reportId, Guid linkId, CancellationToken cancellationToken)
