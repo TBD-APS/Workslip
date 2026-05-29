@@ -7,11 +7,11 @@ export const apiClient = Axios.create({
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Add auth token here if available
-  // const token = storage.getToken();
-  // if (token) {
-  //   config.headers.Authorization = `Bearer ${token}`;
-  // }
+  // Attach auth token from localStorage
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   config.headers.Accept = 'application/json';
   return config;
 });

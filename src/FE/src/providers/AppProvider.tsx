@@ -3,6 +3,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { queryClient } from '../lib/react-query';
+import { AuthProvider } from './AuthContext';
 
 const ErrorFallback = () => {
   return (
@@ -26,19 +27,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     <React.Suspense fallback={<div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>Henter...</div>}>
       <ErrorBoundary FallbackComponent={ErrorFallback}>
         <QueryClientProvider client={queryClient}>
-          {children}
-          <Toaster 
-            theme="dark" 
-            position="top-center" 
-            toastOptions={{
-              style: {
-                background: 'var(--surface-color)',
-                border: '1px solid var(--surface-border)',
-                backdropFilter: 'blur(20px)',
-                color: 'var(--text-primary)'
-              }
-            }} 
-          />
+          <AuthProvider>
+            {children}
+            <Toaster 
+              theme="dark" 
+              position="top-center" 
+              toastOptions={{
+                style: {
+                  background: 'var(--surface-color)',
+                  border: '1px solid var(--surface-border)',
+                  backdropFilter: 'blur(20px)',
+                  color: 'var(--text-primary)'
+                }
+              }} 
+            />
+          </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </React.Suspense>
