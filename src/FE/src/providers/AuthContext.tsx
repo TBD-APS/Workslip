@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { verifyAuthCode } from '../features/auth/api/devToken';
+import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
 
 export interface AuthUser {
   email: string;
@@ -10,6 +10,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   login: (email: string, code: string) => Promise<boolean>;
+  devLogin: (email: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -46,6 +47,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const devLogin = useCallback(async (email: string): Promise<boolean> => {
+    try {
+      const response = await getDevToken(email);
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('userEmail', response.user.email);
+      setIsAuthenticated(true);
+      setUser(response.user);
+      return true;
+    } catch {
+      setIsAuthenticated(false);
+      setUser(null);
+      return false;
+    }
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userEmail');
@@ -54,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, isLoading, login, devLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

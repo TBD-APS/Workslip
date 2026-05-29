@@ -10,6 +10,9 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       }
+    },
+    watch: {
+      usePolling: true
     }
   },
   plugins: [

@@ -1,10 +1,18 @@
 import { apiClient } from '../../../lib/axios';
 
+export interface AuthUserResponse {
+  userId: string;
+  organizationId: string;
+  email: string;
+  displayName: string;
+  role: string;
+}
+
 export interface DevTokenResponse {
   token: string;
-  user: {
-    email: string;
-  };
+  tokenType: string;
+  expiresIn: number;
+  user: AuthUserResponse;
 }
 
 export interface AuthCodeResponse {

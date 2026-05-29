@@ -21,7 +21,7 @@ type CodeFormValues = z.infer<typeof CodeSchema>;
 
 export const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, devLogin } = useAuth();
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -254,6 +254,33 @@ export const Login = () => {
         <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.9rem' }}>
           <Link to="/" style={{ color: 'var(--text-secondary)' }}>← Tilbage til forsiden</Link>
         </div>
+
+        {import.meta.env.DEV && (
+          <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--surface-border)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button
+                onClick={async () => {
+                  setErrorMsg(null);
+                  setIsSubmitting(true);
+                  try {
+                    const success = await devLogin('rbj@17v3ygzs.mailosaur.net');
+                    if (success) navigate('/app');
+                    else setErrorMsg('Dev login failed - user not found');
+                  } catch {
+                    setErrorMsg('Dev login failed');
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                disabled={isSubmitting}
+                className="btn btn-secondary"
+                style={{ width: '100%', fontSize: '0.85rem' }}
+              >
+                Dev Login (rbj@17v3ygzs.mailosaur.net) 
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

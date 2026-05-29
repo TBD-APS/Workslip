@@ -33,8 +33,7 @@ export const AppRoutes = () => {
       path: '/app',
       element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
       children: [
-        { index: true, element: <JobList /> },
-        // { path: 'job/:id', element: <JobDetails /> },
+        { index: true, element: <JobList /> }
         // { path: 'settings', element: <Settings /> },
       ],
     },
