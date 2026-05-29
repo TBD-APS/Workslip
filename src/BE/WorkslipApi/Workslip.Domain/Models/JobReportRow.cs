@@ -16,7 +16,6 @@ public sealed class JobReportRow
     public string? CustomWorkKind { get; init; }
     public string? Remarks { get; init; }
     public string ClosureFlagsJson { get; init; } = "[]";
-    public string? PayloadJson { get; init; }
     public bool IsSoftDeleted { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }

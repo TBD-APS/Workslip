@@ -123,7 +123,6 @@ public static class WorkslipDatabaseModel
                 Column.OptionalString(nameof(JobReportRow.CustomWorkKind), 160),
                 Column.OptionalString(nameof(JobReportRow.Remarks)),
                 Column.RequiredString(nameof(JobReportRow.ClosureFlagsJson), defaultSql: "'[]'"),
-                Column.OptionalString(nameof(JobReportRow.PayloadJson)),
                 Column.RequiredBit(nameof(JobReportRow.IsSoftDeleted), "0"),
                 Column.RequiredDateTimeOffset(nameof(JobReportRow.CreatedAt)),
                 Column.RequiredDateTimeOffset(nameof(JobReportRow.UpdatedAt)),

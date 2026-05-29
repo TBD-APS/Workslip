@@ -103,8 +103,7 @@ public sealed class InvitationService(
 
         var nickName = invite.Email.Split('@')[0];
         var entraUser = await entraService.CreateUserAsync(invite.Email, nickName, cancellationToken);
-        await entraService.AssignAppRoleTo(entraUser.EntraUserId, "User", cancellationToken);
-
+        
         var user = new UserDataRow
         {
             Id = Guid.NewGuid(),

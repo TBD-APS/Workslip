@@ -41,12 +41,11 @@ public sealed class UserService(
         }
 
         var entraUser = await entraService.CreateUserAsync(request.Email, request.DisplayName, cancellationToken);
-        await entraService.AssignAppRoleTo(entraUser.EntraUserId, "Admin", cancellationToken);
 
         var user = new UserDataRow
         {
             Id = Guid.NewGuid(),
-            OrganizationId = new Guid("F01CC945-5BD1-4C81-993E-56A468235256"),
+            OrganizationId = currentUser.OrganizationId.GetValueOrDefault(),
             Email = request.Email,
             DisplayName = request.DisplayName,
             EntraEmail = entraUser.EntraMail,

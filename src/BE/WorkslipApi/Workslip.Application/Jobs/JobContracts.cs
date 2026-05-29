@@ -54,7 +54,6 @@ public sealed record CreateJobRequest(
     string? CustomWorkKind,
     string? Remarks,
     IReadOnlyList<string>? ClosureFlags,
-    JsonObject? Payload,
     IReadOnlyList<ControlInstallationTypeRequest>? ControlInstallationTypes);
 
 public sealed record UpdateJobRequest(
@@ -69,7 +68,6 @@ public sealed record UpdateJobRequest(
     string? CustomWorkKind,
     string? Remarks,
     IReadOnlyList<string>? ClosureFlags,
-    JsonObject? Payload,
     IReadOnlyList<ControlInstallationTypeRequest>? ControlInstallationTypes);
 
 public sealed record AssignJobRequest(
@@ -119,7 +117,6 @@ public sealed record JobReportResponse(
     string? CustomWorkKind,
     string? Remarks,
     IReadOnlyList<string> ClosureFlags,
-    JsonObject? Payload,
     IReadOnlyList<ControlInstallationTypeResponse> ControlInstallationTypes,
     IReadOnlyList<JobLinkInfoResponse> Links,
     DateTimeOffset CreatedAt,
@@ -198,8 +195,7 @@ public sealed record JobReportSummaryObservationResponse(
     DateOnly? ReportDate,
     string? TaskDescription,
     string? CustomerObservations,
-    string? TechnicalObservations,
-    JsonObject? Payload);
+    string? TechnicalObservations);
 
 public sealed record JobEventResponse(
     Guid Id,

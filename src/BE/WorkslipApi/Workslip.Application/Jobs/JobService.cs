@@ -37,7 +37,8 @@ public sealed class JobService(
     {
         var organizationId = currentUser.OrganizationId;
         var role = currentUser.Role;
-        if (organizationId is null || role is not "Admin")
+
+        if (organizationId is null)
         {
             return Result<JobReportResponse>.Unauthorized();
         }
@@ -133,6 +134,7 @@ public sealed class JobService(
         var normalizedNameSearch = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
         var normalizedEmailSearch = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim();
         var normalizedAddressSearch = string.IsNullOrWhiteSpace(customerAddress) ? null : customerAddress.Trim();
+
         var query = new JobQuery(organizationId.Value, status, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0), 
             normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
         
@@ -602,8 +604,7 @@ public sealed class JobService(
                 report.ReportDate,
                 report.TaskDescription,
                 report.CustomerObservations,
-                report.TechnicalObservations,
-                report.Payload),
+                report.TechnicalObservations),
             report.ControlInstallationTypes,
             report.Links,
             report.CreatedAt,

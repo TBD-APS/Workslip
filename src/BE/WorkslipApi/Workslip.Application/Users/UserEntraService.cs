@@ -19,6 +19,28 @@ public sealed class UserEntraService(
 
         var userPrincipalName = $"{mailNickname}@{defaultDomain}";
 
+        var result = await graphClient.Users.GetAsync(
+        request =>
+        {
+            request.QueryParameters.Filter = $"mail eq '{mailNickname}' or userPrincipalName eq '{userPrincipalName}'";
+
+            request.QueryParameters.Select =
+            [
+                "id",
+                "displayName",
+                "userPrincipalName",
+                "mail"
+            ];
+
+            request.QueryParameters.Top = 1;
+        },ct);
+
+        var existingUser = result?.Value?.FirstOrDefault();
+        if (existingUser != null) 
+        {
+            return new CreateEntraUserResult(existingUser.Id!, existingUser.UserPrincipalName!, displayName);
+        }
+
         logger.LogInformation("Graph creating user. CorrelationId={CorrelationId} Email={Email} Upn={Upn}",correlationIdAccessor.CorrelationId, email, userPrincipalName);
 
         var newUser = new User
@@ -38,6 +60,7 @@ public sealed class UserEntraService(
         try
         {
             user = await graphClient.Users.PostAsync(newUser, cancellationToken: ct);
+            logger.LogInformation("Graph user created. CorrelationId={CorrelationId} Email={Email} EntraId={EntraId}", correlationIdAccessor.CorrelationId, email, user?.Id);
         }
         catch (Exception ex)
         {
@@ -45,13 +68,14 @@ public sealed class UserEntraService(
             throw;
         }
 
-        logger.LogInformation("Graph user created. CorrelationId={CorrelationId} Email={Email} EntraId={EntraId}", correlationIdAccessor.CorrelationId, email, user?.Id);
 
         if (user == null)
         {
             logger.LogError("Graph create user returned null. CorrelationId={CorrelationId} Email={Email}", correlationIdAccessor.CorrelationId, email);
             throw new InvalidOperationException($"User {displayName} could not be created");
         }
+
+        await AssignAppRoleTo(user.Id!, "User", ct);
 
         return new CreateEntraUserResult(
             EntraUserId: user.Id!,
