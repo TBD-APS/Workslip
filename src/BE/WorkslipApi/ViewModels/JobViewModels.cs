@@ -43,10 +43,7 @@ public sealed record JobListItemViewModel(
     CustomerViewModel? Customer,
     string? ReportNumber,
     JobStatus Status,
-    DateOnly? ReportDate,
     IReadOnlyList<string> InstallationTypes,
-    string? WorkKind,
-    string? CustomWorkKind,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
     decimal? TotalHours);
@@ -103,10 +100,7 @@ public static class JobViewModelBuilder
         ToCustomerViewModel(job.Customer),
         job.ReportNumber,
         job.Status,
-        job.ReportDate,
         job.InstallationTypes,
-        job.WorkKind,
-        job.CustomWorkKind,
         job.AssignedUsers,
         job.SoftDeleted,
         job.TotalHours);

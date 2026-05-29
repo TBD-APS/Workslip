@@ -164,7 +164,7 @@ public sealed class JobService(
         var orgId = organizationId.Value;
 
         var cached = await cache.GetOrCreateAsync(JobReportCacheKey(id, orgId),
-            async token => CachedJobReport.From(await repository.GetAsync(id, orgId, token)), 
+            async token => CachedJobReport.From(await repository.GetSingleJobAsync(id, orgId, token)), 
             JobReportCacheOptions,tags: ["jobs", JobReportTag(id, orgId)],
             cancellationToken: cancellationToken);
         
@@ -314,7 +314,7 @@ public sealed class JobService(
 
         if (request.Status == JobStatus.Submitted)
         {
-            var current = await repository.GetAsync(id, organizationId.Value, cancellationToken);
+            var current = await repository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
             if (current is null)
             {
                 logger.LogWarning("Job submit returned not found. JobId: {JobId}.", id);
@@ -382,13 +382,13 @@ public sealed class JobService(
             });
         }
 
-        var report = await repository.GetAsync(reportId, organizationId.Value, cancellationToken);
+        var report = await repository.GetSingleJobAsync(reportId, organizationId.Value, cancellationToken);
         if (report is null)
         {
             return Result<JobLinkResponse>.NotFound();
         }
 
-        var target = await repository.GetAsync(request.TargetReportId, organizationId.Value, cancellationToken);
+        var target = await repository.GetSingleJobAsync(request.TargetReportId, organizationId.Value, cancellationToken);
         if (target is null)
         {
             return Result<JobLinkResponse>.Invalid(new List<ValidationError>
@@ -445,7 +445,7 @@ public sealed class JobService(
             return Result.Unauthorized();
         }
 
-        var report = await repository.GetAsync(reportId, organizationId.Value, cancellationToken);
+        var report = await repository.GetSingleJobAsync(reportId, organizationId.Value, cancellationToken);
         if (report is null)
         {
             return Result.NotFound();

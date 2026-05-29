@@ -1,4 +1,5 @@
-﻿using Bogus;
+﻿using AutoBogus;
+using Bogus;
 using Microsoft.EntityFrameworkCore;
 using Workslip.Domain.Models;
 
@@ -138,11 +139,64 @@ public static class DatabaseSeeder
             .ToDictionary(g => g.Key, g => g.Select(a => a.UserId).ToArray());
 
         var worksheets = new List<WorksheetRow>();
+        var jobLinks = new List<JobReportLinkRow>();
+
+        var existingLinks = new HashSet<(Guid SourceId, Guid TargetId, string LinkType)>();
+
+        var random = new Faker();
         foreach (var job in jobs)
         {
-            var assignedUserIds = usersByJob.GetValueOrDefault(job.Id, []);
-            if (assignedUserIds.Length == 0) continue;
 
+            // Example: only some reports get links
+            if (!random.Random.Bool(0.25f))
+            {
+                continue;
+            }
+
+            //Adds links between job reports
+            var possibleTargets = jobs.Where(x =>
+                                        x.Id != job.Id &&
+                                        x.OrganizationId == job.OrganizationId)
+                                       .ToList();
+
+            if (possibleTargets.Count == 0)
+            {
+                continue;
+            }
+
+            var targetCount = random.Random.Int(1, Math.Min(3, possibleTargets.Count));
+
+            var targets = random
+                .PickRandom(possibleTargets, targetCount)
+                .DistinctBy(x => x.Id)
+                .ToArray();
+
+            foreach (var targetReport in targets)
+            {
+                var linkType = random.PickRandom("related");
+
+                if (!existingLinks.Add((job.Id, targetReport.Id, linkType)))
+                {
+                    continue;
+                }
+
+                var link = new AutoFaker<JobReportLinkRow>()
+                    .RuleFor(x => x.Id, f => f.Random.Guid())
+                    .RuleFor(x => x.OrganizationId, _ => job.OrganizationId)
+                    .RuleFor(x => x.SourceReportId, _ => job.Id)
+                    .RuleFor(x => x.TargetReportId, _ => targetReport.Id)
+                    .RuleFor(x => x.LinkType, _ => linkType)
+                    .RuleFor(x => x.CreatedAt, f => f.Date.PastOffset(1))
+                    .Generate();
+
+                jobLinks.Add(link);
+            }
+
+            var assignedUserIds = usersByJob.GetValueOrDefault(job.Id, []);
+            if (assignedUserIds.Length == 0) 
+                continue;
+
+            //Adds worksheets to job report
             var entryCount = faker.Random.Int(1, 5);
             var usedDates = new HashSet<DateTime>();
             for (var i = 0; i < entryCount; i++)
@@ -163,17 +217,32 @@ public static class DatabaseSeeder
                     UpdatedAt = job.UpdatedAt
                 });
             }
+
+       
+
         }
 
         db.Organizations.Add(organization);
-        db.JobWorkKinds.AddRange(jobWorkKinds);
-        db.JobClosureFlags.AddRange(jobClosureFlags);
-        db.Customers.AddRange(customers);
-        db.Users.AddRange(users);
-        db.JobReports.AddRange(jobs);
-        db.JobAssignments.AddRange(assignments);
-        db.Worksheets.AddRange(worksheets);
+        await db.JobReports.AddRangeAsync(jobs);
+        await db.JobAssignments.AddRangeAsync(assignments);
+        await db.JobWorkKinds.AddRangeAsync(jobWorkKinds);
+        await db.JobClosureFlags.AddRangeAsync(jobClosureFlags);
+        await db.JobReportLinks.AddRangeAsync(jobLinks);
+
+        await db.Customers.AddRangeAsync(customers);
+        await db.Users.AddRangeAsync(users);
+        await db.Worksheets.AddRangeAsync(worksheets);
 
         await db.SaveChangesAsync();
+    }
+
+    static (Guid First, Guid Second, string LinkType) NormalizeLinkKey(
+    Guid sourceId,
+    Guid targetId,
+    string linkType)
+    {
+        return sourceId.CompareTo(targetId) < 0
+            ? (sourceId, targetId, linkType)
+            : (targetId, sourceId, linkType);
     }
 }

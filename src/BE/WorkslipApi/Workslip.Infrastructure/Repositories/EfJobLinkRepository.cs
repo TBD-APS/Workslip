@@ -110,8 +110,21 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
         return true;
     }
 
-    public Task<IReadOnlyList<JobReportLinkRow>> GetLinkRowsAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<JobReportLinkRow>> GetLinkRowsAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        var links = await _dbContext.JobReportLinks
+            .AsNoTracking()
+            .Where(l => l.OrganizationId == organizationId && (l.SourceReportId == reportId || l.TargetReportId == reportId))
+            .Select(l => new JobReportLinkRow
+            {
+                Id = l.Id,
+                OrganizationId = l.OrganizationId,
+                SourceReportId = l.SourceReportId,
+                TargetReportId = l.TargetReportId,
+                LinkType = l.LinkType,
+                CreatedAt = l.CreatedAt
+            }).ToListAsync();
+
+        return links;
     }
 }

@@ -78,7 +78,7 @@ public sealed class EfJobRepository : IJobRepository
 
         await tx.CommitAsync(cancellationToken);
 
-        return (await GetAsync(reportId, organizationId, cancellationToken))!;
+        return (await GetSingleJobAsync(reportId, organizationId, cancellationToken))!;
     }
 
     public Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
@@ -145,13 +145,11 @@ public sealed class EfJobRepository : IJobRepository
         }).ToArray();
     }
 
-    public Task<JobReportResponse?> GetAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync("jobs.get", token => GetAsyncCoreAsync(id, organizationId, token), cancellationToken);
+    public Task<JobReportResponse?> GetSingleJobAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("jobs.get", token => GetSingleJobCoreAsync(id, organizationId, token), cancellationToken);
 
-    private async Task<JobReportResponse?> GetAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
+    private async Task<JobReportResponse?> GetSingleJobCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return null;
 
         _dbContext.ChangeTracker.Clear();
 
@@ -265,7 +263,7 @@ public sealed class EfJobRepository : IJobRepository
         await InsertEventAsync(organizationId, id, null, "updated", ToJsonNode(existing), ToJsonNode(request), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return await GetAsync(id, organizationId, cancellationToken);
+        return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
     public Task<JobReportResponse?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken) =>
@@ -301,7 +299,7 @@ public sealed class EfJobRepository : IJobRepository
         await InsertEventAsync(organizationId, id, actorId, nextStatus.ToString().ToLowerInvariant(), ToJsonNode(existing), ToJsonNode(new { status = nextStatus.ToString() }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return await GetAsync(id, organizationId, cancellationToken);
+        return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
     public Task<JobReportResponse?> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
@@ -324,7 +322,7 @@ public sealed class EfJobRepository : IJobRepository
         if (existing.IsSoftDeleted || existing.DeletionScheduledAt.HasValue)
         {
             await tx.CommitAsync(cancellationToken);
-            return await GetAsync(id, organizationId, cancellationToken);
+            return await GetSingleJobAsync(id, organizationId, cancellationToken);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -339,7 +337,7 @@ public sealed class EfJobRepository : IJobRepository
         await InsertEventAsync(organizationId, id, null, "deletionScheduled", ToJsonNode(existing), ToJsonNode(new { deletionScheduledAt }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return await GetAsync(id, organizationId, cancellationToken);
+        return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
     public Task<JobReportResponse?> RestoreDeletionAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
@@ -362,7 +360,7 @@ public sealed class EfJobRepository : IJobRepository
         if (!existing.IsSoftDeleted && !existing.DeletionScheduledAt.HasValue)
         {
             await tx.CommitAsync(cancellationToken);
-            return await GetAsync(id, organizationId, cancellationToken);
+            return await GetSingleJobAsync(id, organizationId, cancellationToken);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -375,7 +373,7 @@ public sealed class EfJobRepository : IJobRepository
         await InsertEventAsync(organizationId, id, null, "deletionRestored", ToJsonNode(existing), ToJsonNode(new { deletionScheduledAt = (DateTimeOffset?)null }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return await GetAsync(id, organizationId, cancellationToken);
+        return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
     public Task<int> PurgeDeletionScheduledBeforeAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>

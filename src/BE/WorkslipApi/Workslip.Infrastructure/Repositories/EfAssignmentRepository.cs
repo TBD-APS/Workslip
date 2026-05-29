@@ -1,6 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Graph.Models;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
@@ -81,21 +82,61 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         if (organizationId != _currentUser.OrganizationId)
             return [];
 
-        _dbContext.ChangeTracker.Clear();
-
+        //Get job repports for org + user 
         var reports = await (
             from r in _dbContext.JobReports.AsNoTracking()
-            join a in _dbContext.JobAssignments.AsNoTracking() on new { r.Id, r.OrganizationId } equals new { Id = a.ReportId, a.OrganizationId }
-            where r.OrganizationId == organizationId && a.UserId == userId && !r.IsSoftDeleted && r.Status != "Completed"
-            orderby r.UpdatedAt descending
-            select r).AsNoTracking().ToListAsync(cancellationToken);
+            join a in _dbContext.JobAssignments.AsNoTracking()
+                on new { r.Id, r.OrganizationId }
+                equals new { Id = a.ReportId, a.OrganizationId }
+            where r.OrganizationId == organizationId
+                  && a.UserId == userId
+                  && !r.IsSoftDeleted
+            select r)
+            .ToListAsync(cancellationToken);
 
-        return reports.Select(row => new JobListItemResponse(
-            row.Id, row.OrganizationId, null,
-            row.ReportNumber, Enum.Parse<JobStatus>(row.Status, ignoreCase: true), ToDateOnly(row.ReportDate),
-            FromJsonList(row.InstallationTypesJson), row.WorkKind, row.CustomWorkKind,
-            row.CreatedAt, row.UpdatedAt, row.SubmittedAt,
-            [], row.IsSoftDeleted, row.DeletionScheduledAt, null)).ToArray();
+        var reportIds = reports.Select(r => r.Id).ToArray();
+
+        //Get intermediary reports table - assigned to my user
+        var assignedUsers = await (
+        from a in _dbContext.JobAssignments.AsNoTracking()
+        join u in _dbContext.Users.AsNoTracking()
+            on new { a.UserId, a.OrganizationId }
+            equals new { UserId = u.Id, u.OrganizationId }
+        where a.OrganizationId == organizationId
+              && reportIds.Contains(a.ReportId)
+        select new
+        {
+            a.ReportId,
+            UserId = u.Id,
+            DisplayName = u.DisplayName
+        }).ToListAsync(cancellationToken);
+
+        var assignedDictionary = assignedUsers
+                                        .GroupBy(x => x.ReportId)
+                                        .ToDictionary(
+                                            g => g.Key,
+                                            g => g.Select(x => new UserDataRow
+                                            {
+                                                Id = x.UserId,
+                                                DisplayName = x.DisplayName
+                                            }).ToArray());
+
+
+        var result = reports.Select(report => {
+
+            var assignments = assignedDictionary.GetValueOrDefault(report.Id) ?? [];
+
+            var jobReport = new JobListItemResponse(
+            report.Id, report.OrganizationId, null,
+            report.ReportNumber, Enum.Parse<JobStatus>(report.Status, ignoreCase: true), ToDateOnly(report.ReportDate),
+            FromJsonList(report.InstallationTypesJson), report.WorkKind, report.CustomWorkKind,
+            report.CreatedAt, report.UpdatedAt, report.SubmittedAt,
+            assignments.Select(x => new AssignedUserResponse(x.Id, x.DisplayName)).ToArray(), report.IsSoftDeleted, report.DeletionScheduledAt, null);
+
+            return jobReport;
+        }).ToArray();
+
+        return result;
     }
 
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<AssignedUserResponse>>> GetAssignedUsersByReportAsync(
@@ -106,17 +147,18 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
 
         var rows = await (
             from a in _dbContext.JobAssignments.AsNoTracking()
-            join u in _dbContext.Users.AsNoTracking() on new { OrganizationId = a.OrganizationId, Id = a.UserId } equals new { u.OrganizationId, u.Id }
+            join user in _dbContext.Users.AsNoTracking() on new { a.OrganizationId, Id = a.UserId } equals new { user.OrganizationId, user.Id }
             where a.OrganizationId == organizationId && normalizedIds.Contains(a.ReportId)
-            orderby a.AssignedAt, u.DisplayName
-            select new { a.ReportId, u.Id, u.DisplayName }
+            select new { a.ReportId, user.Id, user.DisplayName }
         ).ToListAsync(cancellationToken);
 
-        return rows
+        var result = rows
             .GroupBy(r => r.ReportId)
             .ToDictionary(
                 g => g.Key,
                 g => g.Select(r => new AssignedUserResponse(r.Id, r.DisplayName)).ToArray() as IReadOnlyList<AssignedUserResponse>);
+
+        return result;
     }
 
     public async Task<IReadOnlyList<AssignedUserResponse>> GetAssignedUsersByIdsAsync(
