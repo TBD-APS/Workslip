@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Workslip.Api.Configuration;
-using Workslip.Infrastructure;
 using Workslip.Infrastructure.Schema;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();

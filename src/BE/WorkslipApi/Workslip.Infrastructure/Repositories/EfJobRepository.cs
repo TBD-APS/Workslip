@@ -6,6 +6,7 @@ using Workslip.Application.Jobs;
 using Workslip.Domain;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Resilience;
+using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
 
@@ -59,7 +60,6 @@ public sealed class EfJobRepository : IJobRepository
             TaskDescription = request.TaskDescription,
             CustomerObservations = request.CustomerObservations,
             TechnicalObservations = request.TechnicalObservations,
-            InstallationTypesJson = ToJson(request.InstallationTypes ?? []),
             WorkKind = NormalizeOptional(request.WorkKind),
             CustomWorkKind = request.CustomWorkKind,
             Remarks = request.Remarks,
@@ -68,9 +68,25 @@ public sealed class EfJobRepository : IJobRepository
             UpdatedAt = now
         });
 
+        if (request.InstallationTypes?.Count > 0)
+        {
+            var sortOrder = 0;
+            foreach (var inst in request.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i)))
+            {
+                _dbContext.InstallationTypeRow.Add(new InstallationTypeRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organizationId,
+                    Name = inst.Trim(),
+                    JobReportId = reportId,
+                    SortOrder = sortOrder++,
+                    CreatedAt = now
+                });
+            }
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await ReplaceControlInstallationTypesAsync(organizationId, reportId, request.ControlInstallationTypes, now, cancellationToken);
         var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
         await _assignmentRepo.ReplaceAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
         var assignedUsers = await _assignmentRepo.GetAssignedUsersByIdsAsync(organizationId, normalizedUserIds, cancellationToken);
@@ -115,7 +131,6 @@ public sealed class EfJobRepository : IJobRepository
                 r.ReportNumber,
                 r.Status,
                 r.ReportDate,
-                r.InstallationTypesJson,
                 r.WorkKind,
                 r.CustomWorkKind,
                 r.CreatedAt,
@@ -130,6 +145,15 @@ public sealed class EfJobRepository : IJobRepository
         var assignedUsersByReport = await _assignmentRepo.GetAssignedUsersByReportAsync(query.OrganizationId, reportIds, cancellationToken);
         var totalHoursByJob = await GetTotalHoursByJobAsync(reportIds, cancellationToken);
 
+        var installationTypesByReport = await _dbContext.InstallationTypeRow
+            .AsNoTracking()
+            .Where(it => it.OrganizationId == query.OrganizationId && reportIds.Contains(it.JobReportId))
+            .GroupBy(it => it.JobReportId)
+            .ToDictionaryAsync(
+                g => g.Key,
+                g => g.OrderBy(it => it.SortOrder).Select(it => it.Name).ToArray() as IReadOnlyList<string>,
+                cancellationToken);
+
         return projected.Select(x =>
         {
             var customerInfo = x.CustId is not null
@@ -140,7 +164,7 @@ public sealed class EfJobRepository : IJobRepository
                 x.Id, x.OrganizationId,
                 customerInfo,
                 x.ReportNumber, ParseStatus(x.Status), ToDateOnly(x.ReportDate),
-                FromJsonList(x.InstallationTypesJson), x.WorkKind, x.CustomWorkKind,
+                installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind, x.CustomWorkKind,
                 x.CreatedAt, x.UpdatedAt, x.SubmittedAt,
                 assignedUsersByReport.GetValueOrDefault(x.Id) ?? [],
                 x.IsSoftDeleted, x.DeletionScheduledAt,
@@ -158,6 +182,12 @@ public sealed class EfJobRepository : IJobRepository
 
         var row = await _dbContext.JobReports
             .AsNoTracking()
+            .Include(r => r.InstallationTypes)
+                .ThenInclude(it => it.ControlPoints)
+                    .ThenInclude(cp => cp.ControlCategory)
+            .Include(r => r.InstallationTypes)
+                .ThenInclude(it => it.ControlPoints)
+                    .ThenInclude(cp => cp.ControlPoint)
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
         if (row is null) return null;
@@ -170,24 +200,12 @@ public sealed class EfJobRepository : IJobRepository
                 .FirstOrDefaultAsync(c => c.Id == row.CustomerId.Value && c.OrganizationId == organizationId, cancellationToken);
         }
 
-        var subcategories = await _dbContext.JobControlSubcategoryDecisions
-            .AsNoTracking()
-            .Where(s => s.ReportId == id && s.OrganizationId == organizationId)
-            .OrderBy(s => s.InstallationTypeId).ThenBy(s => s.SubcategoryId)
-            .ToListAsync(cancellationToken);
-
-        var checks = await _dbContext.JobControlChecks
-            .AsNoTracking()
-            .Where(c => c.ReportId == id && c.OrganizationId == organizationId)
-            .OrderBy(c => c.InstallationTypeId).ThenBy(c => c.SubcategoryId).ThenBy(c => c.ItemId)
-            .ToListAsync(cancellationToken);
-
         var links = await LoadLinksAsync(organizationId, id, cancellationToken);
         var assignedUsers = (await _assignmentRepo.GetAssignedUsersByReportAsync(organizationId, [id], cancellationToken)).GetValueOrDefault(id) ?? [];
         var totalHours = await GetTotalHoursByJobAsync([id], cancellationToken);
         var worksheetEntries = await GetWorksheetEntriesByJobAsync(id, cancellationToken);
 
-        return ToResponse(row, customer, subcategories, checks, links, assignedUsers, worksheetEntries, totalHours.GetValueOrDefault(id));
+        return ToResponse(row, customer, links, assignedUsers, worksheetEntries, totalHours.GetValueOrDefault(id));
     }
 
     public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
@@ -244,7 +262,6 @@ public sealed class EfJobRepository : IJobRepository
         if (request.TaskDescription is not null) entry.Property(e => e.TaskDescription).CurrentValue = request.TaskDescription;
         entry.Property(e => e.CustomerObservations).CurrentValue = request.CustomerObservations;
         entry.Property(e => e.TechnicalObservations).CurrentValue = request.TechnicalObservations;
-        if (request.InstallationTypes is not null) entry.Property(e => e.InstallationTypesJson).CurrentValue = ToJson(request.InstallationTypes);
         var normalizedWorkKind = NormalizeOptional(request.WorkKind);
         if (normalizedWorkKind is not null) entry.Property(e => e.WorkKind).CurrentValue = normalizedWorkKind;
         entry.Property(e => e.CustomWorkKind).CurrentValue = request.CustomWorkKind;
@@ -252,16 +269,29 @@ public sealed class EfJobRepository : IJobRepository
         if (request.ClosureFlags is not null) entry.Property(e => e.ClosureFlagsJson).CurrentValue = ToJson(request.ClosureFlags);
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        if (request.ControlInstallationTypes is not null)
+        if (request.InstallationTypes is not null)
         {
-            await _dbContext.JobControlSubcategoryDecisions
-                .Where(s => s.ReportId == id && s.OrganizationId == organizationId)
-                .ExecuteDeleteAsync(cancellationToken);
+            var existingInstallations = await _dbContext.InstallationTypeRow
+                .Where(it => it.JobReportId == id && it.OrganizationId == organizationId)
+                .ToListAsync(cancellationToken);
+            _dbContext.InstallationTypeRow.RemoveRange(existingInstallations);
 
-            await ReplaceControlInstallationTypesAsync(organizationId, id, request.ControlInstallationTypes, now, cancellationToken);
+            var sortOrder = 0;
+            foreach (var inst in request.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i)))
+            {
+                _dbContext.InstallationTypeRow.Add(new InstallationTypeRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organizationId,
+                    Name = inst.Trim(),
+                    JobReportId = id,
+                    SortOrder = sortOrder++,
+                    CreatedAt = now
+                });
+            }
         }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         await InsertEventAsync(organizationId, id, null, "updated", ToJsonNode(existing), ToJsonNode(request), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
@@ -446,52 +476,6 @@ public sealed class EfJobRepository : IJobRepository
         return row.Id;
     }
 
-    private async Task ReplaceControlInstallationTypesAsync(
-        Guid organizationId, Guid reportId,
-        IReadOnlyList<ControlInstallationTypeRequest>? installationTypes,
-        DateTimeOffset now, CancellationToken cancellationToken)
-    {
-        if (installationTypes is null) return;
-
-        foreach (var installationType in installationTypes)
-        {
-            foreach (var subcategory in installationType.Subcategories)
-            {
-                var subcategoryDecisionId = Guid.NewGuid();
-                _dbContext.JobControlSubcategoryDecisions.Add(new JobControlSubcategoryRow
-                {
-                    Id = subcategoryDecisionId,
-                    OrganizationId = organizationId,
-                    ReportId = reportId,
-                    InstallationTypeId = installationType.InstallationTypeId,
-                    SubcategoryId = subcategory.SubcategoryId,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });
-
-                foreach (var check in subcategory.ControlChecks)
-                {
-                    _dbContext.JobControlChecks.Add(new JobControlCheckRow
-                    {
-                        Id = Guid.NewGuid(),
-                        OrganizationId = organizationId,
-                        ReportId = reportId,
-                        SubcategoryDecisionId = subcategoryDecisionId,
-                        InstallationTypeId = installationType.InstallationTypeId,
-                        SubcategoryId = subcategory.SubcategoryId,
-                        ItemId = check.ItemId,
-                        Checked = check.Checked,
-                        Note = check.Note,
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    });
-                }
-            }
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
-
     private async Task InsertEventAsync(
         Guid organizationId, Guid reportId, Guid? actorId,
         string eventType, JsonObject? before, JsonObject? after,
@@ -604,36 +588,45 @@ public sealed class EfJobRepository : IJobRepository
     private static JobReportResponse ToResponse(
         JobReportRow row,
         CustomerRow? customer,
-        IEnumerable<JobControlSubcategoryRow> subcategories,
-        IEnumerable<JobControlCheckRow> checks,
         IReadOnlyList<JobLinkInfoResponse> links,
         IReadOnlyList<AssignedUserResponse> assignedUsers,
         IReadOnlyList<WorksheetUserGroupResponse> worksheetEntries,
         decimal? totalHours = null)
     {
-        var checksBySubcategory = checks
-            .GroupBy(check => check.SubcategoryDecisionId)
-            .ToDictionary(g => g.Key, g => g.Select(check => new ControlCheckResponse(
-                check.Id, check.ItemId, check.Checked, check.Note, check.CreatedAt, check.UpdatedAt)).ToArray() as IReadOnlyList<ControlCheckResponse>);
+        var installationTypes = row.InstallationTypes?
+            .Select(it =>
+            {
+                var categories = it.ControlPoints?
+                    .GroupBy(cp => cp.ControlCategoryId)
+                    .Select(g =>
+                    {
+                        var first = g.First();
+                        return new InstallationTypeCategoryResponse(
+                            first.ControlCategory.Id,
+                            first.ControlCategory.Name,
+                            first.ControlCategory.SortOrder,
+                            g.OrderBy(cp => cp.SortOrder)
+                                .Select(cp => new InstallationTypeControlPointResponse(
+                                    cp.ControlPoint.Id,
+                                    cp.ControlPoint.Name,
+                                    cp.ControlPoint.Description,
+                                    cp.SortOrder,
+                                    cp.IsRequired))
+                                .ToArray());
+                    })
+                    .ToArray() ?? [];
 
-        var subcategoryResponses = subcategories.Select(s => new ControlSubcategoryResponse(
-            s.Id, s.InstallationTypeId, s.SubcategoryId,
-            checksBySubcategory.TryGetValue(s.Id, out var sc) ? sc : [],
-            s.CreatedAt, s.UpdatedAt)).ToArray();
-
-        var installationTypeResponses = subcategoryResponses
-            .GroupBy(s => s.InstallationTypeId)
-            .Select(g => new ControlInstallationTypeResponse(g.Key, g.ToArray()))
-            .ToArray();
+                return new InstallationTypeResponse(it.Id, it.Name, it.Description, it.SortOrder, categories);
+            })
+            .ToArray() ?? [];
 
         return new(
             row.Id, row.OrganizationId,
             customer is not null ? new CustomerInfo(customer.Id, customer.Name, customer.Address, customer.Email, customer.ContactPerson, customer.Phone) : null,
             row.ReportNumber, ParseStatus(row.Status), ToDateOnly(row.ReportDate),
             row.TaskDescription, row.CustomerObservations, row.TechnicalObservations,
-            FromJsonList(row.InstallationTypesJson), row.WorkKind, row.CustomWorkKind,
-            row.Remarks, FromJsonList(row.ClosureFlagsJson),
-            installationTypeResponses, links,
+            installationTypes, row.WorkKind, row.CustomWorkKind,
+            row.Remarks, FromJsonList(row.ClosureFlagsJson), links,
             row.CreatedAt, row.UpdatedAt, row.SubmittedAt,
             assignedUsers, worksheetEntries,
             row.IsSoftDeleted, row.DeletionScheduledAt, totalHours);

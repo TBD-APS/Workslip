@@ -25,19 +25,21 @@ public static class DatabaseSeeder
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate();
 
+
         var jobWorkKinds = new List<JobWorkKindRow>
         {
-            new() { Id = "Installation", Label = "Installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 1, UpdatedAt = now },
-            new() { Id = "Service", Label = "Service", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 2, UpdatedAt = now },
-            new() { Id = "Repair", Label = "Repair", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 3, UpdatedAt = now },
-            new() { Id = "Inspection", Label = "Inspection", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 4, UpdatedAt = now }
+            new() { Id = "NewInstallation", Label = "Ny installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 1, UpdatedAt = now },
+            new() { Id = "ChangeOfInstallation", Label = "Ændring af installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 2, UpdatedAt = now },
+            new() { Id = "RepairWork", Label = "Reparationsarbejde", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 3, UpdatedAt = now },
+            new() { Id = "ServiceOther", Label = "Service andet", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 4, UpdatedAt = now }
         };
 
         var jobClosureFlags = new List<JobClosureFlagRow>
         {
-            new() { Id = "Completed", Label = "Completed", IsExclusive = true, IsActive = true, SortOrder = 1, UpdatedAt = now },
-            new() { Id = "Partial", Label = "Partial", IsExclusive = false, IsActive = true, SortOrder = 2, UpdatedAt = now },
-            new() { Id = "Cancelled", Label = "Cancelled", IsExclusive = true, IsActive = true, SortOrder = 3, UpdatedAt = now }
+            new() { Id = "NotCompleted", Label = "Ikke færdig", IsExclusive = true, IsActive = true, SortOrder = 1, UpdatedAt = now },
+            new() { Id = "Completed", Label = "Færdig", IsExclusive = false, IsActive = true, SortOrder = 2, UpdatedAt = now },
+            new() { Id = "OperationMaintenanceInstructions", Label = "Drift og vedligeholdelses-instruktioner", IsExclusive = false, IsActive = true, SortOrder = 3, UpdatedAt = now },
+            new() { Id = "ReadyForInvoice", Label = "Klar til faktura", IsExclusive = false, IsActive = true, SortOrder = 3, UpdatedAt = now }
         };
 
         var customers = new Faker<CustomerRow>()
@@ -92,7 +94,6 @@ public static class DatabaseSeeder
             .RuleFor(x => x.Status, f => f.PickRandom(statuses))
             .RuleFor(x => x.ReportDate, f => f.Date.Past(1).Date)
             .RuleFor(x => x.TaskDescription, f => f.Lorem.Sentence())
-            .RuleFor(x => x.InstallationTypesJson, f => System.Text.Json.JsonSerializer.Serialize(f.Make(f.Random.Int(1, 3), () => f.PickRandom(installationTypeIds)).Distinct()))
             .RuleFor(x => x.WorkKind, f => f.PickRandom(jobWorkKinds).Id)
             .RuleFor(x => x.CustomWorkKind, f => f.Random.Bool(0.15f) ? f.Commerce.ProductName() : null)
             .RuleFor(x => x.ClosureFlagsJson, _ => "[]")
@@ -217,10 +218,9 @@ public static class DatabaseSeeder
                     UpdatedAt = job.UpdatedAt
                 });
             }
-
-       
-
         }
+
+        await DatabaseInstallationSeeder.Seed(db, organization.Id, jobs);
 
         db.Organizations.Add(organization);
         await db.JobReports.AddRangeAsync(jobs);
@@ -234,15 +234,5 @@ public static class DatabaseSeeder
         await db.Worksheets.AddRangeAsync(worksheets);
 
         await db.SaveChangesAsync();
-    }
-
-    static (Guid First, Guid Second, string LinkType) NormalizeLinkKey(
-    Guid sourceId,
-    Guid targetId,
-    string linkType)
-    {
-        return sourceId.CompareTo(targetId) < 0
-            ? (sourceId, targetId, linkType)
-            : (targetId, sourceId, linkType);
     }
 }

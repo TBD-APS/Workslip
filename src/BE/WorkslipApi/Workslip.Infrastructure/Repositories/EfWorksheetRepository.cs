@@ -3,6 +3,7 @@ using Workslip.Application.Auth;
 using Workslip.Application.Worksheets;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Resilience;
+using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
 

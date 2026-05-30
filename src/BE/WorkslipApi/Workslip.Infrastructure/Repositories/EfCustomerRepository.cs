@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Domain.Models;
+using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
 

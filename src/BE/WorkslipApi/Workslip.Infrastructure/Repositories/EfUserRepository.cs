@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
 using Workslip.Domain.Models;
+using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
 

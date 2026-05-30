@@ -20,7 +20,6 @@ public class DynamicPolicyProvider : IAuthorizationPolicyProvider
         if (!string.IsNullOrEmpty(requiredRole))
         {
             var policy = new AuthorizationPolicyBuilder()
-                .AddAuthenticationSchemes("Bearer", "LocalJwt")
                 .AddRequirements(new DynamicRoleRequirement(requiredRole));
             var builtPolicy = policy.Build();
             return builtPolicy;

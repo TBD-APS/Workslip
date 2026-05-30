@@ -7,6 +7,7 @@ using Workslip.Application.Jobs;
 using Workslip.Domain;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Resilience;
+using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
 
@@ -122,6 +123,15 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                                             }).ToArray());
 
 
+        var installationTypesByReport = await _dbContext.InstallationTypeRow
+            .AsNoTracking()
+            .Where(it => it.OrganizationId == organizationId && reportIds.Contains(it.JobReportId))
+            .GroupBy(it => it.JobReportId)
+            .ToDictionaryAsync(
+                g => g.Key,
+                g => g.OrderBy(it => it.SortOrder).Select(it => it.Name).ToArray() as IReadOnlyList<string>,
+                cancellationToken);
+
         var result = reports.Select(report => {
 
             var assignments = assignedDictionary.GetValueOrDefault(report.Id) ?? [];
@@ -129,7 +139,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             var jobReport = new JobListItemResponse(
             report.Id, report.OrganizationId, null,
             report.ReportNumber, Enum.Parse<JobStatus>(report.Status, ignoreCase: true), ToDateOnly(report.ReportDate),
-            FromJsonList(report.InstallationTypesJson), report.WorkKind, report.CustomWorkKind,
+            installationTypesByReport.GetValueOrDefault(report.Id) ?? [], report.WorkKind, report.CustomWorkKind,
             report.CreatedAt, report.UpdatedAt, report.SubmittedAt,
             assignments.Select(x => new AssignedUserResponse(x.Id, x.DisplayName)).ToArray(), report.IsSoftDeleted, report.DeletionScheduledAt, null);
 
@@ -207,6 +217,12 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     {
         var row = await _dbContext.JobReports
             .AsNoTracking()
+            .Include(r => r.InstallationTypes)
+                .ThenInclude(it => it.ControlPoints)
+                    .ThenInclude(cp => cp.ControlCategory)
+            .Include(r => r.InstallationTypes)
+                .ThenInclude(it => it.ControlPoints)
+                    .ThenInclude(cp => cp.ControlPoint)
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
         if (row is null) return null;
@@ -249,14 +265,42 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         CustomerRow? customer,
         IReadOnlyList<AssignedUserResponse> assignedUsers)
     {
+        var installationTypes = row.InstallationTypes?
+            .OrderBy(it => it.SortOrder)
+            .Select(it =>
+            {
+                var categories = it.ControlPoints?
+                    .GroupBy(cp => cp.ControlCategoryId)
+                    .OrderBy(g => g.First().ControlCategory.SortOrder)
+                    .Select(g =>
+                    {
+                        var first = g.First();
+                        return new InstallationTypeCategoryResponse(
+                            first.ControlCategory.Id,
+                            first.ControlCategory.Name,
+                            first.ControlCategory.SortOrder,
+                            g.OrderBy(cp => cp.SortOrder)
+                                .Select(cp => new InstallationTypeControlPointResponse(
+                                    cp.ControlPoint.Id,
+                                    cp.ControlPoint.Name,
+                                    cp.ControlPoint.Description,
+                                    cp.SortOrder,
+                                    cp.IsRequired))
+                                .ToArray());
+                    })
+                    .ToArray() ?? [];
+
+                return new InstallationTypeResponse(it.Id, it.Name, it.Description, it.SortOrder, categories);
+            })
+            .ToArray() ?? [];
+
         return new(
             row.Id, row.OrganizationId,
             customer is not null ? new CustomerInfo(customer.Id, customer.Name, customer.Address, customer.Email, customer.ContactPerson, customer.Phone) : null,
             row.ReportNumber, Enum.Parse<JobStatus>(row.Status, ignoreCase: true), ToDateOnly(row.ReportDate),
             row.TaskDescription, row.CustomerObservations, row.TechnicalObservations,
-            FromJsonList(row.InstallationTypesJson), row.WorkKind, row.CustomWorkKind,
-            row.Remarks, FromJsonList(row.ClosureFlagsJson),
-            [], [], 
+            installationTypes, row.WorkKind, row.CustomWorkKind,
+            row.Remarks, FromJsonList(row.ClosureFlagsJson), [], 
             row.CreatedAt, row.UpdatedAt, row.SubmittedAt,
             assignedUsers, [],
             row.IsSoftDeleted, row.DeletionScheduledAt, null);

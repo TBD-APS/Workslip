@@ -80,15 +80,14 @@ public sealed class JobService(
         var created = await repository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
         await InvalidateJobCachesAsync(created.Id, created.OrganizationId, cancellationToken);
         logger.LogInformation(
-            "Job created. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. AssignedUserCount: {AssignedUserCount}. InstallationTypeCount: {InstallationTypeCount}. ControlInstallationTypeCount: {ControlInstallationTypeCount}.",
+            "Job created. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. AssignedUserCount: {AssignedUserCount}. InstallationTypeCount: {InstallationTypeCount}.",
             created.Id,
             created.OrganizationId,
             created.Status,
             created.ReportNumber,
             created.WorkKind,
             created.AssignedUsers.Count,
-            created.InstallationTypes.Count,
-            created.ControlInstallationTypes.Count);
+            created.InstallationTypes.Count);
 
         return Result<JobReportResponse>.Success(created);
     }
@@ -285,8 +284,7 @@ public sealed class JobService(
             updated.Status,
             updated.ReportNumber,
             updated.WorkKind,
-            updated.InstallationTypes.Count,
-            updated.ControlInstallationTypes.Count);
+            updated.InstallationTypes.Count);
 
         return Result<JobReportResponse>.Success(updated);
     }
@@ -588,7 +586,7 @@ public sealed class JobService(
                 report.TaskDescription,
                 report.CustomerObservations,
                 report.TechnicalObservations),
-            report.ControlInstallationTypes,
+           null,
             report.Links,
             report.CreatedAt,
             report.UpdatedAt,
