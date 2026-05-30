@@ -597,23 +597,19 @@ public sealed class EfJobRepository : IJobRepository
             .Select(it =>
             {
                 var categories = it.ControlPoints?
-                    .GroupBy(cp => cp.ControlCategoryId)
-                    .Select(g =>
-                    {
-                        var first = g.First();
-                        return new InstallationTypeCategoryResponse(
-                            first.ControlCategory.Id,
-                            first.ControlCategory.Name,
-                            first.ControlCategory.SortOrder,
-                            g.OrderBy(cp => cp.SortOrder)
-                                .Select(cp => new InstallationTypeControlPointResponse(
-                                    cp.ControlPoint.Id,
-                                    cp.ControlPoint.Name,
-                                    cp.ControlPoint.Description,
-                                    cp.SortOrder,
-                                    cp.IsRequired))
-                                .ToArray());
-                    })
+                    .GroupBy(cp => new { cp.ControlCategory.Id, cp.ControlCategory.Name, cp.ControlCategory.SortOrder })
+                    .Select(g => new InstallationTypeCategoryResponse(
+                        g.Key.Id,
+                        g.Key.Name,
+                        g.Key.SortOrder,
+                        g.OrderBy(cp => cp.SortOrder)
+                            .Select(cp => new InstallationTypeControlPointResponse(
+                                cp.ControlPoint.Id,
+                                cp.ControlPoint.Name,
+                                cp.ControlPoint.Description,
+                                cp.SortOrder,
+                                cp.IsRequired))
+                            .ToArray()))
                     .ToArray() ?? [];
 
                 return new InstallationTypeResponse(it.Id, it.Name, it.Description, it.SortOrder, categories);
