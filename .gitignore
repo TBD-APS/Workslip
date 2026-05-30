@@ -15,6 +15,7 @@ out/
 *.pdb
 *.exe
 *.cache
+.ok/
 
 *tmp*
 # Dependencies / package caches

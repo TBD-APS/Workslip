@@ -47,43 +47,61 @@ public static class JobEndpoints
                 : Results.Ok(jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
         });
 
-        group.MapGet("/my-assigned", async (IJobService service, CancellationToken cancellationToken) =>
+        group.MapGet("/my-assigned", async (HttpContext httpContext, ICurrentUserContext currentUser, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetMyAssignedJobsAsync(cancellationToken);
-            return Results.Ok(result.Value.Select(JobViewModelBuilder.ToListItem));
+            if (!result.IsSuccess)
+            {
+                return ResultExtensions.ToHttpResult(result);
+            }
+
+            var jobs = result.Value;
+            var etag = HttpCacheHeaders.JobAssignedEtag(jobs, currentUser.OrganizationId!.Value);
+            HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
+
+            return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
+                ? Results.StatusCode(StatusCodes.Status304NotModified)
+                : Results.Ok(jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
         });
 
         group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.GetJobAsync(id, cancellationToken);
+            var result = await service.GetSingleJobAsync(id, cancellationToken);
             if (result.IsSuccess)
             {
                 var etag = HttpCacheHeaders.JobReportEtag(result.Value);
                 HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
 
+                var viewModel = JobViewModelBuilder.ToSummary(result.Value);
+
                 return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
                     ? Results.StatusCode(StatusCodes.Status304NotModified)
-                    : Results.Ok(JobViewModelBuilder.ToJob(result.Value));
+                     : Results.Ok(viewModel);
             }
 
             return ResultExtensions.ToHttpResult(result);
         });
 
-        group.MapGet("/{id:guid}/report-summary", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.GetReportSummaryAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        });
-
-        group.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, IJobService service, CancellationToken cancellationToken) =>
+        group.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetHistoryAsync(id, limit, offset, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            if (!result.IsSuccess)
+            {
+                return ResultExtensions.ToHttpResult(result);
+            }
+
+            var events = result.Value;
+            var etag = HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset);
+            HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
+
+            return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
+                ? Results.StatusCode(StatusCodes.Status304NotModified)
+                : Results.Ok(events);
         });
 
         group.MapGet("/{id:guid}/report/pdf", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
         {
-            var result = await service.GetJobAsync(id, cancellationToken);
+            var result = await service.GetSingleJobAsync(id, cancellationToken);
             if (!result.IsSuccess)
             {
                 return result.Status switch

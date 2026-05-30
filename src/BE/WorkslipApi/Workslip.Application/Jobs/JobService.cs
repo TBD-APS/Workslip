@@ -153,37 +153,7 @@ public sealed class JobService(
         return Result<IReadOnlyList<JobListItemResponse>>.Success(jobs);
     }
 
-    public async Task<Result<JobReportResponse>> GetJobAsync(Guid id, CancellationToken cancellationToken)
-    {
-        var organizationId = currentUser.OrganizationId;
-        if (organizationId is null)
-        {
-            return Result<JobReportResponse>.Unauthorized();
-        }
-
-        var orgId = organizationId.Value;
-
-        var cached = await cache.GetOrCreateAsync(JobReportCacheKey(id, orgId),
-            async token => CachedJobReport.From(await repository.GetSingleJobAsync(id, orgId, token)), 
-            JobReportCacheOptions,tags: ["jobs", JobReportTag(id, orgId)],
-            cancellationToken: cancellationToken);
-        
-        if (!cached.Found || cached.Value is null)
-        {
-            logger.LogWarning("Job lookup returned not found. JobId: {JobId}.", id);
-            return Result<JobReportResponse>.NotFound();
-        }
-
-        var report = cached.Value;
-        logger.LogInformation("Job fetched. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}.",
-            report.Id,
-            report.OrganizationId,
-            report.Status);
-
-        return Result<JobReportResponse>.Success(report);
-    }
-
-    public async Task<Result<JobReportSummaryResponse>> GetReportSummaryAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<Result<JobReportSummaryResponse>> GetSingleJobAsync(Guid id, CancellationToken cancellationToken)
     {
         var result = await GetJobAsync(id, cancellationToken);
         if (!result.IsSuccess)
@@ -202,6 +172,36 @@ public sealed class JobService(
             summary.Status);
 
         return Result<JobReportSummaryResponse>.Success(summary);
+    }
+
+    private async Task<Result<JobReportResponse>> GetJobAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<JobReportResponse>.Unauthorized();
+        }
+
+        var orgId = organizationId.Value;
+
+        var cached = await cache.GetOrCreateAsync(JobReportCacheKey(id, orgId),
+            async token => CachedJobReport.From(await repository.GetSingleJobAsync(id, orgId, token)),
+            JobReportCacheOptions, tags: ["jobs", JobReportTag(id, orgId)],
+            cancellationToken: cancellationToken);
+
+        if (!cached.Found || cached.Value is null)
+        {
+            logger.LogWarning("Job lookup returned not found. JobId: {JobId}.", id);
+            return Result<JobReportResponse>.NotFound();
+        }
+
+        var report = cached.Value;
+        logger.LogInformation("Job fetched. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}.",
+            report.Id,
+            report.OrganizationId,
+            report.Status);
+
+        return Result<JobReportResponse>.Success(report);
     }
 
     public async Task<Result<IReadOnlyList<JobEventResponse>>> GetHistoryAsync(Guid id, int? limit, int? offset, CancellationToken cancellationToken)

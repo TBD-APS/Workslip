@@ -86,6 +86,9 @@ public sealed class EfJobRepository : IJobRepository
 
     private async Task<IReadOnlyList<JobListItemResponse>> ListAsyncCoreAsync(JobQuery query, CancellationToken cancellationToken)
     {
+        if (query.OrganizationId != _currentUser.OrganizationId)
+            throw new InvalidOperationException("Organization mismatch");
+
         _dbContext.ChangeTracker.Clear();
 
         var projected = await (

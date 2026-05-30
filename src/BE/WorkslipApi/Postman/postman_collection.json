@@ -1139,7 +1139,12 @@
           "name": "/api/jobs/my-assigned",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "If-None-Match",
+                "value": "{{assignedJobsEtag}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/jobs/my-assigned",
               "host": [
@@ -1151,7 +1156,7 @@
                 "my-assigned"
               ]
             },
-            "description": "Gets all active jobs assigned to the authenticated user."
+            "description": "Revalidates cached my-assigned list with ETag and expects 304 when unchanged."
           },
           "response": [],
           "event": [
@@ -1160,9 +1165,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "pm.test('returns an array of jobs', function () { pm.expect(json).to.be.an('array'); });"
+                  "pm.test('304 Not Modified', function () { pm.response.to.have.status(304); });",
+                  "pm.test('private revalidation header present', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });"
                 ]
               }
             }
@@ -1209,44 +1213,6 @@
           ]
         },
         {
-          "name": "/api/jobs/{id}/report-summary",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/report-summary",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "jobs",
-                "{{jobId}}",
-                "report-summary"
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  pm.test('summary view model hides internal timestamps', function () { ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
-                  "  pm.test('summary view model exposes softDeleted flag', function () { pm.expect(json.softDeleted).to.be.a('boolean'); });",
-                  "  pm.test('summary has customer view', function () { pm.expect(json.customer).to.be.an('object'); pm.expect(json.customer.name).to.be.a('string').and.not.empty; });",
-                  "  pm.test('summary has work labels', function () { pm.expect(json.work).to.be.an('object'); pm.expect(json.work.workKindLabel).to.be.a('string').and.not.empty; });",
-                  "  pm.test('summary has observations', function () { pm.expect(json.observations).to.be.an('object'); pm.expect(json.observations.taskDescription).to.be.a('string').and.not.empty; });",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "/api/jobs/{id}/history",
           "request": {
             "method": "GET",
@@ -1272,6 +1238,9 @@
                 "exec": [
                   "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
                   "if (pm.response.code === 200) {",
+                  "  pm.test('uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
+                  "  pm.test('sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
+                  "  pm.collectionVariables.set('jobHistoryEtag', pm.response.headers.get('ETag'));",
                   "  const json = pm.response.json();",
                   "  pm.test('history is an array', function () { pm.expect(json).to.be.an('array'); });",
                   "  pm.test('history contains event type when non-empty', function () { if (json.length > 0) pm.expect(json[0].eventType).to.be.a('string').and.not.empty; });",

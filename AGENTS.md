@@ -1,3 +1,24 @@
+# Agent tool policy
+
+Before answering questions about this repository, prefer local tools over guessing.
+
+## Required lookup order
+
+1. Use repomix and kioki to search through files fast.
+3. Use database/schema tools before answering questions about tables, columns, EF mappings, migrations, seed data, or SQL behavior.
+4. Use documentation tools such as Context7 before answering package/API-specific questions about EF Core, ASP.NET Core, Microsoft Graph, authentication, or frontend libraries.
+5. Use browser/testing tools such as Playwright when the task involves UI behavior, routing, forms, or end-to-end validation.
+
+## Do not guess
+
+If local source, schema, or package docs are available through MCP, inspect them first.
+If the tool is unavailable, say that and continue with best-effort reasoning.
+
+## Safety
+
+Do not run destructive commands, database writes, migrations, Git resets, force pushes, or file deletions without explicit user approval.
+Prefer read-only inspection unless the task clearly requires changes.
+
 # API Response Pattern
 
 All services and endpoints follow Ardalis.Result for consistent API responses.
