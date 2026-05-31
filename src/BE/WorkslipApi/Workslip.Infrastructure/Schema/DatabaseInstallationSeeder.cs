@@ -45,6 +45,7 @@ namespace Workslip.Infrastructure.Schema
                         .RuleFor(x => x.Name, f => name)
                         .RuleFor(x => x.Description, f => null)
                         .RuleFor(x => x.IsActive, f => true)
+                        .RuleFor(x => x.IsChecked, f => f.Random.Bool(0.25f))
                         .RuleFor(x => x.SortOrder, f => index + 1)
                         .RuleFor(x => x.InstallationTypes, f => [])
                         .Generate()).ToList();

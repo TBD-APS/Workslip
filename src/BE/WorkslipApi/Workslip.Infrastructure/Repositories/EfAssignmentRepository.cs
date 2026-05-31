@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Graph.Models;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Workslip.Application.Auth;
@@ -16,14 +15,16 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
     private readonly ICurrentUserContext _currentUser;
+    private readonly IJobLinkRepository _linkRepo;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public EfAssignmentRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICurrentUserContext currentUser)
+    public EfAssignmentRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICurrentUserContext currentUser, IJobLinkRepository linkRepo)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
         _currentUser = currentUser;
+        _linkRepo = linkRepo;
     }
 
     public Task<JobReportResponse?> AssignAsync(Guid jobId, Guid organizationId, IReadOnlyList<Guid> userIds, Guid? actorId, CancellationToken cancellationToken) =>
@@ -83,45 +84,60 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         if (organizationId != _currentUser.OrganizationId)
             return [];
 
-        //Get job repports for org + user 
-        var reports = await (
+        var projected = await (
             from r in _dbContext.JobReports.AsNoTracking()
             join a in _dbContext.JobAssignments.AsNoTracking()
                 on new { r.Id, r.OrganizationId }
                 equals new { Id = a.ReportId, a.OrganizationId }
+            join c in _dbContext.Customers.AsNoTracking() on new { Id = (Guid?)r.CustomerId, OrganizationId = r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
+            from c in rjc.DefaultIfEmpty()
             where r.OrganizationId == organizationId
                   && a.UserId == userId
                   && !r.IsSoftDeleted
-            select r)
-            .ToListAsync(cancellationToken);
+            orderby r.UpdatedAt descending
+            select new
+            {
+                r.Id,
+                r.OrganizationId,
+                CustId = r.CustomerId,
+                CustName = c != null ? c.Name : null,
+                CustAddress = c != null ? c.Address : null,
+                CustEmail = c != null ? c.Email : null,
+                CustContactPerson = c != null ? c.ContactPerson : null,
+                CustPhone = c != null ? c.Phone : null,
+                r.ReportNumber,
+                r.Status,
+                r.ReportDate,
+                r.WorkKind,
+                r.CustomWorkKind,
+                r.CreatedAt,
+                r.UpdatedAt,
+                r.SubmittedAt,
+                r.IsSoftDeleted,
+                r.DeletionScheduledAt
+            }).ToListAsync(cancellationToken);
 
-        var reportIds = reports.Select(r => r.Id).ToArray();
+        var reportIds = projected.Select(x => x.Id).ToArray();
 
-        //Get intermediary reports table - assigned to my user
         var assignedUsers = await (
-        from a in _dbContext.JobAssignments.AsNoTracking()
-        join u in _dbContext.Users.AsNoTracking()
-            on new { a.UserId, a.OrganizationId }
-            equals new { UserId = u.Id, u.OrganizationId }
-        where a.OrganizationId == organizationId
-              && reportIds.Contains(a.ReportId)
-        select new
-        {
-            a.ReportId,
-            UserId = u.Id,
-            DisplayName = u.DisplayName
-        }).ToListAsync(cancellationToken);
+            from a in _dbContext.JobAssignments.AsNoTracking()
+            join u in _dbContext.Users.AsNoTracking()
+                on new { a.UserId, a.OrganizationId }
+                equals new { UserId = u.Id, u.OrganizationId }
+            where a.OrganizationId == organizationId
+                  && reportIds.Contains(a.ReportId)
+            select new
+            {
+                a.ReportId,
+                u.Id,
+                u.DisplayName
+            }).ToListAsync(cancellationToken);
 
         var assignedDictionary = assignedUsers
-                                        .GroupBy(x => x.ReportId)
-                                        .ToDictionary(
-                                            g => g.Key,
-                                            g => g.Select(x => new UserDataRow
-                                            {
-                                                Id = x.UserId,
-                                                DisplayName = x.DisplayName
-                                            }).ToArray());
-
+            .GroupBy(x => x.ReportId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(x => new AssignedUserResponse(x.Id, x.DisplayName)).ToArray() as IReadOnlyList<AssignedUserResponse>);
 
         var installationTypesByReport = await _dbContext.InstallationTypeRow
             .AsNoTracking()
@@ -132,21 +148,24 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 g => g.OrderBy(it => it.SortOrder).Select(it => it.Name).ToArray() as IReadOnlyList<string>,
                 cancellationToken);
 
-        var result = reports.Select(report => {
+        var totalHoursByJob = await GetTotalHoursByJobAsync(reportIds, cancellationToken);
 
-            var assignments = assignedDictionary.GetValueOrDefault(report.Id) ?? [];
+        return projected.Select(x =>
+        {
+            var customerInfo = x.CustId is not null
+                ? new CustomerInfo(x.CustId.Value, x.CustName ?? "", x.CustAddress, x.CustEmail, x.CustContactPerson, x.CustPhone)
+                : null;
 
-            var jobReport = new JobListItemResponse(
-            report.Id, report.OrganizationId, null,
-            report.ReportNumber, Enum.Parse<JobStatus>(report.Status, ignoreCase: true), ToDateOnly(report.ReportDate),
-            installationTypesByReport.GetValueOrDefault(report.Id) ?? [], report.WorkKind, report.CustomWorkKind,
-            report.CreatedAt, report.UpdatedAt, report.SubmittedAt,
-            assignments.Select(x => new AssignedUserResponse(x.Id, x.DisplayName)).ToArray(), report.IsSoftDeleted, report.DeletionScheduledAt, null);
-
-            return jobReport;
+            return new JobListItemResponse(
+                x.Id, x.OrganizationId,
+                customerInfo,
+                x.ReportNumber, Enum.Parse<JobStatus>(x.Status, ignoreCase: true), ToDateOnly(x.ReportDate),
+                installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind, x.CustomWorkKind,
+                x.CreatedAt, x.UpdatedAt, x.SubmittedAt,
+                assignedDictionary.GetValueOrDefault(x.Id) ?? [],
+                x.IsSoftDeleted, x.DeletionScheduledAt,
+                totalHoursByJob.GetValueOrDefault(x.Id));
         }).ToArray();
-
-        return result;
     }
 
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<AssignedUserResponse>>> GetAssignedUsersByReportAsync(
@@ -235,9 +254,12 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 .FirstOrDefaultAsync(c => c.Id == row.CustomerId.Value && c.OrganizationId == organizationId, cancellationToken);
         }
 
+        var links = await LoadLinksAsync(organizationId, id, cancellationToken);
         var assignedUsers = await GetSingleAssignedUsersAsync(organizationId, id, cancellationToken);
+        var totalHours = await GetTotalHoursByJobAsync([id], cancellationToken);
+        var worksheetEntries = await GetWorksheetEntriesByJobAsync(id, cancellationToken);
 
-        return ToResponse(row, customer, assignedUsers);
+        return ToResponse(row, customer, links, assignedUsers, worksheetEntries, totalHours.GetValueOrDefault(id));
     }
 
     private async Task InsertEventAsync(
@@ -263,7 +285,10 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     private static JobReportResponse ToResponse(
         JobReportRow row,
         CustomerRow? customer,
-        IReadOnlyList<AssignedUserResponse> assignedUsers)
+        IReadOnlyList<JobLinkInfoResponse> links,
+        IReadOnlyList<AssignedUserResponse> assignedUsers,
+        IReadOnlyList<WorksheetUserGroupResponse> worksheetEntries,
+        decimal? totalHours = null)
     {
         var installationTypes = row.InstallationTypes?
             .OrderBy(it => it.SortOrder)
@@ -282,7 +307,8 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                                 cp.ControlPoint.Name,
                                 cp.ControlPoint.Description,
                                 cp.SortOrder,
-                                cp.IsRequired))
+                                cp.IsRequired,
+                                cp.ControlPoint.IsChecked))
                             .ToArray()))
                     .ToArray() ?? [];
 
@@ -296,10 +322,100 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             row.ReportNumber, Enum.Parse<JobStatus>(row.Status, ignoreCase: true), ToDateOnly(row.ReportDate),
             row.TaskDescription, row.CustomerObservations, row.TechnicalObservations,
             installationTypes, row.WorkKind, row.CustomWorkKind,
-            row.Remarks, FromJsonList(row.ClosureFlagsJson), [], 
+            row.Remarks, FromJsonList(row.ClosureFlagsJson), links,
             row.CreatedAt, row.UpdatedAt, row.SubmittedAt,
-            assignedUsers, [],
-            row.IsSoftDeleted, row.DeletionScheduledAt, null);
+            assignedUsers, worksheetEntries,
+            row.IsSoftDeleted, row.DeletionScheduledAt, totalHours);
+    }
+
+
+    private sealed class WorksheetEntryProjection
+    {
+        public DateTime WorkDate { get; init; }
+        public decimal HoursWorked { get; init; }
+        public string DisplayName { get; init; } = "";
+    }
+
+    private sealed class JobTotalHoursProjection
+    {
+        public Guid JobId { get; init; }
+        public decimal? TotalHours { get; init; }
+    }
+
+    private async Task<IReadOnlyList<JobLinkInfoResponse>> LoadLinksAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken)
+    {
+        var links = await _linkRepo.GetLinkRowsAsync(organizationId, reportId, cancellationToken);
+
+        var linkedIds = links
+            .Select(l => l.SourceReportId == reportId ? l.TargetReportId : l.SourceReportId)
+            .Distinct()
+            .ToArray();
+
+        if (linkedIds.Length == 0) return [];
+
+        var linkedReports = await (
+            from r in _dbContext.JobReports.AsNoTracking()
+            join c in _dbContext.Customers.AsNoTracking() on new { Id = (Guid?)r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
+            from c in rjc.DefaultIfEmpty()
+            where r.OrganizationId == organizationId && linkedIds.Contains(r.Id)
+            select new { r.Id, r.ReportNumber, r.Status, CustomerName = c != null ? c.Name : null }
+        ).ToDictionaryAsync(r => r.Id, cancellationToken);
+
+        return links.Select(link =>
+        {
+            var linkedId = link.SourceReportId == reportId ? link.TargetReportId : link.SourceReportId;
+            var linked = linkedReports.GetValueOrDefault(linkedId);
+            return new JobLinkInfoResponse(
+                linkedId,
+                linked?.ReportNumber ?? "",
+                linked?.CustomerName ?? "",
+                linked?.Status ?? "",
+                link.LinkType);
+        }).ToArray();
+    }
+
+    private async Task<IReadOnlyList<WorksheetUserGroupResponse>> GetWorksheetEntriesByJobAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from w in _dbContext.Worksheets.AsNoTracking()
+            join u in _dbContext.Users.AsNoTracking() on w.UserId equals u.Id
+            where w.JobId == jobId
+            orderby u.DisplayName, w.WorkDate descending
+            select new WorksheetEntryProjection
+            {
+                WorkDate = w.WorkDate,
+                HoursWorked = w.HoursWorked,
+                DisplayName = u.DisplayName
+            }
+        ).ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(r => r.DisplayName)
+            .Select(g => new WorksheetUserGroupResponse(
+                g.Key,
+                g.Sum(r => r.HoursWorked),
+                g.Select(r => new WorksheetDayEntry(DateOnly.FromDateTime(r.WorkDate), r.HoursWorked)).ToArray() as IReadOnlyList<WorksheetDayEntry>))
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, decimal?>> GetTotalHoursByJobAsync(
+        IEnumerable<Guid> jobIds, CancellationToken cancellationToken)
+    {
+        var ids = jobIds.Distinct().ToArray();
+        if (ids.Length == 0) return new Dictionary<Guid, decimal?>();
+
+        var rows = await _dbContext.Worksheets
+            .AsNoTracking()
+            .Where(w => ids.Contains(w.JobId))
+            .GroupBy(w => w.JobId)
+            .Select(g => new JobTotalHoursProjection
+            {
+                JobId = g.Key,
+                TotalHours = g.Sum(w => w.HoursWorked)
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(r => r.JobId, r => r.TotalHours);
     }
 
     private static DateOnly? ToDateOnly(DateTime? value) =>

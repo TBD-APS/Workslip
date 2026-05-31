@@ -9,7 +9,8 @@ public sealed record InstallationTypeControlPointViewModel(
     string Name,
     string? Description,
     int SortOrder,
-    bool IsRequired);
+    bool IsRequired,
+    bool isChecked);
 
 public sealed record InstallationTypeCategoryViewModel(
     Guid Id,
@@ -185,5 +186,6 @@ public static class JobViewModelBuilder
         cp.Name,
         cp.Description,
         cp.SortOrder,
-        cp.IsRequired);
+        cp.IsRequired,
+        cp.IsChecked);
 }

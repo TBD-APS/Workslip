@@ -594,10 +594,12 @@ public sealed class EfJobRepository : IJobRepository
         decimal? totalHours = null)
     {
         var installationTypes = row.InstallationTypes?
+            .OrderBy(it => it.SortOrder)
             .Select(it =>
             {
                 var categories = it.ControlPoints?
                     .GroupBy(cp => new { cp.ControlCategory.Id, cp.ControlCategory.Name, cp.ControlCategory.SortOrder })
+                    .OrderBy(g => g.Key.SortOrder)
                     .Select(g => new InstallationTypeCategoryResponse(
                         g.Key.Id,
                         g.Key.Name,
@@ -608,7 +610,8 @@ public sealed class EfJobRepository : IJobRepository
                                 cp.ControlPoint.Name,
                                 cp.ControlPoint.Description,
                                 cp.SortOrder,
-                                cp.IsRequired))
+                                cp.IsRequired,
+                                cp.ControlPoint.IsChecked))
                             .ToArray()))
                     .ToArray() ?? [];
 

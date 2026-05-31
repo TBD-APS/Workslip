@@ -47,7 +47,8 @@ public sealed record InstallationTypeControlPointResponse(
     string Name,
     string? Description,
     int SortOrder,
-    bool IsRequired);
+    bool IsRequired,
+    bool IsChecked);
 
 public sealed record InstallationTypeCategoryResponse(
     Guid Id,
@@ -73,8 +74,7 @@ public sealed record CreateJobRequest(
     string? WorkKind,
     string? CustomWorkKind,
     string? Remarks,
-    IReadOnlyList<string>? ClosureFlags,
-    IReadOnlyList<ControlInstallationTypeRequest>? ControlInstallationTypes);
+    IReadOnlyList<string>? ClosureFlags);
 
 public sealed record UpdateJobRequest(
     CustomerInfo? Customer,
@@ -87,8 +87,7 @@ public sealed record UpdateJobRequest(
     string? WorkKind,
     string? CustomWorkKind,
     string? Remarks,
-    IReadOnlyList<string>? ClosureFlags,
-    IReadOnlyList<ControlInstallationTypeRequest>? ControlInstallationTypes);
+    IReadOnlyList<string>? ClosureFlags);
 
 public sealed record AssignJobRequest(
     IReadOnlyList<Guid>? UserIds);

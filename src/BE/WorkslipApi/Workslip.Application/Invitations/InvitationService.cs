@@ -25,49 +25,10 @@ public sealed class InvitationService(
         }
 
         var results = new List<InviteUserResult>();
-
         foreach (var email in request.Emails)
         {
-            if (string.IsNullOrWhiteSpace(email))
-            {
-                results.Add(new InviteUserResult(email, false, "Email address is empty.", null));
-                continue;
-            }
-
-            var existing = await userRepository.GetByEmailAsync(email, cancellationToken);
-            if (existing != null)
-            {
-                results.Add(new InviteUserResult(email, false, "User already exists.", null));
-                continue;
-            }
-
-            var token = Guid.NewGuid().ToString("N");
-            var inviteLink = $"{request.InviteBaseUrl}/{token}";
-
-            var inviteRow = new InviteTokenRow
-            {
-                Id = Guid.NewGuid(),
-                OrganizationId = organizationId.Value,
-                Email = email,
-                Token = token,
-                Role = request.Role,
-                ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
-                Consumed = false,
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-
-            try
-            {
-                await inviteRepository.CreateAsync(inviteRow, cancellationToken);
-                await emailService.SendInviteEmailAsync(email, inviteLink, cancellationToken);
-                results.Add(new InviteUserResult(email, true, null, inviteLink));
-                logger.LogInformation("Invite sent to {Email}. Token: {Token}", email, token);
-            }
-            catch (InvalidOperationException ex)
-            {
-                logger.LogError(ex, "Failed to send invite to {Email}.", email);
-                results.Add(new InviteUserResult(email, false, "Failed to send invite email.", null));
-            }
+            var result = await ProcessInviteEmailAsync(email, organizationId.Value, request.Role, request.InviteBaseUrl, cancellationToken);
+            results.Add(result);
         }
 
         return Result<InviteUsersResponse>.Success(new InviteUsersResponse(results));
@@ -82,6 +43,24 @@ public sealed class InvitationService(
             return Result<AuthUserInfo>.NotFound();
         }
 
+        var validationError = await ValidateInviteAsync(invite, cancellationToken);
+        if (validationError is not null) return validationError;
+
+        var entraUser = await entraService.CreateUserAsync(invite.Email, invite.Email.Split('@')[0], cancellationToken);
+
+        var user = BuildUserFromInvite(invite, entraUser);
+        var userId = await userRepository.CreateAsync(user, cancellationToken);
+        await inviteRepository.MarkConsumedAsync(invite.Id, cancellationToken);
+
+        var org = await organizationRepository.GetByIdAsync(invite.OrganizationId, cancellationToken);
+        logger.LogInformation("Invite accepted. UserId: {UserId}. Organization: {Org}. Email: {Email}. Role: {Role}.",
+            userId, org?.Name ?? invite.OrganizationId.ToString(), invite.Email, user.Role);
+
+        return Result<AuthUserInfo>.Success(new AuthUserInfo(userId, invite.OrganizationId, invite.Email, user.DisplayName, user.Role));
+    }
+
+    private async Task<Result<AuthUserInfo>?> ValidateInviteAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    {
         if (invite.Consumed)
         {
             logger.LogWarning("Invite verification failed: already consumed. Token: {Token}", invite.Token);
@@ -101,30 +80,58 @@ public sealed class InvitationService(
             return Result<AuthUserInfo>.Conflict("user_already_exists");
         }
 
-        var nickName = invite.Email.Split('@')[0];
-        var entraUser = await entraService.CreateUserAsync(invite.Email, nickName, cancellationToken);
-        
-        var user = new UserDataRow
+        return null;
+    }
+
+    private async Task<InviteUserResult> ProcessInviteEmailAsync(string email, Guid organizationId, string? role, string inviteBaseUrl, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return new InviteUserResult(email, false, "Email address is empty.", null);
+
+        var existing = await userRepository.GetByEmailAsync(email, cancellationToken);
+        if (existing != null)
+            return new InviteUserResult(email, false, "User already exists.", null);
+
+        var token = Guid.NewGuid().ToString("N");
+        var inviteLink = $"{inviteBaseUrl}/{token}";
+
+        var inviteRow = new InviteTokenRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Email = email,
+            Token = token,
+            Role = role,
+            ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+            Consumed = false,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        try
+        {
+            await inviteRepository.CreateAsync(inviteRow, cancellationToken);
+            await emailService.SendInviteEmailAsync(email, inviteLink, cancellationToken);
+            logger.LogInformation("Invite sent to {Email}. Token: {Token}", email, token);
+            return new InviteUserResult(email, true, null, inviteLink);
+        }
+        catch (InvalidOperationException ex)
+        {
+            logger.LogError(ex, "Failed to send invite to {Email}.", email);
+            return new InviteUserResult(email, false, "Failed to send invite email.", null);
+        }
+    }
+
+    private static UserDataRow BuildUserFromInvite(InviteTokenRow invite, CreateEntraUserResult entraUser) =>
+        new()
         {
             Id = Guid.NewGuid(),
             OrganizationId = invite.OrganizationId,
             Email = invite.Email,
-            DisplayName = nickName,
+            DisplayName = invite.Email.Split('@')[0],
             EntraEmail = entraUser.EntraMail,
             EntraId = entraUser.EntraUserId,
             Role = invite.Role ?? "User",
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
-
-        var userId = await userRepository.CreateAsync(user, cancellationToken);
-        await inviteRepository.MarkConsumedAsync(invite.Id, cancellationToken);
-
-        var org = await organizationRepository.GetByIdAsync(invite.OrganizationId, cancellationToken);
-
-        logger.LogInformation("Invite accepted. UserId: {UserId}. Organization: {Org}. Email: {Email}. Role: {Role}.",
-            userId, org?.Name ?? invite.OrganizationId.ToString(), invite.Email, user.Role);
-
-        return Result<AuthUserInfo>.Success(new AuthUserInfo(userId, invite.OrganizationId, invite.Email, user.DisplayName, user.Role));
-    }
 }

@@ -578,6 +578,9 @@ public sealed class SqlDbContext : DbContext
             entity.Property(x => x.IsActive)
                 .HasDefaultValue(true);
 
+            entity.Property(x => x.IsChecked)
+                .HasDefaultValue(false);
+
             entity.Property(x => x.SortOrder)
                 .HasDefaultValue(0);
 

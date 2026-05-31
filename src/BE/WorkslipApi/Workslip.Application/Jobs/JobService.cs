@@ -1,5 +1,6 @@
 using Ardalis.Result;
 using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
@@ -47,13 +48,7 @@ public sealed class JobService(
         var validationResult = await createJobValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            var errors = validationResult.Errors
-                .Select(e => new ValidationError
-                {
-                    Identifier = e.PropertyName,
-                    ErrorMessage = e.ErrorMessage
-                })
-                .ToList();
+            var errors = MapValidationErrors(validationResult);
             logger.LogWarning("Job create validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
                 organizationId.Value,
                 ValidationFields(errors));
@@ -79,15 +74,7 @@ public sealed class JobService(
         var assignedUserIds = actorId.HasValue ? [actorId.Value] : Array.Empty<Guid>();
         var created = await repository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
         await InvalidateJobCachesAsync(created.Id, created.OrganizationId, cancellationToken);
-        logger.LogInformation(
-            "Job created. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. AssignedUserCount: {AssignedUserCount}. InstallationTypeCount: {InstallationTypeCount}.",
-            created.Id,
-            created.OrganizationId,
-            created.Status,
-            created.ReportNumber,
-            created.WorkKind,
-            created.AssignedUsers.Count,
-            created.InstallationTypes.Count);
+        LogJobCreated(created);
 
         return Result<JobReportResponse>.Success(created);
     }
@@ -108,40 +95,15 @@ public sealed class JobService(
             return Result<IReadOnlyList<JobListItemResponse>>.Unauthorized();
         }
 
-        var errors = new List<ValidationError>();
-        if (reportNumber?.Length > 0 && reportNumber.Length < 2)
+        var searchErrors = ValidateSearchFilters(reportNumber, customerName, customerEmail, customerAddress);
+        if (searchErrors.Count > 0)
         {
-            errors.Add(new() { Identifier = nameof(reportNumber), ErrorMessage = "Søgning på rapportnummer skal være på mindst 2 tegn." });
-        }
-        if (customerName?.Length > 0 && customerName.Length < 2)
-        {
-            errors.Add(new() { Identifier = nameof(customerName), ErrorMessage = "Søgning på navn skal være på mindst 2 tegn." });
-        }
-        if (customerEmail?.Length > 0 && customerEmail.Length < 2)
-        {
-            errors.Add(new() { Identifier = nameof(customerEmail), ErrorMessage = "Søgning på e-mail skal være på mindst 2 tegn." });
-        }
-        if (customerAddress?.Length > 0 && customerAddress.Length < 2)
-        {
-            errors.Add(new() { Identifier = nameof(customerAddress), ErrorMessage = "Søgning på adresse skal være på mindst 2 tegn." });
-        }
-        if (errors.Count > 0)
-        {
-            return Result<IReadOnlyList<JobListItemResponse>>.Invalid(errors);
+            return Result<IReadOnlyList<JobListItemResponse>>.Invalid(searchErrors);
         }
 
-        var normalizedReportSearch = string.IsNullOrWhiteSpace(reportNumber) ? null : reportNumber.Trim();
-        var normalizedNameSearch = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
-        var normalizedEmailSearch = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim();
-        var normalizedAddressSearch = string.IsNullOrWhiteSpace(customerAddress) ? null : customerAddress.Trim();
+        var query = BuildJobQuery(organizationId.Value, status, reportNumber, customerName, customerEmail, customerAddress, limit, offset);
 
-        var query = new JobQuery(organizationId.Value, status, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0), 
-            normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
-        
-        var cacheKey = $"jobs:list:organization={query.OrganizationId:N}:status={query.Status?.ToString() ?? "all"}" +
-            $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
-            $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
-        
+        var cacheKey = BuildJobListCacheKey(query);
         var jobs = await cache.GetOrCreateAsync(
             cacheKey,
             async token => (await repository.ListAsync(query, token)).ToArray(),
@@ -234,13 +196,7 @@ public sealed class JobService(
         var validationResult = await updateJobValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            var errors = validationResult.Errors
-                .Select(e => new ValidationError
-                {
-                    Identifier = e.PropertyName,
-                    ErrorMessage = e.ErrorMessage
-                })
-                .ToList();
+            var errors = MapValidationErrors(validationResult);
             logger.LogWarning("Job update validation failed. JobId: {JobId}. Fields: {ValidationFields}",
                 id,
                 ValidationFields(errors));
@@ -276,15 +232,7 @@ public sealed class JobService(
         }
 
         await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
-        
-        logger.LogInformation(
-            "Job updated. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. InstallationTypeCount: {InstallationTypeCount}. ControlInstallationTypeCount: {ControlInstallationTypeCount}.",
-            updated.Id,
-            updated.OrganizationId,
-            updated.Status,
-            updated.ReportNumber,
-            updated.WorkKind,
-            updated.InstallationTypes.Count);
+        LogJobUpdated(updated);
 
         return Result<JobReportResponse>.Success(updated);
     }
@@ -294,14 +242,7 @@ public sealed class JobService(
         var validationResult = await changeJobStatusValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            var errors = validationResult.Errors
-                .Select(e => new ValidationError
-                {
-                    Identifier = e.PropertyName,
-                    ErrorMessage = e.ErrorMessage
-                })
-                .ToList();
-            return Result<JobReportResponse>.Invalid(errors);
+            return Result<JobReportResponse>.Invalid(MapValidationErrors(validationResult));
         }
 
         var organizationId = currentUser.OrganizationId;
@@ -312,23 +253,8 @@ public sealed class JobService(
 
         if (request.Status == JobStatus.Submitted)
         {
-            var current = await repository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
-            if (current is null)
-            {
-                logger.LogWarning("Job submit returned not found. JobId: {JobId}.", id);
-                return Result<JobReportResponse>.NotFound();
-            }
-
-            var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
-            var validationErrors = ValidateReadyForSubmission(current, taxonomy);
-            if (validationErrors.Count != 0)
-            {
-                logger.LogWarning("Job submit validation failed. JobId: {JobId}. Fields: {ValidationFields}",
-                    id,
-                    ValidationFields(validationErrors));
-
-                return Result<JobReportResponse>.Invalid(validationErrors);
-            }
+            var result = await ValidateSubmitReadyAsync(id, organizationId.Value, cancellationToken);
+            if (result is not null) return result;
         }
 
         return await TransitionAsync(id, request.Status, cancellationToken);
@@ -374,41 +300,18 @@ public sealed class JobService(
 
         if (reportId == request.TargetReportId)
         {
-            return Result<JobLinkResponse>.Invalid(new List<ValidationError>
-            {
-                new() { Identifier = "TargetReportId", ErrorMessage = "En sag kan ikke linkes til sig selv." }
-            });
+            return Result<JobLinkResponse>.Invalid([new ValidationError { Identifier = "TargetReportId", ErrorMessage = "En sag kan ikke linkes til sig selv." }]);
         }
 
-        var report = await repository.GetSingleJobAsync(reportId, organizationId.Value, cancellationToken);
-        if (report is null)
+        var validationError = await ValidateLinkTargetAsync(reportId, request.TargetReportId, organizationId.Value, cancellationToken);
+        if (validationError is not null)
         {
-            return Result<JobLinkResponse>.NotFound();
+            return Result<JobLinkResponse>.Invalid([validationError]);
         }
 
-        var target = await repository.GetSingleJobAsync(request.TargetReportId, organizationId.Value, cancellationToken);
-        if (target is null)
+        if (await HasExistingLinkAsync(reportId, request.TargetReportId, organizationId.Value, cancellationToken))
         {
-            return Result<JobLinkResponse>.Invalid(new List<ValidationError>
-            {
-                new() { Identifier = "TargetReportId", ErrorMessage = "Den valgte sag findes ikke." }
-            });
-        }
-
-        if (report.OrganizationId != target.OrganizationId)
-        {
-            return Result<JobLinkResponse>.Invalid(new List<ValidationError>
-            {
-                new() { Identifier = "TargetReportId", ErrorMessage = "Kunne ikke finde den sag du referer til." }
-            });
-        }
-
-        if(report.Links.Any(x => x.LinkedReportId == request.TargetReportId))
-        {
-            return Result<JobLinkResponse>.Invalid(new List<ValidationError>
-            {
-                new() { Identifier = "TargetReportId", ErrorMessage = "Man kan ikke assigne samme sag to gange" }
-            });
+            return Result<JobLinkResponse>.Invalid([new ValidationError { Identifier = "TargetReportId", ErrorMessage = "Man kan ikke assigne samme sag to gange" }]);
         }
 
         var link = await linkRepository.CreateLinkAsync(organizationId.Value, reportId, request.TargetReportId, request.LinkType, cancellationToken);
@@ -520,29 +423,11 @@ public sealed class JobService(
          var normalizedUserIds = (userIds ?? []).Distinct().ToArray();
          if (normalizedUserIds.Length == 0)
          {
-             return Result<JobReportResponse>.Invalid(new List<ValidationError>
-             {
-                 new() { Identifier = nameof(AssignJobRequest.UserIds), ErrorMessage = "Vælg mindst én bruger." }
-             });
+             return Result<JobReportResponse>.Invalid([new ValidationError { Identifier = nameof(AssignJobRequest.UserIds), ErrorMessage = "Vælg mindst én bruger." }]);
          }
 
-         foreach (var userId in normalizedUserIds)
-         {
-             var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
-             if (assignedUser is null)
-             {
-                 var errors = new List<ValidationError>
-                 {
-                     new() { Identifier = nameof(AssignJobRequest.UserIds), ErrorMessage = "En eller flere valgte brugere findes ikke i organisationen." }
-                 };
-                 logger.LogWarning("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
-                     jobId,
-                     organizationId.Value,
-                     userId);
-
-                 return Result<JobReportResponse>.Invalid(errors);
-             }
-         }
+         var invalidUserError = await ValidateAssignedUsersExistAsync(normalizedUserIds, jobId, organizationId.Value, cancellationToken);
+         if (invalidUserError is not null) return invalidUserError;
 
          var assigned = await assignmentRepository.AssignAsync(jobId, organizationId.Value, normalizedUserIds, currentUser.UserId, cancellationToken);
          if (assigned is null)
@@ -690,6 +575,120 @@ public sealed class JobService(
         return errors;
     }
 
+    private async Task<Result<JobReportResponse>?> ValidateSubmitReadyAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
+    {
+        var current = await repository.GetSingleJobAsync(id, organizationId, cancellationToken);
+        if (current is null)
+        {
+            logger.LogWarning("Job submit returned not found. JobId: {JobId}.", id);
+            return Result<JobReportResponse>.NotFound();
+        }
+
+        var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
+        var validationErrors = ValidateReadyForSubmission(current, taxonomy);
+        if (validationErrors.Count == 0) return null;
+
+        logger.LogWarning("Job submit validation failed. JobId: {JobId}. Fields: {ValidationFields}",
+            id, ValidationFields(validationErrors));
+
+        return Result<JobReportResponse>.Invalid(validationErrors);
+    }
+
+    private static List<ValidationError> ValidateSearchFilters(
+        string? reportNumber, string? customerName, string? customerEmail, string? customerAddress)
+    {
+        var errors = new List<ValidationError>();
+        if (reportNumber?.Length > 0 && reportNumber.Length < 2)
+            errors.Add(new() { Identifier = nameof(reportNumber), ErrorMessage = "Søgning på rapportnummer skal være på mindst 2 tegn." });
+        if (customerName?.Length > 0 && customerName.Length < 2)
+            errors.Add(new() { Identifier = nameof(customerName), ErrorMessage = "Søgning på navn skal være på mindst 2 tegn." });
+        if (customerEmail?.Length > 0 && customerEmail.Length < 2)
+            errors.Add(new() { Identifier = nameof(customerEmail), ErrorMessage = "Søgning på e-mail skal være på mindst 2 tegn." });
+        if (customerAddress?.Length > 0 && customerAddress.Length < 2)
+            errors.Add(new() { Identifier = nameof(customerAddress), ErrorMessage = "Søgning på adresse skal være på mindst 2 tegn." });
+        return errors;
+    }
+
+    private static JobQuery BuildJobQuery(
+        Guid organizationId, JobStatus? status,
+        string? reportNumber, string? customerName, string? customerEmail, string? customerAddress,
+        int? limit, int? offset)
+    {
+        var normalizedReportSearch = string.IsNullOrWhiteSpace(reportNumber) ? null : reportNumber.Trim();
+        var normalizedNameSearch = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
+        var normalizedEmailSearch = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim();
+        var normalizedAddressSearch = string.IsNullOrWhiteSpace(customerAddress) ? null : customerAddress.Trim();
+
+        return new JobQuery(organizationId, status, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0),
+            normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
+    }
+
+    private static string BuildJobListCacheKey(JobQuery query) =>
+        $"jobs:list:organization={query.OrganizationId:N}:status={query.Status?.ToString() ?? "all"}" +
+        $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
+        $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
+
+    private async Task<ValidationError?> ValidateLinkTargetAsync(Guid reportId, Guid targetId, Guid organizationId, CancellationToken cancellationToken)
+    {
+        var report = await repository.GetSingleJobAsync(reportId, organizationId, cancellationToken);
+        if (report is null) return null;
+
+        var target = await repository.GetSingleJobAsync(targetId, organizationId, cancellationToken);
+        if (target is null)
+        {
+            return new ValidationError { Identifier = "TargetReportId", ErrorMessage = "Den valgte sag findes ikke." };
+        }
+
+        if (report.OrganizationId != target.OrganizationId)
+        {
+            return new ValidationError { Identifier = "TargetReportId", ErrorMessage = "Kunne ikke finde den sag du referer til." };
+        }
+
+        return null;
+    }
+
+    private async Task<bool> HasExistingLinkAsync(Guid reportId, Guid targetId, Guid organizationId, CancellationToken cancellationToken)
+    {
+        var report = await repository.GetSingleJobAsync(reportId, organizationId, cancellationToken);
+        return report?.Links.Any(x => x.LinkedReportId == targetId) ?? false;
+    }
+
+    private async Task<Result<JobReportResponse>?> ValidateAssignedUsersExistAsync(
+        IReadOnlyList<Guid> userIds, Guid jobId, Guid organizationId, CancellationToken cancellationToken)
+    {
+        foreach (var userId in userIds)
+        {
+            var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
+            if (assignedUser is not null) continue;
+
+            logger.LogWarning("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
+                jobId, organizationId, userId);
+
+            return Result<JobReportResponse>.Invalid([new ValidationError
+            {
+                Identifier = nameof(AssignJobRequest.UserIds),
+                ErrorMessage = "En eller flere valgte brugere findes ikke i organisationen."
+            }]);
+        }
+
+        return null;
+    }
+
+    private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
+        result.Errors
+            .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
+            .ToList();
+
+    private void LogJobCreated(JobReportResponse job) =>
+        logger.LogInformation(
+            "Job created. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. AssignedUserCount: {AssignedUserCount}. InstallationTypeCount: {InstallationTypeCount}.",
+            job.Id, job.OrganizationId, job.Status, job.ReportNumber, job.WorkKind, job.AssignedUsers.Count, job.InstallationTypes.Count);
+
+    private void LogJobUpdated(JobReportResponse job) =>
+        logger.LogInformation(
+            "Job updated. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKind: {WorkKind}. InstallationTypeCount: {InstallationTypeCount}.",
+            job.Id, job.OrganizationId, job.Status, job.ReportNumber, job.WorkKind, job.InstallationTypes.Count);
+
     private static void AddRequired(List<ValidationError> errors, string identifier, string? value, string message)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -705,11 +704,8 @@ public sealed class JobService(
     }
 
     private static string JobReportCacheKey(Guid id, Guid organizationId) => $"jobs:detail:{organizationId:N}:{id:N}";
-
     private static string JobReportTag(Guid id, Guid organizationId) => $"jobs:detail:{organizationId:N}:{id:N}";
-
     private static string JobListTag(Guid organizationId) => $"jobs:list:{organizationId:N}";
-
     private static string ValidationFields(IEnumerable<ValidationError> errors) =>
         string.Join(",", errors.Select(error => error.Identifier).Distinct());
 

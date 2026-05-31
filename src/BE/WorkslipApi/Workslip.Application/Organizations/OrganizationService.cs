@@ -1,5 +1,6 @@
 using Ardalis.Result;
 using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 
 namespace Workslip.Application.Organizations;
@@ -14,19 +15,12 @@ public sealed class OrganizationService(
     IValidator<CreateOrganizationRequest> createOrganizationValidator,
     ILogger<OrganizationService> logger) : IOrganizationService
 {
-    public async Task<Result<OrganizationOnboardingResponse>> CreateAsync(CreateOrganizationRequest request,CancellationToken cancellationToken)
+    public async Task<Result<OrganizationOnboardingResponse>> CreateAsync(CreateOrganizationRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await createOrganizationValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            var errors = validationResult.Errors
-                .Select(e => new ValidationError
-                {
-                    Identifier = e.PropertyName,
-                    ErrorMessage = e.ErrorMessage
-                })
-                .ToList();
-
+            var errors = MapValidationErrors(validationResult);
             logger.LogWarning("Organization create validation failed. Fields: {ValidationFields}", ValidationFields(errors));
 
             return Result<OrganizationOnboardingResponse>.Invalid(errors);
@@ -57,4 +51,9 @@ public sealed class OrganizationService(
 
     private static string ValidationFields(IEnumerable<ValidationError> errors) =>
         string.Join(",", errors.Select(error => error.Identifier).Distinct());
+
+    private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
+        result.Errors
+            .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
+            .ToList();
 }

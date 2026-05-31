@@ -1,5 +1,6 @@
 using Ardalis.Result;
 using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 
@@ -34,14 +35,7 @@ public class WorksheetService : IWorksheetService
 
         if (!validationResult.IsValid)
         {
-            var errors = validationResult.Errors
-                .Select(e => new ValidationError
-                {
-                    Identifier = e.PropertyName,
-                    ErrorMessage = e.ErrorMessage
-                })
-                .ToList();
-
+            var errors = MapValidationErrors(validationResult);
             _logger.LogWarning("Worksheet upsert validation failed. Fields: {Fields}",
                 string.Join(", ", errors.Select(e => e.Identifier).Distinct()));
 
@@ -104,4 +98,9 @@ public class WorksheetService : IWorksheetService
             return Result<WorksheetResponse>.Error(ex.Message);
         }
     }
+
+    private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
+        result.Errors
+            .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
+            .ToList();
 }

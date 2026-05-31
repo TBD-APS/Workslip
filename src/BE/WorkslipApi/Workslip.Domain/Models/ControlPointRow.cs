@@ -9,6 +9,7 @@ public sealed class ControlPointRow
     public string? Description { get; set; }
 
     public bool IsActive { get; set; } = true;
+    public bool IsChecked { get; set; }
     public int SortOrder { get; set; }
 
     public ICollection<InstallationControlPointRow> InstallationTypes { get; set; } = [];
