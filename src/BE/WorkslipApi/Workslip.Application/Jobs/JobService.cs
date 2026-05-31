@@ -57,9 +57,9 @@ public sealed class JobService(
         }
 
         var taxonomyErrors = await ValidateDraftTaxonomyAsync(
-            request.WorkKind,
-            request.CustomWorkKind,
-            request.ClosureFlags,
+            request.Work?.WorkKind,
+            request.Work?.CustomWorkKind,
+            request.Work?.ClosureFlags,
             cancellationToken);
         if (taxonomyErrors.Count != 0)
         {
@@ -205,9 +205,9 @@ public sealed class JobService(
         }
 
         var taxonomyErrors = await ValidateDraftTaxonomyAsync(
-            request.WorkKind,
-            request.CustomWorkKind,
-            request.ClosureFlags,
+            request.Work?.WorkKind,
+            request.Work?.CustomWorkKind,
+            request.Work?.ClosureFlags,
             cancellationToken);
         if (taxonomyErrors.Count != 0)
         {

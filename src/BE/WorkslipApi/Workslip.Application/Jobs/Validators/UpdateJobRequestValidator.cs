@@ -13,17 +13,19 @@ public sealed class UpdateJobRequestValidator : AbstractValidator<UpdateJobReque
             .SetValidator(new CustomerInfoValidator()!)
             .When(x => x.Customer is not null);
 
-        RuleFor(x => x.InstallationTypes)
-            .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate installation type is not allowed.");
+        When(x => x.Work is not null, () =>
+        {
+            RuleFor(x => x.Work!.InstallationTypes)
+                .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate installation type is not allowed.");
 
-        RuleFor(x => x.WorkKind)
-            .MaximumLength(80).WithMessage("Work kind must not exceed 80 characters.");
+            RuleFor(x => x.Work!.WorkKind)
+                .MaximumLength(80).WithMessage("Work kind must not exceed 80 characters.");
 
-        RuleFor(x => x.CustomWorkKind)
-            .MaximumLength(160).WithMessage("Custom work kind must not exceed 160 characters.");
+            RuleFor(x => x.Work!.CustomWorkKind)
+                .MaximumLength(160).WithMessage("Custom work kind must not exceed 160 characters.");
 
-        RuleFor(x => x.ClosureFlags)
-            .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate closure flag is not allowed.");
-
+            RuleFor(x => x.Work!.ClosureFlags)
+                .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate closure flag is not allowed.");
+        });
     }
 }

@@ -132,6 +132,33 @@ public static class HttpCacheHeaders
         return ToWeakEtag(builder.ToString());
     }
 
+    public static void SetPublicLongCache(HttpContext context, string etag)
+    {
+        context.Response.Headers.CacheControl = "public, max-age=86400";
+        context.Response.Headers.ETag = etag;
+        context.Response.Headers.Vary = "Accept-Encoding";
+    }
+
+    public static string ReferenceDataEtag(ReferenceDataResponse data)
+    {
+        var sb = new StringBuilder("reference-data:");
+        foreach (var type in data.InstallationTypes)
+        {
+            sb.Append(type.Id).Append(type.SortOrder);
+            foreach (var cat in type.Categories)
+            {
+                sb.Append(cat.Id).Append(cat.SortOrder);
+                foreach (var cp in cat.ControlPoints)
+                    sb.Append(cp.Id).Append(cp.SortOrder).Append(cp.IsRequired);
+            }
+        }
+        foreach (var wk in data.WorkKinds)
+            sb.Append(wk.Id).Append(wk.SortOrder).Append(wk.RequiresCustomWorkKind);
+        foreach (var cf in data.ClosureFlags)
+            sb.Append(cf.Id).Append(cf.SortOrder).Append(cf.IsExclusive);
+        return ToWeakEtag(sb.ToString());
+    }
+
     private static string ToWeakEtag(string value)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));

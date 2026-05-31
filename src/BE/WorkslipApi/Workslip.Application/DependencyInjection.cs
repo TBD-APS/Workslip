@@ -21,6 +21,7 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<IAuthService, AuthService>();
     services.AddScoped<IInvitationService, InvitationService>();
     services.AddScoped<IWorksheetService, WorksheetService>();
+    services.AddScoped<IReferenceDataService, ReferenceDataService>();
 
     // Add FluentValidation validators (scans the entire assembly)
     services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
