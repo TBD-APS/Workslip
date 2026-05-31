@@ -55,7 +55,7 @@ public static class AuthenticationConfiguration
 
                         return scheme;
                     }
-                    catch(SecurityTokenException e)
+                    catch (SecurityTokenException)
                     {
                         return LocalJwtScheme;
                     }

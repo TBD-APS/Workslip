@@ -64,12 +64,12 @@ public sealed record InstallationTypeResponse(
     IReadOnlyList<InstallationTypeCategoryResponse> Categories);
 
 public sealed record CreateInstallationTypeControlPointRequest(
-    Guid PointId,
+    Guid Id,
     int? SortOrder,
     bool? IsRequired);
 
 public sealed record CreateInstallationTypeCategoryRequest(
-    Guid CategoryId,
+    Guid Id,
     IReadOnlyList<CreateInstallationTypeControlPointRequest>? ControlPoints);
 
 public sealed record CreateInstallationTypeRequest(

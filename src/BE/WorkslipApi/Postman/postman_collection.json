@@ -435,8 +435,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/dev/token",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "dev", "token"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "dev",
+                "token"
+              ]
             },
             "description": "DEV ONLY: Generates a valid LocalJwt token for any user by email. Bypasses the OTC email flow. Guarded behind IsDevelopment().",
             "body": {
@@ -1076,13 +1082,13 @@
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
                   "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
-                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "pm.test('job summary view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
                   "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.collectionVariables.set('jobId', json.id);",
                   "pm.test('customer email echoed', function () { pm.expect(json.customer.email).to.eql(pm.variables.get('customerEmail')); });",
                   "pm.test('installation types have auto-populated categories and control points', function () {",
-                  "  pm.expect(json.installationTypes.length).to.be.above(0);",
-                  "  json.installationTypes.forEach(it => {",
+                  "  pm.expect(json.work.installationTypes.length).to.be.above(0);",
+                  "  json.work.installationTypes.forEach(it => {",
                   "    pm.expect(it.categories).to.be.an('array').that.is.not.empty;",
                   "    it.categories.forEach(cat => {",
                   "      pm.expect(cat.id).to.be.a('string').and.not.empty;",
@@ -1753,8 +1759,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/jobs/?customerNameSearch=test",
-              "host": [ "{{baseUrl}}" ],
-              "path": [ "api", "jobs" ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs"
+              ],
               "query": [
                 {
                   "key": "customerNameSearch",
@@ -1793,8 +1804,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/reference-data",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "reference-data"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reference-data"
+              ]
             },
             "description": "Returns installation type definitions (with category/control-point hierarchy), work kinds, and closure flags. Cached publicly with 24h TTL and ETag."
           },
@@ -1840,8 +1856,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/reference-data",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "reference-data"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reference-data"
+              ]
             },
             "description": "Revalidates cached reference data with ETag and expects 304 when unchanged."
           },
@@ -1870,8 +1891,15 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/worksheets/jobs/{{jobId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "worksheets", "jobs", "{{jobId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "worksheets",
+                "jobs",
+                "{{jobId}}"
+              ]
             },
             "description": "Lists all worksheets for a given job."
           },
@@ -1904,8 +1932,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/worksheets/jobs/{{jobId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "worksheets", "jobs", "{{jobId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "worksheets",
+                "jobs",
+                "{{jobId}}"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1960,8 +1995,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/worksheets/{{worksheetId}}/jobs/{{jobId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "worksheets", "{{worksheetId}}", "jobs", "{{jobId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "worksheets",
+                "{{worksheetId}}",
+                "jobs",
+                "{{jobId}}"
+              ]
             },
             "description": "Deletes a worksheet entry by worksheet ID and job ID."
           },

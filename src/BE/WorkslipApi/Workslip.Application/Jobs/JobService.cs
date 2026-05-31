@@ -35,14 +35,13 @@ public sealed class JobService(
         LocalCacheExpiration = TimeSpan.FromSeconds(15)
     };
 
-    public async Task<Result<JobReportResponse>> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken)
+    public async Task<Result<JobReportSummaryResponse>> CreateAsync(CreateJobRequest request, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
-        var role = currentUser.Role;
 
         if (organizationId is null)
         {
-            return Result<JobReportResponse>.Unauthorized();
+            return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
         var validationResult = await createJobValidator.ValidateAsync(request, cancellationToken);
@@ -53,7 +52,7 @@ public sealed class JobService(
                 organizationId.Value,
                 ValidationFields(errors));
 
-            return Result<JobReportResponse>.Invalid(errors);
+            return Result<JobReportSummaryResponse>.Invalid(errors);
         }
 
         var taxonomyErrors = await ValidateDraftTaxonomyAsync(
@@ -67,7 +66,7 @@ public sealed class JobService(
                 organizationId.Value,
                 ValidationFields(taxonomyErrors));
 
-            return Result<JobReportResponse>.Invalid(taxonomyErrors);
+            return Result<JobReportSummaryResponse>.Invalid(taxonomyErrors);
         }
 
         var actorId = currentUser.UserId;
@@ -76,7 +75,7 @@ public sealed class JobService(
         await InvalidateJobCachesAsync(created.Id, created.OrganizationId, cancellationToken);
         LogJobCreated(created);
 
-        return Result<JobReportResponse>.Success(created);
+        return await ToSummaryResultAsync(created, cancellationToken);
     }
 
     public async Task<Result<IReadOnlyList<JobListItemResponse>>> ListAsync(
@@ -191,7 +190,7 @@ public sealed class JobService(
         return Result<IReadOnlyList<JobEventResponse>>.Success(events);
     }
 
-    public async Task<Result<JobReportResponse>> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken)
+    public async Task<Result<JobReportSummaryResponse>> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await updateJobValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
@@ -201,7 +200,7 @@ public sealed class JobService(
                 id,
                 ValidationFields(errors));
 
-            return Result<JobReportResponse>.Invalid(errors);
+            return Result<JobReportSummaryResponse>.Invalid(errors);
         }
 
         var taxonomyErrors = await ValidateDraftTaxonomyAsync(
@@ -215,40 +214,40 @@ public sealed class JobService(
                 id,
                 ValidationFields(taxonomyErrors));
 
-            return Result<JobReportResponse>.Invalid(taxonomyErrors);
+            return Result<JobReportSummaryResponse>.Invalid(taxonomyErrors);
         }
 
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            return Result<JobReportResponse>.Unauthorized();
+            return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
         var updated = await repository.UpdateAsync(id, organizationId.Value, request, cancellationToken);
         if (updated is null)
         {
             logger.LogWarning("Job update returned not found. JobId: {JobId}.", id);
-            return Result<JobReportResponse>.NotFound();
+            return Result<JobReportSummaryResponse>.NotFound();
         }
 
         await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
         LogJobUpdated(updated);
 
-        return Result<JobReportResponse>.Success(updated);
+        return await ToSummaryResultAsync(updated, cancellationToken);
     }
 
-    public async Task<Result<JobReportResponse>> ChangeStatusAsync(Guid id, ChangeJobStatusRequest request, CancellationToken cancellationToken)
+    public async Task<Result<JobReportSummaryResponse>> ChangeStatusAsync(Guid id, ChangeJobStatusRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await changeJobStatusValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            return Result<JobReportResponse>.Invalid(MapValidationErrors(validationResult));
+            return Result<JobReportSummaryResponse>.Invalid(MapValidationErrors(validationResult));
         }
 
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            return Result<JobReportResponse>.Unauthorized();
+            return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
         if (request.Status == JobStatus.Submitted)
@@ -260,12 +259,12 @@ public sealed class JobService(
         return await TransitionAsync(id, request.Status, cancellationToken);
     }
 
-    private async Task<Result<JobReportResponse>> TransitionAsync(Guid id, JobStatus targetStatus, CancellationToken cancellationToken)
+    private async Task<Result<JobReportSummaryResponse>> TransitionAsync(Guid id, JobStatus targetStatus, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            return Result<JobReportResponse>.Unauthorized();
+            return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
         var actorId = currentUser.UserId;
@@ -277,7 +276,7 @@ public sealed class JobService(
                 targetStatus,
                 actorId);
 
-            return Result<JobReportResponse>.NotFound();
+            return Result<JobReportSummaryResponse>.NotFound();
         }
 
         await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
@@ -287,7 +286,7 @@ public sealed class JobService(
             targetStatus,
             actorId);
 
-        return Result<JobReportResponse>.Success(report);
+        return await ToSummaryResultAsync(report, cancellationToken);
     }
 
     public async Task<Result<JobLinkResponse>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
@@ -370,60 +369,60 @@ public sealed class JobService(
         return Result.Success();
     }
 
-     public async Task<Result<JobReportResponse>> DeleteAsync(Guid id, CancellationToken cancellationToken)
+     public async Task<Result<JobReportSummaryResponse>> DeleteAsync(Guid id, CancellationToken cancellationToken)
      {
          var organizationId = currentUser.OrganizationId;
          if (organizationId is null)
          {
-             return Result<JobReportResponse>.Unauthorized();
+             return Result<JobReportSummaryResponse>.Unauthorized();
          }
 
          var deleted = await repository.DeleteAsync(id, organizationId.Value, cancellationToken);
          if (deleted is null)
          {
              logger.LogWarning("Job delete returned not found. JobId: {JobId}.", id);
-             return Result<JobReportResponse>.NotFound();
+             return Result<JobReportSummaryResponse>.NotFound();
          }
 
          await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
          logger.LogInformation("Job soft deleted. JobId: {JobId}.", id);
 
-         return Result<JobReportResponse>.Success(deleted);
+         return await ToSummaryResultAsync(deleted, cancellationToken);
      }
 
-     public async Task<Result<JobReportResponse>> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken)
+     public async Task<Result<JobReportSummaryResponse>> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken)
      {
          var organizationId = currentUser.OrganizationId;
          if (organizationId is null)
          {
-             return Result<JobReportResponse>.Unauthorized();
+             return Result<JobReportSummaryResponse>.Unauthorized();
          }
 
          var restored = await repository.RestoreDeletionAsync(id, organizationId.Value, cancellationToken);
          if (restored is null)
          {
              logger.LogWarning("Job restore deletion returned not found. JobId: {JobId}.", id);
-             return Result<JobReportResponse>.NotFound();
+             return Result<JobReportSummaryResponse>.NotFound();
          }
 
          await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
          logger.LogInformation("Job deletion restored. JobId: {JobId}.", id);
 
-         return Result<JobReportResponse>.Success(restored);
+         return await ToSummaryResultAsync(restored, cancellationToken);
      }
 
-     public async Task<Result<JobReportResponse>> AssignAsync(Guid jobId, IReadOnlyList<Guid>? userIds, CancellationToken cancellationToken)
+     public async Task<Result<JobReportSummaryResponse>> AssignAsync(Guid jobId, IReadOnlyList<Guid>? userIds, CancellationToken cancellationToken)
      {
          var organizationId = currentUser.OrganizationId;
          if (organizationId is null)
          {
-             return Result<JobReportResponse>.Unauthorized();
+             return Result<JobReportSummaryResponse>.Unauthorized();
          }
 
          var normalizedUserIds = (userIds ?? []).Distinct().ToArray();
          if (normalizedUserIds.Length == 0)
          {
-             return Result<JobReportResponse>.Invalid([new ValidationError { Identifier = nameof(AssignJobRequest.UserIds), ErrorMessage = "Vælg mindst én bruger." }]);
+             return Result<JobReportSummaryResponse>.Invalid([new ValidationError { Identifier = nameof(AssignJobRequest.UserIds), ErrorMessage = "Vælg mindst én bruger." }]);
          }
 
          var invalidUserError = await ValidateAssignedUsersExistAsync(normalizedUserIds, jobId, organizationId.Value, cancellationToken);
@@ -432,14 +431,20 @@ public sealed class JobService(
          var assigned = await assignmentRepository.AssignAsync(jobId, organizationId.Value, normalizedUserIds, currentUser.UserId, cancellationToken);
          if (assigned is null)
          {
-             return Result<JobReportResponse>.NotFound();
+             return Result<JobReportSummaryResponse>.NotFound();
          }
 
          await InvalidateJobCachesAsync(jobId, organizationId.Value, cancellationToken);
          logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {AssignedUserCount}.", jobId, normalizedUserIds.Length);
 
-         return Result<JobReportResponse>.Success(assigned);
+         return await ToSummaryResultAsync(assigned, cancellationToken);
      }
+
+    private async Task<Result<JobReportSummaryResponse>> ToSummaryResultAsync(JobReportResponse report, CancellationToken cancellationToken)
+    {
+        var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
+        return Result<JobReportSummaryResponse>.Success(ToSummary(report, taxonomy));
+    }
 
     private static JobReportSummaryResponse ToSummary(JobReportResponse report, JobTaxonomySnapshot taxonomy)
     {
@@ -471,7 +476,7 @@ public sealed class JobService(
                 report.TaskDescription,
                 report.CustomerObservations,
                 report.TechnicalObservations),
-           null,
+            Array.Empty<ControlInstallationTypeResponse>(),
             report.Links,
             report.CreatedAt,
             report.UpdatedAt,
@@ -575,13 +580,13 @@ public sealed class JobService(
         return errors;
     }
 
-    private async Task<Result<JobReportResponse>?> ValidateSubmitReadyAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
+    private async Task<Result<JobReportSummaryResponse>?> ValidateSubmitReadyAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {
         var current = await repository.GetSingleJobAsync(id, organizationId, cancellationToken);
         if (current is null)
         {
             logger.LogWarning("Job submit returned not found. JobId: {JobId}.", id);
-            return Result<JobReportResponse>.NotFound();
+            return Result<JobReportSummaryResponse>.NotFound();
         }
 
         var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
@@ -591,7 +596,7 @@ public sealed class JobService(
         logger.LogWarning("Job submit validation failed. JobId: {JobId}. Fields: {ValidationFields}",
             id, ValidationFields(validationErrors));
 
-        return Result<JobReportResponse>.Invalid(validationErrors);
+        return Result<JobReportSummaryResponse>.Invalid(validationErrors);
     }
 
     private static List<ValidationError> ValidateSearchFilters(
@@ -653,7 +658,7 @@ public sealed class JobService(
         return report?.Links.Any(x => x.LinkedReportId == targetId) ?? false;
     }
 
-    private async Task<Result<JobReportResponse>?> ValidateAssignedUsersExistAsync(
+    private async Task<Result<JobReportSummaryResponse>?> ValidateAssignedUsersExistAsync(
         IReadOnlyList<Guid> userIds, Guid jobId, Guid organizationId, CancellationToken cancellationToken)
     {
         foreach (var userId in userIds)
@@ -664,7 +669,7 @@ public sealed class JobService(
             logger.LogWarning("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
                 jobId, organizationId, userId);
 
-            return Result<JobReportResponse>.Invalid([new ValidationError
+            return Result<JobReportSummaryResponse>.Invalid([new ValidationError
             {
                 Identifier = nameof(AssignJobRequest.UserIds),
                 ErrorMessage = "En eller flere valgte brugere findes ikke i organisationen."

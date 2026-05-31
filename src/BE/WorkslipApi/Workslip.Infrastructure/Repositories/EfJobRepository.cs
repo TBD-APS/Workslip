@@ -75,65 +75,50 @@ public sealed class EfJobRepository : IJobRepository
                 .ToListAsync(cancellationToken);
             var defsByName = definitions.ToDictionary(d => d.Name, StringComparer.OrdinalIgnoreCase);
 
-            foreach (var req in request.Work.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i.Name)))
+            foreach (var req in request.Work.InstallationTypes)
             {
-                var name = req.Name.Trim();
-                var it = new InstallationTypeRow
+                var installation = new InstallationTypeRow
                 {
                     Id = Guid.NewGuid(),
                     OrganizationId = organizationId,
-                    Name = name,
+                    Name = req.Name,
                     JobReportId = reportId,
                     CreatedAt = now
                 };
 
-                _dbContext.InstallationTypeRow.Add(it);
+                _dbContext.InstallationTypeRow.Add(installation);
 
-                if (req.Categories is not null && req.Categories.Count > 0)
+                if (defsByName.TryGetValue(req.Name, out var def))
                 {
-                    foreach (var catReq in req.Categories)
+                    foreach (var catReq in req.Categories ?? new List<CreateInstallationTypeCategoryRequest>())
                     {
-                        var catStub = new ControlCategoryRow { Id = catReq.CategoryId };
-                        _dbContext.ControlCategoryRow.Attach(catStub);
-
                         var points = catReq.ControlPoints ?? [];
                         foreach (var cpReq in points)
                         {
-                            var pointStub = new ControlPointRow { Id = cpReq.PointId, Name = string.Empty };
-                            _dbContext.ControlPointRow.Attach(pointStub);
-
                             _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
                             {
-                                InstallationTypeId = it.Id,
-                                ControlCategoryId = catReq.CategoryId,
-                                ControlCategory = catStub,
-                                ControlPointId = cpReq.PointId,
-                                ControlPoint = pointStub,
+                                InstallationTypeId = installation.Id,
+                                ControlCategoryId = catReq.Id,
+                                ControlPointId = cpReq.Id,
                                 SortOrder = cpReq.SortOrder ?? 0,
                                 IsRequired = cpReq.IsRequired ?? false
                             });
                         }
                     }
                 }
-                else if (defsByName.TryGetValue(name, out var def))
+                else if (defsByName.TryGetValue(req.Name, out var def1))
                 {
-                    it.SortOrder = def.SortOrder;
-                    foreach (var mapping in def.Mappings.OrderBy(m => m.SortOrder))
+                    installation.SortOrder = def1.SortOrder;
+                    foreach (var mapping in def1.Mappings)
                     {
-                        var catStub = new ControlCategoryRow { Id = mapping.ControlCategoryId };
-                        _dbContext.ControlCategoryRow.Attach(catStub);
-                        var pointStub = new ControlPointRow { Id = mapping.ControlPointId, Name = string.Empty };
-                        _dbContext.ControlPointRow.Attach(pointStub);
-
                         _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
                         {
-                            InstallationTypeId = it.Id,
+                            InstallationTypeId = installation.Id,
                             ControlCategoryId = mapping.ControlCategoryId,
-                            ControlCategory = catStub,
                             ControlPointId = mapping.ControlPointId,
-                            ControlPoint = pointStub,
                             SortOrder = mapping.SortOrder,
-                            IsRequired = mapping.IsRequired
+                            IsRequired = mapping.IsRequired,
+                            InstallationType = installation
                         });
                     }
                 }
@@ -149,7 +134,8 @@ public sealed class EfJobRepository : IJobRepository
 
         await tx.CommitAsync(cancellationToken);
 
-        return (await GetSingleJobAsync(reportId, organizationId, cancellationToken))!;
+        var job = await GetSingleJobAsync(reportId, organizationId, cancellationToken);
+        return job ?? null;
     }
 
     public Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
@@ -347,22 +333,14 @@ public sealed class EfJobRepository : IJobRepository
                 {
                     foreach (var catReq in req.Categories)
                     {
-                        var catStub = new ControlCategoryRow { Id = catReq.CategoryId };
-                        _dbContext.ControlCategoryRow.Attach(catStub);
-
                         var points = catReq.ControlPoints ?? [];
                         foreach (var cpReq in points)
                         {
-                            var pointStub = new ControlPointRow { Id = cpReq.PointId, Name = string.Empty };
-                            _dbContext.ControlPointRow.Attach(pointStub);
-
                             _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
                             {
                                 InstallationTypeId = it.Id,
-                                ControlCategoryId = catReq.CategoryId,
-                                ControlCategory = catStub,
-                                ControlPointId = cpReq.PointId,
-                                ControlPoint = pointStub,
+                                ControlCategoryId = catReq.Id,
+                                ControlPointId = cpReq.Id,
                                 SortOrder = cpReq.SortOrder ?? 0,
                                 IsRequired = cpReq.IsRequired ?? false
                             });
@@ -374,18 +352,11 @@ public sealed class EfJobRepository : IJobRepository
                     it.SortOrder = def.SortOrder;
                     foreach (var mapping in def.Mappings.OrderBy(m => m.SortOrder))
                     {
-                        var catStub = new ControlCategoryRow { Id = mapping.ControlCategoryId };
-                        _dbContext.ControlCategoryRow.Attach(catStub);
-                        var pointStub = new ControlPointRow { Id = mapping.ControlPointId, Name = string.Empty };
-                        _dbContext.ControlPointRow.Attach(pointStub);
-
                         _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
                         {
                             InstallationTypeId = it.Id,
                             ControlCategoryId = mapping.ControlCategoryId,
-                            ControlCategory = catStub,
                             ControlPointId = mapping.ControlPointId,
-                            ControlPoint = pointStub,
                             SortOrder = mapping.SortOrder,
                             IsRequired = mapping.IsRequired
                         });
