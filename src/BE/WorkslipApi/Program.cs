@@ -11,6 +11,7 @@ try
 
     var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
+    builder.Services.AddCors();
     builder.ConfigureAuthentication();
     builder.ConfigureInfrastructure();
     builder.ConfigureLogging(applicationInsightsConnectionString);
