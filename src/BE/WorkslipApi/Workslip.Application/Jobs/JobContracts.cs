@@ -63,31 +63,43 @@ public sealed record InstallationTypeResponse(
     int SortOrder,
     IReadOnlyList<InstallationTypeCategoryResponse> Categories);
 
-public sealed record CreateJobRequest(
-    CustomerInfo? Customer,
-    string? ReportNumber,
+public sealed record CreateInstallationTypeControlPointRequest(
+    Guid PointId,
+    int? SortOrder,
+    bool? IsRequired);
+
+public sealed record CreateInstallationTypeCategoryRequest(
+    Guid CategoryId,
+    IReadOnlyList<CreateInstallationTypeControlPointRequest>? ControlPoints);
+
+public sealed record CreateInstallationTypeRequest(
+    string Name,
+    IReadOnlyList<CreateInstallationTypeCategoryRequest>? Categories);
+
+public sealed record CreateJobWorkRequest(
+    IReadOnlyList<CreateInstallationTypeRequest>? InstallationTypes,
+    string? WorkKind,
+    string? CustomWorkKind,
+    IReadOnlyList<string>? ClosureFlags,
+    string? Remarks);
+
+public sealed record CreateJobObservationRequest(
     DateOnly? ReportDate,
     string? TaskDescription,
     string? CustomerObservations,
-    string? TechnicalObservations,
-    IReadOnlyList<string>? InstallationTypes,
-    string? WorkKind,
-    string? CustomWorkKind,
-    string? Remarks,
-    IReadOnlyList<string>? ClosureFlags);
+    string? TechnicalObservations);
+
+public sealed record CreateJobRequest(
+    CustomerInfo? Customer,
+    string? ReportNumber,
+    CreateJobWorkRequest? Work,
+    CreateJobObservationRequest? Observations);
 
 public sealed record UpdateJobRequest(
     CustomerInfo? Customer,
     string? ReportNumber,
-    DateOnly? ReportDate,
-    string? TaskDescription,
-    string? CustomerObservations,
-    string? TechnicalObservations,
-    IReadOnlyList<string>? InstallationTypes,
-    string? WorkKind,
-    string? CustomWorkKind,
-    string? Remarks,
-    IReadOnlyList<string>? ClosureFlags);
+    CreateJobWorkRequest? Work,
+    CreateJobObservationRequest? Observations);
 
 public sealed record AssignJobRequest(
     IReadOnlyList<Guid>? UserIds);

@@ -54,30 +54,89 @@ public sealed class EfJobRepository : IJobRepository
             CustomerId = customerId,
             ReportNumber = request.ReportNumber,
             Status = JobStatus.Draft.ToString(),
-            ReportDate = ToDateTime(request.ReportDate),
-            TaskDescription = request.TaskDescription,
-            CustomerObservations = request.CustomerObservations,
-            TechnicalObservations = request.TechnicalObservations,
-            WorkKind = NormalizeOptional(request.WorkKind),
-            CustomWorkKind = request.CustomWorkKind,
-            Remarks = request.Remarks,
-            ClosureFlagsJson = ToJson(request.ClosureFlags ?? []),
+            ReportDate = ToDateTime(request.Observations?.ReportDate),
+            TaskDescription = request.Observations?.TaskDescription,
+            CustomerObservations = request.Observations?.CustomerObservations,
+            TechnicalObservations = request.Observations?.TechnicalObservations,
+            WorkKind = NormalizeOptional(request.Work?.WorkKind),
+            CustomWorkKind = request.Work?.CustomWorkKind,
+            Remarks = request.Work?.Remarks,
+            ClosureFlagsJson = ToJson(request.Work?.ClosureFlags ?? []),
             CreatedAt = now,
             UpdatedAt = now
         });
 
-        if (request.InstallationTypes?.Count > 0)
+        if (request.Work?.InstallationTypes?.Count > 0)
         {
-            foreach (var installationo in request.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i)))
+            var definitions = await _dbContext.InstallationTypeDefinitions
+                .AsNoTracking()
+                .Where(d => d.OrganizationId == organizationId)
+                .Include(d => d.Mappings)
+                .ToListAsync(cancellationToken);
+            var defsByName = definitions.ToDictionary(d => d.Name, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var req in request.Work.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i.Name)))
             {
-                _dbContext.InstallationTypeRow.Add(new InstallationTypeRow
+                var name = req.Name.Trim();
+                var it = new InstallationTypeRow
                 {
                     Id = Guid.NewGuid(),
                     OrganizationId = organizationId,
-                    Name = installationo.Trim(),
+                    Name = name,
                     JobReportId = reportId,
                     CreatedAt = now
-                });
+                };
+
+                _dbContext.InstallationTypeRow.Add(it);
+
+                if (req.Categories is not null && req.Categories.Count > 0)
+                {
+                    foreach (var catReq in req.Categories)
+                    {
+                        var catStub = new ControlCategoryRow { Id = catReq.CategoryId };
+                        _dbContext.ControlCategoryRow.Attach(catStub);
+
+                        var points = catReq.ControlPoints ?? [];
+                        foreach (var cpReq in points)
+                        {
+                            var pointStub = new ControlPointRow { Id = cpReq.PointId, Name = string.Empty };
+                            _dbContext.ControlPointRow.Attach(pointStub);
+
+                            _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
+                            {
+                                InstallationTypeId = it.Id,
+                                ControlCategoryId = catReq.CategoryId,
+                                ControlCategory = catStub,
+                                ControlPointId = cpReq.PointId,
+                                ControlPoint = pointStub,
+                                SortOrder = cpReq.SortOrder ?? 0,
+                                IsRequired = cpReq.IsRequired ?? false
+                            });
+                        }
+                    }
+                }
+                else if (defsByName.TryGetValue(name, out var def))
+                {
+                    it.SortOrder = def.SortOrder;
+                    foreach (var mapping in def.Mappings.OrderBy(m => m.SortOrder))
+                    {
+                        var catStub = new ControlCategoryRow { Id = mapping.ControlCategoryId };
+                        _dbContext.ControlCategoryRow.Attach(catStub);
+                        var pointStub = new ControlPointRow { Id = mapping.ControlPointId, Name = string.Empty };
+                        _dbContext.ControlPointRow.Attach(pointStub);
+
+                        _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
+                        {
+                            InstallationTypeId = it.Id,
+                            ControlCategoryId = mapping.ControlCategoryId,
+                            ControlCategory = catStub,
+                            ControlPointId = mapping.ControlPointId,
+                            ControlPoint = pointStub,
+                            SortOrder = mapping.SortOrder,
+                            IsRequired = mapping.IsRequired
+                        });
+                    }
+                }
             }
         }
 
@@ -245,36 +304,93 @@ public sealed class EfJobRepository : IJobRepository
         var entry = _dbContext.Entry(existing);
         entry.Property(e => e.CustomerId).CurrentValue = customerId;
         if (request.ReportNumber is not null) entry.Property(e => e.ReportNumber).CurrentValue = request.ReportNumber;
-        if (request.ReportDate is not null) entry.Property(e => e.ReportDate).CurrentValue = ToDateTime(request.ReportDate);
-        if (request.TaskDescription is not null) entry.Property(e => e.TaskDescription).CurrentValue = request.TaskDescription;
-        entry.Property(e => e.CustomerObservations).CurrentValue = request.CustomerObservations;
-        entry.Property(e => e.TechnicalObservations).CurrentValue = request.TechnicalObservations;
-        var normalizedWorkKind = NormalizeOptional(request.WorkKind);
+        if (request.Observations?.ReportDate is not null) entry.Property(e => e.ReportDate).CurrentValue = ToDateTime(request.Observations.ReportDate);
+        if (request.Observations?.TaskDescription is not null) entry.Property(e => e.TaskDescription).CurrentValue = request.Observations.TaskDescription;
+        entry.Property(e => e.CustomerObservations).CurrentValue = request.Observations?.CustomerObservations;
+        entry.Property(e => e.TechnicalObservations).CurrentValue = request.Observations?.TechnicalObservations;
+        var normalizedWorkKind = NormalizeOptional(request.Work?.WorkKind);
         if (normalizedWorkKind is not null) entry.Property(e => e.WorkKind).CurrentValue = normalizedWorkKind;
-        entry.Property(e => e.CustomWorkKind).CurrentValue = request.CustomWorkKind;
-        entry.Property(e => e.Remarks).CurrentValue = request.Remarks;
-        if (request.ClosureFlags is not null) entry.Property(e => e.ClosureFlagsJson).CurrentValue = ToJson(request.ClosureFlags);
+        entry.Property(e => e.CustomWorkKind).CurrentValue = request.Work?.CustomWorkKind;
+        entry.Property(e => e.Remarks).CurrentValue = request.Work?.Remarks;
+        if (request.Work?.ClosureFlags is not null) entry.Property(e => e.ClosureFlagsJson).CurrentValue = ToJson(request.Work.ClosureFlags);
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
 
-        if (request.InstallationTypes is not null)
+        if (request.Work?.InstallationTypes is not null)
         {
             var existingInstallations = await _dbContext.InstallationTypeRow
                 .Where(it => it.JobReportId == id && it.OrganizationId == organizationId)
                 .ToListAsync(cancellationToken);
             _dbContext.InstallationTypeRow.RemoveRange(existingInstallations);
 
-            var sortOrder = 0;
-            foreach (var inst in request.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i)))
+            var definitions = await _dbContext.InstallationTypeDefinitions
+                .AsNoTracking()
+                .Where(d => d.OrganizationId == organizationId)
+                .Include(d => d.Mappings)
+                .ToListAsync(cancellationToken);
+            var defsByName = definitions.ToDictionary(d => d.Name, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var req in request.Work.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i.Name)))
             {
-                _dbContext.InstallationTypeRow.Add(new InstallationTypeRow
+                var name = req.Name.Trim();
+                var it = new InstallationTypeRow
                 {
                     Id = Guid.NewGuid(),
                     OrganizationId = organizationId,
-                    Name = inst.Trim(),
+                    Name = name,
                     JobReportId = id,
-                    SortOrder = sortOrder++,
                     CreatedAt = now
-                });
+                };
+
+                _dbContext.InstallationTypeRow.Add(it);
+
+                if (req.Categories is not null && req.Categories.Count > 0)
+                {
+                    foreach (var catReq in req.Categories)
+                    {
+                        var catStub = new ControlCategoryRow { Id = catReq.CategoryId };
+                        _dbContext.ControlCategoryRow.Attach(catStub);
+
+                        var points = catReq.ControlPoints ?? [];
+                        foreach (var cpReq in points)
+                        {
+                            var pointStub = new ControlPointRow { Id = cpReq.PointId, Name = string.Empty };
+                            _dbContext.ControlPointRow.Attach(pointStub);
+
+                            _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
+                            {
+                                InstallationTypeId = it.Id,
+                                ControlCategoryId = catReq.CategoryId,
+                                ControlCategory = catStub,
+                                ControlPointId = cpReq.PointId,
+                                ControlPoint = pointStub,
+                                SortOrder = cpReq.SortOrder ?? 0,
+                                IsRequired = cpReq.IsRequired ?? false
+                            });
+                        }
+                    }
+                }
+                else if (defsByName.TryGetValue(name, out var def))
+                {
+                    it.SortOrder = def.SortOrder;
+                    foreach (var mapping in def.Mappings.OrderBy(m => m.SortOrder))
+                    {
+                        var catStub = new ControlCategoryRow { Id = mapping.ControlCategoryId };
+                        _dbContext.ControlCategoryRow.Attach(catStub);
+                        var pointStub = new ControlPointRow { Id = mapping.ControlPointId, Name = string.Empty };
+                        _dbContext.ControlPointRow.Attach(pointStub);
+
+                        _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
+                        {
+                            InstallationTypeId = it.Id,
+                            ControlCategoryId = mapping.ControlCategoryId,
+                            ControlCategory = catStub,
+                            ControlPointId = mapping.ControlPointId,
+                            ControlPoint = pointStub,
+                            SortOrder = mapping.SortOrder,
+                            IsRequired = mapping.IsRequired
+                        });
+                    }
+                }
             }
         }
 
