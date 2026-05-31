@@ -25,6 +25,8 @@ public sealed class SqlDbContext : DbContext
     public DbSet<ControlPointRow> ControlPointRow => Set<ControlPointRow>();
     public DbSet<ControlCategoryRow> ControlCategoryRow => Set<ControlCategoryRow>();
     public DbSet<InstallationControlPointRow> InstallationControlPointsRow => Set<InstallationControlPointRow>();
+    public DbSet<InstallationTypeDefinitionRow> InstallationTypeDefinitions => Set<InstallationTypeDefinitionRow>();
+    public DbSet<InstallationTypeDefinitionMappingRow> InstallationTypeDefinitionMappings => Set<InstallationTypeDefinitionMappingRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,6 +47,8 @@ public sealed class SqlDbContext : DbContext
         ConfigureControlCategory(modelBuilder);
         ConfigureControlPoint(modelBuilder);
         ConfigureInstallationControlPoint(modelBuilder);
+        ConfigureInstallationTypeDefinitions(modelBuilder);
+        ConfigureInstallationTypeDefinitionMappings(modelBuilder);
     }
 
     private static void ConfigureOrganizations(ModelBuilder modelBuilder)
@@ -655,5 +659,59 @@ public sealed class SqlDbContext : DbContext
         });
     }
 
+    private static void ConfigureInstallationTypeDefinitions(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<InstallationTypeDefinitionRow>();
 
+        entity.ToTable("InstallationTypeDefinitions");
+        entity.HasKey(e => e.Id);
+
+        entity.Property(e => e.Name)
+            .HasMaxLength(200)
+            .IsRequired();
+
+        entity.Property(e => e.SortOrder)
+            .HasDefaultValue(0);
+
+        entity.HasOne<OrganizationRow>()
+            .WithMany()
+            .HasForeignKey(e => e.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasIndex(e => new { e.OrganizationId, e.Name })
+            .IsUnique();
+
+        entity.HasIndex(e => new { e.OrganizationId, e.SortOrder });
+    }
+
+    private static void ConfigureInstallationTypeDefinitionMappings(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<InstallationTypeDefinitionMappingRow>();
+
+        entity.ToTable("InstallationTypeDefinitionMappings");
+        entity.HasKey(e => new { e.InstallationTypeDefinitionId, e.ControlCategoryId, e.ControlPointId });
+
+        entity.Property(e => e.SortOrder)
+            .HasDefaultValue(0);
+
+        entity.Property(e => e.IsRequired)
+            .HasDefaultValue(false);
+
+        entity.HasOne(e => e.InstallationTypeDefinition)
+            .WithMany(d => d.Mappings)
+            .HasForeignKey(e => e.InstallationTypeDefinitionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(e => e.ControlCategory)
+            .WithMany()
+            .HasForeignKey(e => e.ControlCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasOne(e => e.ControlPoint)
+            .WithMany()
+            .HasForeignKey(e => e.ControlPointId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasIndex(e => new { e.InstallationTypeDefinitionId, e.ControlCategoryId, e.SortOrder });
+    }
 }

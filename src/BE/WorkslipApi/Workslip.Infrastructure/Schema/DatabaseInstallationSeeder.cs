@@ -53,6 +53,48 @@ namespace Workslip.Infrastructure.Schema
             var categoriesByName = controlCategories.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
             var controlPointsByName = controlPoints.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
 
+            // Seed installation type definitions
+            var definitionNames = new[] { "Gasinstallation", "Vandinstallation", "Afløbsinstallation", "Varmeinstallation" };
+            var definitionsByName = new Dictionary<string, InstallationTypeDefinitionRow>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var (name, index) in definitionNames.Select((n, i) => (n, i)))
+            {
+                var definition = new InstallationTypeDefinitionRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organizationId,
+                    Name = name,
+                    SortOrder = index + 1
+                };
+                context.InstallationTypeDefinitions.Add(definition);
+                definitionsByName[name] = definition;
+            }
+
+            var definitionMappings = new List<InstallationTypeDefinitionMappingRow>();
+
+            foreach (var template in templates)
+            {
+                if (!definitionsByName.TryGetValue(template.InstallationTypeName, out var definition))
+                    continue;
+
+                if (!categoriesByName.TryGetValue(template.CategoryName, out var category))
+                    continue;
+
+                if (!controlPointsByName.TryGetValue(template.ControlPointName, out var controlPoint))
+                    continue;
+
+                definitionMappings.Add(new InstallationTypeDefinitionMappingRow
+                {
+                    InstallationTypeDefinitionId = definition.Id,
+                    ControlCategoryId = category.Id,
+                    ControlPointId = controlPoint.Id,
+                    SortOrder = template.Order,
+                    IsRequired = true
+                });
+            }
+
+            context.InstallationTypeDefinitionMappings.AddRange(definitionMappings);
+
             var installationTypeNames = new[]
             {
                 "Gasinstallation",

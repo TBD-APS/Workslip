@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
+    services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
 
         services.AddScoped<IEmailService, AcsEmailService>();
         services.AddHostedService<JobDeletionCleanupService>();
