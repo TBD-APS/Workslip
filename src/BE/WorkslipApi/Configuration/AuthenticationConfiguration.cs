@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using Workslip.Api.Helpers;
 using Workslip.Application.Auth;
@@ -54,7 +55,7 @@ public static class AuthenticationConfiguration
 
                         return scheme;
                     }
-                    catch
+                    catch(SecurityTokenException e)
                     {
                         return LocalJwtScheme;
                     }

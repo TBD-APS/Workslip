@@ -364,9 +364,9 @@ public sealed class JobService(
             return Result.NotFound();
         }
 
-        await InvalidateJobCachesAsync(link.ReportId, organizationId.Value, cancellationToken);
-        await InvalidateJobCachesAsync(link.LinkedReportId, organizationId.Value, cancellationToken);
-        logger.LogInformation("Job link deleted. LinkId: {LinkId}. ReportId: {ReportId}.", linkId, reportId);
+        await InvalidateJobCachesAsync(link.SourceReportId, organizationId.Value, cancellationToken);
+        await InvalidateJobCachesAsync(link.TargetReportId, organizationId.Value, cancellationToken);
+        logger.LogInformation("Job link deleted. LinkId: {LinkId}. ReportId: {ReportId} SourceId {SourceId} TargetReportId {TargetReportId}", linkId, reportId, link.SourceReportId, link.TargetReportId);
         return Result.Success();
     }
 

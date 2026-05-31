@@ -266,7 +266,6 @@ public sealed class JobReportPdfService : IJobReportPdfService
     {
         var hasRemarks = !string.IsNullOrEmpty(job.Work.Remarks);
         var hasClosureFlags = job.Work.ClosureFlags.Count != 0;
-        var hasTechnical = !string.IsNullOrEmpty(job.Observations.TechnicalObservations);
 
         if (!hasRemarks && !hasClosureFlags)
             return;

@@ -77,9 +77,6 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return [];
-
         return await _dbContext.Users
             .AsNoTracking()
             .Where(u => u.OrganizationId == organizationId)
@@ -89,17 +86,11 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task<int> GetCountByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return 0;
-
         return await _dbContext.Users.CountAsync(u => u.OrganizationId == organizationId, cancellationToken);
     }
 
     public async Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken)
     {
-        if (user.OrganizationId != _currentUser.OrganizationId)
-            throw new ArgumentException("User does not belong to the current user's organization.", nameof(user));
-
         _dbContext.Users.Add(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return user.Id;

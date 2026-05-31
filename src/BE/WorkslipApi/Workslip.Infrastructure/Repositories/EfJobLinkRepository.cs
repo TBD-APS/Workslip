@@ -11,13 +11,11 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
 {
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
-    private readonly ICurrentUserContext _currentUser;
 
-    public EfJobLinkRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICurrentUserContext currentUser)
+    public EfJobLinkRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
-        _currentUser = currentUser;
     }
 
     public Task<JobLinkResponse> CreateLinkAsync(Guid organizationId, Guid sourceReportId, Guid targetReportId, string linkType, CancellationToken cancellationToken) =>
@@ -25,9 +23,6 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
 
     private async Task<JobLinkResponse> CreateLinkAsyncCoreAsync(Guid organizationId, Guid sourceReportId, Guid targetReportId, string linkType, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            throw new InvalidOperationException("Organization mismatch");
-
         var normalisedSource = sourceReportId.CompareTo(targetReportId) < 0 ? sourceReportId : targetReportId;
         var normalisedTarget = sourceReportId.CompareTo(targetReportId) < 0 ? targetReportId : sourceReportId;
         var now = DateTimeOffset.UtcNow;
@@ -70,26 +65,16 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
             now);
     }
 
-    public Task<JobLinkResponse?> GetLinkAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken) =>
+    public Task<JobReportLinkRow?> GetLinkAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("links.get", token => GetLinkAsyncCoreAsync(organizationId, linkId, token), cancellationToken);
 
-    private async Task<JobLinkResponse?> GetLinkAsyncCoreAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken)
+    private async Task<JobReportLinkRow?> GetLinkAsyncCoreAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return null;
-
         var row = await _dbContext.JobReportLinks
             .AsNoTracking()
             .FirstOrDefaultAsync(l => l.OrganizationId == organizationId && l.Id == linkId, cancellationToken);
 
-        if (row is null)
-            return null;
-
-        return new JobLinkResponse(
-            row.Id,
-            row.SourceReportId,
-            row.TargetReportId,
-            "", "", "", row.LinkType, row.CreatedAt);
+        return row;
     }
 
     public Task<bool> DeleteLinkAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken) =>
@@ -97,11 +82,8 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
 
     private async Task<bool> DeleteLinkAsyncCoreAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return false;
-
         var row = await _dbContext.JobReportLinks
-            .FirstOrDefaultAsync(l => l.OrganizationId == organizationId && l.Id == linkId, cancellationToken);
+        .FirstOrDefaultAsync(l => l.OrganizationId == organizationId && l.Id == linkId, cancellationToken);
 
         if (row is null)
             return false;

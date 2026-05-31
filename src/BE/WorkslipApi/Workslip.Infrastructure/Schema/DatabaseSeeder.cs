@@ -78,12 +78,6 @@ public static class DatabaseSeeder
 
         users.AddRange(rbjUser);
 
-        var installationTypeIds = new[]
-        {
-            "WaterHeater", "HeatPump", "SolarPanel", "Boiler", "GasFurnace",
-            "ElectricHeater", "Radiator", "FloorHeating", "VentilationUnit", "ACUnit"
-        };
-
         var statuses = new[] { "Draft", "Submitted", "InReview", "Approved", "Rejected", "Archived" };
 
         var jobs = new Faker<JobReportRow>()
@@ -199,7 +193,7 @@ public static class DatabaseSeeder
 
             //Adds worksheets to job report
             var entryCount = faker.Random.Int(1, 5);
-            var usedDates = new HashSet<DateTime>();
+            
             for (var i = 0; i < entryCount; i++)
             {
                 var userId = faker.PickRandom(assignedUserIds);
