@@ -16,7 +16,7 @@ namespace Workslip.Domain.Models
         public int SortOrder { get; set; }
 
         public DateTimeOffset CreatedAt { get; set; }
-        public JobReportRow JobReport { get; set; } = new();
+        public JobReportRow? JobReport { get; set; }
         public Guid JobReportId { get; set; }
         public ICollection<InstallationControlPointRow> ControlPoints { get; set; } = [];
     }

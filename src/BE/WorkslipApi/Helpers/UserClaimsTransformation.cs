@@ -25,12 +25,12 @@ public sealed class UserClaimsTransformation(
 
     public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
     {
-        if (principal.Identity?.IsAuthenticated != true)
+        if (!principal.Identity?.IsAuthenticated ?? false)
         {
             return principal;
         }
 
-        if (HasClaim(principal, OrganizationIdClaim) && (HasClaim(principal, WorkslipUserIdClaim) || HasClaim(principal, ClaimTypes.NameIdentifier) || HasClaim(principal, ClaimTypes.Role)))
+        if (HasClaim(principal, OrganizationIdClaim) && (HasClaim(principal, WorkslipUserIdClaim) || HasClaim(principal, ClaimTypes.Role)))
         {
             return principal;
         }

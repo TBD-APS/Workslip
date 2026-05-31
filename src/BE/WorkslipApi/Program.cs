@@ -11,10 +11,10 @@ try
 
     var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
+    builder.ConfigureAuthentication();
     builder.ConfigureInfrastructure();
     builder.ConfigureLogging(applicationInsightsConnectionString);
     builder.ConfigureServices();
-    builder.ConfigureAuthentication();
 
     var app = builder.Build();
 

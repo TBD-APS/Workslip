@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
+using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
 using Workslip.Domain.Models;
@@ -14,18 +15,18 @@ public sealed class EfJobRepository : IJobRepository
 {
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
-    private readonly ICurrentUserContext _currentUser;
+    private readonly ICustomerRepository _customerRepository;
     private readonly IAssignmentRepository _assignmentRepo;
     private readonly IJobLinkRepository _linkRepo;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly TimeSpan DeletionRetentionPeriod = TimeSpan.FromDays(30);
 
-    public EfJobRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICurrentUserContext currentUser, IAssignmentRepository assignmentRepo, IJobLinkRepository linkRepo)
+    public EfJobRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICustomerRepository customerRepository, IAssignmentRepository assignmentRepo, IJobLinkRepository linkRepo)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
-        _currentUser = currentUser;
+        _customerRepository = customerRepository;
         _assignmentRepo = assignmentRepo;
         _linkRepo = linkRepo;
     }
@@ -35,9 +36,6 @@ public sealed class EfJobRepository : IJobRepository
 
     private async Task<JobReportResponse> CreateAsyncCoreAsync(Guid organizationId, CreateJobRequest request, IReadOnlyList<Guid> assignedUserIds, Guid? actorId, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            throw new InvalidOperationException("Organization mismatch");
-
         _dbContext.ChangeTracker.Clear();
 
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -46,7 +44,7 @@ public sealed class EfJobRepository : IJobRepository
         var reportId = Guid.NewGuid();
 
         var customerId = request.Customer?.Email is not null
-            ? (Guid?)await UpsertCustomerAsync(organizationId, request.Customer, cancellationToken)
+            ? (Guid?)await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken)
             : null;
 
         _dbContext.JobReports.Add(new JobReportRow
@@ -70,16 +68,14 @@ public sealed class EfJobRepository : IJobRepository
 
         if (request.InstallationTypes?.Count > 0)
         {
-            var sortOrder = 0;
-            foreach (var inst in request.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i)))
+            foreach (var installationo in request.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i)))
             {
                 _dbContext.InstallationTypeRow.Add(new InstallationTypeRow
                 {
                     Id = Guid.NewGuid(),
                     OrganizationId = organizationId,
-                    Name = inst.Trim(),
+                    Name = installationo.Trim(),
                     JobReportId = reportId,
-                    SortOrder = sortOrder++,
                     CreatedAt = now
                 });
             }
@@ -102,9 +98,6 @@ public sealed class EfJobRepository : IJobRepository
 
     private async Task<IReadOnlyList<JobListItemResponse>> ListAsyncCoreAsync(JobQuery query, CancellationToken cancellationToken)
     {
-        if (query.OrganizationId != _currentUser.OrganizationId)
-            throw new InvalidOperationException("Organization mismatch");
-
         _dbContext.ChangeTracker.Clear();
 
         var projected = await (
@@ -213,9 +206,6 @@ public sealed class EfJobRepository : IJobRepository
 
     private async Task<IReadOnlyList<JobEventResponse>?> GetEventsAsyncCoreAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return null;
-
         _dbContext.ChangeTracker.Clear();
 
         var exists = await _dbContext.JobReports.AsNoTracking().AnyAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
@@ -236,9 +226,6 @@ public sealed class EfJobRepository : IJobRepository
 
     private async Task<JobReportResponse?> UpdateAsyncCoreAsync(Guid id, Guid organizationId, UpdateJobRequest request, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return null;
-
         _dbContext.ChangeTracker.Clear();
 
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -253,7 +240,7 @@ public sealed class EfJobRepository : IJobRepository
 
         var customerId = existing.CustomerId;
         if (request.Customer?.Email is not null)
-            customerId = await UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
+            customerId = await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
 
         var entry = _dbContext.Entry(existing);
         entry.Property(e => e.CustomerId).CurrentValue = customerId;
@@ -304,9 +291,6 @@ public sealed class EfJobRepository : IJobRepository
 
     private async Task<JobReportResponse?> TransitionAsyncCoreAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return null;
-
         _dbContext.ChangeTracker.Clear();
 
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -340,9 +324,6 @@ public sealed class EfJobRepository : IJobRepository
 
     private async Task<JobReportResponse?> DeleteAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return null;
-
         _dbContext.ChangeTracker.Clear();
 
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -378,9 +359,6 @@ public sealed class EfJobRepository : IJobRepository
 
     private async Task<JobReportResponse?> RestoreDeletionAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {
-        if (organizationId != _currentUser.OrganizationId)
-            return null;
-
         _dbContext.ChangeTracker.Clear();
 
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -442,39 +420,6 @@ public sealed class EfJobRepository : IJobRepository
         return deletedCount;
     }
 
-    private async Task<Guid> UpsertCustomerAsync(Guid organizationId, CustomerInfo customer, CancellationToken cancellationToken)
-    {
-        var existing = await _dbContext.Customers
-            .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Email == customer.Email, cancellationToken);
-
-        if (existing is not null)
-        {
-            var entry = _dbContext.Entry(existing);
-            entry.Property(e => e.Name).CurrentValue = customer.Name ?? string.Empty;
-            entry.Property(e => e.Address).CurrentValue = customer.Address;
-            entry.Property(e => e.ContactPerson).CurrentValue = customer.ContactPerson;
-            entry.Property(e => e.Phone).CurrentValue = customer.Phone;
-            entry.Property(e => e.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow;
-            return existing.Id;
-        }
-
-        var row = new CustomerRow
-        {
-            Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
-            Name = customer.Name ?? string.Empty,
-            Address = customer.Address,
-            Email = customer.Email,
-            ContactPerson = customer.ContactPerson,
-            Phone = customer.Phone,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-
-        _dbContext.Customers.Add(row);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return row.Id;
-    }
 
     private async Task InsertEventAsync(
         Guid organizationId, Guid reportId, Guid? actorId,

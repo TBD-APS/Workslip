@@ -1,7 +1,6 @@
 using Azure.Core;
 using Azure.Identity;
 using QuestPDF.Infrastructure;
-using Workslip.Infrastructure.Configuration;
 
 namespace Workslip.Api.Configuration;
 

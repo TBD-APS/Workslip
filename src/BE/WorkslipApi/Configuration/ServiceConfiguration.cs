@@ -37,8 +37,6 @@ public static class ServiceConfiguration
 
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
-        builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
-        builder.Services.AddTransient<IClaimsTransformation, UserClaimsTransformation>();
 
         builder.Services.AddWorkslipApplication();
         builder.Services.AddWorkslipInfrastructure();

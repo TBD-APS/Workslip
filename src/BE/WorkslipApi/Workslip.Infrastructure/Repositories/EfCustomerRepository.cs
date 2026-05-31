@@ -56,4 +56,39 @@ public sealed class EfCustomerRepository : ICustomerRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
         return existing.Id;
     }
+
+    public async Task<Guid> UpsertCustomerAsync(Guid organizationId, CustomerInfo customer, CancellationToken cancellationToken)
+    {
+        var existing = await _dbContext.Customers
+            .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Email == customer.Email, cancellationToken);
+
+        if (existing is not null)
+        {
+            var entry = _dbContext.Entry(existing);
+            entry.Property(e => e.Name).CurrentValue = customer.Name ?? string.Empty;
+            entry.Property(e => e.Address).CurrentValue = customer.Address;
+            entry.Property(e => e.ContactPerson).CurrentValue = customer.ContactPerson;
+            entry.Property(e => e.Phone).CurrentValue = customer.Phone;
+            entry.Property(e => e.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow;
+            return existing.Id;
+        }
+
+        var row = new CustomerRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Name = customer.Name ?? string.Empty,
+            Address = customer.Address,
+            Email = customer.Email,
+            ContactPerson = customer.ContactPerson,
+            Phone = customer.Phone,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        _dbContext.Customers.Add(row);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return row.Id;
+    }
+
 }

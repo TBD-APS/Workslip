@@ -225,11 +225,6 @@ public sealed class SqlDbContext : DbContext
             .HasMaxLength(40)
             .IsRequired();
 
-        entity.HasMany(x => x.InstallationTypes)
-            .WithOne(x => x.JobReport)
-            .HasForeignKey(x => x.JobReportId)
-            .OnDelete(DeleteBehavior.Cascade);
-
         entity.Property(e => e.ReportDate).HasColumnType("date");
         entity.Property(e => e.TaskDescription).HasColumnType("nvarchar(max)");
         entity.Property(e => e.CustomerObservations).HasColumnType("nvarchar(max)");
@@ -255,10 +250,9 @@ public sealed class SqlDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
 
         entity.HasOne<CustomerRow>()
-            .WithMany()
-            .HasForeignKey("OrganizationId", "CustomerId")
-            .HasPrincipalKey("OrganizationId", "Id")
-            .OnDelete(DeleteBehavior.Restrict);
+        .WithMany()
+        .HasForeignKey(e => e.CustomerId)
+        .OnDelete(DeleteBehavior.Restrict);
 
         entity.HasOne<JobWorkKindRow>()
             .WithMany()
@@ -380,6 +374,11 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.AfterJson).HasColumnType("nvarchar(max)");
 
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");
+
+        entity.HasOne<OrganizationRow>()
+           .WithMany()
+           .HasForeignKey(e => e.OrganizationId)
+           .OnDelete(DeleteBehavior.Restrict);
 
         entity.HasOne<JobReportRow>()
             .WithMany()
@@ -509,11 +508,26 @@ public sealed class SqlDbContext : DbContext
                 .HasDefaultValue(0);
 
             entity.Property(x => x.CreatedAt)
-                .HasDefaultValueSql("SYSDATETIMEOFFSET()");
+                .HasColumnType("datetimeoffset")
+                .HasDefaultValueSql("sysutcdatetime()");
+
+            entity.HasOne<OrganizationRow>()
+                .WithMany()
+                .HasForeignKey(x => x.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(x => x.JobReport)
                 .WithMany(x => x.InstallationTypes)
-                .HasForeignKey(x => x.JobReportId)
+                .HasForeignKey(x => new
+                {
+                    x.OrganizationId,
+                    x.JobReportId
+                })
+                .HasPrincipalKey(x => new
+                {
+                    x.OrganizationId,
+                    x.Id
+                })
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(x => new
@@ -525,12 +539,12 @@ public sealed class SqlDbContext : DbContext
 
             entity.HasIndex(x => new
             {
+                x.OrganizationId,
                 x.JobReportId,
                 x.SortOrder
             });
         });
     }
-
     private static void ConfigureControlCategory(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ControlCategoryRow>(entity =>
