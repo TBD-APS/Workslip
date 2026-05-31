@@ -170,40 +170,6 @@ export default function LandingPage() {
                 backdropFilter: 'blur(20px)'
               }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {['Draft', 'Assigned', 'Submitted', 'Approved', 'Archived'].map((status, i) => (
-                    <div key={status} style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '1rem',
-                      opacity: 1 - (i * 0.15)
-                    }}>
-                      <div style={{
-                        width: '12px',
-                        height: '12px',
-                        borderRadius: '50%',
-                        background: i === 2 ? 'var(--accent-color)' : 'var(--text-secondary)'
-                      }}></div>
-                      <span style={{ 
-                        fontFamily: 'var(--font-heading)', 
-                        fontWeight: 600,
-                        color: i === 2 ? 'var(--text-primary)' : 'var(--text-secondary)'
-                      }}>
-                        {status}
-                      </span>
-                      {i === 2 && (
-                        <span style={{ 
-                          marginLeft: 'auto', 
-                          fontSize: '0.8rem',
-                          background: 'rgba(0,112,243,0.2)',
-                          color: '#00c6ff',
-                          padding: '2px 8px',
-                          borderRadius: '12px'
-                        }}>
-                          Aktiv Status
-                        </span>
-                      )}
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>

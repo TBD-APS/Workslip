@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Azure.Core;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Graph;
@@ -19,10 +20,13 @@ public static class ServiceConfiguration
         builder.Services.AddHybridCache();
         builder.Services.AddMemoryCache();
 
+        builder.Services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
+
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
-        builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
-        builder.Services.AddTransient<IClaimsTransformation, WorkslipUserClaimsTransformation>();
 
         builder.Services.AddWorkslipApplication();
         builder.Services.AddWorkslipInfrastructure();
@@ -34,6 +38,7 @@ public static class ServiceConfiguration
             var credential = sp.GetRequiredService<TokenCredential>();
             return new GraphServiceClient(credential, ["https://graph.microsoft.com/.default"]);
         });
+
 
         return builder;
     }

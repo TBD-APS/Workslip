@@ -1,7 +1,16 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { useNavigate, NavLink, Outlet } from 'react-router-dom';
 import { ClipboardList, PlusCircle, Settings, User } from 'lucide-react';
+import { useAuth } from '../../providers/AuthContext';
 
 export const AppLayout = () => {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <div className="app-shell">
       {/* Top Header for Mobile */}
@@ -14,7 +23,7 @@ export const AppLayout = () => {
           </svg>
           Workslip
         </div>
-        <div className="user-avatar">
+        <div className="user-avatar" onClick={handleLogout} style={{ cursor: 'pointer' }} title="Log ud">
           <User size={20} />
         </div>
       </header>

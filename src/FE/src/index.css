@@ -92,6 +92,15 @@ a:hover {
   100% { transform: translate(-5%, -5%) scale(0.9); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 /* Navigation */
 .navbar {
   display: flex;

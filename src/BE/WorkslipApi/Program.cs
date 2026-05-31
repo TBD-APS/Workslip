@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Workslip.Api.Configuration;
 using Workslip.Infrastructure.Schema;
@@ -10,20 +11,29 @@ try
 
     var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
+    builder.ConfigureAuthentication();
     builder.ConfigureInfrastructure();
     builder.ConfigureLogging(applicationInsightsConnectionString);
     builder.ConfigureServices();
-    builder.ConfigureAuthentication();
 
     var app = builder.Build();
 
-    await using (var scope = app.Services.CreateAsyncScope())
+    if (app.Environment.IsDevelopment())
     {
-        await scope.ServiceProvider.GetRequiredService<WorkslipSchemaRunner>().ApplyAsync(CancellationToken.None);
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SqlDbContext>();
+
+            await db.Database.EnsureCreatedAsync();
+            await db.Database.MigrateAsync();
+            await db.Database.CanConnectAsync();
+            await DatabaseSeeder.Seed(db);
+        }
     }
 
     app.ConfigurePipeline();
     app.ConfigureEndpoints();
+    app.ConfigureDevEnvironment();
 
     await app.RunAsync();
 }

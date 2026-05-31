@@ -1,5 +1,6 @@
 using Ardalis.Result;
 using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Domain.Models;
@@ -19,14 +20,7 @@ public sealed class UserService(
         var validationResult = await createUserValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            var errors = validationResult.Errors
-                .Select(e => new ValidationError
-                {
-                    Identifier = e.PropertyName,
-                    ErrorMessage = e.ErrorMessage
-                })
-                .ToList();
-
+            var errors = MapValidationErrors(validationResult);
             logger.LogWarning("User create validation failed. Fields: {Fields}",
                 string.Join(", ", errors.Select(e => e.Identifier).Distinct()));
 
@@ -41,22 +35,8 @@ public sealed class UserService(
         }
 
         var entraUser = await entraService.CreateUserAsync(request.Email, request.DisplayName, cancellationToken);
-        await entraService.AssignAppRoleTo(entraUser.EntraUserId, "Admin", cancellationToken);
 
-        var user = new UserDataRow
-        {
-            Id = Guid.NewGuid(),
-            OrganizationId = new Guid("F01CC945-5BD1-4C81-993E-56A468235256"),
-            Email = request.Email,
-            DisplayName = request.DisplayName,
-            EntraEmail = entraUser.EntraMail,
-            EntraId = entraUser.EntraUserId,
-            Phone = request.Phone,
-            Role = request.Role,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-
+        var user = BuildUserRow(request, entraUser, currentUser.OrganizationId.GetValueOrDefault());
         var userId = await repository.CreateAsync(user, cancellationToken);
         user.Id = userId;
 
@@ -109,14 +89,7 @@ public sealed class UserService(
         var validationResult = await updateUserValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            var errors = validationResult.Errors
-                .Select(e => new ValidationError
-                {
-                    Identifier = e.PropertyName,
-                    ErrorMessage = e.ErrorMessage
-                })
-                .ToList();
-
+            var errors = MapValidationErrors(validationResult);
             logger.LogWarning("User update validation failed. Fields: {Fields}",
                 string.Join(", ", errors.Select(e => e.Identifier).Distinct()));
 
@@ -188,4 +161,24 @@ public sealed class UserService(
             user.Role,
             user.CreatedAt,
             user.UpdatedAt);
+
+    private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
+        result.Errors
+            .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
+            .ToList();
+
+    private static UserDataRow BuildUserRow(CreateUserRequest request, CreateEntraUserResult entraUser, Guid organizationId) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            Email = request.Email,
+            DisplayName = request.DisplayName,
+            EntraEmail = entraUser.EntraMail,
+            EntraId = entraUser.EntraUserId,
+            Phone = request.Phone,
+            Role = request.Role,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
 }

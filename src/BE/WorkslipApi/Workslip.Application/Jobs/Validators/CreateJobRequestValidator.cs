@@ -25,31 +25,5 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
         RuleFor(x => x.ClosureFlags)
             .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate closure flag is not allowed.");
 
-        When(x => x.ControlInstallationTypes is not null, () =>
-        {
-            RuleForEach(x => x.ControlInstallationTypes)
-                .ChildRules(installationType =>
-                {
-                    installationType.RuleFor(x => x.InstallationTypeId)
-                        .NotEmpty().WithMessage("Installation type ID is required.");
-
-                    installationType.RuleForEach(x => x.Subcategories)
-                        .ChildRules(subcategory =>
-                        {
-                            subcategory.RuleFor(x => x.SubcategoryId)
-                                .NotEmpty().WithMessage("Subcategory ID is required.");
-
-                            subcategory.RuleForEach(x => x.ControlChecks)
-                                .ChildRules(check =>
-                                {
-                                    check.RuleFor(x => x.ItemId)
-                                        .NotEmpty().WithMessage("Item ID is required.");
-
-                                    check.RuleFor(x => x.Note)
-                                        .MaximumLength(500).WithMessage("Note must not exceed 500 characters.");
-                                });
-                        });
-                });
-        });
     }
 }

@@ -42,7 +42,7 @@ public static class HttpCacheHeaders
             .Any(value => value == "*" || string.Equals(value, etag, StringComparison.Ordinal));
     }
 
-    public static string JobReportEtag(JobReportResponse report) => ToWeakEtag(
+    public static string JobReportEtag(JobReportSummaryResponse report) => ToWeakEtag(
         $"job:{report.OrganizationId:N}:{report.Id:N}:{report.UpdatedAt.ToUnixTimeMilliseconds()}:{report.SubmittedAt?.ToUnixTimeMilliseconds() ?? 0}");
 
     public static string JobListEtag(
@@ -83,6 +83,50 @@ public static class HttpCacheHeaders
                 .Append(job.UpdatedAt.ToUnixTimeMilliseconds())
                 .Append(':')
                 .Append(job.Status);
+        }
+
+        return ToWeakEtag(builder.ToString());
+    }
+
+    public static string JobAssignedEtag(IEnumerable<JobListItemResponse> jobs, Guid organizationId)
+    {
+        var builder = new StringBuilder()
+            .Append("jobs:assigned:")
+            .Append(organizationId.ToString("N"));
+
+        foreach (var job in jobs.OrderBy(j => j.Id))
+        {
+            builder
+                .Append('|')
+                .Append(job.Id.ToString("N"))
+                .Append(':')
+                .Append(job.UpdatedAt.ToUnixTimeMilliseconds())
+                .Append(':')
+                .Append(job.Status);
+        }
+
+        return ToWeakEtag(builder.ToString());
+    }
+
+    public static string JobHistoryEtag(Guid jobId, IEnumerable<JobEventResponse> events, int? limit, int? offset)
+    {
+        var builder = new StringBuilder()
+            .Append("jobs:history:")
+            .Append(jobId.ToString("N"))
+            .Append(':')
+            .Append(limit?.ToString() ?? "default")
+            .Append(':')
+            .Append(offset?.ToString() ?? "default");
+
+        foreach (var evt in events.OrderBy(e => e.Id))
+        {
+            builder
+                .Append('|')
+                .Append(evt.Id.ToString("N"))
+                .Append(':')
+                .Append(evt.CreatedAt.ToUnixTimeMilliseconds())
+                .Append(':')
+                .Append(evt.EventType);
         }
 
         return ToWeakEtag(builder.ToString());

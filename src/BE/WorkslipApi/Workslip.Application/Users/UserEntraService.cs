@@ -14,14 +14,73 @@ public sealed class UserEntraService(
      public async Task<CreateEntraUserResult> CreateUserAsync(string email, string displayName, CancellationToken ct)
     {
         var defaultDomain = configuration["Azure:AdOAuth:Domain"];
-
-        var mailNickname = email.Split('@')[0].Replace(".", "").Replace("-", "");
-
+        var mailNickname = BuildMailNickname(email);
         var userPrincipalName = $"{mailNickname}@{defaultDomain}";
 
-        logger.LogInformation("Graph creating user. CorrelationId={CorrelationId} Email={Email} Upn={Upn}",correlationIdAccessor.CorrelationId, email, userPrincipalName);
+        var existingUser = await FindExistingEntraUserAsync(mailNickname, userPrincipalName, ct);
+        if (existingUser != null)
+        {
+            return new CreateEntraUserResult(existingUser.Id!, existingUser.UserPrincipalName!, displayName);
+        }
 
-        var newUser = new User
+        var newUser = BuildEntraUser(displayName, mailNickname, userPrincipalName);
+        var createdUser = await CreateEntraUserAsync(newUser, displayName, email, userPrincipalName, ct);
+
+        await AssignAppRoleTo(createdUser.Id!, "User", ct);
+
+        return new CreateEntraUserResult(createdUser.Id!, userPrincipalName, displayName);
+    }
+
+    public async Task AssignAppRoleTo(string entraUserId, string appRoleValue, CancellationToken ct)
+    {
+        var appId = configuration["Azure:AdOAuth:ClientId"];
+        var servicePrincipal = await FetchServicePrincipalAsync(appId, ct);
+        var appRole = FindAppRole(servicePrincipal, appRoleValue);
+
+        logger.LogInformation("Graph assigning app role. CorrelationId={CorrelationId} UserId={UserId} Role={Role}",
+            correlationIdAccessor.CorrelationId, entraUserId, appRoleValue);
+
+        try
+        {
+            await graphClient.Users[entraUserId].AppRoleAssignments.PostAsync(
+                new AppRoleAssignment
+                {
+                    PrincipalId = Guid.Parse(entraUserId),
+                    ResourceId = Guid.Parse(servicePrincipal.Id!),
+                    AppRoleId = appRole.Id.Value
+                },
+                cancellationToken: ct
+            );
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Graph assign app role failed. CorrelationId={CorrelationId} UserId={UserId} Role={Role}",
+                correlationIdAccessor.CorrelationId, entraUserId, appRoleValue);
+            throw;
+        }
+
+        logger.LogInformation("Graph app role assigned. CorrelationId={CorrelationId} UserId={UserId} Role={Role}",
+            correlationIdAccessor.CorrelationId, entraUserId, appRoleValue);
+    }
+
+    private static string BuildMailNickname(string email) =>
+        email.Split('@')[0].Replace(".", "").Replace("-", "");
+
+    private async Task<User?> FindExistingEntraUserAsync(string mailNickname, string userPrincipalName, CancellationToken ct)
+    {
+        var result = await graphClient.Users.GetAsync(
+            request =>
+            {
+                request.QueryParameters.Filter = $"mail eq '{mailNickname}' or userPrincipalName eq '{userPrincipalName}'";
+                request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail"];
+                request.QueryParameters.Top = 1;
+            }, ct);
+
+        return result?.Value?.FirstOrDefault();
+    }
+
+    private static User BuildEntraUser(string displayName, string mailNickname, string userPrincipalName) =>
+        new()
         {
             AccountEnabled = true,
             DisplayName = displayName,
@@ -34,6 +93,11 @@ public sealed class UserEntraService(
             }
         };
 
+    private async Task<User> CreateEntraUserAsync(User newUser, string displayName, string email, string userPrincipalName, CancellationToken ct)
+    {
+        logger.LogInformation("Graph creating user. CorrelationId={CorrelationId} Email={Email} Upn={Upn}",
+            correlationIdAccessor.CorrelationId, email, userPrincipalName);
+
         User? user;
         try
         {
@@ -41,77 +105,58 @@ public sealed class UserEntraService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Graph create user failed. CorrelationId={CorrelationId} Email={Email}", correlationIdAccessor.CorrelationId, email);
+            logger.LogError(ex, "Graph create user failed. CorrelationId={CorrelationId} Email={Email}",
+                correlationIdAccessor.CorrelationId, email);
             throw;
         }
 
-        logger.LogInformation("Graph user created. CorrelationId={CorrelationId} Email={Email} EntraId={EntraId}", correlationIdAccessor.CorrelationId, email, user?.Id);
-
         if (user == null)
         {
-            logger.LogError("Graph create user returned null. CorrelationId={CorrelationId} Email={Email}", correlationIdAccessor.CorrelationId, email);
+            logger.LogError("Graph create user returned null. CorrelationId={CorrelationId} Email={Email}",
+                correlationIdAccessor.CorrelationId, email);
             throw new InvalidOperationException($"User {displayName} could not be created");
         }
 
-        return new CreateEntraUserResult(
-            EntraUserId: user.Id!,
-            EntraMail: userPrincipalName,
-            DisplayName: displayName
-        );
+        logger.LogInformation("Graph user created. CorrelationId={CorrelationId} Email={Email} EntraId={EntraId}",
+            correlationIdAccessor.CorrelationId, email, user.Id);
+
+        return user;
     }
 
-    public async Task AssignAppRoleTo(string entraUserId, string appRoleValue, CancellationToken ct)
+    private async Task<ServicePrincipal> FetchServicePrincipalAsync(string? appId, CancellationToken ct)
     {
-        var workslipServerAppId = configuration["Azure:AdOAuth:ClientId"];
+        logger.LogInformation("Graph fetching service principal. CorrelationId={CorrelationId} AppId={AppId}",
+            correlationIdAccessor.CorrelationId, appId);
 
-        logger.LogInformation("Graph fetching service principal. CorrelationId={CorrelationId} AppId={AppId}", correlationIdAccessor.CorrelationId, workslipServerAppId);
-
-        var startTime = DateTimeOffset.UtcNow;
         ServicePrincipalCollectionResponse? servicePrincipals;
         try
         {
             servicePrincipals = await graphClient.ServicePrincipals.GetAsync(request =>
             {
-                request.QueryParameters.Filter = $"appId eq '{workslipServerAppId}'";
+                request.QueryParameters.Filter = $"appId eq '{appId}'";
             }, ct);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Graph fetch service principal failed. CorrelationId={CorrelationId} AppId={AppId}", correlationIdAccessor.CorrelationId, workslipServerAppId);
+            logger.LogError(ex, "Graph fetch service principal failed. CorrelationId={CorrelationId} AppId={AppId}",
+                correlationIdAccessor.CorrelationId, appId);
             throw;
         }
 
-        logger.LogInformation("Graph service principal fetched. CorrelationId={CorrelationId}", correlationIdAccessor.CorrelationId);
+        logger.LogInformation("Graph service principal fetched. CorrelationId={CorrelationId}",
+            correlationIdAccessor.CorrelationId);
 
-        var apiServicePrincipal = servicePrincipals?.Value?.SingleOrDefault()?? throw new InvalidOperationException("API service principal not found.");
+        return servicePrincipals?.Value?.SingleOrDefault()
+            ?? throw new InvalidOperationException("API service principal not found.");
+    }
 
-        var appRole = apiServicePrincipal.AppRoles?.SingleOrDefault(r => r.Value == appRoleValue && r.IsEnabled == true);
-
+    private static AppRole FindAppRole(ServicePrincipal servicePrincipal, string appRoleValue)
+    {
+        var appRole = servicePrincipal.AppRoles?.SingleOrDefault(r => r.Value == appRoleValue && r.IsEnabled == true);
         if (appRole?.Id is null)
             throw new InvalidOperationException($"App role '{appRoleValue}' not found.");
 
-        logger.LogInformation("Graph assigning app role. CorrelationId={CorrelationId} UserId={UserId} Role={Role}", correlationIdAccessor.CorrelationId, entraUserId, appRoleValue);
-
-        startTime = DateTimeOffset.UtcNow;
-        try
-        {
-            await graphClient.Users[entraUserId].AppRoleAssignments.PostAsync(
-                new AppRoleAssignment
-                {
-                    PrincipalId = Guid.Parse(entraUserId),
-                    ResourceId = Guid.Parse(apiServicePrincipal.Id!),
-                    AppRoleId = appRole.Id.Value
-                },
-                cancellationToken: ct
-            );
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Graph assign app role failed. CorrelationId={CorrelationId} UserId={UserId} Role={Role}", correlationIdAccessor.CorrelationId, entraUserId, appRoleValue);
-            throw;
-        }
-
-        logger.LogInformation("Graph app role assigned. CorrelationId={CorrelationId} UserId={UserId} Role={Role}", correlationIdAccessor.CorrelationId, entraUserId, appRoleValue);
+        return appRole;
     }
 }
 

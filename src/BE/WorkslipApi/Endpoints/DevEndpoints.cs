@@ -8,7 +8,7 @@ public static class DevEndpoints
 {
     public static IEndpointRouteBuilder MapDevEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/dev").WithTags("dev").AllowAnonymous();
+        var group = app.MapGroup("/api/dev").WithTags("dev");
 
         group.MapPost("/token", async (DevTokenRequest request, IUserRepository users, IConfiguration configuration, CancellationToken cancellationToken) =>
         {
@@ -27,10 +27,32 @@ public static class DevEndpoints
 
             var response = JwtHelper.GenerateToken(authUser, configuration);
             return Results.Ok(response);
-        });
+        }).AllowAnonymous();
 
+
+        group.MapGet("/debug", (HttpContext httpContext, ICurrentUserContext currentUser) =>
+        {
+            var test = new
+            {
+                IsAuthenticated = httpContext.User.Identity?.IsAuthenticated,
+                AuthenticationType = httpContext.User.Identity?.AuthenticationType,
+                CurrentUserId = currentUser.UserId,
+                CurrentOrganizationId = currentUser.OrganizationId,
+                CurrentRole = currentUser.Role,
+                Claims = httpContext.User.Claims.Select(c => new
+                {
+                    c.Type,
+                    c.Value
+                })
+            };
+
+        return Results.Ok(test);
+    }).RequireAuthorization();
+        
         return app;
     }
+
+
 }
 
 public sealed record DevTokenRequest(string Email);

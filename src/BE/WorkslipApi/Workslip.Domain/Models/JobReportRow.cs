@@ -11,12 +11,11 @@ public sealed class JobReportRow
     public string? TaskDescription { get; init; }
     public string? CustomerObservations { get; init; }
     public string? TechnicalObservations { get; init; }
-    public string InstallationTypesJson { get; init; } = "[]";
+    public List<InstallationTypeRow>? InstallationTypes { get; set; } = new();
     public string? WorkKind { get; init; }
     public string? CustomWorkKind { get; init; }
     public string? Remarks { get; init; }
     public string ClosureFlagsJson { get; init; } = "[]";
-    public string? PayloadJson { get; init; }
     public bool IsSoftDeleted { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }

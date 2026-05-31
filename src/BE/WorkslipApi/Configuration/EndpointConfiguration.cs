@@ -1,5 +1,7 @@
 using Scalar.AspNetCore;
 using Workslip.Api.Endpoints;
+using Workslip.Infrastructure;
+using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Api.Configuration;
 
@@ -7,13 +9,6 @@ public static class EndpointConfiguration
 {
     public static WebApplication ConfigureEndpoints(this WebApplication app)
     {
-        if (app.Environment.IsDevelopment())
-        {
-            app.MapOpenApi();
-            app.MapScalarApiReference();
-            app.MapDevEndpoints();
-        }
-
         app.MapGet("/health", (HttpContext httpContext) =>
         {
             HttpCacheHeaders.SetPublicHealthCache(httpContext);

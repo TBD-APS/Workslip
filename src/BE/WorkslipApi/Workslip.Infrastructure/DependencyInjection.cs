@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Workslip.Infrastructure.Schema;
 using Workslip.Infrastructure.Repositories;
@@ -18,16 +20,25 @@ public static class DependencyInjection
     {
         services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
-        services.AddScoped<ICustomerRepository, CustomerRepository>();
-        services.AddScoped<IJobRepository, DapperJobRepository>();
-        services.AddScoped<IJobLinkRepository, DapperJobLinkRepository>();
-        services.AddScoped<IJobTaxonomyRepository, DapperJobTaxonomyRepository>();
-        services.AddScoped<IOrganizationRepository, DapperOrganizationRepository>();
-        services.AddScoped<IWorksheetRepository, DapperWorksheetRepository>();
-        services.AddScoped<IUserRepository, DapperUserRepository>();
-        services.AddScoped<IInviteRepository, DapperInviteRepository>();
+
+        services.AddDbContext<SqlDbContext>((sp, options) =>
+        {
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
+            options.UseSqlServer(connectionString, b => b.MigrationsAssembly("Workslip.Api"));
+        });
+
+        services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
+        services.AddScoped<ICustomerRepository, EfCustomerRepository>();
+        services.AddScoped<IInviteRepository, EfInviteRepository>();
+        services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
+        services.AddScoped<IJobRepository, EfJobRepository>();
+        services.AddScoped<IJobTaxonomyRepository, EfJobTaxonomyRepository>();
+        services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
+        services.AddScoped<IUserRepository, EfUserRepository>();
+        services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
+
         services.AddScoped<IEmailService, AcsEmailService>();
-        services.AddScoped<WorkslipSchemaRunner>();
         services.AddHostedService<JobDeletionCleanupService>();
 
         return services;

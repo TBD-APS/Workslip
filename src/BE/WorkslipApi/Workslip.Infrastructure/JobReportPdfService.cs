@@ -8,7 +8,7 @@ namespace Workslip.Api.Services;
 
 public interface IJobReportPdfService
 {
-    byte[] Generate(JobReportResponse job, JobStatus status);
+    byte[] Generate(JobReportSummaryResponse job, JobStatus status);
 }
 
 public sealed class JobReportPdfService : IJobReportPdfService
@@ -21,7 +21,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
     private static readonly Color TextLight = Colors.Grey.Darken1;
     private static readonly Color BorderColor = Color.FromHex("#CBD5E1");
 
-    public byte[] Generate(JobReportResponse job, JobStatus status)
+    public byte[] Generate(JobReportSummaryResponse job, JobStatus status)
     {
         return Document.Create(container =>
         {
@@ -38,7 +38,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
         }).GeneratePdf();
     }
 
-    private static void ComposeHeader(IContainer container, JobReportResponse job, JobStatus status)
+    private static void ComposeHeader(IContainer container, JobReportSummaryResponse job, JobStatus status)
     {
         container.Column(col =>
         {
@@ -82,14 +82,14 @@ public sealed class JobReportPdfService : IJobReportPdfService
                         r.RelativeItem().Column(c =>
                         {
                             c.Item().Text("ANLÆGSTYPE").FontSize(7).FontColor(TextLight);
-                            c.Item().PaddingTop(2).Text(string.Join(", ", job.InstallationTypes)).FontSize(9).FontColor(TextDark);
+                            c.Item().PaddingTop(2).Text(string.Join(", ", job.ControlInstallationTypes)).FontSize(9).FontColor(TextDark);
                         });
                         r.RelativeItem().Column(c =>
                         {
                             c.Item().Text("ARBEJDSTYPE").FontSize(7).FontColor(TextLight);
-                            var workKindLabel = string.IsNullOrEmpty(job.CustomWorkKind)
-                                ? job.WorkKind
-                                : $"{job.WorkKind} - {job.CustomWorkKind}";
+                            var workKindLabel = string.IsNullOrEmpty(job.Work.CustomWorkKind)
+                                ? job.Work.WorkKind
+                                : $"{job.Work.WorkKind} - {job.Work.CustomWorkKind}";
                             c.Item().PaddingTop(2).Text(workKindLabel).FontSize(9).FontColor(TextDark);
                         });
                     });
@@ -100,13 +100,13 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 row.RelativeItem(2).Border(1).BorderColor(BorderColor).Padding(8).Column(right =>
                 {
                     right.Item().Text("DATO").FontSize(7).FontColor(TextLight);
-                    right.Item().PaddingTop(2).Text(job.ReportDate?.ToString("dd.MM.yyyy") ?? "-").FontSize(11).Bold().FontColor(TextDark);
+                    right.Item().PaddingTop(2).Text(job.Observations.ReportDate?.ToString("dd.MM.yyyy") ?? "-").FontSize(11).Bold().FontColor(TextDark);
                 });
             });
         });
     }
 
-    private static void ComposeContent(IContainer container, JobReportResponse job)
+    private static void ComposeContent(IContainer container, JobReportSummaryResponse job)
     {
         container.Column(col =>
         {
@@ -123,7 +123,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
         });
     }
 
-    private static void ComposeCustomerSection(IContainer container, JobReportResponse job)
+    private static void ComposeCustomerSection(IContainer container, JobReportSummaryResponse job)
     {
         container.Column(col =>
         {
@@ -159,14 +159,14 @@ public sealed class JobReportPdfService : IJobReportPdfService
         });
     }
 
-    private static void ComposeDescriptionSection(IContainer container, JobReportResponse job)
+    private static void ComposeDescriptionSection(IContainer container, JobReportSummaryResponse job)
     {
         container.Column(col =>
         {
             col.Item().Background(PrimaryLight).PaddingVertical(6).PaddingHorizontal(8).Row(r =>
             {
                 r.AutoItem().Text("OPGAVEBESKRIVELSE").FontSize(10).Bold().FontColor(Primary);
-                if (!string.IsNullOrEmpty(job.CustomerObservations))
+                if (!string.IsNullOrEmpty(job.Observations.CustomerObservations))
                 {
                     r.RelativeItem().PaddingLeft(20).Text("+ KUNDEOBSERVATIONER").FontSize(8).FontColor(Accent).AlignRight();
                 }
@@ -174,18 +174,18 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
             col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Column(c =>
             {
-                c.Item().Text(job.TaskDescription ?? "-").FontSize(9).FontColor(TextDark);
-                if (!string.IsNullOrEmpty(job.CustomerObservations))
+                c.Item().Text(job.Observations.TaskDescription ?? "-").FontSize(9).FontColor(TextDark);
+                if (!string.IsNullOrEmpty(job.Observations.CustomerObservations))
                 {
                     c.Item().PaddingTop(6).LineHorizontal(0.5f).LineColor(BorderColor);
                     c.Item().PaddingTop(4).Text("Kundeobservationer:").FontSize(8).FontColor(TextLight).SemiBold();
-                    c.Item().Text(job.CustomerObservations).FontSize(9).FontColor(TextDark);
+                    c.Item().Text(job.Observations.CustomerObservations).FontSize(9).FontColor(TextDark);
                 }
             });
         });
     }
 
-    private static void ComposeControlPointsSection(IContainer container, JobReportResponse job)
+    private static void ComposeControlPointsSection(IContainer container, JobReportSummaryResponse job)
     {
         container.Column(col =>
         {
@@ -250,22 +250,22 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 });
             }
 
-            if (!string.IsNullOrEmpty(job.TechnicalObservations))
+            if (!string.IsNullOrEmpty(job.Observations.TechnicalObservations))
             {
                 col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Column(c =>
                 {
                     c.Item().Text("TEKNISKE OBSERVATIONER").FontSize(8).FontColor(TextLight).SemiBold();
-                    c.Item().PaddingTop(2).Text(job.TechnicalObservations).FontSize(9).FontColor(TextDark);
+                    c.Item().PaddingTop(2).Text(job.Observations.TechnicalObservations).FontSize(9).FontColor(TextDark);
                 });
             }
         });
     }
 
-    private static void ComposeRemarksSection(IContainer container, JobReportResponse job)
+    [Obsolete]
+    private static void ComposeRemarksSection(IContainer container, JobReportSummaryResponse job)
     {
-        var hasRemarks = !string.IsNullOrEmpty(job.Remarks);
-        var hasClosureFlags = job.ClosureFlags.Count != 0;
-        var hasTechnical = !string.IsNullOrEmpty(job.TechnicalObservations);
+        var hasRemarks = !string.IsNullOrEmpty(job.Work.Remarks);
+        var hasClosureFlags = job.Work.ClosureFlags.Count != 0;
 
         if (!hasRemarks && !hasClosureFlags)
             return;
@@ -289,7 +289,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
                     row.RelativeItem(2).Column(c =>
                     {
                         c.Item().Text("Bemærkninger:").FontSize(8).FontColor(TextLight).SemiBold();
-                        c.Item().PaddingTop(2).Text(job.Remarks).FontSize(9).FontColor(TextDark);
+                        c.Item().PaddingTop(2).Text(job.Work.Remarks).FontSize(9).FontColor(TextDark);
                     });
                 }
 
@@ -303,7 +303,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
                         c.Item().Text("Afslutningsmarkører:").FontSize(8).FontColor(TextLight).SemiBold();
                         c.Item().PaddingTop(2).Column(flags =>
                         {
-                            foreach (var flag in job.ClosureFlags)
+                            foreach (var flag in job.Work.ClosureFlags)
                             {
                                 flags.Item().Row(fr =>
                                 {
@@ -318,7 +318,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
         });
     }
 
-    private static void ComposeFooter(IContainer container, JobReportResponse job)
+    private static void ComposeFooter(IContainer container, JobReportSummaryResponse job)
     {
         container.Column(col =>
         {

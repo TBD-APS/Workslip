@@ -4,21 +4,26 @@ using Workslip.Domain;
 
 namespace Workslip.Api.ViewModels;
 
-public sealed record ControlCheckViewModel(
+public sealed record InstallationTypeControlPointViewModel(
     Guid Id,
-    string ItemId,
-    bool Checked,
-    string? Note);
+    string Name,
+    string? Description,
+    int SortOrder,
+    bool IsRequired,
+    bool isChecked);
 
-public sealed record ControlSubcategoryViewModel(
+public sealed record InstallationTypeCategoryViewModel(
     Guid Id,
-    string InstallationTypeId,
-    string SubcategoryId,
-    IReadOnlyList<ControlCheckViewModel> ControlChecks);
+    string Name,
+    int SortOrder,
+    IReadOnlyList<InstallationTypeControlPointViewModel> ControlPoints);
 
-public sealed record ControlInstallationTypeViewModel(
-    string InstallationTypeId,
-    IReadOnlyList<ControlSubcategoryViewModel> Subcategories);
+public sealed record InstallationTypeViewModel(
+    Guid Id,
+    string Name,
+    string? Description,
+    int SortOrder,
+    IReadOnlyList<InstallationTypeCategoryViewModel> Categories);
 
 public sealed record CustomerViewModel(
     Guid? CustomerId,
@@ -43,10 +48,7 @@ public sealed record JobListItemViewModel(
     CustomerViewModel? Customer,
     string? ReportNumber,
     JobStatus Status,
-    DateOnly? ReportDate,
     IReadOnlyList<string> InstallationTypes,
-    string? WorkKind,
-    string? CustomWorkKind,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
     decimal? TotalHours);
@@ -61,13 +63,11 @@ public sealed record JobViewModel(
     string? TaskDescription,
     string? CustomerObservations,
     string? TechnicalObservations,
-    IReadOnlyList<string> InstallationTypes,
+    IReadOnlyList<InstallationTypeViewModel> InstallationTypes,
     string? WorkKind,
     string? CustomWorkKind,
     string? Remarks,
     IReadOnlyList<string> ClosureFlags,
-    JsonObject? Payload,
-    IReadOnlyList<ControlInstallationTypeViewModel> ControlInstallationTypes,
     IReadOnlyList<JobLinkInfoResponse> Links,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     IReadOnlyList<WorksheetUserGroupViewModel> Worksheets,
@@ -82,7 +82,6 @@ public sealed record JobReportSummaryViewModel(
     CustomerInfo Customer,
     JobReportSummaryWorkResponse Work,
     JobReportSummaryObservationResponse Observations,
-    IReadOnlyList<ControlInstallationTypeViewModel> ControlInstallationTypes,
     IReadOnlyList<JobLinkInfoResponse> Links,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted);
@@ -104,10 +103,7 @@ public static class JobViewModelBuilder
         ToCustomerViewModel(job.Customer),
         job.ReportNumber,
         job.Status,
-        job.ReportDate,
         job.InstallationTypes,
-        job.WorkKind,
-        job.CustomWorkKind,
         job.AssignedUsers,
         job.SoftDeleted,
         job.TotalHours);
@@ -122,13 +118,11 @@ public static class JobViewModelBuilder
         job.TaskDescription,
         job.CustomerObservations,
         job.TechnicalObservations,
-        job.InstallationTypes,
+        job.InstallationTypes.Select(ToInstallationType).ToArray(),
         job.WorkKind,
         job.CustomWorkKind,
         job.Remarks,
         job.ClosureFlags,
-        job.Payload,
-        job.ControlInstallationTypes.Select(ToControlInstallationType).ToArray(),
         job.Links,
         job.AssignedUsers,
         job.Worksheets.Select(ToWorksheetUserGroup).ToArray(),
@@ -143,7 +137,6 @@ public static class JobViewModelBuilder
         summary.Customer,
         summary.Work,
         summary.Observations,
-        summary.ControlInstallationTypes.Select(ToControlInstallationType).ToArray(),
         summary.Links,
         summary.AssignedUsers,
         summary.SoftDeleted);
@@ -175,19 +168,24 @@ public static class JobViewModelBuilder
             customer.ContactPerson,
             customer.Phone);
 
-    private static ControlInstallationTypeViewModel ToControlInstallationType(ControlInstallationTypeResponse installationType) => new(
-        installationType.InstallationTypeId,
-        installationType.Subcategories.Select(ToControlSubcategory).ToArray());
+    private static InstallationTypeViewModel ToInstallationType(InstallationTypeResponse inst) => new(
+        inst.Id,
+        inst.Name,
+        inst.Description,
+        inst.SortOrder,
+        inst.Categories.Select(ToCategory).ToArray());
 
-    private static ControlSubcategoryViewModel ToControlSubcategory(ControlSubcategoryResponse subcategory) => new(
-        subcategory.Id,
-        subcategory.InstallationTypeId,
-        subcategory.SubcategoryId,
-        subcategory.ControlChecks.Select(ToControlCheck).ToArray());
+    private static InstallationTypeCategoryViewModel ToCategory(InstallationTypeCategoryResponse cat) => new(
+        cat.Id,
+        cat.Name,
+        cat.SortOrder,
+        cat.ControlPoints.Select(ToControlPoint).ToArray());
 
-    private static ControlCheckViewModel ToControlCheck(ControlCheckResponse check) => new(
-        check.Id,
-        check.ItemId,
-        check.Checked,
-        check.Note);
+    private static InstallationTypeControlPointViewModel ToControlPoint(InstallationTypeControlPointResponse cp) => new(
+        cp.Id,
+        cp.Name,
+        cp.Description,
+        cp.SortOrder,
+        cp.IsRequired,
+        cp.IsChecked);
 }

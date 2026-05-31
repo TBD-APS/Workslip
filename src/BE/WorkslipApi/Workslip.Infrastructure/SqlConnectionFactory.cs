@@ -3,7 +3,6 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Workslip.Application;
-using Workslip.Infrastructure.Configuration;
 using Workslip.Infrastructure.Resilience;
 
 namespace Workslip.Infrastructure;

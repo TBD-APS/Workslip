@@ -28,7 +28,6 @@ The collection generates unique per-run values for:
 
 That makes repeated runs reproducible on a persistent test database and avoids the old fixed `12345678` CVR collision. The test database still must be isolated from production. Reset strategy is one of:
 
-1. Drop/recreate the test database before a release validation run, then let `WorkslipSchemaRunner` bootstrap schema/taxonomy on API startup.
 2. Keep the database persistent and rely on unique per-run test data for normal smoke runs.
 
 Production data must never be used for these tests. Grim, obvious, still worth spelling out.
