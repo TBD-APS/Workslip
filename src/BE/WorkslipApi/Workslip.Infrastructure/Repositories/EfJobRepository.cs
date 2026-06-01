@@ -72,7 +72,6 @@ public sealed class EfJobRepository : IJobRepository
             TaskDescription = request.Observations?.TaskDescription,
             CustomerObservations = request.Observations?.CustomerObservations,
             TechnicalObservations = request.Observations?.TechnicalObservations,
-            WorkKind = workKindLabel,
             WorkKindId = workKindId,
             CustomWorkKind = request.Work?.CustomWorkKind,
             Remarks = request.Work?.Remarks,
@@ -267,7 +266,6 @@ public sealed class EfJobRepository : IJobRepository
         var normalizedWorkKind = NormalizeOptional(request.Work?.WorkKind);
         if (normalizedWorkKind is not null)
         {
-            entry.Property(e => e.WorkKind).CurrentValue = normalizedWorkKind;
             var matched = await _dbContext.JobWorkKinds
                 .AsNoTracking()
                 .FirstOrDefaultAsync(w => w.NormalizedLabel == normalizedWorkKind, cancellationToken);

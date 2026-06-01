@@ -263,8 +263,7 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.CustomerObservations).HasColumnType("nvarchar(max)");
         entity.Property(e => e.TechnicalObservations).HasColumnType("nvarchar(max)");
 
-        entity.Property(e => e.WorkKind).HasMaxLength(80);
-        entity.Property(e => e.CustomWorkKind).HasMaxLength(160);
+        entity.Property(e => e.CustomWorkKind).HasMaxLength(250);
         entity.Property(e => e.Remarks).HasColumnType("nvarchar(max)");
 
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");

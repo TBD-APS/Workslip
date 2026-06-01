@@ -15,7 +15,6 @@ public sealed class JobReportRow
     public List<JobReportInstallationRow>? Installations { get; set; } = new();
     public JobWorkKindRow? WorkKindRow { get; set; }
     public Guid? WorkKindId { get; set; }
-    public string? WorkKind { get; init; }
     public string? CustomWorkKind { get; init; }
     public string? Remarks { get; init; }
     public List<JobReportClosureFlagRow> ClosureFlags { get; set; } = new();
