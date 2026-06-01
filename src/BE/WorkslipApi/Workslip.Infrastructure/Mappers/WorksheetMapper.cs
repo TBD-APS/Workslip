@@ -21,7 +21,7 @@ public static class WorksheetMapper
                 g.Key,
                 g.Sum(r => r.HoursWorked),
                 g.Select(r => new WorksheetDayEntry(DateOnly.FromDateTime(r.WorkDate), r.HoursWorked))
-                    .ToArray() as IReadOnlyList<WorksheetDayEntry>))
+                    .ToArray()))
             .ToArray();
     }
 }

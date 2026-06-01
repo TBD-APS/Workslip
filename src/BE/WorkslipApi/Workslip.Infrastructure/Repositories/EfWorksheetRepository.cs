@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
+using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
 using Workslip.Domain.Models;
+using Workslip.Infrastructure.Mappers;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
 
@@ -126,5 +128,54 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             w.SleptOnJob,
             w.CreatedAt,
             w.UpdatedAt)).ToArray();
+    }
+
+    public Task<IReadOnlyList<WorksheetUserGroupResponse>> GetGroupedByJobAsync(Guid jobId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("worksheets.grouped-by-job", token => GetGroupedByJobAsyncCoreAsync(jobId, token), cancellationToken);
+
+    private async Task<IReadOnlyList<WorksheetUserGroupResponse>> GetGroupedByJobAsyncCoreAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from w in _dbContext.Worksheets.AsNoTracking()
+            join u in _dbContext.Users.AsNoTracking() on w.UserId equals u.Id
+            where w.JobId == jobId
+            orderby u.DisplayName, w.WorkDate descending
+            select new WorksheetMapper.WorksheetEntryProjection
+            {
+                WorkDate = w.WorkDate,
+                HoursWorked = w.HoursWorked,
+                DisplayName = u.DisplayName
+            }
+        ).ToListAsync(cancellationToken);
+
+        return WorksheetMapper.ToGroupedResponse(rows);
+    }
+
+    private sealed class JobTotalHoursProjection
+    {
+        public Guid JobId { get; init; }
+        public decimal? TotalHours { get; init; }
+    }
+
+
+
+    public async Task<IReadOnlyDictionary<Guid, decimal?>> GetTotalHoursByJobAsync(
+        IEnumerable<Guid> jobIds, CancellationToken cancellationToken)
+    {
+        var ids = jobIds.Distinct().ToArray();
+        if (ids.Length == 0) return new Dictionary<Guid, decimal?>();
+
+        var rows = await _dbContext.Worksheets
+            .AsNoTracking()
+            .Where(w => ids.Contains(w.JobId))
+            .GroupBy(w => w.JobId)
+            .Select(g => new JobTotalHoursProjection
+            {
+                JobId = g.Key,
+                TotalHours = g.Sum(w => w.HoursWorked)
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(r => r.JobId, r => r.TotalHours);
     }
 }

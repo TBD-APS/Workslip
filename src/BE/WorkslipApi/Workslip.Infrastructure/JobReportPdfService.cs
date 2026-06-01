@@ -87,9 +87,9 @@ public sealed class JobReportPdfService : IJobReportPdfService
                         r.RelativeItem().Column(c =>
                         {
                             c.Item().Text("ARBEJDSTYPE").FontSize(7).FontColor(TextLight);
-                            var workKindLabel = string.IsNullOrEmpty(job.Work.CustomWorkKind)
-                                ? job.Work.WorkKind
-                                : $"{job.Work.WorkKind} - {job.Work.CustomWorkKind}";
+                            var workKindLabel = string.IsNullOrEmpty(job.Work.WorkKind?.CustomWorkKind)
+                                ? job.Work.WorkKind?.Label ?? ""
+                                : $"{job.Work.WorkKind?.Label ?? ""} - {job.Work.WorkKind.CustomWorkKind}";
                             c.Item().PaddingTop(2).Text(workKindLabel).FontSize(9).FontColor(TextDark);
                         });
                     });

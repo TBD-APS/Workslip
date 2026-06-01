@@ -27,13 +27,15 @@ public sealed record DefinitionControlPointResponse(
     bool IsRequired);
 
 public sealed record WorkKindResponse(
-    string Id,
+    Guid Id,
+    string NormalizedLabel,
     string Label,
     bool RequiresCustomWorkKind,
     int SortOrder);
 
 public sealed record ClosureFlagResponse(
-    string Id,
+    Guid Id,
+    string NormalizedLabel,
     string Label,
     bool IsExclusive,
     int SortOrder);

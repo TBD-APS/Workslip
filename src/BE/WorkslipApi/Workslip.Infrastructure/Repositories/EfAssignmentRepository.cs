@@ -17,18 +17,16 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
     private readonly ICurrentUserContext _currentUser;
-    private readonly IJobLinkRepository _linkRepo;
     private readonly IWorksheetRepository _worksheetRepo;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public EfAssignmentRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy,
-        ICurrentUserContext currentUser, IJobLinkRepository linkRepo, IWorksheetRepository worksheetRepo)
+        ICurrentUserContext currentUser, IWorksheetRepository worksheetRepo)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
         _currentUser = currentUser;
-        _linkRepo = linkRepo;
         _worksheetRepo = worksheetRepo;
     }
 
@@ -113,8 +111,13 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 r.ReportNumber,
                 r.Status,
                 r.ReportDate,
-                r.WorkKind,
-                r.CustomWorkKind,
+                WorkKind = r.WorkKindRow != null ? new JobWorkKindResponse(
+                    r.WorkKindRow.Id,
+                    r.WorkKindRow.NormalizedLabel,
+                    r.WorkKindRow.Label,
+                    r.WorkKindRow.RequiresCustomWorkKind,
+                    r.WorkKindRow.SortOrder,
+                    r.CustomWorkKind) : null,
                 r.CreatedAt,
                 r.UpdatedAt,
                 r.SubmittedAt,
@@ -166,7 +169,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 x.Id, x.OrganizationId,
                 customerInfo,
                 x.ReportNumber, Enum.Parse<JobStatus>(x.Status, ignoreCase: true), JobReportMapper.ToDateOnly(x.ReportDate),
-                installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind, x.CustomWorkKind,
+                installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
                 x.CreatedAt, x.UpdatedAt, x.SubmittedAt,
                 assignedDictionary.GetValueOrDefault(x.Id) ?? [],
                 x.IsSoftDeleted, x.DeletionScheduledAt,

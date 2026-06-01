@@ -153,7 +153,7 @@ public static class HttpCacheHeaders
             }
         }
         foreach (var wk in data.WorkKinds)
-            sb.Append(wk.Id).Append(wk.SortOrder).Append(wk.RequiresCustomWorkKind);
+            sb.Append(wk.NormalizedLabel).Append(wk.SortOrder).Append(wk.RequiresCustomWorkKind);
         foreach (var cf in data.ClosureFlags)
             sb.Append(cf.Id).Append(cf.SortOrder).Append(cf.IsExclusive);
         return ToWeakEtag(sb.ToString());

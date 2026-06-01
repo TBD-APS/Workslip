@@ -29,6 +29,7 @@ namespace Workslip.Infrastructure.Schema
                     .RuleFor(x => x.OrganizationId, f => organizationId)
                     .RuleFor(x => x.Name, f => name)
                     .RuleFor(x => x.SortOrder, f => index + 1)
+
                     .RuleFor(x => x.JobReportInstallationCategories, f => [])
                     .Generate())
             .ToList();
@@ -128,13 +129,14 @@ namespace Workslip.Infrastructure.Schema
                     var categorySortOrder = 1;
                     foreach (var categoryGroup in mappingsForDefinition)
                     {
-                        var selectedCategory = new JobReportInstallationCategoryRow
-                        {
-                            Id = Guid.NewGuid(),
-                            JobReportInstallationId = selectedInstallation.Id,
-                            ControlCategoryId = categoryGroup.Key,
-                            SortOrder = categorySortOrder++,
-                        };
+                    var selectedCategory = new JobReportInstallationCategoryRow
+                    {
+                        Id = Guid.NewGuid(),
+                        JobReportInstallationId = selectedInstallation.Id,
+                        ControlCategoryId = categoryGroup.Key,
+                        SortOrder = categorySortOrder++,
+                        IsIrrelevant = random.Random.Bool(0.1f),
+                    };
                         selectedCategories.Add(selectedCategory);
 
                         foreach (var mapping in categoryGroup.OrderBy(mapping => mapping.SortOrder))

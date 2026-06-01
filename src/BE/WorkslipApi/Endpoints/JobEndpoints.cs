@@ -48,16 +48,13 @@ public static class JobEndpoints
         group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetSingleJobAsync(id, cancellationToken);
-            return CachedOk(result, httpContext,
-                report => HttpCacheHeaders.JobReportEtag(report),
-                JobViewModelBuilder.ToSummary);
+            return CachedOk(result, httpContext, report => HttpCacheHeaders.JobReportEtag(report), JobViewModelBuilder.ToSummary);
         });
 
         group.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetHistoryAsync(id, limit, offset, cancellationToken);
-            return CachedOk(result, httpContext,
-                events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
+            return CachedOk(result, httpContext, events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
         });
 
         group.MapGet("/{id:guid}/report/pdf", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>

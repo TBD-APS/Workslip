@@ -8,5 +8,6 @@ public sealed class JobReportInstallationCategoryRow
     public Guid ControlCategoryId { get; set; }
     public ControlCategoryRow ControlCategory { get; set; } = null!;
     public int SortOrder { get; set; }
+    public bool IsIrrelevant { get; set; }
     public ICollection<JobReportInstallationControlPointRow> ControlPoints { get; set; } = [];
 }

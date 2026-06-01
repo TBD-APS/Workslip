@@ -14,6 +14,7 @@ public sealed class SqlDbContext : DbContext
     public DbSet<CustomerRow> Customers => Set<CustomerRow>();
     public DbSet<JobWorkKindRow> JobWorkKinds => Set<JobWorkKindRow>();
     public DbSet<JobClosureFlagRow> JobClosureFlags => Set<JobClosureFlagRow>();
+    public DbSet<JobReportClosureFlagRow> JobReportClosureFlags => Set<JobReportClosureFlagRow>();
     public DbSet<JobReportRow> JobReports => Set<JobReportRow>();
     public DbSet<JobAssignmentRow> JobAssignments => Set<JobAssignmentRow>();
     public DbSet<JobReportLinkRow> JobReportLinks => Set<JobReportLinkRow>();
@@ -38,6 +39,7 @@ public sealed class SqlDbContext : DbContext
         ConfigureCustomers(modelBuilder);
         ConfigureJobWorkKinds(modelBuilder);
         ConfigureJobClosureFlags(modelBuilder);
+        ConfigureJobReportClosureFlags(modelBuilder);
         ConfigureJobReports(modelBuilder);
         ConfigureJobAssignments(modelBuilder);
         ConfigureJobReportLinks(modelBuilder);
@@ -163,7 +165,7 @@ public sealed class SqlDbContext : DbContext
         entity.ToTable("JobWorkKinds");
         entity.HasKey(e => e.Id);
 
-        entity.Property(e => e.Id)
+        entity.Property(e => e.NormalizedLabel)
             .HasMaxLength(80);
 
         entity.Property(e => e.Label)
@@ -175,10 +177,6 @@ public sealed class SqlDbContext : DbContext
 
         entity.Property(e => e.SortOrder)
             .HasDefaultValue(0);
-
-        entity.Property(e => e.UpdatedAt)
-            .HasColumnType("datetimeoffset")
-            .HasDefaultValueSql("sysutcdatetime()");
 
         entity.HasIndex(e => e.Label)
             .IsUnique()
@@ -192,7 +190,7 @@ public sealed class SqlDbContext : DbContext
         entity.ToTable("JobClosureFlags");
         entity.HasKey(e => e.Id);
 
-        entity.Property(e => e.Id)
+        entity.Property(e => e.NormalizedLabel)
             .HasMaxLength(80);
 
         entity.Property(e => e.Label)
@@ -212,6 +210,35 @@ public sealed class SqlDbContext : DbContext
         entity.HasIndex(e => e.Label)
             .IsUnique()
             .HasDatabaseName("UX_JobClosureFlags_Label");
+    }
+
+    private static void ConfigureJobReportClosureFlags(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<JobReportClosureFlagRow>();
+
+        entity.ToTable("JobReportClosureFlags");
+        entity.HasKey(e => e.Id);
+
+        entity.Property(e => e.SortOrder).HasDefaultValue(0);
+
+        entity.HasOne(e => e.ClosureFlag)
+            .WithMany()
+            .HasForeignKey(e => e.ClosureFlagId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasOne(e => e.JobReport)
+            .WithMany(j => j.ClosureFlags)
+            .HasForeignKey(e => e.JobReportId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne<OrganizationRow>()
+            .WithMany()
+            .HasForeignKey(e => e.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasIndex(e => new { e.JobReportId, e.ClosureFlagId })
+            .IsUnique()
+            .HasDatabaseName("UX_JobReportClosureFlags_Report_Flag");
     }
 
     private static void ConfigureJobReports(ModelBuilder modelBuilder)
@@ -240,11 +267,6 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.CustomWorkKind).HasMaxLength(160);
         entity.Property(e => e.Remarks).HasColumnType("nvarchar(max)");
 
-        entity.Property(e => e.ClosureFlagsJson)
-            .HasColumnType("nvarchar(max)")
-            .HasDefaultValueSql("'[]'")
-            .IsRequired();
-
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.UpdatedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.SubmittedAt).HasColumnType("datetimeoffset");
@@ -255,18 +277,15 @@ public sealed class SqlDbContext : DbContext
             .HasForeignKey(e => e.OrganizationId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        entity.HasOne<CustomerRow>()
+        entity.HasOne(x => x.CustomerRow)
         .WithMany()
         .HasForeignKey(e => e.CustomerId)
         .OnDelete(DeleteBehavior.Restrict);
 
-        entity.HasOne<JobWorkKindRow>()
+        entity.HasOne(x => x.WorkKindRow)
             .WithMany()
-            .HasForeignKey(e => e.WorkKind)
+            .HasForeignKey(e => e.WorkKindId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        entity.HasAlternateKey(e => new { e.OrganizationId, e.Id })
-            .HasName("UX_JobReports_Organization_Id");
 
         entity.HasIndex(e => new { e.OrganizationId, e.Status, e.UpdatedAt })
             .IsDescending(false, false, true)
@@ -585,6 +604,8 @@ public sealed class SqlDbContext : DbContext
         entity.HasKey(x => x.Id);
         entity.Property(x => x.SortOrder)
             .HasDefaultValue(0);
+        entity.Property(x => x.IsIrrelevant)
+            .HasDefaultValue(false);
         entity.HasOne(x => x.JobReportInstallation)
             .WithMany(x => x.Categories)
             .HasForeignKey(x => x.JobReportInstallationId)

@@ -51,6 +51,16 @@ public sealed class EfJobRepository : IJobRepository
             ? (Guid?)await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken)
             : null;
 
+        var workKindLabel = NormalizeOptional(request.Work?.WorkKind);
+        Guid? workKindId = null;
+        if (workKindLabel is not null)
+        {
+            var matched = await _dbContext.JobWorkKinds
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.NormalizedLabel == workKindLabel, cancellationToken);
+            workKindId = matched?.Id;
+        }
+
         _dbContext.JobReports.Add(new JobReportRow
         {
             Id = reportId,
@@ -62,10 +72,10 @@ public sealed class EfJobRepository : IJobRepository
             TaskDescription = request.Observations?.TaskDescription,
             CustomerObservations = request.Observations?.CustomerObservations,
             TechnicalObservations = request.Observations?.TechnicalObservations,
-            WorkKind = NormalizeOptional(request.Work?.WorkKind),
+            WorkKind = workKindLabel,
+            WorkKindId = workKindId,
             CustomWorkKind = request.Work?.CustomWorkKind,
             Remarks = request.Work?.Remarks,
-            ClosureFlagsJson = JobReportMapper.ToJson(request.Work?.ClosureFlags ?? []),
             CreatedAt = now,
             UpdatedAt = now
         });
@@ -73,6 +83,11 @@ public sealed class EfJobRepository : IJobRepository
         if (request.Work?.InstallationTypes?.Count > 0)
         {
             await AddSelectedInstallationsAsync(organizationId, reportId, request.Work.InstallationTypes, now, cancellationToken);
+        }
+
+        if (request.Work?.ClosureFlags?.Count > 0)
+        {
+            await AddClosureFlagsAsync(organizationId, reportId, request.Work.ClosureFlags, cancellationToken);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -119,8 +134,13 @@ public sealed class EfJobRepository : IJobRepository
                 r.ReportNumber,
                 r.Status,
                 r.ReportDate,
-                r.WorkKind,
-                r.CustomWorkKind,
+                WorkKind = r.WorkKindRow != null ? new JobWorkKindResponse(
+                    r.WorkKindRow.Id,
+                    r.WorkKindRow.NormalizedLabel,
+                    r.WorkKindRow.Label,
+                    r.WorkKindRow.RequiresCustomWorkKind,
+                    r.WorkKindRow.SortOrder,
+                    r.CustomWorkKind) : null,
                 r.CreatedAt,
                 r.UpdatedAt,
                 r.SubmittedAt,
@@ -153,7 +173,7 @@ public sealed class EfJobRepository : IJobRepository
                 x.Id, x.OrganizationId,
                 customerInfo,
                 x.ReportNumber, JobReportMapper.ParseStatus(x.Status), JobReportMapper.ToDateOnly(x.ReportDate),
-                installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind, x.CustomWorkKind,
+                installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
                 x.CreatedAt, x.UpdatedAt, x.SubmittedAt,
                 assignedUsersByReport.GetValueOrDefault(x.Id) ?? [],
                 x.IsSoftDeleted, x.DeletionScheduledAt,
@@ -169,26 +189,24 @@ public sealed class EfJobRepository : IJobRepository
         _dbContext.ChangeTracker.Clear();
 
         var row = await _dbContext.JobReports
+            .Include(x => x.WorkKindRow)
+            .Include(x => x.CustomerRow)
+            .Include(x => x.ClosureFlags)
+            .ThenInclude(jrcf => jrcf.ClosureFlag)
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
-        if (row is null) return null;
-
-        CustomerRow? customer = null;
-        if (row.CustomerId.HasValue)
-        {
-            customer = await _dbContext.Customers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == row.CustomerId.Value && c.OrganizationId == organizationId, cancellationToken);
-        }
+        if (row is null) 
+            return null;
 
         var links = await _linkRepo.GetLinkInfoAsync(organizationId, id, cancellationToken);
         var assignedUsers = (await _assignmentRepo.GetAssignedUsersByReportAsync(organizationId, [id], cancellationToken)).GetValueOrDefault(id) ?? [];
         var totalHours = await _worksheetRepo.GetTotalHoursByJobAsync([id], cancellationToken);
         var worksheetEntries = await _worksheetRepo.GetGroupedByJobAsync(id, cancellationToken);
         var installationTypes = await _dbContext.LoadInstallationTypesAsync(organizationId, id, cancellationToken);
+        var closureFlags = await _dbContext.LoadClosureFlagsAsync(organizationId, id, cancellationToken);
 
-        return JobReportMapper.ToResponse(row, customer, links, assignedUsers, worksheetEntries, installationTypes, totalHours.GetValueOrDefault(id));
+        return JobReportMapper.ToResponse(row, links, assignedUsers, worksheetEntries, installationTypes, closureFlags, totalHours.GetValueOrDefault(id));
     }
 
     public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
@@ -234,16 +252,29 @@ public sealed class EfJobRepository : IJobRepository
 
         var entry = _dbContext.Entry(existing);
         entry.Property(e => e.CustomerId).CurrentValue = customerId;
-        if (request.ReportNumber is not null) entry.Property(e => e.ReportNumber).CurrentValue = request.ReportNumber;
-        if (request.Observations?.ReportDate is not null) entry.Property(e => e.ReportDate).CurrentValue = ToDateTime(request.Observations.ReportDate);
-        if (request.Observations?.TaskDescription is not null) entry.Property(e => e.TaskDescription).CurrentValue = request.Observations.TaskDescription;
+        if (request.ReportNumber is not null) 
+            entry.Property(e => e.ReportNumber).CurrentValue = request.ReportNumber;
+        
+        if (request.Observations?.ReportDate is not null) 
+            entry.Property(e => e.ReportDate).CurrentValue = ToDateTime(request.Observations.ReportDate);
+        
+        if (request.Observations?.TaskDescription is not null) 
+            entry.Property(e => e.TaskDescription).CurrentValue = request.Observations.TaskDescription;
+        
         entry.Property(e => e.CustomerObservations).CurrentValue = request.Observations?.CustomerObservations;
         entry.Property(e => e.TechnicalObservations).CurrentValue = request.Observations?.TechnicalObservations;
+        
         var normalizedWorkKind = NormalizeOptional(request.Work?.WorkKind);
-        if (normalizedWorkKind is not null) entry.Property(e => e.WorkKind).CurrentValue = normalizedWorkKind;
+        if (normalizedWorkKind is not null)
+        {
+            entry.Property(e => e.WorkKind).CurrentValue = normalizedWorkKind;
+            var matched = await _dbContext.JobWorkKinds
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.NormalizedLabel == normalizedWorkKind, cancellationToken);
+            entry.Property(e => e.WorkKindId).CurrentValue = matched?.Id;
+        }
         entry.Property(e => e.CustomWorkKind).CurrentValue = request.Work?.CustomWorkKind;
         entry.Property(e => e.Remarks).CurrentValue = request.Work?.Remarks;
-        if (request.Work?.ClosureFlags is not null) entry.Property(e => e.ClosureFlagsJson).CurrentValue = JobReportMapper.ToJson(request.Work.ClosureFlags);
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
 
         if (request.Work?.InstallationTypes is not null)
@@ -254,6 +285,19 @@ public sealed class EfJobRepository : IJobRepository
             _dbContext.JobReportInstallations.RemoveRange(existingInstallations);
 
             await AddSelectedInstallationsAsync(organizationId, id, request.Work.InstallationTypes, now, cancellationToken);
+        }
+
+        if (request.Work?.ClosureFlags is not null)
+        {
+            var existingFlags = await _dbContext.JobReportClosureFlags
+                .Where(f => f.JobReportId == id && f.OrganizationId == organizationId)
+                .ToListAsync(cancellationToken);
+            _dbContext.JobReportClosureFlags.RemoveRange(existingFlags);
+
+            if (request.Work.ClosureFlags.Count > 0)
+            {
+                await AddClosureFlagsAsync(organizationId, id, request.Work.ClosureFlags, cancellationToken);
+            }
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -419,6 +463,43 @@ public sealed class EfJobRepository : IJobRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    private async Task AddClosureFlagsAsync(
+        Guid organizationId,
+        Guid jobReportId,
+        IReadOnlyList<string> normalizedLabels,
+        CancellationToken cancellationToken)
+    {
+        var labels = normalizedLabels
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Select(l => l.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (labels.Length == 0) return;
+
+        var flags = await _dbContext.JobClosureFlags
+            .AsNoTracking()
+            .Where(f => labels.Contains(f.NormalizedLabel))
+            .ToListAsync(cancellationToken);
+
+        var flagsByLabel = flags.ToDictionary(f => f.NormalizedLabel, StringComparer.OrdinalIgnoreCase);
+
+        var sortOrder = 0;
+        foreach (var label in labels)
+        {
+            if (!flagsByLabel.TryGetValue(label, out var flag)) continue;
+
+            _dbContext.JobReportClosureFlags.Add(new JobReportClosureFlagRow
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                JobReportId = jobReportId,
+                ClosureFlagId = flag.Id,
+                SortOrder = ++sortOrder
+            });
+        }
+    }
+
     private async Task AddSelectedInstallationsAsync(
         Guid organizationId,
         Guid jobReportId,
@@ -472,6 +553,7 @@ public sealed class EfJobRepository : IJobRepository
                     JobReportInstallationId = selectedInstallation.Id,
                     ControlCategoryId = categoryRequest.Id,
                     SortOrder = categoryIndex + 1,
+                    IsIrrelevant = categoryRequest.IsIrrelevant ?? false,
                     JobReportInstallation = selectedInstallation
                 };
 

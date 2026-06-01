@@ -28,18 +28,18 @@ public static class DatabaseSeeder
 
         var jobWorkKinds = new List<JobWorkKindRow>
         {
-            new() { Id = "NewInstallation", Label = "Ny installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 1, UpdatedAt = now },
-            new() { Id = "ChangeOfInstallation", Label = "Ændring af installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 2, UpdatedAt = now },
-            new() { Id = "RepairWork", Label = "Reparationsarbejde", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 3, UpdatedAt = now },
-            new() { Id = "ServiceOther", Label = "Service andet", RequiresCustomWorkKind = true, IsActive = true, SortOrder = 4, UpdatedAt = now }
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "NewInstallation", Label = "Ny installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 1 },
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "ChangeOfInstallation", Label = "Ændring af installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 2},
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "RepairWork", Label = "Reparationsarbejde", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 3 },
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "ServiceOther", Label = "Service andet", RequiresCustomWorkKind = true, IsActive = true, SortOrder = 4 }
         };
 
         var jobClosureFlags = new List<JobClosureFlagRow>
         {
-            new() { Id = "NotCompleted", Label = "Ikke færdig", IsExclusive = true, IsActive = true, SortOrder = 1, UpdatedAt = now },
-            new() { Id = "Completed", Label = "Færdig", IsExclusive = false, IsActive = true, SortOrder = 2, UpdatedAt = now },
-            new() { Id = "OperationMaintenanceInstructions", Label = "Drift og vedligeholdelses-instruktioner", IsExclusive = false, IsActive = true, SortOrder = 3, UpdatedAt = now },
-            new() { Id = "ReadyForInvoice", Label = "Klar til faktura", IsExclusive = false, IsActive = true, SortOrder = 3, UpdatedAt = now }
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "NotCompleted", Label = "Ikke færdig", IsExclusive = true, IsActive = true, SortOrder = 1, UpdatedAt = now },
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "Completed", Label = "Færdig", IsExclusive = false, IsActive = true, SortOrder = 2, UpdatedAt = now },
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "OperationMaintenanceInstructions", Label = "Drift og vedligeholdelses-instruktioner", IsExclusive = false, IsActive = true, SortOrder = 3, UpdatedAt = now },
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "ReadyForInvoice", Label = "Klar til faktura", IsExclusive = false, IsActive = true, SortOrder = 3, UpdatedAt = now }
         };
 
         var customers = new Faker<CustomerRow>()
@@ -88,9 +88,8 @@ public static class DatabaseSeeder
             .RuleFor(x => x.Status, f => f.PickRandom(statuses))
             .RuleFor(x => x.ReportDate, f => f.Date.Past(1).Date)
             .RuleFor(x => x.TaskDescription, f => f.Lorem.Sentence())
-            .RuleFor(x => x.WorkKind, f => f.PickRandom(jobWorkKinds).Id)
+            .RuleFor(x => x.WorkKindId, f => f.PickRandom(jobWorkKinds).Id)
             .RuleFor(x => x.CustomWorkKind, f => f.Random.Bool(0.15f) ? f.Commerce.ProductName() : null)
-            .RuleFor(x => x.ClosureFlagsJson, _ => "[]")
             .RuleFor(x => x.IsSoftDeleted, _ => false)
             .RuleFor(x => x.CreatedAt, f => f.Date.PastOffset(1))
             .RuleFor(x => x.UpdatedAt, _ => now)
@@ -214,6 +213,24 @@ public static class DatabaseSeeder
             }
         }
 
+        var jobClosureFlagJoins = new List<JobReportClosureFlagRow>();
+        foreach (var job in jobs)
+        {
+            var selectedFlags = faker.PickRandom(jobClosureFlags, faker.Random.Int(1, jobClosureFlags.Count));
+            var sortOrder = 0;
+            foreach (var flag in selectedFlags)
+            {
+                jobClosureFlagJoins.Add(new JobReportClosureFlagRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organization.Id,
+                    JobReportId = job.Id,
+                    ClosureFlagId = flag.Id,
+                    SortOrder = ++sortOrder
+                });
+            }
+        }
+
         await DatabaseInstallationSeeder.Seed(db, organization.Id, jobs);
 
         db.Organizations.Add(organization);
@@ -221,6 +238,7 @@ public static class DatabaseSeeder
         await db.JobAssignments.AddRangeAsync(assignments);
         await db.JobWorkKinds.AddRangeAsync(jobWorkKinds);
         await db.JobClosureFlags.AddRangeAsync(jobClosureFlags);
+        await db.JobReportClosureFlags.AddRangeAsync(jobClosureFlagJoins);
         await db.JobReportLinks.AddRangeAsync(jobLinks);
 
         await db.Customers.AddRangeAsync(customers);
