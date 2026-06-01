@@ -186,7 +186,7 @@ namespace Workslip.Infrastructure.Schema
 
                 // GAS / VARME - Slutkontrol
                 new("Gasinstallation", "Slutkontrol", "Tæthedsprøvning", 1),
-                new("Gasinstallation", "Slutkontrol", "Funktionsprøvning", 2),
+                new("Gasinstallation", "Slutkontrol", "Funktionsprøvning", 2),cd 
                 new("Gasinstallation", "Slutkontrol", "Sikkerhedsarmaturer", 3),
                 new("Gasinstallation", "Slutkontrol", "Optælling af materialer", 4),
 
