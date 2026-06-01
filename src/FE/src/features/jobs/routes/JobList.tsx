@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Clock, ChevronRight, AlertCircle, User, Timer } from 'lucide-react';
+import { MapPin, ChevronRight, AlertCircle, User, Timer, CalendarDays, Flame } from 'lucide-react';
 import { getJobs } from '../api/getJobs';
 import type { JobListItemViewModel } from '../types';
 
@@ -89,39 +89,59 @@ export const JobList = () => {
 
       <div className="job-list">
         {jobs?.map((job) => {
+          const urgency = isDueSoon(job.reportDate);
           return (
-            <div key={job.id} className="job-card leftborder" onClick={() => navigate(`/app/job/${job.id}`)}>
-              <div className="job-card-header">
+            <div
+              key={job.id}
+              className={`job-card${urgency ? ' is-urgent' : ''}`}
+              onClick={() => navigate(`/app/job/${job.id}`)}
+            >
+              <div className="job-card-top">
+                <div>
+                  <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
+                  <h3 className="job-customer">{job.customer?.name || 'Ukendt kunde'}</h3>
+                </div>
                 <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>
-                  {job.status} {/* Top left status on job card */}
+                  {job.status}
                 </span>
-                <span className="job-id">Sagsnummer: {job.reportNumber || 'Mangler ID'}</span>
               </div>
 
-              <h3 className="job-customer">{job.customer?.name || 'Ukendt kunde'}</h3>
+              <p className="job-address-row">
+                <MapPin size={14} />
+                <span className="job-address">
+                  {job.customer?.address || 'Ingen adresse angivet'}
+                </span>
+              </p>
 
-              <div className="job-details">
-                <div className="job-detail-item">
-                  <MapPin size={14} />
-                  <span className="job-address">
-                    {job.customer?.address || 'Ingen adresse angivet'}
+              <div className="job-card-meta">
+                <span className="meta-item">
+                  <CalendarDays size={14} />
+                  {formatRelativeDate(job.reportDate)}
+                </span>
+
+                {urgency === 'overdue' && (
+                  <span className="meta-badge is-urgent">
+                    <Flame size={12} /> Overskredet
                   </span>
-                </div>
-                <div className="job-detail-row">
-                  
+                )}
+                {urgency === 'today' && (
+                  <span className="meta-badge is-today">I dag</span>
+                )}
+                {urgency === 'upcoming' && (
+                  <span className="meta-badge is-upcoming">Snart</span>
+                )}
 
+                {job.totalHours != null && (
+                  <span className="meta-item meta-hours">
+                    <Timer size={14} /> {job.totalHours} t
+                  </span>
+                )}
+              </div>
 
-                  
-                  {job.totalHours != null && (
-                    <div className="job-detail-item">
-                      <Timer size={14} />
-                      <span>{job.totalHours} timer</span>
-                    </div>
-                  )}
-
-                  <div className="job-assigned">
+              <div className="job-card-footer">
+                <div className="job-assigned">
                   {job.assignedUsers?.length > 0 ? (
-                    job.assignedUsers.map((u, i) => (
+                    job.assignedUsers.slice(0, 2).map((u) => (
                       <span key={u.userId} className="assigned-user">
                         <User size={12} />
                         <span>{u.displayName}</span>
@@ -133,19 +153,11 @@ export const JobList = () => {
                       <span>Ikke tildelt</span>
                     </span>
                   )}
+                  {job.assignedUsers && job.assignedUsers.length > 2 && (
+                    <span className="assigned-user">+{job.assignedUsers.length - 2}</span>
+                  )}
                 </div>
-
-                </div>
-              </div>
-
-              <div className="job-card-footer">
-                <div className="job-tags">
-                {job.workKind && <span className="job-tag">{job.workKind}</span>}
-                {job.installationTypes?.map((t, i) => (
-                  <span key={i} className="job-tag">{t}</span>
-                ))}
-              </div>
-                <button className="btn-icon">
+                <button className="btn-icon" aria-label="Åbn sag">
                   <ChevronRight size={20} />
                 </button>
               </div>

@@ -7,8 +7,18 @@ public static class JobRequestValidationRules
             .GroupBy(i => i.Trim(), StringComparer.OrdinalIgnoreCase)
             .All(g => g.Count() <= 1);
 
-    internal static bool HaveNoDuplicates(IReadOnlyList<CreateInstallationTypeRequest>? items) =>
-        items is null || items.Where(i => !string.IsNullOrWhiteSpace(i.Name))
-            .GroupBy(i => i.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+    public static bool HaveNoDuplicateInstallations(IReadOnlyList<CreateInstallationTypeRequest>? items) =>
+        items is null || items.Where(i => i is not null && i.Id != Guid.Empty)
+            .GroupBy(i => i!.Id)
+            .All(g => g.Count() <= 1);
+
+    public static bool HaveNoDuplicateCategories(IReadOnlyList<CreateInstallationTypeCategoryRequest>? items) =>
+        items is null || items.Where(i => i is not null && i.Id != Guid.Empty)
+            .GroupBy(i => i!.Id)
+            .All(g => g.Count() <= 1);
+
+    public static bool HaveNoDuplicateControlPoints(IReadOnlyList<CreateInstallationTypeControlPointRequest>? items) =>
+        items is null || items.Where(i => i is not null && i.Id != Guid.Empty)
+            .GroupBy(i => i!.Id)
             .All(g => g.Count() <= 1);
 }

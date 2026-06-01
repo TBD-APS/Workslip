@@ -43,12 +43,15 @@
     <Compile Remove="Workslip.Application\**\*.cs" />
     <Compile Remove="Workslip.Domain\**\*.cs" />
     <Compile Remove="Workslip.Infrastructure\**\*.cs" />
+    <Compile Remove="Workslip.Tests\**\*.cs" />
     <Content Remove="Workslip.Application\**\*" />
     <Content Remove="Workslip.Domain\**\*" />
     <Content Remove="Workslip.Infrastructure\**\*" />
+    <Content Remove="Workslip.Tests\**\*" />
     <None Remove="Workslip.Application\**\*" />
     <None Remove="Workslip.Domain\**\*" />
     <None Remove="Workslip.Infrastructure\**\*" />
+    <None Remove="Workslip.Tests\**\*" />
   </ItemGroup>
 
 </Project>

@@ -2,7 +2,8 @@ namespace Workslip.Domain.Models;
 
 public sealed class JobClosureFlagRow
 {
-    public string Id { get; init; } = string.Empty;
+    public Guid Id { get; set; }
+    public string NormalizedLabel { get; init; } = string.Empty;
     public string Label { get; init; } = string.Empty;
     public bool IsExclusive { get; init; }
     public bool IsActive { get; init; }

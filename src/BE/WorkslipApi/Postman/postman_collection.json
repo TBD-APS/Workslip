@@ -435,8 +435,14 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/dev/token",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "dev", "token"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "dev",
+                "token"
+              ]
             },
             "description": "DEV ONLY: Generates a valid LocalJwt token for any user by email. Bypasses the OTC email flow. Guarded behind IsDevelopment().",
             "body": {
@@ -1026,10 +1032,10 @@
                 "jobs"
               ]
             },
-            "description": "Creates draft job. Installation types support explicit categories/control-points by ID (fetched via pre-request script from /api/reference-data). Omit categories to auto-populate from definitions. Saves jobId.",
+            "description": "Creates draft job. Installation, category, and control point selections are sent by reference ID from /api/reference-data. Saves jobId.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Demo Kunde\",\n    \"address\": \"Demo Vej 1, 1000 København\",\n    \"email\": \"{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"work\": {\n    \"installationTypes\": [\n      {\n        \"name\": \"vand\",\n        \"categories\": [\n          {\n            \"categoryId\": \"{{vandCatId}}\",\n            \"controlPoints\": [\n              { \"pointId\": \"{{vandCatPointId}}\" }\n            ]\n          }\n        ]\n      }\n    ],\n    \"workKind\": \"NewInstallation\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"observations\": {\n    \"reportDate\": \"2026-10-01\",\n    \"taskDescription\": \"Installer og kontroller anlæg.\",\n    \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n    \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n  }\n}",
+              "raw": "{\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Demo Kunde\",\n    \"address\": \"Demo Vej 1, 1000 København\",\n    \"email\": \"{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"work\": {\n    \"installationTypes\": [\n      {\n        \"id\": \"{{vandInstallationId}}\",\n        \"categories\": [\n          {\n            \"id\": \"{{vandCategoryId}}\",\n            \"controlPoints\": [\n              { \"id\": \"{{vandControlPointId}}\" }\n            ]\n          }\n        ]\n      }\n    ],\n    \"workKind\": \"NewInstallation\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"observations\": {\n    \"reportDate\": \"2026-10-01\",\n    \"taskDescription\": \"Installer og kontroller anlæg.\",\n    \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n    \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1044,24 +1050,26 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.variables.set('vandCatId', '00000000-0000-0000-0000-000000000000');",
-                  "pm.variables.set('vandCatPointId', '00000000-0000-0000-0000-000000000000');",
+                  "pm.variables.set('vandInstallationId', '00000000-0000-0000-0000-000000000000');",
+                  "pm.variables.set('vandCategoryId', '00000000-0000-0000-0000-000000000000');",
+                  "pm.variables.set('vandControlPointId', '00000000-0000-0000-0000-000000000000');",
                   "pm.sendRequest({",
                   "  url: pm.variables.get('baseUrl') + '/api/reference-data',",
                   "  method: 'GET',",
                   "  header: { 'Authorization': 'Bearer ' + pm.variables.get('authToken') }",
                   "}, function (err, res) {",
                   "  if (err || res.code !== 200) {",
-                  "    console.log('Could not fetch reference data — using auto-populate. Error: ' + (err || res.code));",
+                  "    console.log('Could not fetch reference data for job installation IDs. Error: ' + (err || res.code));",
                   "    return;",
                   "  }",
                   "  try {",
-                  "    var json = res.json().installationTypeDefinitions;",
+                  "    var json = res.json().installationTypes;",
                   "    var vand = json.find(function(d) { return d.name.toLowerCase() === 'vandinstallation'; });",
                   "    if (vand && vand.categories.length > 0) {",
-                  "      pm.variables.set('vandCatId', vand.categories[0].id);",
+                  "      pm.variables.set('vandInstallationId', vand.id);",
+                  "      pm.variables.set('vandCategoryId', vand.categories[0].id);",
                   "      if (vand.categories[0].controlPoints.length > 0)",
-                  "        pm.variables.set('vandCatPointId', vand.categories[0].controlPoints[0].id);",
+                  "        pm.variables.set('vandControlPointId', vand.categories[0].controlPoints[0].id);",
                   "    }",
                   "  } catch(e) { console.log('Failed to parse reference data: ' + e); }",
                   "});"
@@ -1076,13 +1084,13 @@
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
                   "const internalFields = ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'];",
-                  "pm.test('job view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "pm.test('job summary view model hides internal timestamps', function () { internalFields.forEach(field => pm.expect(json).to.not.have.property(field)); });",
                   "pm.test('job view model marks active report', function () { pm.expect(json.softDeleted).to.eql(false); });",
                   "pm.collectionVariables.set('jobId', json.id);",
                   "pm.test('customer email echoed', function () { pm.expect(json.customer.email).to.eql(pm.variables.get('customerEmail')); });",
-                  "pm.test('installation types have auto-populated categories and control points', function () {",
-                  "  pm.expect(json.installationTypes.length).to.be.above(0);",
-                  "  json.installationTypes.forEach(it => {",
+                  "pm.test('installation types include selected categories and control points', function () {",
+                  "  pm.expect(json.work.installationTypes.length).to.be.above(0);",
+                  "  json.work.installationTypes.forEach(it => {",
                   "    pm.expect(it.categories).to.be.an('array').that.is.not.empty;",
                   "    it.categories.forEach(cat => {",
                   "      pm.expect(cat.id).to.be.a('string').and.not.empty;",
@@ -1374,7 +1382,7 @@
                 "{{jobId}}"
               ]
             },
-            "description": "Updates job fields. Replaces installation types and auto-populates control points from definitions. Omitting a nested block leaves it unchanged.",
+            "description": "Updates job fields. Replaces installation selections when work.installationTypes is supplied. Omitting a nested block leaves it unchanged.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"customer\": {\n    \"email\": \"opdateret-kunde@example.com\"\n  },\n  \"work\": {\n    \"remarks\": \"Opdateret fra Postman.\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"observations\": {\n    \"technicalObservations\": \"Opdateret teknisk observation.\"\n  }\n}",
@@ -1753,8 +1761,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/jobs/?customerNameSearch=test",
-              "host": [ "{{baseUrl}}" ],
-              "path": [ "api", "jobs" ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs"
+              ],
               "query": [
                 {
                   "key": "customerNameSearch",
@@ -1793,8 +1806,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/reference-data",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "reference-data"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reference-data"
+              ]
             },
             "description": "Returns installation type definitions (with category/control-point hierarchy), work kinds, and closure flags. Cached publicly with 24h TTL and ETag."
           },
@@ -1840,8 +1858,13 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/reference-data",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "reference-data"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reference-data"
+              ]
             },
             "description": "Revalidates cached reference data with ETag and expects 304 when unchanged."
           },
@@ -1870,8 +1893,15 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/worksheets/jobs/{{jobId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "worksheets", "jobs", "{{jobId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "worksheets",
+                "jobs",
+                "{{jobId}}"
+              ]
             },
             "description": "Lists all worksheets for a given job."
           },
@@ -1904,8 +1934,15 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/worksheets/jobs/{{jobId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "worksheets", "jobs", "{{jobId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "worksheets",
+                "jobs",
+                "{{jobId}}"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1960,8 +1997,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/worksheets/{{worksheetId}}/jobs/{{jobId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "worksheets", "{{worksheetId}}", "jobs", "{{jobId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "worksheets",
+                "{{worksheetId}}",
+                "jobs",
+                "{{jobId}}"
+              ]
             },
             "description": "Deletes a worksheet entry by worksheet ID and job ID."
           },

@@ -16,7 +16,7 @@ public static class JobEndpoints
         group.MapPost("/", async (CreateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.CreateAsync(request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapGet("/", async (JobStatus? status,
@@ -48,16 +48,13 @@ public static class JobEndpoints
         group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetSingleJobAsync(id, cancellationToken);
-            return CachedOk(result, httpContext,
-                report => HttpCacheHeaders.JobReportEtag(report),
-                JobViewModelBuilder.ToSummary);
+            return CachedOk(result, httpContext, report => HttpCacheHeaders.JobReportEtag(report), JobViewModelBuilder.ToSummary);
         });
 
         group.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetHistoryAsync(id, limit, offset, cancellationToken);
-            return CachedOk(result, httpContext,
-                events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
+            return CachedOk(result, httpContext, events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
         });
 
         group.MapGet("/{id:guid}/report/pdf", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
@@ -73,31 +70,31 @@ public static class JobEndpoints
         group.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.UpdateAsync(id, request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         });
 
         group.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.ChangeStatusAsync(id, request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         });
 
         group.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/{id:guid}/restore/deletion", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.RestoreDeletionAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
         {
             var result = await jobService.AssignAsync(id, request.UserIds, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToJob);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         return app;

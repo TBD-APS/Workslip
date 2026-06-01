@@ -29,7 +29,8 @@ namespace Workslip.Infrastructure.Schema
                     .RuleFor(x => x.OrganizationId, f => organizationId)
                     .RuleFor(x => x.Name, f => name)
                     .RuleFor(x => x.SortOrder, f => index + 1)
-                    .RuleFor(x => x.InstallationControlPoints, f => [])
+
+                    .RuleFor(x => x.JobReportInstallationCategories, f => [])
                     .Generate())
             .ToList();
 
@@ -45,9 +46,8 @@ namespace Workslip.Infrastructure.Schema
                         .RuleFor(x => x.Name, f => name)
                         .RuleFor(x => x.Description, f => null)
                         .RuleFor(x => x.IsActive, f => true)
-                        .RuleFor(x => x.IsChecked, f => f.Random.Bool(0.25f))
                         .RuleFor(x => x.SortOrder, f => index + 1)
-                        .RuleFor(x => x.InstallationTypes, f => [])
+                        .RuleFor(x => x.JobReportInstallationControlPoints, f => [])
                         .Generate()).ToList();
 
             var categoriesByName = controlCategories.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
@@ -95,90 +95,70 @@ namespace Workslip.Infrastructure.Schema
 
             context.InstallationTypeDefinitionMappings.AddRange(definitionMappings);
 
-            var installationTypeNames = new[]
-            {
-                "Gasinstallation",
-                "Vandinstallation",
-                "Afløbsinstallation",
-                "Varmeinstallation"
-            };
-
             var random = new Faker();
-            var installationTypes = new List<InstallationTypeRow>();
+            var selectedInstallations = new List<JobReportInstallationRow>();
+            var selectedCategories = new List<JobReportInstallationCategoryRow>();
+            var selectedControlPoints = new List<JobReportInstallationControlPointRow>();
 
             foreach (var job in jobReports)
             {
-                var selectedInstallationTypeNames = random
-                    .PickRandom(installationTypeNames, random.Random.Int(1, 3))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                var selectedDefinitionNames = definitionsByName.Keys
+                    .OrderBy(_ => random.Random.Int())
+                    .Take(random.Random.Int(1, 3))
                     .ToArray();
 
-                var sortOrder = 1;
-
-                foreach (var name in selectedInstallationTypeNames)
+                var installationSortOrder = 1;
+                foreach (var definitionName in selectedDefinitionNames)
                 {
-                    var installationType = new AutoFaker<InstallationTypeRow>()
-                        .RuleFor(x => x.Id, f => f.Random.Guid())
-                        .RuleFor(x => x.OrganizationId, f => job.OrganizationId)
-                        .RuleFor(x => x.JobReportId, f => job.Id)
-                        .RuleFor(x => x.JobReport, f => null!)
-                        .RuleFor(x => x.Name, f => name)
-                        .RuleFor(x => x.Description, f => null)
-                        .RuleFor(x => x.IsActive, f => true)
-                        .RuleFor(x => x.SortOrder, f => sortOrder++)
-                        .RuleFor(x => x.CreatedAt, f => f.Date.PastOffset(1))
-                        .RuleFor(x => x.ControlPoints, f => [])
-                        .Generate();
-
-                    installationTypes.Add(installationType);
-                }
-            }
-
-            var installationControlPoints = new List<InstallationControlPointRow>();
-
-            var existingInstallationControlPoints = new HashSet<(Guid InstallationTypeId, Guid ControlCategoryId, Guid ControlPointId)>();
-
-
-
-            foreach (var installationType in installationTypes)
-            {
-                var matchingTemplates = templates
-                    .Where(x => string.Equals(
-                        x.InstallationTypeName,
-                        installationType.Name,
-                        StringComparison.OrdinalIgnoreCase))
-                    .ToArray();
-
-                foreach (var template in matchingTemplates)
-                {
-                    var category = categoriesByName[template.CategoryName];
-                    var controlPoint = controlPointsByName[template.ControlPointName];
-
-                    var key = (installationType.Id, category.Id, controlPoint.Id);
-                    if (!existingInstallationControlPoints.Add(key))
+                    var definition = definitionsByName[definitionName];
+                    var selectedInstallation = new JobReportInstallationRow
                     {
-                        continue;
+                        Id = Guid.NewGuid(),
+                        OrganizationId = job.OrganizationId,
+                        JobReportId = job.Id,
+                        InstallationTypeDefinitionId = definition.Id,
+                        SortOrder = installationSortOrder++
+                    };
+                    selectedInstallations.Add(selectedInstallation);
+
+                    var mappingsForDefinition = definitionMappings
+                        .Where(mapping => mapping.InstallationTypeDefinitionId == definition.Id)
+                        .GroupBy(mapping => mapping.ControlCategoryId)
+                        .ToArray();
+
+                    var categorySortOrder = 1;
+                    foreach (var categoryGroup in mappingsForDefinition)
+                    {
+                    var selectedCategory = new JobReportInstallationCategoryRow
+                    {
+                        Id = Guid.NewGuid(),
+                        JobReportInstallationId = selectedInstallation.Id,
+                        ControlCategoryId = categoryGroup.Key,
+                        SortOrder = categorySortOrder++,
+                        IsIrrelevant = random.Random.Bool(0.1f),
+                    };
+                        selectedCategories.Add(selectedCategory);
+
+                        foreach (var mapping in categoryGroup.OrderBy(mapping => mapping.SortOrder))
+                        {
+                            selectedControlPoints.Add(new JobReportInstallationControlPointRow
+                            {
+                                JobReportInstallationCategoryId = selectedCategory.Id,
+                                ControlPointId = mapping.ControlPointId,
+                                SortOrder = mapping.SortOrder,
+                                IsRequired = mapping.IsRequired,
+                                IsChecked = random.Random.Bool(0.25f)
+                            });
+                        }
                     }
-                    var link = new AutoFaker<InstallationControlPointRow>()
-                        .RuleFor(x => x.InstallationTypeId, f => installationType.Id)
-                        .RuleFor(x => x.InstallationType, f => null!)
-                        .RuleFor(x => x.ControlCategoryId, f => category.Id)
-                        .RuleFor(x => x.ControlCategory, f => null!)
-                        .RuleFor(x => x.ControlPointId, f => controlPoint.Id)
-                        .RuleFor(x => x.ControlPoint, f => null!)
-                        .RuleFor(x => x.SortOrder, f => template.Order)
-                        .RuleFor(x => x.IsRequired, f => true)
-                        .Generate();
-
-
-                    installationControlPoints.Add(link);
                 }
             }
 
             context.ControlPointRow.AddRange(controlPoints);
             context.ControlCategoryRow.AddRange(controlCategories);
-            context.InstallationTypeRow.AddRange(installationTypes);
-            context.InstallationControlPointsRow.AddRange(installationControlPoints);
+            context.JobReportInstallations.AddRange(selectedInstallations);
+            context.JobReportInstallationCategories.AddRange(selectedCategories);
+            context.JobReportInstallationControlPoints.AddRange(selectedControlPoints);
         }
         public static List<ControlPointTemplate> GetControlCategories()
         {

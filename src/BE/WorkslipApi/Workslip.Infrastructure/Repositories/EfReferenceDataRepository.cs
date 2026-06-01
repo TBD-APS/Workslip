@@ -25,7 +25,7 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
         _cache = cache;
     }
 
-    public async Task<ReferenceDataResponse> GetAsync(Guid organizationId, CancellationToken cancellationToken) =>
+    public async Task<ReferenceDataResponse> GetAsync(Guid? organizationId, CancellationToken cancellationToken) =>
         await _cache.GetOrCreateAsync(
             $"reference-data:{organizationId:N}",
             async token => await _retryPolicy.ExecuteAsync("reference-data.get", ct => GetCoreAsync(organizationId, ct), token),
@@ -33,7 +33,7 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
             tags: ["reference-data", $"org:{organizationId:N}"],
             cancellationToken: cancellationToken);
 
-    private async Task<ReferenceDataResponse> GetCoreAsync(Guid organizationId, CancellationToken cancellationToken)
+    private async Task<ReferenceDataResponse> GetCoreAsync(Guid? organizationId, CancellationToken cancellationToken)
     {
         var definitions = await _dbContext.InstallationTypeDefinitions
             .AsNoTracking()
@@ -65,14 +65,14 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
             .AsNoTracking()
             .Where(w => w.IsActive)
             .OrderBy(w => w.SortOrder)
-            .Select(w => new WorkKindResponse(w.Id, w.Label, w.RequiresCustomWorkKind, w.SortOrder))
+            .Select(w => new WorkKindResponse(w.Id, w.NormalizedLabel, w.Label, w.RequiresCustomWorkKind, w.SortOrder))
             .ToArrayAsync(cancellationToken);
 
         var closureFlags = await _dbContext.JobClosureFlags
             .AsNoTracking()
             .Where(f => f.IsActive)
             .OrderBy(f => f.SortOrder)
-            .Select(f => new ClosureFlagResponse(f.Id, f.Label, f.IsExclusive, f.SortOrder))
+            .Select(f => new ClosureFlagResponse(f.Id, f.NormalizedLabel, f.Label, f.IsExclusive, f.SortOrder))
             .ToArrayAsync(cancellationToken);
 
         return new ReferenceDataResponse(definitions, workKinds, closureFlags);

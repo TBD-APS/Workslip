@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Workslip.Domain;
+using Workslip.Domain.Models;
 
 namespace Workslip.Application.Jobs;
 
@@ -54,7 +55,8 @@ public sealed record InstallationTypeCategoryResponse(
     Guid Id,
     string Name,
     int SortOrder,
-    IReadOnlyList<InstallationTypeControlPointResponse> ControlPoints);
+    IReadOnlyList<InstallationTypeControlPointResponse> ControlPoints,
+    bool IsIrrelevant = false);
 
 public sealed record InstallationTypeResponse(
     Guid Id,
@@ -64,16 +66,17 @@ public sealed record InstallationTypeResponse(
     IReadOnlyList<InstallationTypeCategoryResponse> Categories);
 
 public sealed record CreateInstallationTypeControlPointRequest(
-    Guid PointId,
+    Guid Id,
     int? SortOrder,
     bool? IsRequired);
 
 public sealed record CreateInstallationTypeCategoryRequest(
-    Guid CategoryId,
-    IReadOnlyList<CreateInstallationTypeControlPointRequest>? ControlPoints);
+    Guid Id,
+    IReadOnlyList<CreateInstallationTypeControlPointRequest>? ControlPoints,
+    bool? IsIrrelevant = null);
 
 public sealed record CreateInstallationTypeRequest(
-    string Name,
+    Guid Id,
     IReadOnlyList<CreateInstallationTypeCategoryRequest>? Categories);
 
 public sealed record CreateJobWorkRequest(
@@ -115,6 +118,14 @@ public sealed record CustomerInfo(
     string? ContactPerson,
     string? Phone);
 
+public sealed record JobWorkKindResponse(
+    Guid Id,
+    string NormalizedLabel,
+    string Label,
+    bool RequiresCustomWorkKind,
+    int SortOrder,
+    string? CustomWorkKind);
+
 public sealed record JobListItemResponse(
     Guid Id,
     Guid OrganizationId,
@@ -123,8 +134,7 @@ public sealed record JobListItemResponse(
     JobStatus Status,
     DateOnly? ReportDate,
     IReadOnlyList<string> InstallationTypes,
-    string? WorkKind,
-    string? CustomWorkKind,
+    JobWorkKindResponse? WorkKind,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
@@ -144,10 +154,9 @@ public sealed record JobReportResponse(
     string? CustomerObservations,
     string? TechnicalObservations,
     IReadOnlyList<InstallationTypeResponse> InstallationTypes,
-    string? WorkKind,
-    string? CustomWorkKind,
+    JobWorkKindResponse? WorkKind,
     string? Remarks,
-    IReadOnlyList<string> ClosureFlags,
+    IReadOnlyList<ClosureFlagResponse> ClosureFlags,
     IReadOnlyList<JobLinkInfoResponse> Links,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
@@ -210,15 +219,14 @@ public sealed record JobReportSummaryResponse(
     DateTimeOffset? DeletionScheduledAt);
 
 public sealed record JobReportSummaryWorkResponse(
-    string? WorkKind,
-    string? WorkKindLabel,
-    string? CustomWorkKind,
+    JobWorkKindResponse? WorkKind,
     IReadOnlyList<InstallationTypeResponse> InstallationTypes,
     IReadOnlyList<JobReportSummaryClosureFlagResponse> ClosureFlags,
     string? Remarks);
 
 public sealed record JobReportSummaryClosureFlagResponse(
-    string Id,
+    Guid Id,
+    string NormalizedLabel,
     string Label);
 
 public sealed record JobReportSummaryObservationResponse(

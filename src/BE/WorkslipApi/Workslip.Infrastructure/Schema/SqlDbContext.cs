@@ -14,6 +14,7 @@ public sealed class SqlDbContext : DbContext
     public DbSet<CustomerRow> Customers => Set<CustomerRow>();
     public DbSet<JobWorkKindRow> JobWorkKinds => Set<JobWorkKindRow>();
     public DbSet<JobClosureFlagRow> JobClosureFlags => Set<JobClosureFlagRow>();
+    public DbSet<JobReportClosureFlagRow> JobReportClosureFlags => Set<JobReportClosureFlagRow>();
     public DbSet<JobReportRow> JobReports => Set<JobReportRow>();
     public DbSet<JobAssignmentRow> JobAssignments => Set<JobAssignmentRow>();
     public DbSet<JobReportLinkRow> JobReportLinks => Set<JobReportLinkRow>();
@@ -21,10 +22,11 @@ public sealed class SqlDbContext : DbContext
     public DbSet<InviteTokenRow> InviteTokens => Set<InviteTokenRow>();
     public DbSet<WorksheetRow> Worksheets => Set<WorksheetRow>();
 
-    public DbSet<InstallationTypeRow> InstallationTypeRow => Set<InstallationTypeRow>();
+    public DbSet<JobReportInstallationRow> JobReportInstallations => Set<JobReportInstallationRow>();
+    public DbSet<JobReportInstallationCategoryRow> JobReportInstallationCategories => Set<JobReportInstallationCategoryRow>();
+    public DbSet<JobReportInstallationControlPointRow> JobReportInstallationControlPoints => Set<JobReportInstallationControlPointRow>();
     public DbSet<ControlPointRow> ControlPointRow => Set<ControlPointRow>();
     public DbSet<ControlCategoryRow> ControlCategoryRow => Set<ControlCategoryRow>();
-    public DbSet<InstallationControlPointRow> InstallationControlPointsRow => Set<InstallationControlPointRow>();
     public DbSet<InstallationTypeDefinitionRow> InstallationTypeDefinitions => Set<InstallationTypeDefinitionRow>();
     public DbSet<InstallationTypeDefinitionMappingRow> InstallationTypeDefinitionMappings => Set<InstallationTypeDefinitionMappingRow>();
 
@@ -37,16 +39,18 @@ public sealed class SqlDbContext : DbContext
         ConfigureCustomers(modelBuilder);
         ConfigureJobWorkKinds(modelBuilder);
         ConfigureJobClosureFlags(modelBuilder);
+        ConfigureJobReportClosureFlags(modelBuilder);
         ConfigureJobReports(modelBuilder);
         ConfigureJobAssignments(modelBuilder);
         ConfigureJobReportLinks(modelBuilder);
         ConfigureJobEvents(modelBuilder);
         ConfigureInviteTokens(modelBuilder);
         ConfigureWorksheets(modelBuilder);
-        ConfigureInstallationTypes(modelBuilder);
+        ConfigureJobReportInstallations(modelBuilder);
         ConfigureControlCategory(modelBuilder);
         ConfigureControlPoint(modelBuilder);
-        ConfigureInstallationControlPoint(modelBuilder);
+        ConfigureJobReportInstallationCategories(modelBuilder);
+        ConfigureJobReportInstallationControlPoints(modelBuilder);
         ConfigureInstallationTypeDefinitions(modelBuilder);
         ConfigureInstallationTypeDefinitionMappings(modelBuilder);
     }
@@ -161,7 +165,7 @@ public sealed class SqlDbContext : DbContext
         entity.ToTable("JobWorkKinds");
         entity.HasKey(e => e.Id);
 
-        entity.Property(e => e.Id)
+        entity.Property(e => e.NormalizedLabel)
             .HasMaxLength(80);
 
         entity.Property(e => e.Label)
@@ -173,10 +177,6 @@ public sealed class SqlDbContext : DbContext
 
         entity.Property(e => e.SortOrder)
             .HasDefaultValue(0);
-
-        entity.Property(e => e.UpdatedAt)
-            .HasColumnType("datetimeoffset")
-            .HasDefaultValueSql("sysutcdatetime()");
 
         entity.HasIndex(e => e.Label)
             .IsUnique()
@@ -190,7 +190,7 @@ public sealed class SqlDbContext : DbContext
         entity.ToTable("JobClosureFlags");
         entity.HasKey(e => e.Id);
 
-        entity.Property(e => e.Id)
+        entity.Property(e => e.NormalizedLabel)
             .HasMaxLength(80);
 
         entity.Property(e => e.Label)
@@ -210,6 +210,35 @@ public sealed class SqlDbContext : DbContext
         entity.HasIndex(e => e.Label)
             .IsUnique()
             .HasDatabaseName("UX_JobClosureFlags_Label");
+    }
+
+    private static void ConfigureJobReportClosureFlags(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<JobReportClosureFlagRow>();
+
+        entity.ToTable("JobReportClosureFlags");
+        entity.HasKey(e => e.Id);
+
+        entity.Property(e => e.SortOrder).HasDefaultValue(0);
+
+        entity.HasOne(e => e.ClosureFlag)
+            .WithMany()
+            .HasForeignKey(e => e.ClosureFlagId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasOne(e => e.JobReport)
+            .WithMany(j => j.ClosureFlags)
+            .HasForeignKey(e => e.JobReportId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne<OrganizationRow>()
+            .WithMany()
+            .HasForeignKey(e => e.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasIndex(e => new { e.JobReportId, e.ClosureFlagId })
+            .IsUnique()
+            .HasDatabaseName("UX_JobReportClosureFlags_Report_Flag");
     }
 
     private static void ConfigureJobReports(ModelBuilder modelBuilder)
@@ -234,14 +263,8 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.CustomerObservations).HasColumnType("nvarchar(max)");
         entity.Property(e => e.TechnicalObservations).HasColumnType("nvarchar(max)");
 
-        entity.Property(e => e.WorkKind).HasMaxLength(80);
-        entity.Property(e => e.CustomWorkKind).HasMaxLength(160);
+        entity.Property(e => e.CustomWorkKind).HasMaxLength(250);
         entity.Property(e => e.Remarks).HasColumnType("nvarchar(max)");
-
-        entity.Property(e => e.ClosureFlagsJson)
-            .HasColumnType("nvarchar(max)")
-            .HasDefaultValueSql("'[]'")
-            .IsRequired();
 
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.UpdatedAt).HasColumnType("datetimeoffset");
@@ -253,18 +276,15 @@ public sealed class SqlDbContext : DbContext
             .HasForeignKey(e => e.OrganizationId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        entity.HasOne<CustomerRow>()
+        entity.HasOne(x => x.CustomerRow)
         .WithMany()
         .HasForeignKey(e => e.CustomerId)
         .OnDelete(DeleteBehavior.Restrict);
 
-        entity.HasOne<JobWorkKindRow>()
+        entity.HasOne(x => x.WorkKindRow)
             .WithMany()
-            .HasForeignKey(e => e.WorkKind)
+            .HasForeignKey(e => e.WorkKindId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        entity.HasAlternateKey(e => new { e.OrganizationId, e.Id })
-            .HasName("UX_JobReports_Organization_Id");
 
         entity.HasIndex(e => new { e.OrganizationId, e.Status, e.UpdatedAt })
             .IsDescending(false, false, true)
@@ -490,64 +510,32 @@ public sealed class SqlDbContext : DbContext
             .HasDatabaseName("IX_Worksheets_WorkDate");
     }
 
-    private static void ConfigureInstallationTypes(ModelBuilder modelBuilder)
+    private static void ConfigureJobReportInstallations(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<InstallationTypeRow>(entity =>
-        {
-            entity.ToTable("InstallationTypes", "dbo");
+        var entity = modelBuilder.Entity<JobReportInstallationRow>();
 
-            entity.HasKey(x => x.Id);
+        entity.ToTable("JobReportInstallations", "dbo");
+        entity.HasKey(x => x.Id);
 
-            entity.Property(x => x.Name)
-                .HasMaxLength(200)
-                .IsRequired();
+        entity.Property(x => x.SortOrder)
+            .HasDefaultValue(0);
 
-            entity.Property(x => x.Description)
-                .HasMaxLength(1000);
+        entity.HasOne(x => x.JobReport)
+            .WithMany(x => x.Installations)
+            .HasForeignKey(x => new { x.OrganizationId, x.JobReportId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id })
+            .OnDelete(DeleteBehavior.Cascade);
 
-            entity.Property(x => x.IsActive)
-                .HasDefaultValue(true);
+        entity.HasOne(x => x.InstallationTypeDefinition)
+            .WithMany(x => x.JobReportInstallations)
+            .HasForeignKey(x => new { x.OrganizationId, x.InstallationTypeDefinitionId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
 
-            entity.Property(x => x.SortOrder)
-                .HasDefaultValue(0);
+        entity.HasIndex(x => new { x.OrganizationId, x.JobReportId, x.InstallationTypeDefinitionId })
+            .IsUnique();
 
-            entity.Property(x => x.CreatedAt)
-                .HasColumnType("datetimeoffset")
-                .HasDefaultValueSql("sysutcdatetime()");
-
-            entity.HasOne<OrganizationRow>()
-                .WithMany()
-                .HasForeignKey(x => x.OrganizationId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.JobReport)
-                .WithMany(x => x.InstallationTypes)
-                .HasForeignKey(x => new
-                {
-                    x.OrganizationId,
-                    x.JobReportId
-                })
-                .HasPrincipalKey(x => new
-                {
-                    x.OrganizationId,
-                    x.Id
-                })
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasIndex(x => new
-            {
-                x.OrganizationId,
-                x.JobReportId,
-                x.Name
-            }).IsUnique();
-
-            entity.HasIndex(x => new
-            {
-                x.OrganizationId,
-                x.JobReportId,
-                x.SortOrder
-            });
-        });
+        entity.HasIndex(x => new { x.OrganizationId, x.JobReportId, x.SortOrder });
     }
     private static void ConfigureControlCategory(ModelBuilder modelBuilder)
     {
@@ -596,9 +584,6 @@ public sealed class SqlDbContext : DbContext
             entity.Property(x => x.IsActive)
                 .HasDefaultValue(true);
 
-            entity.Property(x => x.IsChecked)
-                .HasDefaultValue(false);
-
             entity.Property(x => x.SortOrder)
                 .HasDefaultValue(0);
 
@@ -610,53 +595,59 @@ public sealed class SqlDbContext : DbContext
         });
     }
 
-    private static void ConfigureInstallationControlPoint(ModelBuilder modelBuilder)
+    private static void ConfigureJobReportInstallationCategories(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<InstallationControlPointRow>(entity =>
-        {
-            entity.ToTable("InstallationControlPoints", "dbo");
+        var entity = modelBuilder.Entity<JobReportInstallationCategoryRow>();
 
-            entity.HasKey(x => new
-            {
-                x.InstallationTypeId,
-                x.ControlCategoryId,
-                x.ControlPointId
-            });
+        entity.ToTable("JobReportInstallationCategories", "dbo");
+        entity.HasKey(x => x.Id);
+        entity.Property(x => x.SortOrder)
+            .HasDefaultValue(0);
+        entity.Property(x => x.IsIrrelevant)
+            .HasDefaultValue(false);
+        entity.HasOne(x => x.JobReportInstallation)
+            .WithMany(x => x.Categories)
+            .HasForeignKey(x => x.JobReportInstallationId)
+            .OnDelete(DeleteBehavior.Cascade);
 
-            entity.Property(x => x.SortOrder)
-                .HasDefaultValue(0);
+        entity.HasOne(x => x.ControlCategory)
+            .WithMany(x => x.JobReportInstallationCategories)
+            .HasForeignKey(x => x.ControlCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-            entity.Property(x => x.IsRequired)
-                .HasDefaultValue(false);
+        entity.HasIndex(x => new { x.JobReportInstallationId, x.ControlCategoryId })
+            .IsUnique();
 
-            entity.HasOne(x => x.InstallationType)
-                .WithMany(x => x.ControlPoints)
-                .HasForeignKey(x => x.InstallationTypeId)
-                .OnDelete(DeleteBehavior.Cascade);
+        entity.HasIndex(x => new { x.JobReportInstallationId, x.SortOrder });
+    }
 
-            entity.HasOne(x => x.ControlCategory)
-                .WithMany(x => x.InstallationControlPoints)
-                .HasForeignKey(x => x.ControlCategoryId)
-                .OnDelete(DeleteBehavior.Restrict);
+    private static void ConfigureJobReportInstallationControlPoints(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<JobReportInstallationControlPointRow>();
 
-            entity.HasOne(x => x.ControlPoint)
-                .WithMany(x => x.InstallationTypes)
-                .HasForeignKey(x => x.ControlPointId)
-                .OnDelete(DeleteBehavior.Restrict);
+        entity.ToTable("JobReportInstallationControlPoints", "dbo");
+        entity.HasKey(x => new { x.JobReportInstallationCategoryId, x.ControlPointId });
 
-            entity.HasIndex(x => new
-            {
-                x.InstallationTypeId,
-                x.ControlCategoryId,
-                x.SortOrder
-            });
+        entity.Property(x => x.SortOrder)
+            .HasDefaultValue(0);
 
-            entity.HasIndex(x => new
-            {
-                x.ControlCategoryId,
-                x.ControlPointId
-            });
-        });
+        entity.Property(x => x.IsRequired)
+            .HasDefaultValue(false);
+
+        entity.Property(x => x.IsChecked)
+            .HasDefaultValue(false);
+
+        entity.HasOne(x => x.JobReportInstallationCategory)
+            .WithMany(x => x.ControlPoints)
+            .HasForeignKey(x => x.JobReportInstallationCategoryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(x => x.ControlPoint)
+            .WithMany(x => x.JobReportInstallationControlPoints)
+            .HasForeignKey(x => x.ControlPointId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasIndex(x => new { x.JobReportInstallationCategoryId, x.SortOrder });
     }
 
     private static void ConfigureInstallationTypeDefinitions(ModelBuilder modelBuilder)
@@ -677,6 +668,8 @@ public sealed class SqlDbContext : DbContext
             .WithMany()
             .HasForeignKey(e => e.OrganizationId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasAlternateKey(e => new { e.OrganizationId, e.Id });
 
         entity.HasIndex(e => new { e.OrganizationId, e.Name })
             .IsUnique();

@@ -8,5 +8,5 @@ public sealed class ControlCategoryRow
     public string Name { get; set; } = string.Empty;
     public int SortOrder { get; set; }
 
-    public ICollection<InstallationControlPointRow> InstallationControlPoints { get; set; } = [];
+    public ICollection<JobReportInstallationCategoryRow> JobReportInstallationCategories { get; set; } = [];
 }
