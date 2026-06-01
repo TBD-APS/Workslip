@@ -73,7 +73,7 @@ public sealed record CreateInstallationTypeCategoryRequest(
     IReadOnlyList<CreateInstallationTypeControlPointRequest>? ControlPoints);
 
 public sealed record CreateInstallationTypeRequest(
-    string Name,
+    Guid Id,
     IReadOnlyList<CreateInstallationTypeCategoryRequest>? Categories);
 
 public sealed record CreateJobWorkRequest(

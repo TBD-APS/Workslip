@@ -12,5 +12,5 @@ public sealed class ControlPointRow
     public bool IsChecked { get; set; }
     public int SortOrder { get; set; }
 
-    public ICollection<InstallationControlPointRow> InstallationTypes { get; set; } = [];
+    public ICollection<JobReportInstallationControlPointRow> JobReportInstallationControlPoints { get; set; } = [];
 }

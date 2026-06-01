@@ -15,6 +15,7 @@ public sealed class JobService(
     IAssignmentRepository assignmentRepository,
     IJobLinkRepository linkRepository,
     IJobTaxonomyRepository taxonomyRepository,
+    IReferenceDataRepository referenceDataRepository,
     IUserRepository userRepository,
     HybridCache cache,
     IValidator<CreateJobRequest> createJobValidator,
@@ -67,6 +68,19 @@ public sealed class JobService(
                 ValidationFields(taxonomyErrors));
 
             return Result<JobReportSummaryResponse>.Invalid(taxonomyErrors);
+        }
+
+        var installationSelectionErrors = await ValidateInstallationSelectionsAsync(
+            organizationId.Value,
+            request.Work?.InstallationTypes,
+            cancellationToken);
+        if (installationSelectionErrors.Count != 0)
+        {
+            logger.LogWarning("Job create installation selection validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
+                organizationId.Value,
+                ValidationFields(installationSelectionErrors));
+
+            return Result<JobReportSummaryResponse>.Invalid(installationSelectionErrors);
         }
 
         var actorId = currentUser.UserId;
@@ -221,6 +235,19 @@ public sealed class JobService(
         if (organizationId is null)
         {
             return Result<JobReportSummaryResponse>.Unauthorized();
+        }
+
+        var installationSelectionErrors = await ValidateInstallationSelectionsAsync(
+            organizationId.Value,
+            request.Work?.InstallationTypes,
+            cancellationToken);
+        if (installationSelectionErrors.Count != 0)
+        {
+            logger.LogWarning("Job update installation selection validation failed. JobId: {JobId}. Fields: {ValidationFields}",
+                id,
+                ValidationFields(installationSelectionErrors));
+
+            return Result<JobReportSummaryResponse>.Invalid(installationSelectionErrors);
         }
 
         var updated = await repository.UpdateAsync(id, organizationId.Value, request, cancellationToken);
@@ -494,6 +521,20 @@ public sealed class JobService(
     {
         var taxonomy = await taxonomyRepository.GetAsync(cancellationToken);
         return ValidateDraftTaxonomy(workKind, customWorkKind, closureFlags, taxonomy);
+    }
+
+    private async Task<List<ValidationError>> ValidateInstallationSelectionsAsync(
+        Guid organizationId,
+        IReadOnlyList<CreateInstallationTypeRequest>? installationTypes,
+        CancellationToken cancellationToken)
+    {
+        if (installationTypes is null || installationTypes.Count == 0)
+        {
+            return [];
+        }
+
+        var referenceData = await referenceDataRepository.GetAsync(organizationId, cancellationToken);
+        return JobInstallationSelectionValidator.Validate(installationTypes, referenceData);
     }
 
     private static List<ValidationError> ValidateDraftTaxonomy(

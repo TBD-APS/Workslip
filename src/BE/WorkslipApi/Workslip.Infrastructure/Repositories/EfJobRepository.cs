@@ -68,61 +68,7 @@ public sealed class EfJobRepository : IJobRepository
 
         if (request.Work?.InstallationTypes?.Count > 0)
         {
-            var definitions = await _dbContext.InstallationTypeDefinitions
-                .AsNoTracking()
-                .Where(d => d.OrganizationId == organizationId)
-                .Include(d => d.Mappings)
-                .ToListAsync(cancellationToken);
-            var defsByName = definitions.ToDictionary(d => d.Name, StringComparer.OrdinalIgnoreCase);
-
-            foreach (var req in request.Work.InstallationTypes)
-            {
-                var installation = new InstallationTypeRow
-                {
-                    Id = Guid.NewGuid(),
-                    OrganizationId = organizationId,
-                    Name = req.Name,
-                    JobReportId = reportId,
-                    CreatedAt = now
-                };
-
-                _dbContext.InstallationTypeRow.Add(installation);
-
-                if (defsByName.TryGetValue(req.Name, out var def))
-                {
-                    foreach (var catReq in req.Categories ?? new List<CreateInstallationTypeCategoryRequest>())
-                    {
-                        var points = catReq.ControlPoints ?? [];
-                        foreach (var cpReq in points)
-                        {
-                            _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
-                            {
-                                InstallationTypeId = installation.Id,
-                                ControlCategoryId = catReq.Id,
-                                ControlPointId = cpReq.Id,
-                                SortOrder = cpReq.SortOrder ?? 0,
-                                IsRequired = cpReq.IsRequired ?? false
-                            });
-                        }
-                    }
-                }
-                else if (defsByName.TryGetValue(req.Name, out var def1))
-                {
-                    installation.SortOrder = def1.SortOrder;
-                    foreach (var mapping in def1.Mappings)
-                    {
-                        _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
-                        {
-                            InstallationTypeId = installation.Id,
-                            ControlCategoryId = mapping.ControlCategoryId,
-                            ControlPointId = mapping.ControlPointId,
-                            SortOrder = mapping.SortOrder,
-                            IsRequired = mapping.IsRequired,
-                            InstallationType = installation
-                        });
-                    }
-                }
-            }
+            await AddSelectedInstallationsAsync(organizationId, reportId, request.Work.InstallationTypes, now, cancellationToken);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -183,13 +129,14 @@ public sealed class EfJobRepository : IJobRepository
         var assignedUsersByReport = await _assignmentRepo.GetAssignedUsersByReportAsync(query.OrganizationId, reportIds, cancellationToken);
         var totalHoursByJob = await GetTotalHoursByJobAsync(reportIds, cancellationToken);
 
-        var installationTypesByReport = await _dbContext.InstallationTypeRow
+        var installationTypesByReport = await _dbContext.JobReportInstallations
             .AsNoTracking()
             .Where(it => it.OrganizationId == query.OrganizationId && reportIds.Contains(it.JobReportId))
+            .Include(it => it.InstallationTypeDefinition)
             .GroupBy(it => it.JobReportId)
             .ToDictionaryAsync(
                 g => g.Key,
-                g => g.OrderBy(it => it.SortOrder).Select(it => it.Name).ToArray() as IReadOnlyList<string>,
+                g => g.OrderBy(it => it.SortOrder).Select(it => it.InstallationTypeDefinition.Name).ToArray() as IReadOnlyList<string>,
                 cancellationToken);
 
         return projected.Select(x =>
@@ -220,12 +167,15 @@ public sealed class EfJobRepository : IJobRepository
 
         var row = await _dbContext.JobReports
             .AsNoTracking()
-            .Include(r => r.InstallationTypes)
-                .ThenInclude(it => it.ControlPoints)
-                    .ThenInclude(cp => cp.ControlCategory)
-            .Include(r => r.InstallationTypes)
-                .ThenInclude(it => it.ControlPoints)
-                    .ThenInclude(cp => cp.ControlPoint)
+            .Include(r => r.Installations)
+                .ThenInclude(i => i.InstallationTypeDefinition)
+            .Include(r => r.Installations)
+                .ThenInclude(i => i.Categories)
+                    .ThenInclude(c => c.ControlCategory)
+            .Include(r => r.Installations)
+                .ThenInclude(i => i.Categories)
+                    .ThenInclude(c => c.ControlPoints)
+                        .ThenInclude(cp => cp.ControlPoint)
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
         if (row is null) return null;
@@ -303,66 +253,12 @@ public sealed class EfJobRepository : IJobRepository
 
         if (request.Work?.InstallationTypes is not null)
         {
-            var existingInstallations = await _dbContext.InstallationTypeRow
+            var existingInstallations = await _dbContext.JobReportInstallations
                 .Where(it => it.JobReportId == id && it.OrganizationId == organizationId)
                 .ToListAsync(cancellationToken);
-            _dbContext.InstallationTypeRow.RemoveRange(existingInstallations);
+            _dbContext.JobReportInstallations.RemoveRange(existingInstallations);
 
-            var definitions = await _dbContext.InstallationTypeDefinitions
-                .AsNoTracking()
-                .Where(d => d.OrganizationId == organizationId)
-                .Include(d => d.Mappings)
-                .ToListAsync(cancellationToken);
-            var defsByName = definitions.ToDictionary(d => d.Name, StringComparer.OrdinalIgnoreCase);
-
-            foreach (var req in request.Work.InstallationTypes.Where(i => !string.IsNullOrWhiteSpace(i.Name)))
-            {
-                var name = req.Name.Trim();
-                var it = new InstallationTypeRow
-                {
-                    Id = Guid.NewGuid(),
-                    OrganizationId = organizationId,
-                    Name = name,
-                    JobReportId = id,
-                    CreatedAt = now
-                };
-
-                _dbContext.InstallationTypeRow.Add(it);
-
-                if (req.Categories is not null && req.Categories.Count > 0)
-                {
-                    foreach (var catReq in req.Categories)
-                    {
-                        var points = catReq.ControlPoints ?? [];
-                        foreach (var cpReq in points)
-                        {
-                            _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
-                            {
-                                InstallationTypeId = it.Id,
-                                ControlCategoryId = catReq.Id,
-                                ControlPointId = cpReq.Id,
-                                SortOrder = cpReq.SortOrder ?? 0,
-                                IsRequired = cpReq.IsRequired ?? false
-                            });
-                        }
-                    }
-                }
-                else if (defsByName.TryGetValue(name, out var def))
-                {
-                    it.SortOrder = def.SortOrder;
-                    foreach (var mapping in def.Mappings.OrderBy(m => m.SortOrder))
-                    {
-                        _dbContext.InstallationControlPointsRow.Add(new InstallationControlPointRow
-                        {
-                            InstallationTypeId = it.Id,
-                            ControlCategoryId = mapping.ControlCategoryId,
-                            ControlPointId = mapping.ControlPointId,
-                            SortOrder = mapping.SortOrder,
-                            IsRequired = mapping.IsRequired
-                        });
-                    }
-                }
-            }
+            await AddSelectedInstallationsAsync(organizationId, id, request.Work.InstallationTypes, now, cancellationToken);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -528,6 +424,88 @@ public sealed class EfJobRepository : IJobRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    private async Task AddSelectedInstallationsAsync(
+        Guid organizationId,
+        Guid jobReportId,
+        IReadOnlyList<CreateInstallationTypeRequest> installationRequests,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var definitionIds = installationRequests
+            .Where(request => request is not null)
+            .Select(request => request.Id)
+            .Distinct()
+            .ToArray();
+        var definitions = await _dbContext.InstallationTypeDefinitions
+            .AsNoTracking()
+            .Where(definition => definition.OrganizationId == organizationId && definitionIds.Contains(definition.Id))
+            .Include(definition => definition.Mappings)
+            .ToDictionaryAsync(definition => definition.Id, cancellationToken);
+
+        for (var installationIndex = 0; installationIndex < installationRequests.Count; installationIndex++)
+        {
+            var installationRequest = installationRequests[installationIndex];
+            if (installationRequest is null || !definitions.TryGetValue(installationRequest.Id, out var definition))
+            {
+                continue;
+            }
+
+            var selectedInstallation = new JobReportInstallationRow
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                JobReportId = jobReportId,
+                InstallationTypeDefinitionId = installationRequest.Id,
+                SortOrder = installationIndex + 1
+            };
+
+            _dbContext.JobReportInstallations.Add(selectedInstallation);
+
+            var mappingsByPair = definition.Mappings.ToDictionary(mapping => (mapping.ControlCategoryId, mapping.ControlPointId));
+            var categories = installationRequest.Categories ?? [];
+            for (var categoryIndex = 0; categoryIndex < categories.Count; categoryIndex++)
+            {
+                var categoryRequest = categories[categoryIndex];
+                if (categoryRequest is null)
+                {
+                    continue;
+                }
+
+                var selectedCategory = new JobReportInstallationCategoryRow
+                {
+                    Id = Guid.NewGuid(),
+                    JobReportInstallationId = selectedInstallation.Id,
+                    ControlCategoryId = categoryRequest.Id,
+                    SortOrder = categoryIndex + 1,
+                    JobReportInstallation = selectedInstallation
+                };
+
+                _dbContext.JobReportInstallationCategories.Add(selectedCategory);
+
+                var controlPoints = categoryRequest.ControlPoints ?? [];
+                for (var controlPointIndex = 0; controlPointIndex < controlPoints.Count; controlPointIndex++)
+                {
+                    var controlPointRequest = controlPoints[controlPointIndex];
+                    if (controlPointRequest is null)
+                    {
+                        continue;
+                    }
+
+                    mappingsByPair.TryGetValue((categoryRequest.Id, controlPointRequest.Id), out var mapping);
+
+                    _dbContext.JobReportInstallationControlPoints.Add(new JobReportInstallationControlPointRow
+                    {
+                        JobReportInstallationCategoryId = selectedCategory.Id,
+                        ControlPointId = controlPointRequest.Id,
+                        SortOrder = controlPointRequest.SortOrder ?? mapping?.SortOrder ?? controlPointIndex + 1,
+                        IsRequired = controlPointRequest.IsRequired ?? mapping?.IsRequired ?? false,
+                        JobReportInstallationCategory = selectedCategory
+                    });
+                }
+            }
+        }
+    }
+
     private async Task<IReadOnlyList<JobLinkInfoResponse>> LoadLinksAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken)
     {
         var links = await _linkRepo.GetLinkRowsAsync(organizationId, reportId, cancellationToken);
@@ -625,18 +603,17 @@ public sealed class EfJobRepository : IJobRepository
         IReadOnlyList<WorksheetUserGroupResponse> worksheetEntries,
         decimal? totalHours = null)
     {
-        var installationTypes = row.InstallationTypes?
+        var installationTypes = row.Installations?
             .OrderBy(it => it.SortOrder)
             .Select(it =>
             {
-                var categories = it.ControlPoints?
-                    .GroupBy(cp => new { cp.ControlCategory.Id, cp.ControlCategory.Name, cp.ControlCategory.SortOrder })
-                    .OrderBy(g => g.Key.SortOrder)
-                    .Select(g => new InstallationTypeCategoryResponse(
-                        g.Key.Id,
-                        g.Key.Name,
-                        g.Key.SortOrder,
-                        g.OrderBy(cp => cp.SortOrder)
+                var categories = it.Categories?
+                    .OrderBy(category => category.SortOrder)
+                    .Select(category => new InstallationTypeCategoryResponse(
+                        category.ControlCategory.Id,
+                        category.ControlCategory.Name,
+                        category.SortOrder,
+                        category.ControlPoints.OrderBy(cp => cp.SortOrder)
                             .Select(cp => new InstallationTypeControlPointResponse(
                                 cp.ControlPoint.Id,
                                 cp.ControlPoint.Name,
@@ -647,7 +624,7 @@ public sealed class EfJobRepository : IJobRepository
                             .ToArray()))
                     .ToArray() ?? [];
 
-                return new InstallationTypeResponse(it.Id, it.Name, it.Description, it.SortOrder, categories);
+                return new InstallationTypeResponse(it.InstallationTypeDefinition.Id, it.InstallationTypeDefinition.Name, null, it.SortOrder, categories);
             })
             .ToArray() ?? [];
 

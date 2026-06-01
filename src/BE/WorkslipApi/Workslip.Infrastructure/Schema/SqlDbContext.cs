@@ -21,10 +21,11 @@ public sealed class SqlDbContext : DbContext
     public DbSet<InviteTokenRow> InviteTokens => Set<InviteTokenRow>();
     public DbSet<WorksheetRow> Worksheets => Set<WorksheetRow>();
 
-    public DbSet<InstallationTypeRow> InstallationTypeRow => Set<InstallationTypeRow>();
+    public DbSet<JobReportInstallationRow> JobReportInstallations => Set<JobReportInstallationRow>();
+    public DbSet<JobReportInstallationCategoryRow> JobReportInstallationCategories => Set<JobReportInstallationCategoryRow>();
+    public DbSet<JobReportInstallationControlPointRow> JobReportInstallationControlPoints => Set<JobReportInstallationControlPointRow>();
     public DbSet<ControlPointRow> ControlPointRow => Set<ControlPointRow>();
     public DbSet<ControlCategoryRow> ControlCategoryRow => Set<ControlCategoryRow>();
-    public DbSet<InstallationControlPointRow> InstallationControlPointsRow => Set<InstallationControlPointRow>();
     public DbSet<InstallationTypeDefinitionRow> InstallationTypeDefinitions => Set<InstallationTypeDefinitionRow>();
     public DbSet<InstallationTypeDefinitionMappingRow> InstallationTypeDefinitionMappings => Set<InstallationTypeDefinitionMappingRow>();
 
@@ -43,10 +44,11 @@ public sealed class SqlDbContext : DbContext
         ConfigureJobEvents(modelBuilder);
         ConfigureInviteTokens(modelBuilder);
         ConfigureWorksheets(modelBuilder);
-        ConfigureInstallationTypes(modelBuilder);
+        ConfigureJobReportInstallations(modelBuilder);
         ConfigureControlCategory(modelBuilder);
         ConfigureControlPoint(modelBuilder);
-        ConfigureInstallationControlPoint(modelBuilder);
+        ConfigureJobReportInstallationCategories(modelBuilder);
+        ConfigureJobReportInstallationControlPoints(modelBuilder);
         ConfigureInstallationTypeDefinitions(modelBuilder);
         ConfigureInstallationTypeDefinitionMappings(modelBuilder);
     }
@@ -490,64 +492,32 @@ public sealed class SqlDbContext : DbContext
             .HasDatabaseName("IX_Worksheets_WorkDate");
     }
 
-    private static void ConfigureInstallationTypes(ModelBuilder modelBuilder)
+    private static void ConfigureJobReportInstallations(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<InstallationTypeRow>(entity =>
-        {
-            entity.ToTable("InstallationTypes", "dbo");
+        var entity = modelBuilder.Entity<JobReportInstallationRow>();
 
-            entity.HasKey(x => x.Id);
+        entity.ToTable("JobReportInstallations", "dbo");
+        entity.HasKey(x => x.Id);
 
-            entity.Property(x => x.Name)
-                .HasMaxLength(200)
-                .IsRequired();
+        entity.Property(x => x.SortOrder)
+            .HasDefaultValue(0);
 
-            entity.Property(x => x.Description)
-                .HasMaxLength(1000);
+        entity.HasOne(x => x.JobReport)
+            .WithMany(x => x.Installations)
+            .HasForeignKey(x => new { x.OrganizationId, x.JobReportId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id })
+            .OnDelete(DeleteBehavior.Cascade);
 
-            entity.Property(x => x.IsActive)
-                .HasDefaultValue(true);
+        entity.HasOne(x => x.InstallationTypeDefinition)
+            .WithMany(x => x.JobReportInstallations)
+            .HasForeignKey(x => new { x.OrganizationId, x.InstallationTypeDefinitionId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
 
-            entity.Property(x => x.SortOrder)
-                .HasDefaultValue(0);
+        entity.HasIndex(x => new { x.OrganizationId, x.JobReportId, x.InstallationTypeDefinitionId })
+            .IsUnique();
 
-            entity.Property(x => x.CreatedAt)
-                .HasColumnType("datetimeoffset")
-                .HasDefaultValueSql("sysutcdatetime()");
-
-            entity.HasOne<OrganizationRow>()
-                .WithMany()
-                .HasForeignKey(x => x.OrganizationId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.JobReport)
-                .WithMany(x => x.InstallationTypes)
-                .HasForeignKey(x => new
-                {
-                    x.OrganizationId,
-                    x.JobReportId
-                })
-                .HasPrincipalKey(x => new
-                {
-                    x.OrganizationId,
-                    x.Id
-                })
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasIndex(x => new
-            {
-                x.OrganizationId,
-                x.JobReportId,
-                x.Name
-            }).IsUnique();
-
-            entity.HasIndex(x => new
-            {
-                x.OrganizationId,
-                x.JobReportId,
-                x.SortOrder
-            });
-        });
+        entity.HasIndex(x => new { x.OrganizationId, x.JobReportId, x.SortOrder });
     }
     private static void ConfigureControlCategory(ModelBuilder modelBuilder)
     {
@@ -610,53 +580,54 @@ public sealed class SqlDbContext : DbContext
         });
     }
 
-    private static void ConfigureInstallationControlPoint(ModelBuilder modelBuilder)
+    private static void ConfigureJobReportInstallationCategories(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<InstallationControlPointRow>(entity =>
-        {
-            entity.ToTable("InstallationControlPoints", "dbo");
+        var entity = modelBuilder.Entity<JobReportInstallationCategoryRow>();
 
-            entity.HasKey(x => new
-            {
-                x.InstallationTypeId,
-                x.ControlCategoryId,
-                x.ControlPointId
-            });
+        entity.ToTable("JobReportInstallationCategories", "dbo");
+        entity.HasKey(x => x.Id);
+        entity.Property(x => x.SortOrder)
+            .HasDefaultValue(0);
+        entity.HasOne(x => x.JobReportInstallation)
+            .WithMany(x => x.Categories)
+            .HasForeignKey(x => x.JobReportInstallationId)
+            .OnDelete(DeleteBehavior.Cascade);
 
-            entity.Property(x => x.SortOrder)
-                .HasDefaultValue(0);
+        entity.HasOne(x => x.ControlCategory)
+            .WithMany(x => x.JobReportInstallationCategories)
+            .HasForeignKey(x => x.ControlCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-            entity.Property(x => x.IsRequired)
-                .HasDefaultValue(false);
+        entity.HasIndex(x => new { x.JobReportInstallationId, x.ControlCategoryId })
+            .IsUnique();
 
-            entity.HasOne(x => x.InstallationType)
-                .WithMany(x => x.ControlPoints)
-                .HasForeignKey(x => x.InstallationTypeId)
-                .OnDelete(DeleteBehavior.Cascade);
+        entity.HasIndex(x => new { x.JobReportInstallationId, x.SortOrder });
+    }
 
-            entity.HasOne(x => x.ControlCategory)
-                .WithMany(x => x.InstallationControlPoints)
-                .HasForeignKey(x => x.ControlCategoryId)
-                .OnDelete(DeleteBehavior.Restrict);
+    private static void ConfigureJobReportInstallationControlPoints(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<JobReportInstallationControlPointRow>();
 
-            entity.HasOne(x => x.ControlPoint)
-                .WithMany(x => x.InstallationTypes)
-                .HasForeignKey(x => x.ControlPointId)
-                .OnDelete(DeleteBehavior.Restrict);
+        entity.ToTable("JobReportInstallationControlPoints", "dbo");
+        entity.HasKey(x => new { x.JobReportInstallationCategoryId, x.ControlPointId });
 
-            entity.HasIndex(x => new
-            {
-                x.InstallationTypeId,
-                x.ControlCategoryId,
-                x.SortOrder
-            });
+        entity.Property(x => x.SortOrder)
+            .HasDefaultValue(0);
 
-            entity.HasIndex(x => new
-            {
-                x.ControlCategoryId,
-                x.ControlPointId
-            });
-        });
+        entity.Property(x => x.IsRequired)
+            .HasDefaultValue(false);
+
+        entity.HasOne(x => x.JobReportInstallationCategory)
+            .WithMany(x => x.ControlPoints)
+            .HasForeignKey(x => x.JobReportInstallationCategoryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne(x => x.ControlPoint)
+            .WithMany(x => x.JobReportInstallationControlPoints)
+            .HasForeignKey(x => x.ControlPointId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasIndex(x => new { x.JobReportInstallationCategoryId, x.SortOrder });
     }
 
     private static void ConfigureInstallationTypeDefinitions(ModelBuilder modelBuilder)
@@ -677,6 +648,8 @@ public sealed class SqlDbContext : DbContext
             .WithMany()
             .HasForeignKey(e => e.OrganizationId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        entity.HasAlternateKey(e => new { e.OrganizationId, e.Id });
 
         entity.HasIndex(e => new { e.OrganizationId, e.Name })
             .IsUnique();

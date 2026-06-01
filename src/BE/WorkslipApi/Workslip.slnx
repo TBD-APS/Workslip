@@ -8,4 +8,5 @@
   <Project Path="Workslip.Application/Workslip.Application.csproj" />
   <Project Path="Workslip.Domain/Workslip.Domain.csproj" />
   <Project Path="Workslip.Infrastructure/Workslip.Infrastructure.csproj" />
+  <Project Path="Workslip.Tests/Workslip.Tests.csproj" />
 </Solution>

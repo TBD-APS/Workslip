@@ -11,7 +11,7 @@ public sealed class JobReportRow
     public string? TaskDescription { get; init; }
     public string? CustomerObservations { get; init; }
     public string? TechnicalObservations { get; init; }
-    public List<InstallationTypeRow>? InstallationTypes { get; set; } = new();
+    public List<JobReportInstallationRow>? Installations { get; set; } = new();
     public string? WorkKind { get; init; }
     public string? CustomWorkKind { get; init; }
     public string? Remarks { get; init; }

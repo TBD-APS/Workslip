@@ -139,13 +139,14 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 g => g.Key,
                 g => g.Select(x => new AssignedUserResponse(x.Id, x.DisplayName)).ToArray() as IReadOnlyList<AssignedUserResponse>);
 
-        var installationTypesByReport = await _dbContext.InstallationTypeRow
+        var installationTypesByReport = await _dbContext.JobReportInstallations
             .AsNoTracking()
             .Where(it => it.OrganizationId == organizationId && reportIds.Contains(it.JobReportId))
+            .Include(it => it.InstallationTypeDefinition)
             .GroupBy(it => it.JobReportId)
             .ToDictionaryAsync(
                 g => g.Key,
-                g => g.OrderBy(it => it.SortOrder).Select(it => it.Name).ToArray() as IReadOnlyList<string>,
+                g => g.OrderBy(it => it.SortOrder).Select(it => it.InstallationTypeDefinition.Name).ToArray() as IReadOnlyList<string>,
                 cancellationToken);
 
         var totalHoursByJob = await GetTotalHoursByJobAsync(reportIds, cancellationToken);
@@ -236,12 +237,15 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     {
         var row = await _dbContext.JobReports
             .AsNoTracking()
-            .Include(r => r.InstallationTypes)
-                .ThenInclude(it => it.ControlPoints)
-                    .ThenInclude(cp => cp.ControlCategory)
-            .Include(r => r.InstallationTypes)
-                .ThenInclude(it => it.ControlPoints)
-                    .ThenInclude(cp => cp.ControlPoint)
+            .Include(r => r.Installations)
+                .ThenInclude(i => i.InstallationTypeDefinition)
+            .Include(r => r.Installations)
+                .ThenInclude(i => i.Categories)
+                    .ThenInclude(c => c.ControlCategory)
+            .Include(r => r.Installations)
+                .ThenInclude(i => i.Categories)
+                    .ThenInclude(c => c.ControlPoints)
+                        .ThenInclude(cp => cp.ControlPoint)
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
         if (row is null) return null;
@@ -290,18 +294,17 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         IReadOnlyList<WorksheetUserGroupResponse> worksheetEntries,
         decimal? totalHours = null)
     {
-        var installationTypes = row.InstallationTypes?
+        var installationTypes = row.Installations?
             .OrderBy(it => it.SortOrder)
             .Select(it =>
             {
-                var categories = it.ControlPoints?
-                    .GroupBy(cp => new { cp.ControlCategory.Id, cp.ControlCategory.Name, cp.ControlCategory.SortOrder })
-                    .OrderBy(g => g.Key.SortOrder)
-                    .Select(g => new InstallationTypeCategoryResponse(
-                        g.Key.Id,
-                        g.Key.Name,
-                        g.Key.SortOrder,
-                        g.OrderBy(cp => cp.SortOrder)
+                var categories = it.Categories?
+                    .OrderBy(category => category.SortOrder)
+                    .Select(category => new InstallationTypeCategoryResponse(
+                        category.ControlCategory.Id,
+                        category.ControlCategory.Name,
+                        category.SortOrder,
+                        category.ControlPoints.OrderBy(cp => cp.SortOrder)
                             .Select(cp => new InstallationTypeControlPointResponse(
                                 cp.ControlPoint.Id,
                                 cp.ControlPoint.Name,
@@ -312,7 +315,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                             .ToArray()))
                     .ToArray() ?? [];
 
-                return new InstallationTypeResponse(it.Id, it.Name, it.Description, it.SortOrder, categories);
+                return new InstallationTypeResponse(it.InstallationTypeDefinition.Id, it.InstallationTypeDefinition.Name, null, it.SortOrder, categories);
             })
             .ToArray() ?? [];
 
