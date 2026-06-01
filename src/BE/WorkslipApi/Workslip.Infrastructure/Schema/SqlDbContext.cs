@@ -566,9 +566,6 @@ public sealed class SqlDbContext : DbContext
             entity.Property(x => x.IsActive)
                 .HasDefaultValue(true);
 
-            entity.Property(x => x.IsChecked)
-                .HasDefaultValue(false);
-
             entity.Property(x => x.SortOrder)
                 .HasDefaultValue(0);
 
@@ -615,6 +612,9 @@ public sealed class SqlDbContext : DbContext
             .HasDefaultValue(0);
 
         entity.Property(x => x.IsRequired)
+            .HasDefaultValue(false);
+
+        entity.Property(x => x.IsChecked)
             .HasDefaultValue(false);
 
         entity.HasOne(x => x.JobReportInstallationCategory)

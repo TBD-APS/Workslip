@@ -4,8 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
+using Workslip.Application.Worksheets;
 using Workslip.Domain;
 using Workslip.Domain.Models;
+using Workslip.Infrastructure.Mappers;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
 
@@ -18,17 +20,19 @@ public sealed class EfJobRepository : IJobRepository
     private readonly ICustomerRepository _customerRepository;
     private readonly IAssignmentRepository _assignmentRepo;
     private readonly IJobLinkRepository _linkRepo;
+    private readonly IWorksheetRepository _worksheetRepo;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly TimeSpan DeletionRetentionPeriod = TimeSpan.FromDays(30);
 
-    public EfJobRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICustomerRepository customerRepository, IAssignmentRepository assignmentRepo, IJobLinkRepository linkRepo)
+    public EfJobRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICustomerRepository customerRepository, IAssignmentRepository assignmentRepo, IJobLinkRepository linkRepo, IWorksheetRepository worksheetRepo)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
         _customerRepository = customerRepository;
         _assignmentRepo = assignmentRepo;
         _linkRepo = linkRepo;
+        _worksheetRepo = worksheetRepo;
     }
 
     public Task<JobReportResponse> CreateAsync(Guid organizationId, CreateJobRequest request, IReadOnlyList<Guid> assignedUserIds, Guid? actorId, CancellationToken cancellationToken) =>
@@ -61,7 +65,7 @@ public sealed class EfJobRepository : IJobRepository
             WorkKind = NormalizeOptional(request.Work?.WorkKind),
             CustomWorkKind = request.Work?.CustomWorkKind,
             Remarks = request.Work?.Remarks,
-            ClosureFlagsJson = ToJson(request.Work?.ClosureFlags ?? []),
+            ClosureFlagsJson = JobReportMapper.ToJson(request.Work?.ClosureFlags ?? []),
             CreatedAt = now,
             UpdatedAt = now
         });
@@ -76,12 +80,12 @@ public sealed class EfJobRepository : IJobRepository
         var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
         await _assignmentRepo.ReplaceAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
         var assignedUsers = await _assignmentRepo.GetAssignedUsersByIdsAsync(organizationId, normalizedUserIds, cancellationToken);
-        await InsertEventAsync(organizationId, reportId, actorId, "created", null, ToJsonNode(new { reportId, assignedUsers }), now, cancellationToken);
+        await InsertEventAsync(organizationId, reportId, actorId, "created", null, JobReportMapper.ToJsonNode(new { reportId, assignedUsers }), now, cancellationToken);
 
         await tx.CommitAsync(cancellationToken);
 
         var job = await GetSingleJobAsync(reportId, organizationId, cancellationToken);
-        return job ?? null;
+        return job ?? null!;
     }
 
     public Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
@@ -127,7 +131,7 @@ public sealed class EfJobRepository : IJobRepository
 
         var reportIds = projected.Select(x => x.Id).ToArray();
         var assignedUsersByReport = await _assignmentRepo.GetAssignedUsersByReportAsync(query.OrganizationId, reportIds, cancellationToken);
-        var totalHoursByJob = await GetTotalHoursByJobAsync(reportIds, cancellationToken);
+        var totalHoursByJob = await _worksheetRepo.GetTotalHoursByJobAsync(reportIds, cancellationToken);
 
         var installationTypesByReport = await _dbContext.JobReportInstallations
             .AsNoTracking()
@@ -148,7 +152,7 @@ public sealed class EfJobRepository : IJobRepository
             return new JobListItemResponse(
                 x.Id, x.OrganizationId,
                 customerInfo,
-                x.ReportNumber, ParseStatus(x.Status), ToDateOnly(x.ReportDate),
+                x.ReportNumber, JobReportMapper.ParseStatus(x.Status), JobReportMapper.ToDateOnly(x.ReportDate),
                 installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind, x.CustomWorkKind,
                 x.CreatedAt, x.UpdatedAt, x.SubmittedAt,
                 assignedUsersByReport.GetValueOrDefault(x.Id) ?? [],
@@ -162,20 +166,10 @@ public sealed class EfJobRepository : IJobRepository
 
     private async Task<JobReportResponse?> GetSingleJobCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {
-
         _dbContext.ChangeTracker.Clear();
 
         var row = await _dbContext.JobReports
             .AsNoTracking()
-            .Include(r => r.Installations)
-                .ThenInclude(i => i.InstallationTypeDefinition)
-            .Include(r => r.Installations)
-                .ThenInclude(i => i.Categories)
-                    .ThenInclude(c => c.ControlCategory)
-            .Include(r => r.Installations)
-                .ThenInclude(i => i.Categories)
-                    .ThenInclude(c => c.ControlPoints)
-                        .ThenInclude(cp => cp.ControlPoint)
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
         if (row is null) return null;
@@ -188,12 +182,13 @@ public sealed class EfJobRepository : IJobRepository
                 .FirstOrDefaultAsync(c => c.Id == row.CustomerId.Value && c.OrganizationId == organizationId, cancellationToken);
         }
 
-        var links = await LoadLinksAsync(organizationId, id, cancellationToken);
+        var links = await _linkRepo.GetLinkInfoAsync(organizationId, id, cancellationToken);
         var assignedUsers = (await _assignmentRepo.GetAssignedUsersByReportAsync(organizationId, [id], cancellationToken)).GetValueOrDefault(id) ?? [];
-        var totalHours = await GetTotalHoursByJobAsync([id], cancellationToken);
-        var worksheetEntries = await GetWorksheetEntriesByJobAsync(id, cancellationToken);
+        var totalHours = await _worksheetRepo.GetTotalHoursByJobAsync([id], cancellationToken);
+        var worksheetEntries = await _worksheetRepo.GetGroupedByJobAsync(id, cancellationToken);
+        var installationTypes = await _dbContext.LoadInstallationTypesAsync(organizationId, id, cancellationToken);
 
-        return ToResponse(row, customer, links, assignedUsers, worksheetEntries, totalHours.GetValueOrDefault(id));
+        return JobReportMapper.ToResponse(row, customer, links, assignedUsers, worksheetEntries, installationTypes, totalHours.GetValueOrDefault(id));
     }
 
     public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
@@ -213,7 +208,7 @@ public sealed class EfJobRepository : IJobRepository
             .Skip(offset).Take(limit)
             .ToListAsync(cancellationToken);
 
-        return rows.Select(ToEventResponse).ToArray();
+        return rows.Select(JobReportMapper.ToEventResponse).ToArray();
     }
 
     public Task<JobReportResponse?> UpdateAsync(Guid id, Guid organizationId, UpdateJobRequest request, CancellationToken cancellationToken) =>
@@ -228,7 +223,7 @@ public sealed class EfJobRepository : IJobRepository
         var existing = await _dbContext.JobReports
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
-        if (existing is null || !JobStatusPolicy.CanEdit(ParseStatus(existing.Status)))
+        if (existing is null || !JobStatusPolicy.CanEdit(JobReportMapper.ParseStatus(existing.Status)))
             return null;
 
         var now = DateTimeOffset.UtcNow;
@@ -248,7 +243,7 @@ public sealed class EfJobRepository : IJobRepository
         if (normalizedWorkKind is not null) entry.Property(e => e.WorkKind).CurrentValue = normalizedWorkKind;
         entry.Property(e => e.CustomWorkKind).CurrentValue = request.Work?.CustomWorkKind;
         entry.Property(e => e.Remarks).CurrentValue = request.Work?.Remarks;
-        if (request.Work?.ClosureFlags is not null) entry.Property(e => e.ClosureFlagsJson).CurrentValue = ToJson(request.Work.ClosureFlags);
+        if (request.Work?.ClosureFlags is not null) entry.Property(e => e.ClosureFlagsJson).CurrentValue = JobReportMapper.ToJson(request.Work.ClosureFlags);
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
 
         if (request.Work?.InstallationTypes is not null)
@@ -263,7 +258,7 @@ public sealed class EfJobRepository : IJobRepository
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await InsertEventAsync(organizationId, id, null, "updated", ToJsonNode(existing), ToJsonNode(request), now, cancellationToken);
+        await InsertEventAsync(organizationId, id, null, "updated", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(request), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -283,7 +278,7 @@ public sealed class EfJobRepository : IJobRepository
 
         if (existing is null) return null;
 
-        var currentStatus = ParseStatus(existing.Status);
+        var currentStatus = JobReportMapper.ParseStatus(existing.Status);
         if (!JobStatusPolicy.CanTransition(currentStatus, nextStatus))
             return null;
 
@@ -296,7 +291,7 @@ public sealed class EfJobRepository : IJobRepository
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await InsertEventAsync(organizationId, id, actorId, nextStatus.ToString().ToLowerInvariant(), ToJsonNode(existing), ToJsonNode(new { status = nextStatus.ToString() }), now, cancellationToken);
+        await InsertEventAsync(organizationId, id, actorId, nextStatus.ToString().ToLowerInvariant(), JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(new { status = nextStatus.ToString() }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -331,7 +326,7 @@ public sealed class EfJobRepository : IJobRepository
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await InsertEventAsync(organizationId, id, null, "deletionScheduled", ToJsonNode(existing), ToJsonNode(new { deletionScheduledAt }), now, cancellationToken);
+        await InsertEventAsync(organizationId, id, null, "deletionScheduled", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(new { deletionScheduledAt }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -364,7 +359,7 @@ public sealed class EfJobRepository : IJobRepository
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await InsertEventAsync(organizationId, id, null, "deletionRestored", ToJsonNode(existing), ToJsonNode(new { deletionScheduledAt = (DateTimeOffset?)null }), now, cancellationToken);
+        await InsertEventAsync(organizationId, id, null, "deletionRestored", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(new { deletionScheduledAt = (DateTimeOffset?)null }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -506,165 +501,9 @@ public sealed class EfJobRepository : IJobRepository
         }
     }
 
-    private async Task<IReadOnlyList<JobLinkInfoResponse>> LoadLinksAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken)
-    {
-        var links = await _linkRepo.GetLinkRowsAsync(organizationId, reportId, cancellationToken);
-
-        var linkedIds = links
-            .Select(l => l.SourceReportId == reportId ? l.TargetReportId : l.SourceReportId)
-            .Distinct()
-            .ToArray();
-
-        if (linkedIds.Length == 0) return [];
-
-        var linkedReports = await (
-            from r in _dbContext.JobReports.AsNoTracking()
-            join c in _dbContext.Customers.AsNoTracking() on new { Id = (Guid?)r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
-            from c in rjc.DefaultIfEmpty()
-            where r.OrganizationId == organizationId && linkedIds.Contains(r.Id)
-            select new { r.Id, r.ReportNumber, r.Status, CustomerName = c != null ? c.Name : null }
-        ).ToDictionaryAsync(r => r.Id, cancellationToken);
-
-        return links.Select(link =>
-        {
-            var linkedId = link.SourceReportId == reportId ? link.TargetReportId : link.SourceReportId;
-            var linked = linkedReports.GetValueOrDefault(linkedId);
-            return new JobLinkInfoResponse(
-                linkedId,
-                linked?.ReportNumber ?? "",
-                linked?.CustomerName ?? "",
-                linked?.Status ?? "",
-                link.LinkType);
-        }).ToArray();
-    }
-
-    private sealed class WorksheetEntryProjection
-    {
-        public DateTime WorkDate { get; init; }
-        public decimal HoursWorked { get; init; }
-        public string DisplayName { get; init; } = "";
-    }
-
-    private async Task<IReadOnlyList<WorksheetUserGroupResponse>> GetWorksheetEntriesByJobAsync(Guid jobId, CancellationToken cancellationToken)
-    {
-        var rows = await (
-            from w in _dbContext.Worksheets.AsNoTracking()
-            join u in _dbContext.Users.AsNoTracking() on w.UserId equals u.Id
-            where w.JobId == jobId
-            orderby u.DisplayName, w.WorkDate descending
-            select new WorksheetEntryProjection
-            {
-                WorkDate = w.WorkDate,
-                HoursWorked = w.HoursWorked,
-                DisplayName = u.DisplayName
-            }
-        ).ToListAsync(cancellationToken);
-
-        return rows
-            .GroupBy(r => r.DisplayName)
-            .Select(g => new WorksheetUserGroupResponse(
-                g.Key,
-                g.Sum(r => r.HoursWorked),
-                g.Select(r => new WorksheetDayEntry(DateOnly.FromDateTime(r.WorkDate), r.HoursWorked)).ToArray() as IReadOnlyList<WorksheetDayEntry>))
-            .ToArray();
-    }
-
-    private sealed class JobTotalHoursProjection
-    {
-        public Guid JobId { get; init; }
-        public decimal? TotalHours { get; init; }
-    }
-
-    private async Task<IReadOnlyDictionary<Guid, decimal?>> GetTotalHoursByJobAsync(
-        IEnumerable<Guid> jobIds, CancellationToken cancellationToken)
-    {
-        var ids = jobIds.Distinct().ToArray();
-        if (ids.Length == 0) return new Dictionary<Guid, decimal?>();
-
-        var rows = await _dbContext.Worksheets
-            .AsNoTracking()
-            .Where(w => ids.Contains(w.JobId))
-            .GroupBy(w => w.JobId)
-            .Select(g => new JobTotalHoursProjection
-            {
-                JobId = g.Key,
-                TotalHours = g.Sum(w => w.HoursWorked)
-            })
-            .ToListAsync(cancellationToken);
-
-        return rows.ToDictionary(r => r.JobId, r => r.TotalHours);
-    }
-
-    private static JobReportResponse ToResponse(
-        JobReportRow row,
-        CustomerRow? customer,
-        IReadOnlyList<JobLinkInfoResponse> links,
-        IReadOnlyList<AssignedUserResponse> assignedUsers,
-        IReadOnlyList<WorksheetUserGroupResponse> worksheetEntries,
-        decimal? totalHours = null)
-    {
-        var installationTypes = row.Installations?
-            .OrderBy(it => it.SortOrder)
-            .Select(it =>
-            {
-                var categories = it.Categories?
-                    .OrderBy(category => category.SortOrder)
-                    .Select(category => new InstallationTypeCategoryResponse(
-                        category.ControlCategory.Id,
-                        category.ControlCategory.Name,
-                        category.SortOrder,
-                        category.ControlPoints.OrderBy(cp => cp.SortOrder)
-                            .Select(cp => new InstallationTypeControlPointResponse(
-                                cp.ControlPoint.Id,
-                                cp.ControlPoint.Name,
-                                cp.ControlPoint.Description,
-                                cp.SortOrder,
-                                cp.IsRequired,
-                                cp.ControlPoint.IsChecked))
-                            .ToArray()))
-                    .ToArray() ?? [];
-
-                return new InstallationTypeResponse(it.InstallationTypeDefinition.Id, it.InstallationTypeDefinition.Name, null, it.SortOrder, categories);
-            })
-            .ToArray() ?? [];
-
-        return new(
-            row.Id, row.OrganizationId,
-            customer is not null ? new CustomerInfo(customer.Id, customer.Name, customer.Address, customer.Email, customer.ContactPerson, customer.Phone) : null,
-            row.ReportNumber, ParseStatus(row.Status), ToDateOnly(row.ReportDate),
-            row.TaskDescription, row.CustomerObservations, row.TechnicalObservations,
-            installationTypes, row.WorkKind, row.CustomWorkKind,
-            row.Remarks, FromJsonList(row.ClosureFlagsJson), links,
-            row.CreatedAt, row.UpdatedAt, row.SubmittedAt,
-            assignedUsers, worksheetEntries,
-            row.IsSoftDeleted, row.DeletionScheduledAt, totalHours);
-    }
-
-    private static JobStatus ParseStatus(string status) => Enum.Parse<JobStatus>(status, ignoreCase: true);
-
-    private static JobEventResponse ToEventResponse(JobEventRow row) => new(
-        row.Id, row.ReportId, row.ActorId, row.EventType,
-        ToJsonObject(row.BeforeJson), ToJsonObject(row.AfterJson), row.CreatedAt);
-
-    private static JsonObject? ToJsonObject(string? json) =>
-        string.IsNullOrWhiteSpace(json) ? null : JsonNode.Parse(json) as JsonObject;
-
     private static DateTime? ToDateTime(DateOnly? value) =>
         value is null ? null : value.Value.ToDateTime(TimeOnly.MinValue);
 
-    private static DateOnly? ToDateOnly(DateTime? value) =>
-        value is null ? null : DateOnly.FromDateTime(value.Value);
-
-    private static string ToJson<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
-
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
-
-    private static JsonObject ToJsonNode<T>(T value) =>
-        JsonSerializer.SerializeToNode(value, JsonOptions)?.AsObject() ?? [];
-
-    private static IReadOnlyList<string> FromJsonList(string? json) =>
-        string.IsNullOrWhiteSpace(json)
-            ? []
-            : JsonSerializer.Deserialize<IReadOnlyList<string>>(json, JsonOptions) ?? [];
 }

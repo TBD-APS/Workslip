@@ -8,4 +8,5 @@ public sealed class JobReportInstallationControlPointRow
     public ControlPointRow ControlPoint { get; set; } = null!;
     public int SortOrder { get; set; }
     public bool IsRequired { get; set; }
+    public bool IsChecked { get; set; }
 }

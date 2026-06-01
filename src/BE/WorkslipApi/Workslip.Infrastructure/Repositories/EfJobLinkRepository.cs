@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Domain.Models;
+using Workslip.Infrastructure.Mappers;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
 
@@ -109,5 +110,34 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
             }).ToListAsync();
 
         return links;
+    }
+
+    public Task<IReadOnlyList<JobLinkInfoResponse>> GetLinkInfoAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("links.info", token => GetLinkInfoAsyncCoreAsync(organizationId, reportId, token), cancellationToken);
+
+    private async Task<IReadOnlyList<JobLinkInfoResponse>> GetLinkInfoAsyncCoreAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken)
+    {
+        var links = await GetLinkRowsAsync(organizationId, reportId, cancellationToken);
+
+        var linkedIds = links
+            .Select(l => l.SourceReportId == reportId ? l.TargetReportId : l.SourceReportId)
+            .Distinct()
+            .ToArray();
+
+        if (linkedIds.Length == 0) return [];
+
+        var linkedReports = await (
+            from r in _dbContext.JobReports.AsNoTracking()
+            join c in _dbContext.Customers.AsNoTracking() on new { Id = (Guid?)r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
+            from c in rjc.DefaultIfEmpty()
+            where r.OrganizationId == organizationId && linkedIds.Contains(r.Id)
+            select new LinkMapper.LinkedReportInfo(r.Id, r.ReportNumber ?? "", r.Status, c != null ? c.Name : null)
+        ).ToDictionaryAsync(r => r.Id, cancellationToken);
+
+        return links
+            .Select(link => LinkMapper.ToResponse(reportId, link,
+                linkedReports.GetValueOrDefault(
+                    link.SourceReportId == reportId ? link.TargetReportId : link.SourceReportId)))
+            .ToArray();
     }
 }

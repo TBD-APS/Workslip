@@ -8,4 +8,5 @@ public interface IJobLinkRepository
     Task<JobReportLinkRow?> GetLinkAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken);
     Task<bool> DeleteLinkAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken);
     Task<IReadOnlyList<JobReportLinkRow>> GetLinkRowsAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<JobLinkInfoResponse>> GetLinkInfoAsync(Guid organizationId, Guid reportId, CancellationToken cancellationToken);
 }
