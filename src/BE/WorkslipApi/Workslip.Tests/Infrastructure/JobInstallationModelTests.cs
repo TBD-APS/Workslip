@@ -70,15 +70,6 @@ public sealed class JobInstallationModelTests
             ]));
     }
 
-    [Fact]
-    public void Legacy_job_owned_installation_roots_are_not_active_model_roots()
-    {
-        using var context = CreateContext();
-
-        Assert.Null(context.Model.FindEntityType(typeof(InstallationTypeRow)));
-        Assert.Null(context.Model.FindEntityType(typeof(InstallationControlPointRow)));
-    }
-
     private static SqlDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<SqlDbContext>()

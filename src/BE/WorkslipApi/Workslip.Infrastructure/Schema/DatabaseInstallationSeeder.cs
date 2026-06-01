@@ -29,6 +29,7 @@ namespace Workslip.Infrastructure.Schema
                     .RuleFor(x => x.OrganizationId, f => organizationId)
                     .RuleFor(x => x.Name, f => name)
                     .RuleFor(x => x.SortOrder, f => index + 1)
+                    .RuleFor(x => x.JobReportInstallationCategories, f => [])
                     .Generate())
             .ToList();
 
@@ -46,6 +47,7 @@ namespace Workslip.Infrastructure.Schema
                         .RuleFor(x => x.IsActive, f => true)
                         .RuleFor(x => x.IsChecked, f => f.Random.Bool(0.25f))
                         .RuleFor(x => x.SortOrder, f => index + 1)
+                        .RuleFor(x => x.JobReportInstallationControlPoints, f => [])
                         .Generate()).ToList();
 
             var categoriesByName = controlCategories.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
@@ -186,7 +188,7 @@ namespace Workslip.Infrastructure.Schema
 
                 // GAS / VARME - Slutkontrol
                 new("Gasinstallation", "Slutkontrol", "Tæthedsprøvning", 1),
-                new("Gasinstallation", "Slutkontrol", "Funktionsprøvning", 2),cd 
+                new("Gasinstallation", "Slutkontrol", "Funktionsprøvning", 2),
                 new("Gasinstallation", "Slutkontrol", "Sikkerhedsarmaturer", 3),
                 new("Gasinstallation", "Slutkontrol", "Optælling af materialer", 4),
 
