@@ -35,11 +35,22 @@ export function MultiSelectDropdown({
   onChange,
 }: MultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const selectedOptions = options.filter((option) => selectedIds.includes(option.id));
+  const filteredOptions = searchQuery
+    ? options.filter((option) => {
+        const q = searchQuery.toLowerCase();
+        return option.label.toLowerCase().includes(q)
+          || (option.description && option.description.toLowerCase().includes(q));
+      })
+    : options;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setSearchQuery('');
+      return;
+    }
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!dropdownRef.current?.contains(event.target as Node)) {
@@ -84,9 +95,19 @@ export function MultiSelectDropdown({
 
         {isOpen && (
           <div className="multi-select-menu">
+            <div className="multi-select-search">
+              <input
+                className="multi-select-search-input"
+                type="text"
+                placeholder="Søg..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+              />
+            </div>
             {isLoading && <p className="multi-select-menu-empty">{loadingText}</p>}
-            {!isLoading && options.length === 0 && <p className="multi-select-menu-empty">{emptyText}</p>}
-            {options.map((option) => {
+            {!isLoading && filteredOptions.length === 0 && <p className="multi-select-menu-empty">{searchQuery ? 'Ingen resultater' : emptyText}</p>}
+            {filteredOptions.map((option) => {
               const isSelected = selectedIds.includes(option.id);
               return (
                 <button

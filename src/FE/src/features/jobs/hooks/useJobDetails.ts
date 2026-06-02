@@ -311,7 +311,7 @@ function getLinkableJobs(value: unknown, currentJobId: string | undefined): Link
     .map((job) => ({
       id: job.id,
       label: `SAG-${(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}`,
-      description: `${job.customer?.name || 'Ukendt kunde'} · ${job.status}`,
+      description: `${job.customer?.name || 'Ukendt kunde'}\n${job.customer?.address || ''}`,
     }));
 }
 

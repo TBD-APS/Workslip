@@ -1,10 +1,13 @@
-import { ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, AlertCircle, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, Trash2, Users } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
 import { ValidatedInput } from '../../../components/forms/ValidatedInput';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CustomerInfo } from '../../../api/generated/models';
 import type { AssignableUser, JobDetailsForm, LinkableJob, SaveStatus, useJobDetails } from '../hooks/useJobDetails';
+import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -21,6 +24,26 @@ const STEPS = [
 ] as const;
 
 export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps) {
+  const queryClient = useQueryClient();
+  const deleteMutation = useDeleteApiJobsId({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+        toast.success('Sagen er slettet');
+        onDone();
+      },
+      onError: () => {
+        toast.error('Kunne ikke slette sagen');
+      },
+    },
+  });
+
+  const handleDelete = () => {
+    if (!details.job?.id) return;
+    if (!confirm('Er du sikker på at du vil slette denne sag?')) return;
+    deleteMutation.mutate({ id: details.job.id });
+  };
+
   if (details.isLoading) {
     return (
       <div className="page-container">
@@ -55,6 +78,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
         saveStatus={details.saveStatus}
         onBack={onBack}
+        onDelete={handleDelete}
       />
 
       <StepIndicators currentStep={details.currentStep} onStepChange={details.setCurrentStep} />
@@ -91,7 +115,13 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       <StepNavigation
         currentStep={details.currentStep}
         isLastStep={isLastStep}
-        onBack={() => details.setCurrentStep((step) => step - 1)}
+        onBack={() => {
+          if (details.currentStep === 0) {
+            onDone();
+          } else {
+            details.setCurrentStep((step) => step - 1);
+          }
+        }}
         onNext={() => details.setCurrentStep((step) => step + 1)}
         onDone={onDone}
       />
@@ -104,9 +134,10 @@ type HeaderProps = {
   jobNumber: string;
   saveStatus: SaveStatus;
   onBack: () => void;
+  onDelete: () => void;
 };
 
-function JobDetailsHeader({ title, jobNumber, saveStatus, onBack }: HeaderProps) {
+function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete }: HeaderProps) {
   return (
     <div className="detail-header">
       <button className="btn-icon" onClick={onBack} aria-label="Tilbage">
@@ -116,7 +147,12 @@ function JobDetailsHeader({ title, jobNumber, saveStatus, onBack }: HeaderProps)
         <span className="job-number">{jobNumber}</span>
         <h2 className="detail-title">{title}</h2>
       </div>
-      <SaveStatusIndicator saveStatus={saveStatus} />
+      <div className="detail-header-actions">
+        <SaveStatusIndicator saveStatus={saveStatus} />
+        <button className="btn-icon btn-icon-danger" onClick={onDelete} aria-label="Slet sag">
+          <Trash2 size={18} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -387,24 +423,26 @@ type StepNavigationProps = {
 function StepNavigation({ currentStep, isLastStep, onBack, onNext, onDone }: StepNavigationProps) {
   return (
     <div className="step-nav">
-      {currentStep > 0 ? (
-        <button className="btn btn-secondary" onClick={onBack}>
-          <ChevronLeft size={18} />
-          Tilbage
-        </button>
-      ) : (
-        <div />
-      )}
+      <button
+        className="step-nav-btn step-nav-btn-back"
+        onClick={onBack}
+        aria-label="Tilbage"
+      >
+        <ChevronLeft size={18} />
+        <span>Tilbage</span>
+      </button>
+
+      <span className="step-nav-counter">Trin {currentStep + 1} / {STEPS.length}</span>
+
       {!isLastStep ? (
-        <button className="btn btn-primary" onClick={onNext}>
-          <span className="btn-step-label">Trin {currentStep + 1} af {STEPS.length}</span>
-          Næste: {STEPS[currentStep + 1].label}
+        <button className="step-nav-btn step-nav-btn-next" onClick={onNext}>
+          <span>Næste</span>
           <ChevronRight size={18} />
         </button>
       ) : (
-        <button className="btn btn-primary" onClick={onDone}>
+        <button className="step-nav-btn step-nav-btn-next" onClick={onDone}>
           <CheckCircle2 size={18} />
-          Færdig
+          <span>Færdig</span>
         </button>
       )}
     </div>
