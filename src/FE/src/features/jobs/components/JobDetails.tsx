@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, AlertCircle, Users } from 'lucide-react';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
+import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
 import { ValidatedInput } from '../../../components/forms/ValidatedInput';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CustomerInfo } from '../../../api/generated/models';
-import type { AssignableUser, JobDetailsForm, SaveStatus, useJobDetails } from '../hooks/useJobDetails';
+import type { AssignableUser, JobDetailsForm, LinkableJob, SaveStatus, useJobDetails } from '../hooks/useJobDetails';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -64,10 +64,15 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
           form={details.form}
           users={details.assignableUsers}
           assignedUserIds={details.assignedUserIds}
+          linkableJobs={details.linkableJobs}
+          linkedJobIds={details.linkedJobIds}
           assignmentStatus={details.assignmentStatus}
+          linksStatus={details.linksStatus}
           isLoadingUsers={details.isLoadingUsers}
+          isLoadingJobs={details.isLoadingJobs}
           reportNumberReadOnly={details.reportNumberReadOnly}
           onAssignedUsersChange={details.updateAssignedUsers}
+          onLinkedJobsChange={details.updateLinkedJobs}
           onCustomerChange={details.updateCustomer}
           onReportNumberChange={details.updateReportNumber}
           onTaskDescriptionChange={details.updateTaskDescription}
@@ -168,10 +173,15 @@ type JobDetailsStepProps = {
   form: JobDetailsForm;
   users: AssignableUser[];
   assignedUserIds: string[];
+  linkableJobs: LinkableJob[];
+  linkedJobIds: string[];
   assignmentStatus: SaveStatus;
+  linksStatus: SaveStatus;
   isLoadingUsers: boolean;
+  isLoadingJobs: boolean;
   reportNumberReadOnly: boolean;
   onAssignedUsersChange: (userIds: string[]) => void;
+  onLinkedJobsChange: (jobIds: string[]) => void;
   onCustomerChange: (field: keyof CustomerInfo, value: string | null) => void;
   onReportNumberChange: (value: string) => void;
   onTaskDescriptionChange: (value: string) => void;
@@ -182,10 +192,15 @@ function JobDetailsStep({
   form,
   users,
   assignedUserIds,
+  linkableJobs,
+  linkedJobIds,
   assignmentStatus,
+  linksStatus,
   isLoadingUsers,
+  isLoadingJobs,
   reportNumberReadOnly,
   onAssignedUsersChange,
+  onLinkedJobsChange,
   onCustomerChange,
   onReportNumberChange,
   onTaskDescriptionChange,
@@ -204,6 +219,13 @@ function JobDetailsStep({
         onCustomerChange={onCustomerChange}
         onReportNumberChange={onReportNumberChange}
       />
+      <LinkedJobsBlock
+        jobs={linkableJobs}
+        linkedJobIds={linkedJobIds}
+        saveStatus={linksStatus}
+        isLoading={isLoadingJobs}
+        onChange={onLinkedJobsChange}
+      />
       <TextAreaBlock
         icon={<FileText size={18} />}
         title="Opgavebeskrivelse"
@@ -219,112 +241,6 @@ function JobDetailsStep({
         placeholder="Notér oplysninger til kunden eller tekniske observationer..."
       />
     </>
-  );
-}
-
-type AssignmentBlockProps = {
-  users: AssignableUser[];
-  assignedUserIds: string[];
-  saveStatus: SaveStatus;
-  isLoading: boolean;
-  onChange: (userIds: string[]) => void;
-};
-
-function AssignmentBlock({ users, assignedUserIds, saveStatus, isLoading, onChange }: AssignmentBlockProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
-  const selectedUsers = users.filter((user) => assignedUserIds.includes(user.id));
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!dropdownRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [isOpen]);
-
-  const toggleUser = (userId: string) => {
-    if (assignedUserIds.includes(userId)) {
-      onChange(assignedUserIds.filter((id) => id !== userId));
-      return;
-    }
-
-    onChange([...assignedUserIds, userId]);
-  };
-
-  return (
-    <div className="assignment-field">
-      <div className="assignment-field-header">
-        <label className="form-label">Tildelte medarbejdere</label>
-        <SaveStatusIndicator saveStatus={saveStatus} />
-      </div>
-
-      <div className="assignment-dropdown" ref={dropdownRef}>
-        <button
-          className="assignment-trigger"
-          type="button"
-          disabled={isLoading}
-          onClick={() => setIsOpen((open) => !open)}
-          aria-expanded={isOpen}
-        >
-          <span className="assignment-trigger-content">
-            <Users size={16} />
-            {selectedUsers.length > 0 ? `${selectedUsers.length} valgt` : 'Vælg medarbejdere'}
-          </span>
-          <ChevronRight className={isOpen ? 'assignment-chevron open' : 'assignment-chevron'} size={16} />
-        </button>
-
-        {isOpen && (
-          <div className="assignment-menu">
-            {isLoading && <p className="assignment-menu-empty">Henter medarbejdere...</p>}
-            {!isLoading && users.length === 0 && <p className="assignment-menu-empty">Ingen medarbejdere fundet</p>}
-            {users.map((user) => {
-              const isSelected = assignedUserIds.includes(user.id);
-              return (
-                <button
-                  key={user.id}
-                  className={isSelected ? 'assignment-option selected' : 'assignment-option'}
-                  type="button"
-                  onClick={() => toggleUser(user.id)}
-                >
-                  <span className="assignment-checkbox" aria-hidden="true">
-                    {isSelected && <CheckCircle2 size={14} />}
-                  </span>
-                  <span className="assignment-option-text">
-                    <span>{user.displayName}</span>
-                    <small>{user.email}</small>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="assignment-chips">
-        {selectedUsers.length > 0 ? (
-          selectedUsers.map((user) => (
-            <button
-              key={user.id}
-              className="assignment-chip"
-              type="button"
-              onClick={() => toggleUser(user.id)}
-              aria-label={`Fjern ${user.displayName}`}
-            >
-              <span>{user.displayName}</span>
-              <span className="assignment-chip-remove" aria-hidden="true">×</span>
-            </button>
-          ))
-        ) : (
-          <span className="assignment-empty">Ingen medarbejdere valgt</span>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -380,14 +296,46 @@ function CustomerDetailsBlock({
           <ValidatedInput label="Kontaktperson" value={form.customer.contactPerson} placeholder="Kontaktperson" onChange={(value) => onCustomerChange('contactPerson', value)} />
         </div>
 
-        <AssignmentBlock
-          users={users}
-          assignedUserIds={assignedUserIds}
-          saveStatus={assignmentStatus}
+        <MultiSelectDropdown
+          label="Tildelte medarbejdere"
+          placeholder="Vælg medarbejdere"
+          emptyText="Ingen medarbejdere fundet"
+          loadingText="Henter medarbejdere..."
+          options={users.map((user) => ({ id: user.id, label: user.displayName, description: user.email }))}
+          selectedIds={assignedUserIds}
           isLoading={isLoadingUsers}
+          saveStatus={assignmentStatus}
+          icon={<Users size={16} />}
           onChange={onAssignedUsersChange}
         />
       </div>
+    </section>
+  );
+}
+
+type LinkedJobsBlockProps = {
+  jobs: LinkableJob[];
+  linkedJobIds: string[];
+  saveStatus: SaveStatus;
+  isLoading: boolean;
+  onChange: (jobIds: string[]) => void;
+};
+
+function LinkedJobsBlock({ jobs, linkedJobIds, saveStatus, isLoading, onChange }: LinkedJobsBlockProps) {
+  return (
+    <section className="detail-section">
+      <MultiSelectDropdown
+        label="Tilknyttede sager"
+        placeholder="Vælg sager"
+        emptyText="Ingen andre sager fundet"
+        loadingText="Henter sager..."
+        options={jobs}
+        selectedIds={linkedJobIds}
+        isLoading={isLoading}
+        saveStatus={saveStatus}
+        icon={<FileText size={16} />}
+        onChange={onChange}
+      />
     </section>
   );
 }
@@ -402,7 +350,7 @@ type TextAreaBlockProps = {
 
 function TextAreaBlock({ icon, title, value, placeholder, onChange }: TextAreaBlockProps) {
   return (
-    <CollapsibleSection icon={icon} title={title}>
+    <CollapsibleSection icon={icon} title={title} defaultOpen={false}>
       <div className="form-group">
         <textarea
           className="form-input form-textarea"

@@ -648,25 +648,25 @@
   gap: 1rem;
 }
 
-.assignment-field {
+.multi-select-field {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
 }
 
-.assignment-field-header {
+.multi-select-field-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.assignment-dropdown {
+.multi-select-dropdown {
   position: relative;
 }
 
-.assignment-trigger {
+.multi-select-trigger {
   width: 100%;
   min-height: 48px;
   display: flex;
@@ -684,35 +684,35 @@
   transition: border-color 0.2s, background 0.2s;
 }
 
-.assignment-trigger:hover:not(:disabled),
-.assignment-trigger[aria-expanded="true"] {
+.multi-select-trigger:hover:not(:disabled),
+.multi-select-trigger[aria-expanded="true"] {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.16);
 }
 
-.assignment-trigger:disabled {
+.multi-select-trigger:disabled {
   cursor: wait;
   opacity: 0.65;
 }
 
-.assignment-trigger-content {
+.multi-select-trigger-content {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
 }
 
-.assignment-chevron {
+.multi-select-chevron {
   flex-shrink: 0;
   color: var(--text-secondary);
   transition: transform 0.2s;
 }
 
-.assignment-chevron.open {
+.multi-select-chevron.open {
   transform: rotate(90deg);
 }
 
-.assignment-menu {
+.multi-select-menu {
   position: absolute;
   z-index: 20;
   top: calc(100% + 0.4rem);
@@ -727,7 +727,7 @@
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
 }
 
-.assignment-option {
+.multi-select-option {
   width: 100%;
   display: flex;
   align-items: center;
@@ -742,12 +742,12 @@
   cursor: pointer;
 }
 
-.assignment-option:hover,
-.assignment-option.selected {
+.multi-select-option:hover,
+.multi-select-option.selected {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.assignment-checkbox {
+.multi-select-checkbox {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
@@ -760,19 +760,19 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-.assignment-option.selected .assignment-checkbox {
+.multi-select-option.selected .multi-select-checkbox {
   border-color: rgba(52, 211, 153, 0.55);
   background: rgba(52, 211, 153, 0.12);
 }
 
-.assignment-option-text {
+.multi-select-option-text {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
 }
 
-.assignment-option-text small {
+.multi-select-option-text small {
   color: var(--text-secondary);
   font-size: 0.75rem;
   overflow: hidden;
@@ -780,20 +780,20 @@
   white-space: nowrap;
 }
 
-.assignment-menu-empty {
+.multi-select-menu-empty {
   margin: 0;
   padding: 0.85rem;
   color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
-.assignment-chips {
+.multi-select-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
 }
 
-.assignment-chip {
+.multi-select-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -809,12 +809,12 @@
   transition: background 0.2s, border-color 0.2s;
 }
 
-.assignment-chip:hover {
+.multi-select-chip:hover {
   background: rgba(96, 165, 250, 0.18);
   border-color: rgba(96, 165, 250, 0.28);
 }
 
-.assignment-chip-remove {
+.multi-select-chip-remove {
   width: 18px;
   height: 18px;
   display: inline-flex;
@@ -827,12 +827,12 @@
   line-height: 1;
 }
 
-.assignment-chip:hover .assignment-chip-remove {
+.multi-select-chip:hover .multi-select-chip-remove {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.14);
 }
 
-.assignment-empty {
+.multi-select-empty {
   color: var(--text-secondary);
   font-size: 0.8rem;
 }

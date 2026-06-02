@@ -4,8 +4,10 @@ import { toast } from 'sonner';
 import {
   getGetApiJobsQueryKey,
   getGetApiJobsIdQueryKey,
+  useGetApiJobs,
   useGetApiJobsId,
   usePostApiJobsIdAssign,
+  usePostApiJobsIdLinks,
   usePatchApiJobsId,
 } from '../../../api/generated/jobs/jobs';
 import { useGetApiUsers } from '../../../api/generated/users/users';
@@ -31,6 +33,12 @@ export type AssignableUser = {
   email: string;
 };
 
+export type LinkableJob = {
+  id: string;
+  label: string;
+  description: string;
+};
+
 type JobDetailsDraft = {
   jobId: string;
   form: JobDetailsForm;
@@ -39,6 +47,11 @@ type JobDetailsDraft = {
 type AssignmentDraft = {
   jobId: string;
   userIds: string[];
+};
+
+type LinksDraft = {
+  jobId: string;
+  linkedJobIds: string[];
 };
 
 const emptyCustomer: CustomerInfo = {
@@ -57,9 +70,12 @@ export function useJobDetails(jobId: string | undefined) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [assignmentStatus, setAssignmentStatus] = useState<SaveStatus>('idle');
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentDraft | null>(null);
+  const [linksStatus, setLinksStatus] = useState<SaveStatus>('idle');
+  const [linksDraft, setLinksDraft] = useState<LinksDraft | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const assignmentTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const linksTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const query = useGetApiJobsId(jobId ?? '', {
     query: {
@@ -68,12 +84,17 @@ export function useJobDetails(jobId: string | undefined) {
   });
   const job = getResponseData<JobReportSummaryViewModel>(query.data);
   const usersQuery = useGetApiUsers();
+  const jobsQuery = useGetApiJobs({ limit: 200 });
   const assignableUsers = getUserList(usersQuery.data);
+  const linkableJobs = getLinkableJobs(jobsQuery.data, jobId);
   const initialForm = job ? toForm(job) : null;
   const form = draft && draft.jobId === jobId ? draft.form : initialForm ?? emptyForm;
   const assignedUserIds = assignmentDraft && assignmentDraft.jobId === jobId
     ? assignmentDraft.userIds
     : job?.assignedUsers.map((user) => user.id) ?? [];
+  const linkedJobIds = linksDraft && linksDraft.jobId === jobId
+    ? linksDraft.linkedJobIds
+    : job?.links.map((link) => link.linkedReportId) ?? [];
 
   const mutation = usePatchApiJobsId({
     mutation: {
@@ -112,6 +133,23 @@ export function useJobDetails(jobId: string | undefined) {
     },
   });
 
+  const linkMutation = usePostApiJobsIdLinks({
+    mutation: {
+      onSuccess: () => {
+        if (jobId) {
+          queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
+        }
+        setLinksStatus('saved');
+        clearTimeout(linksTimerRef.current);
+        linksTimerRef.current = setTimeout(() => setLinksStatus('idle'), 2500);
+      },
+      onError: () => {
+        setLinksStatus('error');
+        toast.error('Kunne ikke opdatere tilknyttede sager');
+      },
+    },
+  });
+
   useEffect(() => {
     if (!draft || !initialForm || !job || !jobId) return;
 
@@ -138,6 +176,7 @@ export function useJobDetails(jobId: string | undefined) {
       clearTimeout(debounceTimerRef.current);
       clearTimeout(savedTimerRef.current);
       clearTimeout(assignmentTimerRef.current);
+      clearTimeout(linksTimerRef.current);
     };
   }, []);
 
@@ -176,20 +215,40 @@ export function useJobDetails(jobId: string | undefined) {
     assignmentMutation.mutate({ id: jobId, data: { userIds } });
   };
 
+  const updateLinkedJobs = (linkedJobIds: string[]) => {
+    if (!jobId || !job) return;
+
+    const existingLinkedIds = job.links.map((link) => link.linkedReportId);
+    const addedIds = linkedJobIds.filter((id) => !existingLinkedIds.includes(id));
+
+    setLinksDraft({ jobId, linkedJobIds });
+    if (addedIds.length === 0) return;
+
+    setLinksStatus('saving');
+    addedIds.forEach((targetReportId) => {
+      linkMutation.mutate({ id: jobId, data: { targetReportId, linkType: 'related' } });
+    });
+  };
+
   return {
     job,
     form,
     assignableUsers,
     assignedUserIds,
+    linkableJobs,
+    linkedJobIds,
     currentStep,
     setCurrentStep,
     isLoading: query.isLoading,
     isError: query.isError,
     isLoadingUsers: usersQuery.isLoading,
+    isLoadingJobs: jobsQuery.isLoading,
     saveStatus,
     assignmentStatus,
+    linksStatus,
     reportNumberReadOnly: Boolean(job?.reportNumber),
     updateAssignedUsers,
+    updateLinkedJobs,
     updateCustomer,
     updateReportNumber,
     updateTaskDescription,
@@ -226,6 +285,13 @@ type UserListViewModel = {
   users: UserViewModel[];
 };
 
+type JobListItemViewModel = {
+  id: string;
+  reportNumber: string | null;
+  customer: CustomerInfo | null;
+  status: string;
+};
+
 function getUserList(value: unknown): AssignableUser[] {
   const data = getResponseData<UserListViewModel | UserViewModel[]>(value as UserListViewModel | UserViewModel[] | { data: UserListViewModel | UserViewModel[] } | undefined);
   const users = Array.isArray(data) ? data : data?.users ?? [];
@@ -234,6 +300,19 @@ function getUserList(value: unknown): AssignableUser[] {
     displayName: user.displayName,
     email: user.email,
   }));
+}
+
+function getLinkableJobs(value: unknown, currentJobId: string | undefined): LinkableJob[] {
+  const data = getResponseData<JobListItemViewModel[]>(value as JobListItemViewModel[] | { data: JobListItemViewModel[] } | undefined);
+  const jobs = Array.isArray(data) ? data : [];
+
+  return jobs
+    .filter((job) => job.id !== currentJobId)
+    .map((job) => ({
+      id: job.id,
+      label: `SAG-${(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}`,
+      description: `${job.customer?.name || 'Ukendt kunde'} · ${job.status}`,
+    }));
 }
 
 function toForm(job: JobReportSummaryViewModel): JobDetailsForm {
