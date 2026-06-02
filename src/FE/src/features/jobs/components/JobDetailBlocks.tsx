@@ -67,6 +67,7 @@ export function CustomerDetailsBlock({
             isLoading={assignment.isLoadingUsers}
             saveStatus={assignment.assignmentStatus}
             icon={<Users size={16} />}
+            commitOnClose
             onChange={assignment.onAssignedUsersChange}
           />
         )}

@@ -50,9 +50,9 @@ public static class HttpCacheHeaders
             .Append(':')
             .Append(report.Id.ToString("N"))
             .Append(':')
-            .Append(report.UpdatedAt.ToUnixTimeMilliseconds())
+            .Append(report.UpdatedAt.UtcTicks)
             .Append(':')
-            .Append(report.SubmittedAt?.ToUnixTimeMilliseconds() ?? 0);
+            .Append(report.SubmittedAt?.UtcTicks ?? 0);
 
         foreach (var link in report.Links.OrderBy(link => link.Id))
         {
@@ -110,7 +110,7 @@ public static class HttpCacheHeaders
                 .Append('|')
                 .Append(job.Id.ToString("N"))
                 .Append(':')
-                .Append(job.UpdatedAt.ToUnixTimeMilliseconds())
+                .Append(job.UpdatedAt.UtcTicks)
                 .Append(':')
                 .Append(job.Status);
         }
@@ -130,7 +130,7 @@ public static class HttpCacheHeaders
                 .Append('|')
                 .Append(job.Id.ToString("N"))
                 .Append(':')
-                .Append(job.UpdatedAt.ToUnixTimeMilliseconds())
+                .Append(job.UpdatedAt.UtcTicks)
                 .Append(':')
                 .Append(job.Status);
         }

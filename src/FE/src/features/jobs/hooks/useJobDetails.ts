@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
+  getGetApiJobsQueryKey,
   getGetApiJobsIdQueryKey,
   useDeleteApiJobsIdLinks,
-  useGetApiJobs,
   useGetApiJobsId,
   usePostApiJobsIdAssign,
   usePostApiJobsIdLinks,
@@ -47,9 +47,9 @@ export function useJobDetails(jobId: string | undefined) {
   });
   const job = getResponseData<JobReportSummaryViewModel>(query.data);
   const usersQuery = useGetApiUsers();
-  const jobsQuery = useGetApiJobs({ limit: 200 });
+  const jobsData = queryClient.getQueryData(getGetApiJobsQueryKey({ limit: 200 }));
   const assignableUsers = getUserList(usersQuery.data);
-  const linkableJobs = getLinkableJobs(jobsQuery.data, jobId);
+  const linkableJobs = getLinkableJobs(jobsData, jobId);
   const initialForm = job ? toForm(job) : null;
   const form =
     draft && draft.jobId === jobId ? draft.form : initialForm ?? emptyForm;
@@ -267,7 +267,7 @@ export function useJobDetails(jobId: string | undefined) {
     isLoading: query.isLoading,
     isError: query.isError,
     isLoadingUsers: usersQuery.isLoading,
-    isLoadingJobs: jobsQuery.isLoading,
+    isLoadingJobs: false,
     saveStatus,
     assignmentStatus,
     linksStatus,
