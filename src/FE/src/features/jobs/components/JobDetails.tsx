@@ -81,7 +81,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         onDelete={handleDelete}
       />
 
-      <StepIndicators currentStep={details.currentStep} onStepChange={details.setCurrentStep} />
+      <StepIndicators currentStep={details.currentStep} onStepChange={(step) => { details.flushSave(); details.setCurrentStep(step); }} />
 
       {details.currentStep === 0 && (
         <JobDetailsStep
@@ -116,13 +116,17 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         currentStep={details.currentStep}
         isLastStep={isLastStep}
         onBack={() => {
+          details.flushSave();
           if (details.currentStep === 0) {
             onDone();
           } else {
             details.setCurrentStep((step) => step - 1);
           }
         }}
-        onNext={() => details.setCurrentStep((step) => step + 1)}
+        onNext={() => {
+          details.flushSave();
+          details.setCurrentStep((step) => step + 1);
+        }}
         onDone={onDone}
       />
     </div>
@@ -328,7 +332,7 @@ function CustomerDetailsBlock({
         <ValidatedInput label="Email" value={form.customer.email} placeholder="Email-adresse" type="email" validate={validateEmail} onChange={(value) => onCustomerChange('email', value)} />
 
         <div className="form-row">
-          <ValidatedInput label="Telefon" value={form.customer.phone} placeholder="Telefon" type="tel" validate={validatePhoneNumber} onChange={(value) => onCustomerChange('phone', value)} />
+          <ValidatedInput label="Telefon" value={form.customer.phone} placeholder="Telefon" type="tel" inputMode="numeric" validate={validatePhoneNumber} onChange={(value) => onCustomerChange('phone', value?.replace(/\D/g, '') || null)} />
           <ValidatedInput label="Kontaktperson" value={form.customer.contactPerson} placeholder="Kontaktperson" onChange={(value) => onCustomerChange('contactPerson', value)} />
         </div>
 

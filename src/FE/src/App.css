@@ -743,6 +743,23 @@
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
 }
 
+.multi-select-menu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.multi-select-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.multi-select-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+
+.multi-select-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .multi-select-search {
   padding: 0.15rem;
   margin-bottom: 0.2rem;

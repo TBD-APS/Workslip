@@ -5,11 +5,12 @@ type ValidatedInputProps = {
   value: string | null;
   placeholder: string;
   type?: string;
+  inputMode?: 'text' | 'numeric' | 'tel' | 'email' | 'url' | 'decimal';
   validate?: (value: string | null) => ValidationResult;
   onChange: (value: string | null) => void;
 };
 
-export function ValidatedInput({ label, value, placeholder, type = 'text', validate, onChange }: ValidatedInputProps) {
+export function ValidatedInput({ label, value, placeholder, type = 'text', inputMode, validate, onChange }: ValidatedInputProps) {
   const error = validate?.(value) ?? null;
 
   return (
@@ -18,6 +19,7 @@ export function ValidatedInput({ label, value, placeholder, type = 'text', valid
       <input
         className={error ? 'form-input form-input-invalid' : 'form-input'}
         type={type}
+        inputMode={inputMode}
         value={value ?? ''}
         onChange={(event) => onChange(event.target.value || null)}
         placeholder={placeholder}

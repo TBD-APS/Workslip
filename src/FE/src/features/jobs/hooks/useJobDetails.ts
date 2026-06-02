@@ -110,7 +110,7 @@ export function useJobDetails(jobId: string | undefined) {
       },
       onError: () => {
         setSaveStatus('error');
-        toast.error('Kunne ikke gemme ændringer');
+        toast.error('Kunne ikke gemme ændringer', { id: 'job-save-error' });
       },
     },
   });
@@ -128,7 +128,7 @@ export function useJobDetails(jobId: string | undefined) {
       },
       onError: () => {
         setAssignmentStatus('error');
-        toast.error('Kunne ikke opdatere tildeling');
+        toast.error('Kunne ikke opdatere tildeling', { id: 'job-assign-error' });
       },
     },
   });
@@ -145,7 +145,7 @@ export function useJobDetails(jobId: string | undefined) {
       },
       onError: () => {
         setLinksStatus('error');
-        toast.error('Kunne ikke opdatere tilknyttede sager');
+        toast.error('Kunne ikke opdatere tilknyttede sager', { id: 'job-links-error' });
       },
     },
   });
@@ -230,6 +230,21 @@ export function useJobDetails(jobId: string | undefined) {
     });
   };
 
+  const flushSave = () => {
+    clearTimeout(debounceTimerRef.current);
+    if (!draft || !initialForm || !job || !jobId) return;
+    if (sameForm(initialForm, draft.form)) {
+      setDraft(null);
+      return;
+    }
+    if (!isValidContactInfo(draft.form.customer)) {
+      setSaveStatus('error');
+      return;
+    }
+    setSaveStatus('saving');
+    mutation.mutate({ id: jobId, data: toUpdateRequest(job, initialForm, draft.form) });
+  };
+
   return {
     job,
     form,
@@ -247,6 +262,7 @@ export function useJobDetails(jobId: string | undefined) {
     assignmentStatus,
     linksStatus,
     reportNumberReadOnly: Boolean(job?.reportNumber),
+    flushSave,
     updateAssignedUsers,
     updateLinkedJobs,
     updateCustomer,
