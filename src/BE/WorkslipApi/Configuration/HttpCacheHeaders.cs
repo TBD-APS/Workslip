@@ -42,8 +42,38 @@ public static class HttpCacheHeaders
             .Any(value => value == "*" || string.Equals(value, etag, StringComparison.Ordinal));
     }
 
-    public static string JobReportEtag(JobReportSummaryResponse report) => ToWeakEtag(
-        $"job:{report.OrganizationId:N}:{report.Id:N}:{report.UpdatedAt.ToUnixTimeMilliseconds()}:{report.SubmittedAt?.ToUnixTimeMilliseconds() ?? 0}");
+    public static string JobReportEtag(JobReportSummaryResponse report)
+    {
+        var builder = new StringBuilder()
+            .Append("job:")
+            .Append(report.OrganizationId.ToString("N"))
+            .Append(':')
+            .Append(report.Id.ToString("N"))
+            .Append(':')
+            .Append(report.UpdatedAt.UtcTicks)
+            .Append(':')
+            .Append(report.SubmittedAt?.UtcTicks ?? 0);
+
+        foreach (var link in report.Links.OrderBy(link => link.Id))
+        {
+            builder
+                .Append("|link:")
+                .Append(link.Id.ToString("N"))
+                .Append(':')
+                .Append(link.LinkedReportId.ToString("N"))
+                .Append(':')
+                .Append(link.LinkedStatus);
+        }
+
+        foreach (var user in report.AssignedUsers.OrderBy(user => user.Id))
+        {
+            builder
+                .Append("|user:")
+                .Append(user.Id.ToString("N"));
+        }
+
+        return ToWeakEtag(builder.ToString());
+    }
 
     public static string JobListEtag(
         IEnumerable<JobListItemResponse> jobs,
@@ -80,7 +110,7 @@ public static class HttpCacheHeaders
                 .Append('|')
                 .Append(job.Id.ToString("N"))
                 .Append(':')
-                .Append(job.UpdatedAt.ToUnixTimeMilliseconds())
+                .Append(job.UpdatedAt.UtcTicks)
                 .Append(':')
                 .Append(job.Status);
         }
@@ -100,7 +130,7 @@ public static class HttpCacheHeaders
                 .Append('|')
                 .Append(job.Id.ToString("N"))
                 .Append(':')
-                .Append(job.UpdatedAt.ToUnixTimeMilliseconds())
+                .Append(job.UpdatedAt.UtcTicks)
                 .Append(':')
                 .Append(job.Status);
         }

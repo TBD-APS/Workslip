@@ -33,6 +33,7 @@ export const Login = () => {
   const codeForm = useForm<CodeFormValues>({
     resolver: zodResolver(CodeSchema),
   });
+  const { ref: codeFieldRef, ...codeField } = codeForm.register('code');
 
   useEffect(() => {
     if (step === 'code' && codeInputRef.current) {
@@ -189,8 +190,11 @@ export const Login = () => {
             <div className="form-group">
               <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Engangskode</label>
               <input 
-                ref={codeInputRef}
-                {...codeForm.register('code')}
+                {...codeField}
+                ref={(element) => {
+                  codeFieldRef(element);
+                  codeInputRef.current = element;
+                }}
                 type="text" 
                 inputMode="numeric"
                 pattern="[0-9]*"

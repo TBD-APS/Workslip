@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Workslip.Application\Workslip.Application.csproj" />
+    <ProjectReference Include="..\Workslip.Api.csproj" />
     <ProjectReference Include="..\Workslip.Domain\Workslip.Domain.csproj" />
     <ProjectReference Include="..\Workslip.Infrastructure\Workslip.Infrastructure.csproj" />
   </ItemGroup>

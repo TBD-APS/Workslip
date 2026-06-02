@@ -225,27 +225,30 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
-        var workErrors = await ValidateDraftWorkAsync(organizationId.Value, request.Work, cancellationToken);
-        if (workErrors.Count != 0)
+        if (request.Work is not null)
         {
-            logger.LogWarning("Job update work validation failed. JobId: {JobId}. Fields: {ValidationFields}",
-                id,
-                ValidationFields(workErrors));
+            var workErrors = await ValidateDraftWorkAsync(organizationId.Value, request.Work, cancellationToken);
+            if (workErrors.Count != 0)
+            {
+                logger.LogWarning("Job update work validation failed. JobId: {JobId}. Fields: {ValidationFields}",
+                    id,
+                    ValidationFields(workErrors));
 
-            return Result<JobReportSummaryResponse>.Invalid(workErrors);
-        }
+                return Result<JobReportSummaryResponse>.Invalid(workErrors);
+            }
 
-        var installationSelectionErrors = await ValidateInstallationSelectionsAsync(
-            organizationId.Value,
-            request.Work?.InstallationTypes,
-            cancellationToken);
-        if (installationSelectionErrors.Count != 0)
-        {
-            logger.LogWarning("Job update installation selection validation failed. JobId: {JobId}. Fields: {ValidationFields}",
-                id,
-                ValidationFields(installationSelectionErrors));
+            var installationSelectionErrors = await ValidateInstallationSelectionsAsync(
+                organizationId.Value,
+                request.Work.InstallationTypes,
+                cancellationToken);
+            if (installationSelectionErrors.Count != 0)
+            {
+                logger.LogWarning("Job update installation selection validation failed. JobId: {JobId}. Fields: {ValidationFields}",
+                    id,
+                    ValidationFields(installationSelectionErrors));
 
-            return Result<JobReportSummaryResponse>.Invalid(installationSelectionErrors);
+                return Result<JobReportSummaryResponse>.Invalid(installationSelectionErrors);
+            }
         }
 
         var updated = await _jobRepository.UpdateAsync(id, organizationId.Value, request, cancellationToken);
@@ -314,37 +317,42 @@ public sealed class JobService(
         return await ToSummaryResultAsync(report, cancellationToken);
     }
 
-    public async Task<Result<JobLinkResponse>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<JobLinkResponse>>> CreateLinksAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            return Result<JobLinkResponse>.Unauthorized();
+            return Result<IReadOnlyList<JobLinkResponse>>.Unauthorized();
         }
 
-        if (reportId == request.TargetReportId)
+        foreach (var targetId in request.TargetReportIds)
         {
-            return Result<JobLinkResponse>.Invalid([new ValidationError { Identifier = "TargetReportId", ErrorMessage = "En sag kan ikke linkes til sig selv." }]);
+            if (reportId == targetId)
+            {
+                return Result<IReadOnlyList<JobLinkResponse>>.Invalid([new ValidationError { Identifier = "TargetReportIds", ErrorMessage = "En sag kan ikke linkes til sig selv." }]);
+            }
+
+            var validationError = await ValidateLinkTargetAsync(reportId, targetId, organizationId.Value, cancellationToken);
+            if (validationError is not null)
+            {
+                return Result<IReadOnlyList<JobLinkResponse>>.Invalid([validationError]);
+            }
         }
 
-        var validationError = await ValidateLinkTargetAsync(reportId, request.TargetReportId, organizationId.Value, cancellationToken);
-        if (validationError is not null)
+        var links = new List<JobLinkResponse>(request.TargetReportIds.Count);
+        foreach (var targetId in request.TargetReportIds)
         {
-            return Result<JobLinkResponse>.Invalid([validationError]);
+            var link = await linkRepository.CreateLinkAsync(organizationId.Value, reportId, targetId, cancellationToken);
+            links.Add(link);
+            await InvalidateJobCachesAsync(targetId, organizationId.Value, cancellationToken);
         }
 
-        if (await HasExistingLinkAsync(reportId, request.TargetReportId, organizationId.Value, cancellationToken))
-        {
-            return Result<JobLinkResponse>.Invalid([new ValidationError { Identifier = "TargetReportId", ErrorMessage = "Man kan ikke assigne samme sag to gange" }]);
-        }
-
-        var link = await linkRepository.CreateLinkAsync(organizationId.Value, reportId, request.TargetReportId, request.LinkType, cancellationToken);
         await InvalidateJobCachesAsync(reportId, organizationId.Value, cancellationToken);
-        await InvalidateJobCachesAsync(request.TargetReportId, organizationId.Value, cancellationToken);
-        logger.LogInformation("Job link created. SourceReportId: {SourceReportId}. TargetReportId: {TargetReportId}. LinkType: {LinkType}.",
-            reportId, request.TargetReportId, request.LinkType);
 
-        return Result<JobLinkResponse>.Success(link);
+        logger.LogInformation("Job links created. SourceReportId: {SourceReportId}. TargetCount: {TargetCount}.",
+            reportId, request.TargetReportIds.Count);
+
+        return Result<IReadOnlyList<JobLinkResponse>>.Success(links);
     }
 
     public async Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(CancellationToken cancellationToken)
@@ -362,7 +370,7 @@ public sealed class JobService(
         return Result<IReadOnlyList<JobListItemResponse>>.Success(jobs);    
     }
 
-    public async Task<Result> DeleteLinkAsync(Guid reportId, Guid linkId, CancellationToken cancellationToken)
+    public async Task<Result> DeleteLinksAsync(Guid reportId, DeleteJobLinksRequest request, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -376,21 +384,32 @@ public sealed class JobService(
             return Result.NotFound();
         }
 
-        var link = await linkRepository.GetLinkAsync(organizationId.Value, linkId, cancellationToken);
-        if (link is null)
+        if (request.LinkIds.Count == 0)
         {
-            return Result.NotFound();
+            return Result.Success();
         }
 
-        var deleted = await linkRepository.DeleteLinkAsync(organizationId.Value, linkId, cancellationToken);
-        if (!deleted)
+        var links = await linkRepository.GetLinkRowsAsync(organizationId.Value, reportId, cancellationToken);
+        var linksToDelete = links.Where(l => request.LinkIds.Contains(l.Id)).ToArray();
+
+        if (linksToDelete.Length == 0)
         {
-            return Result.NotFound();
+            return Result.Success();
         }
 
-        await InvalidateJobCachesAsync(link.SourceReportId, organizationId.Value, cancellationToken);
-        await InvalidateJobCachesAsync(link.TargetReportId, organizationId.Value, cancellationToken);
-        logger.LogInformation("Job link deleted. LinkId: {LinkId}. ReportId: {ReportId} SourceId {SourceId} TargetReportId {TargetReportId}", linkId, reportId, link.SourceReportId, link.TargetReportId);
+        var affectedIds = linksToDelete
+            .SelectMany(l => new[] { l.SourceReportId, l.TargetReportId })
+            .Distinct()
+            .ToArray();
+
+        await linkRepository.DeleteLinksAsync(organizationId.Value, linksToDelete.Select(l => l.Id).ToArray(), cancellationToken);
+
+        foreach (var affectedId in affectedIds)
+        {
+            await InvalidateJobCachesAsync(affectedId, organizationId.Value, cancellationToken);
+        }
+
+        logger.LogInformation("Job links deleted. LinkIds: {LinkIds}. ReportId: {ReportId}", request.LinkIds, reportId);
         return Result.Success();
     }
 
@@ -436,24 +455,20 @@ public sealed class JobService(
          return await ToSummaryResultAsync(restored, cancellationToken);
      }
 
-     public async Task<Result<JobReportSummaryResponse>> AssignAsync(Guid jobId, IReadOnlyList<Guid>? userIds, CancellationToken cancellationToken)
+     public async Task<Result<JobReportSummaryResponse>> AssignAsync(Guid jobId, IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
      {
          var organizationId = currentUser.OrganizationId;
+            
          if (organizationId is null)
          {
              return Result<JobReportSummaryResponse>.Unauthorized();
          }
 
-         var normalizedUserIds = (userIds ?? []).Distinct().ToArray();
-         if (normalizedUserIds.Length == 0)
-         {
-             return Result<JobReportSummaryResponse>.Invalid([new ValidationError { Identifier = nameof(AssignJobRequest.UserIds), ErrorMessage = "Vælg mindst én bruger." }]);
-         }
+        var invalidUserError = await ValidateAssignedUsersExistAsync(userIds, jobId, organizationId.Value, cancellationToken);
+        if (invalidUserError is not null) 
+            return invalidUserError;
 
-         var invalidUserError = await ValidateAssignedUsersExistAsync(normalizedUserIds, jobId, organizationId.Value, cancellationToken);
-         if (invalidUserError is not null) return invalidUserError;
-
-         await assignmentRepository.AssignAsync(jobId, organizationId.Value, normalizedUserIds, currentUser.UserId, cancellationToken);
+         await assignmentRepository.AssignAsync(jobId, organizationId.Value, userIds, currentUser.UserId, cancellationToken);
         
         var job = await _jobRepository.GetSingleJobAsync(jobId, organizationId.Value, cancellationToken);
         if (job is null)
@@ -462,7 +477,7 @@ public sealed class JobService(
          }
 
          await InvalidateJobCachesAsync(jobId, organizationId.Value, cancellationToken);
-         logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {AssignedUserCount}.", jobId, normalizedUserIds.Length);
+         logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {Assigneds}.", jobId, userIds);
 
          return await ToSummaryResultAsync(job, cancellationToken);
      }
@@ -704,20 +719,17 @@ public sealed class JobService(
 
         return null;
     }
-
-    private async Task<bool> HasExistingLinkAsync(Guid reportId, Guid targetId, Guid organizationId, CancellationToken cancellationToken)
-    {
-        var report = await _jobRepository.GetSingleJobAsync(reportId, organizationId, cancellationToken);
-        return report?.Links.Any(x => x.LinkedReportId == targetId) ?? false;
-    }
-
     private async Task<Result<JobReportSummaryResponse>?> ValidateAssignedUsersExistAsync(
-        IReadOnlyList<Guid> userIds, Guid jobId, Guid organizationId, CancellationToken cancellationToken)
+        IReadOnlyList<Guid>? userIds, Guid jobId, Guid organizationId, CancellationToken cancellationToken)
     {
+        if (userIds is null || userIds.Count == 0) 
+            return null;
+
         foreach (var userId in userIds)
         {
             var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
-            if (assignedUser is not null) continue;
+            if (assignedUser is not null) 
+                continue;
 
             logger.LogWarning("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
                 jobId, organizationId, userId);

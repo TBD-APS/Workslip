@@ -40,7 +40,7 @@ export const AppLayout = () => {
           <span>Mine Jobs</span>
         </NavLink>
         <div className="nav-item-fab">
-          <button className="fab-button">
+          <button className="fab-button" onClick={() => navigate('/app/job/new')}>
             <PlusCircle size={28} />
           </button>
         </div>

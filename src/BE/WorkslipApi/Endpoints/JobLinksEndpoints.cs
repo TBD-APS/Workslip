@@ -1,4 +1,5 @@
-﻿using Workslip.Api.Helpers;
+﻿using Microsoft.AspNetCore.Mvc;
+using Workslip.Api.Helpers;
 using Workslip.Api.ViewModels;
 using Workslip.Application.Jobs;
 
@@ -10,21 +11,19 @@ namespace Workslip.Api.Endpoints
         {
             var group = app.MapGroup("/api/jobs").WithTags("jobs").RequireAuthorization(AuthPolicies.RequireUser);
 
-            group.MapPost("/{id:guid}/links", async (Guid id, CreateJobLinkRequest request, IJobService service, CancellationToken cancellationToken) =>
+            group.MapPost("/{id:guid}/links", async (Guid id, [FromBody] CreateJobLinkRequest request, IJobService service, CancellationToken cancellationToken) =>
             {
-                var result = await service.CreateLinkAsync(id, request, cancellationToken);
-                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToLink);
+                var result = await service.CreateLinksAsync(id, request, cancellationToken);
+                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToLinkList);
             });
 
-            group.MapDelete("/{id:guid}/links/{linkId:guid}", async (Guid id, Guid linkId, IJobService service, CancellationToken cancellationToken) =>
+            group.MapDelete("/{id:guid}/links", async (Guid id, [FromBody] DeleteJobLinksRequest request, IJobService service, CancellationToken cancellationToken) =>
             {
-                var result = await service.DeleteLinkAsync(id, linkId, cancellationToken);
+                var result = await service.DeleteLinksAsync(id, request, cancellationToken);
                 return ResultExtensions.ToHttpResult(result);
             });
 
-
             return app;
-
         }
     }
 }

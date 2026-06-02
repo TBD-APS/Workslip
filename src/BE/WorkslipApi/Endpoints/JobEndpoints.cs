@@ -49,13 +49,13 @@ public static class JobEndpoints
         {
             var result = await service.GetSingleJobAsync(id, cancellationToken);
             return CachedOk(result, httpContext, report => HttpCacheHeaders.JobReportEtag(report), JobViewModelBuilder.ToSummary);
-        });
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
         group.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetHistoryAsync(id, limit, offset, cancellationToken);
             return CachedOk(result, httpContext, events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
-        });
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
         group.MapGet("/{id:guid}/report/pdf", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
         {
@@ -71,13 +71,13 @@ public static class JobEndpoints
         {
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        });
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
         group.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.ChangeStatusAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        });
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
         group.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
@@ -89,13 +89,16 @@ public static class JobEndpoints
         {
             var result = await service.RestoreDeletionAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK)
+        .RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
         {
             var result = await jobService.AssignAsync(id, request.UserIds, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+        })
+        .Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK)
+        .RequireAuthorization(AuthPolicies.RequireAdmin);
 
         return app;
     }
@@ -113,7 +116,7 @@ public static class JobEndpoints
         HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
 
         return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
-            ? Results.StatusCode(StatusCodes.Status304NotModified)
-            : Results.Ok(map?.Invoke(result.Value) ?? result.Value);
+            ? TypedResults.StatusCode(StatusCodes.Status304NotModified)
+            : TypedResults.Ok(map?.Invoke(result.Value) ?? result.Value);
     }
 }

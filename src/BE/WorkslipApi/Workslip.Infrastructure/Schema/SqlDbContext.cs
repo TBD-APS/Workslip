@@ -346,10 +346,6 @@ public sealed class SqlDbContext : DbContext
         });
         entity.HasKey(e => e.Id);
 
-        entity.Property(e => e.LinkType)
-            .HasMaxLength(80)
-            .IsRequired();
-
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");
 
         entity.HasOne<OrganizationRow>()

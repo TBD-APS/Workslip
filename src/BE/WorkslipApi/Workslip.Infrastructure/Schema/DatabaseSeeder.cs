@@ -135,7 +135,7 @@ public static class DatabaseSeeder
         var worksheets = new List<WorksheetRow>();
         var jobLinks = new List<JobReportLinkRow>();
 
-        var existingLinks = new HashSet<(Guid SourceId, Guid TargetId, string LinkType)>();
+        var existingLinks = new HashSet<(Guid SourceId, Guid TargetId)>();
 
         var random = new Faker();
         foreach (var job in jobs)
@@ -167,9 +167,7 @@ public static class DatabaseSeeder
 
             foreach (var targetReport in targets)
             {
-                var linkType = random.PickRandom("related");
-
-                if (!existingLinks.Add((job.Id, targetReport.Id, linkType)))
+                if (!existingLinks.Add((job.Id, targetReport.Id)))
                 {
                     continue;
                 }
@@ -179,7 +177,6 @@ public static class DatabaseSeeder
                     .RuleFor(x => x.OrganizationId, _ => job.OrganizationId)
                     .RuleFor(x => x.SourceReportId, _ => job.Id)
                     .RuleFor(x => x.TargetReportId, _ => targetReport.Id)
-                    .RuleFor(x => x.LinkType, _ => linkType)
                     .RuleFor(x => x.CreatedAt, f => f.Date.PastOffset(1))
                     .Generate();
 

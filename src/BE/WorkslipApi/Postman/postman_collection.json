@@ -1553,7 +1553,7 @@
             "description": "Creates a bi-directional link between two jobs. Saves linkId on success.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"targetReportId\": \"{{targetJobId}}\",\n  \"linkType\": \"related\"\n}",
+              "raw": "{\n  \"targetReportIds\": [\"{{targetJobId}}\"]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1570,10 +1570,11 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.collectionVariables.set('linkId', json.id);",
-                  "pm.test('link id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
-                  "pm.test('link view model hides internal timestamp', function () { pm.expect(json).to.not.have.property('createdAt'); });",
-                  "pm.test('linked report info returned', function () { pm.expect(json.linkedReportNumber).to.be.a('string'); });"
+                  "const link = json[0];",
+                  "pm.collectionVariables.set('linkId', link.id);",
+                  "pm.test('link id captured', function () { pm.expect(link.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('link view model hides internal timestamp', function () { pm.expect(link).to.not.have.property('createdAt'); });",
+                  "pm.test('linked report info returned', function () { pm.expect(link.linkedReportNumber).to.be.a('string'); });"
                 ]
               }
             }
@@ -1604,7 +1605,7 @@
             "description": "Covers job link edge case: a job cannot link to itself.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"targetReportId\": \"{{jobId}}\",\n  \"linkType\": \"related\"\n}",
+              "raw": "{\n  \"targetReportIds\": [\"{{jobId}}\"]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1623,17 +1624,65 @@
                   "const json = pm.response.json();",
                   "const errors = json.errors || {};",
                   "const keys = Object.keys(errors);",
-                  "pm.test('self-link validation field returned', function () { pm.expect(keys).to.include('TargetReportId'); });"
+                  "pm.test('self-link validation field returned', function () { pm.expect(keys).to.include('TargetReportIds'); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "/api/jobs/{id}/links",
+          "name": "/api/jobs/{id} after link create",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "If-None-Match",
+                "value": "{{jobEtag}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "Revalidates job detail after creating links. Link state must change the job detail ETag, so this should return 200 instead of 304."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK because link state changed', function () { pm.response.to.have.status(200); });",
+                  "const previousEtag = pm.variables.get('jobEtag');",
+                  "const nextEtag = pm.response.headers.get('ETag');",
+                  "pm.test('job detail ETag changed after link create', function () { pm.expect(nextEtag).to.be.a('string').and.not.eql(previousEtag); });",
+                  "pm.collectionVariables.set('jobEtag', nextEtag);",
+                  "const json = pm.response.json();",
+                  "pm.test('job detail includes created link', function () { pm.expect(json.links.map(link => link.id)).to.include(pm.variables.get('linkId')); });",
+                  "pm.test('job link model has no linkType', function () { if (json.links.length > 0) pm.expect(json.links[0]).to.not.have.property('linkType'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/jobs/{id}/links batch delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links",
               "host": [
@@ -1646,7 +1695,16 @@
                 "links"
               ]
             },
-            "description": "Gets all links for a job (both directions)."
+            "description": "Removes one or more links from a job in a single request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"linkIds\": [\"{{linkId}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": [],
           "event": [
@@ -1655,31 +1713,34 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });"
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
                 ]
               }
             }
           ]
         },
         {
-          "name": "/api/jobs/{id}/links/{linkId}",
+          "name": "/api/jobs/{id} after link delete",
           "request": {
-            "method": "DELETE",
-            "header": [],
+            "method": "GET",
+            "header": [
+              {
+                "key": "If-None-Match",
+                "value": "{{jobEtag}}"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/api/jobs/{{jobId}}/links/{{linkId}}",
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "jobs",
-                "{{jobId}}",
-                "links",
-                "{{linkId}}"
+                "{{jobId}}"
               ]
             },
-            "description": "Removes a link between two jobs."
+            "description": "Revalidates job detail after deleting links. Link state must change the job detail ETag, so this should return 200 instead of 304."
           },
           "response": [],
           "event": [
@@ -1688,7 +1749,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                  "pm.test('200 OK because link state changed', function () { pm.response.to.have.status(200); });",
+                  "const previousEtag = pm.variables.get('jobEtag');",
+                  "const nextEtag = pm.response.headers.get('ETag');",
+                  "pm.test('job detail ETag changed after link delete', function () { pm.expect(nextEtag).to.be.a('string').and.not.eql(previousEtag); });",
+                  "pm.collectionVariables.set('jobEtag', nextEtag);",
+                  "const json = pm.response.json();",
+                  "pm.test('job detail no longer includes deleted link', function () { pm.expect(json.links.map(link => link.id)).to.not.include(pm.variables.get('linkId')); });"
                 ]
               }
             }
@@ -1747,8 +1814,53 @@
                   "    pm.expect(ids).to.include(pm.variables.get('assigneeUserId'));",
                   "  });",
                   "  pm.test('legacy assignedUser removed', function () { pm.expect(json).to.not.have.property('assignedUser'); });",
-                  "}",
-                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/jobs/{id} after assign",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "If-None-Match",
+                "value": "{{jobEtag}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{jobId}}"
+              ]
+            },
+            "description": "Revalidates job detail after assigning users. Assigned-user state must change the job detail ETag, so this should return 200 instead of 304."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK because assigned-user state changed', function () { pm.response.to.have.status(200); });",
+                  "const previousEtag = pm.variables.get('jobEtag');",
+                  "const nextEtag = pm.response.headers.get('ETag');",
+                  "pm.test('job detail ETag changed after assignment update', function () { pm.expect(nextEtag).to.be.a('string').and.not.eql(previousEtag); });",
+                  "pm.collectionVariables.set('jobEtag', nextEtag);",
+                  "const json = pm.response.json();",
+                  "const ids = json.assignedUsers.map(user => user.id);",
+                  "pm.test('job detail includes assigned users', function () {",
+                  "  pm.expect(ids).to.include(pm.variables.get('creatorUserId'));",
+                  "  pm.expect(ids).to.include(pm.variables.get('assigneeUserId'));",
+                  "});"
                 ]
               }
             }

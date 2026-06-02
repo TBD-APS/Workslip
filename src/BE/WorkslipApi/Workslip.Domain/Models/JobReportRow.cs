@@ -18,6 +18,7 @@ public sealed class JobReportRow
     public string? CustomWorkKind { get; init; }
     public string? Remarks { get; init; }
     public List<JobReportClosureFlagRow> ClosureFlags { get; set; } = new();
+    public List<JobReportLinkRow> Links{ get; set; } = new();
     public bool IsSoftDeleted { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }

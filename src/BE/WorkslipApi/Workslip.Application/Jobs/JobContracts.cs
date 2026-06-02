@@ -105,7 +105,7 @@ public sealed record UpdateJobRequest(
     CreateJobObservationRequest? Observations);
 
 public sealed record AssignJobRequest(
-    IReadOnlyList<Guid>? UserIds);
+    IReadOnlyList<Guid> UserIds);
 
 public sealed record ChangeJobStatusRequest(
     JobStatus Status);
@@ -168,15 +168,17 @@ public sealed record JobReportResponse(
     decimal? TotalHours);
 
 public sealed record CreateJobLinkRequest(
-    Guid TargetReportId,
-    string LinkType);
+    List<Guid> TargetReportIds);
+
+public sealed record DeleteJobLinksRequest(
+    List<Guid> LinkIds);
 
 public sealed record JobLinkInfoResponse(
+    Guid Id,
     Guid LinkedReportId,
     string LinkedReportNumber,
     string LinkedCustomerName,
-    string LinkedStatus,
-    string LinkType);
+    string LinkedStatus);
 
 public sealed record JobLinkResponse(
     Guid Id,
@@ -185,7 +187,6 @@ public sealed record JobLinkResponse(
     string LinkedReportNumber,
     string LinkedCustomerName,
     string LinkedStatus,
-    string LinkType,
     DateTimeOffset CreatedAt);
 
 public sealed record WorksheetDayEntry(
