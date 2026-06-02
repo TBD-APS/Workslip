@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -6,32 +6,14 @@ import {
   usePostApiJobsIdAssign,
   usePostApiJobsIdLinks,
 } from '../../../api/generated/jobs/jobs';
-import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
-import type {
-  CustomerInfo,
-  CreateJobRequest,
-} from '../../../api/generated/models';
-import type { SaveStatus } from './useJobDetails';
-
-export type CreateJobForm = {
-  customer: CustomerInfo;
-  reportNumber: string;
-  taskDescription: string;
-  customerObservations: string;
-};
-
-const emptyCustomer: CustomerInfo = {
-  customerId: null,
-  name: null,
-  address: null,
-  email: null,
-  contactPerson: null,
-  phone: null,
-};
+import { useTimedStatus } from '../../../hooks/useTimedStatus';
+import { emptyCustomer, isValidContactInfo } from '../utils';
+import type { CustomerInfo, CreateJobRequest } from '../../../api/generated/models';
+import type { JobForm } from '../types';
 
 export function useJobCreate(onCreated: (jobId: string) => void) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<CreateJobForm>({
+  const [form, setForm] = useState<JobForm>({
     customer: { ...emptyCustomer },
     reportNumber: '',
     taskDescription: '',
@@ -40,25 +22,30 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
   const [linkedJobIds, setLinkedJobIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [assignmentStatus, setAssignmentStatus] = useState<SaveStatus>('idle');
-  const [linksStatus, setLinksStatus] = useState<SaveStatus>('idle');
-  const assignedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const linksTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
+  const [linksStatus, setLinksStatus] = useTimedStatus();
 
   const createMutation = usePostApiJobs({
     mutation: {
       onSuccess: (response) => {
         const jobId = (response.data as unknown as { id: string }).id;
 
-        const doAssign = assignedUserIds.length > 0
-          ? assignMutation.mutateAsync({ id: jobId, data: { userIds: assignedUserIds } })
-          : Promise.resolve();
+        const doAssign =
+          assignedUserIds.length > 0
+            ? assignMutation.mutateAsync({ id: jobId, data: { userIds: assignedUserIds } })
+            : Promise.resolve();
 
-        const doLinks = linkedJobIds.length > 0
-          ? Promise.all(linkedJobIds.map((targetReportId) =>
-              linkMutation.mutateAsync({ id: jobId, data: { targetReportId, linkType: 'related' } })
-            ))
-          : Promise.resolve();
+        const doLinks =
+          linkedJobIds.length > 0
+            ? Promise.all(
+                linkedJobIds.map((targetReportId) =>
+                  linkMutation.mutateAsync({
+                    id: jobId,
+                    data: { targetReportId, linkType: 'related' },
+                  }),
+                ),
+              )
+            : Promise.resolve();
 
         Promise.all([doAssign, doLinks]).then(() => {
           queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
@@ -76,21 +63,13 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
 
   const assignMutation = usePostApiJobsIdAssign({
     mutation: {
-      onSuccess: () => {
-        setAssignmentStatus('saved');
-        clearTimeout(assignedTimerRef.current);
-        assignedTimerRef.current = setTimeout(() => setAssignmentStatus('idle'), 2500);
-      },
+      onSuccess: () => setAssignmentStatus('saved'),
     },
   });
 
   const linkMutation = usePostApiJobsIdLinks({
     mutation: {
-      onSuccess: () => {
-        setLinksStatus('saved');
-        clearTimeout(linksTimerRef.current);
-        linksTimerRef.current = setTimeout(() => setLinksStatus('idle'), 2500);
-      },
+      onSuccess: () => setLinksStatus('saved'),
     },
   });
 
@@ -123,8 +102,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     setLinksStatus('idle');
   };
 
-  const canSave = validateEmail(form.customer.email) === null
-    && validatePhoneNumber(form.customer.phone) === null;
+  const canSave = isValidContactInfo(form.customer);
 
   const save = () => {
     if (!canSave) return;

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import type { AssignedUserResponse, CustomerInfo, JobStatus } from '../../../api/generated/models';
+import { getResponseData } from '../utils';
 
 type JobListItemViewModel = {
   id: string;
@@ -150,17 +151,6 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
 function getJobListItems(value: unknown): JobListItemViewModel[] {
   const data = getResponseData(value);
   return Array.isArray(data) ? data as JobListItemViewModel[] : [];
-}
-
-function getResponseData(value: unknown): unknown {
-  if (!value || typeof value !== 'object' || !('data' in value)) return value;
-
-  const data = (value as { data: unknown }).data;
-  if (data && typeof data === 'object' && 'data' in data) {
-    return (data as { data: unknown }).data;
-  }
-
-  return data;
 }
 
 function formatInstallationTypes(installationTypes: string[]) {

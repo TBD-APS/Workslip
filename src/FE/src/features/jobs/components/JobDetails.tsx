@@ -1,7 +1,8 @@
 import { AlertCircle, ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { SaveStatus, useJobDetails } from '../hooks/useJobDetails';
+import type { useJobDetails } from '../hooks/useJobDetails';
+import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from './JobDetailBlocks';
 

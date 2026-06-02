@@ -11,76 +11,38 @@ import {
   usePatchApiJobsId,
 } from '../../../api/generated/jobs/jobs';
 import { useGetApiUsers } from '../../../api/generated/users/users';
-import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
-import type {
-  CustomerInfo,
-  JobReportSummaryViewModel,
-  UpdateJobRequest,
-} from '../../../api/generated/models';
+import { useTimedStatus } from '../../../hooks/useTimedStatus';
+import {
+  emptyForm,
+  getLinkableJobs,
+  getResponseData,
+  getUserList,
+  isValidContactInfo,
+  sameForm,
+  toForm,
+  toNullable,
+  toUpdateRequest,
+} from '../utils';
+import type { CustomerInfo, JobReportSummaryViewModel } from '../../../api/generated/models';
+import type { JobForm } from '../types';
 
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
-
-export type JobDetailsForm = {
-  customer: CustomerInfo;
-  reportNumber: string;
-  taskDescription: string;
-  customerObservations: string;
-};
-
-export type AssignableUser = {
-  id: string;
-  displayName: string;
-  email: string;
-};
-
-export type LinkableJob = {
-  id: string;
-  label: string;
-  description: string;
-};
-
-type JobDetailsDraft = {
-  jobId: string;
-  form: JobDetailsForm;
-};
-
-type AssignmentDraft = {
-  jobId: string;
-  userIds: string[];
-};
-
-type LinksDraft = {
-  jobId: string;
-  linkedJobIds: string[];
-};
-
-const emptyCustomer: CustomerInfo = {
-  customerId: null,
-  name: null,
-  address: null,
-  email: null,
-  contactPerson: null,
-  phone: null,
-};
+type JobDetailsDraft = { jobId: string; form: JobForm };
+type AssignmentDraft = { jobId: string; userIds: string[] };
+type LinksDraft = { jobId: string; linkedJobIds: string[] };
 
 export function useJobDetails(jobId: string | undefined) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<JobDetailsDraft | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const [assignmentStatus, setAssignmentStatus] = useState<SaveStatus>('idle');
+  const [saveStatus, setSaveStatus] = useTimedStatus();
+  const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
+  const [linksStatus, setLinksStatus] = useTimedStatus();
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentDraft | null>(null);
-  const [linksStatus, setLinksStatus] = useState<SaveStatus>('idle');
   const [linksDraft, setLinksDraft] = useState<LinksDraft | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const assignmentTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const linksTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const query = useGetApiJobsId(jobId ?? '', {
-    query: {
-      enabled: Boolean(jobId),
-    },
+    query: { enabled: Boolean(jobId) },
   });
   const job = getResponseData<JobReportSummaryViewModel>(query.data);
   const usersQuery = useGetApiUsers();
@@ -88,13 +50,16 @@ export function useJobDetails(jobId: string | undefined) {
   const assignableUsers = getUserList(usersQuery.data);
   const linkableJobs = getLinkableJobs(jobsQuery.data, jobId);
   const initialForm = job ? toForm(job) : null;
-  const form = draft && draft.jobId === jobId ? draft.form : initialForm ?? emptyForm;
-  const assignedUserIds = assignmentDraft && assignmentDraft.jobId === jobId
-    ? assignmentDraft.userIds
-    : job?.assignedUsers.map((user) => user.id) ?? [];
-  const linkedJobIds = linksDraft && linksDraft.jobId === jobId
-    ? linksDraft.linkedJobIds
-    : job?.links.map((link) => link.linkedReportId) ?? [];
+  const form =
+    draft && draft.jobId === jobId ? draft.form : initialForm ?? emptyForm;
+  const assignedUserIds =
+    assignmentDraft && assignmentDraft.jobId === jobId
+      ? assignmentDraft.userIds
+      : job?.assignedUsers.map((user) => user.id) ?? [];
+  const linkedJobIds =
+    linksDraft && linksDraft.jobId === jobId
+      ? linksDraft.linkedJobIds
+      : job?.links.map((link) => link.linkedReportId) ?? [];
 
   const mutation = usePatchApiJobsId({
     mutation: {
@@ -105,8 +70,6 @@ export function useJobDetails(jobId: string | undefined) {
         }
         setDraft(null);
         setSaveStatus('saved');
-        clearTimeout(savedTimerRef.current);
-        savedTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2500);
       },
       onError: () => {
         setSaveStatus('error');
@@ -123,8 +86,6 @@ export function useJobDetails(jobId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
         }
         setAssignmentStatus('saved');
-        clearTimeout(assignmentTimerRef.current);
-        assignmentTimerRef.current = setTimeout(() => setAssignmentStatus('idle'), 2500);
       },
       onError: () => {
         setAssignmentStatus('error');
@@ -140,8 +101,6 @@ export function useJobDetails(jobId: string | undefined) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
         }
         setLinksStatus('saved');
-        clearTimeout(linksTimerRef.current);
-        linksTimerRef.current = setTimeout(() => setLinksStatus('idle'), 2500);
       },
       onError: () => {
         setLinksStatus('error');
@@ -169,18 +128,13 @@ export function useJobDetails(jobId: string | undefined) {
     }, 1500);
 
     return () => clearTimeout(debounceTimerRef.current);
-  }, [draft, initialForm, job, jobId, mutation]);
+  }, [draft, initialForm, job, jobId, mutation, setSaveStatus]);
 
   useEffect(() => {
-    return () => {
-      clearTimeout(debounceTimerRef.current);
-      clearTimeout(savedTimerRef.current);
-      clearTimeout(assignmentTimerRef.current);
-      clearTimeout(linksTimerRef.current);
-    };
+    return () => clearTimeout(debounceTimerRef.current);
   }, []);
 
-  const updateDraft = (nextForm: JobDetailsForm) => {
+  const updateDraft = (nextForm: JobForm) => {
     if (!jobId) return;
     setDraft({ jobId, form: nextForm });
     if (saveStatus === 'saved') setSaveStatus('idle');
@@ -189,10 +143,7 @@ export function useJobDetails(jobId: string | undefined) {
   const updateCustomer = (field: keyof CustomerInfo, value: string | null) => {
     updateDraft({
       ...form,
-      customer: {
-        ...form.customer,
-        [field]: toNullable(value),
-      },
+      customer: { ...form.customer, [field]: toNullable(value) },
     });
   };
 
@@ -270,123 +221,4 @@ export function useJobDetails(jobId: string | undefined) {
     updateTaskDescription,
     updateCustomerObservations,
   };
-}
-
-const emptyForm: JobDetailsForm = {
-  customer: emptyCustomer,
-  reportNumber: '',
-  taskDescription: '',
-  customerObservations: '',
-};
-
-export function getResponseData<T>(value: T | { data: T } | { data: { data: T } } | undefined): T | undefined {
-  if (!value) return undefined;
-  if (!('data' in (value as object))) return value as T;
-
-  const firstData = (value as { data: T | { data: T } }).data;
-  if (firstData && typeof firstData === 'object' && 'data' in firstData) {
-    return (firstData as { data: T }).data;
-  }
-
-  return firstData as T;
-}
-
-type UserViewModel = {
-  id: string;
-  displayName: string;
-  email: string;
-};
-
-type UserListViewModel = {
-  users: UserViewModel[];
-};
-
-type JobListItemViewModel = {
-  id: string;
-  reportNumber: string | null;
-  customer: CustomerInfo | null;
-  status: string;
-};
-
-export function getUserList(value: unknown): AssignableUser[] {
-  const data = getResponseData<UserListViewModel | UserViewModel[]>(value as UserListViewModel | UserViewModel[] | { data: UserListViewModel | UserViewModel[] } | undefined);
-  const users = Array.isArray(data) ? data : data?.users ?? [];
-  return users.map((user) => ({
-    id: user.id,
-    displayName: user.displayName,
-    email: user.email,
-  }));
-}
-
-export function getLinkableJobs(value: unknown, currentJobId: string | undefined): LinkableJob[] {
-  const data = getResponseData<JobListItemViewModel[]>(value as JobListItemViewModel[] | { data: JobListItemViewModel[] } | undefined);
-  const jobs = Array.isArray(data) ? data : [];
-
-  return jobs
-    .filter((job) => job.id !== currentJobId)
-    .map((job) => ({
-      id: job.id,
-      label: `SAG-${(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}`,
-      description: `${job.customer?.name || 'Ukendt kunde'}\n${job.customer?.address || ''}`,
-    }));
-}
-
-function toForm(job: JobReportSummaryViewModel): JobDetailsForm {
-  return {
-    customer: {
-      customerId: job.customer.customerId ?? null,
-      name: job.customer.name ?? null,
-      address: job.customer.address ?? null,
-      email: job.customer.email ?? null,
-      contactPerson: job.customer.contactPerson ?? null,
-      phone: job.customer.phone ?? null,
-    },
-    reportNumber: job.reportNumber ?? '',
-    taskDescription: job.observations.taskDescription ?? '',
-    customerObservations: job.observations.customerObservations ?? '',
-  };
-}
-
-function toUpdateRequest(job: JobReportSummaryViewModel, initial: JobDetailsForm, form: JobDetailsForm): UpdateJobRequest {
-  const request: Partial<UpdateJobRequest> = {};
-
-  if (!sameCustomer(initial.customer, form.customer)) {
-    request.customer = form.customer;
-  }
-
-  if (!job.reportNumber && initial.reportNumber !== form.reportNumber) {
-    request.reportNumber = form.reportNumber.trim() || null;
-  }
-
-  if (initial.taskDescription !== form.taskDescription || initial.customerObservations !== form.customerObservations) {
-    request.observations = {
-      reportDate: job.observations.reportDate ?? null,
-      taskDescription: form.taskDescription.trim() || null,
-      customerObservations: form.customerObservations.trim() || null,
-      technicalObservations: job.observations.technicalObservations ?? null,
-    };
-  }
-
-  return request as UpdateJobRequest;
-}
-
-function sameForm(left: JobDetailsForm, right: JobDetailsForm) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function sameCustomer(left: CustomerInfo, right: CustomerInfo) {
-  return left.customerId === right.customerId
-    && left.name === right.name
-    && left.address === right.address
-    && left.email === right.email
-    && left.contactPerson === right.contactPerson
-    && left.phone === right.phone;
-}
-
-function isValidContactInfo(customer: CustomerInfo) {
-  return validateEmail(customer.email) === null && validatePhoneNumber(customer.phone) === null;
-}
-
-function toNullable(value: string | null) {
-  return value && value.length > 0 ? value : null;
 }

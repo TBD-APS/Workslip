@@ -4,7 +4,7 @@ import { useGetApiUsers } from '../../../api/generated/users/users';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import { useJobCreate } from '../hooks/useJobCreate';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
-import { getUserList, getLinkableJobs } from '../hooks/useJobDetails';
+import { getUserList, getLinkableJobs } from '../utils';
 
 export const JobCreate = () => {
   const navigate = useNavigate();

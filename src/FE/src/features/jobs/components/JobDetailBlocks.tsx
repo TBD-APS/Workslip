@@ -4,7 +4,7 @@ import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdo
 import { ValidatedInput } from '../../../components/forms/ValidatedInput';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CustomerInfo } from '../../../api/generated/models';
-import type { AssignableUser, LinkableJob, SaveStatus } from '../hooks/useJobDetails';
+import type { AssignableUser, LinkableJob, SaveStatus } from '../types';
 
 type CustomerBlockProps = {
   form: { customer: CustomerInfo; reportNumber: string };
