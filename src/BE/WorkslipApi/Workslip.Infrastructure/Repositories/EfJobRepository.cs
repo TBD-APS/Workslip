@@ -92,7 +92,7 @@ public sealed class EfJobRepository : IJobRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
-        await _assignmentRepo.ReplaceAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
+        await _assignmentRepo.AddAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
         var assignedUsers = await _assignmentRepo.GetAssignedUsersByIdsAsync(organizationId, normalizedUserIds, cancellationToken);
         await InsertEventAsync(organizationId, reportId, actorId, "created", null, JobReportMapper.ToJsonNode(new { reportId, assignedUsers }), now, cancellationToken);
 
@@ -240,7 +240,7 @@ public sealed class EfJobRepository : IJobRepository
         var existing = await _dbContext.JobReports
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
-        if (existing is null || !JobStatusPolicy.CanEdit(JobReportMapper.ParseStatus(existing.Status)))
+        if (existing is null)
             return null;
 
         var now = DateTimeOffset.UtcNow;

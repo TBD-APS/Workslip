@@ -105,7 +105,7 @@ public sealed record UpdateJobRequest(
     CreateJobObservationRequest? Observations);
 
 public sealed record AssignJobRequest(
-    IReadOnlyList<Guid>? UserIds);
+    IReadOnlyList<Guid> UserIds);
 
 public sealed record ChangeJobStatusRequest(
     JobStatus Status);
@@ -172,6 +172,7 @@ public sealed record CreateJobLinkRequest(
     string LinkType);
 
 public sealed record JobLinkInfoResponse(
+    Guid Id,
     Guid LinkedReportId,
     string LinkedReportNumber,
     string LinkedCustomerName,

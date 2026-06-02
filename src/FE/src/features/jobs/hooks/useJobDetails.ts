@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  getGetApiJobsQueryKey,
   getGetApiJobsIdQueryKey,
+  useDeleteApiJobsIdLinksLinkId,
   useGetApiJobs,
   useGetApiJobsId,
   usePostApiJobsIdAssign,
@@ -39,6 +39,7 @@ export function useJobDetails(jobId: string | undefined) {
   const [linksStatus, setLinksStatus] = useTimedStatus();
   const [assignmentDraft, setAssignmentDraft] = useState<AssignmentDraft | null>(null);
   const [linksDraft, setLinksDraft] = useState<LinksDraft | null>(null);
+  const pendingLinksRef = useRef<Set<string>>(new Set());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const query = useGetApiJobsId(jobId ?? '', {
@@ -66,7 +67,6 @@ export function useJobDetails(jobId: string | undefined) {
       onSuccess: () => {
         if (jobId) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
-          queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
         }
         setDraft(null);
         setSaveStatus('saved');
@@ -78,12 +78,18 @@ export function useJobDetails(jobId: string | undefined) {
     },
   });
 
+  const initialFormRef = useRef(initialForm);
+  const jobRef = useRef(job);
+  const mutateRef = useRef(mutation.mutate);
+  initialFormRef.current = initialForm;
+  jobRef.current = job;
+  mutateRef.current = mutation.mutate;
+
   const assignmentMutation = usePostApiJobsIdAssign({
     mutation: {
       onSuccess: () => {
         if (jobId) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
-          queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
         }
         setAssignmentStatus('saved');
       },
@@ -96,24 +102,50 @@ export function useJobDetails(jobId: string | undefined) {
 
   const linkMutation = usePostApiJobsIdLinks({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
+        pendingLinksRef.current.delete(variables.data.targetReportId);
         if (jobId) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
         }
-        setLinksStatus('saved');
+        if (pendingLinksRef.current.size === 0) {
+          setLinksStatus('saved');
+        }
       },
-      onError: () => {
+      onError: (_error, variables) => {
+        pendingLinksRef.current.delete(variables.data.targetReportId);
         setLinksStatus('error');
         toast.error('Kunne ikke opdatere tilknyttede sager', { id: 'job-links-error' });
       },
     },
   });
 
+  const deleteLinkMutation = useDeleteApiJobsIdLinksLinkId({
+    mutation: {
+      onSuccess: (_data, variables) => {
+        pendingLinksRef.current.delete(variables.linkId);
+        if (jobId) {
+          queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
+        }
+        if (pendingLinksRef.current.size === 0) {
+          setLinksStatus('saved');
+        }
+      },
+      onError: (_error, variables) => {
+        pendingLinksRef.current.delete(variables.linkId);
+        setLinksStatus('error');
+        toast.error('Kunne ikke fjerne tilknyttet sag', { id: 'job-links-error' });
+      },
+    },
+  });
+
   useEffect(() => {
-    if (!draft || !initialForm || !job || !jobId) return;
+    const currentInitialForm = initialFormRef.current;
+    const currentJob = jobRef.current;
+    const currentMutate = mutateRef.current;
+    if (!draft || !currentInitialForm || !currentJob || !jobId) return;
 
     debounceTimerRef.current = setTimeout(() => {
-      if (sameForm(initialForm, draft.form)) {
+      if (sameForm(currentInitialForm, draft.form)) {
         setDraft(null);
         return;
       }
@@ -124,11 +156,11 @@ export function useJobDetails(jobId: string | undefined) {
       }
 
       setSaveStatus('saving');
-      mutation.mutate({ id: jobId, data: toUpdateRequest(job, initialForm, draft.form) });
+      currentMutate({ id: jobId, data: toUpdateRequest(currentJob, currentInitialForm, draft.form) });
     }, 1500);
 
     return () => clearTimeout(debounceTimerRef.current);
-  }, [draft, initialForm, job, jobId, mutation, setSaveStatus]);
+  }, [draft, jobId]);
 
   useEffect(() => {
     return () => clearTimeout(debounceTimerRef.current);
@@ -170,14 +202,31 @@ export function useJobDetails(jobId: string | undefined) {
     if (!jobId || !job) return;
 
     const existingLinkedIds = job.links.map((link) => link.linkedReportId);
-    const addedIds = linkedJobIds.filter((id) => !existingLinkedIds.includes(id));
 
     setLinksDraft({ jobId, linkedJobIds });
-    if (addedIds.length === 0) return;
+
+    const addedIds = linkedJobIds.filter(
+      (id) => !existingLinkedIds.includes(id) && !pendingLinksRef.current.has(id),
+    );
+    const removedIds = existingLinkedIds.filter(
+      (id) => !linkedJobIds.includes(id) && !pendingLinksRef.current.has(id),
+    );
+
+    if (addedIds.length === 0 && removedIds.length === 0) return;
 
     setLinksStatus('saving');
+
     addedIds.forEach((targetReportId) => {
+      pendingLinksRef.current.add(targetReportId);
       linkMutation.mutate({ id: jobId, data: { targetReportId, linkType: 'related' } });
+    });
+
+    removedIds.forEach((targetReportId) => {
+      const link = job.links.find((l) => l.linkedReportId === targetReportId);
+      if (link) {
+        pendingLinksRef.current.add(link.id);
+        deleteLinkMutation.mutate({ id: jobId, linkId: link.id });
+      }
     });
   };
 

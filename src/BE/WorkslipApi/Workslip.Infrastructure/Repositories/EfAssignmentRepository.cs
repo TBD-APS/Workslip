@@ -40,35 +40,29 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
 
         _dbContext.ChangeTracker.Clear();
 
-        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
-        var existing = await _dbContext.JobReports
-            .FirstOrDefaultAsync(r => r.Id == jobId && r.OrganizationId == organizationId, cancellationToken);
+        var existing = await _dbContext.JobReports.FirstOrDefaultAsync(r => r.Id == jobId && r.OrganizationId == organizationId, cancellationToken);
 
         if (existing is null) 
             return;
 
-        var targetUserIds = userIds.Where(id => id != Guid.Empty).Distinct().ToArray();
-        var targetAssignedUsers = await GetAssignedUsersByIdsAsync(organizationId, targetUserIds, cancellationToken);
-        if (targetAssignedUsers.Count != targetUserIds.Length)
-            return;
+
+        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         var existingAssignedUsers = await GetSingleAssignedUsersAsync(organizationId, jobId, cancellationToken);
-        var existingUserIdSet = existingAssignedUsers.Select(u => u.Id).OrderBy(id => id).ToArray();
-        var orderedTargetIds = targetUserIds.OrderBy(id => id).ToArray();
-
-        if (existingUserIdSet.SequenceEqual(orderedTargetIds))
-            return;
-
+        var targetAssignedUsers = await GetAssignedUsersByIdsAsync(organizationId, userIds, cancellationToken);
         var now = DateTimeOffset.UtcNow;
+        
         await _dbContext.JobAssignments
             .Where(a => a.ReportId == jobId && a.OrganizationId == organizationId)
             .ExecuteDeleteAsync(cancellationToken);
 
-        await ReplaceAssignedUsersAsync(organizationId, jobId, targetUserIds, actorId, now, cancellationToken);
+        if (userIds.Count >= 1)
+        {
+            await AddAssignedUsersAsync(organizationId, jobId, userIds, actorId, now, cancellationToken);
 
-        var entry = _dbContext.Entry(existing);
-        entry.Property(e => e.UpdatedAt).CurrentValue = now;
+            var entry = _dbContext.Entry(existing);
+            entry.Property(e => e.UpdatedAt).CurrentValue = now;
+        }
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var eventType = existingAssignedUsers.Count == 0 ? "assigned" : "reassigned";
@@ -216,7 +210,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             .ToArray();
     }
 
-    public async Task ReplaceAssignedUsersAsync(
+    public async Task AddAssignedUsersAsync(
         Guid organizationId, Guid reportId,
         IReadOnlyList<Guid> userIds, Guid? actorId,
         DateTimeOffset now, CancellationToken cancellationToken)

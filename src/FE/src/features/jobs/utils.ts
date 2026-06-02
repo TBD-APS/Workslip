@@ -105,29 +105,25 @@ export function toUpdateRequest(
   initial: JobForm,
   form: JobForm,
 ): UpdateJobRequest {
-  const request: Partial<UpdateJobRequest> = {};
-
-  if (!sameCustomer(initial.customer, form.customer)) {
-    request.customer = form.customer;
-  }
-
-  if (!job.reportNumber && initial.reportNumber !== form.reportNumber) {
-    request.reportNumber = form.reportNumber.trim() || null;
-  }
-
-  if (
-    initial.taskDescription !== form.taskDescription ||
-    initial.customerObservations !== form.customerObservations
-  ) {
-    request.observations = {
-      reportDate: job.observations.reportDate ?? null,
-      taskDescription: form.taskDescription.trim() || null,
-      customerObservations: form.customerObservations.trim() || null,
-      technicalObservations: job.observations.technicalObservations ?? null,
-    };
-  }
-
-  return request as UpdateJobRequest;
+  return {
+    customer: sameCustomer(initial.customer, form.customer)
+      ? null
+      : form.customer,
+    reportNumber: job.reportNumber
+      ? null
+      : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),
+    work: null,
+    observations:
+      initial.taskDescription !== form.taskDescription ||
+      initial.customerObservations !== form.customerObservations
+        ? {
+            reportDate: job.observations.reportDate ?? null,
+            taskDescription: form.taskDescription.trim() || null,
+            customerObservations: form.customerObservations.trim() || null,
+            technicalObservations: job.observations.technicalObservations ?? null,
+          }
+        : null,
+  };
 }
 
 export function sameForm(left: JobForm, right: JobForm) {

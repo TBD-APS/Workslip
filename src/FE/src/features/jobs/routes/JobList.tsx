@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import type { AssignedUserResponse, CustomerInfo, JobStatus } from '../../../api/generated/models';
@@ -33,8 +35,13 @@ const SkeletonCard = () => (
 
 export const JobList = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const query = useGetApiJobs({ limit: 200 });
   const jobs = getJobListItems(query.data);
+
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+  }, []);
 
   if (query.isLoading) {
     return (

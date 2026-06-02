@@ -439,24 +439,20 @@ public sealed class JobService(
          return await ToSummaryResultAsync(restored, cancellationToken);
      }
 
-     public async Task<Result<JobReportSummaryResponse>> AssignAsync(Guid jobId, IReadOnlyList<Guid>? userIds, CancellationToken cancellationToken)
+     public async Task<Result<JobReportSummaryResponse>> AssignAsync(Guid jobId, IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
      {
          var organizationId = currentUser.OrganizationId;
+            
          if (organizationId is null)
          {
              return Result<JobReportSummaryResponse>.Unauthorized();
          }
 
-         var normalizedUserIds = (userIds ?? []).Distinct().ToArray();
-         if (normalizedUserIds.Length == 0)
-         {
-             return Result<JobReportSummaryResponse>.Invalid([new ValidationError { Identifier = nameof(AssignJobRequest.UserIds), ErrorMessage = "Vælg mindst én bruger." }]);
-         }
+        var invalidUserError = await ValidateAssignedUsersExistAsync(userIds, jobId, organizationId.Value, cancellationToken);
+        if (invalidUserError is not null) 
+            return invalidUserError;
 
-         var invalidUserError = await ValidateAssignedUsersExistAsync(normalizedUserIds, jobId, organizationId.Value, cancellationToken);
-         if (invalidUserError is not null) return invalidUserError;
-
-         await assignmentRepository.AssignAsync(jobId, organizationId.Value, normalizedUserIds, currentUser.UserId, cancellationToken);
+         await assignmentRepository.AssignAsync(jobId, organizationId.Value, userIds, currentUser.UserId, cancellationToken);
         
         var job = await _jobRepository.GetSingleJobAsync(jobId, organizationId.Value, cancellationToken);
         if (job is null)
@@ -465,7 +461,7 @@ public sealed class JobService(
          }
 
          await InvalidateJobCachesAsync(jobId, organizationId.Value, cancellationToken);
-         logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {AssignedUserCount}.", jobId, normalizedUserIds.Length);
+         logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {Assigneds}.", jobId, userIds);
 
          return await ToSummaryResultAsync(job, cancellationToken);
      }
@@ -715,12 +711,16 @@ public sealed class JobService(
     }
 
     private async Task<Result<JobReportSummaryResponse>?> ValidateAssignedUsersExistAsync(
-        IReadOnlyList<Guid> userIds, Guid jobId, Guid organizationId, CancellationToken cancellationToken)
+        IReadOnlyList<Guid>? userIds, Guid jobId, Guid organizationId, CancellationToken cancellationToken)
     {
+        if (userIds is null || userIds.Count == 0) 
+            return null;
+
         foreach (var userId in userIds)
         {
             var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
-            if (assignedUser is not null) continue;
+            if (assignedUser is not null) 
+                continue;
 
             logger.LogWarning("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
                 jobId, organizationId, userId);

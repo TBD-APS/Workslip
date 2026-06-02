@@ -18,6 +18,7 @@ public static class LinkMapper
     {
         var linkedId = link.SourceReportId == reportId ? link.TargetReportId : link.SourceReportId;
         return new JobLinkInfoResponse(
+            link.Id,
             linkedId,
             linkedReport?.ReportNumber ?? "",
             linkedReport?.CustomerName ?? "",

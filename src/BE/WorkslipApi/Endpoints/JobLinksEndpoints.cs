@@ -24,7 +24,6 @@ namespace Workslip.Api.Endpoints
 
 
             return app;
-
         }
     }
 }
