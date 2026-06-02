@@ -13,7 +13,7 @@ namespace Workslip.Api.Endpoints
             group.MapPost("/{id:guid}/links", async (Guid id, CreateJobLinkRequest request, IJobService service, CancellationToken cancellationToken) =>
             {
                 var result = await service.CreateLinkAsync(id, request, cancellationToken);
-                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToLink);
+                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToLinkList);
             });
 
             group.MapDelete("/{id:guid}/links/{linkId:guid}", async (Guid id, Guid linkId, IJobService service, CancellationToken cancellationToken) =>

@@ -37,14 +37,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
 
         const doLinks =
           linkedJobIds.length > 0
-            ? Promise.all(
-                linkedJobIds.map((targetReportId) =>
-                  linkMutation.mutateAsync({
-                    id: jobId,
-                    data: { targetReportId, linkType: 'related' },
-                  }),
-                ),
-              )
+            ? linkMutation.mutateAsync({ id: jobId, data: { targetReportIds: linkedJobIds, linkType: 'related' } })
             : Promise.resolve();
 
         Promise.all([doAssign, doLinks]).then(() => {

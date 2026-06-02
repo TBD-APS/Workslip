@@ -19,10 +19,10 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
         _retryPolicy = retryPolicy;
     }
 
-    public Task<JobLinkResponse> CreateLinkAsync(Guid organizationId, Guid sourceReportId, Guid targetReportId, string linkType, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync("links.create", token => CreateLinkAsyncCoreAsync(organizationId, sourceReportId, targetReportId, linkType, token), cancellationToken);
+    public Task<JobLinkResponse> CreateLinkAsync(Guid organizationId, Guid sourceReportId, Guid targetReportId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("links.create", token => CreateLinkAsyncCoreAsync(organizationId, sourceReportId, targetReportId, token), cancellationToken);
 
-    private async Task<JobLinkResponse> CreateLinkAsyncCoreAsync(Guid organizationId, Guid sourceReportId, Guid targetReportId, string linkType, CancellationToken cancellationToken)
+    private async Task<JobLinkResponse> CreateLinkAsyncCoreAsync(Guid organizationId, Guid sourceReportId, Guid targetReportId, CancellationToken cancellationToken)
     {
         var normalisedSource = sourceReportId.CompareTo(targetReportId) < 0 ? sourceReportId : targetReportId;
         var normalisedTarget = sourceReportId.CompareTo(targetReportId) < 0 ? targetReportId : sourceReportId;
@@ -48,7 +48,6 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
             OrganizationId = organizationId,
             SourceReportId = normalisedSource,
             TargetReportId = normalisedTarget,
-            LinkType = linkType,
             CreatedAt = now
         };
 
@@ -62,7 +61,6 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
             linkedReport?.ReportNumber ?? string.Empty,
             customerName ?? string.Empty,
             linkedReport?.Status ?? string.Empty,
-            linkType,
             now);
     }
 
@@ -105,7 +103,6 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
                 OrganizationId = l.OrganizationId,
                 SourceReportId = l.SourceReportId,
                 TargetReportId = l.TargetReportId,
-                LinkType = l.LinkType,
                 CreatedAt = l.CreatedAt
             }).ToListAsync();
 

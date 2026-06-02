@@ -317,37 +317,47 @@ public sealed class JobService(
         return await ToSummaryResultAsync(report, cancellationToken);
     }
 
-    public async Task<Result<JobLinkResponse>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<JobLinkResponse>>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            return Result<JobLinkResponse>.Unauthorized();
+            return Result<IReadOnlyList<JobLinkResponse>>.Unauthorized();
         }
 
-        if (reportId == request.TargetReportId)
+        foreach (var targetId in request.TargetReportIds)
         {
-            return Result<JobLinkResponse>.Invalid([new ValidationError { Identifier = "TargetReportId", ErrorMessage = "En sag kan ikke linkes til sig selv." }]);
+            if (reportId == targetId)
+            {
+                return Result<IReadOnlyList<JobLinkResponse>>.Invalid([new ValidationError { Identifier = "TargetReportIds", ErrorMessage = "En sag kan ikke linkes til sig selv." }]);
+            }
+
+            var validationError = await ValidateLinkTargetAsync(reportId, targetId, organizationId.Value, cancellationToken);
+            if (validationError is not null)
+            {
+                return Result<IReadOnlyList<JobLinkResponse>>.Invalid([validationError]);
+            }
+
+            if (await HasExistingLinkAsync(reportId, targetId, organizationId.Value, cancellationToken))
+            {
+                return Result<IReadOnlyList<JobLinkResponse>>.Invalid([new ValidationError { Identifier = "TargetReportIds", ErrorMessage = "Man kan ikke assigne samme sag to gange" }]);
+            }
         }
 
-        var validationError = await ValidateLinkTargetAsync(reportId, request.TargetReportId, organizationId.Value, cancellationToken);
-        if (validationError is not null)
+        var links = new List<JobLinkResponse>(request.TargetReportIds.Count);
+        foreach (var targetId in request.TargetReportIds)
         {
-            return Result<JobLinkResponse>.Invalid([validationError]);
+            var link = await linkRepository.CreateLinkAsync(organizationId.Value, reportId, targetId, cancellationToken);
+            links.Add(link);
+            await InvalidateJobCachesAsync(targetId, organizationId.Value, cancellationToken);
         }
 
-        if (await HasExistingLinkAsync(reportId, request.TargetReportId, organizationId.Value, cancellationToken))
-        {
-            return Result<JobLinkResponse>.Invalid([new ValidationError { Identifier = "TargetReportId", ErrorMessage = "Man kan ikke assigne samme sag to gange" }]);
-        }
-
-        var link = await linkRepository.CreateLinkAsync(organizationId.Value, reportId, request.TargetReportId, request.LinkType, cancellationToken);
         await InvalidateJobCachesAsync(reportId, organizationId.Value, cancellationToken);
-        await InvalidateJobCachesAsync(request.TargetReportId, organizationId.Value, cancellationToken);
-        logger.LogInformation("Job link created. SourceReportId: {SourceReportId}. TargetReportId: {TargetReportId}. LinkType: {LinkType}.",
-            reportId, request.TargetReportId, request.LinkType);
 
-        return Result<JobLinkResponse>.Success(link);
+        logger.LogInformation("Job links created. SourceReportId: {SourceReportId}. TargetCount: {TargetCount}.",
+            reportId, request.TargetReportIds.Count);
+
+        return Result<IReadOnlyList<JobLinkResponse>>.Success(links);
     }
 
     public async Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(CancellationToken cancellationToken)

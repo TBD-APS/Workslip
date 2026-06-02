@@ -103,7 +103,9 @@ export function useJobDetails(jobId: string | undefined) {
   const linkMutation = usePostApiJobsIdLinks({
     mutation: {
       onSuccess: (_data, variables) => {
-        pendingLinksRef.current.delete(variables.data.targetReportId);
+        for (const id of variables.data.targetReportIds) {
+          pendingLinksRef.current.delete(id);
+        }
         if (jobId) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
         }
@@ -112,7 +114,9 @@ export function useJobDetails(jobId: string | undefined) {
         }
       },
       onError: (_error, variables) => {
-        pendingLinksRef.current.delete(variables.data.targetReportId);
+        for (const id of variables.data.targetReportIds) {
+          pendingLinksRef.current.delete(id);
+        }
         setLinksStatus('error');
         toast.error('Kunne ikke opdatere tilknyttede sager', { id: 'job-links-error' });
       },
@@ -216,10 +220,12 @@ export function useJobDetails(jobId: string | undefined) {
 
     setLinksStatus('saving');
 
-    addedIds.forEach((targetReportId) => {
-      pendingLinksRef.current.add(targetReportId);
-      linkMutation.mutate({ id: jobId, data: { targetReportId, linkType: 'related' } });
-    });
+    if (addedIds.length > 0) {
+      for (const id of addedIds) {
+        pendingLinksRef.current.add(id);
+      }
+      linkMutation.mutate({ id: jobId, data: { targetReportIds: addedIds, linkType: 'related' } });
+    }
 
     removedIds.forEach((targetReportId) => {
       const link = job.links.find((l) => l.linkedReportId === targetReportId);

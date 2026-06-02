@@ -77,6 +77,9 @@ public static class JobViewModelBuilder
         link.LinkedStatus,
         link.LinkType);
 
+    public static List<JobLinkViewModel> ToLinkList(IReadOnlyList<JobLinkResponse> links) =>
+        links.Select(ToLink).ToList();
+
     private static CustomerViewModel? ToCustomerViewModel(CustomerInfo? customer) =>
         customer is null ? null : new(
             customer.CustomerId,

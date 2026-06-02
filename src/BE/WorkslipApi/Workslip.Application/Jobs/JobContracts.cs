@@ -168,8 +168,7 @@ public sealed record JobReportResponse(
     decimal? TotalHours);
 
 public sealed record CreateJobLinkRequest(
-    Guid TargetReportId,
-    string LinkType);
+    List<Guid> TargetReportIds);
 
 public sealed record JobLinkInfoResponse(
     Guid Id,
@@ -186,7 +185,6 @@ public sealed record JobLinkResponse(
     string LinkedReportNumber,
     string LinkedCustomerName,
     string LinkedStatus,
-    string LinkType,
     DateTimeOffset CreatedAt);
 
 public sealed record WorksheetDayEntry(
