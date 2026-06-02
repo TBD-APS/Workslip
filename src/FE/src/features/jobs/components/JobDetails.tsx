@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, AlertCircle, Users } from 'lucide-react';
+import { ValidatedInput } from '../../../components/forms/ValidatedInput';
+import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CustomerInfo } from '../../../api/generated/models';
 import type { AssignableUser, JobDetailsForm, SaveStatus, useJobDetails } from '../hooks/useJobDetails';
 
@@ -229,7 +231,21 @@ type AssignmentBlockProps = {
 
 function AssignmentBlock({ users, assignedUserIds, saveStatus, isLoading, onChange }: AssignmentBlockProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
   const selectedUsers = users.filter((user) => assignedUserIds.includes(user.id));
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!dropdownRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isOpen]);
 
   const toggleUser = (userId: string) => {
     if (assignedUserIds.includes(userId)) {
@@ -247,7 +263,7 @@ function AssignmentBlock({ users, assignedUserIds, saveStatus, isLoading, onChan
         <SaveStatusIndicator saveStatus={saveStatus} />
       </div>
 
-      <div className="assignment-dropdown">
+      <div className="assignment-dropdown" ref={dropdownRef}>
         <button
           className="assignment-trigger"
           type="button"
@@ -292,9 +308,16 @@ function AssignmentBlock({ users, assignedUserIds, saveStatus, isLoading, onChan
       <div className="assignment-chips">
         {selectedUsers.length > 0 ? (
           selectedUsers.map((user) => (
-            <span key={user.id} className="assignment-chip">
-              {user.displayName}
-            </span>
+            <button
+              key={user.id}
+              className="assignment-chip"
+              type="button"
+              onClick={() => toggleUser(user.id)}
+              aria-label={`Fjern ${user.displayName}`}
+            >
+              <span>{user.displayName}</span>
+              <span className="assignment-chip-remove" aria-hidden="true">×</span>
+            </button>
           ))
         ) : (
           <span className="assignment-empty">Ingen medarbejdere valgt</span>
@@ -335,14 +358,6 @@ function CustomerDetailsBlock({
       </div>
 
       <div className="detail-form">
-        <AssignmentBlock
-          users={users}
-          assignedUserIds={assignedUserIds}
-          saveStatus={assignmentStatus}
-          isLoading={isLoadingUsers}
-          onChange={onAssignedUsersChange}
-        />
-
         <div className="form-group">
           <label className="form-label">{reportNumberReadOnly ? 'Sagsnummer (skrivebeskyttet)' : 'Sagsnummer'}</label>
           <input
@@ -355,39 +370,24 @@ function CustomerDetailsBlock({
           />
         </div>
 
-        <FormInput label="Navn" value={form.customer.name} placeholder="Kundens navn" onChange={(value) => onCustomerChange('name', value)} />
-        <FormInput label="Adresse" value={form.customer.address} placeholder="Kundens adresse" onChange={(value) => onCustomerChange('address', value)} />
-        <FormInput label="Email" value={form.customer.email} placeholder="Email-adresse" type="email" onChange={(value) => onCustomerChange('email', value)} />
+        <ValidatedInput label="Navn" value={form.customer.name} placeholder="Kundens navn" onChange={(value) => onCustomerChange('name', value)} />
+        <ValidatedInput label="Adresse" value={form.customer.address} placeholder="Kundens adresse" onChange={(value) => onCustomerChange('address', value)} />
+        <ValidatedInput label="Email" value={form.customer.email} placeholder="Email-adresse" type="email" validate={validateEmail} onChange={(value) => onCustomerChange('email', value)} />
 
         <div className="form-row">
-          <FormInput label="Telefon" value={form.customer.phone} placeholder="Telefon" type="tel" onChange={(value) => onCustomerChange('phone', value)} />
-          <FormInput label="Kontaktperson" value={form.customer.contactPerson} placeholder="Kontaktperson" onChange={(value) => onCustomerChange('contactPerson', value)} />
+          <ValidatedInput label="Telefon" value={form.customer.phone} placeholder="Telefon" type="tel" validate={validatePhoneNumber} onChange={(value) => onCustomerChange('phone', value)} />
+          <ValidatedInput label="Kontaktperson" value={form.customer.contactPerson} placeholder="Kontaktperson" onChange={(value) => onCustomerChange('contactPerson', value)} />
         </div>
+
+        <AssignmentBlock
+          users={users}
+          assignedUserIds={assignedUserIds}
+          saveStatus={assignmentStatus}
+          isLoading={isLoadingUsers}
+          onChange={onAssignedUsersChange}
+        />
       </div>
     </section>
-  );
-}
-
-type FormInputProps = {
-  label: string;
-  value: string | null;
-  placeholder: string;
-  type?: string;
-  onChange: (value: string | null) => void;
-};
-
-function FormInput({ label, value, placeholder, type = 'text', onChange }: FormInputProps) {
-  return (
-    <div className="form-group">
-      <label className="form-label">{label}</label>
-      <input
-        className="form-input"
-        type={type}
-        value={value ?? ''}
-        onChange={(event) => onChange(event.target.value || null)}
-        placeholder={placeholder}
-      />
-    </div>
   );
 }
 

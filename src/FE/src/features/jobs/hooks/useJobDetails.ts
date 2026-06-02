@@ -9,6 +9,7 @@ import {
   usePatchApiJobsId,
 } from '../../../api/generated/jobs/jobs';
 import { useGetApiUsers } from '../../../api/generated/users/users';
+import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type {
   CustomerInfo,
   JobReportSummaryViewModel,
@@ -117,6 +118,11 @@ export function useJobDetails(jobId: string | undefined) {
     debounceTimerRef.current = setTimeout(() => {
       if (sameForm(initialForm, draft.form)) {
         setDraft(null);
+        return;
+      }
+
+      if (!isValidContactInfo(draft.form.customer)) {
+        setSaveStatus('error');
         return;
       }
 
@@ -280,6 +286,10 @@ function sameCustomer(left: CustomerInfo, right: CustomerInfo) {
     && left.email === right.email
     && left.contactPerson === right.contactPerson
     && left.phone === right.phone;
+}
+
+function isValidContactInfo(customer: CustomerInfo) {
+  return validateEmail(customer.email) === null && validatePhoneNumber(customer.phone) === null;
 }
 
 function toNullable(value: string | null) {

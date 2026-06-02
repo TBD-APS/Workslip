@@ -747,13 +747,40 @@
 .assignment-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.55rem;
+  gap: 0.45rem;
+  padding: 0.22rem 0.35rem 0.22rem 0.6rem;
   color: #bfdbfe;
+  font: inherit;
   background: rgba(96, 165, 250, 0.12);
   border: 1px solid rgba(96, 165, 250, 0.16);
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.assignment-chip:hover {
+  background: rgba(96, 165, 250, 0.18);
+  border-color: rgba(96, 165, 250, 0.28);
+}
+
+.assignment-chip-remove {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(191, 219, 254, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.assignment-chip:hover .assignment-chip-remove {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .assignment-empty {
@@ -772,6 +799,21 @@
   font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0.03em;
+}
+
+.form-input-invalid {
+  border-color: rgba(239, 68, 68, 0.75);
+}
+
+.form-input-invalid:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.form-error-text {
+  margin: 0.1rem 0 0;
+  color: #f87171;
+  font-size: 0.78rem;
 }
 
 .form-row {
