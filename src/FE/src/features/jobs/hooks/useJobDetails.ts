@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
+  getGetApiJobsQueryKey,
   getGetApiJobsIdQueryKey,
   useGetApiJobsId,
+  usePostApiJobsIdAssign,
   usePatchApiJobsId,
 } from '../../../api/generated/jobs/jobs';
+import { useGetApiUsers } from '../../../api/generated/users/users';
 import type {
   CustomerInfo,
   JobReportSummaryViewModel,
@@ -21,9 +24,20 @@ export type JobDetailsForm = {
   customerObservations: string;
 };
 
+export type AssignableUser = {
+  id: string;
+  displayName: string;
+  email: string;
+};
+
 type JobDetailsDraft = {
   jobId: string;
   form: JobDetailsForm;
+};
+
+type AssignmentDraft = {
+  jobId: string;
+  userIds: string[];
 };
 
 const emptyCustomer: CustomerInfo = {
@@ -40,8 +54,11 @@ export function useJobDetails(jobId: string | undefined) {
   const [draft, setDraft] = useState<JobDetailsDraft | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [assignmentStatus, setAssignmentStatus] = useState<SaveStatus>('idle');
+  const [assignmentDraft, setAssignmentDraft] = useState<AssignmentDraft | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const assignmentTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const query = useGetApiJobsId(jobId ?? '', {
     query: {
@@ -49,8 +66,13 @@ export function useJobDetails(jobId: string | undefined) {
     },
   });
   const job = getResponseData<JobReportSummaryViewModel>(query.data);
+  const usersQuery = useGetApiUsers();
+  const assignableUsers = getUserList(usersQuery.data);
   const initialForm = job ? toForm(job) : null;
   const form = draft && draft.jobId === jobId ? draft.form : initialForm ?? emptyForm;
+  const assignedUserIds = assignmentDraft && assignmentDraft.jobId === jobId
+    ? assignmentDraft.userIds
+    : job?.assignedUsers.map((user) => user.id) ?? [];
 
   const mutation = usePatchApiJobsId({
     mutation: {
@@ -67,6 +89,24 @@ export function useJobDetails(jobId: string | undefined) {
       onError: () => {
         setSaveStatus('error');
         toast.error('Kunne ikke gemme ændringer');
+      },
+    },
+  });
+
+  const assignmentMutation = usePostApiJobsIdAssign({
+    mutation: {
+      onSuccess: () => {
+        if (jobId) {
+          queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
+          queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
+        }
+        setAssignmentStatus('saved');
+        clearTimeout(assignmentTimerRef.current);
+        assignmentTimerRef.current = setTimeout(() => setAssignmentStatus('idle'), 2500);
+      },
+      onError: () => {
+        setAssignmentStatus('error');
+        toast.error('Kunne ikke opdatere tildeling');
       },
     },
   });
@@ -91,6 +131,7 @@ export function useJobDetails(jobId: string | undefined) {
     return () => {
       clearTimeout(debounceTimerRef.current);
       clearTimeout(savedTimerRef.current);
+      clearTimeout(assignmentTimerRef.current);
     };
   }, []);
 
@@ -122,15 +163,27 @@ export function useJobDetails(jobId: string | undefined) {
     updateDraft({ ...form, customerObservations: value });
   };
 
+  const updateAssignedUsers = (userIds: string[]) => {
+    if (!jobId) return;
+    setAssignmentDraft({ jobId, userIds });
+    setAssignmentStatus('saving');
+    assignmentMutation.mutate({ id: jobId, data: { userIds } });
+  };
+
   return {
     job,
     form,
+    assignableUsers,
+    assignedUserIds,
     currentStep,
     setCurrentStep,
     isLoading: query.isLoading,
     isError: query.isError,
+    isLoadingUsers: usersQuery.isLoading,
     saveStatus,
+    assignmentStatus,
     reportNumberReadOnly: Boolean(job?.reportNumber),
+    updateAssignedUsers,
     updateCustomer,
     updateReportNumber,
     updateTaskDescription,
@@ -155,6 +208,26 @@ function getResponseData<T>(value: T | { data: T } | { data: { data: T } } | und
   }
 
   return firstData as T;
+}
+
+type UserViewModel = {
+  id: string;
+  displayName: string;
+  email: string;
+};
+
+type UserListViewModel = {
+  users: UserViewModel[];
+};
+
+function getUserList(value: unknown): AssignableUser[] {
+  const data = getResponseData<UserListViewModel | UserViewModel[]>(value as UserListViewModel | UserViewModel[] | { data: UserListViewModel | UserViewModel[] } | undefined);
+  const users = Array.isArray(data) ? data : data?.users ?? [];
+  return users.map((user) => ({
+    id: user.id,
+    displayName: user.displayName,
+    email: user.email,
+  }));
 }
 
 function toForm(job: JobReportSummaryViewModel): JobDetailsForm {

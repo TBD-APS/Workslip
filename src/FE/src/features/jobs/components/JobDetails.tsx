@@ -1,6 +1,7 @@
-import { ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, AlertCircle, Users } from 'lucide-react';
 import type { CustomerInfo } from '../../../api/generated/models';
-import type { JobDetailsForm, SaveStatus, useJobDetails } from '../hooks/useJobDetails';
+import type { AssignableUser, JobDetailsForm, SaveStatus, useJobDetails } from '../hooks/useJobDetails';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -58,7 +59,12 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       {details.currentStep === 0 && (
         <JobDetailsStep
           form={details.form}
+          users={details.assignableUsers}
+          assignedUserIds={details.assignedUserIds}
+          assignmentStatus={details.assignmentStatus}
+          isLoadingUsers={details.isLoadingUsers}
           reportNumberReadOnly={details.reportNumberReadOnly}
+          onAssignedUsersChange={details.updateAssignedUsers}
           onCustomerChange={details.updateCustomer}
           onReportNumberChange={details.updateReportNumber}
           onTaskDescriptionChange={details.updateTaskDescription}
@@ -157,7 +163,12 @@ function StepIndicators({ currentStep, onStepChange }: StepIndicatorsProps) {
 
 type JobDetailsStepProps = {
   form: JobDetailsForm;
+  users: AssignableUser[];
+  assignedUserIds: string[];
+  assignmentStatus: SaveStatus;
+  isLoadingUsers: boolean;
   reportNumberReadOnly: boolean;
+  onAssignedUsersChange: (userIds: string[]) => void;
   onCustomerChange: (field: keyof CustomerInfo, value: string | null) => void;
   onReportNumberChange: (value: string) => void;
   onTaskDescriptionChange: (value: string) => void;
@@ -166,7 +177,12 @@ type JobDetailsStepProps = {
 
 function JobDetailsStep({
   form,
+  users,
+  assignedUserIds,
+  assignmentStatus,
+  isLoadingUsers,
   reportNumberReadOnly,
+  onAssignedUsersChange,
   onCustomerChange,
   onReportNumberChange,
   onTaskDescriptionChange,
@@ -176,7 +192,12 @@ function JobDetailsStep({
     <>
       <CustomerDetailsBlock
         form={form}
+        users={users}
+        assignedUserIds={assignedUserIds}
+        assignmentStatus={assignmentStatus}
+        isLoadingUsers={isLoadingUsers}
         reportNumberReadOnly={reportNumberReadOnly}
+        onAssignedUsersChange={onAssignedUsersChange}
         onCustomerChange={onCustomerChange}
         onReportNumberChange={onReportNumberChange}
       />
@@ -198,14 +219,114 @@ function JobDetailsStep({
   );
 }
 
+type AssignmentBlockProps = {
+  users: AssignableUser[];
+  assignedUserIds: string[];
+  saveStatus: SaveStatus;
+  isLoading: boolean;
+  onChange: (userIds: string[]) => void;
+};
+
+function AssignmentBlock({ users, assignedUserIds, saveStatus, isLoading, onChange }: AssignmentBlockProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedUsers = users.filter((user) => assignedUserIds.includes(user.id));
+
+  const toggleUser = (userId: string) => {
+    if (assignedUserIds.includes(userId)) {
+      onChange(assignedUserIds.filter((id) => id !== userId));
+      return;
+    }
+
+    onChange([...assignedUserIds, userId]);
+  };
+
+  return (
+    <div className="assignment-field">
+      <div className="assignment-field-header">
+        <label className="form-label">Tildelte medarbejdere</label>
+        <SaveStatusIndicator saveStatus={saveStatus} />
+      </div>
+
+      <div className="assignment-dropdown">
+        <button
+          className="assignment-trigger"
+          type="button"
+          disabled={isLoading}
+          onClick={() => setIsOpen((open) => !open)}
+          aria-expanded={isOpen}
+        >
+          <span className="assignment-trigger-content">
+            <Users size={16} />
+            {selectedUsers.length > 0 ? `${selectedUsers.length} valgt` : 'Vælg medarbejdere'}
+          </span>
+          <ChevronRight className={isOpen ? 'assignment-chevron open' : 'assignment-chevron'} size={16} />
+        </button>
+
+        {isOpen && (
+          <div className="assignment-menu">
+            {isLoading && <p className="assignment-menu-empty">Henter medarbejdere...</p>}
+            {!isLoading && users.length === 0 && <p className="assignment-menu-empty">Ingen medarbejdere fundet</p>}
+            {users.map((user) => {
+              const isSelected = assignedUserIds.includes(user.id);
+              return (
+                <button
+                  key={user.id}
+                  className={isSelected ? 'assignment-option selected' : 'assignment-option'}
+                  type="button"
+                  onClick={() => toggleUser(user.id)}
+                >
+                  <span className="assignment-checkbox" aria-hidden="true">
+                    {isSelected && <CheckCircle2 size={14} />}
+                  </span>
+                  <span className="assignment-option-text">
+                    <span>{user.displayName}</span>
+                    <small>{user.email}</small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="assignment-chips">
+        {selectedUsers.length > 0 ? (
+          selectedUsers.map((user) => (
+            <span key={user.id} className="assignment-chip">
+              {user.displayName}
+            </span>
+          ))
+        ) : (
+          <span className="assignment-empty">Ingen medarbejdere valgt</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 type CustomerDetailsBlockProps = {
   form: JobDetailsForm;
+  users: AssignableUser[];
+  assignedUserIds: string[];
+  assignmentStatus: SaveStatus;
+  isLoadingUsers: boolean;
   reportNumberReadOnly: boolean;
+  onAssignedUsersChange: (userIds: string[]) => void;
   onCustomerChange: (field: keyof CustomerInfo, value: string | null) => void;
   onReportNumberChange: (value: string) => void;
 };
 
-function CustomerDetailsBlock({ form, reportNumberReadOnly, onCustomerChange, onReportNumberChange }: CustomerDetailsBlockProps) {
+function CustomerDetailsBlock({
+  form,
+  users,
+  assignedUserIds,
+  assignmentStatus,
+  isLoadingUsers,
+  reportNumberReadOnly,
+  onAssignedUsersChange,
+  onCustomerChange,
+  onReportNumberChange,
+}: CustomerDetailsBlockProps) {
   return (
     <section className="detail-section">
       <div className="section-header-row">
@@ -214,6 +335,14 @@ function CustomerDetailsBlock({ form, reportNumberReadOnly, onCustomerChange, on
       </div>
 
       <div className="detail-form">
+        <AssignmentBlock
+          users={users}
+          assignedUserIds={assignedUserIds}
+          saveStatus={assignmentStatus}
+          isLoading={isLoadingUsers}
+          onChange={onAssignedUsersChange}
+        />
+
         <div className="form-group">
           <label className="form-label">{reportNumberReadOnly ? 'Sagsnummer (skrivebeskyttet)' : 'Sagsnummer'}</label>
           <input
