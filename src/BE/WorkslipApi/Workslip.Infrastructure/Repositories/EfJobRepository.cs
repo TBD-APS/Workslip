@@ -254,49 +254,55 @@ public sealed class EfJobRepository : IJobRepository
         if (request.ReportNumber is not null) 
             entry.Property(e => e.ReportNumber).CurrentValue = request.ReportNumber;
         
-        if (request.Observations?.ReportDate is not null) 
-            entry.Property(e => e.ReportDate).CurrentValue = ToDateTime(request.Observations.ReportDate);
-        
-        if (request.Observations?.TaskDescription is not null) 
-            entry.Property(e => e.TaskDescription).CurrentValue = request.Observations.TaskDescription;
-        
-        entry.Property(e => e.CustomerObservations).CurrentValue = request.Observations?.CustomerObservations;
-        entry.Property(e => e.TechnicalObservations).CurrentValue = request.Observations?.TechnicalObservations;
-        
-        var normalizedWorkKind = NormalizeOptional(request.Work?.WorkKind);
-        if (normalizedWorkKind is not null)
+        if (request.Observations is not null)
         {
-            var matched = await _dbContext.JobWorkKinds
-                .AsNoTracking()
-                .FirstOrDefaultAsync(w => w.NormalizedLabel == normalizedWorkKind, cancellationToken);
-            entry.Property(e => e.WorkKindId).CurrentValue = matched?.Id;
-        }
-        entry.Property(e => e.CustomWorkKind).CurrentValue = request.Work?.CustomWorkKind;
-        entry.Property(e => e.Remarks).CurrentValue = request.Work?.Remarks;
-        entry.Property(e => e.UpdatedAt).CurrentValue = now;
-
-        if (request.Work?.InstallationTypes is not null)
-        {
-            var existingInstallations = await _dbContext.JobReportInstallations
-                .Where(it => it.JobReportId == id && it.OrganizationId == organizationId)
-                .ToListAsync(cancellationToken);
-            _dbContext.JobReportInstallations.RemoveRange(existingInstallations);
-
-            await AddSelectedInstallationsAsync(organizationId, id, request.Work.InstallationTypes, now, cancellationToken);
+            if (request.Observations.ReportDate is not null) 
+                entry.Property(e => e.ReportDate).CurrentValue = ToDateTime(request.Observations.ReportDate);
+            
+            if (request.Observations.TaskDescription is not null) 
+                entry.Property(e => e.TaskDescription).CurrentValue = request.Observations.TaskDescription;
+            
+            entry.Property(e => e.CustomerObservations).CurrentValue = request.Observations.CustomerObservations;
+            entry.Property(e => e.TechnicalObservations).CurrentValue = request.Observations.TechnicalObservations;
         }
 
-        if (request.Work?.ClosureFlags is not null)
+        if (request.Work is not null)
         {
-            var existingFlags = await _dbContext.JobReportClosureFlags
-                .Where(f => f.JobReportId == id && f.OrganizationId == organizationId)
-                .ToListAsync(cancellationToken);
-            _dbContext.JobReportClosureFlags.RemoveRange(existingFlags);
-
-            if (request.Work.ClosureFlags.Count > 0)
+            var normalizedWorkKind = NormalizeOptional(request.Work.WorkKind);
+            if (normalizedWorkKind is not null)
             {
-                await AddClosureFlagsAsync(organizationId, id, request.Work.ClosureFlags, cancellationToken);
+                var matched = await _dbContext.JobWorkKinds
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(w => w.NormalizedLabel == normalizedWorkKind, cancellationToken);
+                entry.Property(e => e.WorkKindId).CurrentValue = matched?.Id;
+            }
+            entry.Property(e => e.CustomWorkKind).CurrentValue = request.Work.CustomWorkKind;
+            entry.Property(e => e.Remarks).CurrentValue = request.Work.Remarks;
+
+            if (request.Work.InstallationTypes is not null)
+            {
+                var existingInstallations = await _dbContext.JobReportInstallations
+                    .Where(it => it.JobReportId == id && it.OrganizationId == organizationId)
+                    .ToListAsync(cancellationToken);
+                _dbContext.JobReportInstallations.RemoveRange(existingInstallations);
+
+                await AddSelectedInstallationsAsync(organizationId, id, request.Work.InstallationTypes, now, cancellationToken);
+            }
+
+            if (request.Work.ClosureFlags is not null)
+            {
+                var existingFlags = await _dbContext.JobReportClosureFlags
+                    .Where(f => f.JobReportId == id && f.OrganizationId == organizationId)
+                    .ToListAsync(cancellationToken);
+                _dbContext.JobReportClosureFlags.RemoveRange(existingFlags);
+
+                if (request.Work.ClosureFlags.Count > 0)
+                {
+                    await AddClosureFlagsAsync(organizationId, id, request.Work.ClosureFlags, cancellationToken);
+                }
             }
         }
+        entry.Property(e => e.UpdatedAt).CurrentValue = now;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

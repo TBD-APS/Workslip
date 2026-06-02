@@ -225,27 +225,30 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
-        var workErrors = await ValidateDraftWorkAsync(organizationId.Value, request.Work, cancellationToken);
-        if (workErrors.Count != 0)
+        if (request.Work is not null)
         {
-            logger.LogWarning("Job update work validation failed. JobId: {JobId}. Fields: {ValidationFields}",
-                id,
-                ValidationFields(workErrors));
+            var workErrors = await ValidateDraftWorkAsync(organizationId.Value, request.Work, cancellationToken);
+            if (workErrors.Count != 0)
+            {
+                logger.LogWarning("Job update work validation failed. JobId: {JobId}. Fields: {ValidationFields}",
+                    id,
+                    ValidationFields(workErrors));
 
-            return Result<JobReportSummaryResponse>.Invalid(workErrors);
-        }
+                return Result<JobReportSummaryResponse>.Invalid(workErrors);
+            }
 
-        var installationSelectionErrors = await ValidateInstallationSelectionsAsync(
-            organizationId.Value,
-            request.Work?.InstallationTypes,
-            cancellationToken);
-        if (installationSelectionErrors.Count != 0)
-        {
-            logger.LogWarning("Job update installation selection validation failed. JobId: {JobId}. Fields: {ValidationFields}",
-                id,
-                ValidationFields(installationSelectionErrors));
+            var installationSelectionErrors = await ValidateInstallationSelectionsAsync(
+                organizationId.Value,
+                request.Work.InstallationTypes,
+                cancellationToken);
+            if (installationSelectionErrors.Count != 0)
+            {
+                logger.LogWarning("Job update installation selection validation failed. JobId: {JobId}. Fields: {ValidationFields}",
+                    id,
+                    ValidationFields(installationSelectionErrors));
 
-            return Result<JobReportSummaryResponse>.Invalid(installationSelectionErrors);
+                return Result<JobReportSummaryResponse>.Invalid(installationSelectionErrors);
+            }
         }
 
         var updated = await _jobRepository.UpdateAsync(id, organizationId.Value, request, cancellationToken);

@@ -1,8 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+/*import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, ChevronRight, AlertCircle, User, Timer, CalendarDays, Flame } from 'lucide-react';
 import { getJobs } from '../api/getJobs';
-import type { JobListItemViewModel } from '../types';
 
 function isDueSoon(reportDate?: string): 'overdue' | 'today' | 'upcoming' | null {
   if (!reportDate) return null;
@@ -174,3 +173,4 @@ export const JobList = () => {
     </div>
   );
 };
+*/
