@@ -3,6 +3,8 @@ import { CheckCircle2, ChevronRight } from 'lucide-react';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
+const COMMIT_DELAY_MS = 1000;
+
 export type MultiSelectOption = {
   id: string;
   label: string;
@@ -40,7 +42,8 @@ export function MultiSelectDropdown({
   const [searchQuery, setSearchQuery] = useState('');
   const [draftSelectedIds, setDraftSelectedIds] = useState<string[] | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
-  const activeSelectedIds = commitOnClose && isOpen ? draftSelectedIds ?? selectedIds : selectedIds;
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const activeSelectedIds = commitOnClose && (isOpen || draftSelectedIds) ? draftSelectedIds ?? selectedIds : selectedIds;
   const selectedOptions = options.filter((option) => activeSelectedIds.includes(option.id));
   const filteredOptions = searchQuery
     ? options.filter((option) => {
@@ -50,18 +53,33 @@ export function MultiSelectDropdown({
       })
     : options;
 
+  const scheduleCommit = (nextSelectedIds: string[]) => {
+    clearTimeout(commitTimerRef.current);
+    commitTimerRef.current = setTimeout(() => {
+      onChange(nextSelectedIds);
+      setDraftSelectedIds(null);
+      commitTimerRef.current = undefined;
+    }, COMMIT_DELAY_MS);
+  };
+
+  const commitDraftSelection = () => {
+    if (!commitOnClose || !draftSelectedIds) return;
+    if (sameSelection(selectedIds, draftSelectedIds)) {
+      setDraftSelectedIds(null);
+      return;
+    }
+    scheduleCommit(draftSelectedIds);
+  };
+
   useEffect(() => {
     if (!isOpen) {
       setSearchQuery('');
-      setDraftSelectedIds(null);
       return;
     }
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!dropdownRef.current?.contains(event.target as Node)) {
-        if (commitOnClose && draftSelectedIds && !sameSelection(selectedIds, draftSelectedIds)) {
-          onChange(draftSelectedIds);
-        }
+        commitDraftSelection();
         setIsOpen(false);
       }
     };
@@ -70,6 +88,8 @@ export function MultiSelectDropdown({
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [commitOnClose, draftSelectedIds, isOpen, onChange, selectedIds]);
 
+  useEffect(() => () => clearTimeout(commitTimerRef.current), []);
+
   const toggleDropdown = () => {
     if (!commitOnClose) {
       setIsOpen((open) => !open);
@@ -77,26 +97,34 @@ export function MultiSelectDropdown({
     }
 
     if (isOpen) {
-      if (draftSelectedIds && !sameSelection(selectedIds, draftSelectedIds)) {
-        onChange(draftSelectedIds);
-      }
+      commitDraftSelection();
       setIsOpen(false);
       return;
     }
 
-    setDraftSelectedIds(selectedIds);
+    clearTimeout(commitTimerRef.current);
+    commitTimerRef.current = undefined;
+    setDraftSelectedIds(draftSelectedIds ?? selectedIds);
     setIsOpen(true);
   };
 
   const toggleOption = (optionId: string) => {
-    const shouldCommitOnClose = commitOnClose && isOpen;
-    const currentIds = shouldCommitOnClose ? activeSelectedIds : selectedIds;
+    const currentIds = commitOnClose ? activeSelectedIds : selectedIds;
     const nextIds = currentIds.includes(optionId)
       ? currentIds.filter((id) => id !== optionId)
       : [...currentIds, optionId];
 
-    if (shouldCommitOnClose) {
+    if (commitOnClose) {
       setDraftSelectedIds(nextIds);
+      if (!isOpen) {
+        if (sameSelection(selectedIds, nextIds)) {
+          clearTimeout(commitTimerRef.current);
+          commitTimerRef.current = undefined;
+          setDraftSelectedIds(null);
+        } else {
+          scheduleCommit(nextIds);
+        }
+      }
       return;
     }
 
