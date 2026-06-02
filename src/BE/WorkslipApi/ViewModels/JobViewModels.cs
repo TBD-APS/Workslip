@@ -40,8 +40,7 @@ public sealed record JobLinkViewModel(
     Guid LinkedReportId,
     string LinkedReportNumber,
     string LinkedCustomerName,
-    string LinkedStatus,
-    string LinkType);
+    string LinkedStatus);
 
 public static class JobViewModelBuilder
 {
@@ -74,8 +73,7 @@ public static class JobViewModelBuilder
         link.LinkedReportId,
         link.LinkedReportNumber,
         link.LinkedCustomerName,
-        link.LinkedStatus,
-        link.LinkType);
+        link.LinkedStatus);
 
     public static List<JobLinkViewModel> ToLinkList(IReadOnlyList<JobLinkResponse> links) =>
         links.Select(ToLink).ToList();

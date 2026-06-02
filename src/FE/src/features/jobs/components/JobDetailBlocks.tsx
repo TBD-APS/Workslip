@@ -96,6 +96,7 @@ export function LinkedJobsBlock({ jobs, linkedJobIds, saveStatus, isLoading, onC
         isLoading={isLoading}
         saveStatus={saveStatus}
         icon={<FileText size={16} />}
+        commitOnClose
         onChange={onChange}
       />
     </section>

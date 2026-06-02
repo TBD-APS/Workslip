@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   getGetApiJobsIdQueryKey,
-  useDeleteApiJobsIdLinksLinkId,
+  useDeleteApiJobsIdLinks,
   useGetApiJobs,
   useGetApiJobsId,
   usePostApiJobsIdAssign,
@@ -123,10 +123,12 @@ export function useJobDetails(jobId: string | undefined) {
     },
   });
 
-  const deleteLinkMutation = useDeleteApiJobsIdLinksLinkId({
+  const deleteLinkMutation = useDeleteApiJobsIdLinks({
     mutation: {
       onSuccess: (_data, variables) => {
-        pendingLinksRef.current.delete(variables.linkId);
+        for (const id of variables.data.linkIds) {
+          pendingLinksRef.current.delete(id);
+        }
         if (jobId) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
         }
@@ -135,9 +137,11 @@ export function useJobDetails(jobId: string | undefined) {
         }
       },
       onError: (_error, variables) => {
-        pendingLinksRef.current.delete(variables.linkId);
+        for (const id of variables.data.linkIds) {
+          pendingLinksRef.current.delete(id);
+        }
         setLinksStatus('error');
-        toast.error('Kunne ikke fjerne tilknyttet sag', { id: 'job-links-error' });
+        toast.error('Kunne ikke fjerne tilknyttede sager', { id: 'job-links-error' });
       },
     },
   });
@@ -212,11 +216,11 @@ export function useJobDetails(jobId: string | undefined) {
     const addedIds = linkedJobIds.filter(
       (id) => !existingLinkedIds.includes(id) && !pendingLinksRef.current.has(id),
     );
-    const removedIds = existingLinkedIds.filter(
-      (id) => !linkedJobIds.includes(id) && !pendingLinksRef.current.has(id),
+    const removedLinks = job.links.filter(
+      (link) => !linkedJobIds.includes(link.linkedReportId) && !pendingLinksRef.current.has(link.id),
     );
 
-    if (addedIds.length === 0 && removedIds.length === 0) return;
+    if (addedIds.length === 0 && removedLinks.length === 0) return;
 
     setLinksStatus('saving');
 
@@ -224,16 +228,16 @@ export function useJobDetails(jobId: string | undefined) {
       for (const id of addedIds) {
         pendingLinksRef.current.add(id);
       }
-      linkMutation.mutate({ id: jobId, data: { targetReportIds: addedIds, linkType: 'related' } });
+      linkMutation.mutate({ id: jobId, data: { targetReportIds: addedIds } });
     }
 
-    removedIds.forEach((targetReportId) => {
-      const link = job.links.find((l) => l.linkedReportId === targetReportId);
-      if (link) {
-        pendingLinksRef.current.add(link.id);
-        deleteLinkMutation.mutate({ id: jobId, linkId: link.id });
+    if (removedLinks.length > 0) {
+      const linkIds = removedLinks.map((link) => link.id);
+      for (const id of linkIds) {
+        pendingLinksRef.current.add(id);
       }
-    });
+      deleteLinkMutation.mutate({ id: jobId, data: { linkIds } });
+    }
   };
 
   const flushSave = () => {

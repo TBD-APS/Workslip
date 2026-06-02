@@ -22,7 +22,6 @@ public static class LinkMapper
             linkedId,
             linkedReport?.ReportNumber ?? "",
             linkedReport?.CustomerName ?? "",
-            linkedReport?.Status ?? "",
-            link.LinkType);
+            linkedReport?.Status ?? "");
     }
 }

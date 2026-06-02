@@ -170,13 +170,15 @@ public sealed record JobReportResponse(
 public sealed record CreateJobLinkRequest(
     List<Guid> TargetReportIds);
 
+public sealed record DeleteJobLinksRequest(
+    List<Guid> LinkIds);
+
 public sealed record JobLinkInfoResponse(
     Guid Id,
     Guid LinkedReportId,
     string LinkedReportNumber,
     string LinkedCustomerName,
-    string LinkedStatus,
-    string LinkType);
+    string LinkedStatus);
 
 public sealed record JobLinkResponse(
     Guid Id,

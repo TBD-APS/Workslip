@@ -24,8 +24,6 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
 
     private async Task<JobLinkResponse> CreateLinkAsyncCoreAsync(Guid organizationId, Guid sourceReportId, Guid targetReportId, CancellationToken cancellationToken)
     {
-        var normalisedSource = sourceReportId.CompareTo(targetReportId) < 0 ? sourceReportId : targetReportId;
-        var normalisedTarget = sourceReportId.CompareTo(targetReportId) < 0 ? targetReportId : sourceReportId;
         var now = DateTimeOffset.UtcNow;
 
         var linkedReport = await _dbContext.JobReports
@@ -34,20 +32,12 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
             .Select(r => new { r.ReportNumber, r.Status, r.CustomerId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        var customerName = linkedReport?.CustomerId is not null
-            ? await _dbContext.Customers
-                .AsNoTracking()
-                .Where(c => c.OrganizationId == organizationId && c.Id == linkedReport.CustomerId)
-                .Select(c => c.Name)
-                .FirstOrDefaultAsync(cancellationToken)
-            : null;
-
         var link = new JobReportLinkRow
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            SourceReportId = normalisedSource,
-            TargetReportId = normalisedTarget,
+            SourceReportId = sourceReportId,
+            TargetReportId = targetReportId,
             CreatedAt = now
         };
 
@@ -59,7 +49,7 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
             sourceReportId,
             targetReportId,
             linkedReport?.ReportNumber ?? string.Empty,
-            customerName ?? string.Empty,
+            string.Empty,
             linkedReport?.Status ?? string.Empty,
             now);
     }
@@ -78,6 +68,19 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
 
     public Task<bool> DeleteLinkAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("links.delete", token => DeleteLinkAsyncCoreAsync(organizationId, linkId, token), cancellationToken);
+
+    public Task DeleteLinksAsync(Guid organizationId, IReadOnlyList<Guid> linkIds, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("links.delete-batch", token => DeleteLinksAsyncCoreAsync(organizationId, linkIds, token), cancellationToken);
+
+    private async Task DeleteLinksAsyncCoreAsync(Guid organizationId, IReadOnlyList<Guid> linkIds, CancellationToken cancellationToken)
+    {
+        var rows = await _dbContext.JobReportLinks
+            .Where(l => l.OrganizationId == organizationId && linkIds.Contains(l.Id))
+            .ToListAsync(cancellationToken);
+
+        _dbContext.JobReportLinks.RemoveRange(rows);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
 
     private async Task<bool> DeleteLinkAsyncCoreAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken)
     {

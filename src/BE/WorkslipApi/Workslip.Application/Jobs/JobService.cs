@@ -317,7 +317,7 @@ public sealed class JobService(
         return await ToSummaryResultAsync(report, cancellationToken);
     }
 
-    public async Task<Result<IReadOnlyList<JobLinkResponse>>> CreateLinkAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<JobLinkResponse>>> CreateLinksAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -336,11 +336,6 @@ public sealed class JobService(
             if (validationError is not null)
             {
                 return Result<IReadOnlyList<JobLinkResponse>>.Invalid([validationError]);
-            }
-
-            if (await HasExistingLinkAsync(reportId, targetId, organizationId.Value, cancellationToken))
-            {
-                return Result<IReadOnlyList<JobLinkResponse>>.Invalid([new ValidationError { Identifier = "TargetReportIds", ErrorMessage = "Man kan ikke assigne samme sag to gange" }]);
             }
         }
 
@@ -375,7 +370,7 @@ public sealed class JobService(
         return Result<IReadOnlyList<JobListItemResponse>>.Success(jobs);    
     }
 
-    public async Task<Result> DeleteLinkAsync(Guid reportId, Guid linkId, CancellationToken cancellationToken)
+    public async Task<Result> DeleteLinksAsync(Guid reportId, DeleteJobLinksRequest request, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -389,21 +384,32 @@ public sealed class JobService(
             return Result.NotFound();
         }
 
-        var link = await linkRepository.GetLinkAsync(organizationId.Value, linkId, cancellationToken);
-        if (link is null)
+        if (request.LinkIds.Count == 0)
         {
-            return Result.NotFound();
+            return Result.Success();
         }
 
-        var deleted = await linkRepository.DeleteLinkAsync(organizationId.Value, linkId, cancellationToken);
-        if (!deleted)
+        var links = await linkRepository.GetLinkRowsAsync(organizationId.Value, reportId, cancellationToken);
+        var linksToDelete = links.Where(l => request.LinkIds.Contains(l.Id)).ToArray();
+
+        if (linksToDelete.Length == 0)
         {
-            return Result.NotFound();
+            return Result.Success();
         }
 
-        await InvalidateJobCachesAsync(link.SourceReportId, organizationId.Value, cancellationToken);
-        await InvalidateJobCachesAsync(link.TargetReportId, organizationId.Value, cancellationToken);
-        logger.LogInformation("Job link deleted. LinkId: {LinkId}. ReportId: {ReportId} SourceId {SourceId} TargetReportId {TargetReportId}", linkId, reportId, link.SourceReportId, link.TargetReportId);
+        var affectedIds = linksToDelete
+            .SelectMany(l => new[] { l.SourceReportId, l.TargetReportId })
+            .Distinct()
+            .ToArray();
+
+        await linkRepository.DeleteLinksAsync(organizationId.Value, linksToDelete.Select(l => l.Id).ToArray(), cancellationToken);
+
+        foreach (var affectedId in affectedIds)
+        {
+            await InvalidateJobCachesAsync(affectedId, organizationId.Value, cancellationToken);
+        }
+
+        logger.LogInformation("Job links deleted. LinkIds: {LinkIds}. ReportId: {ReportId}", request.LinkIds, reportId);
         return Result.Success();
     }
 
@@ -713,13 +719,6 @@ public sealed class JobService(
 
         return null;
     }
-
-    private async Task<bool> HasExistingLinkAsync(Guid reportId, Guid targetId, Guid organizationId, CancellationToken cancellationToken)
-    {
-        var report = await _jobRepository.GetSingleJobAsync(reportId, organizationId, cancellationToken);
-        return report?.Links.Any(x => x.LinkedReportId == targetId) ?? false;
-    }
-
     private async Task<Result<JobReportSummaryResponse>?> ValidateAssignedUsersExistAsync(
         IReadOnlyList<Guid>? userIds, Guid jobId, Guid organizationId, CancellationToken cancellationToken)
     {
