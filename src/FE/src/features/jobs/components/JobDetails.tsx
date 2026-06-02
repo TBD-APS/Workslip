@@ -1,13 +1,9 @@
-import { AlertCircle, ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, Trash2, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
-import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
-import { ValidatedInput } from '../../../components/forms/ValidatedInput';
-import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
-import type { CustomerInfo } from '../../../api/generated/models';
-import type { AssignableUser, JobDetailsForm, LinkableJob, SaveStatus, useJobDetails } from '../hooks/useJobDetails';
+import type { SaveStatus, useJobDetails } from '../hooks/useJobDetails';
 import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
+import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from './JobDetailBlocks';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -84,24 +80,42 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       <StepIndicators currentStep={details.currentStep} onStepChange={(step) => { details.flushSave(); details.setCurrentStep(step); }} />
 
       {details.currentStep === 0 && (
-        <JobDetailsStep
-          form={details.form}
-          users={details.assignableUsers}
-          assignedUserIds={details.assignedUserIds}
-          linkableJobs={details.linkableJobs}
-          linkedJobIds={details.linkedJobIds}
-          assignmentStatus={details.assignmentStatus}
-          linksStatus={details.linksStatus}
-          isLoadingUsers={details.isLoadingUsers}
-          isLoadingJobs={details.isLoadingJobs}
-          reportNumberReadOnly={details.reportNumberReadOnly}
-          onAssignedUsersChange={details.updateAssignedUsers}
-          onLinkedJobsChange={details.updateLinkedJobs}
-          onCustomerChange={details.updateCustomer}
-          onReportNumberChange={details.updateReportNumber}
-          onTaskDescriptionChange={details.updateTaskDescription}
-          onCustomerObservationsChange={details.updateCustomerObservations}
-        />
+        <>
+          <CustomerDetailsBlock
+            form={details.form}
+            reportNumberReadOnly={details.reportNumberReadOnly}
+            assignment={{
+              users: details.assignableUsers,
+              assignedUserIds: details.assignedUserIds,
+              assignmentStatus: details.assignmentStatus,
+              isLoadingUsers: details.isLoadingUsers,
+              onAssignedUsersChange: details.updateAssignedUsers,
+            }}
+            onCustomerChange={details.updateCustomer}
+            onReportNumberChange={details.updateReportNumber}
+          />
+          <LinkedJobsBlock
+            jobs={details.linkableJobs}
+            linkedJobIds={details.linkedJobIds}
+            saveStatus={details.linksStatus}
+            isLoading={details.isLoadingJobs}
+            onChange={details.updateLinkedJobs}
+          />
+          <TextAreaBlock
+            icon={<FileText size={18} />}
+            title="Opgavebeskrivelse"
+            value={details.form.taskDescription}
+            onChange={details.updateTaskDescription}
+            placeholder="Beskriv opgaven..."
+          />
+          <TextAreaBlock
+            icon={<MessageSquare size={18} />}
+            title="Oplysninger til kunden/tekniske observationer"
+            value={details.form.customerObservations}
+            onChange={details.updateCustomerObservations}
+            placeholder="Notér oplysninger til kunden eller tekniske observationer..."
+          />
+        </>
       )}
 
       {details.currentStep === 1 && (
@@ -206,201 +220,6 @@ function StepIndicators({ currentStep, onStepChange }: StepIndicatorsProps) {
         );
       })}
     </div>
-  );
-}
-
-type JobDetailsStepProps = {
-  form: JobDetailsForm;
-  users: AssignableUser[];
-  assignedUserIds: string[];
-  linkableJobs: LinkableJob[];
-  linkedJobIds: string[];
-  assignmentStatus: SaveStatus;
-  linksStatus: SaveStatus;
-  isLoadingUsers: boolean;
-  isLoadingJobs: boolean;
-  reportNumberReadOnly: boolean;
-  onAssignedUsersChange: (userIds: string[]) => void;
-  onLinkedJobsChange: (jobIds: string[]) => void;
-  onCustomerChange: (field: keyof CustomerInfo, value: string | null) => void;
-  onReportNumberChange: (value: string) => void;
-  onTaskDescriptionChange: (value: string) => void;
-  onCustomerObservationsChange: (value: string) => void;
-};
-
-function JobDetailsStep({
-  form,
-  users,
-  assignedUserIds,
-  linkableJobs,
-  linkedJobIds,
-  assignmentStatus,
-  linksStatus,
-  isLoadingUsers,
-  isLoadingJobs,
-  reportNumberReadOnly,
-  onAssignedUsersChange,
-  onLinkedJobsChange,
-  onCustomerChange,
-  onReportNumberChange,
-  onTaskDescriptionChange,
-  onCustomerObservationsChange,
-}: JobDetailsStepProps) {
-  return (
-    <>
-      <CustomerDetailsBlock
-        form={form}
-        users={users}
-        assignedUserIds={assignedUserIds}
-        assignmentStatus={assignmentStatus}
-        isLoadingUsers={isLoadingUsers}
-        reportNumberReadOnly={reportNumberReadOnly}
-        onAssignedUsersChange={onAssignedUsersChange}
-        onCustomerChange={onCustomerChange}
-        onReportNumberChange={onReportNumberChange}
-      />
-      <LinkedJobsBlock
-        jobs={linkableJobs}
-        linkedJobIds={linkedJobIds}
-        saveStatus={linksStatus}
-        isLoading={isLoadingJobs}
-        onChange={onLinkedJobsChange}
-      />
-      <TextAreaBlock
-        icon={<FileText size={18} />}
-        title="Opgavebeskrivelse"
-        value={form.taskDescription}
-        onChange={onTaskDescriptionChange}
-        placeholder="Beskriv opgaven..."
-      />
-      <TextAreaBlock
-        icon={<MessageSquare size={18} />}
-        title="Oplysninger til kunden/tekniske observationer"
-        value={form.customerObservations}
-        onChange={onCustomerObservationsChange}
-        placeholder="Notér oplysninger til kunden eller tekniske observationer..."
-      />
-    </>
-  );
-}
-
-type CustomerDetailsBlockProps = {
-  form: JobDetailsForm;
-  users: AssignableUser[];
-  assignedUserIds: string[];
-  assignmentStatus: SaveStatus;
-  isLoadingUsers: boolean;
-  reportNumberReadOnly: boolean;
-  onAssignedUsersChange: (userIds: string[]) => void;
-  onCustomerChange: (field: keyof CustomerInfo, value: string | null) => void;
-  onReportNumberChange: (value: string) => void;
-};
-
-function CustomerDetailsBlock({
-  form,
-  users,
-  assignedUserIds,
-  assignmentStatus,
-  isLoadingUsers,
-  reportNumberReadOnly,
-  onAssignedUsersChange,
-  onCustomerChange,
-  onReportNumberChange,
-}: CustomerDetailsBlockProps) {
-  return (
-    <section className="detail-section">
-      <div className="section-header-row">
-        <Building2 size={18} />
-        <h3>Kundeoplysninger</h3>
-      </div>
-
-      <div className="detail-form">
-        <div className="form-group">
-          <label className="form-label">{reportNumberReadOnly ? 'Sagsnummer (skrivebeskyttet)' : 'Sagsnummer'}</label>
-          <input
-            className="form-input"
-            value={form.reportNumber}
-            onChange={(event) => onReportNumberChange(event.target.value)}
-            placeholder="F.eks. 2024-001"
-            readOnly={reportNumberReadOnly}
-            style={reportNumberReadOnly ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
-          />
-        </div>
-
-        <ValidatedInput label="Navn" value={form.customer.name} placeholder="Kundens navn" onChange={(value) => onCustomerChange('name', value)} />
-        <ValidatedInput label="Adresse" value={form.customer.address} placeholder="Kundens adresse" onChange={(value) => onCustomerChange('address', value)} />
-        <ValidatedInput label="Email" value={form.customer.email} placeholder="Email-adresse" type="email" validate={validateEmail} onChange={(value) => onCustomerChange('email', value)} />
-
-        <div className="form-row">
-          <ValidatedInput label="Telefon" value={form.customer.phone} placeholder="Telefon" type="tel" inputMode="numeric" validate={validatePhoneNumber} onChange={(value) => onCustomerChange('phone', value?.replace(/\D/g, '') || null)} />
-          <ValidatedInput label="Kontaktperson" value={form.customer.contactPerson} placeholder="Kontaktperson" onChange={(value) => onCustomerChange('contactPerson', value)} />
-        </div>
-
-        <MultiSelectDropdown
-          label="Tildelte medarbejdere"
-          placeholder="Vælg medarbejdere"
-          emptyText="Ingen medarbejdere fundet"
-          loadingText="Henter medarbejdere..."
-          options={users.map((user) => ({ id: user.id, label: user.displayName, description: user.email }))}
-          selectedIds={assignedUserIds}
-          isLoading={isLoadingUsers}
-          saveStatus={assignmentStatus}
-          icon={<Users size={16} />}
-          onChange={onAssignedUsersChange}
-        />
-      </div>
-    </section>
-  );
-}
-
-type LinkedJobsBlockProps = {
-  jobs: LinkableJob[];
-  linkedJobIds: string[];
-  saveStatus: SaveStatus;
-  isLoading: boolean;
-  onChange: (jobIds: string[]) => void;
-};
-
-function LinkedJobsBlock({ jobs, linkedJobIds, saveStatus, isLoading, onChange }: LinkedJobsBlockProps) {
-  return (
-    <section className="detail-section">
-      <MultiSelectDropdown
-        label="Tilknyttede sager"
-        placeholder="Vælg sager"
-        emptyText="Ingen andre sager fundet"
-        loadingText="Henter sager..."
-        options={jobs}
-        selectedIds={linkedJobIds}
-        isLoading={isLoading}
-        saveStatus={saveStatus}
-        icon={<FileText size={16} />}
-        onChange={onChange}
-      />
-    </section>
-  );
-}
-
-type TextAreaBlockProps = {
-  icon: React.ReactNode;
-  title: string;
-  value: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-};
-
-function TextAreaBlock({ icon, title, value, placeholder, onChange }: TextAreaBlockProps) {
-  return (
-    <CollapsibleSection icon={icon} title={title} defaultOpen={false}>
-      <div className="form-group">
-        <textarea
-          className="form-input form-textarea"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          rows={4}
-        />
-      </div>
-    </CollapsibleSection>
   );
 }
 

@@ -4,6 +4,7 @@ import { LandingPage } from '../features/landing/routes/LandingPage';
 import { Login } from '../features/auth/routes/Login';
 import { JobList } from '../features/jobs/routes/JobList';
 import { JobDetail } from '../features/jobs/routes/JobDetail';
+import { JobCreate } from '../features/jobs/routes/JobCreate';
 import { AppLayout } from '../components/layouts/AppLayout';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -35,6 +36,7 @@ export const AppRoutes = () => {
       element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
       children: [
         { index: true, element: <JobList /> },
+        { path: 'job/new', element: <JobCreate /> },
         { path: 'job/:id', element: <JobDetail /> },
         // { path: 'settings', element: <Settings /> },
       ],

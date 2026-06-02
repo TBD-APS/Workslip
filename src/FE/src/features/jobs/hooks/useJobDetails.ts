@@ -279,7 +279,7 @@ const emptyForm: JobDetailsForm = {
   customerObservations: '',
 };
 
-function getResponseData<T>(value: T | { data: T } | { data: { data: T } } | undefined): T | undefined {
+export function getResponseData<T>(value: T | { data: T } | { data: { data: T } } | undefined): T | undefined {
   if (!value) return undefined;
   if (!('data' in (value as object))) return value as T;
 
@@ -308,7 +308,7 @@ type JobListItemViewModel = {
   status: string;
 };
 
-function getUserList(value: unknown): AssignableUser[] {
+export function getUserList(value: unknown): AssignableUser[] {
   const data = getResponseData<UserListViewModel | UserViewModel[]>(value as UserListViewModel | UserViewModel[] | { data: UserListViewModel | UserViewModel[] } | undefined);
   const users = Array.isArray(data) ? data : data?.users ?? [];
   return users.map((user) => ({
@@ -318,7 +318,7 @@ function getUserList(value: unknown): AssignableUser[] {
   }));
 }
 
-function getLinkableJobs(value: unknown, currentJobId: string | undefined): LinkableJob[] {
+export function getLinkableJobs(value: unknown, currentJobId: string | undefined): LinkableJob[] {
   const data = getResponseData<JobListItemViewModel[]>(value as JobListItemViewModel[] | { data: JobListItemViewModel[] } | undefined);
   const jobs = Array.isArray(data) ? data : [];
 
