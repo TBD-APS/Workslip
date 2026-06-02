@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, AlertCircle, Users } from 'lucide-react';
+import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { ValidatedInput } from '../../../components/forms/ValidatedInput';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CustomerInfo } from '../../../api/generated/models';
@@ -401,11 +402,7 @@ type TextAreaBlockProps = {
 
 function TextAreaBlock({ icon, title, value, placeholder, onChange }: TextAreaBlockProps) {
   return (
-    <section className="detail-section">
-      <div className="section-header-row">
-        {icon}
-        <h3>{title}</h3>
-      </div>
+    <CollapsibleSection icon={icon} title={title}>
       <div className="form-group">
         <textarea
           className="form-input form-textarea"
@@ -415,7 +412,7 @@ function TextAreaBlock({ icon, title, value, placeholder, onChange }: TextAreaBl
           rows={4}
         />
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }
 

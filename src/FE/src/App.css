@@ -593,6 +593,55 @@
   margin: 0;
 }
 
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-title-row h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.collapsible-section {
+  padding: 0;
+  overflow: hidden;
+}
+
+.collapsible-section-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.collapsible-section-trigger:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.collapsible-chevron {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: transform 0.2s;
+}
+
+.collapsible-chevron.open {
+  transform: rotate(90deg);
+}
+
+.collapsible-section-content {
+  padding: 0 1.25rem 1.25rem;
+}
+
 .detail-form {
   display: flex;
   flex-direction: column;
