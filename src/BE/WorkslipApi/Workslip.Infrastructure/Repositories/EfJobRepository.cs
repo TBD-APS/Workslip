@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Application.Customers;
@@ -15,6 +16,8 @@ namespace Workslip.Infrastructure.Repositories;
 
 public sealed class EfJobRepository : IJobRepository
 {
+    private const string DuplicateReportNumberIndexName = "UX_JobReports_Organization_ReportNumber";
+
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
     private readonly ICustomerRepository _customerRepository;
@@ -46,10 +49,18 @@ public sealed class EfJobRepository : IJobRepository
 
         var now = DateTimeOffset.UtcNow;
         var reportId = Guid.NewGuid();
+        var reportNumber = request.ReportNumber?.Trim();
 
-        var customerId = request.Customer?.Email is not null
-            ? (Guid?)await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken)
-            : null;
+        var matchingReportNumber = await _dbContext.JobReports
+            .AsNoTracking()
+            .AnyAsync(r => r.OrganizationId == organizationId && r.ReportNumber == reportNumber, cancellationToken);
+
+        if (matchingReportNumber)
+            throw new DuplicateReportNumberException(reportNumber);
+
+        Guid? customerId = null;
+        if (request.Customer is not null)
+            customerId = await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
 
         var workKindLabel = NormalizeOptional(request.Work?.WorkKind);
         Guid? workKindId = null;
@@ -66,7 +77,7 @@ public sealed class EfJobRepository : IJobRepository
             Id = reportId,
             OrganizationId = organizationId,
             CustomerId = customerId,
-            ReportNumber = request.ReportNumber,
+            ReportNumber = reportNumber,
             Status = JobStatus.Draft.ToString(),
             ReportDate = ToDateTime(request.Observations?.ReportDate),
             TaskDescription = request.Observations?.TaskDescription,
@@ -89,7 +100,14 @@ public sealed class EfJobRepository : IJobRepository
             await AddClosureFlagsAsync(organizationId, reportId, request.Work.ClosureFlags, cancellationToken);
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateReportNumberViolation(ex))
+        {
+            throw new DuplicateReportNumberException(reportNumber, ex);
+        }
 
         var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
         await _assignmentRepo.AddAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
@@ -111,7 +129,7 @@ public sealed class EfJobRepository : IJobRepository
 
         var projected = await (
             from r in _dbContext.JobReports.AsNoTracking()
-            join c in _dbContext.Customers.AsNoTracking() on new { Id = (Guid?)r.CustomerId, OrganizationId = r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
+            join c in _dbContext.Customers.AsNoTracking() on new { Id = r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
             from c in rjc.DefaultIfEmpty()
             where r.OrganizationId == query.OrganizationId
             where query.Status == null || r.Status == query.Status.ToString()
@@ -246,13 +264,23 @@ public sealed class EfJobRepository : IJobRepository
         var now = DateTimeOffset.UtcNow;
 
         var customerId = existing.CustomerId;
-        if (request.Customer?.Email is not null)
+        if (request.Customer is not null)
             customerId = await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
 
         var entry = _dbContext.Entry(existing);
         entry.Property(e => e.CustomerId).CurrentValue = customerId;
-        if (request.ReportNumber is not null) 
-            entry.Property(e => e.ReportNumber).CurrentValue = request.ReportNumber;
+        var reportNumber = request.ReportNumber?.Trim();
+        if (reportNumber is not null)
+        {
+            var matchingReportNumber = await _dbContext.JobReports
+                .AsNoTracking()
+                .AnyAsync(r => r.OrganizationId == organizationId && r.Id != id && r.ReportNumber == reportNumber, cancellationToken);
+
+            if (matchingReportNumber)
+                throw new DuplicateReportNumberException(reportNumber);
+
+            entry.Property(e => e.ReportNumber).CurrentValue = reportNumber;
+        }
         
         if (request.Observations is not null)
         {
@@ -304,7 +332,14 @@ public sealed class EfJobRepository : IJobRepository
         }
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateReportNumberViolation(ex))
+        {
+            throw new DuplicateReportNumberException(reportNumber, ex);
+        }
 
         await InsertEventAsync(organizationId, id, null, "updated", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(request), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
@@ -345,39 +380,33 @@ public sealed class EfJobRepository : IJobRepository
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
-    public Task<JobReportResponse?> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
+    public Task<bool> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("jobs.delete", token => DeleteAsyncCoreAsync(id, organizationId, token), cancellationToken);
 
-    private async Task<JobReportResponse?> DeleteAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
+    private async Task<bool> DeleteAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {
-        _dbContext.ChangeTracker.Clear();
-
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        var existing = await _dbContext.JobReports
+        var potentialLinks = await _dbContext.JobReportLinks
+            .AsNoTracking()
+            .Where(l => (l.SourceReportId == id || l.TargetReportId == id) && l.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        if (potentialLinks.Any())
+            _dbContext.JobReportLinks.RemoveRange(potentialLinks);
+
+        var existingJob = await _dbContext.JobReports
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
-        if (existing is null) return null;
+        if (existingJob is null)
+            return false;
 
-        if (existing.IsSoftDeleted || existing.DeletionScheduledAt.HasValue)
-        {
-            await tx.CommitAsync(cancellationToken);
-            return await GetSingleJobAsync(id, organizationId, cancellationToken);
-        }
+        _dbContext.JobReports.Remove(existingJob);
+        var success = await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var now = DateTimeOffset.UtcNow;
-        var deletionScheduledAt = now.Add(DeletionRetentionPeriod);
-
-        var entry = _dbContext.Entry(existing);
-        entry.Property(e => e.IsSoftDeleted).CurrentValue = true;
-        entry.Property(e => e.DeletionScheduledAt).CurrentValue = deletionScheduledAt;
-        entry.Property(e => e.UpdatedAt).CurrentValue = now;
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        await InsertEventAsync(organizationId, id, null, "deletionScheduled", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(new { deletionScheduledAt }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return await GetSingleJobAsync(id, organizationId, cancellationToken);
+        return success > 0;
     }
 
     public Task<JobReportResponse?> RestoreDeletionAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
@@ -592,4 +621,21 @@ public sealed class EfJobRepository : IJobRepository
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static bool IsDuplicateReportNumberViolation(DbUpdateException exception)
+    {
+        if (exception.InnerException is not SqlException sqlException)
+            return false;
+
+        foreach (SqlError error in sqlException.Errors)
+        {
+            if ((error.Number == 2601 || error.Number == 2627)
+                && error.Message.Contains(DuplicateReportNumberIndexName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

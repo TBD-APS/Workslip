@@ -1,10 +1,13 @@
-import { AlertCircle, ArrowLeft, Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, MessageSquare, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
-import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from './JobDetailBlocks';
+import { JobAttachmentsStep } from './steps/JobAttachmentsStep';
+import { JobOverviewStep } from './steps/JobOverviewStep';
+import { JOB_STEPS, StepIndicators, StepNavigation } from './steps/JobStepNavigation';
+import { WorkCategoryStep } from './steps/WorkCategoryStep';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -13,12 +16,6 @@ type JobDetailsPageProps = {
   onBack: () => void;
   onDone: () => void;
 };
-
-const STEPS = [
-  { icon: Building2, label: 'Sagsdetaljer' },
-  { icon: FileText, label: 'Kategorier' },
-  { icon: MessageSquare, label: 'Bilag' },
-] as const;
 
 export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps) {
   const queryClient = useQueryClient();
@@ -39,6 +36,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     if (!details.job?.id) return;
     if (!confirm('Er du sikker på at du vil slette denne sag?')) return;
     deleteMutation.mutate({ id: details.job.id });
+  };
+
+  const handleBack = () => {
+    details.saveCurrentStep({ validateWork: false });
+    onBack();
   };
 
   if (details.isLoading) {
@@ -66,7 +68,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     );
   }
 
-  const isLastStep = details.currentStep === STEPS.length - 1;
+  const isLastStep = details.currentStep === JOB_STEPS.length - 1;
 
   return (
     <div className="page-container">
@@ -74,73 +76,44 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
         saveStatus={details.saveStatus}
-        onBack={onBack}
+        onBack={handleBack}
         onDelete={handleDelete}
       />
 
-      <StepIndicators currentStep={details.currentStep} onStepChange={(step) => { details.flushSave(); details.setCurrentStep(step); }} />
+      <StepIndicators currentStep={details.currentStep} onStepChange={details.navigateToStep} />
 
       {details.currentStep === 0 && (
-        <>
-          <CustomerDetailsBlock
-            form={details.form}
-            reportNumberReadOnly={details.reportNumberReadOnly}
-            assignment={{
-              users: details.assignableUsers,
-              assignedUserIds: details.assignedUserIds,
-              assignmentStatus: details.assignmentStatus,
-              isLoadingUsers: details.isLoadingUsers,
-              onAssignedUsersChange: details.updateAssignedUsers,
-            }}
-            onCustomerChange={details.updateCustomer}
-            onReportNumberChange={details.updateReportNumber}
-          />
-          <LinkedJobsBlock
-            jobs={details.linkableJobs}
-            linkedJobIds={details.linkedJobIds}
-            saveStatus={details.linksStatus}
-            isLoading={details.isLoadingJobs}
-            onChange={details.updateLinkedJobs}
-          />
-          <TextAreaBlock
-            icon={<FileText size={18} />}
-            title="Opgavebeskrivelse"
-            value={details.form.taskDescription}
-            onChange={details.updateTaskDescription}
-            placeholder="Beskriv opgaven..."
-          />
-          <TextAreaBlock
-            icon={<MessageSquare size={18} />}
-            title="Oplysninger til kunden/tekniske observationer"
-            value={details.form.customerObservations}
-            onChange={details.updateCustomerObservations}
-            placeholder="Notér oplysninger til kunden eller tekniske observationer..."
-          />
-        </>
+        <JobOverviewStep details={details} />
       )}
 
       {details.currentStep === 1 && (
-        <PlaceholderStep icon={<FileText size={18} />} title="Kategorier" text="Kategorier bygges på næste trin." />
+        <WorkCategoryStep
+          form={details.form}
+          referenceData={details.referenceData}
+          isLoading={details.isLoadingReferenceData}
+          onCategoriesChange={details.updateWorkCategories}
+          onWorkKindChange={details.updateWorkKind}
+          onCustomWorkKindChange={details.updateCustomWorkKind}
+        />
       )}
 
       {details.currentStep === 2 && (
-        <PlaceholderStep icon={<MessageSquare size={18} />} title="Bilag" text="Bilag bygges på næste trin." />
+        <JobAttachmentsStep />
       )}
 
       <StepNavigation
         currentStep={details.currentStep}
         isLastStep={isLastStep}
         onBack={() => {
-          details.flushSave();
           if (details.currentStep === 0) {
+            details.flushSave();
             onDone();
           } else {
-            details.setCurrentStep((step) => step - 1);
+            details.navigateToStep(details.currentStep - 1);
           }
         }}
         onNext={() => {
-          details.flushSave();
-          details.setCurrentStep((step) => step + 1);
+          details.navigateToStep(details.currentStep + 1);
         }}
         onDone={onDone}
       />
@@ -196,79 +169,3 @@ function SaveStatusIndicator({ saveStatus }: { saveStatus: SaveStatus }) {
   );
 }
 
-type StepIndicatorsProps = {
-  currentStep: number;
-  onStepChange: (step: number) => void;
-};
-
-function StepIndicators({ currentStep, onStepChange }: StepIndicatorsProps) {
-  return (
-    <div className="step-indicators">
-      {STEPS.map((step, index) => {
-        const StepIcon = step.icon;
-        const isActive = index === currentStep;
-        const isCompleted = index < currentStep;
-        return (
-          <button
-            key={step.label}
-            className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-            onClick={() => onStepChange(index)}
-            aria-label={step.label}
-          >
-            <StepIcon size={14} />
-            <span className="step-label">{step.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function PlaceholderStep({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
-  return (
-    <section className="detail-section">
-      <div className="section-header-row">
-        {icon}
-        <h3>{title}</h3>
-      </div>
-      <p className="empty-state-text">{text}</p>
-    </section>
-  );
-}
-
-type StepNavigationProps = {
-  currentStep: number;
-  isLastStep: boolean;
-  onBack: () => void;
-  onNext: () => void;
-  onDone: () => void;
-};
-
-function StepNavigation({ currentStep, isLastStep, onBack, onNext, onDone }: StepNavigationProps) {
-  return (
-    <div className="step-nav">
-      <button
-        className="step-nav-btn step-nav-btn-back"
-        onClick={onBack}
-        aria-label="Tilbage"
-      >
-        <ChevronLeft size={18} />
-        <span>Tilbage</span>
-      </button>
-
-      <span className="step-nav-counter">Trin {currentStep + 1} / {STEPS.length}</span>
-
-      {!isLastStep ? (
-        <button className="step-nav-btn step-nav-btn-next" onClick={onNext}>
-          <span>Næste</span>
-          <ChevronRight size={18} />
-        </button>
-      ) : (
-        <button className="step-nav-btn step-nav-btn-next" onClick={onDone}>
-          <CheckCircle2 size={18} />
-          <span>Færdig</span>
-        </button>
-      )}
-    </div>
-  );
-}

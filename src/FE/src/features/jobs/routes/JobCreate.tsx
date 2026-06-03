@@ -1,19 +1,24 @@
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Loader2, MessageSquare, Save } from 'lucide-react';
-import { useGetApiUsers } from '../../../api/generated/users/users';
+import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import { useJobCreate } from '../hooks/useJobCreate';
-import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
-import { getUserList, getLinkableJobs } from '../utils';
+import { CreateOverviewStep } from '../components/steps/CreateOverviewStep';
+import { getLinkableJobs } from '../utils';
 
 export const JobCreate = () => {
   const navigate = useNavigate();
-  const { data: usersData } = useGetApiUsers();
+  const [createdJobId, setCreatedJobId] = useState<string | null>(null);
   const { data: jobsData, isLoading: isLoadingJobs } = useGetApiJobs({ limit: 200 });
-  const users = getUserList(usersData);
   const linkableJobs = getLinkableJobs(jobsData, undefined);
 
-  const create = useJobCreate((jobId) => navigate(`/app/job/${jobId}`));
+  const create = useJobCreate((jobId) => setCreatedJobId(jobId));
+
+  const handleCreateAnother = () => {
+    create.reset();
+    setCreatedJobId(null);
+  };
 
   return (
     <div className="page-container">
@@ -26,58 +31,58 @@ export const JobCreate = () => {
         </div>
       </div>
 
-      <CustomerDetailsBlock
-        form={create.form}
-        assignment={{
-          users,
-          assignedUserIds: create.assignedUserIds,
-          assignmentStatus: create.assignmentStatus,
-          isLoadingUsers: false,
-          onAssignedUsersChange: create.updateAssignedUsers,
-        }}
-        onCustomerChange={create.updateCustomer}
-        onReportNumberChange={create.updateReportNumber}
-      />
-
-      <LinkedJobsBlock
-        jobs={linkableJobs}
-        linkedJobIds={create.linkedJobIds}
-        saveStatus={create.linksStatus}
-        isLoading={isLoadingJobs}
-        onChange={create.updateLinkedJobs}
-      />
-
-      <TextAreaBlock
-        icon={<FileText size={18} />}
-        title="Opgavebeskrivelse"
-        value={create.form.taskDescription}
-        onChange={create.updateTaskDescription}
-        placeholder="Beskriv opgaven..."
-      />
-
-      <TextAreaBlock
-        icon={<MessageSquare size={18} />}
-        title="Oplysninger til kunden/tekniske observationer"
-        value={create.form.customerObservations}
-        onChange={create.updateCustomerObservations}
-        placeholder="Notér oplysninger til kunden eller tekniske observationer..."
+      <CreateOverviewStep
+        create={create}
+        linkableJobs={linkableJobs}
+        isLoadingJobs={isLoadingJobs}
       />
 
       <div className="step-nav">
-        <div />
+        <button className="step-nav-btn step-nav-btn-back" onClick={() => navigate('/app')}>
+          Tilbage
+        </button>
         <button
           className="step-nav-btn step-nav-btn-next"
           onClick={create.save}
           disabled={create.isSaving || !create.canSave}
         >
-          {create.isSaving ? (
-            <Loader2 className="animate-spin" size={18} />
-          ) : (
-            <Save size={18} />
-          )}
-          <span>{create.isSaving ? 'Gemmer...' : 'Gem'}</span>
+          {create.isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+          <span>{create.isSaving ? 'Gemmer...' : 'Opret sag'}</span>
         </button>
       </div>
+
+      {createdJobId && (
+        <CreateSuccessDialog
+          onCreateAnother={handleCreateAnother}
+          onGoToJobList={() => navigate('/app')}
+        />
+      )}
     </div>
   );
 };
+
+function CreateSuccessDialog({
+  onCreateAnother,
+  onGoToJobList,
+}: {
+  onCreateAnother: () => void;
+  onGoToJobList: () => void;
+}) {
+  return createPortal(
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-success-title">
+      <div className="modal-card">
+        <h3 id="create-success-title">Sagen er oprettet</h3>
+        <p>Den er automatisk tildelt dig.</p>
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onCreateAnother}>
+            Opret en mere
+          </button>
+          <button className="btn btn-primary" onClick={onGoToJobList}>
+            Til sagslisten
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

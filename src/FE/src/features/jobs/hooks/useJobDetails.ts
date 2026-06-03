@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import {
   getGetApiJobsQueryKey,
@@ -11,20 +12,25 @@ import {
   usePatchApiJobsId,
 } from '../../../api/generated/jobs/jobs';
 import { useGetApiUsers } from '../../../api/generated/users/users';
+import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import {
   emptyForm,
+  getWorkValidationMessage,
   getLinkableJobs,
   getResponseData,
   getUserList,
-  isValidContactInfo,
+  isValidJobForm,
+  isValidWork,
   sameForm,
+  sameFormWithoutWork,
+  sameWork,
   toForm,
   toNullable,
   toUpdateRequest,
 } from '../utils';
 import type { CustomerInfo, JobReportSummaryViewModel } from '../../../api/generated/models';
-import type { JobForm } from '../types';
+import type { JobForm, ReferenceData } from '../types';
 
 type JobDetailsDraft = { jobId: string; form: JobForm };
 type AssignmentDraft = { jobId: string; userIds: string[] };
@@ -41,14 +47,19 @@ export function useJobDetails(jobId: string | undefined) {
   const [linksDraft, setLinksDraft] = useState<LinksDraft | null>(null);
   const pendingLinksRef = useRef<Set<string>>(new Set());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const draftRef = useRef<JobDetailsDraft | null>(null);
 
   const query = useGetApiJobsId(jobId ?? '', {
     query: { enabled: Boolean(jobId) },
   });
   const job = getResponseData<JobReportSummaryViewModel>(query.data);
   const usersQuery = useGetApiUsers();
+  const referenceDataQuery = useGetApiReferenceData();
   const jobsData = queryClient.getQueryData(getGetApiJobsQueryKey({ limit: 200 }));
   const assignableUsers = getUserList(usersQuery.data);
+  const referenceData = getResponseData<ReferenceData>(
+    referenceDataQuery.data as ReferenceData | { data: ReferenceData } | { data: { data: ReferenceData } } | undefined,
+  ) ?? null;
   const linkableJobs = getLinkableJobs(jobsData, jobId);
   const initialForm = job ? toForm(job) : null;
   const form =
@@ -64,16 +75,27 @@ export function useJobDetails(jobId: string | undefined) {
 
   const mutation = usePatchApiJobsId({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
         if (jobId) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
         }
-        setDraft(null);
+        const currentDraft = draftRef.current;
+        const currentInitialForm = initialFormRef.current;
+        if (
+          variables.data.work === null &&
+          currentDraft &&
+          currentInitialForm &&
+          !sameWork(currentInitialForm, currentDraft.form)
+        ) {
+          setDraft(currentDraft);
+        } else {
+          setDraft(null);
+        }
         setSaveStatus('saved');
       },
-      onError: () => {
+      onError: (error) => {
         setSaveStatus('error');
-        toast.error('Kunne ikke gemme ændringer', { id: 'job-save-error' });
+        toast.error(getSaveErrorMessage(error), { id: 'job-save-error' });
       },
     },
   });
@@ -81,6 +103,7 @@ export function useJobDetails(jobId: string | undefined) {
   const initialFormRef = useRef(initialForm);
   const jobRef = useRef(job);
   const mutateRef = useRef(mutation.mutate);
+  draftRef.current = draft;
   initialFormRef.current = initialForm;
   jobRef.current = job;
   mutateRef.current = mutation.mutate;
@@ -152,23 +175,29 @@ export function useJobDetails(jobId: string | undefined) {
     const currentMutate = mutateRef.current;
     if (!draft || !currentInitialForm || !currentJob || !jobId) return;
 
+    if (sameFormWithoutWork(currentInitialForm, draft.form)) {
+      return;
+    }
+
     debounceTimerRef.current = setTimeout(() => {
-      if (sameForm(currentInitialForm, draft.form)) {
-        setDraft(null);
+      if (sameFormWithoutWork(currentInitialForm, draft.form)) {
         return;
       }
 
-      if (!isValidContactInfo(draft.form.customer)) {
+      if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
         setSaveStatus('error');
         return;
       }
 
       setSaveStatus('saving');
-      currentMutate({ id: jobId, data: toUpdateRequest(currentJob, currentInitialForm, draft.form) });
+      currentMutate({
+        id: jobId,
+        data: toUpdateRequest(currentJob, currentInitialForm, draft.form, referenceData, { includeWork: false }),
+      });
     }, 1500);
 
     return () => clearTimeout(debounceTimerRef.current);
-  }, [draft, jobId]);
+  }, [draft, jobId, referenceData]);
 
   useEffect(() => {
     return () => clearTimeout(debounceTimerRef.current);
@@ -197,6 +226,26 @@ export function useJobDetails(jobId: string | undefined) {
 
   const updateCustomerObservations = (value: string) => {
     updateDraft({ ...form, customerObservations: value });
+  };
+
+  const updateWorkCategories = (categoryIds: string[]) => {
+    updateDraft({ ...form, work: { ...form.work, categoryIds } });
+  };
+
+  const updateWorkKind = (workKind: string) => {
+    const selectedWorkKind = referenceData?.workKinds.find((kind) => kind.normalizedLabel === workKind);
+    updateDraft({
+      ...form,
+      work: {
+        ...form.work,
+        workKind,
+        customWorkKind: selectedWorkKind?.requiresCustomWorkKind ? form.work.customWorkKind : '',
+      },
+    });
+  };
+
+  const updateCustomWorkKind = (customWorkKind: string) => {
+    updateDraft({ ...form, work: { ...form.work, customWorkKind } });
   };
 
   const updateAssignedUsers = (userIds: string[]) => {
@@ -240,24 +289,73 @@ export function useJobDetails(jobId: string | undefined) {
     }
   };
 
-  const flushSave = () => {
+  const flushSave = (options: { includeWork?: boolean; validateWork?: boolean } = {}) => {
+    const includeWork = options.includeWork ?? false;
+    const validateWork = options.validateWork ?? false;
     clearTimeout(debounceTimerRef.current);
-    if (!draft || !initialForm || !job || !jobId) return;
-    if (sameForm(initialForm, draft.form)) {
+    if (!draft || !initialForm || !job || !jobId) return true;
+    if (includeWork ? sameForm(initialForm, draft.form) : sameFormWithoutWork(initialForm, draft.form)) {
       setDraft(null);
-      return;
+      return true;
     }
-    if (!isValidContactInfo(draft.form.customer)) {
+    if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
       setSaveStatus('error');
-      return;
+      return false;
+    }
+    if (includeWork && validateWork && !isValidWork(draft.form, referenceData)) {
+      setSaveStatus('error');
+      toast.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld kategorier og arbejdstype', {
+        id: 'job-work-validation-error',
+      });
+      return false;
     }
     setSaveStatus('saving');
-    mutation.mutate({ id: jobId, data: toUpdateRequest(job, initialForm, draft.form) });
+    mutation.mutate({
+      id: jobId,
+      data: toUpdateRequest(job, initialForm, draft.form, referenceData, { includeWork }),
+    });
+    return true;
+  };
+
+  const saveCurrentStep = (options: { validateWork?: boolean } = {}) => flushSave({
+    includeWork: currentStep === 1,
+    validateWork: options.validateWork ?? false,
+  });
+
+  const saveCurrentStepAndSetCurrentStep = (nextStep: number) => {
+    const includeWork = currentStep === 1;
+    const validateWork = includeWork && nextStep > currentStep;
+    if (flushSave({ includeWork, validateWork })) {
+      setCurrentStep(nextStep);
+    }
+  };
+
+  const navigateToStep = (nextStep: number) => {
+    if (nextStep === currentStep) return;
+
+    if (nextStep > currentStep) {
+      if (!isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
+        setSaveStatus('error');
+        toast.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
+        return;
+      }
+
+      if (nextStep > 1 && !isValidWork(form, referenceData)) {
+        setSaveStatus('error');
+        toast.error(getWorkValidationMessage(form, referenceData) ?? 'Udfyld kategorier og arbejdstype', {
+          id: 'job-work-validation-error',
+        });
+        return;
+      }
+    }
+
+    saveCurrentStepAndSetCurrentStep(nextStep);
   };
 
   return {
     job,
     form,
+    referenceData,
     assignableUsers,
     assignedUserIds,
     linkableJobs,
@@ -267,17 +365,34 @@ export function useJobDetails(jobId: string | undefined) {
     isLoading: query.isLoading,
     isError: query.isError,
     isLoadingUsers: usersQuery.isLoading,
+    isLoadingReferenceData: referenceDataQuery.isLoading,
     isLoadingJobs: false,
     saveStatus,
     assignmentStatus,
     linksStatus,
+    canContinue: isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber) }) && isValidWork(form, referenceData),
     reportNumberReadOnly: Boolean(job?.reportNumber),
     flushSave,
+    saveCurrentStep,
+    saveCurrentStepAndSetCurrentStep,
+    navigateToStep,
     updateAssignedUsers,
     updateLinkedJobs,
     updateCustomer,
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,
+    updateWorkCategories,
+    updateWorkKind,
+    updateCustomWorkKind,
   };
+}
+
+function getSaveErrorMessage(error: unknown) {
+  const axiosError = error as AxiosError<{ error?: string }>;
+  if (axiosError.response?.status === 409 && axiosError.response.data?.error === 'duplicate_report_number') {
+    return 'Sagsnummeret findes allerede.';
+  }
+
+  return 'Kunne ikke gemme ændringer';
 }

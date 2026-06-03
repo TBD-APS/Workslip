@@ -20,35 +20,24 @@ public sealed class AcsEmailService(
     private readonly string _senderAddress = configuration["Azure:Acs:SenderAddress"]
         ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:SenderAddress.");
 
+    private readonly string _senderPlaínHeaderText = configuration["Azure:Acs:PLainHeaderText"]
+    ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:PLainHeaderText.");
+
+    private readonly string _senderPlainText = configuration["Azure:Acs:PlainInviteText"]
+        ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:PlainInviteText.");
+
+    private readonly string _senderHtmlText = configuration["Azure:Acs:HtmlInviteText"]
+        ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:HtmlInviteText.");
+
     public async Task SendInviteEmailAsync(string toEmail, string inviteLink, CancellationToken cancellationToken)
     {
         var emailClient = new EmailClient(_acsEndpoint);
 
-        var emailContent = new EmailContent("Du er blevet inviteret til Workslip")
+
+        var emailContent = new EmailContent(_senderPlaínHeaderText)
         {
-            Html = $"""
-            <html>
-              <body style="font-family: Arial, sans-serif; padding: 24px;">
-                <h2>Velkommen til Workslip</h2>
-                <p>Du er blevet inviteret til at deltage i Workslip.</p>
-                <p>
-                  <a href="{inviteLink}"
-                     style="display: inline-block; padding: 12px 24px; background-color: #0057b7; color: #fff; text-decoration: none; border-radius: 6px;">
-                    Accepter invitation
-                  </a>
-                </p>
-                <p>Linket udløber om 7 dage.</p>
-                <hr/>
-                <p style="color: #666; font-size: 12px;">Workslip – automatisk invitation</p>
-              </body>
-            </html>
-            """,
-            PlainText = $"""
-            Du er blevet inviteret til Workslip.
-            Klik på følgende link for at acceptere invitationen:
-            {inviteLink}
-            Linket udløber om 7 dage.
-            """
+            Html = _senderHtmlText.Replace("{inviteLink}", inviteLink),
+            PlainText = _senderPlainText.Replace("{inviteLink}", inviteLink)
         };
 
         var message = new EmailMessage(

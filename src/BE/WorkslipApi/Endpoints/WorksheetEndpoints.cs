@@ -15,7 +15,7 @@ namespace Workslip.Api.Endpoints
                 return ResultExtensions.ToHttpResult(result);
             });
 
-            group.MapPost("/jobs/{jobId:guid}", async (Guid jobId, CreateWorksheetRequest request, IWorksheetService service, CancellationToken cancellationToken) =>
+            group.MapPost("/jobs/{jobId:guid}", async (Guid jobId, UpsertWorksheetRequest request, IWorksheetService service, CancellationToken cancellationToken) =>
             {
                 var upsertRequest = request with { JobId = jobId };
                 var result = await service.UpsertAsync(upsertRequest, cancellationToken);

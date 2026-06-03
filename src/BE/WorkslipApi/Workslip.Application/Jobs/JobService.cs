@@ -56,32 +56,45 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Invalid(errors);
         }
 
-        var workErrors = await ValidateDraftWorkAsync(organizationId.Value, request.Work, cancellationToken);
-        if (workErrors.Count != 0)
+        if (request.Work is not null)
         {
-            logger.LogWarning("Job create taxonomy validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
+            var workErrors = await ValidateDraftWorkAsync(organizationId.Value, request.Work, cancellationToken);
+            if (workErrors.Count != 0)
+            {
+                logger.LogWarning("Job create taxonomy validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
+                    organizationId.Value,
+                    ValidationFields(workErrors));
+
+                return Result<JobReportSummaryResponse>.Invalid(workErrors);
+            }
+
+            var installationSelectionErrors = await ValidateInstallationSelectionsAsync(
                 organizationId.Value,
-                ValidationFields(workErrors));
+                request.Work.InstallationTypes,
+                cancellationToken);
+            if (installationSelectionErrors.Count != 0)
+            {
+                logger.LogWarning("Job create installation selection validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
+                    organizationId.Value,
+                    ValidationFields(installationSelectionErrors));
 
-            return Result<JobReportSummaryResponse>.Invalid(workErrors);
-        }
-
-        var installationSelectionErrors = await ValidateInstallationSelectionsAsync(
-            organizationId.Value,
-            request.Work?.InstallationTypes,
-            cancellationToken);
-        if (installationSelectionErrors.Count != 0)
-        {
-            logger.LogWarning("Job create installation selection validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
-                organizationId.Value,
-                ValidationFields(installationSelectionErrors));
-
-            return Result<JobReportSummaryResponse>.Invalid(installationSelectionErrors);
+                return Result<JobReportSummaryResponse>.Invalid(installationSelectionErrors);
+            }
         }
 
         var actorId = currentUser.UserId;
         var assignedUserIds = actorId.HasValue ? [actorId.Value] : Array.Empty<Guid>();
-        var created = await _jobRepository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
+        JobReportResponse created;
+        try
+        {
+            created = await _jobRepository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
+        }
+        catch (DuplicateReportNumberException ex)
+        {
+            logger.LogWarning(ex, "Job create duplicate report number. OrganizationId: {OrganizationId}. ReportNumber: {ReportNumber}", organizationId.Value, ex.ReportNumber);
+            return Result<JobReportSummaryResponse>.Conflict("duplicate_report_number");
+        }
+
         await InvalidateJobCachesAsync(created.Id, created.OrganizationId, cancellationToken);
         LogJobCreated(created);
 
@@ -251,7 +264,17 @@ public sealed class JobService(
             }
         }
 
-        var updated = await _jobRepository.UpdateAsync(id, organizationId.Value, request, cancellationToken);
+        JobReportResponse? updated;
+        try
+        {
+            updated = await _jobRepository.UpdateAsync(id, organizationId.Value, request, cancellationToken);
+        }
+        catch (DuplicateReportNumberException ex)
+        {
+            logger.LogWarning(ex, "Job update duplicate report number. JobId: {JobId}. OrganizationId: {OrganizationId}. ReportNumber: {ReportNumber}", id, organizationId.Value, ex.ReportNumber);
+            return Result<JobReportSummaryResponse>.Conflict("duplicate_report_number");
+        }
+
         if (updated is null)
         {
             logger.LogWarning("Job update returned not found. JobId: {JobId}.", id);
@@ -413,26 +436,26 @@ public sealed class JobService(
         return Result.Success();
     }
 
-     public async Task<Result<JobReportSummaryResponse>> DeleteAsync(Guid id, CancellationToken cancellationToken)
+     public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken)
      {
          var organizationId = currentUser.OrganizationId;
          if (organizationId is null)
          {
-             return Result<JobReportSummaryResponse>.Unauthorized();
+             return Result.Unauthorized();
          }
 
-         var deleted = await _jobRepository.DeleteAsync(id, organizationId.Value, cancellationToken);
-         if (deleted is null)
+         var isDeleted = await _jobRepository.DeleteAsync(id, organizationId.Value, cancellationToken);
+         if (!isDeleted)
          {
-             logger.LogWarning("Job delete returned not found. JobId: {JobId}.", id);
-             return Result<JobReportSummaryResponse>.NotFound();
+             logger.LogWarning("Job delete returned not found. JobId: {JobId} in org {OrgId}", id, organizationId);
+             return Result.NotFound();
          }
 
          await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
-         logger.LogInformation("Job soft deleted. JobId: {JobId}.", id);
+         logger.LogInformation("Job deleted. JobId: {JobId}.", id);
 
-         return await ToSummaryResultAsync(deleted, cancellationToken);
-     }
+         return Result.NoContent();
+      }
 
      public async Task<Result<JobReportSummaryResponse>> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken)
      {

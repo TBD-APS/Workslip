@@ -1,68 +1,85 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import {
   usePostApiJobs,
   usePostApiJobsIdAssign,
   usePostApiJobsIdLinks,
 } from '../../../api/generated/jobs/jobs';
+import { useGetApiUsers } from '../../../api/generated/users/users';
+import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
+import { useAuth } from '../../../providers/AuthContext';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
-import { emptyCustomer, isValidContactInfo } from '../utils';
+import { emptyForm, getResponseData, getUserList, isValidCreateForm } from '../utils';
 import type { CustomerInfo, CreateJobRequest } from '../../../api/generated/models';
-import type { JobForm } from '../types';
+import type { JobForm, ReferenceData } from '../types';
 
 export function useJobCreate(onCreated: (jobId: string) => void) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<JobForm>({
-    customer: { ...emptyCustomer },
-    reportNumber: '',
-    taskDescription: '',
-    customerObservations: '',
-  });
-  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
+  const { user } = useAuth();
+  const referenceDataQuery = useGetApiReferenceData();
+  const referenceData = getResponseData<ReferenceData>(
+    referenceDataQuery.data as ReferenceData | { data: ReferenceData } | { data: { data: ReferenceData } } | undefined,
+  ) ?? null;
+  const usersQuery = useGetApiUsers();
+  const assignableUsers = getUserList(usersQuery.data);
+  const [form, setForm] = useState<JobForm>(emptyForm);
   const [linkedJobIds, setLinkedJobIds] = useState<string[]>([]);
+  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
   const [linksStatus, setLinksStatus] = useTimedStatus();
+  const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
+  const defaultAssignmentSetRef = useRef(false);
+
+  useEffect(() => {
+    if (!defaultAssignmentSetRef.current && assignableUsers.length > 0 && user?.email) {
+      const currentUser = assignableUsers.find((u) => u.email === user.email);
+      if (currentUser) {
+        setAssignedUserIds([currentUser.id]);
+        defaultAssignmentSetRef.current = true;
+      }
+    }
+  }, [assignableUsers, user?.email]);
 
   const createMutation = usePostApiJobs({
     mutation: {
       onSuccess: (response) => {
         const jobId = (response.data as unknown as { id: string }).id;
 
-        const doAssign =
-          assignedUserIds.length > 0
-            ? assignMutation.mutateAsync({ id: jobId, data: { userIds: assignedUserIds } })
-            : Promise.resolve();
+        const promises: Promise<unknown>[] = [];
 
-        const doLinks =
-          linkedJobIds.length > 0
-            ? linkMutation.mutateAsync({ id: jobId, data: { targetReportIds: linkedJobIds } })
-            : Promise.resolve();
+        if (linkedJobIds.length > 0) {
+          promises.push(linkMutation.mutateAsync({ id: jobId, data: { targetReportIds: linkedJobIds } }));
+        }
 
-        Promise.all([doAssign, doLinks]).then(() => {
+        if (assignedUserIds.length > 0) {
+          promises.push(assignMutation.mutateAsync({ id: jobId, data: { userIds: assignedUserIds } }));
+        }
+
+        Promise.all(promises).then(() => {
           queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
           setIsSaving(false);
           toast.success('Sagen er oprettet');
           onCreated(jobId);
         });
       },
-      onError: () => {
+      onError: (error) => {
         setIsSaving(false);
-        toast.error('Kunne ikke oprette sagen', { id: 'job-create-error' });
+        toast.error(getCreateErrorMessage(error), { id: 'job-create-error' });
       },
-    },
-  });
-
-  const assignMutation = usePostApiJobsIdAssign({
-    mutation: {
-      onSuccess: () => setAssignmentStatus('saved'),
     },
   });
 
   const linkMutation = usePostApiJobsIdLinks({
     mutation: {
       onSuccess: () => setLinksStatus('saved'),
+    },
+  });
+
+  const assignMutation = usePostApiJobsIdAssign({
+    mutation: {
+      onSuccess: () => setAssignmentStatus('saved'),
     },
   });
 
@@ -85,17 +102,37 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     setForm((prev) => ({ ...prev, customerObservations: value }));
   };
 
-  const updateAssignedUsers = (userIds: string[]) => {
-    setAssignedUserIds(userIds);
-    setAssignmentStatus('idle');
-  };
-
   const updateLinkedJobs = (jobIds: string[]) => {
     setLinkedJobIds(jobIds);
     setLinksStatus('idle');
   };
 
-  const canSave = isValidContactInfo(form.customer);
+  const updateAssignedUsers = (userIds: string[]) => {
+    setAssignedUserIds(userIds);
+    setAssignmentStatus('idle');
+  };
+
+  const updateWorkCategories = (categoryIds: string[]) => {
+    setForm((prev) => ({ ...prev, work: { ...prev.work, categoryIds } }));
+  };
+
+  const updateWorkKind = (workKind: string) => {
+    const selectedWorkKind = referenceData?.workKinds.find((kind) => kind.normalizedLabel === workKind);
+    setForm((prev) => ({
+      ...prev,
+      work: {
+        ...prev.work,
+        workKind,
+        customWorkKind: selectedWorkKind?.requiresCustomWorkKind ? prev.work.customWorkKind : '',
+      },
+    }));
+  };
+
+  const updateCustomWorkKind = (customWorkKind: string) => {
+    setForm((prev) => ({ ...prev, work: { ...prev.work, customWorkKind } }));
+  };
+
+  const canSave = isValidCreateForm(form);
 
   const save = () => {
     if (!canSave) return;
@@ -123,20 +160,47 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     createMutation.mutate({ data: request });
   };
 
+  const reset = () => {
+    setForm(emptyForm);
+    setLinkedJobIds([]);
+    setAssignedUserIds([]);
+    defaultAssignmentSetRef.current = false;
+    setIsSaving(false);
+    setLinksStatus('idle');
+    setAssignmentStatus('idle');
+  };
+
   return {
     form,
-    assignedUserIds,
     linkedJobIds,
+    assignedUserIds,
+    assignableUsers,
     isSaving,
     canSave,
-    assignmentStatus,
     linksStatus,
+    assignmentStatus,
+    referenceData,
+    isLoadingReferenceData: referenceDataQuery.isLoading,
+    isLoadingUsers: usersQuery.isLoading,
     updateCustomer,
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,
-    updateAssignedUsers,
     updateLinkedJobs,
+    updateAssignedUsers,
+    updateWorkCategories,
+    updateWorkKind,
+    updateCustomWorkKind,
     save,
+    reset,
   };
+}
+
+function getCreateErrorMessage(error: unknown) {
+  const axiosError = error as AxiosError<{ error?: string }>;
+  if (axiosError.response?.status === 409 && axiosError.response.data?.error === 'duplicate_report_number') {
+    return 'Sagsnummeret findes allerede.';
+  }
+
+  return 'Kunne ikke oprette sagen';
 }

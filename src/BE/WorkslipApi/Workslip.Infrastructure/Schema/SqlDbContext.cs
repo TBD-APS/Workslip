@@ -290,6 +290,10 @@ public sealed class SqlDbContext : DbContext
             .IsDescending(false, false, true)
             .HasDatabaseName("IX_JobReports_Organization_Status_UpdatedAt");
 
+        entity.HasIndex(e => new { e.OrganizationId, e.ReportNumber })
+            .IsUnique()
+            .HasDatabaseName("UX_JobReports_Organization_ReportNumber");
+
         entity.HasIndex(e => e.DeletionScheduledAt)
             .HasFilter("[DeletionScheduledAt] is not null")
             .HasDatabaseName("IX_JobReports_DeletionScheduledAt");

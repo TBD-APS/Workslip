@@ -36,4 +36,32 @@ var appConfigValues = {
   // Role hierarchy
   'Authorization:RoleHierarchy:Superadmin:0': 'Admin'
   'Authorization:RoleHierarchy:Admin:0': 'User'
+  
+  //Email
+  'Azure:Acs:PLainHeaderText': 'Du er blevet inviteret til Workslip'
+  
+  'Azure:Acs:HtmlInviteText': '''
+  <html>
+  <body style="font-family: Arial, sans-serif; padding: 24px;">
+    <h2>Velkommen til Workslip</h2>
+    <p>Du er blevet inviteret til at deltage i Workslip.</p>
+    <p>
+      <a href="{inviteLink}"
+         style="display: inline-block; padding: 12px 24px; background-color: #0057b7; color: #fff; text-decoration: none; border-radius: 6px;">
+        Accepter invitation
+      </a>
+    </p>
+    <p>Linket udløber om 7 dage.</p>
+    <hr/>
+    <p style="color: #666; font-size: 12px;">Workslip – automatisk invitation</p>
+  </body>
+</html>'''
+  
+name:'Azure:Acs:PlainInviteText'
+value:'''
+    Du er blevet inviteret til Workslip.
+    Klik på følgende link for at acceptere invitationen:
+    {inviteLink}
+    Linket udløber om 7 dage.
+'''
 }

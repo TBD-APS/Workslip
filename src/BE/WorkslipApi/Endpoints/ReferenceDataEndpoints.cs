@@ -23,7 +23,7 @@ public static class ReferenceDataEndpoints
             return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
                 ? Results.StatusCode(StatusCodes.Status304NotModified)
                 : Results.Ok(result.Value);
-        });
+        }).Produces<ReferenceDataResponse>(StatusCodes.Status200OK);
 
         return app;
     }

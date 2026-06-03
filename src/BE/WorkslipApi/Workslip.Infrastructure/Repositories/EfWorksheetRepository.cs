@@ -22,10 +22,10 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         _retryPolicy = retryPolicy;
     }
 
-    public Task<WorksheetResponse> UpsertAsync(CreateWorksheetRequest request, CancellationToken cancellationToken) =>
+    public Task<WorksheetResponse> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("worksheets.upsert", token => UpsertAsyncCoreAsync(request, token), cancellationToken);
 
-    private async Task<WorksheetResponse> UpsertAsyncCoreAsync(CreateWorksheetRequest request, CancellationToken cancellationToken)
+    private async Task<WorksheetResponse> UpsertAsyncCoreAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
         var workDate = request.WorkDate.ToDateTime(TimeOnly.MinValue);

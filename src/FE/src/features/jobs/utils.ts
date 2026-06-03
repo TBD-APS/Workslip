@@ -1,10 +1,11 @@
 import type {
+  CreateJobWorkRequest,
   CustomerInfo,
   JobReportSummaryViewModel,
   UpdateJobRequest,
 } from '../../api/generated/models';
 import { validateEmail, validatePhoneNumber } from '../../components/forms/validators';
-import type { AssignableUser, JobForm, LinkableJob } from './types';
+import type { AssignableUser, JobForm, LinkableJob, ReferenceData } from './types';
 
 type UserViewModel = { id: string; displayName: string; email: string };
 type UserListViewModel = { users: UserViewModel[] };
@@ -29,6 +30,11 @@ export const emptyForm: JobForm = {
   reportNumber: '',
   taskDescription: '',
   customerObservations: '',
+  work: {
+    categoryIds: [],
+    workKind: '',
+    customWorkKind: '',
+  },
 };
 
 export function getResponseData<T>(
@@ -97,6 +103,11 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
     reportNumber: job.reportNumber ?? '',
     taskDescription: job.observations.taskDescription ?? '',
     customerObservations: job.observations.customerObservations ?? '',
+    work: {
+      categoryIds: job.work.installationTypes.map((installationType) => installationType.id),
+      workKind: job.work.workKind?.normalizedLabel ?? '',
+      customWorkKind: job.work.workKind?.customWorkKind ?? '',
+    },
   };
 }
 
@@ -104,7 +115,11 @@ export function toUpdateRequest(
   job: JobReportSummaryViewModel,
   initial: JobForm,
   form: JobForm,
+  referenceData: ReferenceData | null,
+  options: { includeWork?: boolean } = {},
 ): UpdateJobRequest {
+  const includeWork = options.includeWork ?? true;
+
   return {
     customer: sameCustomer(initial.customer, form.customer)
       ? null
@@ -112,7 +127,7 @@ export function toUpdateRequest(
     reportNumber: job.reportNumber
       ? null
       : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),
-    work: null,
+    work: includeWork && !sameWork(initial, form) ? toWorkRequest(form, referenceData) : null,
     observations:
       initial.taskDescription !== form.taskDescription ||
       initial.customerObservations !== form.customerObservations
@@ -126,8 +141,44 @@ export function toUpdateRequest(
   };
 }
 
+export function toWorkRequest(
+  form: JobForm,
+  referenceData: ReferenceData | null,
+): CreateJobWorkRequest {
+  const selectedCategories = referenceData?.installationTypes
+    .filter((category) => form.work.categoryIds.includes(category.id)) ?? [];
+
+  return {
+    installationTypes: selectedCategories.map((category) => ({
+      id: category.id,
+      categories: category.categories.map((subcategory) => ({
+        id: subcategory.id,
+        controlPoints: subcategory.controlPoints.map((controlPoint) => ({
+          id: controlPoint.id,
+          sortOrder: controlPoint.sortOrder,
+          isRequired: controlPoint.isRequired,
+        })),
+        isIrrelevant: false,
+      })),
+    })),
+    workKind: form.work.workKind || null,
+    customWorkKind: form.work.customWorkKind.trim() || null,
+    closureFlags: null,
+    remarks: null,
+  };
+}
+
 export function sameForm(left: JobForm, right: JobForm) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export function sameFormWithoutWork(left: JobForm, right: JobForm) {
+  return (
+    sameCustomer(left.customer, right.customer) &&
+    left.reportNumber === right.reportNumber &&
+    left.taskDescription === right.taskDescription &&
+    left.customerObservations === right.customerObservations
+  );
 }
 
 export function sameCustomer(left: CustomerInfo, right: CustomerInfo) {
@@ -141,11 +192,39 @@ export function sameCustomer(left: CustomerInfo, right: CustomerInfo) {
   );
 }
 
-export function isValidContactInfo(customer: CustomerInfo) {
+export function sameWork(left: JobForm, right: JobForm) {
+  return JSON.stringify(left.work) === JSON.stringify(right.work);
+}
+
+export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean }) {
   return (
-    validateEmail(customer.email) === null &&
-    validatePhoneNumber(customer.phone) === null
+    (options?.reportNumberReadOnly || form.reportNumber.trim().length > 0) &&
+    (form.customer.name?.trim().length ?? 0) > 0 &&
+    validateEmail(form.customer.email) === null &&
+    validatePhoneNumber(form.customer.phone) === null
   );
+}
+
+export function isValidCreateForm(form: JobForm) {
+  return isValidJobForm(form);
+}
+
+export function isValidWork(form: JobForm, referenceData: ReferenceData | null) {
+  return getWorkValidationMessage(form, referenceData) === null;
+}
+
+export function getWorkValidationMessage(form: JobForm, referenceData: ReferenceData | null) {
+  const selectedWorkKind = referenceData?.workKinds.find(
+    (kind) => kind.normalizedLabel === form.work.workKind,
+  );
+
+  if (form.work.categoryIds.length === 0) return 'Vælg mindst én kategori.';
+  if (form.work.workKind.length === 0) return 'Vælg en arbejdstype.';
+  if (selectedWorkKind?.requiresCustomWorkKind && form.work.customWorkKind.trim().length === 0) {
+    return 'Udfyld service andet-feltet.';
+  }
+
+  return null;
 }
 
 export function toNullable(value: string | null) {
