@@ -395,16 +395,15 @@ public sealed class EfJobRepository : IJobRepository
         if (potentialLinks.Any())
             _dbContext.JobReportLinks.RemoveRange(potentialLinks);
 
-        var existingob = await _dbContext.JobReports
+        var existingJob = await _dbContext.JobReports
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
-        if (existingob is null)
+        if (existingJob is null)
             return false;
 
-        _dbContext.JobReports.Remove(existingob);
+        _dbContext.JobReports.Remove(existingJob);
         var success = await _dbContext.SaveChangesAsync(cancellationToken);
 
-        //await InsertEventAsync(organizationId, id, null, "deletionScheduled", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(DateTime.Now), DateTime.UtcNow, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return success > 0;
