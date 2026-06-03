@@ -58,9 +58,9 @@ public sealed class EfJobRepository : IJobRepository
         if (matchingReportNumber)
             throw new DuplicateReportNumberException(reportNumber);
 
-        var customerId = request.Customer?.Email is not null
-            ? (Guid?)await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken)
-            : null;
+        Guid? customerId = null;
+        if (request.Customer is not null)
+            customerId = await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
 
         var workKindLabel = NormalizeOptional(request.Work?.WorkKind);
         Guid? workKindId = null;
@@ -264,7 +264,7 @@ public sealed class EfJobRepository : IJobRepository
         var now = DateTimeOffset.UtcNow;
 
         var customerId = existing.CustomerId;
-        if (request.Customer?.Email is not null)
+        if (request.Customer is not null)
             customerId = await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
 
         var entry = _dbContext.Entry(existing);

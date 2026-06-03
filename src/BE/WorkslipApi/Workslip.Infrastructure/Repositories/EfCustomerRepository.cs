@@ -18,8 +18,19 @@ public sealed class EfCustomerRepository : ICustomerRepository
 
     public async Task<Guid> UpsertCustomerAsync(Guid organizationId, CustomerInfo customer, CancellationToken cancellationToken)
     {
-        var existing = await _dbContext.Customers
-            .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Email == customer.Email, cancellationToken);
+        CustomerRow? existing = null;
+
+        if (customer.CustomerId is not null)
+        {
+            existing = await _dbContext.Customers
+                .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == customer.CustomerId.Value, cancellationToken);
+        }
+
+        if (existing is null && customer.Email is not null)
+        {
+            existing = await _dbContext.Customers
+                .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Email == customer.Email, cancellationToken);
+        }
 
         if (existing is not null)
         {

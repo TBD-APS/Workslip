@@ -20,7 +20,7 @@ import {
   getLinkableJobs,
   getResponseData,
   getUserList,
-  isValidContactInfo,
+  isValidJobForm,
   isValidWork,
   sameForm,
   sameFormWithoutWork,
@@ -184,7 +184,7 @@ export function useJobDetails(jobId: string | undefined) {
         return;
       }
 
-      if (!isValidContactInfo(draft.form.customer)) {
+      if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
         setSaveStatus('error');
         return;
       }
@@ -298,7 +298,7 @@ export function useJobDetails(jobId: string | undefined) {
       setDraft(null);
       return true;
     }
-    if (!isValidContactInfo(draft.form.customer)) {
+    if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
       setSaveStatus('error');
       return false;
     }
@@ -333,12 +333,20 @@ export function useJobDetails(jobId: string | undefined) {
   const navigateToStep = (nextStep: number) => {
     if (nextStep === currentStep) return;
 
-    if (nextStep > currentStep && nextStep > 1 && !isValidWork(form, referenceData)) {
-      setSaveStatus('error');
-      toast.error(getWorkValidationMessage(form, referenceData) ?? 'Udfyld kategorier og arbejdstype', {
-        id: 'job-work-validation-error',
-      });
-      return;
+    if (nextStep > currentStep) {
+      if (!isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
+        setSaveStatus('error');
+        toast.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
+        return;
+      }
+
+      if (nextStep > 1 && !isValidWork(form, referenceData)) {
+        setSaveStatus('error');
+        toast.error(getWorkValidationMessage(form, referenceData) ?? 'Udfyld kategorier og arbejdstype', {
+          id: 'job-work-validation-error',
+        });
+        return;
+      }
     }
 
     saveCurrentStepAndSetCurrentStep(nextStep);
@@ -362,7 +370,7 @@ export function useJobDetails(jobId: string | undefined) {
     saveStatus,
     assignmentStatus,
     linksStatus,
-    canContinue: isValidWork(form, referenceData),
+    canContinue: isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber) }) && isValidWork(form, referenceData),
     reportNumberReadOnly: Boolean(job?.reportNumber),
     flushSave,
     saveCurrentStep,

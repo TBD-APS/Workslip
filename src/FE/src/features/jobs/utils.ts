@@ -196,19 +196,17 @@ export function sameWork(left: JobForm, right: JobForm) {
   return JSON.stringify(left.work) === JSON.stringify(right.work);
 }
 
-export function isValidContactInfo(customer: CustomerInfo) {
+export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean }) {
   return (
-    validateEmail(customer.email) === null &&
-    validatePhoneNumber(customer.phone) === null
+    (options?.reportNumberReadOnly || form.reportNumber.trim().length > 0) &&
+    (form.customer.name?.trim().length ?? 0) > 0 &&
+    validateEmail(form.customer.email) === null &&
+    validatePhoneNumber(form.customer.phone) === null
   );
 }
 
 export function isValidCreateForm(form: JobForm) {
-  return (
-    form.reportNumber.trim().length > 0 &&
-    (form.customer.name?.trim().length ?? 0) > 0 &&
-    isValidContactInfo(form.customer)
-  );
+  return isValidJobForm(form);
 }
 
 export function isValidWork(form: JobForm, referenceData: ReferenceData | null) {
