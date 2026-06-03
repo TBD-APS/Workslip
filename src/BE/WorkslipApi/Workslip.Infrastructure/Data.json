@@ -1,0 +1,451 @@
+{
+  "categories": [
+    {
+      "key": "forundersoegelse",
+      "label": "Forundersøgelse",
+      "sortOrder": 1
+    },
+    {
+      "key": "modtagekontrol",
+      "label": "Modtagekontrol",
+      "sortOrder": 2
+    },
+    {
+      "key": "udfoerelseskontrol",
+      "label": "Udførelseskontrol",
+      "sortOrder": 3
+    },
+    {
+      "key": "slutkontrol",
+      "label": "Slutkontrol",
+      "sortOrder": 4
+    },
+    {
+      "key": "drift-vedligehold",
+      "label": "DriftVedligehold",
+      "sortOrder": 5
+    }
+  ],
+  "installationTypes": [
+    {
+      "key": "gas-varme",
+      "label": "Gas/Varme",
+      "sortOrder": 1,
+      "categories": [
+        {
+          "categoryKey": "forundersoegelse",
+          "controlPoints": [
+            {
+              "key": "ansoegning-paa-gas",
+              "label": "Ansøgning på gas",
+              "sortOrder": 1,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "modtagekontrol",
+          "controlPoints": [
+            {
+              "key": "roer-og-fittings",
+              "label": "Rør og fittings",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "armaturer",
+              "label": "Armaturer",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "kedel-vb",
+              "label": "Kedel / VB",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "udfoerelseskontrol",
+          "controlPoints": [
+            {
+              "key": "stikledning-og-indfoering",
+              "label": "Stikledning og indføring",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "roerophaeng",
+              "label": "Rørophæng",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "tilslutning-til-varmtvandsforsyning",
+              "label": "Tilslutning til varmtvandsforsyning",
+              "sortOrder": 3,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "slutkontrol",
+          "controlPoints": [
+            {
+              "key": "taethedsproevning",
+              "label": "Tæthedsprøvning",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "funktionsproevning",
+              "label": "Funktionsprøvning",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "sikkerhedsarmaturer",
+              "label": "Sikkerhedsarmaturer",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "optaelling-af-materialer",
+              "label": "Optælling af materialer",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "drift-vedligehold",
+          "controlPoints": [
+            {
+              "key": "driftsinstruktion",
+              "label": "Driftsinstruktion",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "vedligeholdsinstruktion",
+              "label": "Vedligeholdsinstruktion",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "ventiler-og-komponenter",
+              "label": "Ventiler og komponenter",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "vand",
+      "label": "Vand",
+      "sortOrder": 2,
+      "categories": [
+        {
+          "categoryKey": "forundersoegelse",
+          "controlPoints": [
+            {
+              "key": "ansoegning-paa-vand",
+              "label": "Ansøgning på vand",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "vandkvalitet",
+              "label": "Vandkvalitet",
+              "sortOrder": 2,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "modtagekontrol",
+          "controlPoints": [
+            {
+              "key": "roer-og-fittings",
+              "label": "Rør og fittings",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "armaturer",
+              "label": "Armaturer",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "vvb-veksler",
+              "label": "VVB / veksler",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "udfoerelseskontrol",
+          "controlPoints": [
+            {
+              "key": "stikledning-og-indfoering",
+              "label": "Stikledning og indføring",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "fordeler-omloeber-fastsp",
+              "label": "Fordeler omløber fastsp.",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "samling-af-koblingsdaaser",
+              "label": "Samling af koblingsdåser",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "tilslutning-til-varmtvandsforsyning",
+              "label": "Tilslutning til varmtvandsforsyning",
+              "sortOrder": 4,
+              "isRequired": true
+            },
+            {
+              "key": "fitting-presset-samlet-loddet",
+              "label": "Fitting presset, samlet, loddet",
+              "sortOrder": 5,
+              "isRequired": true
+            },
+            {
+              "key": "roer-i-vater-og-lod",
+              "label": "Rør i vater og lod",
+              "sortOrder": 6,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "slutkontrol",
+          "controlPoints": [
+            {
+              "key": "trykproevning",
+              "label": "Trykprøvning",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "afproevning-af-tapsteder",
+              "label": "Afprøvning af tapsteder",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "varmtvandstemp",
+              "label": "Varmtvandstemp.",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "cirkulation",
+              "label": "Cirkulation",
+              "sortOrder": 4,
+              "isRequired": true
+            },
+            {
+              "key": "sikkerhedsarmaturer",
+              "label": "Sikkerhedsarmaturer",
+              "sortOrder": 5,
+              "isRequired": true
+            },
+            {
+              "key": "optaelling-af-materialer",
+              "label": "Optælling af materialer",
+              "sortOrder": 6,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "drift-vedligehold",
+          "controlPoints": [
+            {
+              "key": "driftsinstruktion",
+              "label": "Driftsinstruktion",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "vedligeholdsinstruktion",
+              "label": "Vedligeholdsinstruktion",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "ventiler-og-armaturer",
+              "label": "Ventiler og armaturer",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "afloeb",
+      "label": "Afløb",
+      "sortOrder": 3,
+      "categories": [
+        {
+          "categoryKey": "forundersoegelse",
+          "controlPoints": [
+            {
+              "key": "ansoegning-paa-afloeb",
+              "label": "Ansøgning på afløb",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "fald-paa-ledninger",
+              "label": "Fald på ledninger",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "udluftninger-over-tag",
+              "label": "Udluftninger over tag",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "vakumventiler",
+              "label": "Vakumventiler",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "modtagekontrol",
+          "controlPoints": [
+            {
+              "key": "roer-og-fittings",
+              "label": "Rør og fittings",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "installationsgenstande",
+              "label": "Installationsgenstande",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 3,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "udfoerelseskontrol",
+          "controlPoints": [
+            {
+              "key": "installationsgenstande",
+              "label": "Installationsgenstande",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "fald-paa-ledninger",
+              "label": "Fald på ledninger",
+              "sortOrder": 2,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "slutkontrol",
+          "controlPoints": [
+            {
+              "key": "taethedsproevning",
+              "label": "Tæthedsprøvning",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "afproevning-af-installationsgenstande",
+              "label": "Afprøvning af installationsgenstande",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "optaelling-af-materialer",
+              "label": "Optælling af materialer",
+              "sortOrder": 3,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "drift-vedligehold",
+          "controlPoints": [
+            {
+              "key": "driftsinstruktion",
+              "label": "Driftsinstruktion",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "vedligeholdsinstruktion",
+              "label": "Vedligeholdsinstruktion",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "brugervejledning",
+              "label": "Brugervejledning",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

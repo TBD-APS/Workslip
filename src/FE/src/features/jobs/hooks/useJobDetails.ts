@@ -52,6 +52,7 @@ export function useJobDetails(jobId: string | undefined) {
   const query = useGetApiJobsId(jobId ?? '', {
     query: { enabled: Boolean(jobId) },
   });
+  
   const job = getResponseData<JobReportSummaryViewModel>(query.data);
   const usersQuery = useGetApiUsers();
   const referenceDataQuery = useGetApiReferenceData();
@@ -60,6 +61,7 @@ export function useJobDetails(jobId: string | undefined) {
   const referenceData = getResponseData<ReferenceData>(
     referenceDataQuery.data as ReferenceData | { data: ReferenceData } | { data: { data: ReferenceData } } | undefined,
   ) ?? null;
+
   const linkableJobs = getLinkableJobs(jobsData, jobId);
   const initialForm = job ? toForm(job) : null;
   const form =
@@ -229,7 +231,7 @@ export function useJobDetails(jobId: string | undefined) {
   };
 
   const updateWorkCategories = (categoryIds: string[]) => {
-    updateDraft({ ...form, work: { ...form.work, categoryIds } });
+    updateDraft({ ...form, work: { ...form.work, categoryIds, controlPointSelections: {}, irrelevantCategoryIds: [] } });
   };
 
   const updateWorkKind = (workKind: string) => {
@@ -246,6 +248,31 @@ export function useJobDetails(jobId: string | undefined) {
 
   const updateCustomWorkKind = (customWorkKind: string) => {
     updateDraft({ ...form, work: { ...form.work, customWorkKind } });
+  };
+
+  const toggleControlPoint = (cpId: string) => {
+    updateDraft({
+      ...form,
+      work: {
+        ...form.work,
+        controlPointSelections: {
+          ...form.work.controlPointSelections,
+          [cpId]: !form.work.controlPointSelections[cpId],
+        },
+      },
+    });
+  };
+
+  const toggleCategoryIrrelevant = (categoryId: string) => {
+    const isIrrelevant = form.work.irrelevantCategoryIds.includes(categoryId);
+    const irrelevantCategoryIds = isIrrelevant
+      ? form.work.irrelevantCategoryIds.filter((id) => id !== categoryId)
+      : [...form.work.irrelevantCategoryIds, categoryId];
+
+    updateDraft({
+      ...form,
+      work: { ...form.work, irrelevantCategoryIds },
+    });
   };
 
   const updateAssignedUsers = (userIds: string[]) => {
@@ -318,12 +345,12 @@ export function useJobDetails(jobId: string | undefined) {
   };
 
   const saveCurrentStep = (options: { validateWork?: boolean } = {}) => flushSave({
-    includeWork: currentStep === 1,
+    includeWork: currentStep >= 1,
     validateWork: options.validateWork ?? false,
   });
 
   const saveCurrentStepAndSetCurrentStep = (nextStep: number) => {
-    const includeWork = currentStep === 1;
+    const includeWork = currentStep >= 1;
     const validateWork = includeWork && nextStep > currentStep;
     if (flushSave({ includeWork, validateWork })) {
       setCurrentStep(nextStep);
@@ -385,6 +412,8 @@ export function useJobDetails(jobId: string | undefined) {
     updateWorkCategories,
     updateWorkKind,
     updateCustomWorkKind,
+    toggleControlPoint,
+    toggleCategoryIrrelevant,
   };
 }
 

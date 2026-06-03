@@ -49,7 +49,7 @@ public static class DatabaseSeeder
             .RuleFor(x => x.Address, f => f.Address.FullAddress())
             .RuleFor(x => x.Email, f => f.Internet.Email())
             .RuleFor(x => x.ContactPerson, f => f.Name.FullName())
-            .RuleFor(x => x.Phone, f => f.Phone.PhoneNumber())
+            .RuleFor(x => x.Phone, f => f.Phone.PhoneNumber("####-####"))
             .RuleFor(x => x.CreatedAt, _ => now)
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate(50);
@@ -59,7 +59,7 @@ public static class DatabaseSeeder
             .RuleFor(x => x.OrganizationId, _ => organization.Id)
             .RuleFor(x => x.DisplayName, f => f.Name.FullName())
             .RuleFor(x => x.Email, f => f.Internet.Email())
-            .RuleFor(x => x.Phone, f => f.Phone.PhoneNumber())
+            .RuleFor(x => x.Phone, f => f.Phone.PhoneNumber("####-####"))
             .RuleFor(x => x.Role, _ => "User")
             .RuleFor(x => x.CreatedAt, _ => now)
             .RuleFor(x => x.UpdatedAt, _ => now)
@@ -228,7 +228,9 @@ public static class DatabaseSeeder
             }
         }
 
-        await DatabaseInstallationSeeder.Seed(db, organization.Id, jobs);
+        //await DatabaseInstallationSeeder.Seed(db, organization.Id, jobs);
+
+        await TestSeeder.Seed(db, organization.Id, jobs);
 
         db.Organizations.Add(organization);
         await db.JobReports.AddRangeAsync(jobs);

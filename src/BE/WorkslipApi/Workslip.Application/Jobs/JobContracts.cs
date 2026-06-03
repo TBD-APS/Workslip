@@ -68,7 +68,8 @@ public sealed record InstallationTypeResponse(
 public sealed record CreateInstallationTypeControlPointRequest(
     Guid Id,
     int? SortOrder,
-    bool? IsRequired);
+    bool? IsRequired,
+    bool? IsChecked = null);
 
 public sealed record CreateInstallationTypeCategoryRequest(
     Guid Id,

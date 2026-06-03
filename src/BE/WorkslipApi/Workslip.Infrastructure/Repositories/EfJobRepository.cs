@@ -609,6 +609,7 @@ public sealed class EfJobRepository : IJobRepository
                         ControlPointId = controlPointRequest.Id,
                         SortOrder = controlPointRequest.SortOrder ?? mapping?.SortOrder ?? controlPointIndex + 1,
                         IsRequired = controlPointRequest.IsRequired ?? mapping?.IsRequired ?? false,
+                        IsChecked = controlPointRequest.IsChecked ?? false,
                         JobReportInstallationCategory = selectedCategory
                     });
                 }

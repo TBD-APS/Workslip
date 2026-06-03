@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
+import { ControlPointsStep, validateControlPoints } from './steps/ControlPointsStep';
 import { JobAttachmentsStep } from './steps/JobAttachmentsStep';
 import { JobOverviewStep } from './steps/JobOverviewStep';
 import { JOB_STEPS, StepIndicators, StepNavigation } from './steps/JobStepNavigation';
@@ -98,6 +99,15 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       )}
 
       {details.currentStep === 2 && (
+        <ControlPointsStep
+          form={details.form}
+          referenceData={details.referenceData}
+          onToggleControlPoint={details.toggleControlPoint}
+          onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
+        />
+      )}
+
+      {details.currentStep === 3 && (
         <JobAttachmentsStep />
       )}
 
@@ -113,6 +123,14 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
           }
         }}
         onNext={() => {
+          // Validate control points step
+          if (details.currentStep === 2) {
+            const validation = validateControlPoints(details.form, details.referenceData);
+            if (!validation.valid) {
+              toast.error(validation.error || 'Venligst validér kontrolpunkterne');
+              return;
+            }
+          }
           details.navigateToStep(details.currentStep + 1);
         }}
         onDone={onDone}
