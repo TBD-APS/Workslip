@@ -3,7 +3,7 @@ using Workslip.Application.Worksheets;
 
 namespace Workslip.Application.Worksheets.Validators;
 
-public sealed class CreateWorksheetValidator : AbstractValidator<CreateWorksheetRequest>
+public sealed class CreateWorksheetValidator : AbstractValidator<UpsertWorksheetRequest>
 {
     public CreateWorksheetValidator()
     {

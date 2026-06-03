@@ -82,7 +82,7 @@ public static class JobEndpoints
         group.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            return ResultExtensions.ToHttpResult(result);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/{id:guid}/restore/deletion", async (Guid id, IJobService service, CancellationToken cancellationToken) =>

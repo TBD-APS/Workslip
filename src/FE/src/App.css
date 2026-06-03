@@ -664,6 +664,124 @@
   gap: 1rem;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(14px);
+}
+
+.modal-card {
+  width: min(100%, 420px);
+  padding: 1.4rem;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+
+.modal-card h3 {
+  margin: 0 0 0.45rem;
+  font-size: 1.25rem;
+}
+
+.modal-card p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.work-category-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.work-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.work-field-label {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.category-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.choice-card {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 0.9rem;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+}
+
+.choice-card:active {
+  transform: scale(0.98);
+}
+
+.choice-card.selected {
+  background: rgba(0, 112, 243, 0.14);
+  border-color: rgba(0, 198, 255, 0.45);
+}
+
+.work-kind-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.work-kind-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.work-kind-option input {
+  accent-color: var(--accent-color);
+}
+
+.form-help-error {
+  color: #f87171;
+  font-size: 0.78rem;
+}
+
 .multi-select-field {
   position: relative;
   display: flex;

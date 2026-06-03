@@ -10,12 +10,12 @@ public class WorksheetService : IWorksheetService
 
 {
     private readonly IWorksheetRepository _repository;
-    private readonly IValidator<CreateWorksheetRequest> _validator;
+    private readonly IValidator<UpsertWorksheetRequest> _validator;
     private readonly ICurrentUserContext _currentUserContext;
     private readonly ILogger<WorksheetService> _logger;
 
     public WorksheetService(IWorksheetRepository repository, 
-        IValidator<CreateWorksheetRequest> validator, ICurrentUserContext currentUserContext, ILogger<WorksheetService> logger)
+        IValidator<UpsertWorksheetRequest> validator, ICurrentUserContext currentUserContext, ILogger<WorksheetService> logger)
     {
         _repository = repository;
         _validator = validator;
@@ -23,7 +23,7 @@ public class WorksheetService : IWorksheetService
         _logger = logger;
     }
 
-    public async Task<Result<WorksheetResponse>> UpsertAsync(CreateWorksheetRequest request, CancellationToken cancellationToken)
+    public async Task<Result<WorksheetResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken)
     {
         var organizationId = _currentUserContext.OrganizationId;
         if (organizationId is null)

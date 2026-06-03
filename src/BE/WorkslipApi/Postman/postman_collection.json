@@ -1114,6 +1114,52 @@
           ]
         },
         {
+          "name": "/api/jobs duplicate report number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs"
+              ]
+            },
+            "description": "Attempts to create another job with the same report number in the same organization. Expects a conflict response.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Duplicate Demo Kunde\",\n    \"address\": \"Demo Vej 2, 1000 København\",\n    \"email\": \"duplicate-{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"work\": null,\n  \"observations\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', function () { pm.response.to.have.status(409); });",
+                  "const json = pm.response.json();",
+                  "pm.test('duplicate report number error returned', function () { pm.expect(json.error).to.eql('duplicate_report_number'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "/api/jobs",
           "request": {
             "method": "GET",
