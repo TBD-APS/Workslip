@@ -1,4 +1,5 @@
 using Ardalis.Result;
+using Workslip.Application.Jobs;
 
 namespace Workslip.Application.Worksheets;
 
@@ -29,7 +30,6 @@ public sealed record WorksheetResponse(
 
 public interface IWorksheetService
 {
-    Task<Result<WorksheetResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken);
-    Task<Result<WorksheetResponse>> DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken);
-    Task<Result<IReadOnlyList<WorksheetResponse>>> ListByJobAsync(Guid jobId, CancellationToken cancellationToken);
+    Task<Result<JobReportSummaryResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken);
+    Task<Result<JobReportSummaryResponse>> DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken);
 }
