@@ -75,7 +75,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   const disableNext = !canAdvanceCurrentStep(details);
 
   return (
-    <div className="page-container">
+    <div className="page-container job-detail-page">
       <JobDetailsHeader
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
@@ -114,6 +114,8 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         <JobWorksheetsStep
           jobId={details.job.id}
           worksheets={details.worksheets}
+          totalHours={details.job.totalHours}
+          totalOutlay={details.job.totalOutlay}
           assignableUsers={details.assignableUsers}
           isLoadingUsers={details.isLoadingUsers}
           isSaving={details.isSavingWorksheet}

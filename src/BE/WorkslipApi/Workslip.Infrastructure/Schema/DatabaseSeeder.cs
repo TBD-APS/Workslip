@@ -31,7 +31,7 @@ public static class DatabaseSeeder
             new() { Id = Guid.NewGuid(), NormalizedLabel = "NewInstallation", Label = "Ny installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 1 },
             new() { Id = Guid.NewGuid(), NormalizedLabel = "ChangeOfInstallation", Label = "Ændring af installation", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 2},
             new() { Id = Guid.NewGuid(), NormalizedLabel = "RepairWork", Label = "Reparationsarbejde", RequiresCustomWorkKind = false, IsActive = true, SortOrder = 3 },
-            new() { Id = Guid.NewGuid(), NormalizedLabel = "ServiceOther", Label = "Service andet", RequiresCustomWorkKind = true, IsActive = true, SortOrder = 4 }
+            new() { Id = Guid.NewGuid(), NormalizedLabel = "ServiceOther", Label = "Service/Andet", RequiresCustomWorkKind = true, IsActive = true, SortOrder = 4 }
         };
 
         var jobClosureFlags = new List<JobClosureFlagRow>

@@ -19,6 +19,8 @@ type WorksheetDraft = {
 type JobWorksheetsStepProps = {
   jobId: string;
   worksheets: WorksheetResponse[];
+  totalHours: number | string | null;
+  totalOutlay: number | string | null;
   assignableUsers: AssignableUser[];
   isLoadingUsers: boolean;
   isSaving: boolean;
@@ -50,6 +52,20 @@ function parseHours(value: number | string): number {
   return typeof value === 'number' ? value : Number(value.replace(',', '.'));
 }
 
+function parseNullableNumber(value: number | string | null): number {
+  if (value === null) return 0;
+  const parsedValue = typeof value === 'number' ? value : Number(value.replace(',', '.'));
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 }).format(value);
+}
+
+function formatUnit(value: number, singular: string, plural: string): string {
+  return Math.abs(value) === 1 ? singular : plural;
+}
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(fromDateIso(value));
 }
@@ -66,6 +82,8 @@ function defaultDraft(defaultUserId: string): WorksheetDraft {
 export function JobWorksheetsStep({
   jobId,
   worksheets,
+  totalHours,
+  totalOutlay,
   assignableUsers,
   isLoadingUsers,
   isSaving,
@@ -90,6 +108,8 @@ export function JobWorksheetsStep({
     () => [...worksheets].sort((a, b) => b.workDate.localeCompare(a.workDate)),
     [worksheets],
   );
+  const totalHoursValue = parseNullableNumber(totalHours);
+  const totalOutlayValue = parseNullableNumber(totalOutlay);
 
   useEffect(() => {
     if (!editingWorksheetId) return;
@@ -214,98 +234,111 @@ export function JobWorksheetsStep({
   };
 
   return (
-    <section className="detail-section">
-      <div className="section-header-row">
-        <FileSpreadsheet size={18} />
-        <h3>Arbejdssedler</h3>
-      </div>
+    <>
+      <section className="detail-section">
+        <div className="section-header-row">
+          <FileSpreadsheet size={18} />
+          <h3>Arbejdssedler</h3>
+        </div>
 
-      {sortedWorksheets.length === 0 ? (
-        <p className="empty-state-text">Ingen arbejdssedler endnu. </p>
-      ) : (
-        <ul className={editingWorksheetId ? 'worksheet-list expanded' : 'worksheet-list'}>
-          {sortedWorksheets.map((worksheet) => {
-            const assignee = resolvedUsers.find((u) => u.id === worksheet.userId);
-            const isEditing = editingWorksheetId === worksheet.id && editDraft;
+        {sortedWorksheets.length === 0 ? (
+          <p className="empty-state-text">Ingen arbejdssedler endnu. </p>
+        ) : (
+          <ul className={editingWorksheetId ? 'worksheet-list expanded' : 'worksheet-list'}>
+            {sortedWorksheets.map((worksheet) => {
+              const assignee = resolvedUsers.find((u) => u.id === worksheet.userId);
+              const isEditing = editingWorksheetId === worksheet.id && editDraft;
 
-            return (
-              <li key={worksheet.id} className={isEditing ? 'worksheet-list-item editing' : 'worksheet-list-item'}>
-                <div className="worksheet-list-item-row">
-                  <div className="worksheet-list-item-info">
-                    <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
-                    <span className="worksheet-list-item-meta">
-                      {assignee?.displayName ?? worksheet.userId}
-                      {' · '}
-                      {Number(worksheet.hoursWorked)} t
-                      {worksheet.sleptOnJob ? ' · overnattet' : ''}
-                    </span>
+              return (
+                <li key={worksheet.id} className={isEditing ? 'worksheet-list-item editing' : 'worksheet-list-item'}>
+                  <div className="worksheet-list-item-row">
+                    <div className="worksheet-list-item-info">
+                      <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
+                      <span className="worksheet-list-item-meta">
+                        {assignee?.displayName ?? worksheet.userId}
+                        {' · '}
+                        {Number(worksheet.hoursWorked)} t
+                        {worksheet.sleptOnJob ? ' · overnattet' : ''}
+                      </span>
+                    </div>
+                    <div className="worksheet-list-item-actions">
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        onClick={() => startEdit(worksheet)}
+                        aria-label="Rediger arbejdsseddel"
+                        title="Rediger"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <DeleteButton
+                        onClick={() => handleDelete(worksheet)}
+                        disabled={isDeleting}
+                        ariaLabel="Slet arbejdsseddel"
+                        title="Slet arbejdsseddel"
+                        size={16}
+                      />
+                    </div>
                   </div>
-                  <div className="worksheet-list-item-actions">
-                    <button
-                      type="button"
-                      className="btn-icon"
-                      onClick={() => startEdit(worksheet)}
-                      aria-label="Rediger arbejdsseddel"
-                      title="Rediger"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <DeleteButton
-                      onClick={() => handleDelete(worksheet)}
-                      disabled={isDeleting}
-                      ariaLabel="Slet arbejdsseddel"
-                      title="Slet arbejdsseddel"
-                      size={16}
+
+                  {isEditing && (
+                    <WorksheetDraftForm
+                      title="Rediger arbejdsseddel"
+                      draft={editDraft}
+                      userOptions={userOptions}
+                      isLoadingUsers={isLoadingUsers}
+                      isSaving={isSaving}
+                      submitLabel="Gem"
+                      error={formError}
+                      onDraftChange={setEditDraft}
+                      onSubmit={() => saveDraft(editDraft, worksheet.id)}
+                      onCancel={cancelEdit}
                     />
-                  </div>
-                </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
 
-                {isEditing && (
-                  <WorksheetDraftForm
-                    title="Rediger arbejdsseddel"
-                    draft={editDraft}
-                    userOptions={userOptions}
-                    isLoadingUsers={isLoadingUsers}
-                    isSaving={isSaving}
-                    submitLabel="Gem"
-                    error={formError}
-                    onDraftChange={setEditDraft}
-                    onSubmit={() => saveDraft(editDraft, worksheet.id)}
-                    onCancel={cancelEdit}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+        {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
+          <button
+            type="button"
+            className="btn btn-primary worksheet-add-trigger"
+            onClick={openAddForm}
+          >
+            <Plus size={16} />
+            <span>Tilføj arbejdsseddel</span>
+          </button>
+        )}
 
-      {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
-        <button
-          type="button"
-          className="btn btn-primary worksheet-add-trigger"
-          onClick={openAddForm}
-        >
-          <Plus size={16} />
-          <span>Tilføj arbejdsseddel</span>
-        </button>
-      )}
+        {!editingWorksheetId && isAddOpen && (
+          <WorksheetDraftForm
+            title="Tilføj arbejdsseddel"
+            draft={addDraft}
+            userOptions={userOptions}
+            isLoadingUsers={isLoadingUsers}
+            isSaving={isSaving}
+            submitLabel="Tilføj"
+            error={formError}
+            onDraftChange={setAddDraft}
+            onSubmit={() => saveDraft(addDraft)}
+            onCancel={cancelAdd}
+          />
+        )}
+      </section>
 
-      {!editingWorksheetId && isAddOpen && (
-        <WorksheetDraftForm
-          title="Tilføj arbejdsseddel"
-          draft={addDraft}
-          userOptions={userOptions}
-          isLoadingUsers={isLoadingUsers}
-          isSaving={isSaving}
-          submitLabel="Tilføj"
-          error={formError}
-          onDraftChange={setAddDraft}
-          onSubmit={() => saveDraft(addDraft)}
-          onCancel={cancelAdd}
-        />
-      )}
-    </section>
+      <section className="detail-section worksheet-total-section" aria-label="Arbejdsseddel totaler">
+        <div className="worksheet-total-row">
+          <span className="worksheet-total-label">Timer i alt:</span>
+          <strong>{formatNumber(totalHoursValue)} {formatUnit(totalHoursValue, 'time', 'timer')}</strong>
+        </div>
+        <div className="worksheet-total-row">
+          <span className="worksheet-total-label">Udlæg:</span>
+          <strong>{formatNumber(totalOutlayValue)} {formatUnit(totalOutlayValue, 'dag', 'dage')}</strong>
+        </div>
+      </section>
+    </>
   );
 }
 

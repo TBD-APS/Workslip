@@ -370,7 +370,7 @@ export function useJobDetails(jobId: string | undefined) {
     return upsertWorksheetMutation.mutateAsync({
       jobId: params.jobId,
       data: {
-        id: params.id,
+        id: params.id ?? null,
         jobId: params.jobId,
         userId: params.userId,
         workDate: params.workDate,
