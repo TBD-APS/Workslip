@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react';
-import { Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, MessageSquare } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, FileText } from 'lucide-react';
 
 export const JOB_STEPS = [
   { icon: Building2, label: 'Sagsdetaljer' },
   { icon: FileText, label: 'Kategorier' },
   { icon: ClipboardList, label: 'Kontrolpunkter' },
-  { icon: MessageSquare, label: 'Bilag' },
+  { icon: FileSpreadsheet, label: 'Arbejdssedler' },
 ] as const;
 
 type StepIndicatorsProps = {
@@ -44,6 +44,7 @@ type StepNavigationProps = {
   onDone: () => void;
   doneLabel?: string;
   doneIcon?: ReactNode;
+  disableNext?: boolean;
   disableDone?: boolean;
 };
 
@@ -55,10 +56,39 @@ export function StepNavigation({
   onDone,
   doneLabel = 'Færdig',
   doneIcon = <CheckCircle2 size={18} />,
+  disableNext = false,
   disableDone = false,
 }: StepNavigationProps) {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const scrollContainer = document.querySelector('.app-content');
+    const getScrollTop = () => scrollContainer?.scrollTop ?? window.scrollY;
+    const getScrollBottom = () => {
+      if (scrollContainer) {
+        return scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
+      }
+
+      const documentElement = document.documentElement;
+      return documentElement.scrollHeight - window.scrollY - window.innerHeight;
+    };
+    let lastScrollTop = getScrollTop();
+
+    const handleScroll = () => {
+      const currentScrollTop = getScrollTop();
+      const isAtBottom = getScrollBottom() <= 24;
+      const scrollingDown = currentScrollTop > lastScrollTop && currentScrollTop > 80;
+      setIsVisible(isAtBottom || !scrollingDown);
+      lastScrollTop = currentScrollTop;
+    };
+
+    const target = scrollContainer ?? window;
+    target.addEventListener('scroll', handleScroll, { passive: true });
+    return () => target.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
-    <div className="step-nav">
+    <div className={isVisible ? 'step-nav step-nav-sticky' : 'step-nav step-nav-sticky hidden'}>
       <button
         className="step-nav-btn step-nav-btn-back"
         onClick={onBack}
@@ -71,7 +101,7 @@ export function StepNavigation({
       <span className="step-nav-counter">Trin {currentStep + 1} / {JOB_STEPS.length}</span>
 
       {!isLastStep ? (
-        <button className="step-nav-btn step-nav-btn-next" onClick={onNext}>
+        <button className="step-nav-btn step-nav-btn-next" onClick={onNext} disabled={disableNext}>
           <span>Næste</span>
           <ChevronRight size={18} />
         </button>

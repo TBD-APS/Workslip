@@ -1,13 +1,15 @@
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
+import { DeleteButton } from '../../../components/common/DeleteButton';
+import { isValidJobForm, isValidWork } from '../utils';
 import { ControlPointsStep, validateControlPoints } from './steps/ControlPointsStep';
-import { JobAttachmentsStep } from './steps/JobAttachmentsStep';
 import { JobOverviewStep } from './steps/JobOverviewStep';
 import { JOB_STEPS, StepIndicators, StepNavigation } from './steps/JobStepNavigation';
+import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
@@ -70,6 +72,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   }
 
   const isLastStep = details.currentStep === JOB_STEPS.length - 1;
+  const disableNext = !canAdvanceCurrentStep(details);
 
   return (
     <div className="page-container">
@@ -108,12 +111,22 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       )}
 
       {details.currentStep === 3 && (
-        <JobAttachmentsStep />
+        <JobWorksheetsStep
+          jobId={details.job.id}
+          worksheets={details.worksheets}
+          assignableUsers={details.assignableUsers}
+          isLoadingUsers={details.isLoadingUsers}
+          isSaving={details.isSavingWorksheet}
+          isDeleting={details.isDeletingWorksheet}
+          onUpsert={details.upsertWorksheet}
+          onDelete={details.deleteWorksheet}
+        />
       )}
 
       <StepNavigation
         currentStep={details.currentStep}
         isLastStep={isLastStep}
+        disableNext={disableNext}
         onBack={() => {
           if (details.currentStep === 0) {
             details.flushSave();
@@ -139,6 +152,22 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   );
 }
 
+function canAdvanceCurrentStep(details: JobDetailsState) {
+  if (details.currentStep === 0) {
+    return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly });
+  }
+
+  if (details.currentStep === 1) {
+    return isValidWork(details.form, details.referenceData);
+  }
+
+  if (details.currentStep === 2) {
+    return validateControlPoints(details.form, details.referenceData).valid;
+  }
+
+  return true;
+}
+
 type HeaderProps = {
   title: string;
   jobNumber: string;
@@ -159,9 +188,7 @@ function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete }: He
       </div>
       <div className="detail-header-actions">
         <SaveStatusIndicator saveStatus={saveStatus} />
-        <button className="btn-icon btn-icon-danger" onClick={onDelete} aria-label="Slet sag">
-          <Trash2 size={18} />
-        </button>
+        <DeleteButton onClick={onDelete} ariaLabel="Slet sag" size={18} />
       </div>
     </div>
   );

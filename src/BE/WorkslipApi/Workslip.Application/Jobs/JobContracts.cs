@@ -219,8 +219,9 @@ public sealed record JobReportSummaryResponse(
     DateTimeOffset? SubmittedAt,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     IReadOnlyList<WorksheetResponse> Worksheets,
-    bool SoftDeleted,
-    DateTimeOffset? DeletionScheduledAt);
+    decimal? TotalHours,
+    int? TotalOutlay,
+    bool SoftDeleted);
 
 public sealed record JobReportSummaryWorkResponse(
     JobWorkKindResponse? WorkKind,

@@ -11,6 +11,10 @@ import {
   usePostApiJobsIdLinks,
   usePatchApiJobsId,
 } from '../../../api/generated/jobs/jobs';
+import {
+  useDeleteApiWorksheetsWorksheetIdJobsJobId,
+  usePostApiWorksheetsJobsJobId,
+} from '../../../api/generated/worksheet/worksheet';
 import { useGetApiUsers } from '../../../api/generated/users/users';
 import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
@@ -161,6 +165,34 @@ export function useJobDetails(jobId: string | undefined) {
         }
         setLinksStatus('error');
         toast.error('Kunne ikke fjerne tilknyttede sager', { id: 'job-links-error' });
+      },
+    },
+  });
+
+  const upsertWorksheetMutation = usePostApiWorksheetsJobsJobId({
+    mutation: {
+      onSuccess: (data) => {
+        if (jobId) {
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
+        }
+        toast.success('Arbejdssedlen er gemt');
+      },
+      onError: (error) => {
+        toast.error(getWorksheetErrorMessage(error), { id: 'worksheet-upsert-error' });
+      },
+    },
+  });
+
+  const deleteWorksheetMutation = useDeleteApiWorksheetsWorksheetIdJobsJobId({
+    mutation: {
+      onSuccess: (data) => {
+        if (jobId) {
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
+        }
+        toast.success('Arbejdssedlen er slettet');
+      },
+      onError: (error) => {
+        toast.error(getWorksheetDeleteErrorMessage(error), { id: 'worksheet-delete-error' });
       },
     },
   });
@@ -327,6 +359,34 @@ export function useJobDetails(jobId: string | undefined) {
     }
   };
 
+  const upsertWorksheet = (params: {
+    id?: string;
+    jobId: string;
+    userId: string;
+    workDate: string;
+    hoursWorked: number;
+    sleptOnJob: boolean;
+  }) => {
+    return upsertWorksheetMutation.mutateAsync({
+      jobId: params.jobId,
+      data: {
+        id: params.id,
+        jobId: params.jobId,
+        userId: params.userId,
+        workDate: params.workDate,
+        hoursWorked: params.hoursWorked,
+        sleptOnJob: params.sleptOnJob,
+      },
+    });
+  };
+
+  const deleteWorksheet = (params: { worksheetId: string; jobId: string }) => {
+    deleteWorksheetMutation.mutate({
+      worksheetId: params.worksheetId,
+      jobId: params.jobId,
+    });
+  };
+
   const flushSave = (options: { includeWork?: boolean; validateWork?: boolean } = {}) => {
     const includeWork = options.includeWork ?? false;
     const validateWork = options.validateWork ?? false;
@@ -398,6 +458,7 @@ export function useJobDetails(jobId: string | undefined) {
     assignedUserIds,
     linkableJobs,
     linkedJobIds,
+    worksheets: job?.worksheets ?? [],
     currentStep,
     setCurrentStep,
     isLoading: query.isLoading,
@@ -426,6 +487,10 @@ export function useJobDetails(jobId: string | undefined) {
     updateCustomWorkKind,
     toggleControlPoint,
     toggleCategoryIrrelevant,
+    upsertWorksheet,
+    deleteWorksheet,
+    isSavingWorksheet: upsertWorksheetMutation.isPending,
+    isDeletingWorksheet: deleteWorksheetMutation.isPending,
   };
 }
 
@@ -436,4 +501,33 @@ function getSaveErrorMessage(error: unknown) {
   }
 
   return 'Kunne ikke gemme ændringer';
+}
+
+function getWorksheetErrorMessage(error: unknown) {
+  const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+  if (axiosError.response?.status === 400) {
+    return 'Kontrollér montør, dato og timer.';
+  }
+  if (axiosError.response?.status === 409) {
+    const errorText = axiosError.response.data?.error ?? axiosError.response.data?.message;
+    if (errorText?.includes('24')) {
+      return 'Montøren kan ikke registrere mere end 24 timer på samme dato.';
+    }
+    if (errorText?.includes('not found')) {
+      return 'Arbejdssedlen findes ikke længere.';
+    }
+    return 'Arbejdssedlen kunne ikke gemmes.';
+  }
+  return 'Kunne ikke gemme arbejdssedlen';
+}
+
+function getWorksheetDeleteErrorMessage(error: unknown) {
+  const axiosError = error as AxiosError<{ error?: string }>;
+  if (axiosError.response?.status === 404) {
+    return 'Arbejdssedlen findes ikke længere';
+  }
+  if (axiosError.response?.status === 409) {
+    return 'Arbejdssedlen kunne ikke slettes — status forhindrer ændringer';
+  }
+  return 'Kunne ikke slette arbejdssedlen';
 }

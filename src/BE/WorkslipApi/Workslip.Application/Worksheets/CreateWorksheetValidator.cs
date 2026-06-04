@@ -17,7 +17,7 @@ public sealed class CreateWorksheetValidator : AbstractValidator<UpsertWorksheet
             .NotEmpty().WithMessage("Work date is required.");
 
         RuleFor(x => x.HoursWorked)
-            .GreaterThanOrEqualTo(0).WithMessage("Hours worked cannot be negative.")
+            .GreaterThan(0).WithMessage("Hours worked must be greater than 0.")
             .LessThanOrEqualTo(24).WithMessage("Hours worked cannot exceed 24 hours in a day.")
             .Must(BeValidHourIncrement).WithMessage("Hours worked must be in increments of 0.25 (quarter, half, or whole hours).");
     }

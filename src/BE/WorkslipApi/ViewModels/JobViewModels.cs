@@ -34,6 +34,8 @@ public sealed record JobReportSummaryViewModel(
     IReadOnlyList<JobLinkInfoResponse> Links,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     IReadOnlyList<WorksheetResponse> Worksheets,
+    decimal? TotalHours, 
+    int? TotalOutlay,
     bool SoftDeleted);
 
 public sealed record JobLinkViewModel(
@@ -68,6 +70,8 @@ public static class JobViewModelBuilder
         summary.Links,
         summary.AssignedUsers,
         summary.Worksheets,
+        summary.TotalHours,
+        summary.TotalOutlay,
         summary.SoftDeleted);
 
     public static JobLinkViewModel ToLink(JobLinkResponse link) => new(
