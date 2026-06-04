@@ -1488,6 +1488,51 @@
   gap: 0.35rem;
 }
 
+.worksheet-actions-menu-root {
+  position: relative;
+}
+
+.worksheet-actions-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 8.5rem;
+  padding: 0.25rem;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.worksheet-actions-menu button {
+  width: 100%;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.65rem;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.worksheet-actions-menu button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.worksheet-actions-menu button.danger {
+  color: #f87171;
+}
+
+.worksheet-actions-menu button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .worksheet-list-item-info {
   display: flex;
   flex-direction: column;
@@ -1510,7 +1555,7 @@
 .worksheet-form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1.15rem;
   padding: 1rem;
   background: rgba(0, 0, 0, 0.15);
   border: 1px solid var(--surface-border);
@@ -1527,16 +1572,21 @@
 .worksheet-form-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.75rem;
+  gap: 1.15rem;
 }
 
 .worksheet-form-grid .multi-select-field {
   min-width: 0;
 }
 
+.worksheet-form-grid-main .multi-select-chips {
+  margin-top: 0.15rem;
+}
+
 .worksheet-form-grid-hours {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
+  margin-top: 0.15rem;
 }
 
 .worksheet-overnight-wrapper {
@@ -1626,6 +1676,7 @@
   flex-wrap: nowrap;
   align-items: center;
   gap: 0.75rem;
+  margin-top: 0.15rem;
 }
 
 .worksheet-form-actions .btn {

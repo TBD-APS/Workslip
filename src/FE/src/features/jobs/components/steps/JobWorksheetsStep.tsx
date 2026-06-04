@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, Pencil, Plus, Save, Users } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
+import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, MoreHorizontal, Pencil, Plus, Save, Trash2, Users } from 'lucide-react';
 import { useAuth } from '../../../../providers/AuthContext';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import { MultiSelectDropdown } from '../../../../components/forms/MultiSelectDropdown';
-import { DeleteButton } from '../../../../components/common/DeleteButton';
 import type { WorksheetResponse } from '../../../../api/generated/models';
 import type { AssignableUser } from '../../types';
 import { getUserList } from '../../utils';
@@ -14,6 +14,12 @@ type WorksheetDraft = {
   workDate: string;
   hours: string;
   sleptOnJob: boolean;
+};
+
+type ActionMenuState = {
+  worksheetId: string;
+  top: number;
+  right: number;
 };
 
 type JobWorksheetsStepProps = {
@@ -101,6 +107,7 @@ export function JobWorksheetsStep({
   const [addDraft, setAddDraft] = useState<WorksheetDraft>(() => defaultDraft(defaultUserId));
   const [editDraft, setEditDraft] = useState<WorksheetDraft | null>(null);
   const [editingWorksheetId, setEditingWorksheetId] = useState<string | null>(null);
+  const [openActionMenu, setOpenActionMenu] = useState<ActionMenuState | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -110,6 +117,9 @@ export function JobWorksheetsStep({
   );
   const totalHoursValue = parseNullableNumber(totalHours);
   const totalOutlayValue = parseNullableNumber(totalOutlay);
+  const openActionWorksheet = openActionMenu
+    ? sortedWorksheets.find((worksheet) => worksheet.id === openActionMenu.worksheetId) ?? null
+    : null;
 
   useEffect(() => {
     if (!editingWorksheetId) return;
@@ -119,6 +129,32 @@ export function JobWorksheetsStep({
     setEditDraft(null);
     setFormError(null);
   }, [editingWorksheetId, worksheets]);
+
+  useEffect(() => {
+    if (!openActionMenu) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.worksheet-actions-menu-root, .worksheet-actions-menu')) return;
+      setOpenActionMenu(null);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [openActionMenu]);
+
+  useEffect(() => {
+    if (!openActionMenu) return;
+
+    const closeMenu = () => setOpenActionMenu(null);
+    const scrollContainer = document.querySelector('.app-content');
+    scrollContainer?.addEventListener('scroll', closeMenu, { passive: true });
+    window.addEventListener('resize', closeMenu);
+
+    return () => {
+      scrollContainer?.removeEventListener('scroll', closeMenu);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, [openActionMenu]);
 
   const validateDraft = (draft: WorksheetDraft, currentWorksheetId?: string): number | null => {
     if (!draft.userId) {
@@ -186,6 +222,7 @@ export function JobWorksheetsStep({
   const openAddForm = () => {
     setEditingWorksheetId(null);
     setEditDraft(null);
+    setOpenActionMenu(null);
     setAddDraft((current) => current.userId || !defaultUserId ? current : { ...current, userId: defaultUserId });
     setIsAddOpen(true);
     setFormError(null);
@@ -198,6 +235,7 @@ export function JobWorksheetsStep({
   };
 
   const startEdit = (worksheet: WorksheetResponse) => {
+    setOpenActionMenu(null);
     if (editingWorksheetId === worksheet.id) {
       setEditingWorksheetId(null);
       setEditDraft(null);
@@ -223,6 +261,7 @@ export function JobWorksheetsStep({
   };
 
   const handleDelete = (worksheet: WorksheetResponse) => {
+    setOpenActionMenu(null);
     const confirmed = window.confirm('Slet denne arbejdsseddel?');
     if (!confirmed) return;
     if (editingWorksheetId === worksheet.id) {
@@ -231,6 +270,17 @@ export function JobWorksheetsStep({
       setFormError(null);
     }
     onDelete({ worksheetId: worksheet.id, jobId });
+  };
+
+  const toggleActionMenu = (event: MouseEvent<HTMLButtonElement>, worksheetId: string) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setOpenActionMenu((current) => current?.worksheetId === worksheetId
+      ? null
+      : {
+        worksheetId,
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
   };
 
   return (
@@ -262,22 +312,18 @@ export function JobWorksheetsStep({
                       </span>
                     </div>
                     <div className="worksheet-list-item-actions">
-                      <button
-                        type="button"
-                        className="btn-icon"
-                        onClick={() => startEdit(worksheet)}
-                        aria-label="Rediger arbejdsseddel"
-                        title="Rediger"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <DeleteButton
-                        onClick={() => handleDelete(worksheet)}
-                        disabled={isDeleting}
-                        ariaLabel="Slet arbejdsseddel"
-                        title="Slet arbejdsseddel"
-                        size={16}
-                      />
+                      <div className="worksheet-actions-menu-root">
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          onClick={(event) => toggleActionMenu(event, worksheet.id)}
+                          aria-label="Åbn handlinger for arbejdsseddel"
+                          aria-expanded={openActionMenu?.worksheetId === worksheet.id}
+                          title="Handlinger"
+                        >
+                          <MoreHorizontal size={18} />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -338,6 +384,30 @@ export function JobWorksheetsStep({
           <strong>{formatNumber(totalOutlayValue)} {formatUnit(totalOutlayValue, 'dag', 'dage')}</strong>
         </div>
       </section>
+
+      {openActionMenu && openActionWorksheet && createPortal(
+        <div
+          className="worksheet-actions-menu"
+          role="menu"
+          style={{ top: openActionMenu.top, right: openActionMenu.right }}
+        >
+          <button type="button" role="menuitem" onClick={() => startEdit(openActionWorksheet)}>
+            <Pencil size={15} />
+            <span>Rediger</span>
+          </button>
+          <button
+            type="button"
+            className="danger"
+            role="menuitem"
+            onClick={() => handleDelete(openActionWorksheet)}
+            disabled={isDeleting}
+          >
+            <Trash2 size={15} />
+            <span>Slet</span>
+          </button>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }
