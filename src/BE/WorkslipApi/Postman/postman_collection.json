@@ -154,11 +154,6 @@
       "type": "string"
     },
     {
-      "key": "worksheetJobId",
-      "value": "",
-      "type": "string"
-    },
-    {
       "key": "workDate",
       "value": "",
       "type": "string"
@@ -2071,42 +2066,6 @@
         {
           "name": "/api/worksheets/jobs/{jobId}",
           "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/worksheets/jobs/{{jobId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "worksheets",
-                "jobs",
-                "{{jobId}}"
-              ]
-            },
-            "description": "Lists all worksheets for a given job."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "pm.test('response is an array', function () {",
-                  "  pm.expect(json).to.be.an('array');",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "response": []
-        },
-        {
-          "name": "/api/worksheets/jobs/{jobId}",
-          "request": {
             "method": "POST",
             "header": [
               {
@@ -2158,14 +2117,17 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.test('worksheet has expected fields', function () {",
-                  "  pm.expect(json).to.have.property('id');",
-                  "  pm.expect(json).to.have.property('jobId');",
-                  "  pm.expect(json).to.have.property('userId');",
-                  "  pm.expect(json).to.have.property('hoursWorked');",
+                  "pm.test('response is a job summary with worksheets array', function () {",
+                  "  pm.expect(json).to.have.property('worksheets');",
+                  "  pm.expect(json.worksheets).to.be.an('array');",
                   "});",
-                  "pm.collectionVariables.set('worksheetId', json.id);",
-                  "pm.collectionVariables.set('worksheetJobId', json.jobId);"
+                  "pm.test('worksheet for today + assignee is present', function () {",
+                  "  const today = new Date().toISOString().slice(0, 10);",
+                  "  const assignee = pm.collectionVariables.get('assigneeUserId');",
+                  "  const ws = json.worksheets.find(w => w.workDate === today && w.userId === assignee);",
+                  "  pm.expect(ws, 'worksheet not found in response').to.exist;",
+                  "  pm.collectionVariables.set('worksheetId', ws.id);",
+                  "});"
                 ]
               }
             }
@@ -2198,7 +2160,17 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('response is a job summary with worksheets array', function () {",
+                  "  pm.expect(json).to.have.property('worksheets');",
+                  "  pm.expect(json.worksheets).to.be.an('array');",
+                  "});",
+                  "pm.test('deleted worksheet is no longer in summary', function () {",
+                  "  const worksheetId = pm.collectionVariables.get('worksheetId');",
+                  "  const ws = json.worksheets.find(w => w.id === worksheetId);",
+                  "  pm.expect(ws, 'worksheet still present in response').to.not.exist;",
+                  "});"
                 ]
               }
             }

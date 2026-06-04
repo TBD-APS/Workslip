@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Workslip.Application.Worksheets;
 using Workslip.Domain;
 using Workslip.Domain.Models;
 
@@ -217,8 +218,10 @@ public sealed record JobReportSummaryResponse(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? SubmittedAt,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
-    bool SoftDeleted,
-    DateTimeOffset? DeletionScheduledAt);
+    IReadOnlyList<WorksheetResponse> Worksheets,
+    decimal? TotalHours,
+    int? TotalOutlay,
+    bool SoftDeleted);
 
 public sealed record JobReportSummaryWorkResponse(
     JobWorkKindResponse? WorkKind,

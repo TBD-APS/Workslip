@@ -128,6 +128,16 @@
   margin: 0 auto;
 }
 
+.job-detail-page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.job-detail-page .step-nav {
+  margin-top: auto;
+}
+
 .page-header {
   margin-bottom: 1.5rem;
 }
@@ -1131,6 +1141,20 @@
   border-radius: 16px;
 }
 
+.step-nav-sticky {
+  position: sticky;
+  bottom: 1rem;
+  z-index: 15;
+  backdrop-filter: blur(18px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.step-nav-sticky.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(100% + 1.5rem));
+}
+
 .step-nav-btn {
   display: inline-flex;
   align-items: center;
@@ -1165,7 +1189,7 @@
   background: rgba(96, 165, 250, 0.2);
 }
 
-.step-nav-btn-next:hover {
+.step-nav-btn-next:not(:disabled):hover {
   background: rgba(96, 165, 250, 0.35);
 }
 
@@ -1365,4 +1389,300 @@
   border-radius: 10px;
   color: #fca5a5;
   font-size: 0.9rem;
+}
+
+/* ------------------------------------------------------------
+   Worksheet list (Job step 4)
+   ------------------------------------------------------------ */
+.worksheet-total-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.worksheet-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.worksheet-total-label {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.worksheet-total-row strong {
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.worksheet-list {
+  list-style: none;
+  margin: 0 0 1.5rem 0;
+  padding: 0.35rem;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.worksheet-list.expanded {
+  max-height: none;
+  overflow: visible;
+}
+
+.worksheet-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.worksheet-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.worksheet-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+
+.worksheet-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.worksheet-list-item {
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+}
+
+.worksheet-list-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.worksheet-list-item.editing {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.worksheet-list-item.editing .worksheet-form {
+  margin-top: 0.75rem;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.worksheet-list-item + .worksheet-list-item {
+  margin-top: 0.15rem;
+}
+
+.worksheet-list-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.worksheet-list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.worksheet-actions-menu-root {
+  position: relative;
+}
+
+.worksheet-actions-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 8.5rem;
+  padding: 0.25rem;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.worksheet-actions-menu button {
+  width: 100%;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.65rem;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.worksheet-actions-menu button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.worksheet-actions-menu button.danger {
+  color: #f87171;
+}
+
+.worksheet-actions-menu button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.worksheet-list-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.worksheet-list-item-date {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.worksheet-list-item-meta {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.worksheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+}
+
+.worksheet-form h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+}
+
+.worksheet-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.15rem;
+}
+
+.worksheet-form-grid .multi-select-field {
+  min-width: 0;
+}
+
+.worksheet-form-grid-main .multi-select-chips {
+  margin-top: 0.15rem;
+}
+
+.worksheet-form-grid-hours {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  margin-top: 0.15rem;
+}
+
+.worksheet-overnight-wrapper {
+  align-self: end;
+  min-width: 9.5rem;
+}
+
+@media (min-width: 640px) {
+  .worksheet-form-grid-main {
+    grid-template-columns: 0.8fr 1.2fr;
+  }
+}
+
+/* ------------------------------------------------------------
+   Calendar picker
+   ------------------------------------------------------------ */
+.calendar-picker-field {
+  position: relative;
+}
+
+.calendar-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calendar-picker-popover {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  width: min(19rem, calc(100vw - 3rem));
+  padding: 0.75rem;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.calendar-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.65rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.calendar-picker-weekdays,
+.calendar-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+}
+
+.calendar-picker-weekdays {
+  margin-bottom: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.calendar-picker-day {
+  min-height: 2rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.calendar-picker-day:hover,
+.calendar-picker-day.selected {
+  background: var(--accent-color);
+  color: white;
+}
+
+.worksheet-overnight-wrapper .multi-select-option {
+  min-height: 48px;
+}
+
+.worksheet-form-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.15rem;
+}
+
+.worksheet-form-actions .btn {
+  white-space: nowrap;
+}
+
+.worksheet-add-trigger {
+  width: fit-content;
 }

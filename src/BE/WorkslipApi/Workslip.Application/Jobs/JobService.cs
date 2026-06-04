@@ -6,6 +6,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
+using Workslip.Application.Worksheets;
 using Workslip.Domain;
 using Workslip.Domain.Models;
 
@@ -17,6 +18,7 @@ public sealed class JobService(
     IJobLinkRepository linkRepository,
     IReferenceDataRepository referenceDataRepository,
     IUserRepository userRepository,
+    IWorksheetRepository worksheetRepository,
     HybridCache cache,
     IValidator<CreateJobRequest> createJobValidator,
     IValidator<UpdateJobRequest> updateJobValidator,
@@ -152,7 +154,8 @@ public sealed class JobService(
         }
 
         var referenceData = await referenceDataRepository.GetAsync(organizationId, cancellationToken);
-        var summary = ToSummary(result.Value, referenceData);
+        var worksheets = await worksheetRepository.ListByJobAsync(id, cancellationToken);
+        var summary = ToSummary(result.Value, referenceData, worksheets, currentUser);
 
         logger.LogInformation("Job report summary fetched. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}.",
             summary.Id,
@@ -518,15 +521,20 @@ public sealed class JobService(
         var referenceData = organizationId.HasValue
             ? await referenceDataRepository.GetAsync(organizationId.Value, cancellationToken)
             : null;
-        return Result<JobReportSummaryResponse>.Success(ToSummary(report, referenceData));
+        var worksheets = await worksheetRepository.ListByJobAsync(report.Id, cancellationToken);
+        return Result<JobReportSummaryResponse>.Success(ToSummary(report, referenceData!, worksheets));
     }
 
-    private static JobReportSummaryResponse ToSummary(JobReportResponse report, ReferenceDataResponse referenceData)
+    private static JobReportSummaryResponse ToSummary(
+        JobReportResponse report,
+        ReferenceDataResponse referenceData,
+        IReadOnlyList<WorksheetResponse> worksheets,
+        ICurrentUserContext? user = null)
     {
 
         var closureFlags = report.ClosureFlags
             .Select(cf => {
-                
+
                 var flagDefinition = referenceData.ClosureFlags.FirstOrDefault(x => x.Id == cf.Id);
                 if (flagDefinition == null)
                     return null;
@@ -538,6 +546,19 @@ public sealed class JobService(
 
                 return closureFlag;
                 }).Where(x => x != null).ToList();
+
+        var totalHours = 0M;
+        var totalOverLay = 0;
+        if (user != null && user.Role == "User")
+        {
+            totalHours = worksheets.Where(w => w.UserId == user.UserId).Sum(w => w.HoursWorked);
+            totalOverLay = worksheets.Count(w => w.UserId == user.UserId && w.SleptOnJob);
+        }
+        else
+        {
+            totalHours = worksheets.Sum(w => w.HoursWorked);
+            totalOverLay = worksheets.Count(w => w.SleptOnJob);
+        }
 
         return new(
             report.Id,
@@ -561,8 +582,10 @@ public sealed class JobService(
             report.UpdatedAt,
             report.SubmittedAt,
             report.AssignedUsers,
-            report.SoftDeleted,
-            report.DeletionScheduledAt);
+            worksheets,
+            totalHours,
+            totalOverLay,
+            report.SoftDeleted);
     }
 
     private async Task<List<ValidationError>> ValidateDraftWorkAsync(Guid organizationId, CreateJobWorkRequest? workind, CancellationToken cancellationToken)

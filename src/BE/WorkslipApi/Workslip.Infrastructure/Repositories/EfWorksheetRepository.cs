@@ -41,15 +41,39 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             throw new InvalidOperationException($"Job with ID {request.JobId} not found");
 
         var stale = _dbContext.Worksheets.Local
-            .FirstOrDefault(w => w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate);
+            .FirstOrDefault(w => request.Id.HasValue
+                ? w.Id == request.Id.Value && w.JobId == request.JobId
+                : w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate);
         if (stale is not null)
             _dbContext.Entry(stale).State = EntityState.Detached;
 
-        var existing = await _dbContext.Worksheets
-            .FirstOrDefaultAsync(w => w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate, cancellationToken);
+        var existing = request.Id.HasValue
+            ? await _dbContext.Worksheets
+                .FirstOrDefaultAsync(
+                    w => w.Id == request.Id.Value && w.JobId == request.JobId && w.OrganizationId == _currentUser.OrganizationId,
+                    cancellationToken)
+            : await _dbContext.Worksheets
+                .FirstOrDefaultAsync(w => w.JobId == request.JobId && w.UserId == request.UserId && w.WorkDate == workDate, cancellationToken);
+
+        if (request.Id.HasValue && existing is null)
+            throw new InvalidOperationException("Worksheet not found");
+
+        var existingId = existing?.Id;
+        var existingHoursForUserDay = await _dbContext.Worksheets
+            .AsNoTracking()
+            .Where(w => w.OrganizationId == _currentUser.OrganizationId
+                && w.UserId == request.UserId
+                && w.WorkDate == workDate
+                && (!existingId.HasValue || w.Id != existingId.Value))
+            .SumAsync(w => w.HoursWorked, cancellationToken);
+
+        if (existingHoursForUserDay + request.HoursWorked > 24m)
+            throw new InvalidOperationException("Worksheet daily hours cannot exceed 24 hours for the selected user");
 
         if (existing is not null)
         {
+            existing.UserId = request.UserId;
+            existing.WorkDate = workDate;
             existing.HoursWorked = request.HoursWorked;
             existing.SleptOnJob = request.SleptOnJob;
             existing.UpdatedAt = now;
