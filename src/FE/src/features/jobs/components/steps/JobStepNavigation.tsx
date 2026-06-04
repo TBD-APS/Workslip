@@ -6,6 +6,7 @@ export const JOB_STEPS = [
   { icon: FileText, label: 'Kategorier' },
   { icon: ClipboardList, label: 'Kontrolpunkter' },
   { icon: FileSpreadsheet, label: 'Arbejdssedler' },
+  { icon: CheckCircle2, label: 'Afslutning' },
 ] as const;
 
 type StepIndicatorsProps = {

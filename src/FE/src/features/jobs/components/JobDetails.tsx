@@ -73,6 +73,14 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
 
   const isLastStep = details.currentStep === JOB_STEPS.length - 1;
   const disableNext = !canAdvanceCurrentStep(details);
+  const handleStepChange = (nextStep: number) => {
+    if (nextStep > 3 && details.worksheets.length === 0) {
+      toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
+      return;
+    }
+
+    details.navigateToStep(nextStep);
+  };
 
   return (
     <div className="page-container job-detail-page">
@@ -84,7 +92,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         onDelete={handleDelete}
       />
 
-      <StepIndicators currentStep={details.currentStep} onStepChange={details.navigateToStep} />
+      <StepIndicators currentStep={details.currentStep} onStepChange={handleStepChange} />
 
       {details.currentStep === 0 && (
         <JobOverviewStep details={details} />
@@ -125,6 +133,10 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         />
       )}
 
+      {details.currentStep === 4 && (
+        <JobCompletionStep worksheetCount={details.worksheets.length} />
+      )}
+
       <StepNavigation
         currentStep={details.currentStep}
         isLastStep={isLastStep}
@@ -146,11 +158,29 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
               return;
             }
           }
+          if (details.currentStep === 3 && details.worksheets.length === 0) {
+            toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
+            return;
+          }
           details.navigateToStep(details.currentStep + 1);
         }}
         onDone={onDone}
       />
     </div>
+  );
+}
+
+function JobCompletionStep({ worksheetCount }: { worksheetCount: number }) {
+  return (
+    <section className="detail-section">
+      <div className="section-header-row">
+        <CheckCircle2 size={18} />
+        <h3>Afslutning</h3>
+      </div>
+      <p className="subtitle">
+        Sagen har {worksheetCount} {worksheetCount === 1 ? 'arbejdsseddel' : 'arbejdssedler'} og er klar til afslutning.
+      </p>
+    </section>
   );
 }
 
@@ -165,6 +195,10 @@ function canAdvanceCurrentStep(details: JobDetailsState) {
 
   if (details.currentStep === 2) {
     return validateControlPoints(details.form, details.referenceData).valid;
+  }
+
+  if (details.currentStep === 3) {
+    return details.worksheets.length > 0;
   }
 
   return true;
