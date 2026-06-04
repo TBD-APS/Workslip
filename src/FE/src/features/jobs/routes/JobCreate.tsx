@@ -18,6 +18,7 @@ export const JobCreate = () => {
   const handleCreateAnother = () => {
     create.reset();
     setCreatedJobId(null);
+    document.querySelector('.app-content')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
