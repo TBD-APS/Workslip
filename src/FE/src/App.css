@@ -906,6 +906,10 @@
   border-color: rgba(96, 165, 250, 0.5);
 }
 
+.multi-select-option.checkbox-right {
+  flex-direction: row-reverse;
+}
+
 .multi-select-option {
   width: 100%;
   display: flex;
@@ -1171,6 +1175,170 @@
   white-space: nowrap;
 }
 
+.control-points-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.control-point-type + .control-point-type {
+  margin-top: 1.25rem;
+}
+
+.control-point-type {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.control-point-type.collapsed {
+  padding-bottom: 0.5rem;
+}
+
+.control-point-type-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+.control-point-type.collapsed .control-point-type-header {
+  margin-bottom: 0;
+}
+
+.control-point-chevron {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.control-point-chevron.open {
+  transform: rotate(90deg);
+}
+
+.control-point-type-name {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.control-point-type-body {
+  padding-left: 0;
+}
+
+.control-point-category-group + .control-point-category-group {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.control-point-category-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.control-point-category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.control-point-category-group.irrelevant .control-point-category-header-row {
+  margin-bottom: 0;
+}
+
+.control-point-category-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+  transition: color 0.2s;
+}
+
+.control-point-category-group.irrelevant .control-point-category-label {
+  color: var(--text-disabled, rgba(255, 255, 255, 0.4));
+}
+
+.multi-select-option.control-point-irrelevant-row {
+  flex-shrink: 0;
+  padding: 0.5rem;
+  margin-bottom: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.2s, background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.multi-select-option.control-point-irrelevant-row:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.multi-select-option.control-point-irrelevant-row.selected {
+  color: var(--accent-color, #ef4444);
+}
+
+.control-point-irrelevant-button {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.control-point-irrelevant-button:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.control-point-irrelevant-button.active {
+  background-color: var(--accent-color, #3b82f6);
+  border-color: var(--accent-color, #3b82f6);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.irrelevant-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.irrelevant-label {
+  display: none;
+}
+
+.multi-select-option:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.multi-select-option:disabled:hover {
+  background: transparent;
+}
+
 @media (min-width: 768px) {
   .app-shell {
     flex-direction: row;
@@ -1183,4 +1351,18 @@
   .app-content {
     padding-bottom: 1.5rem;
   }
+}
+
+/* Validation error */
+.validation-error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  color: #fca5a5;
+  font-size: 0.9rem;
 }

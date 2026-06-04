@@ -30,10 +30,13 @@ export const emptyForm: JobForm = {
   reportNumber: '',
   taskDescription: '',
   customerObservations: '',
+  technicalObservations: '',
   work: {
     categoryIds: [],
     workKind: '',
     customWorkKind: '',
+    controlPointSelections: {},
+    irrelevantCategoryIds: [],
   },
 };
 
@@ -91,6 +94,20 @@ export function getLinkableJobs(
 }
 
 export function toForm(job: JobReportSummaryViewModel): JobForm {
+  const controlPointSelections: Record<string, boolean> = {};
+  const irrelevantCategoryIds: string[] = [];
+
+  for (const instType of job.work.installationTypes) {
+    for (const cat of instType.categories) {
+      if (cat.isIrrelevant) {
+        irrelevantCategoryIds.push(`${instType.id}-${cat.id}`);
+      }
+      for (const cp of cat.controlPoints) {
+        controlPointSelections[cp.id] = cp.isChecked;
+      }
+    }
+  }
+
   return {
     customer: {
       customerId: job.customer.customerId ?? null,
@@ -103,10 +120,13 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
     reportNumber: job.reportNumber ?? '',
     taskDescription: job.observations.taskDescription ?? '',
     customerObservations: job.observations.customerObservations ?? '',
+    technicalObservations: job.observations.technicalObservations ?? '',
     work: {
       categoryIds: job.work.installationTypes.map((installationType) => installationType.id),
       workKind: job.work.workKind?.normalizedLabel ?? '',
       customWorkKind: job.work.workKind?.customWorkKind ?? '',
+      controlPointSelections,
+      irrelevantCategoryIds,
     },
   };
 }
@@ -130,12 +150,13 @@ export function toUpdateRequest(
     work: includeWork && !sameWork(initial, form) ? toWorkRequest(form, referenceData) : null,
     observations:
       initial.taskDescription !== form.taskDescription ||
-      initial.customerObservations !== form.customerObservations
+      initial.customerObservations !== form.customerObservations ||
+      initial.technicalObservations !== form.technicalObservations
         ? {
             reportDate: job.observations.reportDate ?? null,
             taskDescription: form.taskDescription.trim() || null,
             customerObservations: form.customerObservations.trim() || null,
-            technicalObservations: job.observations.technicalObservations ?? null,
+            technicalObservations: form.technicalObservations.trim() || null,
           }
         : null,
   };
@@ -145,20 +166,21 @@ export function toWorkRequest(
   form: JobForm,
   referenceData: ReferenceData | null,
 ): CreateJobWorkRequest {
-  const selectedCategories = referenceData?.installationTypes
-    .filter((category) => form.work.categoryIds.includes(category.id)) ?? [];
+  const selectedTypes = referenceData?.installationTypes
+    .filter((type) => form.work.categoryIds.includes(type.id)) ?? [];
 
   return {
-    installationTypes: selectedCategories.map((category) => ({
-      id: category.id,
-      categories: category.categories.map((subcategory) => ({
-        id: subcategory.id,
-        controlPoints: subcategory.controlPoints.map((controlPoint) => ({
-          id: controlPoint.id,
-          sortOrder: controlPoint.sortOrder,
-          isRequired: controlPoint.isRequired,
+    installationTypes: selectedTypes.map((type) => ({
+      id: type.id,
+      categories: type.categories.map((cat) => ({
+        id: cat.id,
+        controlPoints: cat.controlPoints.map((cp) => ({
+          id: cp.id,
+          sortOrder: cp.sortOrder,
+          isRequired: cp.isRequired,
+          isChecked: form.work.controlPointSelections[cp.id] ?? false,
         })),
-        isIrrelevant: false,
+        isIrrelevant: form.work.irrelevantCategoryIds.includes(`${type.id}-${cat.id}`),
       })),
     })),
     workKind: form.work.workKind || null,
@@ -177,7 +199,8 @@ export function sameFormWithoutWork(left: JobForm, right: JobForm) {
     sameCustomer(left.customer, right.customer) &&
     left.reportNumber === right.reportNumber &&
     left.taskDescription === right.taskDescription &&
-    left.customerObservations === right.customerObservations
+    left.customerObservations === right.customerObservations &&
+    left.technicalObservations === right.technicalObservations
   );
 }
 

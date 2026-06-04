@@ -84,10 +84,13 @@ public sealed class JobService(
 
         var actorId = currentUser.UserId;
         var assignedUserIds = actorId.HasValue ? [actorId.Value] : Array.Empty<Guid>();
-        JobReportResponse created;
         try
         {
-            created = await _jobRepository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
+            var created = await _jobRepository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
+            await InvalidateJobCachesAsync(created.Id, created.OrganizationId, cancellationToken);
+            LogJobCreated(created);
+
+            return await ToSummaryResultAsync(created, cancellationToken);
         }
         catch (DuplicateReportNumberException ex)
         {
@@ -95,10 +98,6 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Conflict("duplicate_report_number");
         }
 
-        await InvalidateJobCachesAsync(created.Id, created.OrganizationId, cancellationToken);
-        LogJobCreated(created);
-
-        return await ToSummaryResultAsync(created, cancellationToken);
     }
 
     public async Task<Result<IReadOnlyList<JobListItemResponse>>> ListAsync(
@@ -340,25 +339,25 @@ public sealed class JobService(
         return await ToSummaryResultAsync(report, cancellationToken);
     }
 
-    public async Task<Result<IReadOnlyList<JobLinkResponse>>> CreateLinksAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
+    public async Task<Result<JobReportSummaryResponse>> CreateLinksAsync(Guid reportId, CreateJobLinkRequest request, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            return Result<IReadOnlyList<JobLinkResponse>>.Unauthorized();
+            return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
         foreach (var targetId in request.TargetReportIds)
         {
             if (reportId == targetId)
             {
-                return Result<IReadOnlyList<JobLinkResponse>>.Invalid([new ValidationError { Identifier = "TargetReportIds", ErrorMessage = "En sag kan ikke linkes til sig selv." }]);
+                return Result<JobReportSummaryResponse>.Invalid([new ValidationError { Identifier = "TargetReportIds", ErrorMessage = "En sag kan ikke linkes til sig selv." }]);
             }
 
             var validationError = await ValidateLinkTargetAsync(reportId, targetId, organizationId.Value, cancellationToken);
             if (validationError is not null)
             {
-                return Result<IReadOnlyList<JobLinkResponse>>.Invalid([validationError]);
+                return Result<JobReportSummaryResponse>.Invalid([validationError]);
             }
         }
 
@@ -372,10 +371,18 @@ public sealed class JobService(
 
         await InvalidateJobCachesAsync(reportId, organizationId.Value, cancellationToken);
 
+        var jobReport = await _jobRepository.GetSingleJobAsync(reportId, organizationId.Value, cancellationToken);
+
+        if (jobReport is null)
+        {
+            logger.LogWarning("Job report lookup after link creation returned not found. JobId: {JobId}.", reportId);
+            return Result<JobReportSummaryResponse>.NotFound();
+        }
+
         logger.LogInformation("Job links created. SourceReportId: {SourceReportId}. TargetCount: {TargetCount}.",
             reportId, request.TargetReportIds.Count);
 
-        return Result<IReadOnlyList<JobLinkResponse>>.Success(links);
+        return Result<JobReportSummaryResponse>.Success(await ToSummaryResultAsync(jobReport, cancellationToken));
     }
 
     public async Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(CancellationToken cancellationToken)

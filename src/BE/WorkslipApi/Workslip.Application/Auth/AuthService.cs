@@ -8,6 +8,7 @@ using Workslip.Application.Users;
 namespace Workslip.Application.Auth;
 
 public sealed class AuthService(
+    ICurrentUserContext currentUser,
     IUserRepository userRepository,
     IEmailService emailService,
     ILogger<AuthService> logger) : IAuthService
@@ -15,6 +16,22 @@ public sealed class AuthService(
     private static readonly ConcurrentDictionary<string, OtcEntry> _otcStore = new();
     private static readonly TimeSpan OtcTtl = TimeSpan.FromMinutes(10);
     private const int OtcLength = 6;
+
+    public async Task<UserResponse> GetCurrentUserAsync(CancellationToken cancellationToken)
+    {
+        var userId = currentUser.UserId ?? throw new UnauthorizedAccessException("User is not logged in");
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
+
+        if (user == null)
+        {
+            logger.LogError("Current user not found in database. UserId: {UserId}", userId);
+            throw new UnauthorizedAccessException("User is not logged in");
+        }
+
+        var userResponse = UserResponseBuilder.MapToResponse(user);
+
+        return userResponse;
+    }
 
     public async Task SendLoginCodeAsync(SendCodeRequest request, CancellationToken cancellationToken)
     {

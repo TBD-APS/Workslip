@@ -24,7 +24,6 @@ import {
   isValidWork,
   sameForm,
   sameFormWithoutWork,
-  sameWork,
   toForm,
   toNullable,
   toUpdateRequest,
@@ -52,6 +51,7 @@ export function useJobDetails(jobId: string | undefined) {
   const query = useGetApiJobsId(jobId ?? '', {
     query: { enabled: Boolean(jobId) },
   });
+  
   const job = getResponseData<JobReportSummaryViewModel>(query.data);
   const usersQuery = useGetApiUsers();
   const referenceDataQuery = useGetApiReferenceData();
@@ -60,6 +60,7 @@ export function useJobDetails(jobId: string | undefined) {
   const referenceData = getResponseData<ReferenceData>(
     referenceDataQuery.data as ReferenceData | { data: ReferenceData } | { data: { data: ReferenceData } } | undefined,
   ) ?? null;
+
   const linkableJobs = getLinkableJobs(jobsData, jobId);
   const initialForm = job ? toForm(job) : null;
   const form =
@@ -75,18 +76,13 @@ export function useJobDetails(jobId: string | undefined) {
 
   const mutation = usePatchApiJobsId({
     mutation: {
-      onSuccess: (_data, variables) => {
+      onSuccess: (data) => {
         if (jobId) {
-          queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
         const currentDraft = draftRef.current;
-        const currentInitialForm = initialFormRef.current;
-        if (
-          variables.data.work === null &&
-          currentDraft &&
-          currentInitialForm &&
-          !sameWork(currentInitialForm, currentDraft.form)
-        ) {
+        const newInitialForm = toForm(data.data);
+        if (currentDraft && !sameFormWithoutWork(newInitialForm, currentDraft.form)) {
           setDraft(currentDraft);
         } else {
           setDraft(null);
@@ -110,9 +106,9 @@ export function useJobDetails(jobId: string | undefined) {
 
   const assignmentMutation = usePostApiJobsIdAssign({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         if (jobId) {
-          queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
         setAssignmentStatus('saved');
       },
@@ -228,6 +224,10 @@ export function useJobDetails(jobId: string | undefined) {
     updateDraft({ ...form, customerObservations: value });
   };
 
+  const updateTechnicalObservations = (value: string) => {
+    updateDraft({ ...form, technicalObservations: value });
+  };
+
   const updateWorkCategories = (categoryIds: string[]) => {
     updateDraft({ ...form, work: { ...form.work, categoryIds } });
   };
@@ -246,6 +246,44 @@ export function useJobDetails(jobId: string | undefined) {
 
   const updateCustomWorkKind = (customWorkKind: string) => {
     updateDraft({ ...form, work: { ...form.work, customWorkKind } });
+  };
+
+  const toggleControlPoint = (cpId: string) => {
+    updateDraft({
+      ...form,
+      work: {
+        ...form.work,
+        controlPointSelections: {
+          ...form.work.controlPointSelections,
+          [cpId]: !form.work.controlPointSelections[cpId],
+        },
+      },
+    });
+  };
+
+  const toggleCategoryIrrelevant = (typeId: string, categoryId: string) => {
+    const compositeId = `${typeId}-${categoryId}`;
+    const isIrrelevant = form.work.irrelevantCategoryIds.includes(compositeId);
+    const irrelevantCategoryIds = isIrrelevant
+      ? form.work.irrelevantCategoryIds.filter((id) => id !== compositeId)
+      : [...form.work.irrelevantCategoryIds, compositeId];
+
+    let controlPointSelections = form.work.controlPointSelections;
+    if (!isIrrelevant && referenceData) {
+      const installationType = referenceData.installationTypes.find((t) => t.id === typeId);
+      const category = installationType?.categories.find((c) => c.id === categoryId);
+      if (category) {
+        controlPointSelections = { ...form.work.controlPointSelections };
+        for (const cp of category.controlPoints) {
+          delete controlPointSelections[cp.id];
+        }
+      }
+    }
+
+    updateDraft({
+      ...form,
+      work: { ...form.work, irrelevantCategoryIds, controlPointSelections },
+    });
   };
 
   const updateAssignedUsers = (userIds: string[]) => {
@@ -318,12 +356,12 @@ export function useJobDetails(jobId: string | undefined) {
   };
 
   const saveCurrentStep = (options: { validateWork?: boolean } = {}) => flushSave({
-    includeWork: currentStep === 1,
+    includeWork: currentStep >= 1,
     validateWork: options.validateWork ?? false,
   });
 
   const saveCurrentStepAndSetCurrentStep = (nextStep: number) => {
-    const includeWork = currentStep === 1;
+    const includeWork = currentStep >= 1;
     const validateWork = includeWork && nextStep > currentStep;
     if (flushSave({ includeWork, validateWork })) {
       setCurrentStep(nextStep);
@@ -382,9 +420,12 @@ export function useJobDetails(jobId: string | undefined) {
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,
+    updateTechnicalObservations,
     updateWorkCategories,
     updateWorkKind,
     updateCustomWorkKind,
+    toggleControlPoint,
+    toggleCategoryIrrelevant,
   };
 }
 

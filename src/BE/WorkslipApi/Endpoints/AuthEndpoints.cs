@@ -1,4 +1,5 @@
 using Workslip.Api.Helpers;
+using Workslip.Api.ViewModels;
 using Workslip.Application.Auth;
 using Workslip.Application.Invitations;
 using Workslip.Application.Users;
@@ -10,6 +11,12 @@ public static class AuthEndpoints
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/auth").WithTags("auth");
+
+        group.MapGet("/me", async (IAuthService service, CancellationToken cancellationToken) =>
+        {
+            var me = await service.GetCurrentUserAsync(cancellationToken);
+            return Results.Ok(UserViewModelBuilder.ToUser(me));
+        }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireUser);
 
         group.MapPost("/send-code", async (SendCodeRequest request, IAuthService service, CancellationToken cancellationToken) =>
         {

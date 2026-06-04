@@ -18,6 +18,7 @@ export const JobCreate = () => {
   const handleCreateAnother = () => {
     create.reset();
     setCreatedJobId(null);
+    document.querySelector('.app-content')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -72,7 +73,6 @@ function CreateSuccessDialog({
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-success-title">
       <div className="modal-card">
         <h3 id="create-success-title">Sagen er oprettet</h3>
-        <p>Den er automatisk tildelt dig.</p>
         <div className="modal-actions">
           <button className="btn btn-secondary" onClick={onCreateAnother}>
             Opret en mere

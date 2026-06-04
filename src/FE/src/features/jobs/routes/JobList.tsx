@@ -6,6 +6,13 @@ import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import type { AssignedUserResponse, CustomerInfo, JobStatus } from '../../../api/generated/models';
 import { getResponseData } from '../utils';
 
+const SCROLL_CONTAINER_SELECTOR = '.app-content';
+const SCROLL_STORAGE_KEY = 'jobListScrollTop';
+
+function getScrollContainer(): HTMLElement | null {
+  return document.querySelector(SCROLL_CONTAINER_SELECTOR);
+}
+
 type JobListItemViewModel = {
   id: string;
   organizationId: string;
@@ -41,6 +48,23 @@ export const JobList = () => {
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+  }, []);
+
+  useEffect(() => {
+    if (query.isLoading) return;
+    const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY);
+    if (saved) {
+      getScrollContainer()?.scrollTo({ top: Number(saved) });
+    }
+  }, [query.isLoading]);
+
+  useEffect(() => {
+    return () => {
+      const top = getScrollContainer()?.scrollTop;
+      if (top != null) {
+        sessionStorage.setItem(SCROLL_STORAGE_KEY, String(top));
+      }
+    };
   }, []);
 
   if (query.isLoading) {

@@ -102,6 +102,10 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     setForm((prev) => ({ ...prev, customerObservations: value }));
   };
 
+  const updateTechnicalObservations = (value: string) => {
+    setForm((prev) => ({ ...prev, technicalObservations: value }));
+  };
+
   const updateLinkedJobs = (jobIds: string[]) => {
     setLinkedJobIds(jobIds);
     setLinksStatus('idle');
@@ -152,7 +156,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
         reportDate: null,
         taskDescription: form.taskDescription.trim() || null,
         customerObservations: form.customerObservations.trim() || null,
-        technicalObservations: null,
+        technicalObservations: form.technicalObservations.trim() || null,
       },
     };
 
@@ -186,6 +190,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,
+    updateTechnicalObservations,
     updateLinkedJobs,
     updateAssignedUsers,
     updateWorkCategories,

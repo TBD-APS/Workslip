@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
-import { Building2, CheckCircle2, ChevronLeft, ChevronRight, FileText, MessageSquare } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, MessageSquare } from 'lucide-react';
 
 export const JOB_STEPS = [
   { icon: Building2, label: 'Sagsdetaljer' },
   { icon: FileText, label: 'Kategorier' },
+  { icon: ClipboardList, label: 'Kontrolpunkter' },
   { icon: MessageSquare, label: 'Bilag' },
 ] as const;
 

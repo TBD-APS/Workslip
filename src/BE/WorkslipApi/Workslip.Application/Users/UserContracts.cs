@@ -17,9 +17,7 @@ public sealed record UserResponse(
     string Email,
     string DisplayName,
     string Phone,
-    string Role,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    string Role);
 
 public sealed record UserListResponse(
     IReadOnlyList<UserResponse> Users,

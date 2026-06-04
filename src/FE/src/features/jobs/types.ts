@@ -6,6 +6,8 @@ export type JobWorkForm = {
   categoryIds: string[];
   workKind: string;
   customWorkKind: string;
+  controlPointSelections: Record<string, boolean>;
+  irrelevantCategoryIds: string[];
 };
 
 export type ReferenceCategory = {
@@ -14,8 +16,12 @@ export type ReferenceCategory = {
   sortOrder: number | string;
   categories: Array<{
     id: string;
+    name: string;
+    sortOrder: number | string;
     controlPoints: Array<{
       id: string;
+      name: string;
+      description: string | null;
       sortOrder: number | string;
       isRequired: boolean;
     }>;
@@ -39,6 +45,7 @@ export type JobForm = {
   reportNumber: string;
   taskDescription: string;
   customerObservations: string;
+  technicalObservations: string;
   work: JobWorkForm;
 };
 
