@@ -45,6 +45,7 @@ export type JobForm = {
   reportNumber: string;
   taskDescription: string;
   customerObservations: string;
+  technicalObservations: string;
   work: JobWorkForm;
 };
 

@@ -17,7 +17,7 @@ public static class JobEndpoints
         {
             var result = await service.CreateAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+        }).Produces<JobReportSummaryViewModel>().RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapGet("/", async (JobStatus? status,
             string? reportNumber,

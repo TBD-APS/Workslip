@@ -30,6 +30,7 @@ export const emptyForm: JobForm = {
   reportNumber: '',
   taskDescription: '',
   customerObservations: '',
+  technicalObservations: '',
   work: {
     categoryIds: [],
     workKind: '',
@@ -119,6 +120,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
     reportNumber: job.reportNumber ?? '',
     taskDescription: job.observations.taskDescription ?? '',
     customerObservations: job.observations.customerObservations ?? '',
+    technicalObservations: job.observations.technicalObservations ?? '',
     work: {
       categoryIds: job.work.installationTypes.map((installationType) => installationType.id),
       workKind: job.work.workKind?.normalizedLabel ?? '',
@@ -148,12 +150,13 @@ export function toUpdateRequest(
     work: includeWork && !sameWork(initial, form) ? toWorkRequest(form, referenceData) : null,
     observations:
       initial.taskDescription !== form.taskDescription ||
-      initial.customerObservations !== form.customerObservations
+      initial.customerObservations !== form.customerObservations ||
+      initial.technicalObservations !== form.technicalObservations
         ? {
             reportDate: job.observations.reportDate ?? null,
             taskDescription: form.taskDescription.trim() || null,
             customerObservations: form.customerObservations.trim() || null,
-            technicalObservations: job.observations.technicalObservations ?? null,
+            technicalObservations: form.technicalObservations.trim() || null,
           }
         : null,
   };
@@ -196,7 +199,8 @@ export function sameFormWithoutWork(left: JobForm, right: JobForm) {
     sameCustomer(left.customer, right.customer) &&
     left.reportNumber === right.reportNumber &&
     left.taskDescription === right.taskDescription &&
-    left.customerObservations === right.customerObservations
+    left.customerObservations === right.customerObservations &&
+    left.technicalObservations === right.technicalObservations
   );
 }
 

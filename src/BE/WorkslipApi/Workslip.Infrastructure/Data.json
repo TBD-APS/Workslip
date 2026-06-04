@@ -36,7 +36,7 @@
           "categoryKey": "forundersoegelse",
           "controlPoints": [
             {
-              "key": "ansoegning-paa-gas",
+              "key": "gas-varme-forundersoegelse-ansoegning-paa-gas",
               "label": "Ansøgning på gas",
               "sortOrder": 1,
               "isRequired": true
@@ -47,25 +47,25 @@
           "categoryKey": "modtagekontrol",
           "controlPoints": [
             {
-              "key": "roer-og-fittings",
+              "key": "gas-varme-modtagekontrol-roer-og-fittings",
               "label": "Rør og fittings",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "armaturer",
+              "key": "gas-varme-modtagekontrol-armaturer",
               "label": "Armaturer",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "kedel-vb",
+              "key": "gas-varme-modtagekontrol-kedel-vb",
               "label": "Kedel / VB",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "saerlige-komponenter",
+              "key": "gas-varme-modtagekontrol-saerlige-komponenter",
               "label": "Særlige komponenter",
               "sortOrder": 4,
               "isRequired": true
@@ -76,19 +76,19 @@
           "categoryKey": "udfoerelseskontrol",
           "controlPoints": [
             {
-              "key": "stikledning-og-indfoering",
+              "key": "gas-varme-udfoerelseskontrol-stikledning-og-indfoering",
               "label": "Stikledning og indføring",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "roerophaeng",
+              "key": "gas-varme-udfoerelseskontrol-roerophaeng",
               "label": "Rørophæng",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "tilslutning-til-varmtvandsforsyning",
+              "key": "gas-varme-udfoerelseskontrol-tilslutning-til-varmtvandsforsyning",
               "label": "Tilslutning til varmtvandsforsyning",
               "sortOrder": 3,
               "isRequired": true
@@ -99,25 +99,25 @@
           "categoryKey": "slutkontrol",
           "controlPoints": [
             {
-              "key": "taethedsproevning",
+              "key": "gas-varme-slutkontrol-taethedsproevning",
               "label": "Tæthedsprøvning",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "funktionsproevning",
+              "key": "gas-varme-slutkontrol-funktionsproevning",
               "label": "Funktionsprøvning",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "sikkerhedsarmaturer",
+              "key": "gas-varme-slutkontrol-sikkerhedsarmaturer",
               "label": "Sikkerhedsarmaturer",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "optaelling-af-materialer",
+              "key": "gas-varme-slutkontrol-optaelling-af-materialer",
               "label": "Optælling af materialer",
               "sortOrder": 4,
               "isRequired": true
@@ -128,25 +128,25 @@
           "categoryKey": "drift-vedligehold",
           "controlPoints": [
             {
-              "key": "driftsinstruktion",
+              "key": "gas-varme-drift-vedligehold-driftsinstruktion",
               "label": "Driftsinstruktion",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "vedligeholdsinstruktion",
+              "key": "gas-varme-drift-vedligehold-vedligeholdsinstruktion",
               "label": "Vedligeholdsinstruktion",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "ventiler-og-komponenter",
+              "key": "gas-varme-drift-vedligehold-ventiler-og-komponenter",
               "label": "Ventiler og komponenter",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "saerlige-komponenter",
+              "key": "gas-varme-drift-vedligehold-saerlige-komponenter",
               "label": "Særlige komponenter",
               "sortOrder": 4,
               "isRequired": true
@@ -164,13 +164,13 @@
           "categoryKey": "forundersoegelse",
           "controlPoints": [
             {
-              "key": "ansoegning-paa-vand",
+              "key": "vand-forundersoegelse-ansoegning-paa-vand",
               "label": "Ansøgning på vand",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "vandkvalitet",
+              "key": "vand-forundersoegelse-vandkvalitet",
               "label": "Vandkvalitet",
               "sortOrder": 2,
               "isRequired": true
@@ -181,25 +181,25 @@
           "categoryKey": "modtagekontrol",
           "controlPoints": [
             {
-              "key": "roer-og-fittings",
+              "key": "vand-modtagekontrol-roer-og-fittings",
               "label": "Rør og fittings",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "armaturer",
+              "key": "vand-modtagekontrol-armaturer",
               "label": "Armaturer",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "vvb-veksler",
+              "key": "vand-modtagekontrol-vvb-veksler",
               "label": "VVB / veksler",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "saerlige-komponenter",
+              "key": "vand-modtagekontrol-saerlige-komponenter",
               "label": "Særlige komponenter",
               "sortOrder": 4,
               "isRequired": true
@@ -210,37 +210,37 @@
           "categoryKey": "udfoerelseskontrol",
           "controlPoints": [
             {
-              "key": "stikledning-og-indfoering",
+              "key": "vand-udfoerelseskontrol-stikledning-og-indfoering",
               "label": "Stikledning og indføring",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "fordeler-omloeber-fastsp",
+              "key": "vand-udfoerelseskontrol-fordeler-omloeber-fastsp",
               "label": "Fordeler omløber fastsp.",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "samling-af-koblingsdaaser",
+              "key": "vand-udfoerelseskontrol-samling-af-koblingsdaaser",
               "label": "Samling af koblingsdåser",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "tilslutning-til-varmtvandsforsyning",
+              "key": "vand-udfoerelseskontrol-tilslutning-til-varmtvandsforsyning",
               "label": "Tilslutning til varmtvandsforsyning",
               "sortOrder": 4,
               "isRequired": true
             },
             {
-              "key": "fitting-presset-samlet-loddet",
+              "key": "vand-udfoerelseskontrol-fitting-presset-samlet-loddet",
               "label": "Fitting presset, samlet, loddet",
               "sortOrder": 5,
               "isRequired": true
             },
             {
-              "key": "roer-i-vater-og-lod",
+              "key": "vand-udfoerelseskontrol-roer-i-vater-og-lod",
               "label": "Rør i vater og lod",
               "sortOrder": 6,
               "isRequired": true
@@ -251,37 +251,37 @@
           "categoryKey": "slutkontrol",
           "controlPoints": [
             {
-              "key": "trykproevning",
+              "key": "vand-slutkontrol-trykproevning",
               "label": "Trykprøvning",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "afproevning-af-tapsteder",
+              "key": "vand-slutkontrol-afproevning-af-tapsteder",
               "label": "Afprøvning af tapsteder",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "varmtvandstemp",
+              "key": "vand-slutkontrol-varmtvandstemp",
               "label": "Varmtvandstemp.",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "cirkulation",
+              "key": "vand-slutkontrol-cirkulation",
               "label": "Cirkulation",
               "sortOrder": 4,
               "isRequired": true
             },
             {
-              "key": "sikkerhedsarmaturer",
+              "key": "vand-slutkontrol-sikkerhedsarmaturer",
               "label": "Sikkerhedsarmaturer",
               "sortOrder": 5,
               "isRequired": true
             },
             {
-              "key": "optaelling-af-materialer",
+              "key": "vand-slutkontrol-optaelling-af-materialer",
               "label": "Optælling af materialer",
               "sortOrder": 6,
               "isRequired": true
@@ -292,25 +292,25 @@
           "categoryKey": "drift-vedligehold",
           "controlPoints": [
             {
-              "key": "driftsinstruktion",
+              "key": "vand-drift-vedligehold-driftsinstruktion",
               "label": "Driftsinstruktion",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "vedligeholdsinstruktion",
+              "key": "vand-drift-vedligehold-vedligeholdsinstruktion",
               "label": "Vedligeholdsinstruktion",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "ventiler-og-armaturer",
+              "key": "vand-drift-vedligehold-ventiler-og-armaturer",
               "label": "Ventiler og armaturer",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "saerlige-komponenter",
+              "key": "vand-drift-vedligehold-saerlige-komponenter",
               "label": "Særlige komponenter",
               "sortOrder": 4,
               "isRequired": true
@@ -328,25 +328,25 @@
           "categoryKey": "forundersoegelse",
           "controlPoints": [
             {
-              "key": "ansoegning-paa-afloeb",
+              "key": "afloeb-forundersoegelse-ansoegning-paa-afloeb",
               "label": "Ansøgning på afløb",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "fald-paa-ledninger",
+              "key": "afloeb-forundersoegelse-fald-paa-ledninger",
               "label": "Fald på ledninger",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "udluftninger-over-tag",
+              "key": "afloeb-forundersoegelse-udluftninger-over-tag",
               "label": "Udluftninger over tag",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "vakumventiler",
+              "key": "afloeb-forundersoegelse-vakumventiler",
               "label": "Vakumventiler",
               "sortOrder": 4,
               "isRequired": true
@@ -357,19 +357,19 @@
           "categoryKey": "modtagekontrol",
           "controlPoints": [
             {
-              "key": "roer-og-fittings",
+              "key": "afloeb-modtagekontrol-roer-og-fittings",
               "label": "Rør og fittings",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "installationsgenstande",
+              "key": "afloeb-modtagekontrol-installationsgenstande",
               "label": "Installationsgenstande",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "saerlige-komponenter",
+              "key": "afloeb-modtagekontrol-saerlige-komponenter",
               "label": "Særlige komponenter",
               "sortOrder": 3,
               "isRequired": true
@@ -380,13 +380,13 @@
           "categoryKey": "udfoerelseskontrol",
           "controlPoints": [
             {
-              "key": "installationsgenstande",
+              "key": "afloeb-udfoerelseskontrol-installationsgenstande",
               "label": "Installationsgenstande",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "fald-paa-ledninger",
+              "key": "afloeb-udfoerelseskontrol-fald-paa-ledninger",
               "label": "Fald på ledninger",
               "sortOrder": 2,
               "isRequired": true
@@ -397,19 +397,19 @@
           "categoryKey": "slutkontrol",
           "controlPoints": [
             {
-              "key": "taethedsproevning",
+              "key": "afloeb-slutkontrol-taethedsproevning",
               "label": "Tæthedsprøvning",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "afproevning-af-installationsgenstande",
+              "key": "afloeb-slutkontrol-afproevning-af-installationsgenstande",
               "label": "Afprøvning af installationsgenstande",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "optaelling-af-materialer",
+              "key": "afloeb-slutkontrol-optaelling-af-materialer",
               "label": "Optælling af materialer",
               "sortOrder": 3,
               "isRequired": true
@@ -420,25 +420,25 @@
           "categoryKey": "drift-vedligehold",
           "controlPoints": [
             {
-              "key": "driftsinstruktion",
+              "key": "afloeb-drift-vedligehold-driftsinstruktion",
               "label": "Driftsinstruktion",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "vedligeholdsinstruktion",
+              "key": "afloeb-drift-vedligehold-vedligeholdsinstruktion",
               "label": "Vedligeholdsinstruktion",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "brugervejledning",
+              "key": "afloeb-drift-vedligehold-brugervejledning",
               "label": "Brugervejledning",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "saerlige-komponenter",
+              "key": "afloeb-drift-vedligehold-saerlige-komponenter",
               "label": "Særlige komponenter",
               "sortOrder": 4,
               "isRequired": true

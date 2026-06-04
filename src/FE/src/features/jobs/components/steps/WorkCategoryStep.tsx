@@ -18,8 +18,7 @@ export function WorkCategoryStep({
   onWorkKindChange,
   onCustomWorkKindChange,
 }: WorkCategoryStepProps) {
-  const categories = [...(referenceData?.installationTypes ?? [])]
-    .sort((left, right) => getCategoryOrder(left.name) - getCategoryOrder(right.name));
+  const categories = [...(referenceData?.installationTypes ?? [])];
   const workKinds = [...(referenceData?.workKinds ?? [])]
     .sort((left, right) => Number(left.sortOrder) - Number(right.sortOrder));
   const selectedWorkKind = workKinds.find((kind) => kind.normalizedLabel === form.work.workKind);
@@ -54,7 +53,7 @@ export function WorkCategoryStep({
                   className={`choice-card ${form.work.categoryIds.includes(category.id) ? 'selected' : ''}`}
                   onClick={() => toggleCategory(category.id)}
                 >
-                  <span>{formatCategoryName(category.name)}</span>
+                  <span>{category.name}</span>
                   {form.work.categoryIds.includes(category.id) && <CheckCircle2 size={16} />}
                 </button>
               ))}
@@ -76,7 +75,7 @@ export function WorkCategoryStep({
                     checked={form.work.workKind === workKind.normalizedLabel}
                     onChange={(event) => onWorkKindChange(event.target.value)}
                   />
-                  <span>{formatWorkKindLabel(workKind.label)}</span>
+                  <span>{workKind.label}</span>
                 </label>
               ))}
             </div>
@@ -104,22 +103,4 @@ export function WorkCategoryStep({
       )}
     </section>
   );
-}
-
-function formatCategoryName(name: string) {
-  return name.replace(/installation$/i, '').trim();
-}
-
-function getCategoryOrder(name: string) {
-  const normalizedName = formatCategoryName(name).toLowerCase();
-  const preferredOrder = ['gas', 'vand', 'varme', 'afløb'];
-  const order = preferredOrder.indexOf(normalizedName);
-  return order === -1 ? preferredOrder.length : order;
-}
-
-function formatWorkKindLabel(label: string) {
-  return label
-    .replace('Ny installation', 'Ny')
-    .replace('Ændring af installation', 'Ændring')
-    .replace('Reparationsarbejde', 'Reparation');
 }

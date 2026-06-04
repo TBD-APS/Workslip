@@ -1,4 +1,4 @@
-import { FileText, MessageSquare } from 'lucide-react';
+import { FileText, MessageSquare, Wrench } from 'lucide-react';
 import type { useJobCreate } from '../../hooks/useJobCreate';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../JobDetailBlocks';
 import type { LinkableJob } from '../../types';
@@ -45,10 +45,18 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
 
       <TextAreaBlock
         icon={<MessageSquare size={18} />}
-        title="Oplysninger til kunden/tekniske observationer"
+        title="Oplysninger til kunden"
         value={create.form.customerObservations}
         onChange={create.updateCustomerObservations}
-        placeholder="Notér oplysninger til kunden eller tekniske observationer..."
+        placeholder="Notér oplysninger til kunden..."
+      />
+
+      <TextAreaBlock
+        icon={<Wrench size={18} />}
+        title="Tekniske observationer"
+        value={create.form.technicalObservations}
+        onChange={create.updateTechnicalObservations}
+        placeholder="Notér tekniske observationer..."
       />
     </>
   );

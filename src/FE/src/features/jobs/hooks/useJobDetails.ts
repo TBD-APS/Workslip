@@ -24,7 +24,6 @@ import {
   isValidWork,
   sameForm,
   sameFormWithoutWork,
-  sameWork,
   toForm,
   toNullable,
   toUpdateRequest,
@@ -77,18 +76,13 @@ export function useJobDetails(jobId: string | undefined) {
 
   const mutation = usePatchApiJobsId({
     mutation: {
-      onSuccess: (_data, variables) => {
+      onSuccess: (data) => {
         if (jobId) {
-          queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
         const currentDraft = draftRef.current;
-        const currentInitialForm = initialFormRef.current;
-        if (
-          variables.data.work === null &&
-          currentDraft &&
-          currentInitialForm &&
-          !sameWork(currentInitialForm, currentDraft.form)
-        ) {
+        const newInitialForm = toForm(data.data);
+        if (currentDraft && !sameFormWithoutWork(newInitialForm, currentDraft.form)) {
           setDraft(currentDraft);
         } else {
           setDraft(null);
@@ -112,9 +106,9 @@ export function useJobDetails(jobId: string | undefined) {
 
   const assignmentMutation = usePostApiJobsIdAssign({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         if (jobId) {
-          queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
         setAssignmentStatus('saved');
       },
@@ -230,8 +224,12 @@ export function useJobDetails(jobId: string | undefined) {
     updateDraft({ ...form, customerObservations: value });
   };
 
+  const updateTechnicalObservations = (value: string) => {
+    updateDraft({ ...form, technicalObservations: value });
+  };
+
   const updateWorkCategories = (categoryIds: string[]) => {
-    updateDraft({ ...form, work: { ...form.work, categoryIds, controlPointSelections: {}, irrelevantCategoryIds: [] } });
+    updateDraft({ ...form, work: { ...form.work, categoryIds } });
   };
 
   const updateWorkKind = (workKind: string) => {
@@ -263,15 +261,28 @@ export function useJobDetails(jobId: string | undefined) {
     });
   };
 
-  const toggleCategoryIrrelevant = (categoryId: string) => {
-    const isIrrelevant = form.work.irrelevantCategoryIds.includes(categoryId);
+  const toggleCategoryIrrelevant = (typeId: string, categoryId: string) => {
+    const compositeId = `${typeId}-${categoryId}`;
+    const isIrrelevant = form.work.irrelevantCategoryIds.includes(compositeId);
     const irrelevantCategoryIds = isIrrelevant
-      ? form.work.irrelevantCategoryIds.filter((id) => id !== categoryId)
-      : [...form.work.irrelevantCategoryIds, categoryId];
+      ? form.work.irrelevantCategoryIds.filter((id) => id !== compositeId)
+      : [...form.work.irrelevantCategoryIds, compositeId];
+
+    let controlPointSelections = form.work.controlPointSelections;
+    if (!isIrrelevant && referenceData) {
+      const installationType = referenceData.installationTypes.find((t) => t.id === typeId);
+      const category = installationType?.categories.find((c) => c.id === categoryId);
+      if (category) {
+        controlPointSelections = { ...form.work.controlPointSelections };
+        for (const cp of category.controlPoints) {
+          delete controlPointSelections[cp.id];
+        }
+      }
+    }
 
     updateDraft({
       ...form,
-      work: { ...form.work, irrelevantCategoryIds },
+      work: { ...form.work, irrelevantCategoryIds, controlPointSelections },
     });
   };
 
@@ -409,6 +420,7 @@ export function useJobDetails(jobId: string | undefined) {
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,
+    updateTechnicalObservations,
     updateWorkCategories,
     updateWorkKind,
     updateCustomWorkKind,

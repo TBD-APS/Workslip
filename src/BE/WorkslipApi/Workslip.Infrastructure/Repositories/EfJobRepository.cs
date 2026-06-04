@@ -287,9 +287,8 @@ public sealed class EfJobRepository : IJobRepository
             if (request.Observations.ReportDate is not null) 
                 entry.Property(e => e.ReportDate).CurrentValue = ToDateTime(request.Observations.ReportDate);
             
-            if (request.Observations.TaskDescription is not null) 
-                entry.Property(e => e.TaskDescription).CurrentValue = request.Observations.TaskDescription;
-            
+            entry.Property(e => e.TaskDescription).CurrentValue = request.Observations.TaskDescription;
+
             entry.Property(e => e.CustomerObservations).CurrentValue = request.Observations.CustomerObservations;
             entry.Property(e => e.TechnicalObservations).CurrentValue = request.Observations.TechnicalObservations;
         }

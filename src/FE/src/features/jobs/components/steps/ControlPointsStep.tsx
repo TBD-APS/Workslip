@@ -7,7 +7,7 @@ type ControlPointsStepProps = {
   form: JobForm;
   referenceData: ReferenceData | null;
   onToggleControlPoint: (cpId: string) => void;
-  onToggleCategoryIrrelevant: (categoryId: string) => void;
+  onToggleCategoryIrrelevant: (typeId: string, categoryId: string) => void;
 };
 
 export function validateControlPoints(
@@ -34,7 +34,7 @@ export function validateControlPoints(
         } else {
           return {
             valid: false,
-            error: `Mindst et kontrolpunkt skal vælges for "${capitalizeFirstLetter(cat.name)}"`,
+            error: `Mindst et kontrolpunkt skal vælges for "${installationType.name} i ${capitalizeFirstLetter(cat.name)}"`,
           };
         }
       }
@@ -130,7 +130,7 @@ export function ControlPointsStep({
                   <button
                     className={`multi-select-option checkbox-right${isIrrelevant ? ' selected' : ''}`}
                     type="button"
-                    onClick={() => onToggleCategoryIrrelevant(`${instType.id}-${cat.id}`)}
+                    onClick={() => onToggleCategoryIrrelevant(instType.id, cat.id)}
                     aria-label={`${isIrrelevant ? 'Marker' : 'Umarker'} ${cat.name} som ${isIrrelevant ? 'relevant' : 'ikke relevant'}`}
                     title={isIrrelevant ? 'Marker som relevant' : 'Marker som ikke relevant'}
                   >

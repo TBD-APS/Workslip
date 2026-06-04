@@ -22,13 +22,14 @@ namespace Workslip.Infrastructure.Schema
                 cancellationToken);
 
             var controlCategories = CreateControlCategories(seedData, organizationId);
-            var controlPoints = CreateControlPoints(seedData, organizationId);
+            var seededControlPoints = CreateControlPoints(seedData, organizationId);
+            var controlPoints = seededControlPoints.Select(x => x.Row).ToList();
             var definitions = CreateInstallationTypeDefinitions(seedData, organizationId);
             var definitionMappings = CreateDefinitionMappings(
                 seedData,
                 definitions,
                 controlCategories,
-                controlPoints);
+                seededControlPoints);
 
             var random = new Faker();
 
@@ -129,21 +130,22 @@ namespace Workslip.Infrastructure.Schema
                 .ToList();
         }
 
-        private static List<ControlPointRow> CreateControlPoints(
-            InstallationControlPointSeedData seedData,
-            Guid organizationId)
+        private static List<SeededControlPoint> CreateControlPoints(
+    InstallationControlPointSeedData seedData,
+    Guid organizationId)
         {
             var uniqueControlPoints = seedData.InstallationTypes
                 .SelectMany(x => x.Categories)
                 .SelectMany(x => x.ControlPoints)
                 .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
                 .Select(x => x.First())
-                .OrderBy(x => x.Label)
+                .OrderBy(x => x.Key)
                 .ToArray();
 
             return uniqueControlPoints
                 .Select((controlPoint, index) =>
-                    new AutoFaker<ControlPointRow>()
+                {
+                    var row = new AutoFaker<ControlPointRow>()
                         .RuleFor(x => x.Id, f => f.Random.Guid())
                         .RuleFor(x => x.OrganizationId, _ => organizationId)
                         .RuleFor(x => x.Name, _ => controlPoint.Label)
@@ -151,7 +153,10 @@ namespace Workslip.Infrastructure.Schema
                         .RuleFor(x => x.IsActive, _ => true)
                         .RuleFor(x => x.SortOrder, _ => index + 1)
                         .RuleFor(x => x.JobReportInstallationControlPoints, _ => [])
-                        .Generate())
+                        .Generate();
+
+                    return new SeededControlPoint(controlPoint.Key, row);
+                })
                 .ToList();
         }
 
@@ -172,21 +177,26 @@ namespace Workslip.Infrastructure.Schema
         }
 
         private static List<InstallationTypeDefinitionMappingRow> CreateDefinitionMappings(
-            InstallationControlPointSeedData seedData,
-            List<InstallationTypeDefinitionRow> definitions,
-            List<ControlCategoryRow> controlCategories,
-            List<ControlPointRow> controlPoints)
+    InstallationControlPointSeedData seedData,
+    List<InstallationTypeDefinitionRow> definitions,
+    List<ControlCategoryRow> controlCategories,
+    List<SeededControlPoint> seededControlPoints)
         {
             var categoriesByLabel = controlCategories.ToDictionary(
                 x => x.Name,
                 StringComparer.OrdinalIgnoreCase);
 
-            var controlPointsByLabel = controlPoints.ToDictionary(
-                x => x.Name,
+            var controlPointsByKey = seededControlPoints.ToDictionary(
+                x => x.Key,
+                x => x.Row,
                 StringComparer.OrdinalIgnoreCase);
 
             var definitionsByLabel = definitions.ToDictionary(
                 x => x.Name,
+                StringComparer.OrdinalIgnoreCase);
+
+            var categoriesSeedByKey = seedData.Categories.ToDictionary(
+                x => x.Key,
                 StringComparer.OrdinalIgnoreCase);
 
             var mappings = new List<InstallationTypeDefinitionMappingRow>();
@@ -201,13 +211,7 @@ namespace Workslip.Infrastructure.Schema
 
                 foreach (var category in installationType.Categories)
                 {
-                    var categoryDefinition = seedData.Categories
-                        .FirstOrDefault(x => string.Equals(
-                            x.Key,
-                            category.CategoryKey,
-                            StringComparison.OrdinalIgnoreCase));
-
-                    if (categoryDefinition is null)
+                    if (!categoriesSeedByKey.TryGetValue(category.CategoryKey, out var categoryDefinition))
                     {
                         throw new InvalidOperationException(
                             $"Unknown category key '{category.CategoryKey}'.");
@@ -221,10 +225,10 @@ namespace Workslip.Infrastructure.Schema
 
                     foreach (var controlPointSeedItem in category.ControlPoints)
                     {
-                        if (!controlPointsByLabel.TryGetValue(controlPointSeedItem.Label, out var controlPoint))
+                        if (!controlPointsByKey.TryGetValue(controlPointSeedItem.Key, out var controlPoint))
                         {
                             throw new InvalidOperationException(
-                                $"Control point '{controlPointSeedItem.Label}' was not created.");
+                                $"Control point key '{controlPointSeedItem.Key}' was not created.");
                         }
 
                         mappings.Add(new InstallationTypeDefinitionMappingRow
@@ -330,4 +334,7 @@ namespace Workslip.Infrastructure.Schema
         public bool IsRequired { get; set; } = true;
     }
 
+    public sealed record SeededControlPoint(
+    string Key,
+    ControlPointRow Row);
 }
