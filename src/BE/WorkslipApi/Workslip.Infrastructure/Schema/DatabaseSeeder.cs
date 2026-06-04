@@ -230,7 +230,7 @@ public static class DatabaseSeeder
 
         //await DatabaseInstallationSeeder.Seed(db, organization.Id, jobs);
 
-        await TestSeeder.Seed(db, organization.Id, jobs);
+        await InstallationSeeder.Seed(db, organization.Id, jobs);
 
         db.Organizations.Add(organization);
         await db.JobReports.AddRangeAsync(jobs);

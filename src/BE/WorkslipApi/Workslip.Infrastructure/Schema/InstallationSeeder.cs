@@ -1,14 +1,11 @@
 ﻿using AutoBogus;
 using Bogus;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Text.Json;
 using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Schema
 {
-    public static class TestSeeder
+    public static class InstallationSeeder
     {
         public static async Task Seed(
        SqlDbContext context,

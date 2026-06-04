@@ -14,14 +14,14 @@ export function validateControlPoints(
   form: JobForm,
   referenceData: ReferenceData | null
 ): { valid: boolean; error?: string } {
-  const selectedTypes = (referenceData?.installationTypes ?? [])
+  const selectedInstallationTypes = (referenceData?.installationTypes ?? [])
     .filter((t) => form.work.categoryIds.includes(t.id));
 
-  for (const instType of selectedTypes) {
+  for (const installationType of selectedInstallationTypes) {
     let hasAnyControlPoint = false;
 
-    for (const cat of instType.categories) {
-      const compositeId = `${instType.id}-${cat.id}`;
+    for (const cat of installationType.categories) {
+      const compositeId = `${installationType.id}-${cat.id}`;
       const isIrrelevant = form.work.irrelevantCategoryIds.includes(compositeId);
 
       if (!isIrrelevant) {
@@ -44,7 +44,7 @@ export function validateControlPoints(
     if (!hasAnyControlPoint) {
       return {
         valid: false,
-        error: `Mindst én kategori i "${instType.name}" skal have et kontrolpunkt valgt (kan ikke markere alle som "ikke relevant")`,
+        error: `Mindst én kategori i "${installationType.name}" skal have et kontrolpunkt valgt (kan ikke markere alle som "ikke relevant")`,
       };
     }
   }
@@ -67,7 +67,7 @@ export function ControlPointsStep({
   onToggleControlPoint,
   onToggleCategoryIrrelevant,
 }: ControlPointsStepProps) {
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationError] = useState<string | null>(null);
 
   // Show loading state if reference data is not ready yet
   if (!referenceData) {

@@ -42,7 +42,7 @@ public sealed class UserService(
 
         logger.LogInformation("User created. UserId: {UserId}. OrganizationId: {OrganizationId}. Role: {Role}.", user.Id, user.OrganizationId, user.Role);
 
-        return Result<UserResponse>.Success(MapToResponse(user));
+        return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
     public async Task<Result<UserResponse>> GetAsync(
@@ -62,7 +62,7 @@ public sealed class UserService(
             return Result<UserResponse>.NotFound();
         }
 
-        return Result<UserResponse>.Success(MapToResponse(user));
+        return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
     public async Task<Result<UserListResponse>> GetByOrganizationAsync(
@@ -77,7 +77,7 @@ public sealed class UserService(
         var users = await repository.GetByOrganizationIdAsync(organizationId.Value, cancellationToken);
         var count = await repository.GetCountByOrganizationIdAsync(organizationId.Value, cancellationToken);
 
-        var responses = users.Select(MapToResponse).ToList();
+        var responses = users.Select(UserResponseBuilder.MapToResponse).ToList();
         return Result<UserListResponse>.Success(new UserListResponse(responses, count));
     }
 
@@ -124,7 +124,7 @@ public sealed class UserService(
 
         logger.LogInformation("User updated. UserId: {UserId}.", userId);
 
-        return Result<UserResponse>.Success(MapToResponse(user));
+        return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
     public async Task<Result> DeleteAsync(
@@ -150,17 +150,6 @@ public sealed class UserService(
 
         return Result.NoContent();
     }
-
-    private static UserResponse MapToResponse(UserDataRow user) =>
-        new(
-            user.Id,
-            user.OrganizationId,
-            user.Email,
-            user.DisplayName,
-            user.Phone,
-            user.Role,
-            user.CreatedAt,
-            user.UpdatedAt);
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors
