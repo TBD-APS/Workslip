@@ -1,4 +1,5 @@
 using Workslip.Application.Jobs;
+using Workslip.Application.Worksheets;
 using Workslip.Domain;
 
 namespace Workslip.Api.ViewModels;
@@ -32,6 +33,7 @@ public sealed record JobReportSummaryViewModel(
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<JobLinkInfoResponse> Links,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
+    IReadOnlyList<WorksheetResponse> Worksheets,
     bool SoftDeleted);
 
 public sealed record JobLinkViewModel(
@@ -65,6 +67,7 @@ public static class JobViewModelBuilder
         summary.Observations,
         summary.Links,
         summary.AssignedUsers,
+        summary.Worksheets,
         summary.SoftDeleted);
 
     public static JobLinkViewModel ToLink(JobLinkResponse link) => new(
