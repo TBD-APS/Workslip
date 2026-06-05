@@ -280,6 +280,14 @@ export function useJobDetails(jobId: string | undefined) {
     updateDraft({ ...form, work: { ...form.work, customWorkKind } });
   };
 
+  const updateClosureFlags = (closureFlags: string[]) => {
+    const nextForm = {
+      ...form,
+      work: { ...form.work, closureFlags },
+    };
+    updateDraft(nextForm);
+  };
+
   const toggleControlPoint = (cpId: string) => {
     updateDraft({
       ...form,
@@ -485,6 +493,7 @@ export function useJobDetails(jobId: string | undefined) {
     updateWorkCategories,
     updateWorkKind,
     updateCustomWorkKind,
+    updateClosureFlags,
     toggleControlPoint,
     toggleCategoryIrrelevant,
     upsertWorksheet,

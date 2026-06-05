@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, FileText } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, FileText, AlertCircle } from 'lucide-react';
 
 export const JOB_STEPS = [
   { icon: Building2, label: 'Sagsdetaljer' },
@@ -12,23 +12,26 @@ export const JOB_STEPS = [
 type StepIndicatorsProps = {
   currentStep: number;
   onStepChange: (step: number) => void;
+  completedSteps?: boolean[];
 };
 
-export function StepIndicators({ currentStep, onStepChange }: StepIndicatorsProps) {
+export function StepIndicators({ currentStep, onStepChange, completedSteps }: StepIndicatorsProps) {
   return (
     <div className="step-indicators">
       {JOB_STEPS.map((step, index) => {
         const StepIcon = step.icon;
         const isActive = index === currentStep;
-        const isCompleted = index < currentStep;
+        const isCompleted = completedSteps ? completedSteps[index] : index < currentStep;
+        const hasError = completedSteps ? (!completedSteps[index] && index < currentStep) : false;
+
         return (
           <button
             key={step.label}
-            className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
+            className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${hasError ? 'has-error' : ''}`}
             onClick={() => onStepChange(index)}
             aria-label={step.label}
           >
-            <StepIcon size={14} />
+            {hasError ? <AlertCircle size={14} /> : <StepIcon size={14} />}
             <span className="step-label">{step.label}</span>
           </button>
         );

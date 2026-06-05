@@ -37,6 +37,7 @@ export const emptyForm: JobForm = {
     customWorkKind: '',
     controlPointSelections: {},
     irrelevantCategoryIds: [],
+    closureFlags: [],
   },
 };
 
@@ -127,6 +128,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       customWorkKind: job.work.workKind?.customWorkKind ?? '',
       controlPointSelections,
       irrelevantCategoryIds,
+      closureFlags: job.work.closureFlags ? job.work.closureFlags.map((flag) => flag.normalizedLabel) : [],
     },
   };
 }
@@ -185,7 +187,7 @@ export function toWorkRequest(
     })),
     workKind: form.work.workKind || null,
     customWorkKind: form.work.customWorkKind.trim() || null,
-    closureFlags: null,
+    closureFlags: form.work.closureFlags || [],
     remarks: null,
   };
 }
