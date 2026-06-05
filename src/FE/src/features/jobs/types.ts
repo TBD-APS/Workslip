@@ -1,4 +1,4 @@
-import type { CustomerInfo } from '../../api/generated/models';
+import type { CustomerInfo, ClosureFlagResponse } from '../../api/generated/models';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -8,6 +8,7 @@ export type JobWorkForm = {
   customWorkKind: string;
   controlPointSelections: Record<string, boolean>;
   irrelevantCategoryIds: string[];
+  closureFlags: string[];
 };
 
 export type ReferenceCategory = {
@@ -38,6 +39,7 @@ export type ReferenceWorkKind = {
 export type ReferenceData = {
   installationTypes: ReferenceCategory[];
   workKinds: ReferenceWorkKind[];
+  closureFlags: ClosureFlagResponse[];
 };
 
 export type JobForm = {

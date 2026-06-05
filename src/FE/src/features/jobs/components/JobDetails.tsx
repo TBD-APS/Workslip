@@ -11,6 +11,7 @@ import { JobOverviewStep } from './steps/JobOverviewStep';
 import { JOB_STEPS, StepIndicators, StepNavigation } from './steps/JobStepNavigation';
 import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
+import { JobCompletionStep } from './steps/JobCompletionStep';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -82,6 +83,15 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     details.navigateToStep(nextStep);
   };
 
+  const completedSteps = [
+    isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly }),
+    isValidWork(details.form, details.referenceData),
+    validateControlPoints(details.form, details.referenceData).valid,
+    details.worksheets.length > 0,
+    Boolean(details.form.work.closureFlags && details.form.work.closureFlags.length > 0),
+  ];
+  const canFinish = completedSteps.every((status) => status);
+
   return (
     <div className="page-container job-detail-page">
       <JobDetailsHeader
@@ -92,7 +102,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         onDelete={handleDelete}
       />
 
-      <StepIndicators currentStep={details.currentStep} onStepChange={handleStepChange} />
+      <StepIndicators
+        currentStep={details.currentStep}
+        onStepChange={handleStepChange}
+        completedSteps={completedSteps}
+      />
 
       {details.currentStep === 0 && (
         <JobOverviewStep details={details} />
@@ -134,13 +148,23 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       )}
 
       {details.currentStep === 4 && (
-        <JobCompletionStep worksheetCount={details.worksheets.length} />
+        <JobCompletionStep
+          form={details.form}
+          referenceData={details.referenceData}
+          isLoading={details.isLoadingReferenceData}
+          onClosureFlagsChange={details.updateClosureFlags}
+          navigateToStep={details.navigateToStep}
+          completedSteps={completedSteps}
+          worksheetCount={details.worksheets.length}
+        />
       )}
 
       <StepNavigation
         currentStep={details.currentStep}
         isLastStep={isLastStep}
         disableNext={disableNext}
+        disableDone={!canFinish}
+        doneLabel="Bekræft"
         onBack={() => {
           if (details.currentStep === 0) {
             details.flushSave();
@@ -164,23 +188,12 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
           }
           details.navigateToStep(details.currentStep + 1);
         }}
-        onDone={onDone}
+        onDone={() => {
+          details.flushSave({ includeWork: true });
+          onDone();
+        }}
       />
     </div>
-  );
-}
-
-function JobCompletionStep({ worksheetCount }: { worksheetCount: number }) {
-  return (
-    <section className="detail-section">
-      <div className="section-header-row">
-        <CheckCircle2 size={18} />
-        <h3>Afslutning</h3>
-      </div>
-      <p className="subtitle">
-        Sagen har {worksheetCount} {worksheetCount === 1 ? 'arbejdsseddel' : 'arbejdssedler'} og er klar til afslutning.
-      </p>
-    </section>
   );
 }
 

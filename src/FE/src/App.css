@@ -1686,3 +1686,60 @@
 .worksheet-add-trigger {
   width: fit-content;
 }
+
+/* ------------------------------------------------------------
+   Step 5 Completion warnings and error styles
+   ------------------------------------------------------------ */
+.invalid-steps-warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.invalid-steps-warning .warning-title {
+  color: #f59e0b;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.invalid-steps-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.invalid-step-btn {
+  background: rgba(245, 158, 11, 0.15) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  color: #fcd34d !important;
+  font-size: 0.8rem !important;
+  padding: 0.4rem 0.8rem !important;
+  border-radius: 8px !important;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.invalid-step-btn:hover {
+  background: rgba(245, 158, 11, 0.3) !important;
+  border-color: rgba(245, 158, 11, 0.5) !important;
+}
+
+.step-dot.has-error {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.step-dot.has-error:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
