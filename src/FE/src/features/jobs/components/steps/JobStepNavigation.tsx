@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, FileText } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, FileText, ShieldCheck } from 'lucide-react';
 
 export const JOB_STEPS = [
   { icon: Building2, label: 'Sagsdetaljer' },
   { icon: FileText, label: 'Kategorier' },
   { icon: ClipboardList, label: 'Kontrolpunkter' },
   { icon: FileSpreadsheet, label: 'Arbejdssedler' },
+  { icon: ShieldCheck, label: 'Attestering' },
   { icon: CheckCircle2, label: 'Afslutning' },
 ] as const;
 

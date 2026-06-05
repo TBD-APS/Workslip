@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -7,6 +8,7 @@ import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
 import { DeleteButton } from '../../../components/common/DeleteButton';
 import { isValidJobForm, isValidWork } from '../utils';
 import { ControlPointsStep, validateControlPoints } from './steps/ControlPointsStep';
+import { JobAttestationStep } from './steps/JobAttestationStep';
 import { JobOverviewStep } from './steps/JobOverviewStep';
 import { JOB_STEPS, StepIndicators, StepNavigation } from './steps/JobStepNavigation';
 import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
@@ -22,6 +24,7 @@ type JobDetailsPageProps = {
 
 export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps) {
   const queryClient = useQueryClient();
+  const [attestationConfirmed, setAttestationConfirmed] = useState(false);
   const deleteMutation = useDeleteApiJobsId({
     mutation: {
       onSuccess: () => {
@@ -76,6 +79,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   const handleStepChange = (nextStep: number) => {
     if (nextStep > 3 && details.worksheets.length === 0) {
       toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
+      return;
+    }
+
+    if (nextStep > 4 && details.job?.status !== 'Submitted') {
+      toast.error('Attestér sagen før afslutning');
       return;
     }
 
@@ -134,6 +142,18 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       )}
 
       {details.currentStep === 4 && (
+        <JobAttestationStep
+          details={details}
+          confirmed={attestationConfirmed}
+          onConfirmedChange={setAttestationConfirmed}
+          onSubmitted={() => {
+            setAttestationConfirmed(false);
+            details.navigateToStep(5);
+          }}
+        />
+      )}
+
+      {details.currentStep === 5 && (
         <JobCompletionStep worksheetCount={details.worksheets.length} />
       )}
 
@@ -160,6 +180,10 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
           }
           if (details.currentStep === 3 && details.worksheets.length === 0) {
             toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
+            return;
+          }
+          if (details.currentStep === 4 && details.job?.status !== 'Submitted') {
+            toast.error('Attestér sagen før afslutning');
             return;
           }
           details.navigateToStep(details.currentStep + 1);
@@ -199,6 +223,10 @@ function canAdvanceCurrentStep(details: JobDetailsState) {
 
   if (details.currentStep === 3) {
     return details.worksheets.length > 0;
+  }
+
+  if (details.currentStep === 4) {
+    return details.job?.status === 'Submitted';
   }
 
   return true;

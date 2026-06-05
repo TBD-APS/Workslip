@@ -1686,3 +1686,189 @@
 .worksheet-add-trigger {
   width: fit-content;
 }
+
+/* ------------------------------------------------------------
+   Attestation (Job step 5)
+   ------------------------------------------------------------ */
+.attestation-hero-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.attestation-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid rgba(250, 204, 21, 0.25);
+  border-radius: 14px;
+  background: rgba(250, 204, 21, 0.08);
+  color: #facc15;
+}
+
+.attestation-status.submitted {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.08);
+  color: #86efac;
+}
+
+.attestation-status div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.attestation-status strong {
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: 0.98rem;
+}
+
+.attestation-status span {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.attestation-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.attestation-summary-item {
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.attestation-summary-item span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.attestation-summary-item strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attestation-observations-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.attestation-observation-block span,
+.attestation-muted-list span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.attestation-observation-block p,
+.attestation-muted-list p {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.attestation-control-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.attestation-control-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.attestation-control-list svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: #86efac;
+}
+
+.attestation-control-list div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.attestation-control-list strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.attestation-control-list span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.attestation-muted-list {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.attestation-confirm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.attestation-validation-error {
+  align-items: flex-start;
+}
+
+.attestation-validation-error strong {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.attestation-validation-error ul {
+  padding-left: 1rem;
+  margin: 0;
+}
+
+.attestation-submit-button {
+  width: fit-content;
+}
+
+@media (max-width: 640px) {
+  .attestation-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attestation-submit-button {
+    width: 100%;
+  }
+}

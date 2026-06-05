@@ -9,8 +9,10 @@ import {
   useGetApiJobsId,
   usePostApiJobsIdAssign,
   usePostApiJobsIdLinks,
+  usePostApiJobsIdStatus,
   usePatchApiJobsId,
 } from '../../../api/generated/jobs/jobs';
+import { JobStatus } from '../../../api/generated/models/jobStatus';
 import {
   useDeleteApiWorksheetsWorksheetIdJobsJobId,
   usePostApiWorksheetsJobsJobId,
@@ -193,6 +195,21 @@ export function useJobDetails(jobId: string | undefined) {
       },
       onError: (error) => {
         toast.error(getWorksheetDeleteErrorMessage(error), { id: 'worksheet-delete-error' });
+      },
+    },
+  });
+
+  const submitJobMutation = usePostApiJobsIdStatus({
+    mutation: {
+      onSuccess: (data) => {
+        if (jobId) {
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
+        }
+        queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey({ limit: 200 }) });
+        toast.success('Sagen er attesteret og indsendt');
+      },
+      onError: (error) => {
+        toast.error(getSubmitErrorMessage(error), { id: 'job-submit-error' });
       },
     },
   });
@@ -387,6 +404,13 @@ export function useJobDetails(jobId: string | undefined) {
     });
   };
 
+  const submitJob = () => {
+    if (!jobId) return Promise.resolve();
+    return submitJobMutation.mutateAsync({ id: jobId, data: { status: JobStatus.Submitted } });
+  };
+
+  const submitJobFieldErrors = getSubmitFieldErrors(submitJobMutation.error);
+
   const flushSave = (options: { includeWork?: boolean; validateWork?: boolean } = {}) => {
     const includeWork = options.includeWork ?? false;
     const validateWork = options.validateWork ?? false;
@@ -489,8 +513,11 @@ export function useJobDetails(jobId: string | undefined) {
     toggleCategoryIrrelevant,
     upsertWorksheet,
     deleteWorksheet,
+    submitJob,
+    submitJobFieldErrors,
     isSavingWorksheet: upsertWorksheetMutation.isPending,
     isDeletingWorksheet: deleteWorksheetMutation.isPending,
+    isSubmittingJob: submitJobMutation.isPending,
   };
 }
 
@@ -530,4 +557,36 @@ function getWorksheetDeleteErrorMessage(error: unknown) {
     return 'Arbejdssedlen kunne ikke slettes — status forhindrer ændringer';
   }
   return 'Kunne ikke slette arbejdssedlen';
+}
+
+type ValidationProblem = {
+  title?: string;
+  errors?: Record<string, string[]>;
+};
+
+function getSubmitErrorMessage(error: unknown) {
+  const fieldErrors = getSubmitFieldErrors(error);
+  if (fieldErrors.length > 0) {
+    return 'Sagen kan ikke attesteres endnu';
+  }
+
+  const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+  if (axiosError.response?.status === 409) {
+    return 'Sagen kunne ikke attesteres — status forhindrer ændringen';
+  }
+  if (axiosError.response?.status === 404) {
+    return 'Sagen findes ikke længere';
+  }
+
+  return 'Kunne ikke attestere sagen';
+}
+
+function getSubmitFieldErrors(error: unknown) {
+  const axiosError = error as AxiosError<ValidationProblem>;
+  const errors = axiosError.response?.data?.errors;
+  if (!errors) return [];
+
+  return Object.entries(errors).flatMap(([field, messages]) =>
+    messages.map((message) => ({ field, message })),
+  );
 }
