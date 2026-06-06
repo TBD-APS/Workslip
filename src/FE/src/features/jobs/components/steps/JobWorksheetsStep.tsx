@@ -431,14 +431,18 @@ function WorksheetsSection({
   }`;
 
   return (
-    <section className="detail-section">
-      <div className="section-header-row worksheet-section-header">
+    <section className="detail-section worksheet-section">
+      <div className="worksheet-section-header">
         <div className="worksheet-section-header-left">
-          <FileSpreadsheet size={18} />
-          <h3>Timesedler</h3>
+          <FileSpreadsheet size={22} className="worksheet-section-header-icon" />
+          <h2 className="worksheet-section-title">Timesedler</h2>
         </div>
         <span className="worksheet-section-header-totals" aria-label="Timeseddel totaler">{totalsLabel}</span>
       </div>
+
+      {sortedWorksheets.length > 0 && (
+        <span className="worksheet-list-label">Registrerede timesedler</span>
+      )}
 
       <WorksheetList
         sortedWorksheets={sortedWorksheets}
@@ -457,7 +461,11 @@ function WorksheetsSection({
       />
 
       {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
-        <button type="button" className="btn btn-primary worksheet-add-trigger" onClick={onOpenAddForm}>
+        <button
+          type="button"
+          className={sortedWorksheets.length === 0 ? 'btn btn-primary worksheet-add-trigger worksheet-add-trigger-cta' : 'btn btn-secondary worksheet-add-trigger'}
+          onClick={onOpenAddForm}
+        >
           <Plus size={16} />
           <span>Tilføj timeseddel</span>
         </button>
@@ -465,7 +473,7 @@ function WorksheetsSection({
 
       {!editingWorksheetId && isAddOpen && (
         <WorksheetDraftForm
-          title="Tilføj timeseddel"
+          title="Ny timeseddel"
           draft={addDraft}
           userOptions={userOptions}
           isLoadingUsers={isLoadingUsers}

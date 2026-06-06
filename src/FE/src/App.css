@@ -1403,29 +1403,60 @@
 /* ------------------------------------------------------------
    Worksheet list (Job step 4)
    ------------------------------------------------------------ */
+.worksheet-section {
+  padding: 1.5rem;
+}
+
 .worksheet-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .worksheet-section-header-left {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
+}
+
+.worksheet-section-header-icon {
+  color: var(--accent-color, #3b82f6);
+}
+
+.worksheet-section-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .worksheet-section-header-totals {
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 .worksheet-section-header-totals strong {
   color: var(--text-primary);
   font-weight: 500;
+}
+
+.worksheet-list-label {
+  display: block;
+  margin: 0 0 0.5rem 0;
+  padding-left: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .worksheet-list {
@@ -1631,17 +1662,30 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  padding: 0.75rem;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 14px;
+  padding: 0.85rem 0.85rem 0.85rem 1rem;
+  background: rgba(37, 99, 235, 0.05);
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 12px;
+  position: relative;
+}
+
+.worksheet-form::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: rgba(96, 165, 250, 0.7);
 }
 
 .worksheet-form h4 {
   margin: 0 0 0.1rem 0;
   font-size: 0.88rem;
+  font-weight: 500;
   color: var(--text-primary);
-  font-family: var(--font-heading);
+  letter-spacing: 0.01em;
 }
 
 .worksheet-form-grid {
@@ -1778,9 +1822,19 @@
 
 .worksheet-add-trigger {
   width: fit-content;
-  min-height: 38px;
-  padding: 0.45rem 0.95rem;
-  font-size: 0.85rem;
+  min-height: 36px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.worksheet-add-trigger-cta {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.65rem 1rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  margin-top: 0.25rem;
 }
 
 /* ------------------------------------------------------------
