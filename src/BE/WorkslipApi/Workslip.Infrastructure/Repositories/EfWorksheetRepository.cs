@@ -31,15 +31,13 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         var workDate = request.WorkDate.ToDateTime(TimeOnly.MinValue);
 
         var user = await _dbContext.Users
-            .FirstOrDefaultAsync(u => u.Id == request.UserId && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);
-        if (user is null)
-            throw new InvalidOperationException($"User with ID {request.UserId} not found");
+            .FirstOrDefaultAsync(u => u.Id == request.UserId && u.OrganizationId == _currentUser.OrganizationId, cancellationToken) 
+            ?? throw new InvalidOperationException($"User with ID {request.UserId} not found");
 
         var job = await _dbContext.JobReports
-            .FirstOrDefaultAsync(j => j.Id == request.JobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken);
-        if (job is null)
-            throw new InvalidOperationException($"Job with ID {request.JobId} not found");
-
+            .FirstOrDefaultAsync(j => j.Id == request.JobId && j.OrganizationId == _currentUser.OrganizationId, cancellationToken) 
+            ?? throw new InvalidOperationException($"Job with ID {request.JobId} not found");
+        
         var stale = _dbContext.Worksheets.Local
             .FirstOrDefault(w => request.Id.HasValue
                 ? w.Id == request.Id.Value && w.JobId == request.JobId
@@ -138,8 +136,6 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         var rows = await _dbContext.Worksheets
             .AsNoTracking()
             .Where(w => w.JobId == jobId && w.OrganizationId == _currentUser.OrganizationId)
-            .OrderByDescending(w => w.WorkDate)
-            .ThenByDescending(w => w.CreatedAt)
             .ToListAsync(cancellationToken);
 
         return rows.Select(w => new WorksheetResponse(

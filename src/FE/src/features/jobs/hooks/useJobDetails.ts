@@ -9,8 +9,10 @@ import {
   useGetApiJobsId,
   usePostApiJobsIdAssign,
   usePostApiJobsIdLinks,
+  usePostApiJobsIdStatus,
   usePatchApiJobsId,
 } from '../../../api/generated/jobs/jobs';
+import { JobStatus } from '../../../api/generated/models/jobStatus';
 import {
   useDeleteApiWorksheetsWorksheetIdJobsJobId,
   usePostApiWorksheetsJobsJobId,
@@ -103,10 +105,13 @@ export function useJobDetails(jobId: string | undefined) {
   const initialFormRef = useRef(initialForm);
   const jobRef = useRef(job);
   const mutateRef = useRef(mutation.mutate);
-  draftRef.current = draft;
-  initialFormRef.current = initialForm;
-  jobRef.current = job;
-  mutateRef.current = mutation.mutate;
+
+  useEffect(() => {
+    draftRef.current = draft;
+    initialFormRef.current = initialForm;
+    jobRef.current = job;
+    mutateRef.current = mutation.mutate;
+  }, [draft, initialForm, job, mutation.mutate]);
 
   const assignmentMutation = usePostApiJobsIdAssign({
     mutation: {
@@ -197,6 +202,21 @@ export function useJobDetails(jobId: string | undefined) {
     },
   });
 
+  const submitJobMutation = usePostApiJobsIdStatus({
+    mutation: {
+      onSuccess: (data) => {
+        if (jobId) {
+          queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
+        }
+        queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey({ limit: 200 }) });
+        toast.success('Sagen er attesteret og indsendt');
+      },
+      onError: (error) => {
+        toast.error(getSubmitErrorMessage(error), { id: 'job-submit-error' });
+      },
+    },
+  });
+
   useEffect(() => {
     const currentInitialForm = initialFormRef.current;
     const currentJob = jobRef.current;
@@ -212,7 +232,7 @@ export function useJobDetails(jobId: string | undefined) {
         return;
       }
 
-      if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
+      if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(currentJob.reportNumber) })) {
         setSaveStatus('error');
         return;
       }
@@ -225,11 +245,7 @@ export function useJobDetails(jobId: string | undefined) {
     }, 1500);
 
     return () => clearTimeout(debounceTimerRef.current);
-  }, [draft, jobId, referenceData]);
-
-  useEffect(() => {
-    return () => clearTimeout(debounceTimerRef.current);
-  }, []);
+  }, [draft, jobId, referenceData, setSaveStatus]);
 
   const updateDraft = (nextForm: JobForm) => {
     if (!jobId) return;
@@ -395,6 +411,13 @@ export function useJobDetails(jobId: string | undefined) {
     });
   };
 
+  const submitJob = () => {
+    if (!jobId) return Promise.resolve();
+    return submitJobMutation.mutateAsync({ id: jobId, data: { status: JobStatus.Submitted } });
+  };
+
+  const submitJobFieldErrors = getSubmitFieldErrors(submitJobMutation.error);
+
   const flushSave = (options: { includeWork?: boolean; validateWork?: boolean } = {}) => {
     const includeWork = options.includeWork ?? false;
     const validateWork = options.validateWork ?? false;
@@ -498,8 +521,11 @@ export function useJobDetails(jobId: string | undefined) {
     toggleCategoryIrrelevant,
     upsertWorksheet,
     deleteWorksheet,
+    submitJob,
+    submitJobFieldErrors,
     isSavingWorksheet: upsertWorksheetMutation.isPending,
     isDeletingWorksheet: deleteWorksheetMutation.isPending,
+    isSubmittingJob: submitJobMutation.isPending,
   };
 }
 
@@ -539,4 +565,38 @@ function getWorksheetDeleteErrorMessage(error: unknown) {
     return 'Arbejdssedlen kunne ikke slettes — status forhindrer ændringer';
   }
   return 'Kunne ikke slette arbejdssedlen';
+}
+
+type ValidationProblem = {
+  title?: string;
+  errors?: Record<string, string[]>;
+};
+
+function getSubmitErrorMessage(error: unknown) {
+  const fieldErrors = getSubmitFieldErrors(error);
+  if (fieldErrors.length > 0) {
+    return 'Sagen kan ikke attesteres endnu';
+  }
+
+  const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+  if (axiosError.response?.status === 409) {
+    return 'Sagen kunne ikke attesteres — status forhindrer ændringen';
+  }
+  if (axiosError.response?.status === 404) {
+    return 'Sagen findes ikke længere';
+  }
+
+  return 'Kunne ikke attestere sagen';
+}
+
+function getSubmitFieldErrors(error: unknown) {
+  if (!error || typeof error !== 'object') return [];
+
+  const axiosError = error as AxiosError<ValidationProblem>;
+  const errors = axiosError.response?.data?.errors;
+  if (!errors) return [];
+
+  return Object.entries(errors).flatMap(([field, messages]) =>
+    messages.map((message) => ({ field, message })),
+  );
 }

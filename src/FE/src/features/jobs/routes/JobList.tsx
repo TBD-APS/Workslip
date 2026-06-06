@@ -48,7 +48,7 @@ export const JobList = () => {
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     if (query.isLoading) return;

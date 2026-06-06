@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+const FOOTER_YEAR = new Date().getFullYear();
+
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
 
@@ -8,7 +10,7 @@ export default function LandingPage() {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -189,7 +191,7 @@ export default function LandingPage() {
             Workslip
           </div>
           <div className="footer-text">
-            © {new Date().getFullYear()} Workslip. Alle rettigheder forbeholdes.
+            © {FOOTER_YEAR} Workslip. Alle rettigheder forbeholdes.
           </div>
         </div>
       </footer>

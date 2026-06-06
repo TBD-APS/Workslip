@@ -1,9 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Workslip.Infrastructure.Schema;
-using Workslip.Infrastructure.Repositories;
-using Workslip.Infrastructure.Resilience;
+using Microsoft.Extensions.Options;
 using Workslip.Application;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
@@ -11,6 +10,9 @@ using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
 using Workslip.Infrastructure.Jobs;
+using Workslip.Infrastructure.Repositories;
+using Workslip.Infrastructure.Resilience;
+using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure;
 
@@ -26,6 +28,9 @@ public static class DependencyInjection
             var configuration = sp.GetRequiredService<IConfiguration>();
             var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
             options.UseSqlServer(connectionString, b => b.MigrationsAssembly("Workslip.Api"));
+
+            options.ConfigureWarnings(warnings =>
+            warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
         });
 
         services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
@@ -36,7 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
-    services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
+        services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
 
         services.AddScoped<IEmailService, AcsEmailService>();
         services.AddHostedService<JobDeletionCleanupService>();

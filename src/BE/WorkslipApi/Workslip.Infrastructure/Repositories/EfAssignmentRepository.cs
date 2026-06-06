@@ -86,7 +86,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             join a in _dbContext.JobAssignments.AsNoTracking()
                 on new { r.Id, r.OrganizationId }
                 equals new { Id = a.ReportId, a.OrganizationId }
-            join c in _dbContext.Customers.AsNoTracking() on new { Id = (Guid?)r.CustomerId, OrganizationId = r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
+            join c in _dbContext.Customers.AsNoTracking() on new { Id = r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
             from c in rjc.DefaultIfEmpty()
             where r.OrganizationId == organizationId
                   && a.UserId == userId
@@ -97,11 +97,11 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 r.Id,
                 r.OrganizationId,
                 CustId = r.CustomerId,
-                CustName = c != null ? c.Name : null,
-                CustAddress = c != null ? c.Address : null,
-                CustEmail = c != null ? c.Email : null,
-                CustContactPerson = c != null ? c.ContactPerson : null,
-                CustPhone = c != null ? c.Phone : null,
+                CustName = c.Name,
+                CustAddress = c.Address,
+                CustEmail = c.Email,
+                CustContactPerson = c.ContactPerson,
+                CustPhone = c.Phone,
                 r.ReportNumber,
                 r.Status,
                 r.ReportDate,

@@ -1464,6 +1464,43 @@
   gap: 0.75rem;
 }
 
+.worksheet-list-item-hours {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 4.75rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid rgba(34, 197, 94, 0.22);
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.08);
+  color: #86efac;
+  white-space: nowrap;
+}
+
+.worksheet-list-item-hours strong {
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.worksheet-list-item-hours span,
+.worksheet-list-item-outlay {
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.worksheet-list-item-outlay {
+  padding: 0.25rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+  white-space: nowrap;
+}
+
 .worksheet-list-item.editing {
   background: rgba(255, 255, 255, 0.04);
 }
@@ -1688,58 +1725,374 @@
 }
 
 /* ------------------------------------------------------------
-   Step 5 Completion warnings and error styles
+   Attestation (Job step 5)
    ------------------------------------------------------------ */
-.invalid-steps-warning {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: 12px;
+.attestation-hero-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.attestation-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
   padding: 1rem;
-  margin-bottom: 1.5rem;
+  border: 1px solid rgba(250, 204, 21, 0.25);
+  border-radius: 14px;
+  background: rgba(250, 204, 21, 0.08);
+  color: #facc15;
+}
+
+.attestation-status.submitted {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.08);
+  color: #86efac;
+}
+
+.attestation-status div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.attestation-status strong {
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: 0.98rem;
+}
+
+.attestation-status span {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.attestation-compact-header {
+  margin-bottom: 0.65rem;
+}
+
+.attestation-timesheet-section {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.invalid-steps-warning .warning-title {
-  color: #f59e0b;
-  font-weight: 600;
-  font-size: 0.9rem;
-  margin: 0;
+.attestation-timesheet-heading {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
-.invalid-steps-links {
+.attestation-timesheet-totals {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  justify-content: flex-end;
+  gap: 0.4rem;
 }
 
-.invalid-step-btn {
-  background: rgba(245, 158, 11, 0.15) !important;
-  border-color: rgba(245, 158, 11, 0.3) !important;
-  color: #fcd34d !important;
-  font-size: 0.8rem !important;
-  padding: 0.4rem 0.8rem !important;
-  border-radius: 8px !important;
-  transition: all 0.2s;
-  cursor: pointer;
+.attestation-timesheet-totals span {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.08);
+  color: #86efac;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
-.invalid-step-btn:hover {
-  background: rgba(245, 158, 11, 0.3) !important;
-  border-color: rgba(245, 158, 11, 0.5) !important;
+.attestation-timesheet-totals strong {
+  color: var(--text-primary);
 }
 
-.step-dot.has-error {
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #f87171;
-  background: rgba(239, 68, 68, 0.05);
+.attestation-timesheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
 }
 
-.step-dot.has-error:hover {
-  background: rgba(239, 68, 68, 0.1);
+.attestation-timesheet-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
+.attestation-timesheet-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.attestation-timesheet-main strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.attestation-timesheet-main span {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attestation-timesheet-hours {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  min-width: 4.75rem;
+  justify-content: center;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+}
+
+.attestation-timesheet-hours strong {
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: 1rem;
+}
+
+.attestation-timesheet-hours span,
+.attestation-timesheet-badge {
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.attestation-timesheet-badge {
+  padding: 0.25rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+  white-space: nowrap;
+}
+
+.attestation-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.attestation-summary-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.45rem;
+}
+
+.attestation-summary-item {
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.attestation-summary-item.compact {
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+}
+
+.attestation-summary-item span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.attestation-summary-item strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attestation-observations-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.attestation-observations-section.compact {
+  gap: 0.65rem;
+}
+
+.attestation-observation-block.compact {
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.attestation-observation-block.compact:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.attestation-observation-block span,
+.attestation-muted-list span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.attestation-observation-block p,
+.attestation-muted-list p {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.attestation-control-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.attestation-control-list.compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.4rem;
+}
+
+.attestation-control-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.attestation-control-list.compact li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.45rem;
+  row-gap: 0.1rem;
+  align-items: start;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+}
+
+.attestation-control-list.compact small {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attestation-control-list svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: #86efac;
+}
+
+.attestation-control-list div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.attestation-control-list strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.attestation-control-list span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.attestation-muted-list {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.attestation-muted-list.compact {
+  margin-top: 0.65rem;
+  padding: 0.65rem;
+}
+
+.attestation-confirm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.attestation-validation-error {
+  align-items: flex-start;
+}
+
+.attestation-validation-error strong {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.attestation-validation-error ul {
+  padding-left: 1rem;
+  margin: 0;
+}
+
+.attestation-submit-button {
+  width: fit-content;
+}
+
+@media (max-width: 640px) {
+  .attestation-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attestation-timesheet-heading {
+    flex-direction: column;
+  }
+
+  .attestation-timesheet-totals {
+    justify-content: flex-start;
+  }
+
+  .attestation-timesheet-list li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .attestation-timesheet-badge {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+
+  .worksheet-list-item-row {
+    flex-wrap: wrap;
+  }
+
+  .attestation-submit-button {
+    width: 100%;
+  }
+}

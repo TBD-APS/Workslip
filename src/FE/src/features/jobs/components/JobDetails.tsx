@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -7,11 +8,11 @@ import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
 import { DeleteButton } from '../../../components/common/DeleteButton';
 import { isValidJobForm, isValidWork } from '../utils';
 import { ControlPointsStep, validateControlPoints } from './steps/ControlPointsStep';
+import { JobAttestationStep } from './steps/JobAttestationStep';
 import { JobOverviewStep } from './steps/JobOverviewStep';
 import { JOB_STEPS, StepIndicators, StepNavigation } from './steps/JobStepNavigation';
 import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
-import { JobCompletionStep } from './steps/JobCompletionStep';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -23,6 +24,7 @@ type JobDetailsPageProps = {
 
 export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps) {
   const queryClient = useQueryClient();
+  const [attestationConfirmed, setAttestationConfirmed] = useState(false);
   const deleteMutation = useDeleteApiJobsId({
     mutation: {
       onSuccess: () => {
@@ -80,17 +82,13 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       return;
     }
 
+    if (nextStep > 4 && details.job?.status !== 'Submitted') {
+      toast.error('Attestér sagen før afslutning');
+      return;
+    }
+
     details.navigateToStep(nextStep);
   };
-
-  const completedSteps = [
-    isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly }),
-    isValidWork(details.form, details.referenceData),
-    validateControlPoints(details.form, details.referenceData).valid,
-    details.worksheets.length > 0,
-    Boolean(details.form.work.closureFlags && details.form.work.closureFlags.length > 0),
-  ];
-  const canFinish = completedSteps.every((status) => status);
 
   return (
     <div className="page-container job-detail-page">
@@ -102,11 +100,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         onDelete={handleDelete}
       />
 
-      <StepIndicators
-        currentStep={details.currentStep}
-        onStepChange={handleStepChange}
-        completedSteps={completedSteps}
-      />
+      <StepIndicators currentStep={details.currentStep} onStepChange={handleStepChange} />
 
       {details.currentStep === 0 && (
         <JobOverviewStep details={details} />
@@ -148,23 +142,25 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       )}
 
       {details.currentStep === 4 && (
-        <JobCompletionStep
-          form={details.form}
-          referenceData={details.referenceData}
-          isLoading={details.isLoadingReferenceData}
-          onClosureFlagsChange={details.updateClosureFlags}
-          navigateToStep={details.navigateToStep}
-          completedSteps={completedSteps}
-          worksheetCount={details.worksheets.length}
+        <JobAttestationStep
+          details={details}
+          confirmed={attestationConfirmed}
+          onConfirmedChange={setAttestationConfirmed}
+          onSubmitted={() => {
+            setAttestationConfirmed(false);
+            details.navigateToStep(5);
+          }}
         />
+      )}
+
+      {details.currentStep === 5 && (
+        <JobCompletionStep worksheetCount={details.worksheets.length} />
       )}
 
       <StepNavigation
         currentStep={details.currentStep}
         isLastStep={isLastStep}
         disableNext={disableNext}
-        disableDone={!canFinish}
-        doneLabel="Bekræft"
         onBack={() => {
           if (details.currentStep === 0) {
             details.flushSave();
@@ -186,14 +182,29 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
             toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
             return;
           }
+          if (details.currentStep === 4 && details.job?.status !== 'Submitted') {
+            toast.error('Attestér sagen før afslutning');
+            return;
+          }
           details.navigateToStep(details.currentStep + 1);
         }}
-        onDone={() => {
-          details.flushSave({ includeWork: true });
-          onDone();
-        }}
+        onDone={onDone}
       />
     </div>
+  );
+}
+
+function JobCompletionStep({ worksheetCount }: { worksheetCount: number }) {
+  return (
+    <section className="detail-section">
+      <div className="section-header-row">
+        <CheckCircle2 size={18} />
+        <h3>Afslutning</h3>
+      </div>
+      <p className="subtitle">
+        Sagen har {worksheetCount} {worksheetCount === 1 ? 'arbejdsseddel' : 'arbejdssedler'} og er klar til afslutning.
+      </p>
+    </section>
   );
 }
 
@@ -212,6 +223,10 @@ function canAdvanceCurrentStep(details: JobDetailsState) {
 
   if (details.currentStep === 3) {
     return details.worksheets.length > 0;
+  }
+
+  if (details.currentStep === 4) {
+    return details.job?.status === 'Submitted';
   }
 
   return true;
