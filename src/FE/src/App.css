@@ -25,6 +25,10 @@
 }
 
 /* App Shell Layout (Mobile First) */
+.app-shell :is(h1, h2, h3, h4, h5, h6, strong, b) {
+  font-weight: 400;
+}
+
 .app-shell {
   display: flex;
   flex-direction: column;
@@ -87,7 +91,7 @@
   gap: 0.25rem;
   color: var(--text-secondary);
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 400;
   flex: 1;
   transition: color 0.2s;
 }
@@ -107,13 +111,13 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: var(--accent-gradient);
+  background: #2563eb;
   border: none;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(0, 112, 243, 0.4);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.32);
   cursor: pointer;
   transition: transform 0.2s;
 }
@@ -218,7 +222,7 @@
   display: inline-block;
   font-family: var(--font-main);
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.08em;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -227,8 +231,8 @@
 
 .job-customer {
   font-family: var(--font-heading);
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.12rem;
+  font-weight: 400;
   margin: 0;
   line-height: 1.25;
   color: var(--text-primary);
@@ -240,7 +244,7 @@
 .job-address-row {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   margin: 0;
   color: var(--text-secondary);
   font-size: 0.85rem;
@@ -272,7 +276,7 @@
 
 .meta-hours {
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .meta-badge {
@@ -282,7 +286,7 @@
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
   font-size: 0.7rem;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.02em;
 }
 
@@ -317,7 +321,7 @@
   padding: 0.2rem 0.65rem;
   border-radius: 999px;
   font-size: 0.7rem;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.3px;
 }
 
@@ -366,7 +370,7 @@
    ------------------------------------------------------------ */
 .job-customer {
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 400;
   margin: 0;
   line-height: 1.3;
 }
@@ -568,7 +572,7 @@
   align-items: center;
   gap: 0.35rem;
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 400;
   padding: 0.25rem 0.6rem;
   border-radius: 8px;
   white-space: nowrap;
@@ -580,8 +584,8 @@
 }
 
 .save-indicator.saved {
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.1);
+  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.12);
 }
 
 .save-indicator.error {
@@ -626,8 +630,22 @@
 }
 
 .section-title-row h3 {
-  font-size: 1rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
   margin: 0;
+}
+
+.customer-details-section .section-header-row {
+  color: var(--text-secondary);
+}
+
+.customer-details-section .section-header-row h3 {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
 }
 
 .collapsible-section {
@@ -727,9 +745,8 @@
 .work-field-label {
   color: var(--text-secondary);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .category-choice-grid {
@@ -739,15 +756,17 @@
 }
 
 .choice-card {
+  position: relative;
+  overflow: hidden;
   min-height: 58px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.85rem 0.9rem;
+  padding: 0.85rem 0.95rem 0.85rem 1rem;
   color: var(--text-primary);
   font: inherit;
-  font-weight: 700;
+  font-weight: 400;
   text-align: left;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--surface-border);
@@ -761,8 +780,21 @@
 }
 
 .choice-card.selected {
-  background: rgba(0, 112, 243, 0.14);
-  border-color: rgba(0, 198, 255, 0.45);
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(96, 165, 250, 0.42);
+}
+
+.choice-card.selected::before,
+.multi-select-option.selected::before,
+.work-kind-option.selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: rgba(96, 165, 250, 0.85);
 }
 
 .work-kind-list {
@@ -772,19 +804,30 @@
 }
 
 .work-kind-option {
+  position: relative;
+  overflow: hidden;
+  min-height: 46px;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 0.85rem;
+  padding: 0.75rem 0.9rem 0.75rem 1rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--surface-border);
   border-radius: 12px;
   color: var(--text-primary);
   cursor: pointer;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.work-kind-option.selected {
+  border-color: rgba(96, 165, 250, 0.42);
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .work-kind-option input {
-  accent-color: var(--accent-color);
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .form-help-error {
@@ -916,46 +959,47 @@
   border-color: rgba(96, 165, 250, 0.5);
 }
 
-.multi-select-option.checkbox-right {
-  flex-direction: row-reverse;
-}
-
 .multi-select-option {
+  position: relative;
+  overflow: hidden;
   width: 100%;
+  min-height: 46px;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.7rem 0.75rem;
+  padding: 0.75rem 0.9rem 0.75rem 1rem;
   color: var(--text-primary);
   font: inherit;
   text-align: left;
-  background: transparent;
-  border: 0;
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   cursor: pointer;
+  transition: border-color 0.16s, background 0.16s;
 }
 
-.multi-select-option:hover,
+.multi-select-option:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+}
+
 .multi-select-option.selected {
-  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(96, 165, 250, 0.42);
+  background: rgba(37, 99, 235, 0.08);
 }
 
-.multi-select-checkbox {
-  width: 20px;
-  height: 20px;
+.selection-pill {
   flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #34d399;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.multi-select-option.selected .multi-select-checkbox {
-  border-color: rgba(52, 211, 153, 0.55);
-  background: rgba(52, 211, 153, 0.12);
+  margin-left: auto;
+  padding: 0.16rem 0.45rem;
+  color: #bfdbfe;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  border: 1px solid rgba(96, 165, 250, 0.26);
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.12);
 }
 
 .multi-select-option-text {
@@ -996,7 +1040,7 @@
   border: 1px solid rgba(96, 165, 250, 0.16);
   border-radius: 999px;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
 }
@@ -1037,7 +1081,7 @@
 
 .form-label {
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text-secondary);
   letter-spacing: 0.03em;
 }
@@ -1090,41 +1134,49 @@
    ------------------------------------------------------------ */
 .step-indicators {
   display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
+  gap: 0.5rem;
+  margin-bottom: 1.15rem;
   overflow-x: auto;
+  padding-bottom: 0.25rem;
   -webkit-overflow-scrolling: touch;
 }
 
 .step-dot {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 10px;
-  border: 1px solid var(--surface-border);
-  background: var(--surface-color);
+  gap: 0.5rem;
+  min-height: 46px;
+  padding: 0.6rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.035);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.84rem;
   white-space: nowrap;
-  transition: all 0.2s;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
   flex-shrink: 0;
 }
 
 .step-dot.active {
-  border-color: #0070f3;
+  border-color: rgba(96, 165, 250, 0.95);
   color: var(--text-primary);
-  background: rgba(0, 112, 243, 0.08);
+  background: rgba(37, 99, 235, 0.24);
+  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.18);
 }
 
 .step-dot.completed {
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #34d399;
+  border-color: rgba(96, 165, 250, 0.24);
+  background: rgba(37, 99, 235, 0.07);
+  color: #93c5fd;
+}
+
+.step-dot.completed:not(.active) {
+  opacity: 0.82;
 }
 
 .step-label {
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* ------------------------------------------------------------
@@ -1162,7 +1214,7 @@
   padding: 0.6rem 1.25rem;
   font: inherit;
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 400;
   border: 0;
   border-radius: 10px;
   cursor: pointer;
@@ -1251,7 +1303,7 @@
 
 .control-point-type-name {
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .control-point-type-body {
@@ -1285,7 +1337,7 @@
 
 .control-point-category-label {
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text-secondary);
   letter-spacing: 0.05em;
   transition: color 0.2s;
@@ -1297,53 +1349,35 @@
 
 .multi-select-option.control-point-irrelevant-row {
   flex-shrink: 0;
-  padding: 0.5rem;
+  min-height: 42px;
+  padding: 0.6rem 0.8rem 0.6rem 1rem;
   margin-bottom: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
   color: var(--text-secondary);
-  cursor: pointer;
-  transition: color 0.2s, background-color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .multi-select-option.control-point-irrelevant-row:hover {
-  background-color: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
 }
 
 .multi-select-option.control-point-irrelevant-row.selected {
-  color: var(--accent-color, #ef4444);
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+  color: #fcd34d;
 }
 
-.control-point-irrelevant-button {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.2s;
+.multi-select-option.control-point-irrelevant-row.selected::before {
+  background: rgba(245, 158, 11, 0.8);
 }
 
-.control-point-irrelevant-button:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
-.control-point-irrelevant-button.active {
-  background-color: var(--accent-color, #3b82f6);
-  border-color: var(--accent-color, #3b82f6);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+.multi-select-option.control-point-irrelevant-row.selected .selection-pill {
+  color: #fde68a;
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.12);
 }
 
 .irrelevant-text {
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-secondary);
@@ -1360,7 +1394,11 @@
 }
 
 .multi-select-option:disabled:hover {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.multi-select-option.selected:disabled:hover {
+  background: rgba(37, 99, 235, 0.08);
 }
 
 @media (min-width: 768px) {
@@ -1395,45 +1433,65 @@
    Worksheet list (Job step 4)
    ------------------------------------------------------------ */
 .worksheet-total-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
 }
 
-.worksheet-total-row {
+.worksheet-total-card {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
+  min-width: 0;
+  min-height: 4.75rem;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.worksheet-total-card-primary {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .worksheet-total-label {
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.worksheet-total-row strong {
+.worksheet-total-value {
   color: var(--text-primary);
   font-family: var(--font-heading);
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 1.12rem;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .worksheet-list {
   list-style: none;
   margin: 0 0 1.5rem 0;
-  padding: 0.35rem;
-  background: #111827;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  max-height: 260px;
+  padding: 0.5rem;
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  max-height: 360px;
   overflow-y: auto;
 }
 
 .worksheet-list.expanded {
   max-height: none;
   overflow: visible;
+}
+
+.worksheet-empty-state {
+  margin-bottom: 1.15rem;
 }
 
 .worksheet-list::-webkit-scrollbar {
@@ -1454,14 +1512,23 @@
 }
 
 .worksheet-list-item {
-  padding: 0.6rem 0.75rem;
-  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
 }
 
 .worksheet-list-item-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.8rem;
+  min-height: 52px;
+}
+
+.worksheet-list-item-metrics {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .worksheet-list-item-hours {
@@ -1469,32 +1536,32 @@
   align-items: baseline;
   justify-content: center;
   gap: 0.25rem;
-  min-width: 4.75rem;
-  padding: 0.25rem 0.55rem;
-  border: 1px solid rgba(34, 197, 94, 0.22);
+  min-width: 5rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid rgba(96, 165, 250, 0.18);
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.08);
-  color: #86efac;
+  background: rgba(37, 99, 235, 0.08);
+  color: #bfdbfe;
   white-space: nowrap;
 }
 
-.worksheet-list-item-hours strong {
+.worksheet-list-item-hours-value {
   color: var(--text-primary);
   font-family: var(--font-heading);
   font-size: 1rem;
-  font-weight: 750;
+  font-weight: 400;
 }
 
-.worksheet-list-item-hours span,
+.worksheet-list-item-hours span:not(.worksheet-list-item-hours-value),
 .worksheet-list-item-outlay {
   font-size: 0.72rem;
-  font-weight: 650;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .worksheet-list-item-outlay {
-  padding: 0.25rem 0.45rem;
+  padding: 0.35rem 0.55rem;
   border-radius: 999px;
   background: rgba(96, 165, 250, 0.12);
   color: #93c5fd;
@@ -1508,7 +1575,7 @@
 .worksheet-list-item.editing .worksheet-form {
   margin-top: 0.75rem;
   width: 100%;
-  background: rgba(0, 0, 0, 0.24);
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .worksheet-list-item + .worksheet-list-item {
@@ -1527,6 +1594,19 @@
 
 .worksheet-actions-menu-root {
   position: relative;
+}
+
+.worksheet-actions-menu-root .btn-icon {
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid transparent;
+}
+
+.worksheet-actions-menu-root .btn-icon:hover,
+.worksheet-actions-menu-root .btn-icon[aria-expanded="true"] {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
 }
 
 .worksheet-actions-menu {
@@ -1573,30 +1653,31 @@
 .worksheet-list-item-info {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.25rem;
   flex: 1;
   min-width: 0;
 }
 
 .worksheet-list-item-date {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text-primary);
-  font-size: 0.95rem;
+  font-size: 1rem;
 }
 
 .worksheet-list-item-meta {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text-secondary);
+  line-height: 1.35;
 }
 
 .worksheet-form {
   display: flex;
   flex-direction: column;
   gap: 1.15rem;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--surface-border);
-  border-radius: 14px;
+  padding: 1.05rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 16px;
 }
 
 .worksheet-form h4 {
@@ -1609,7 +1690,12 @@
 .worksheet-form-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1.15rem;
+  gap: 1.05rem;
+}
+
+.worksheet-form .form-input,
+.worksheet-form .multi-select-trigger {
+  min-height: 46px;
 }
 
 .worksheet-form-grid .multi-select-field {
@@ -1671,7 +1757,7 @@
   justify-content: space-between;
   margin-bottom: 0.65rem;
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 400;
   text-transform: capitalize;
 }
 
@@ -1706,6 +1792,7 @@
 
 .worksheet-overnight-wrapper .multi-select-option {
   min-height: 48px;
+  width: 100%;
 }
 
 .worksheet-form-actions {
@@ -1718,6 +1805,10 @@
 
 .worksheet-form-actions .btn {
   white-space: nowrap;
+}
+
+.worksheet-form-actions .btn-primary {
+  min-height: 44px;
 }
 
 .worksheet-add-trigger {
@@ -1745,9 +1836,9 @@
 }
 
 .attestation-status.submitted {
-  border-color: rgba(34, 197, 94, 0.3);
-  background: rgba(34, 197, 94, 0.08);
-  color: #86efac;
+  border-color: rgba(96, 165, 250, 0.3);
+  background: rgba(37, 99, 235, 0.08);
+  color: #93c5fd;
 }
 
 .attestation-status div {
@@ -1756,13 +1847,13 @@
   gap: 0.25rem;
 }
 
-.attestation-status strong {
+.attestation-status-title {
   color: var(--text-primary);
   font-family: var(--font-heading);
   font-size: 0.98rem;
 }
 
-.attestation-status span {
+.attestation-status span:not(.attestation-status-title) {
   color: var(--text-secondary);
   font-size: 0.88rem;
 }
@@ -1793,16 +1884,12 @@
 
 .attestation-timesheet-totals span {
   padding: 0.3rem 0.55rem;
-  border: 1px solid rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(96, 165, 250, 0.18);
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.08);
-  color: #86efac;
+  background: rgba(37, 99, 235, 0.08);
+  color: #bfdbfe;
   font-size: 0.78rem;
   white-space: nowrap;
-}
-
-.attestation-timesheet-totals strong {
-  color: var(--text-primary);
 }
 
 .attestation-timesheet-list {
@@ -1832,12 +1919,12 @@
   gap: 0.15rem;
 }
 
-.attestation-timesheet-main strong {
+.attestation-timesheet-date {
   color: var(--text-primary);
   font-size: 0.9rem;
 }
 
-.attestation-timesheet-main span {
+.attestation-timesheet-user {
   overflow: hidden;
   color: var(--text-secondary);
   font-size: 0.78rem;
@@ -1853,20 +1940,20 @@
   justify-content: center;
   padding: 0.3rem 0.55rem;
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.1);
-  color: #86efac;
+  background: rgba(37, 99, 235, 0.08);
+  color: #bfdbfe;
 }
 
-.attestation-timesheet-hours strong {
+.attestation-timesheet-hours-value {
   color: var(--text-primary);
   font-family: var(--font-heading);
   font-size: 1rem;
 }
 
-.attestation-timesheet-hours span,
+.attestation-timesheet-hours span:not(.attestation-timesheet-hours-value),
 .attestation-timesheet-badge {
   font-size: 0.7rem;
-  font-weight: 650;
+  font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1903,7 +1990,7 @@
   border-radius: 10px;
 }
 
-.attestation-summary-item span {
+.attestation-summary-label {
   display: block;
   margin-bottom: 0.35rem;
   color: var(--text-secondary);
@@ -1912,12 +1999,12 @@
   text-transform: uppercase;
 }
 
-.attestation-summary-item strong {
+.attestation-summary-value {
   display: block;
   overflow: hidden;
   color: var(--text-primary);
   font-size: 0.92rem;
-  font-weight: 650;
+  font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1948,7 +2035,7 @@
   margin-bottom: 0.35rem;
   color: var(--text-secondary);
   font-size: 0.78rem;
-  font-weight: 650;
+  font-weight: 400;
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
@@ -2006,10 +2093,12 @@
   white-space: nowrap;
 }
 
-.attestation-control-list svg {
-  flex-shrink: 0;
-  margin-top: 0.1rem;
-  color: #86efac;
+.attestation-control-accent {
+  width: 3px;
+  align-self: stretch;
+  min-height: 1.9rem;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.78);
 }
 
 .attestation-control-list div {
@@ -2019,7 +2108,7 @@
   gap: 0.2rem;
 }
 
-.attestation-control-list strong {
+.attestation-control-list-title {
   color: var(--text-primary);
   font-size: 0.9rem;
 }
@@ -2052,7 +2141,7 @@
   align-items: flex-start;
 }
 
-.attestation-validation-error strong {
+.attestation-validation-title {
   display: block;
   margin-bottom: 0.35rem;
 }
@@ -2090,6 +2179,24 @@
 
   .worksheet-list-item-row {
     flex-wrap: wrap;
+  }
+
+  .worksheet-list-item-info {
+    flex-basis: calc(100% - 48px);
+  }
+
+  .worksheet-list-item-metrics {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+
+  .worksheet-list-item-actions {
+    margin-left: auto;
+  }
+
+  .worksheet-total-card {
+    padding: 0.8rem;
   }
 
   .attestation-submit-button {

@@ -10,9 +10,10 @@ import { isValidJobForm, isValidWork } from '../utils';
 import { ControlPointsStep, validateControlPoints } from './steps/ControlPointsStep';
 import { JobAttestationStep } from './steps/JobAttestationStep';
 import { JobOverviewStep } from './steps/JobOverviewStep';
-import { JOB_STEPS, StepIndicators, StepNavigation } from './steps/JobStepNavigation';
+import { StepIndicators, StepNavigation } from './steps/JobStepNavigation';
 import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
+import { JOB_STEPS } from './steps/jobSteps';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 

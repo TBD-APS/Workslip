@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { JobForm, ReferenceData } from '../../types';
-import { JOB_STEPS } from './JobStepNavigation';
+import { JOB_STEPS } from './jobSteps';
 
 type JobCompletionStepProps = {
   form: JobForm;
@@ -107,11 +107,12 @@ export function JobCompletionStep({
                   <button
                     key={flag.id}
                     type="button"
-                    className={`choice-card ${isSelected ? 'selected' : ''}`}
+                    className={`choice-card selection-card ${isSelected ? 'selected' : ''}`}
                     onClick={() => toggleFlag(flag.normalizedLabel)}
+                    aria-pressed={isSelected}
                   >
                     <span>{flag.label}</span>
-                    {isSelected && <CheckCircle2 size={16} />}
+                    {isSelected && <span className="selection-pill" aria-hidden="true">Valgt</span>}
                   </button>
                 );
               })}

@@ -58,8 +58,8 @@ export function JobAttestationStep({
     { label: 'Kunde', value: job.customer.name },
     { label: 'Adresse', value: job.customer.address },
     { label: 'Kontakt', value: formatContact(job.customer.contactPerson, job.customer.phone) },
-    { label: 'Arbejde', value: formatWorkKind(job.work.workKind) },
-    { label: 'Kategorier', value: selectedInstallationTypeNames.join(', ') },
+    { label: 'Opgavetype', value: formatWorkKind(job.work.workKind) },
+    { label: 'Anlægstyper', value: selectedInstallationTypeNames.join(', ') },
     { label: 'Status', value: formatStatus(job.status) },
   ]);
   const observationItems = compactObservations([
@@ -91,7 +91,7 @@ export function JobAttestationStep({
         <div className={isSubmitted ? 'attestation-status submitted' : 'attestation-status'}>
           {isSubmitted ? <CheckCircle2 size={20} /> : <Clock size={20} />}
           <div>
-            <strong>{isSubmitted ? 'Sagen er attesteret' : 'Klar til attestering'}</strong>
+            <span className="attestation-status-title">{isSubmitted ? 'Sagen er attesteret' : 'Klar til attestering'}</span>
             <span>
               {isSubmitted
                 ? 'Backend har registreret sagen som indsendt.'
@@ -121,8 +121,8 @@ export function JobAttestationStep({
             <h3>Timesedler</h3>
           </div>
           <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
-            <span><strong>{totalHoursLabel}</strong></span>
-            {totalOutlayValue > 0 && <span><strong>{formatNumber(totalOutlayValue)}</strong> {formatUnit(totalOutlayValue, 'udlæg', 'udlæg')}</span>}
+            <span>{totalHoursLabel}</span>
+            {totalOutlayValue > 0 && <span>{formatNumber(totalOutlayValue)} {formatUnit(totalOutlayValue, 'udlæg', 'udlæg')}</span>}
           </div>
         </div>
 
@@ -135,11 +135,11 @@ export function JobAttestationStep({
               return (
                 <li key={worksheet.id}>
                   <div className="attestation-timesheet-main">
-                    <strong>{formatDate(worksheet.workDate)}</strong>
-                    <span>{getUserName(worksheet.userId, details)}</span>
+                    <span className="attestation-timesheet-date">{formatDate(worksheet.workDate)}</span>
+                    <span className="attestation-timesheet-user">{getUserName(worksheet.userId, details)}</span>
                   </div>
                   <div className="attestation-timesheet-hours">
-                    <strong>{formatNumber(hours)}</strong>
+                    <span className="attestation-timesheet-hours-value">{formatNumber(hours)}</span>
                     <span>{formatUnit(hours, 'time', 'timer')}</span>
                   </div>
                   {worksheet.sleptOnJob && <span className="attestation-timesheet-badge">Udlæg</span>}
@@ -172,7 +172,7 @@ export function JobAttestationStep({
             <ul className="attestation-control-list compact">
               {selectedControlPoints.map((controlPoint) => (
                 <li key={controlPoint.id}>
-                  <CheckCircle2 size={14} />
+                  <span className="attestation-control-accent" aria-hidden="true" />
                   <span>{controlPoint.name}</span>
                   <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
                 </li>
@@ -194,7 +194,7 @@ export function JobAttestationStep({
           <div className="validation-error attestation-validation-error">
             <AlertCircle size={18} />
             <div>
-              <strong>Sagen mangler oplysninger før attestering:</strong>
+              <span className="attestation-validation-title">Sagen mangler oplysninger før attestering:</span>
               <ul>
                 {details.submitJobFieldErrors.map((error) => (
                   <li key={`${error.field}-${error.message}`}>{error.message}</li>
@@ -229,8 +229,8 @@ export function JobAttestationStep({
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="attestation-summary-item compact">
-      <span>{label}</span>
-      <strong>{value}</strong>
+      <span className="attestation-summary-label">{label}</span>
+      <span className="attestation-summary-value">{value}</span>
     </div>
   );
 }

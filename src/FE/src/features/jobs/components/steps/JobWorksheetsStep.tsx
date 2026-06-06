@@ -502,7 +502,7 @@ function WorksheetList({
   onCancelEdit,
 }: WorksheetListProps) {
   if (sortedWorksheets.length === 0) {
-    return <p className="empty-state-text">Ingen timesedler endnu.</p>;
+    return <p className="empty-state-text worksheet-empty-state">Ingen registrerede timesedler</p>;
   }
 
   return (
@@ -518,11 +518,13 @@ function WorksheetList({
                 <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
                 <span className="worksheet-list-item-meta">{assignee?.displayName ?? worksheet.userId}</span>
               </div>
-              <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
-                <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
-                <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+              <div className="worksheet-list-item-metrics">
+                <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
+                  <span className="worksheet-list-item-hours-value">{formatNumber(parseHours(worksheet.hoursWorked))}</span>
+                  <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+                </div>
+                {worksheet.sleptOnJob && <span className="worksheet-list-item-outlay">Udlæg</span>}
               </div>
-              {worksheet.sleptOnJob && <span className="worksheet-list-item-outlay">Udlæg</span>}
               <div className="worksheet-list-item-actions">
                 <div className="worksheet-actions-menu-root">
                   <button
@@ -563,13 +565,13 @@ function WorksheetList({
 function WorksheetTotalsSection({ totalHoursValue, totalOutlayValue }: { totalHoursValue: number; totalOutlayValue: number }) {
   return (
     <section className="detail-section worksheet-total-section" aria-label="Timeseddel totaler">
-      <div className="worksheet-total-row">
-        <span className="worksheet-total-label">Timer i alt:</span>
-        <strong>{formatNumber(totalHoursValue)} {formatUnit(totalHoursValue, 'time', 'timer')}</strong>
+      <div className="worksheet-total-card worksheet-total-card-primary">
+        <span className="worksheet-total-label">Timer i alt</span>
+        <span className="worksheet-total-value">{formatNumber(totalHoursValue)} {formatUnit(totalHoursValue, 'time', 'timer')}</span>
       </div>
-      <div className="worksheet-total-row">
-        <span className="worksheet-total-label">Udlæg:</span>
-        <strong>{formatNumber(totalOutlayValue)} {formatUnit(totalOutlayValue, 'dag', 'dage')}</strong>
+      <div className="worksheet-total-card">
+        <span className="worksheet-total-label">Udlæg</span>
+        <span className="worksheet-total-value">{formatNumber(totalOutlayValue)} {formatUnit(totalOutlayValue, 'dag', 'dage')}</span>
       </div>
     </section>
   );

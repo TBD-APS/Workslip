@@ -109,7 +109,7 @@ export const Login = () => {
           {step === 'code' && (
             <div>
               <p style={{ color: 'var(--text-secondary)' }}>En kode er sendt til</p>
-              <p style={{ fontWeight: 600, fontSize: '1.1rem', marginTop: '0.25rem' }}>{email}</p>
+              <p style={{ fontWeight: 400, fontSize: '1.1rem', marginTop: '0.25rem' }}>{email}</p>
             </div>
           )}
         </div>
@@ -135,7 +135,7 @@ export const Login = () => {
         {step === 'email' && (
           <form onSubmit={emailForm.handleSubmit(handleSendCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="form-group">
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Email</label>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 400 }}>Email</label>
               <input 
                 {...emailForm.register('email')}
                 type="email" 
@@ -189,7 +189,7 @@ export const Login = () => {
         {step === 'code' && (
           <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="form-group">
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Engangskode</label>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 400 }}>Engangskode</label>
               <input 
                 {...codeField}
                 ref={(element) => {

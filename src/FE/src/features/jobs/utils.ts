@@ -243,10 +243,10 @@ export function getWorkValidationMessage(form: JobForm, referenceData: Reference
     (kind) => kind.normalizedLabel === form.work.workKind,
   );
 
-  if (form.work.categoryIds.length === 0) return 'Vælg mindst én kategori.';
-  if (form.work.workKind.length === 0) return 'Vælg en arbejdstype.';
+  if (form.work.categoryIds.length === 0) return 'Vælg mindst én anlægstype.';
+  if (form.work.workKind.length === 0) return 'Vælg en opgavetype.';
   if (selectedWorkKind?.requiresCustomWorkKind && form.work.customWorkKind.trim().length === 0) {
-    return 'Udfyld service andet-feltet.';
+    return 'Udfyld anden opgavetype-feltet.';
   }
 
   return null;

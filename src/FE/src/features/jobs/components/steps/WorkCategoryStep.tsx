@@ -1,4 +1,4 @@
-import { CheckCircle2, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import type { JobForm, ReferenceData } from '../../types';
 
 type WorkCategoryStepProps = {
@@ -36,62 +36,71 @@ export function WorkCategoryStep({
     <section className="detail-section work-category-section">
       <div className="section-header-row">
         <FileText size={18} />
-        <h3>Kategorier</h3>
+        <h3>Anlægstyper</h3>
       </div>
 
-      {isLoading && <p className="empty-state-text">Henter kategorier...</p>}
+      {isLoading && <p className="empty-state-text">Henter anlægstyper...</p>}
 
       {!isLoading && (
         <div className="work-category-form">
           <div className="work-field-group">
-            <span className="work-field-label">Kategori</span>
             <div className="category-choice-grid">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  className={`choice-card ${form.work.categoryIds.includes(category.id) ? 'selected' : ''}`}
-                  onClick={() => toggleCategory(category.id)}
-                >
-                  <span>{category.name}</span>
-                  {form.work.categoryIds.includes(category.id) && <CheckCircle2 size={16} />}
-                </button>
-              ))}
+              {categories.map((category) => {
+                const isSelected = form.work.categoryIds.includes(category.id);
+
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className={`choice-card selection-card ${isSelected ? 'selected' : ''}`}
+                    onClick={() => toggleCategory(category.id)}
+                    aria-pressed={isSelected}
+                  >
+                    <span>{category.name}</span>
+                    {isSelected && <span className="selection-pill" aria-hidden="true">Valgt</span>}
+                  </button>
+                );
+              })}
             </div>
             {form.work.categoryIds.length === 0 && (
-              <span className="form-help-error">Vælg mindst én kategori.</span>
+              <span className="form-help-error">Vælg mindst én anlægstype.</span>
             )}
           </div>
 
           <div className="work-field-group">
-            <span className="work-field-label">Arbejde</span>
+            <span className="work-field-label">Opgavetype</span>
             <div className="work-kind-list">
-              {workKinds.map((workKind) => (
-                <label key={workKind.normalizedLabel} className="work-kind-option">
-                  <input
-                    type="radio"
-                    name="workKind"
-                    value={workKind.normalizedLabel}
-                    checked={form.work.workKind === workKind.normalizedLabel}
-                    onChange={(event) => onWorkKindChange(event.target.value)}
-                  />
-                  <span>{workKind.label}</span>
-                </label>
-              ))}
+              {workKinds.map((workKind) => {
+                const isSelected = form.work.workKind === workKind.normalizedLabel;
+
+                return (
+                  <label key={workKind.normalizedLabel} className={`work-kind-option selection-row ${isSelected ? 'selected' : ''}`}>
+                    <input
+                      type="radio"
+                      name="workKind"
+                      value={workKind.normalizedLabel}
+                      checked={isSelected}
+                      onChange={(event) => onWorkKindChange(event.target.value)}
+                    />
+                    <span>{workKind.label}</span>
+                    {isSelected && <span className="selection-pill" aria-hidden="true">Valgt</span>}
+                  </label>
+                );
+              })}
             </div>
             {form.work.workKind.length === 0 && (
-              <span className="form-help-error">Vælg en arbejdstype.</span>
+              <span className="form-help-error">Vælg en opgavetype.</span>
             )}
           </div>
 
           {requiresCustomWorkKind && (
             <label className="work-field-group">
-              <span className="work-field-label">Beskriv service andet</span>
+              <span className="work-field-label">Beskriv anden opgavetype</span>
               <input
                 className="form-input"
                 value={form.work.customWorkKind}
                 onChange={(event) => onCustomWorkKindChange(event.target.value)}
-                placeholder="Skriv hvilken service der udføres"
+                placeholder="Skriv hvilken opgavetype der udføres"
                 required
               />
               {form.work.customWorkKind.trim().length === 0 && (

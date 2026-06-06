@@ -433,7 +433,7 @@ export function useJobDetails(jobId: string | undefined) {
     }
     if (includeWork && validateWork && !isValidWork(draft.form, referenceData)) {
       setSaveStatus('error');
-      toast.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld kategorier og arbejdstype', {
+      toast.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
         id: 'job-work-validation-error',
       });
       return false;
@@ -471,7 +471,7 @@ export function useJobDetails(jobId: string | undefined) {
 
       if (nextStep > 1 && !isValidWork(form, referenceData)) {
         setSaveStatus('error');
-        toast.error(getWorkValidationMessage(form, referenceData) ?? 'Udfyld kategorier og arbejdstype', {
+        toast.error(getWorkValidationMessage(form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
           id: 'job-work-validation-error',
         });
         return;

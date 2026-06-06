@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, ClipboardList, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, ClipboardList } from 'lucide-react';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import type { JobForm, ReferenceData } from '../../types';
 
@@ -92,7 +92,7 @@ export function ControlPointsStep({
           <ClipboardList size={18} />
           <h3>Kontrolpunkter</h3>
         </div>
-        <p className="empty-state-text">Vælg mindst én kategori for at se kontrolpunkter.</p>
+        <p className="empty-state-text">Vælg mindst én anlægstype for at se kontrolpunkter.</p>
       </section>
     );
   }
@@ -128,18 +128,17 @@ export function ControlPointsStep({
                   </div>
 
                   <button
-                    className={`multi-select-option checkbox-right${isIrrelevant ? ' selected' : ''}`}
+                    className={`multi-select-option selection-row control-point-irrelevant-row${isIrrelevant ? ' selected' : ''}`}
                     type="button"
                     onClick={() => onToggleCategoryIrrelevant(instType.id, cat.id)}
                     aria-label={`${isIrrelevant ? 'Marker' : 'Umarker'} ${cat.name} som ${isIrrelevant ? 'relevant' : 'ikke relevant'}`}
                     title={isIrrelevant ? 'Marker som relevant' : 'Marker som ikke relevant'}
+                    aria-pressed={isIrrelevant}
                   >
-                    <span className="multi-select-checkbox" aria-hidden="true">
-                      {isIrrelevant && <CheckCircle2 size={14} />}
-                    </span>
                     <span className="multi-select-option-text">
                       <span>Irrelevant</span>
                     </span>
+                    {isIrrelevant && <span className="selection-pill" aria-hidden="true">Valgt</span>}
                   </button>
                 </div>
 

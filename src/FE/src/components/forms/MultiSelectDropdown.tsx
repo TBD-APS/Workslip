@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -177,17 +177,17 @@ export function MultiSelectDropdown({
               return (
                 <button
                   key={option.id}
-                  className={isSelected ? 'multi-select-option selected' : 'multi-select-option'}
+                  className={isSelected ? 'multi-select-option selection-row selected' : 'multi-select-option selection-row'}
                   type="button"
                   onClick={() => toggleOption(option.id)}
+                  role="option"
+                  aria-selected={isSelected}
                 >
-                  <span className="multi-select-checkbox" aria-hidden="true">
-                    {isSelected && <CheckCircle2 size={14} />}
-                  </span>
                   <span className="multi-select-option-text">
                     <span>{option.label}</span>
                     {option.description && <small>{option.description}</small>}
                   </span>
+                  {isSelected && <span className="selection-pill" aria-hidden="true">Valgt</span>}
                 </button>
               );
             })}

@@ -18,6 +18,10 @@
   padding: 0;
 }
 
+strong, b {
+  font-weight: 400;
+}
+
 body {
   font-family: var(--font-main);
   background-color: var(--bg-color);
@@ -29,7 +33,7 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
-  font-weight: 800;
+  font-weight: 400;
   line-height: 1.2;
 }
 
@@ -119,7 +123,7 @@ a:hover {
 .logo {
   font-family: var(--font-heading);
   font-size: 1.5rem;
-  font-weight: 800;
+  font-weight: 400;
   letter-spacing: -0.02em;
   display: flex;
   align-items: center;
@@ -138,7 +142,7 @@ a:hover {
 
 .nav-link {
   font-size: 0.95rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-secondary);
 }
 
@@ -153,7 +157,7 @@ a:hover {
   padding: 0.75rem 1.5rem;
   border-radius: 9999px;
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
   transition: all 0.3s ease;
   border: none;
@@ -161,14 +165,15 @@ a:hover {
 }
 
 .btn-primary {
-  background: var(--accent-gradient);
+  background: #2563eb;
   color: white;
-  box-shadow: 0 4px 14px var(--accent-glow);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 112, 243, 0.6);
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.38);
 }
 
 .btn-secondary {
@@ -201,7 +206,7 @@ a:hover {
   padding: 0.5rem 1rem;
   border-radius: 9999px;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 400;
   margin-bottom: 2rem;
   display: inline-flex;
   align-items: center;
@@ -401,7 +406,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   font-family: var(--font-heading);
-  font-weight: 800;
+  font-weight: 400;
   color: var(--accent-color);
   flex-shrink: 0;
 }
