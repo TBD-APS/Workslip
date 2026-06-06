@@ -9,6 +9,7 @@ import { DeleteButton } from '../../../components/common/DeleteButton';
 import { isValidJobForm, isValidWork } from '../utils';
 import { ControlPointsStep, validateControlPoints } from './steps/ControlPointsStep';
 import { JobAttestationStep } from './steps/JobAttestationStep';
+import { JobCompletionStep } from './steps/JobCompletionStep';
 import { JobOverviewStep } from './steps/JobOverviewStep';
 import { StepIndicators, StepNavigation } from './steps/JobStepNavigation';
 import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
@@ -77,14 +78,15 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
 
   const isLastStep = details.currentStep === JOB_STEPS.length - 1;
   const disableNext = !canAdvanceCurrentStep(details);
+  const completedSteps = [
+    isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly }),
+    isValidWork(details.form, details.referenceData),
+    validateControlPoints(details.form, details.referenceData).valid,
+    details.worksheets.length > 0,
+  ];
   const handleStepChange = (nextStep: number) => {
     if (nextStep > 3 && details.worksheets.length === 0) {
       toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
-      return;
-    }
-
-    if (nextStep > 4 && details.job?.status !== 'Submitted') {
-      toast.error('Attestér sagen før afslutning');
       return;
     }
 
@@ -143,19 +145,26 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       )}
 
       {details.currentStep === 4 && (
+        <JobCompletionStep
+          form={details.form}
+          referenceData={details.referenceData}
+          isLoading={details.isLoadingReferenceData}
+          onClosureFlagsChange={details.updateClosureFlags}
+          navigateToStep={details.navigateToStep}
+          completedSteps={completedSteps}
+          worksheetCount={details.worksheets.length}
+        />
+      )}
+
+      {details.currentStep === 5 && (
         <JobAttestationStep
           details={details}
           confirmed={attestationConfirmed}
           onConfirmedChange={setAttestationConfirmed}
           onSubmitted={() => {
             setAttestationConfirmed(false);
-            details.navigateToStep(5);
           }}
         />
-      )}
-
-      {details.currentStep === 5 && (
-        <JobCompletionStep worksheetCount={details.worksheets.length} />
       )}
 
       <StepNavigation
@@ -183,29 +192,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
             toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
             return;
           }
-          if (details.currentStep === 4 && details.job?.status !== 'Submitted') {
-            toast.error('Attestér sagen før afslutning');
-            return;
-          }
           details.navigateToStep(details.currentStep + 1);
         }}
         onDone={onDone}
       />
     </div>
-  );
-}
-
-function JobCompletionStep({ worksheetCount }: { worksheetCount: number }) {
-  return (
-    <section className="detail-section">
-      <div className="section-header-row">
-        <CheckCircle2 size={18} />
-        <h3>Afslutning</h3>
-      </div>
-      <p className="subtitle">
-        Sagen har {worksheetCount} {worksheetCount === 1 ? 'arbejdsseddel' : 'arbejdssedler'} og er klar til afslutning.
-      </p>
-    </section>
   );
 }
 
@@ -227,6 +218,10 @@ function canAdvanceCurrentStep(details: JobDetailsState) {
   }
 
   if (details.currentStep === 4) {
+    return true;
+  }
+
+  if (details.currentStep === 5) {
     return details.job?.status === 'Submitted';
   }
 

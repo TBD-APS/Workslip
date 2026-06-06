@@ -98,8 +98,8 @@ export function JobCompletionStep({
       {!isLoading && (
         <div className="work-category-form">
           <div className="work-field-group">
-            <span className="work-field-label" style={{ textTransform: 'none' }}>Vælg status for sagens afslutning</span>
-            <div className="category-choice-grid">
+            <span className="work-field-label">Vælg status for sagens afslutning</span>
+            <div className="work-kind-list">
               {closureFlags.map((flag) => {
                 const isSelected = (form.work.closureFlags || []).includes(flag.normalizedLabel);
 
@@ -107,7 +107,7 @@ export function JobCompletionStep({
                   <button
                     key={flag.id}
                     type="button"
-                    className={`choice-card selection-card ${isSelected ? 'selected' : ''}`}
+                    className={`work-kind-option ${isSelected ? 'selected' : ''}`}
                     onClick={() => toggleFlag(flag.normalizedLabel)}
                     aria-pressed={isSelected}
                   >

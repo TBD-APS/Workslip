@@ -356,6 +356,8 @@ export function JobWorksheetsStep({
         isLoadingUsers={isLoadingUsers}
         isSaving={isSaving}
         formError={formError}
+        totalHoursValue={totalHoursValue}
+        totalOutlayValue={totalOutlayValue}
         onToggleActionMenu={toggleActionMenu}
         onEditDraftChange={(draft) => dispatch({ type: 'setEditDraft', draft })}
         onSaveEdit={(draft, worksheetId) => saveDraft(draft, worksheetId)}
@@ -365,8 +367,6 @@ export function JobWorksheetsStep({
         onSaveAdd={(draft) => saveDraft(draft)}
         onCancelAdd={() => dispatch({ type: 'cancelAdd', defaultUserId })}
       />
-
-      <WorksheetTotalsSection totalHoursValue={totalHoursValue} totalOutlayValue={totalOutlayValue} />
 
       <WorksheetActionMenuPortal
         openActionMenu={openActionMenu}
@@ -391,6 +391,8 @@ type WorksheetsSectionProps = {
   isLoadingUsers: boolean;
   isSaving: boolean;
   formError: string | null;
+  totalHoursValue: number;
+  totalOutlayValue: number;
   onToggleActionMenu: (event: MouseEvent<HTMLButtonElement>, worksheetId: string) => void;
   onEditDraftChange: (draft: WorksheetDraft) => void;
   onSaveEdit: (draft: WorksheetDraft, worksheetId: string) => void;
@@ -413,6 +415,8 @@ function WorksheetsSection({
   isLoadingUsers,
   isSaving,
   formError,
+  totalHoursValue,
+  totalOutlayValue,
   onToggleActionMenu,
   onEditDraftChange,
   onSaveEdit,
@@ -422,11 +426,18 @@ function WorksheetsSection({
   onSaveAdd,
   onCancelAdd,
 }: WorksheetsSectionProps) {
+  const totalsLabel = `${formatNumber(totalHoursValue)} ${formatUnit(totalHoursValue, 'time', 'timer')}${
+    totalOutlayValue > 0 ? ` · ${formatNumber(totalOutlayValue)} ${formatUnit(totalOutlayValue, 'dag', 'dage')}` : ''
+  }`;
+
   return (
     <section className="detail-section">
-      <div className="section-header-row">
-        <FileSpreadsheet size={18} />
-        <h3>Timesedler</h3>
+      <div className="section-header-row worksheet-section-header">
+        <div className="worksheet-section-header-left">
+          <FileSpreadsheet size={18} />
+          <h3>Timesedler</h3>
+        </div>
+        <span className="worksheet-section-header-totals" aria-label="Timeseddel totaler">{totalsLabel}</span>
       </div>
 
       <WorksheetList
@@ -559,21 +570,6 @@ function WorksheetList({
         );
       })}
     </ul>
-  );
-}
-
-function WorksheetTotalsSection({ totalHoursValue, totalOutlayValue }: { totalHoursValue: number; totalOutlayValue: number }) {
-  return (
-    <section className="detail-section worksheet-total-section" aria-label="Timeseddel totaler">
-      <div className="worksheet-total-card worksheet-total-card-primary">
-        <span className="worksheet-total-label">Timer i alt</span>
-        <span className="worksheet-total-value">{formatNumber(totalHoursValue)} {formatUnit(totalHoursValue, 'time', 'timer')}</span>
-      </div>
-      <div className="worksheet-total-card">
-        <span className="worksheet-total-label">Udlæg</span>
-        <span className="worksheet-total-value">{formatNumber(totalOutlayValue)} {formatUnit(totalOutlayValue, 'dag', 'dage')}</span>
-      </div>
-    </section>
   );
 }
 

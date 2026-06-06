@@ -5,6 +5,6 @@ export const JOB_STEPS = [
   { icon: FileText, label: 'Anlægstyper' },
   { icon: ClipboardList, label: 'Kontrolpunkter' },
   { icon: FileSpreadsheet, label: 'Arbejdssedler' },
-  { icon: ShieldCheck, label: 'Attestering' },
   { icon: CheckCircle2, label: 'Afslutning' },
+  { icon: ShieldCheck, label: 'Attestering' },
 ] as const;

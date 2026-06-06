@@ -57,10 +57,9 @@ export function JobAttestationStep({
     { label: 'Sag', value: job.reportNumber },
     { label: 'Kunde', value: job.customer.name },
     { label: 'Adresse', value: job.customer.address },
-    { label: 'Kontakt', value: formatContact(job.customer.contactPerson, job.customer.phone) },
+    { label: 'Kontakt', value: formatContact(job.customer.contactPerson, job.customer.phone, job.customer.email) },
     { label: 'Opgavetype', value: formatWorkKind(job.work.workKind) },
     { label: 'Anlægstyper', value: selectedInstallationTypeNames.join(', ') },
-    { label: 'Status', value: formatStatus(job.status) },
   ]);
   const observationItems = compactObservations([
     { label: 'Opgave', value: job.observations.taskDescription },
@@ -68,8 +67,15 @@ export function JobAttestationStep({
     { label: 'Teknisk', value: job.observations.technicalObservations },
     { label: 'Bemærkninger', value: job.work.remarks },
   ]);
-  const totalHoursLabel = `${formatNumber(job.totalHours)} ${formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}`;
+  const totalHoursValue = parseNullableNumber(job.totalHours);
+  const totalHoursLabel = (
+    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(totalHoursValue, 'time', 'timer')}</span>
+  );
   const totalOutlayValue = parseNullableNumber(job.totalOutlay);
+  const totalOutlayLabel = totalOutlayValue > 0 ? (
+    <span><strong>{formatNumber(totalOutlayValue)}</strong> {formatUnit(totalOutlayValue, 'udlæg', 'udlæg')}</span>
+  ) : null;
+  const selectedClosureFlags = job.work.closureFlags ?? [];
 
   const handleSubmit = async () => {
     try {
@@ -101,29 +107,41 @@ export function JobAttestationStep({
         </div>
       </section>
 
-      {summaryItems.length > 0 && (
+      {(summaryItems.length > 0 || observationItems.length > 0) && (
         <section className="detail-section attestation-summary-section">
           <div className="section-header-row attestation-compact-header">
             <FileCheck2 size={18} />
-            <h3>Valgte data</h3>
+            <h3>Information</h3>
           </div>
 
-          <div className="attestation-summary-grid compact">
-            {summaryItems.map((item) => <SummaryItem key={item.label} label={item.label} value={item.value} />)}
-          </div>
+          {summaryItems.length > 0 && (
+            <dl className="attestation-data-list">
+              {summaryItems.map((item) => (
+                <div key={item.label} className="attestation-data-pair">
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          {observationItems.length > 0 && (
+            <div className="attestation-observations-list">
+              {observationItems.map((item) => (
+                <div key={item.label} className="attestation-data-pair observation">
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
       <section className="detail-section attestation-timesheet-section">
-        <div className="attestation-timesheet-heading">
-          <div className="section-header-row attestation-compact-header">
-            <FileCheck2 size={18} />
-            <h3>Timesedler</h3>
-          </div>
-          <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
-            <span>{totalHoursLabel}</span>
-            {totalOutlayValue > 0 && <span>{formatNumber(totalOutlayValue)} {formatUnit(totalOutlayValue, 'udlæg', 'udlæg')}</span>}
-          </div>
+        <div className="section-header-row attestation-compact-header">
+          <FileCheck2 size={18} />
+          <h3>Timesedler</h3>
         </div>
 
         {sortedWorksheets.length === 0 ? (
@@ -140,7 +158,7 @@ export function JobAttestationStep({
                   </div>
                   <div className="attestation-timesheet-hours">
                     <span className="attestation-timesheet-hours-value">{formatNumber(hours)}</span>
-                    <span>{formatUnit(hours, 'time', 'timer')}</span>
+                    <span className="attestation-timesheet-hours-unit">{formatUnit(hours, 'time', 'timer')}</span>
                   </div>
                   {worksheet.sleptOnJob && <span className="attestation-timesheet-badge">Udlæg</span>}
                 </li>
@@ -148,16 +166,29 @@ export function JobAttestationStep({
             })}
           </ul>
         )}
+
+        {(totalHoursLabel || totalOutlayLabel) && (
+          <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
+            {totalHoursLabel}
+            {totalOutlayLabel}
+          </div>
+        )}
       </section>
 
-      {observationItems.length > 0 && (
-        <section className="detail-section attestation-observations-section compact">
-          {observationItems.map((item) => (
-            <div key={item.label} className="attestation-observation-block compact">
-              <span>{item.label}</span>
-              <p>{item.value}</p>
-            </div>
-          ))}
+      {selectedClosureFlags.length > 0 && (
+        <section className="detail-section attestation-control-section compact">
+          <div className="section-header-row attestation-compact-header">
+            <CheckCircle2 size={18} />
+            <h3>Afslutning</h3>
+          </div>
+          <ul className="attestation-control-list compact">
+            {selectedClosureFlags.map((flag) => (
+              <li key={flag.id}>
+                <span className="attestation-control-accent" aria-hidden="true" />
+                <span>{flag.label}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
@@ -181,9 +212,16 @@ export function JobAttestationStep({
           )}
 
           {irrelevantCategories.length > 0 && (
-            <div className="attestation-muted-list compact">
-              <span>Markeret irrelevant</span>
-              <p>{irrelevantCategories.map((item) => `${item.installationType} · ${capitalize(item.category)}`).join(', ')}</p>
+            <div className="attestation-irrelevant-block">
+              <span className="attestation-irrelevant-label">Markeret irrelevant</span>
+              <ul className="attestation-control-list compact">
+                {irrelevantCategories.map((item) => (
+                  <li key={item.id} className="attestation-control-list-item-muted">
+                    <span className="attestation-control-accent muted" aria-hidden="true" />
+                    <span>{item.installationType} · {capitalize(item.category)}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </section>
@@ -226,15 +264,6 @@ export function JobAttestationStep({
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="attestation-summary-item compact">
-      <span className="attestation-summary-label">{label}</span>
-      <span className="attestation-summary-value">{value}</span>
-    </div>
-  );
-}
-
 function compactSummaryItems(items: Array<{ label: string; value: string | null | undefined }>): SummaryItemViewModel[] {
   return items.flatMap((item) => hasText(item.value) ? [{ label: item.label, value: item.value.trim() }] : []);
 }
@@ -253,8 +282,12 @@ function getUserName(userId: string, details: JobDetailsState) {
     ?? userId;
 }
 
-function formatContact(contactPerson: string | null | undefined, phone: string | null | undefined) {
-  return [contactPerson, phone].filter(hasText).join(' · ');
+function formatContact(
+  contactPerson: string | null | undefined,
+  phone: string | null | undefined,
+  email: string | null | undefined,
+) {
+  return [contactPerson, phone, email].filter(hasText).join(' · ');
 }
 
 function formatNumber(value: number | string | null) {
@@ -280,18 +313,6 @@ function formatDate(value: string) {
 function formatWorkKind(workKind: { label?: string | null; customWorkKind?: string | null } | null) {
   if (!workKind) return '';
   return workKind.customWorkKind || workKind.label || '';
-}
-
-function formatStatus(status: string) {
-  const labels: Record<string, string> = {
-    Draft: 'Kladde',
-    Submitted: 'Indsendt',
-    InReview: 'Under review',
-    Approved: 'Godkendt',
-    Rejected: 'Afvist',
-    Archived: 'Arkiveret',
-  };
-  return labels[status] ?? status;
 }
 
 function capitalize(value: string) {
