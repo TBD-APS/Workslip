@@ -1,25 +1,33 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+type TimedStatusState = { status: SaveStatus; savedRevision: number };
 
 export function useTimedStatus(resetMs = 2500) {
-  const [status, setStatus] = useState<SaveStatus>('idle');
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [state, setState] = useState<TimedStatusState>({ status: 'idle', savedRevision: 0 });
 
-  const update = useCallback(
-    (next: SaveStatus) => {
-      setStatus(next);
-      if (next === 'saved') {
-        clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => setStatus('idle'), resetMs);
-      }
-    },
-    [resetMs],
-  );
-
-  useEffect(() => {
-    return () => clearTimeout(timerRef.current);
+  const update = useCallback((next: SaveStatus) => {
+    setState((current) => ({
+      status: next,
+      savedRevision: next === 'saved' ? current.savedRevision + 1 : current.savedRevision,
+    }));
   }, []);
 
-  return [status, update] as const;
+  useEffect(() => {
+    if (state.status !== 'saved') return undefined;
+
+    const resetTimer = setTimeout(() => {
+      setState((current) => {
+        if (current.status !== 'saved' || current.savedRevision !== state.savedRevision) {
+          return current;
+        }
+
+        return { ...current, status: 'idle' };
+      });
+    }, resetMs);
+
+    return () => clearTimeout(resetTimer);
+  }, [resetMs, state.savedRevision, state.status]);
+
+  return [state.status, update] as const;
 }

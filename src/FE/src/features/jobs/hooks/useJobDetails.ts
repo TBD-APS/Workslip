@@ -105,10 +105,13 @@ export function useJobDetails(jobId: string | undefined) {
   const initialFormRef = useRef(initialForm);
   const jobRef = useRef(job);
   const mutateRef = useRef(mutation.mutate);
-  draftRef.current = draft;
-  initialFormRef.current = initialForm;
-  jobRef.current = job;
-  mutateRef.current = mutation.mutate;
+
+  useEffect(() => {
+    draftRef.current = draft;
+    initialFormRef.current = initialForm;
+    jobRef.current = job;
+    mutateRef.current = mutation.mutate;
+  }, [draft, initialForm, job, mutation.mutate]);
 
   const assignmentMutation = usePostApiJobsIdAssign({
     mutation: {
@@ -229,7 +232,7 @@ export function useJobDetails(jobId: string | undefined) {
         return;
       }
 
-      if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
+      if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(currentJob.reportNumber) })) {
         setSaveStatus('error');
         return;
       }
@@ -242,11 +245,7 @@ export function useJobDetails(jobId: string | undefined) {
     }, 1500);
 
     return () => clearTimeout(debounceTimerRef.current);
-  }, [draft, jobId, referenceData]);
-
-  useEffect(() => {
-    return () => clearTimeout(debounceTimerRef.current);
-  }, []);
+  }, [draft, jobId, referenceData, setSaveStatus]);
 
   const updateDraft = (nextForm: JobForm) => {
     if (!jobId) return;
@@ -582,6 +581,8 @@ function getSubmitErrorMessage(error: unknown) {
 }
 
 function getSubmitFieldErrors(error: unknown) {
+  if (!error || typeof error !== 'object') return [];
+
   const axiosError = error as AxiosError<ValidationProblem>;
   const errors = axiosError.response?.data?.errors;
   if (!errors) return [];

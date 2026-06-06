@@ -4,6 +4,8 @@ import { Checkbox } from '../../../../components/forms/Checkbox';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
+const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
+
 type JobAttestationStepProps = {
   details: JobDetailsState;
   confirmed: boolean;
@@ -190,7 +192,7 @@ function formatNumber(value: number | string | null) {
   if (value === null) return '0';
   const numberValue = typeof value === 'number' ? value : Number(value.replace(',', '.'));
   if (!Number.isFinite(numberValue)) return '0';
-  return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 }).format(numberValue);
+  return NUMBER_FORMATTER.format(numberValue);
 }
 
 function formatWorkKind(workKind: { label?: string | null; customWorkKind?: string | null } | null) {

@@ -36,9 +36,10 @@ export const Login = () => {
   const { ref: codeFieldRef, ...codeField } = codeForm.register('code');
 
   useEffect(() => {
-    if (step === 'code' && codeInputRef.current) {
-      setTimeout(() => codeInputRef.current?.focus(), 50);
-    }
+    if (step !== 'code' || !codeInputRef.current) return undefined;
+
+    const focusTimer = setTimeout(() => codeInputRef.current?.focus(), 50);
+    return () => clearTimeout(focusTimer);
   }, [step]);
 
   const handleSendCode = async (data: EmailFormValues) => {

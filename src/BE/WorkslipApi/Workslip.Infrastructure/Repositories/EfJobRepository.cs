@@ -210,6 +210,7 @@ public sealed class EfJobRepository : IJobRepository
             .Include(x => x.CustomerRow)
             .Include(x => x.ClosureFlags)
             .ThenInclude(jrcf => jrcf.ClosureFlag)
+            .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
@@ -391,7 +392,7 @@ public sealed class EfJobRepository : IJobRepository
             .Where(l => (l.SourceReportId == id || l.TargetReportId == id) && l.OrganizationId == organizationId)
             .ToListAsync(cancellationToken);
 
-        if (potentialLinks.Any())
+        if (potentialLinks.Count > 0)
             _dbContext.JobReportLinks.RemoveRange(potentialLinks);
 
         var existingJob = await _dbContext.JobReports
@@ -617,7 +618,7 @@ public sealed class EfJobRepository : IJobRepository
     }
 
     private static DateTime? ToDateTime(DateOnly? value) =>
-        value is null ? null : value.Value.ToDateTime(TimeOnly.MinValue);
+        value?.ToDateTime(TimeOnly.MinValue);
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;

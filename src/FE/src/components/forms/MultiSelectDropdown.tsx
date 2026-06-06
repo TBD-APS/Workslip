@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, ChevronRight } from 'lucide-react';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -53,51 +53,56 @@ export function MultiSelectDropdown({
       })
     : options;
 
-  const scheduleCommit = (nextSelectedIds: string[]) => {
+  const scheduleCommit = useCallback((nextSelectedIds: string[]) => {
     clearTimeout(commitTimerRef.current);
     commitTimerRef.current = setTimeout(() => {
       onChange(nextSelectedIds);
       setDraftSelectedIds(null);
       commitTimerRef.current = undefined;
     }, COMMIT_DELAY_MS);
-  };
+  }, [onChange]);
 
-  const commitDraftSelection = () => {
+  const commitDraftSelection = useCallback(() => {
     if (!commitOnClose || !draftSelectedIds) return;
     if (sameSelection(selectedIds, draftSelectedIds)) {
       setDraftSelectedIds(null);
       return;
     }
     scheduleCommit(draftSelectedIds);
-  };
+  }, [commitOnClose, draftSelectedIds, scheduleCommit, selectedIds]);
+  const commitDraftSelectionRef = useRef(commitDraftSelection);
 
   useEffect(() => {
-    if (!isOpen) {
-      setSearchQuery('');
-      return;
-    }
+    commitDraftSelectionRef.current = commitDraftSelection;
+  }, [commitDraftSelection]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!dropdownRef.current?.contains(event.target as Node)) {
-        commitDraftSelection();
+        commitDraftSelectionRef.current();
+        setSearchQuery('');
         setIsOpen(false);
       }
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [commitOnClose, draftSelectedIds, isOpen, onChange, selectedIds]);
+  }, [isOpen]);
 
   useEffect(() => () => clearTimeout(commitTimerRef.current), []);
 
   const toggleDropdown = () => {
     if (!commitOnClose) {
+      if (isOpen) setSearchQuery('');
       setIsOpen((open) => !open);
       return;
     }
 
     if (isOpen) {
       commitDraftSelection();
+      setSearchQuery('');
       setIsOpen(false);
       return;
     }

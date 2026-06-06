@@ -37,6 +37,7 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
     {
         var definitions = await _dbContext.InstallationTypeDefinitions
             .AsNoTracking()
+            .AsSplitQuery()
             .Where(d => d.OrganizationId == organizationId)
             .OrderBy(d => d.SortOrder)
             .Select(d => new InstallationTypeDefinitionResponse(

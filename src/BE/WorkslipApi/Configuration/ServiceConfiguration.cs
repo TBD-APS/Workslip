@@ -33,12 +33,11 @@ public static class ServiceConfiguration
 
         builder.Services.AddSingleton<IJobReportPdfService, JobReportPdfService>();
 
-        builder.Services.AddSingleton<GraphServiceClient>(sp =>
+        builder.Services.AddSingleton(sp =>
         {
             var credential = sp.GetRequiredService<TokenCredential>();
             return new GraphServiceClient(credential, ["https://graph.microsoft.com/.default"]);
         });
-
 
         return builder;
     }

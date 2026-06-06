@@ -47,6 +47,7 @@ public static class JobReportMapper
     {
         var installations = await dbContext.JobReportInstallations
             .AsNoTracking()
+            .AsSplitQuery()
             .Where(i => i.OrganizationId == organizationId && i.JobReportId == jobReportId)
             .OrderBy(i => i.SortOrder)
             .Select(i => new
