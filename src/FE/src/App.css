@@ -1316,23 +1316,11 @@
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.control-point-category-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.25rem;
-}
-
 .control-point-category-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0;
-}
-
-.control-point-category-group.irrelevant .control-point-category-header-row {
-  margin-bottom: 0;
+  margin-bottom: 0.25rem;
 }
 
 .control-point-category-label {
@@ -1348,7 +1336,6 @@
 }
 
 .multi-select-option.control-point-irrelevant-row {
-  flex-shrink: 0;
   min-height: 42px;
   padding: 0.6rem 0.8rem 0.6rem 1rem;
   margin-bottom: 0;
@@ -1357,22 +1344,6 @@
 
 .multi-select-option.control-point-irrelevant-row:hover {
   color: var(--text-primary);
-}
-
-.multi-select-option.control-point-irrelevant-row.selected {
-  border-color: rgba(245, 158, 11, 0.35);
-  background: rgba(245, 158, 11, 0.08);
-  color: #fcd34d;
-}
-
-.multi-select-option.control-point-irrelevant-row.selected::before {
-  background: rgba(245, 158, 11, 0.8);
-}
-
-.multi-select-option.control-point-irrelevant-row.selected .selection-pill {
-  color: #fde68a;
-  border-color: rgba(245, 158, 11, 0.28);
-  background: rgba(245, 158, 11, 0.12);
 }
 
 .irrelevant-text {

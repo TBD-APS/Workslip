@@ -122,11 +122,11 @@ export function ControlPointsStep({
 
             return (
               <div key={cat.id} className={`control-point-category-group${isIrrelevant ? ' irrelevant' : ''}`}>
-                <div className="control-point-category-header-row">
-                  <div className="control-point-category-header">
-                    <span className="control-point-category-label">{capitalizeFirstLetter(cat.name)}</span>
-                  </div>
+                <div className="control-point-category-header">
+                  <span className="control-point-category-label">{capitalizeFirstLetter(cat.name)}</span>
+                </div>
 
+                <div className="control-points-list">
                   <button
                     className={`multi-select-option selection-row control-point-irrelevant-row${isIrrelevant ? ' selected' : ''}`}
                     type="button"
@@ -138,24 +138,19 @@ export function ControlPointsStep({
                     <span className="multi-select-option-text">
                       <span>Irrelevant</span>
                     </span>
-                    {isIrrelevant && <span className="selection-pill" aria-hidden="true">Valgt</span>}
                   </button>
-                </div>
 
-                {!isIrrelevant && (
-                  <div className="control-points-list">
-                    {(cat.controlPoints ?? []).sort(bySortOrder).map((cp) => (
-                      <Checkbox
-                        key={cp.id}
-                        checked={form.work.controlPointSelections[cp.id] ?? false}
-                        label={cp.name}
-                        description={cp.description ?? undefined}
-                        onChange={() => onToggleControlPoint(cp.id)}
-                        alignRight
-                      />
-                    ))}
-                  </div>
-                )}
+                  {!isIrrelevant && (cat.controlPoints ?? []).sort(bySortOrder).map((cp) => (
+                    <Checkbox
+                      key={cp.id}
+                      checked={form.work.controlPointSelections[cp.id] ?? false}
+                      label={cp.name}
+                      description={cp.description ?? undefined}
+                      onChange={() => onToggleControlPoint(cp.id)}
+                      alignRight
+                    />
+                  ))}
+                </div>
               </div>
             );
           })}

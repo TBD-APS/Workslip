@@ -57,7 +57,6 @@ export function WorkCategoryStep({
                     aria-pressed={isSelected}
                   >
                     <span>{category.name}</span>
-                    {isSelected && <span className="selection-pill" aria-hidden="true">Valgt</span>}
                   </button>
                 );
               })}
@@ -83,7 +82,6 @@ export function WorkCategoryStep({
                       onChange={(event) => onWorkKindChange(event.target.value)}
                     />
                     <span>{workKind.label}</span>
-                    {isSelected && <span className="selection-pill" aria-hidden="true">Valgt</span>}
                   </label>
                 );
               })}

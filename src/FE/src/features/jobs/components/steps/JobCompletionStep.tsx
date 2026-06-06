@@ -112,7 +112,6 @@ export function JobCompletionStep({
                     aria-pressed={isSelected}
                   >
                     <span>{flag.label}</span>
-                    {isSelected && <span className="selection-pill" aria-hidden="true">Valgt</span>}
                   </button>
                 );
               })}

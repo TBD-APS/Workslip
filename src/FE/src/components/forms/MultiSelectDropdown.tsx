@@ -187,7 +187,6 @@ export function MultiSelectDropdown({
                     <span>{option.label}</span>
                     {option.description && <small>{option.description}</small>}
                   </span>
-                  {isSelected && <span className="selection-pill" aria-hidden="true">Valgt</span>}
                 </button>
               );
             })}

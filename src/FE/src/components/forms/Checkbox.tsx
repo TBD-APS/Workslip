@@ -21,7 +21,6 @@ export function Checkbox({ checked, disabled, onChange, label, description, alig
         <span>{label}</span>
         {description && <small>{description}</small>}
       </span>
-      {checked && <span className="selection-pill" aria-hidden="true">Valgt</span>}
     </button>
   );
 }
