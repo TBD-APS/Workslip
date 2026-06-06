@@ -327,7 +327,7 @@ export function JobWorksheetsStep({
 
   const handleDelete = (worksheet: WorksheetResponse) => {
     dispatch({ type: 'deleteStarted', worksheetId: worksheet.id });
-    const confirmed = window.confirm('Slet denne arbejdsseddel?');
+    const confirmed = window.confirm('Slet denne timeseddel?');
     if (!confirmed) return;
     onDelete({ worksheetId: worksheet.id, jobId });
   };
@@ -426,7 +426,7 @@ function WorksheetsSection({
     <section className="detail-section">
       <div className="section-header-row">
         <FileSpreadsheet size={18} />
-        <h3>Arbejdssedler</h3>
+        <h3>Timesedler</h3>
       </div>
 
       <WorksheetList
@@ -448,13 +448,13 @@ function WorksheetsSection({
       {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
         <button type="button" className="btn btn-primary worksheet-add-trigger" onClick={onOpenAddForm}>
           <Plus size={16} />
-          <span>Tilføj arbejdsseddel</span>
+          <span>Tilføj timeseddel</span>
         </button>
       )}
 
       {!editingWorksheetId && isAddOpen && (
         <WorksheetDraftForm
-          title="Tilføj arbejdsseddel"
+          title="Tilføj timeseddel"
           draft={addDraft}
           userOptions={userOptions}
           isLoadingUsers={isLoadingUsers}
@@ -502,7 +502,7 @@ function WorksheetList({
   onCancelEdit,
 }: WorksheetListProps) {
   if (sortedWorksheets.length === 0) {
-    return <p className="empty-state-text">Ingen arbejdssedler endnu. </p>;
+    return <p className="empty-state-text">Ingen timesedler endnu.</p>;
   }
 
   return (
@@ -516,20 +516,20 @@ function WorksheetList({
             <div className="worksheet-list-item-row">
               <div className="worksheet-list-item-info">
                 <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
-                <span className="worksheet-list-item-meta">
-                  {assignee?.displayName ?? worksheet.userId}
-                  {' · '}
-                  {Number(worksheet.hoursWorked)} t
-                  {worksheet.sleptOnJob ? ' · overnattet' : ''}
-                </span>
+                <span className="worksheet-list-item-meta">{assignee?.displayName ?? worksheet.userId}</span>
               </div>
+              <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
+                <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
+                <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+              </div>
+              {worksheet.sleptOnJob && <span className="worksheet-list-item-outlay">Udlæg</span>}
               <div className="worksheet-list-item-actions">
                 <div className="worksheet-actions-menu-root">
                   <button
                     type="button"
                     className="btn-icon"
                     onClick={(event) => onToggleActionMenu(event, worksheet.id)}
-                    aria-label="Åbn handlinger for arbejdsseddel"
+                    aria-label="Åbn handlinger for timeseddel"
                     aria-expanded={openActionMenu?.worksheetId === worksheet.id}
                     title="Handlinger"
                   >
@@ -541,7 +541,7 @@ function WorksheetList({
 
             {isEditing && (
               <WorksheetDraftForm
-                title="Rediger arbejdsseddel"
+                title="Rediger timeseddel"
                 draft={editDraft}
                 userOptions={userOptions}
                 isLoadingUsers={isLoadingUsers}
@@ -562,7 +562,7 @@ function WorksheetList({
 
 function WorksheetTotalsSection({ totalHoursValue, totalOutlayValue }: { totalHoursValue: number; totalOutlayValue: number }) {
   return (
-    <section className="detail-section worksheet-total-section" aria-label="Arbejdsseddel totaler">
+    <section className="detail-section worksheet-total-section" aria-label="Timeseddel totaler">
       <div className="worksheet-total-row">
         <span className="worksheet-total-label">Timer i alt:</span>
         <strong>{formatNumber(totalHoursValue)} {formatUnit(totalHoursValue, 'time', 'timer')}</strong>
