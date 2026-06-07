@@ -403,6 +403,12 @@ public sealed class EfJobRepository : IJobRepository
         if (existingJob is null)
             return false;
 
+        var timesheetCount = await _dbContext.Worksheets.AsNoTracking()
+            .CountAsync(w => w.JobId == id && w.OrganizationId == organizationId, cancellationToken);
+
+        if (timesheetCount > 0)
+            return false;
+
         _dbContext.JobReports.Remove(existingJob);
         var success = await _dbContext.SaveChangesAsync(cancellationToken);
 

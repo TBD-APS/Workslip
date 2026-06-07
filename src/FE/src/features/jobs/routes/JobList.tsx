@@ -5,7 +5,7 @@ import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import type { AssignedUserResponse, CustomerInfo, JobStatus } from '../../../api/generated/models';
 import { getResponseData } from '../utils';
-import { useAuth } from '../../../providers/AuthContext';
+import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-content';

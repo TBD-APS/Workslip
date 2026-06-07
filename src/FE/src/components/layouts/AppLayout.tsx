@@ -1,6 +1,6 @@
 import { useNavigate, NavLink, Outlet } from 'react-router-dom';
 import { ClipboardList, FileCheck2, LogOut, PlusCircle, Settings, User } from 'lucide-react';
-import { useAuth } from '../../providers/AuthContext';
+import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
 
 export const AppLayout = () => {

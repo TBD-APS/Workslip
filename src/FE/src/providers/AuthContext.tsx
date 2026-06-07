@@ -1,25 +1,14 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { useCallback, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
 import { getGetApiAuthMeQueryKey, useGetApiAuthMe } from '../api/generated/auth/auth';
 import type { UserViewModel } from '../api/generated/models';
 import { getResponseData } from '../lib/unwrapResponse';
+import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY } from './authContextValue';
 
-const AUTH_TOKEN_KEY = 'authToken';
-const USER_EMAIL_KEY = 'userEmail';
 
-interface AuthContextType {
-  isAuthenticated: boolean;
-  user: UserViewModel | null;
-  isLoading: boolean;
-  login: (email: string, code: string) => Promise<boolean>;
-  devLogin: (email: string) => Promise<boolean>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem(AUTH_TOKEN_KEY));
   const queryClient = useQueryClient();
 
@@ -79,12 +68,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+}

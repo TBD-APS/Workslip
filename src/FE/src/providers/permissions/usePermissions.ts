@@ -9,7 +9,7 @@
  * a skeleton while the `/api/auth/me` request is in-flight.
  */
 
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../useAuth';
 import { hasAnyRole, hasRole, isRoleAtLeast, normalizeRole, ROLES, type Role } from './roles';
 import { hasPermission, type Permission } from './permissions';
 

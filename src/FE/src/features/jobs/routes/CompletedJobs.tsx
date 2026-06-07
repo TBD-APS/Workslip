@@ -5,7 +5,7 @@ import { AlertCircle, ChevronRight, FileCheck2, MapPin, Timer, User } from 'luci
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import type { AssignedUserResponse, CustomerInfo } from '../../../api/generated/models';
-import { useAuth } from '../../../providers/AuthContext';
+import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 import { getResponseData } from '../utils';
 

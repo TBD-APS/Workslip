@@ -12,7 +12,7 @@
 
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../useAuth';
 import { hasAnyRole, type Role } from './roles';
 import { hasPermission, type Permission } from './permissions';
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
-import { useAuth } from '../../../../providers/AuthContext';
+import { useAuth } from '../../../../providers/useAuth';
 import { useCan } from '../../../../providers/permissions';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import { MultiSelectDropdown } from '../../../../components/forms/MultiSelectDropdown';

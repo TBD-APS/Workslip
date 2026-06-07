@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { toast } from 'sonner';
@@ -9,7 +9,7 @@ import {
 } from '../../../api/generated/jobs/jobs';
 import { useGetApiUsers } from '../../../api/generated/users/users';
 import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
-import { useAuth } from '../../../providers/AuthContext';
+import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import { emptyForm, getResponseData, getUserList, isValidCreateForm } from '../utils';
@@ -25,26 +25,20 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     referenceDataQuery.data as ReferenceData | { data: ReferenceData } | { data: { data: ReferenceData } } | undefined,
   ) ?? null;
   const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
-  const assignableUsers = isAdmin ? getUserList(usersQuery.data) : [];
+  const userEmail = user?.email ?? null;
+  const assignableUsers = useMemo(() => (isAdmin ? getUserList(usersQuery.data) : []), [isAdmin, usersQuery.data]);
+  const defaultAssignedUserIds = useMemo(() => {
+    if (!isAdmin || !userEmail) return [];
+    const currentUser = assignableUsers.find((assignableUser) => assignableUser.email === userEmail);
+    return currentUser ? [currentUser.id] : [];
+  }, [assignableUsers, isAdmin, userEmail]);
   const [form, setForm] = useState<JobForm>(emptyForm);
   const [linkedJobIds, setLinkedJobIds] = useState<string[]>([]);
-  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
+  const [assignedUserIdsDraft, setAssignedUserIdsDraft] = useState<string[] | null>(null);
+  const assignedUserIds = assignedUserIdsDraft ?? defaultAssignedUserIds;
   const [isSaving, setIsSaving] = useState(false);
   const [linksStatus, setLinksStatus] = useTimedStatus();
   const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
-  const defaultAssignmentSetRef = useRef(false);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    if (!defaultAssignmentSetRef.current && assignableUsers.length > 0 && user?.email) {
-      const currentUser = assignableUsers.find((u) => u.email === user.email);
-      if (currentUser) {
-        setAssignedUserIds([currentUser.id]);
-        defaultAssignmentSetRef.current = true;
-      }
-    }
-  }, [assignableUsers, user?.email, isAdmin]);
-
   const createMutation = usePostApiJobs({
     mutation: {
       onSuccess: (response) => {
@@ -116,7 +110,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
 
   const updateAssignedUsers = (userIds: string[]) => {
     if (!isAdmin) return;
-    setAssignedUserIds(userIds);
+    setAssignedUserIdsDraft(userIds);
     setAssignmentStatus('idle');
   };
 
@@ -171,8 +165,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   const reset = () => {
     setForm(emptyForm);
     setLinkedJobIds([]);
-    setAssignedUserIds([]);
-    defaultAssignmentSetRef.current = false;
+    setAssignedUserIdsDraft(null);
     setIsSaving(false);
     setLinksStatus('idle');
     setAssignmentStatus('idle');
