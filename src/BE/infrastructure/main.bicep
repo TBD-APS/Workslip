@@ -128,6 +128,14 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
       ftpsState: 'Disabled'
       http20Enabled: true
       minTlsVersion: '1.2'
+      netFrameworkVersion: 'v10.0'
+      use32BitWorkerProcess: false
+      metadata: [
+        {
+          name: 'CURRENT_STACK'
+          value: 'dotnet'
+        }
+      ]
       appSettings: [
         {
           name: 'ASPNETCORE_ENVIRONMENT'

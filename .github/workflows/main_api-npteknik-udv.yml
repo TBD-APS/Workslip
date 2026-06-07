@@ -32,7 +32,7 @@ concurrency:
 jobs:
   build:
     name: Build API
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,7 +60,7 @@ jobs:
 
   deploy:
     name: Deploy API
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     needs: build
     environment: ${{ github.event.inputs.environment || 'udv' }}
     steps:
