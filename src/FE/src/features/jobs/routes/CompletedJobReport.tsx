@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, CheckCircle2, Download, FileCheck2, History, Link2, Loader2, Pencil, Timer, User } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useGetApiJobsId } from '../../../api/generated/jobs/jobs';
 import type {
@@ -10,7 +10,7 @@ import type {
   WorksheetResponse,
 } from '../../../api/generated/models';
 import { getResponseData } from '../utils';
-import { downloadJobReportPdf } from '../utils/downloadJobReportPdf';
+import { createJobReportPdfPreview, type JobReportPdfPreview } from '../utils/downloadJobReportPdf';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
@@ -34,7 +34,8 @@ type IrrelevantCategory = {
 export const CompletedJobReport = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [isOpeningPdf, setIsOpeningPdf] = useState(false);
+  const [pdfPreview, setPdfPreview] = useState<JobReportPdfPreview | null>(null);
   const query = useGetApiJobsId(id ?? '', { query: { enabled: Boolean(id) } });
   const job = getResponseData<JobReportSummaryViewModel>(query.data);
 
@@ -45,16 +46,24 @@ export const CompletedJobReport = () => {
     [job?.worksheets],
   );
 
-  const handleDownloadPdf = async () => {
+  useEffect(() => {
+    return () => {
+      if (pdfPreview) {
+        window.URL.revokeObjectURL(pdfPreview.url);
+      }
+    };
+  }, [pdfPreview]);
+
+  const handleOpenPdf = async () => {
     if (!job) return;
-    setIsDownloading(true);
+    setIsOpeningPdf(true);
 
     try {
-      await downloadJobReportPdf(job);
+      setPdfPreview(await createJobReportPdfPreview(job));
     } catch {
-      toast.error('Kunne ikke hente PDF for sagen');
+      toast.error('Kunne ikke åbne PDF for sagen');
     } finally {
-      setIsDownloading(false);
+      setIsOpeningPdf(false);
     }
   };
 
@@ -122,9 +131,9 @@ export const CompletedJobReport = () => {
           <button className="btn btn-secondary report-overview-icon-action" type="button" disabled aria-label="Versioner" title="Versioner kommer senere">
             <History size={16} />
           </button>
-          <button className="btn btn-secondary pdf-download-button report-overview-pdf" type="button" onClick={handleDownloadPdf} disabled={isDownloading}>
-            {isDownloading ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
-            <span>{isDownloading ? 'Henter...' : 'PDF'}</span>
+          <button className="btn btn-secondary pdf-download-button report-overview-pdf" type="button" onClick={handleOpenPdf} disabled={isOpeningPdf}>
+            {isOpeningPdf ? <Loader2 size={16} className="spin" /> : <Eye size={16} />}
+            <span>{isOpeningPdf ? 'Åbner...' : 'Vis PDF'}</span>
           </button>
         </div>
       </div>
@@ -193,9 +202,31 @@ export const CompletedJobReport = () => {
         </div>
         <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
       </section>
+
+      {pdfPreview && <PdfPreviewDialog preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
     </div>
   );
 };
+
+function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; onClose: () => void }) {
+  return (
+    <div className="pdf-preview-overlay" role="dialog" aria-modal="true" aria-label="PDF rapport">
+      <div className="pdf-preview-panel">
+        <div className="pdf-preview-header">
+          <div>
+            <span className="job-number">PDF rapport</span>
+            <h3>{preview.fileName}</h3>
+            <p>Brug PDF-viserens egen download-knap, hvis rapporten skal gemmes.</p>
+          </div>
+          <button className="btn-icon" type="button" onClick={onClose} aria-label="Luk PDF">
+            <X size={22} />
+          </button>
+        </div>
+        <iframe className="pdf-preview-frame" src={`${preview.url}#toolbar=1&navpanes=0`} title={preview.fileName} />
+      </div>
+    </div>
+  );
+}
 
 function DetailGrid({ items }: { items: DetailPair[] }) {
   if (items.length === 0) {

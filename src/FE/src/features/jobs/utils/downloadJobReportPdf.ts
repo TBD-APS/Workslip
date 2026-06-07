@@ -5,22 +5,23 @@ type JobReportPdfTarget = {
   reportNumber: string | null;
 };
 
-export async function downloadJobReportPdf(job: JobReportPdfTarget) {
+export type JobReportPdfPreview = {
+  url: string;
+  fileName: string;
+};
+
+export async function createJobReportPdfPreview(job: JobReportPdfTarget): Promise<JobReportPdfPreview> {
   const response = await AXIOS_INSTANCE.get<Blob>(`/api/jobs/${job.id}/report/pdf`, {
     responseType: 'blob',
     headers: { Accept: 'application/pdf' },
   });
   const contentType = getHeaderValue(response.headers['content-type']) ?? 'application/pdf';
   const blob = response.data.type ? response.data : new Blob([response.data], { type: contentType });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
 
-  link.href = url;
-  link.download = getPdfFileName(response.headers['content-disposition'], job);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url);
+  return {
+    url: window.URL.createObjectURL(blob),
+    fileName: getPdfFileName(response.headers['content-disposition'], job),
+  };
 }
 
 function getPdfFileName(contentDisposition: unknown, job: JobReportPdfTarget) {
