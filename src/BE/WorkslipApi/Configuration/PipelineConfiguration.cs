@@ -27,12 +27,7 @@ public static class PipelineConfiguration
         app.UseMiddleware<GlobalExceptionMiddleware>();
 
         app.UseRouting();
-        app.UseCors(x =>
-        {
-            x.AllowAnyOrigin()
-            .AllowAnyMethod()
-            .AllowAnyHeader();
-        });
+        app.UseCors("Frontend");
         app.UseAuthentication();
         app.UseAuthorization();
 

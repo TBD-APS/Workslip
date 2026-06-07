@@ -11,7 +11,16 @@ try
 
     var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
-    builder.Services.AddCors();
+    builder.Services.AddCors(x =>
+    {
+        x.AddPolicy("Frontend", policy =>
+        {
+            policy.WithOrigins("https://workslip-v2-0.vercel.app")
+                  .WithOrigins("http://localhost:5173")
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
+    });
     builder.ConfigureAuthentication();
     builder.ConfigureInfrastructure();
     builder.ConfigureLogging(applicationInsightsConnectionString);

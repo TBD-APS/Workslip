@@ -7,6 +7,8 @@ param storageAccountName string       = take('st${companyName}${toLower(environm
 param logicAppName string             = 'la-${companyName}-${toLower(environment)}'
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
 param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
+param webApiServerName string          = take('plan-${companyName}-${toLower(environment)}', 40)
+param webApiName string                = take('api-${companyName}-${toLower(environment)}', 60)
 param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
 @allowed([
   'Default'
@@ -83,6 +85,73 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Web API hosting
+// Free App Service tier with shared user-assigned managed identity.
+// The API reads App Configuration + Key Vault references through that identity.
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource webApiServer 'Microsoft.Web/serverfarms@2023-12-01' = {
+  name: webApiServerName
+  location: location
+  tags: tags
+  sku: {
+    name: 'F1'
+    tier: 'Free'
+    capacity: 1
+  }
+  properties: {}
+}
+
+resource webApi 'Microsoft.Web/sites@2023-12-01' = {
+  name: webApiName
+  location: location
+  kind: 'app'
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
+  properties: {
+    serverFarmId: webApiServer.id
+    httpsOnly: true
+    clientAffinityEnabled: false
+    publicNetworkAccess: 'Enabled'
+    keyVaultReferenceIdentity: identity.id
+    siteConfig: {
+      alwaysOn: false
+      ftpsState: 'Disabled'
+      http20Enabled: true
+      minTlsVersion: '1.2'
+      appSettings: [
+        {
+          name: 'ASPNETCORE_ENVIRONMENT'
+          value: 'Production'
+        }
+        {
+          name: 'AZURE_CLIENT_ID'
+          value: identity.properties.clientId
+        }
+        {
+          name: 'Azure__ManagedIdentity__ClientId'
+          value: identity.properties.clientId
+        }
+        {
+          name: 'Azure__AppConfiguration__Endpoint'
+          value: appConfiguration.properties.endpoint
+        }
+        {
+          name: 'Azure__ApplicationInsights__ConnectionString'
+          value: appInsights.properties.ConnectionString
+        }
+        {
+          name: 'KEY_VAULT_URL'
+          value: keyVault.properties.vaultUri
+        }
+      ]
+    }
+  }
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Azure App Configuration
@@ -387,6 +456,10 @@ resource senderUsername 'Microsoft.Communication/emailServices/domains/senderUse
 
 output STORAGE_ACCOUNT_NAME string             = storageAccount.name
 output LOGIC_APP_NAME string                   = logicAppName
+output WEB_API_NAME string                     = webApi.name
+output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName
+output WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'
+output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
