@@ -207,6 +207,7 @@ public sealed class EfJobRepository : IJobRepository
 
         var row = await _dbContext.JobReports
             .Include(x => x.WorkKindRow)
+            .Include(x => x.OrganizationRow)
             .Include(x => x.CustomerRow)
             .Include(x => x.ClosureFlags)
             .ThenInclude(jrcf => jrcf.ClosureFlag)
@@ -216,6 +217,7 @@ public sealed class EfJobRepository : IJobRepository
 
         if (row is null) 
             return null;
+
 
         var links = await _linkRepo.GetLinkInfoAsync(organizationId, id, cancellationToken);
         var assignedUsers = (await _assignmentRepo.GetAssignedUsersByReportAsync(organizationId, [id], cancellationToken)).GetValueOrDefault(id) ?? [];

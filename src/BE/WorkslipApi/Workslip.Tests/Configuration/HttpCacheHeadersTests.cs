@@ -41,6 +41,8 @@ public sealed class HttpCacheHeadersTests
         return new JobReportSummaryResponse(
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "RBJ Teknisk",
+            "12345678",
             "2026-000",
             JobStatus.Draft,
             new CustomerInfo(null, null, null, null, null, null),
@@ -52,7 +54,9 @@ public sealed class HttpCacheHeadersTests
             DateTimeOffset.UnixEpoch,
             null,
             assignedUsers ?? [],
-            false,
-            null);
+            [],
+            null,
+            null,
+            false);
     }
 }

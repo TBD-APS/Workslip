@@ -76,7 +76,31 @@ public static class DatabaseSeeder
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate(1);
 
+        var adminUser = new Faker<UserDataRow>()
+            .RuleFor(x => x.Id, _ => new Guid("A1A1A1A1-DA5B-4CC4-BBEB-07B40CAB806F"))
+            .RuleFor(x => x.OrganizationId, _ => organization.Id)
+            .RuleFor(x => x.DisplayName, _ => "Admin Test")
+            .RuleFor(x => x.Email, _ => "admin@17v3ygzs.mailosaur.net")
+            .RuleFor(x => x.Phone, _ => "10000001")
+            .RuleFor(x => x.Role, _ => "Admin")
+            .RuleFor(x => x.CreatedAt, _ => now)
+            .RuleFor(x => x.UpdatedAt, _ => now)
+            .Generate(1);
+
+        var regularUser = new Faker<UserDataRow>()
+            .RuleFor(x => x.Id, _ => new Guid("B2B2B2B2-DA5B-4CC4-BBEB-07B40CAB806F"))
+            .RuleFor(x => x.OrganizationId, _ => organization.Id)
+            .RuleFor(x => x.DisplayName, _ => "User Test")
+            .RuleFor(x => x.Email, _ => "user@17v3ygzs.mailosaur.net")
+            .RuleFor(x => x.Phone, _ => "10000002")
+            .RuleFor(x => x.Role, _ => "User")
+            .RuleFor(x => x.CreatedAt, _ => now)
+            .RuleFor(x => x.UpdatedAt, _ => now)
+            .Generate(1);
+
         users.AddRange(rbjUser);
+        users.AddRange(adminUser);
+        users.AddRange(regularUser);
 
         var statuses = new[] { "Draft", "Submitted", "InReview", "Approved", "Rejected", "Archived" };
 
@@ -98,10 +122,43 @@ public static class DatabaseSeeder
         var usedPairs = new HashSet<(Guid, Guid)>();
         var assignments = new List<JobAssignmentRow>();
         var faker = new Faker();
+
+        // Ensure dev test users have explicit assignments so the FE can demo the role split.
+        var regularUserId = new Guid("B2B2B2B2-DA5B-4CC4-BBEB-07B40CAB806F");
+        var adminUserId = new Guid("A1A1A1A1-DA5B-4CC4-BBEB-07B40CAB806F");
+        foreach (var job in jobs.Take(5))
+        {
+            usedPairs.Add((job.Id, regularUserId));
+            assignments.Add(new JobAssignmentRow
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organization.Id,
+                ReportId = job.Id,
+                UserId = regularUserId,
+                AssignedAt = faker.Date.PastOffset(1)
+            });
+        }
+        foreach (var job in jobs.Take(10))
+        {
+            if (!usedPairs.Add((job.Id, adminUserId))) continue;
+            assignments.Add(new JobAssignmentRow
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organization.Id,
+                ReportId = job.Id,
+                UserId = adminUserId,
+                AssignedAt = faker.Date.PastOffset(1)
+            });
+        }
+
         foreach (var job in jobs)
         {
             var userId = faker.PickRandom(users).Id;
-            usedPairs.Add((job.Id, userId));
+            if (!usedPairs.Add((job.Id, userId)))
+            {
+                continue;
+            }
+
             assignments.Add(new JobAssignmentRow
             {
                 Id = Guid.NewGuid(),
@@ -227,8 +284,6 @@ public static class DatabaseSeeder
                 });
             }
         }
-
-        //await DatabaseInstallationSeeder.Seed(db, organization.Id, jobs);
 
         await InstallationSeeder.Seed(db, organization.Id, jobs);
 

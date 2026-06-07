@@ -4,6 +4,7 @@ public sealed class JobReportRow
 {
     public Guid Id { get; init; }
     public Guid OrganizationId { get; init; }
+    public OrganizationRow? OrganizationRow { get; set; }
     public Guid? CustomerId { get; init; }
     public CustomerRow? CustomerRow { get; set; }
     public string? ReportNumber { get; init; }
