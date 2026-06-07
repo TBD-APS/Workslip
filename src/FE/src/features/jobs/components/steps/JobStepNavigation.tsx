@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { JOB_STEPS } from './jobSteps';
 
@@ -8,8 +8,17 @@ type StepIndicatorsProps = {
 };
 
 export function StepIndicators({ currentStep, onStepChange }: StepIndicatorsProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const activeDot = container.querySelector<HTMLButtonElement>('button[aria-current="step"]');
+    activeDot?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [currentStep]);
+
   return (
-    <div className="step-indicators">
+    <div className="step-indicators" ref={containerRef}>
       {JOB_STEPS.map((step, index) => {
         const StepIcon = step.icon;
         const isActive = index === currentStep;

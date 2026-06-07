@@ -6,6 +6,7 @@ import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
 import { DeleteButton } from '../../../components/common/DeleteButton';
+import { useCan } from '../../../providers/permissions';
 import { isValidJobForm, isValidWork } from '../utils';
 import { ControlPointsStep, validateControlPoints } from './steps/ControlPointsStep';
 import { JobAttestationStep } from './steps/JobAttestationStep';
@@ -26,6 +27,7 @@ type JobDetailsPageProps = {
 
 export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps) {
   const queryClient = useQueryClient();
+  const canDeleteJob = useCan('job:delete');
   const [attestationConfirmed, setAttestationConfirmed] = useState(false);
   const [submission, setSubmission] = useState<{ reportNumber: string; submittedAt: Date } | null>(null);
   const deleteMutation = useDeleteApiJobsId({
@@ -42,6 +44,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   });
 
   const handleDelete = () => {
+    if (!canDeleteJob) return;
     if (!details.job?.id) return;
     if (!confirm('Er du sikker på at du vil slette denne sag?')) return;
     deleteMutation.mutate({ id: details.job.id });
@@ -120,7 +123,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
         saveStatus={globalSaveStatus}
         onBack={handleBack}
-        onDelete={handleDelete}
+        onDelete={canDeleteJob ? handleDelete : undefined}
       />
 
       <StepIndicators currentStep={details.currentStep} onStepChange={handleStepChange} />
@@ -325,7 +328,7 @@ type HeaderProps = {
   jobNumber: string;
   saveStatus: SaveStatus;
   onBack: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 };
 
 function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete }: HeaderProps) {
@@ -340,7 +343,7 @@ function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete }: He
       </div>
       <div className="detail-header-actions">
         <SaveStatusIndicator saveStatus={saveStatus} />
-        <DeleteButton onClick={onDelete} ariaLabel="Slet sag" size={18} />
+        {onDelete && <DeleteButton onClick={onDelete} ariaLabel="Slet sag" size={18} />}
       </div>
     </div>
   );

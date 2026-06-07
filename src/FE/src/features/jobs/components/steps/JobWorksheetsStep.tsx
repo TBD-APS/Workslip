@@ -391,6 +391,7 @@ export function JobWorksheetsStep({
         openActionMenu={openActionMenu}
         openActionWorksheet={openActionWorksheet}
         isDeleting={isDeleting}
+        canDelete={canPickUser}
         onStartEdit={startEdit}
         onDelete={handleDelete}
       />
@@ -616,6 +617,7 @@ type WorksheetActionMenuPortalProps = {
   openActionMenu: ActionMenuState | null;
   openActionWorksheet: WorksheetResponse | null;
   isDeleting: boolean;
+  canDelete: boolean;
   onStartEdit: (worksheet: WorksheetResponse) => void;
   onDelete: (worksheet: WorksheetResponse) => void;
 };
@@ -624,6 +626,7 @@ function WorksheetActionMenuPortal({
   openActionMenu,
   openActionWorksheet,
   isDeleting,
+  canDelete,
   onStartEdit,
   onDelete,
 }: WorksheetActionMenuPortalProps) {
@@ -639,16 +642,18 @@ function WorksheetActionMenuPortal({
         <Pencil size={15} />
         <span>Rediger</span>
       </button>
-      <button
-        type="button"
-        className="danger"
-        role="menuitem"
-        onClick={() => onDelete(openActionWorksheet)}
-        disabled={isDeleting}
-      >
-        <Trash2 size={15} />
-        <span>Slet</span>
-      </button>
+      {canDelete && (
+        <button
+          type="button"
+          className="danger"
+          role="menuitem"
+          onClick={() => onDelete(openActionWorksheet)}
+          disabled={isDeleting}
+        >
+          <Trash2 size={15} />
+          <span>Slet</span>
+        </button>
+      )}
     </div>,
     document.body,
   );
