@@ -19,13 +19,14 @@ public static class JobStatusPolicy
         (current, next) switch
         {
             (JobStatus.Draft, JobStatus.Submitted) => true,
+            (JobStatus.Approved, JobStatus.Archived) => true,
             (JobStatus.Rejected, JobStatus.Submitted) => true,
             (JobStatus.Submitted, JobStatus.InReview) => true,
             (JobStatus.Submitted, JobStatus.Approved) => true,
-            (JobStatus.InReview, JobStatus.Approved) => true,
             (JobStatus.Submitted, JobStatus.Rejected) => true,
+            (JobStatus.InReview, JobStatus.Approved) => true,
             (JobStatus.InReview, JobStatus.Rejected) => true,
-            (JobStatus.Approved, JobStatus.Archived) => true,
+            (JobStatus.InReview, JobStatus.Submitted) => true,
             _ => false
         };
 }

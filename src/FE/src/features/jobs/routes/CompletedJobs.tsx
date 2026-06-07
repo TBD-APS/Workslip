@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
-import { AlertCircle, Download, FileCheck2, Loader2, MapPin, Timer, User } from 'lucide-react';
-import { toast } from 'sonner';
-import { AXIOS_INSTANCE } from '../../../api/fetcherOrval';
+import { useMemo } from 'react';
+import type { KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AlertCircle, ChevronRight, FileCheck2, MapPin, Timer, User } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import type { AssignedUserResponse, CustomerInfo } from '../../../api/generated/models';
@@ -40,9 +40,9 @@ const CompletedJobSkeletonCard = () => (
 );
 
 export const CompletedJobs = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
   const query = useGetApiJobs({ status: JobStatus.Submitted, limit: 200 });
   const allJobs = getCompletedJobListItems(query.data);
   const jobs = useMemo(() => {
@@ -54,31 +54,6 @@ export const CompletedJobs = () => {
 
     return submittedJobs.filter((job) => job.assignedUsers.some((assignedUser) => assignedUser.id === currentUserId));
   }, [allJobs, isAdmin, user?.id]);
-
-  const handleDownloadPdf = async (job: CompletedJobListItemViewModel) => {
-    setDownloadingJobId(job.id);
-
-    try {
-      const response = await AXIOS_INSTANCE.get<Blob>(`/api/jobs/${job.id}/report/pdf`, {
-        responseType: 'blob',
-        headers: { Accept: 'application/pdf' },
-      });
-      const contentType = getHeaderValue(response.headers['content-type']) ?? 'application/pdf';
-      const blob = response.data.type ? response.data : new Blob([response.data], { type: contentType });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = getPdfFileName(response.headers['content-disposition'], job);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      toast.error('Kunne ikke hente PDF for sagen');
-    } finally {
-      setDownloadingJobId(null);
-    }
-  };
 
   if (query.isLoading) {
     return (
@@ -125,8 +100,7 @@ export const CompletedJobs = () => {
           <CompletedJobCard
             key={job.id}
             job={job}
-            isDownloading={downloadingJobId === job.id}
-            onDownloadPdf={() => handleDownloadPdf(job)}
+            onOpen={() => navigate(`/app/completed/${job.id}`)}
           />
         ))}
 
@@ -143,15 +117,20 @@ export const CompletedJobs = () => {
 
 function CompletedJobCard({
   job,
-  isDownloading,
-  onDownloadPdf,
+  onOpen,
 }: {
   job: CompletedJobListItemViewModel;
-  isDownloading: boolean;
-  onDownloadPdf: () => void;
+  onOpen: () => void;
 }) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onOpen();
+    }
+  };
+
   return (
-    <article className="job-card completed-job-card">
+    <article className="job-card completed-job-card" role="button" tabIndex={0} onClick={onOpen} onKeyDown={handleKeyDown}>
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
@@ -179,10 +158,9 @@ function CompletedJobCard({
 
       <div className="job-card-footer completed-job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <button className="btn btn-secondary pdf-download-button" type="button" onClick={onDownloadPdf} disabled={isDownloading}>
-          {isDownloading ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
-          <span>{isDownloading ? 'Henter...' : 'PDF'}</span>
-        </button>
+        <span className="btn-icon" aria-label="Åbn sagsoverblik">
+          <ChevronRight size={20} />
+        </span>
       </div>
     </article>
   );
@@ -226,20 +204,4 @@ function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return DATE_FORMATTER.format(date);
-}
-
-function getPdfFileName(contentDisposition: unknown, job: CompletedJobListItemViewModel) {
-  const header = getHeaderValue(contentDisposition);
-  const match = header?.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
-  const fileName = match?.[1] ?? match?.[2];
-
-  if (fileName) return decodeURIComponent(fileName);
-
-  return `rapport-${(job.reportNumber || job.id.slice(0, 8)).toUpperCase()}.pdf`;
-}
-
-function getHeaderValue(value: unknown) {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) return value[0];
-  return undefined;
 }

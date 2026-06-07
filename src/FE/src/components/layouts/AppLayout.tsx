@@ -60,10 +60,12 @@ export const AppLayout = () => {
             </button>
           </Can>
         </div>
-        <NavLink to="/app/completed" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-          <FileCheck2 size={24} />
-          <span>Afsluttede sager</span>
-        </NavLink>
+        <Can permission="job:viewAll">
+          <NavLink to="/app/completed" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <FileCheck2 size={24} />
+            <span>Afsluttede sager</span>
+          </NavLink>
+        </Can>
         <NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Settings size={24} />
           <span>Indstillinger</span>

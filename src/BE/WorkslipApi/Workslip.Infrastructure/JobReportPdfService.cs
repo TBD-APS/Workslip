@@ -260,10 +260,6 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 if (HasValue(controlPoint.Description))
                     col.Item().Text(controlPoint.Description!).FontSize(7).FontColor(TextMedium);
             });
-            if (controlPoint.IsRequired)
-            {
-                row.ConstantItem(45).AlignRight().Text("Påkrævet").FontSize(7).FontColor(TextLight);
-            }
         });
     }
 

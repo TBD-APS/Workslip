@@ -7,6 +7,7 @@ import { JobList } from '../features/jobs/routes/JobList';
 import { JobDetail } from '../features/jobs/routes/JobDetail';
 import { JobCreate } from '../features/jobs/routes/JobCreate';
 import { CompletedJobs } from '../features/jobs/routes/CompletedJobs';
+import { CompletedJobReport } from '../features/jobs/routes/CompletedJobReport';
 import { AppLayout } from '../components/layouts/AppLayout';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -40,7 +41,8 @@ export const AppRoutes = () => {
         { index: true, element: <JobList /> },
         { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
         { path: 'job/:id', element: <JobDetail /> },
-        { path: 'completed', element: <CompletedJobs /> },
+        { path: 'completed', element: <RoleGuard permission="job:viewAll"><CompletedJobs /></RoleGuard> },
+        { path: 'completed/:id', element: <RoleGuard permission="job:viewAll"><CompletedJobReport /></RoleGuard> },
         // { path: 'settings', element: <Settings /> },
       ],
     },
