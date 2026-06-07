@@ -1,14 +1,11 @@
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import type { JobForm, ReferenceData } from '../../types';
-import { JOB_STEPS } from './jobSteps';
 
 type JobCompletionStepProps = {
   form: JobForm;
   referenceData: ReferenceData | null;
   isLoading: boolean;
   onClosureFlagsChange: (closureFlags: string[]) => void;
-  navigateToStep: (step: number) => void;
-  completedSteps: boolean[];
   worksheetCount: number;
 };
 
@@ -17,19 +14,10 @@ export function JobCompletionStep({
   referenceData,
   isLoading,
   onClosureFlagsChange,
-  navigateToStep,
-  completedSteps,
   worksheetCount,
 }: JobCompletionStepProps) {
   const closureFlags = [...(referenceData?.closureFlags ?? [])]
     .sort((left, right) => Number(left.sortOrder) - Number(right.sortOrder));
-
-  const stepsRequiringAction = [
-    { index: 0, label: JOB_STEPS[0].label, isValid: completedSteps[0] },
-    { index: 1, label: JOB_STEPS[1].label, isValid: completedSteps[1] },
-    { index: 2, label: JOB_STEPS[2].label, isValid: completedSteps[2] },
-    { index: 3, label: JOB_STEPS[3].label, isValid: completedSteps[3] },
-  ].filter((s) => !s.isValid);
 
   const toggleFlag = (flagLabel: string) => {
     const currentFlags = form.work.closureFlags || [];
@@ -67,27 +55,6 @@ export function JobCompletionStep({
         <CheckCircle2 size={18} />
         <h3>Afslutning</h3>
       </div>
-
-      {stepsRequiringAction.length > 0 && (
-        <div className="invalid-steps-warning">
-          <p className="warning-title">
-            <AlertTriangle size={16} />
-            Nogle trin kræver din handling før sagen kan afsluttes:
-          </p>
-          <div className="invalid-steps-links">
-            {stepsRequiringAction.map((step) => (
-              <button
-                key={step.index}
-                type="button"
-                className="btn btn-secondary btn-sm invalid-step-btn"
-                onClick={() => navigateToStep(step.index)}
-              >
-                Gå til {step.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       <p className="subtitle" style={{ marginBottom: '1.5rem' }}>
         Sagen har {worksheetCount} {worksheetCount === 1 ? 'arbejdsseddel' : 'arbejdssedler'} og er klar til afslutning.

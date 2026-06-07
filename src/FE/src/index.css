@@ -6,7 +6,13 @@
   --accent-glow: rgba(0, 112, 243, 0.4);
   --accent-gradient: linear-gradient(135deg, #0070f3 0%, #00c6ff 100%);
   --surface-color: rgba(255, 255, 255, 0.03);
+  --surface-card: rgba(255, 255, 255, 0.045);
+  --surface-input: rgba(0, 0, 0, 0.28);
+  --surface-elevated: rgba(255, 255, 255, 0.06);
+  --surface-selected: rgba(37, 99, 235, 0.14);
+  --surface-selected-strong: rgba(37, 99, 235, 0.22);
   --surface-border: rgba(255, 255, 255, 0.08);
+  --surface-border-strong: rgba(255, 255, 255, 0.14);
   --success-color: #10b981;
   --font-main: 'Inter', sans-serif;
   --font-heading: 'Outfit', sans-serif;

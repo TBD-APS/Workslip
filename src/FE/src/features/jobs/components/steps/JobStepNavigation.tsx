@@ -41,6 +41,8 @@ type StepNavigationProps = {
   doneIcon?: ReactNode;
   disableNext?: boolean;
   disableDone?: boolean;
+  nextDisabledReason?: string;
+  doneDisabledReason?: string;
 };
 
 export function StepNavigation({
@@ -53,6 +55,8 @@ export function StepNavigation({
   doneIcon = <CheckCircle2 size={18} />,
   disableNext = false,
   disableDone = false,
+  nextDisabledReason,
+  doneDisabledReason,
 }: StepNavigationProps) {
   const [isVisible, setIsVisible] = useState(true);
 
@@ -96,12 +100,24 @@ export function StepNavigation({
       <span className="step-nav-counter">Trin {currentStep + 1} / {JOB_STEPS.length}</span>
 
       {!isLastStep ? (
-        <button className="step-nav-btn step-nav-btn-next" onClick={onNext} disabled={disableNext}>
+        <button
+          className="step-nav-btn step-nav-btn-next"
+          onClick={onNext}
+          disabled={disableNext}
+          title={disableNext ? nextDisabledReason : undefined}
+          aria-label={disableNext ? `Næste — ${nextDisabledReason ?? 'ikke tilgængelig'}` : 'Næste'}
+        >
           <span>Næste</span>
           <ChevronRight size={18} />
         </button>
       ) : (
-        <button className="step-nav-btn step-nav-btn-next" onClick={onDone} disabled={disableDone}>
+        <button
+          className="step-nav-btn step-nav-btn-next"
+          onClick={onDone}
+          disabled={disableDone}
+          title={disableDone ? doneDisabledReason : undefined}
+          aria-label={disableDone ? `${doneLabel} — ${doneDisabledReason ?? 'ikke tilgængelig'}` : doneLabel}
+        >
           {doneIcon}
           <span>{doneLabel}</span>
         </button>
