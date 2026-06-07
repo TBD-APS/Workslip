@@ -34,6 +34,7 @@ jobs:
   build:
     name: Build API
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'udv' }}
     steps:
     
       - name: Azure login
