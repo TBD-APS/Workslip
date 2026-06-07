@@ -15,7 +15,7 @@ on:
     branches: [main]
     paths:
       - 'src/BE/WorkslipApi/**'
-      - '.github/workflows/azure-api-deploy.yml'
+      - '.github/workflows/main_api-npteknik-udv.yml'
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -83,6 +83,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ github.event.inputs.app_name }}
+          app-name: 'api-npteknik-udv'
           package: ${{ env.PUBLISH_DIR }}
 
