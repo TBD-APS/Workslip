@@ -27,8 +27,9 @@ public static class JobReportMapper
     {
         var customer = row.CustomerRow;
         var organizationName = row.OrganizationRow?.Name ?? "-";
+        var organizationCvr = row.OrganizationRow?.Cvr ?? "-";
         return new(
-            row.Id, row.OrganizationId, organizationName,
+            row.Id, row.OrganizationId, organizationName, organizationCvr,
             customer is not null ? new CustomerInfo(customer.Id, customer.Name, customer.Address, customer.Email, customer.ContactPerson, customer.Phone) : null,
             row.ReportNumber, ParseStatus(row.Status), ToDateOnly(row.ReportDate),
             row.TaskDescription, row.CustomerObservations, row.TechnicalObservations,

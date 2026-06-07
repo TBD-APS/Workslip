@@ -42,6 +42,7 @@ public sealed class HttpCacheHeadersTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             "RBJ Teknisk",
+            "12345678",
             "2026-000",
             JobStatus.Draft,
             new CustomerInfo(null, null, null, null, null, null),

@@ -66,7 +66,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 row.RelativeItem().Element(c => Field(c, "Kunde", Value(job.Customer.Name)));
                 row.RelativeItem().Element(c => Field(c, "Rapportdato", FormatDate(job.Observations.ReportDate)));
                 row.RelativeItem().Element(c => Field(c, "Total timer", FormatDecimal(job.TotalHours)));
-                row.RelativeItem().Element(c => Field(c, "Udlæg", FormatOutlay(job.TotalOutlay)));
+                row.RelativeItem().Element(c => Field(c, "Overnatninger", FormatOvernightStays(job.TotalOutlay)));
             });
         });
     }
@@ -90,21 +90,34 @@ public sealed class JobReportPdfService : IJobReportPdfService
     {
         Section(container, "Sag", body =>
         {
-            body.Row(row =>
+            body.Column(section =>
             {
-                row.RelativeItem().Column(col =>
-                {
-                    col.Item().Element(c => Field(c, "Sagsnummer", job.ReportNumber ?? "-"));
-                    col.Item().Element(c => Field(c, "Organisation", Value(job.OrganizationName)));
-                });
+                section.Spacing(6);
 
-                row.ConstantItem(18);
-
-                row.RelativeItem().Column(col =>
+                if (job.SoftDeleted)
                 {
-                    col.Item().Element(c => Field(c, "Status", StatusLabel(job.Status)));
-                    col.Item().Element(c => Field(c, "Indsendt", FormatDateTime(job.SubmittedAt)));
-                    col.Item().Element(c => Field(c, "Slettet", job.SoftDeleted ? "Ja" : "Nej"));
+                    section.Item().Background(Color.FromHex("#FEF3C7")).Border(1).BorderColor(Color.FromHex("#F59E0B"))
+                        .Padding(6).Text("Rapporten er markeret slettet.").FontSize(8).FontColor(Color.FromHex("#92400E"));
+                }
+
+                section.Item().Row(row =>
+                {
+                    row.RelativeItem().Column(col =>
+                    {
+                        col.Item().Element(c => Field(c, "Sagsnummer", job.ReportNumber ?? "-"));
+                        col.Item().Element(c => Field(c, "Organisation", Value(job.OrganizationName)));
+                        col.Item().Element(c => Field(c, "CVR", Value(job.OrganizationCvr)));
+                    });
+
+                    row.ConstantItem(18);
+
+                    row.RelativeItem().Column(col =>
+                    {
+                        col.Item().Element(c => Field(c, "Status", StatusLabel(job.Status)));
+                        col.Item().Element(c => Field(c, "Indsendt", FormatDateTime(job.SubmittedAt)));
+                        col.Item().Element(c => Field(c, "Oprettet", FormatDateTime(job.CreatedAt)));
+                        col.Item().Element(c => Field(c, "Senest ændret", FormatDateTime(job.UpdatedAt)));
+                    });
                 });
             });
         });
@@ -279,7 +292,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 col.Item().Row(row =>
                 {
                     row.RelativeItem().Element(c => Field(c, "Total timer", FormatDecimal(job.TotalHours)));
-                    row.RelativeItem().Element(c => Field(c, "Udlæg", FormatOutlay(job.TotalOutlay)));
+                    row.RelativeItem().Element(c => Field(c, "Overnatninger", FormatOvernightStays(job.TotalOutlay)));
                 });
 
                 if (job.Worksheets.Count == 0)
@@ -299,14 +312,14 @@ public sealed class JobReportPdfService : IJobReportPdfService
     private static void ComposeWorksheet(IContainer container, WorksheetResponse worksheet)
     {
         var displayName = Value(worksheet.UserDisplayName);
-        var outlay = worksheet.SleptOnJob ? "Ja" : "Nej";
+        var overnightStay = worksheet.SleptOnJob ? "Ja" : "Nej";
 
         container.Border(1).BorderColor(Color.FromHex("#E2E8F0")).Padding(6).Row(row =>
         {
             row.RelativeItem().Element(c => Field(c, "Dato", FormatDate(worksheet.WorkDate)));
             row.RelativeItem().Element(c => Field(c, "Medarbejder", displayName));
             row.ConstantItem(70).Element(c => Field(c, "Timer", FormatDecimal(worksheet.HoursWorked)));
-            row.ConstantItem(55).Element(c => Field(c, "Udlæg", outlay));
+            row.ConstantItem(75).Element(c => Field(c, "Overnatning", overnightStay));
         });
     }
 
@@ -427,11 +440,14 @@ public sealed class JobReportPdfService : IJobReportPdfService
     private static string FormatDateTime(DateTimeOffset? value) =>
         value?.ToLocalTime().ToString("dd.MM.yyyy HH:mm", DanishCulture) ?? "-";
 
+    private static string FormatDateTime(DateTimeOffset value) =>
+        value.ToLocalTime().ToString("dd.MM.yyyy HH:mm", DanishCulture);
+
     private static string FormatDecimal(decimal? value) =>
         value.HasValue ? value.Value.ToString("0.##", DanishCulture) : "-";
 
-    private static string FormatOutlay(int? value) =>
-        value.HasValue ? $"{value.Value} {(value.Value == 1 ? "dag" : "dage")}" : "-";
+    private static string FormatOvernightStays(int? value) =>
+        value.HasValue ? $"{value.Value} {(value.Value == 1 ? "nat" : "nætter")}" : "-";
 
     private static string StatusLabel(JobStatus status) => status switch
     {

@@ -154,7 +154,11 @@ public static class DatabaseSeeder
         foreach (var job in jobs)
         {
             var userId = faker.PickRandom(users).Id;
-            usedPairs.Add((job.Id, userId));
+            if (!usedPairs.Add((job.Id, userId)))
+            {
+                continue;
+            }
+
             assignments.Add(new JobAssignmentRow
             {
                 Id = Guid.NewGuid(),
@@ -280,8 +284,6 @@ public static class DatabaseSeeder
                 });
             }
         }
-
-        //await DatabaseInstallationSeeder.Seed(db, organization.Id, jobs);
 
         await InstallationSeeder.Seed(db, organization.Id, jobs);
 
