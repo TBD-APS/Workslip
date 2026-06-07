@@ -1,4 +1,4 @@
-name: Build and deploy Workslip API to Azure
+name: CI/CD to Azure
 
 on:
   workflow_dispatch:
