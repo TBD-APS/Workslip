@@ -1,18 +1,21 @@
+using System.Globalization;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using Workslip.Application.Jobs;
+using Workslip.Application.Worksheets;
 using Workslip.Domain;
 
 namespace Workslip.Api.Services;
 
 public interface IJobReportPdfService
 {
-    byte[] Generate(JobReportSummaryResponse job, JobStatus status);
+    byte[] Generate(JobReportSummaryResponse job, JobStatus status, Uri? jobBaseUri = null);
 }
 
 public sealed class JobReportPdfService : IJobReportPdfService
 {
+    private static readonly CultureInfo DanishCulture = CultureInfo.GetCultureInfo("da-DK");
     private static readonly Color Primary = Color.FromHex("#1B3A5C");
     private static readonly Color PrimaryLight = Color.FromHex("#E8EDF2");
     private static readonly Color Accent = Color.FromHex("#3B82F6");
@@ -20,20 +23,21 @@ public sealed class JobReportPdfService : IJobReportPdfService
     private static readonly Color TextMedium = Color.FromHex("#475569");
     private static readonly Color TextLight = Colors.Grey.Darken1;
     private static readonly Color BorderColor = Color.FromHex("#CBD5E1");
+    private static readonly Color SectionBackground = Color.FromHex("#F8FAFC");
 
-    public byte[] Generate(JobReportSummaryResponse job, JobStatus status)
+    public byte[] Generate(JobReportSummaryResponse job, JobStatus status, Uri? jobBaseUri = null)
     {
         return Document.Create(container =>
         {
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(40);
+                page.Margin(36);
                 page.DefaultTextStyle(x => x.FontSize(9).FontFamily("Helvetica"));
 
                 page.Header().Element(c => ComposeHeader(c, job, status));
-                page.Content().Element(c => ComposeContent(c, job));
-                page.Footer().Element(c => ComposeFooter(c, job));
+                page.Content().PaddingTop(10).Element(c => ComposeContent(c, job, jobBaseUri));
+                page.Footer().Element(c => ComposeFooter(c));
             });
         }).GeneratePdf();
     }
@@ -44,308 +48,390 @@ public sealed class JobReportPdfService : IJobReportPdfService
         {
             col.Item().Background(Primary).Padding(12).Row(row =>
             {
-                row.ConstantItem(120).AlignMiddle().Column(brand =>
+                row.RelativeItem().Column(brand =>
                 {
                     brand.Item().Text("WORKSLIP").FontSize(16).Bold().FontColor(Colors.White);
-                    brand.Item().Text("Digital arbejdsseddel").FontSize(8).FontColor(Color.FromHex("#94A3B8"));
+                    brand.Item().Text("4V05-rapport").FontSize(8).FontColor(Color.FromHex("#CBD5E1"));
                 });
 
-                row.RelativeItem().AlignMiddle().AlignCenter().Column(title =>
+                row.RelativeItem().AlignRight().Column(info =>
                 {
-                    title.Item().Text("ARBEJDSSEDDEL 4V05").FontSize(18).Bold().FontColor(Colors.White);
-                });
-
-                row.ConstantItem(120).AlignMiddle().AlignRight().Column(info =>
-                {
-                    info.Item().Text($"Rapport nr.").FontSize(7).FontColor(Color.FromHex("#94A3B8"));
-                    info.Item().Text(job.ReportNumber).FontSize(11).Bold().FontColor(Colors.White);
+                    info.Item().Text(job.ReportNumber ?? ShortId(job.Id)).FontSize(14).Bold().FontColor(Colors.White);
+                    info.Item().Text(StatusLabel(status)).FontSize(9).FontColor(StatusColor(status));
                 });
             });
 
-            col.Item().PaddingTop(8).Row(row =>
+            col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Row(row =>
             {
-                row.RelativeItem(3).Border(1).BorderColor(BorderColor).Padding(8).Column(left =>
-                {
-                    left.Item().Text("STATUS").FontSize(7).FontColor(TextLight);
-                    left.Item().PaddingTop(2).Text(StatusLabel(status)).FontSize(11).Bold().FontColor(StatusColor(status));
-                    left.Item().PaddingTop(4).Text(job.SubmittedAt is not null
-                        ? $"Indsendt: {job.SubmittedAt:dd.MM.yyyy HH:mm}"
-                        : "Ikke indsendt").FontSize(8).FontColor(TextLight);
-                });
-
-                row.ConstantItem(10);
-
-                row.RelativeItem(4).Border(1).BorderColor(BorderColor).Padding(8).Column(mid =>
-                {
-                    mid.Item().Row(r =>
-                    {
-                        r.RelativeItem().Column(c =>
-                        {
-                            c.Item().Text("ANLÆGSTYPE").FontSize(7).FontColor(TextLight);
-                            c.Item().PaddingTop(2).Text(string.Join(", ", job.ControlInstallationTypes)).FontSize(9).FontColor(TextDark);
-                        });
-                        r.RelativeItem().Column(c =>
-                        {
-                            c.Item().Text("ARBEJDSTYPE").FontSize(7).FontColor(TextLight);
-                            var workKindLabel = string.IsNullOrEmpty(job.Work.WorkKind?.CustomWorkKind)
-                                ? job.Work.WorkKind?.Label ?? ""
-                                : $"{job.Work.WorkKind?.Label ?? ""} - {job.Work.WorkKind?.CustomWorkKind}";
-                            c.Item().PaddingTop(2).Text(workKindLabel).FontSize(9).FontColor(TextDark);
-                        });
-                    });
-                });
-
-                row.ConstantItem(10);
-
-                row.RelativeItem(2).Border(1).BorderColor(BorderColor).Padding(8).Column(right =>
-                {
-                    right.Item().Text("DATO").FontSize(7).FontColor(TextLight);
-                    right.Item().PaddingTop(2).Text(job.Observations.ReportDate?.ToString("dd.MM.yyyy") ?? "-").FontSize(11).Bold().FontColor(TextDark);
-                });
+                row.RelativeItem().Element(c => Field(c, "Kunde", Value(job.Customer.Name)));
+                row.RelativeItem().Element(c => Field(c, "Rapportdato", FormatDate(job.Observations.ReportDate)));
+                row.RelativeItem().Element(c => Field(c, "Total timer", FormatDecimal(job.TotalHours)));
+                row.RelativeItem().Element(c => Field(c, "Udlæg", FormatOutlay(job.TotalOutlay)));
             });
         });
     }
 
-    private static void ComposeContent(IContainer container, JobReportSummaryResponse job)
+    private static void ComposeContent(IContainer container, JobReportSummaryResponse job, Uri? jobBaseUri)
     {
         container.Column(col =>
         {
-            col.Item().PaddingTop(10).Element(c => ComposeCustomerSection(c, job));
+            col.Spacing(8);
+            col.Item().Element(c => ComposeMetaSection(c, job));
+            col.Item().Element(c => ComposeCustomerSection(c, job));
+            col.Item().Element(c => ComposeAssignmentSection(c, job));
+            col.Item().Element(c => ComposeWorkSection(c, job));
+            col.Item().Element(c => ComposeObservationsSection(c, job));
+            col.Item().Element(c => ComposeWorksheetsSection(c, job));
+            col.Item().Element(c => ComposeLinksSection(c, job, jobBaseUri));
+        });
+    }
 
-            col.Item().PaddingTop(8).Element(c => ComposeDescriptionSection(c, job));
-
-            if (job.ControlInstallationTypes.Count != 0)
+    private static void ComposeMetaSection(IContainer container, JobReportSummaryResponse job)
+    {
+        Section(container, "Sag", body =>
+        {
+            body.Row(row =>
             {
-                col.Item().PaddingTop(8).Element(c => ComposeControlPointsSection(c, job));
-            }
+                row.RelativeItem().Column(col =>
+                {
+                    col.Item().Element(c => Field(c, "Sagsnummer", job.ReportNumber ?? "-"));
+                    col.Item().Element(c => Field(c, "Organisation", Value(job.OrganizationName)));
+                });
 
-            col.Item().PaddingTop(8).Element(c => ComposeRemarksSection(c, job));
+                row.ConstantItem(18);
+
+                row.RelativeItem().Column(col =>
+                {
+                    col.Item().Element(c => Field(c, "Status", StatusLabel(job.Status)));
+                    col.Item().Element(c => Field(c, "Indsendt", FormatDateTime(job.SubmittedAt)));
+                    col.Item().Element(c => Field(c, "Slettet", job.SoftDeleted ? "Ja" : "Nej"));
+                });
+            });
         });
     }
 
     private static void ComposeCustomerSection(IContainer container, JobReportSummaryResponse job)
     {
-        container.Column(col =>
+        Section(container, "Kundeoplysninger", body =>
         {
-            col.Item().Background(PrimaryLight).PaddingVertical(6).PaddingHorizontal(8).Row(r =>
+            body.Row(row =>
             {
-                r.AutoItem().Text("KUNDEOPLYSNINGER").FontSize(10).Bold().FontColor(Primary);
+                row.RelativeItem().Column(col =>
+                {
+                    col.Item().Element(c => Field(c, "Navn", Value(job.Customer.Name)));
+                    col.Item().Element(c => Field(c, "Adresse", Value(job.Customer.Address)));
+                    col.Item().Element(c => Field(c, "Email", Value(job.Customer.Email)));
+                });
+
+                row.ConstantItem(18);
+
+                row.RelativeItem().Column(col =>
+                {
+                    col.Item().Element(c => Field(c, "Kontaktperson", Value(job.Customer.ContactPerson)));
+                    col.Item().Element(c => Field(c, "Telefon", Value(job.Customer.Phone)));
+                });
+            });
+        });
+    }
+
+    private static void ComposeAssignmentSection(IContainer container, JobReportSummaryResponse job)
+    {
+        Section(container, "Tildelte medarbejdere", body =>
+        {
+            if (job.AssignedUsers.Count == 0)
+            {
+                body.Text("Ingen medarbejdere tildelt.").FontColor(TextLight).Italic();
+                return;
+            }
+
+            body.Column(col =>
+            {
+                foreach (var user in job.AssignedUsers.OrderBy(user => user.DisplayName))
+                {
+                    col.Item().Element(c => Bullet(c, user.DisplayName));
+                }
+            });
+        });
+    }
+
+    private static void ComposeWorkSection(IContainer container, JobReportSummaryResponse job)
+    {
+        Section(container, "Arbejde og kontrolpunkter", body =>
+        {
+            body.Column(col =>
+            {
+                col.Spacing(8);
+                col.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(c => Field(c, "Arbejdsslag", WorkKindLabel(job.Work.WorkKind)));
+                    row.RelativeItem().Element(c => Field(c, "Afslutning", JoinLabels(job.Work.ClosureFlags.Select(flag => flag.Label))));
+                });
+
+                if (HasValue(job.Work.Remarks))
+                {
+                    col.Item().Element(c => Field(c, "Bemærkninger", job.Work.Remarks!));
+                }
+
+                if (job.Work.InstallationTypes.Count == 0)
+                {
+                    col.Item().Text("Ingen anlægstyper valgt.").FontColor(TextLight).Italic();
+                    return;
+                }
+
+                foreach (var installation in job.Work.InstallationTypes.OrderBy(x => x.SortOrder))
+                {
+                    col.Item().Element(c => ComposeInstallation(c, installation));
+                }
+            });
+        });
+    }
+
+    private static void ComposeInstallation(IContainer container, InstallationTypeResponse installation)
+    {
+        container.Border(1).BorderColor(BorderColor).Background(SectionBackground).Padding(7).Column(col =>
+        {
+            col.Spacing(5);
+            col.Item().Text(installation.Name).FontSize(10).Bold().FontColor(Primary);
+
+            foreach (var category in installation.Categories.OrderBy(x => x.IsIrrelevant).ThenBy(x => x.SortOrder))
+            {
+                col.Item().Element(c => ComposeCategory(c, category));
+            }
+        });
+    }
+
+    private static void ComposeCategory(IContainer container, InstallationTypeCategoryResponse category)
+    {
+        container.Background(Colors.White).Border(1).BorderColor(Color.FromHex("#E2E8F0")).Padding(6).Column(col =>
+        {
+            col.Spacing(3);
+            col.Item().Row(row =>
+            {
+                row.RelativeItem().Text(category.Name).FontSize(9).SemiBold().FontColor(TextDark);
+                if (category.IsIrrelevant)
+                {
+                    row.AutoItem().Text("Irrelevant").FontSize(8).FontColor(Color.FromHex("#B45309"));
+                }
             });
 
-            col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Row(row =>
+            if (category.IsIrrelevant)
             {
-                row.RelativeItem().Column(c =>
-                {
-                    c.Item().Element(e => Field(e, "Kunde", job.Customer?.Name ?? "-"));
-                    c.Item().Element(e => Field(e, "Email", job.Customer?.Email ?? "-"));
-                });
-                row.ConstantItem(20);
-                row.RelativeItem().Column(c =>
-                {
-                    c.Item().Element(e => Field(e, "Adresse", job.Customer?.Address ?? "-"));
-                    c.Item().Element(e => Field(e, "Kontaktperson", job.Customer?.ContactPerson ?? "-"));
-                    c.Item().Element(e => Field(e, "Telefon", job.Customer?.Phone ?? "-"));
-                });
+                col.Item().Text("Kategorien er markeret irrelevant.").FontSize(8).FontColor(TextMedium);
+                return;
+            }
+
+            if (category.ControlPoints.Count == 0)
+            {
+                col.Item().Text("Ingen kontrolpunkter valgt.").FontSize(8).FontColor(TextLight).Italic();
+                return;
+            }
+
+            foreach (var controlPoint in category.ControlPoints.OrderBy(x => x.SortOrder))
+            {
+                col.Item().Element(c => ControlPointRow(c, controlPoint));
+            }
+        });
+    }
+
+    private static void ControlPointRow(IContainer container, InstallationTypeControlPointResponse controlPoint)
+    {
+        var marker = controlPoint.IsChecked ? "✓" : "□";
+        var color = controlPoint.IsChecked ? Color.FromHex("#166534") : TextLight;
+
+        container.Row(row =>
+        {
+            row.ConstantItem(14).Text(marker).FontSize(9).FontColor(color);
+            row.RelativeItem().Column(col =>
+            {
+                col.Item().Text(controlPoint.Name).FontSize(8).FontColor(TextDark);
+                if (HasValue(controlPoint.Description))
+                    col.Item().Text(controlPoint.Description!).FontSize(7).FontColor(TextMedium);
             });
+            if (controlPoint.IsRequired)
+            {
+                row.ConstantItem(45).AlignRight().Text("Påkrævet").FontSize(7).FontColor(TextLight);
+            }
+        });
+    }
+
+    private static void ComposeObservationsSection(IContainer container, JobReportSummaryResponse job)
+    {
+        Section(container, "Opgave og observationer", body =>
+        {
+            body.Column(col =>
+            {
+                col.Spacing(6);
+                col.Item().Element(c => Field(c, "Rapportdato", FormatDate(job.Observations.ReportDate)));
+                col.Item().Element(c => LongText(c, "Opgavebeskrivelse", job.Observations.TaskDescription));
+                col.Item().Element(c => LongText(c, "Oplysninger til kunden", job.Observations.CustomerObservations));
+                col.Item().Element(c => LongText(c, "Tekniske observationer", job.Observations.TechnicalObservations));
+            });
+        });
+    }
+
+    private static void ComposeWorksheetsSection(IContainer container, JobReportSummaryResponse job)
+    {
+        Section(container, "Arbejdssedler", body =>
+        {
+            body.Column(col =>
+            {
+                col.Spacing(5);
+                col.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(c => Field(c, "Total timer", FormatDecimal(job.TotalHours)));
+                    row.RelativeItem().Element(c => Field(c, "Udlæg", FormatOutlay(job.TotalOutlay)));
+                });
+
+                if (job.Worksheets.Count == 0)
+                {
+                    col.Item().Text("Ingen arbejdssedler registreret.").FontColor(TextLight).Italic();
+                    return;
+                }
+
+                foreach (var worksheet in job.Worksheets.OrderBy(x => x.WorkDate).ThenBy(x => x.UserDisplayName))
+                {
+                    col.Item().Element(c => ComposeWorksheet(c, worksheet));
+                }
+            });
+        });
+    }
+
+    private static void ComposeWorksheet(IContainer container, WorksheetResponse worksheet)
+    {
+        var displayName = Value(worksheet.UserDisplayName);
+        var outlay = worksheet.SleptOnJob ? "Ja" : "Nej";
+
+        container.Border(1).BorderColor(Color.FromHex("#E2E8F0")).Padding(6).Row(row =>
+        {
+            row.RelativeItem().Element(c => Field(c, "Dato", FormatDate(worksheet.WorkDate)));
+            row.RelativeItem().Element(c => Field(c, "Medarbejder", displayName));
+            row.ConstantItem(70).Element(c => Field(c, "Timer", FormatDecimal(worksheet.HoursWorked)));
+            row.ConstantItem(55).Element(c => Field(c, "Udlæg", outlay));
+        });
+    }
+
+    private static void ComposeLinksSection(IContainer container, JobReportSummaryResponse job, Uri? jobBaseUri)
+    {
+        Section(container, "Relaterede sager", body =>
+        {
+            if (job.Links.Count == 0)
+            {
+                body.Text("Ingen relaterede sager.").FontColor(TextLight).Italic();
+                return;
+            }
+
+            body.Column(col =>
+            {
+                col.Spacing(4);
+                foreach (var link in job.Links.OrderBy(link => link.LinkedReportNumber))
+                {
+                    col.Item().Element(c => ComposeLink(c, link, jobBaseUri));
+                }
+            });
+        });
+    }
+
+    private static void ComposeLink(IContainer container, JobLinkInfoResponse link, Uri? jobBaseUri)
+    {
+        var linkContainer = jobBaseUri is null
+            ? container
+            : container.Hyperlink(new Uri(jobBaseUri, link.LinkedReportId.ToString()).ToString());
+
+        linkContainer.Border(1).BorderColor(Color.FromHex("#E2E8F0")).Padding(6).Text(text =>
+        {
+            text.Span($"{link.LinkedReportNumber} · {link.LinkedCustomerName}").FontSize(9).FontColor(Accent).Underline();
+            text.Span($" ({link.LinkedStatus})").FontSize(8).FontColor(TextMedium);
+        });
+    }
+
+    private static void Section(IContainer container, string title, Action<IContainer> compose)
+    {
+        container.Column(col =>
+        {
+            col.Item().Background(PrimaryLight).PaddingVertical(6).PaddingHorizontal(8)
+                .Text(title.ToUpperInvariant()).FontSize(10).Bold().FontColor(Primary);
+            col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Element(c => compose(c));
         });
     }
 
     private static void Field(IContainer container, string label, string value)
     {
-        container.PaddingVertical(2).Row(row =>
+        container.PaddingVertical(2).Column(col =>
         {
-            row.ConstantItem(80).Text(label).FontSize(8).FontColor(TextLight);
-            row.RelativeItem().Text(value).FontSize(9).FontColor(TextDark);
+            col.Item().Text(label).FontSize(7).FontColor(TextLight);
+            col.Item().Text(value).FontSize(9).FontColor(TextDark);
         });
     }
 
-    private static void ComposeDescriptionSection(IContainer container, JobReportSummaryResponse job)
+    private static void LongText(IContainer container, string label, string? value)
     {
-        container.Column(col =>
+        if (!HasValue(value))
         {
-            col.Item().Background(PrimaryLight).PaddingVertical(6).PaddingHorizontal(8).Row(r =>
-            {
-                r.AutoItem().Text("OPGAVEBESKRIVELSE").FontSize(10).Bold().FontColor(Primary);
-                if (!string.IsNullOrEmpty(job.Observations.CustomerObservations))
-                {
-                    r.RelativeItem().PaddingLeft(20).Text("+ KUNDEOBSERVATIONER").FontSize(8).FontColor(Accent).AlignRight();
-                }
-            });
-
-            col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Column(c =>
-            {
-                c.Item().Text(job.Observations.TaskDescription ?? "-").FontSize(9).FontColor(TextDark);
-                if (!string.IsNullOrEmpty(job.Observations.CustomerObservations))
-                {
-                    c.Item().PaddingTop(6).LineHorizontal(0.5f).LineColor(BorderColor);
-                    c.Item().PaddingTop(4).Text("Kundeobservationer:").FontSize(8).FontColor(TextLight).SemiBold();
-                    c.Item().Text(job.Observations.CustomerObservations).FontSize(9).FontColor(TextDark);
-                }
-            });
-        });
-    }
-
-    private static void ComposeControlPointsSection(IContainer container, JobReportSummaryResponse job)
-    {
-        container.Column(col =>
-        {
-            col.Item().Background(PrimaryLight).PaddingVertical(6).PaddingHorizontal(8).Row(r =>
-            {
-                r.AutoItem().Text("KONTROLPUNKTER").FontSize(10).Bold().FontColor(Primary);
-            });
-
-            foreach (var inst in job.ControlInstallationTypes)
-            {
-                col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Background(Color.FromHex("#F8FAFC")).Padding(6).Column(instCol =>
-                {
-                    instCol.Item().Background(Primary).PaddingVertical(4).PaddingHorizontal(6).Row(r =>
-                    {
-                        r.AutoItem().Text(inst.InstallationTypeId.ToUpper()).FontSize(9).Bold().FontColor(Colors.White);
-                    });
-
-                    foreach (var sub in inst.Subcategories)
-                    {
-                        instCol.Item().PaddingTop(6).Column(subCol =>
-                        {
-                            subCol.Item().Text(sub.SubcategoryId).FontSize(8).FontColor(Primary).SemiBold();
-
-                            subCol.Item().PaddingTop(3).Row(header =>
-                            {
-                                header.ConstantItem(20);
-                                header.RelativeItem(3).Text("Kontrolpunkt").FontSize(7).FontColor(TextLight);
-                                header.RelativeItem(7).Text("Note").FontSize(7).FontColor(TextLight);
-                            });
-
-                            foreach (var check in sub.ControlChecks)
-                            {
-                                subCol.Item().PaddingVertical(1).Row(row =>
-                                {
-                                    row.ConstantItem(20).PaddingTop(1).Element(c =>
-                                    {
-                                        if (check.Checked)
-                                        {
-                                            c.Background(Color.FromHex("#16A34A")).Padding(2).AlignCenter()
-                                                .Text("✓").FontSize(8).Bold().FontColor(Colors.White);
-                                        }
-                                        else
-                                        {
-                                            c.Border(1).BorderColor(BorderColor).Padding(2).AlignCenter()
-                                                .Text("").FontSize(8);
-                                        }
-                                    });
-
-                                    row.RelativeItem(3).PaddingLeft(4).AlignMiddle()
-                                        .Text(check.ItemId).FontSize(8).FontColor(TextDark);
-
-                                    row.RelativeItem(7).PaddingLeft(4).AlignMiddle()
-                                        .Text(string.IsNullOrEmpty(check.Note) ? "-" : check.Note)
-                                        .FontSize(8).FontColor(string.IsNullOrEmpty(check.Note) ? TextLight : TextDark)
-                                        .Italic(string.IsNullOrEmpty(check.Note));
-                                });
-
-                                subCol.Item().PaddingBottom(2).LineHorizontal(0.3f).LineColor(Color.FromHex("#F1F5F9"));
-                            }
-                        });
-                    }
-                });
-            }
-
-            if (!string.IsNullOrEmpty(job.Observations.TechnicalObservations))
-            {
-                col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Column(c =>
-                {
-                    c.Item().Text("TEKNISKE OBSERVATIONER").FontSize(8).FontColor(TextLight).SemiBold();
-                    c.Item().PaddingTop(2).Text(job.Observations.TechnicalObservations).FontSize(9).FontColor(TextDark);
-                });
-            }
-        });
-    }
-
-    [Obsolete]
-    private static void ComposeRemarksSection(IContainer container, JobReportSummaryResponse job)
-    {
-        var hasRemarks = !string.IsNullOrEmpty(job.Work.Remarks);
-        var hasClosureFlags = job.Work.ClosureFlags.Count != 0;
-
-        if (!hasRemarks && !hasClosureFlags)
+            Field(container, label, "-");
             return;
+        }
 
         container.Column(col =>
         {
-            col.Item().Background(PrimaryLight).PaddingVertical(6).PaddingHorizontal(8).Row(r =>
-            {
-                r.AutoItem().Text("BEMÆRKNINGER").FontSize(10).Bold().FontColor(Primary);
-                if (hasClosureFlags)
-                {
-                    r.RelativeItem().PaddingLeft(20)
-                        .Text("+ AFSLUTNING").FontSize(8).FontColor(Accent).AlignRight();
-                }
-            });
-
-            col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Row(row =>
-            {
-                if (hasRemarks)
-                {
-                    row.RelativeItem(2).Column(c =>
-                    {
-                        c.Item().Text("Bemærkninger:").FontSize(8).FontColor(TextLight).SemiBold();
-                        c.Item().PaddingTop(2).Text(job.Work.Remarks).FontSize(9).FontColor(TextDark);
-                    });
-                }
-
-                if (hasClosureFlags)
-                {
-                    if (hasRemarks)
-                        row.ConstantItem(16);
-
-                    row.RelativeItem(1).Column(c =>
-                    {
-                        c.Item().Text("Afslutningsmarkører:").FontSize(8).FontColor(TextLight).SemiBold();
-                        c.Item().PaddingTop(2).Column(flags =>
-                        {
-                            foreach (var flag in job.Work.ClosureFlags)
-                            {
-                                flags.Item().Row(fr =>
-                                {
-                                    fr.ConstantItem(14).Text("›").FontSize(10).FontColor(Accent);
-                                    fr.RelativeItem().Text(flag).FontSize(9).FontColor(TextDark);
-                                });
-                            }
-                        });
-                    });
-                }
-            });
+            col.Item().Text(label).FontSize(7).FontColor(TextLight);
+            col.Item().Text(value!).FontSize(9).FontColor(TextDark);
         });
     }
 
-    private static void ComposeFooter(IContainer container, JobReportSummaryResponse job)
+    private static void Bullet(IContainer container, string title)
+    {
+        container.Row(row =>
+        {
+            row.ConstantItem(12).Text("•").FontSize(9).FontColor(Accent);
+            row.RelativeItem().Text(title).FontSize(9).FontColor(TextDark);
+        });
+    }
+
+    private static void ComposeFooter(IContainer container)
     {
         container.Column(col =>
         {
             col.Item().PaddingTop(8).LineHorizontal(1).LineColor(BorderColor);
-
             col.Item().PaddingTop(6).Row(row =>
             {
-                row.RelativeItem().Column(c =>
-                {
-                    c.Item().Text("Dokument oprettet").FontSize(7).FontColor(TextLight);
-                    c.Item().Text($"{job.CreatedAt:dd.MM.yyyy HH:mm}").FontSize(8).FontColor(TextMedium);
-                });
-
-                row.RelativeItem().Column(c =>
-                {
-                    c.Item().Text("Sidst opdateret").FontSize(7).FontColor(TextLight);
-                    c.Item().Text($"{job.UpdatedAt:dd.MM.yyyy HH:mm}").FontSize(8).FontColor(TextMedium);
-                });
-
-                row.RelativeItem().Column(c =>
-                {
-                    c.Item().AlignRight().Text("WORKSLIP").FontSize(7).FontColor(TextLight);
-                    c.Item().AlignRight().Text("Digital arbejdsseddel · workslip.app").FontSize(7).FontColor(TextLight);
-                });
+                row.RelativeItem().Text($"PDF genereret {DateTimeOffset.Now:dd.MM.yyyy HH:mm}").FontSize(7).FontColor(TextLight);
+                row.RelativeItem().AlignRight().Text("WORKSLIP · Jobrapport").FontSize(7).FontColor(TextLight);
             });
         });
     }
+
+    private static string WorkKindLabel(JobWorkKindResponse? workKind)
+    {
+        if (workKind is null) return "-";
+        return HasValue(workKind.CustomWorkKind)
+            ? $"{workKind.Label} - {workKind.CustomWorkKind}"
+            : workKind.Label;
+    }
+
+    private static string JoinLabels(IEnumerable<string?> values)
+    {
+        var labels = values.Where(HasValue).Select(value => value!.Trim()).ToArray();
+        return labels.Length == 0 ? "-" : string.Join(", ", labels);
+    }
+
+    private static string Value(string? value) => HasValue(value) ? value!.Trim() : "-";
+
+    private static bool HasValue(string? value) => !string.IsNullOrWhiteSpace(value);
+
+    private static string ShortId(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
+
+    private static string FormatDate(DateOnly? value) => value?.ToString("dd.MM.yyyy", DanishCulture) ?? "-";
+
+    private static string FormatDate(DateOnly value) => value.ToString("dd.MM.yyyy", DanishCulture);
+
+    private static string FormatDateTime(DateTimeOffset? value) =>
+        value?.ToLocalTime().ToString("dd.MM.yyyy HH:mm", DanishCulture) ?? "-";
+
+    private static string FormatDecimal(decimal? value) =>
+        value.HasValue ? value.Value.ToString("0.##", DanishCulture) : "-";
+
+    private static string FormatOutlay(int? value) =>
+        value.HasValue ? $"{value.Value} {(value.Value == 1 ? "dag" : "dage")}" : "-";
 
     private static string StatusLabel(JobStatus status) => status switch
     {
@@ -360,12 +446,12 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static Color StatusColor(JobStatus status) => status switch
     {
-        JobStatus.Draft => TextMedium,
-        JobStatus.Submitted => Color.FromHex("#CA8A04"),
-        JobStatus.InReview => Accent,
-        JobStatus.Approved => Color.FromHex("#16A34A"),
-        JobStatus.Rejected => Color.FromHex("#DC2626"),
-        JobStatus.Archived => TextMedium,
-        _ => TextDark
+        JobStatus.Draft => Color.FromHex("#CBD5E1"),
+        JobStatus.Submitted => Color.FromHex("#FACC15"),
+        JobStatus.InReview => Color.FromHex("#93C5FD"),
+        JobStatus.Approved => Color.FromHex("#86EFAC"),
+        JobStatus.Rejected => Color.FromHex("#FCA5A5"),
+        JobStatus.Archived => Color.FromHex("#CBD5E1"),
+        _ => Colors.White
     };
 }

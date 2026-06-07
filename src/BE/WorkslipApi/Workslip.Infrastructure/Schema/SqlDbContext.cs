@@ -271,7 +271,7 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.SubmittedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.DeletionScheduledAt).HasColumnType("datetimeoffset");
 
-        entity.HasOne<OrganizationRow>()
+        entity.HasOne(x => x.OrganizationRow)
             .WithMany()
             .HasForeignKey(e => e.OrganizationId)
             .OnDelete(DeleteBehavior.Restrict);

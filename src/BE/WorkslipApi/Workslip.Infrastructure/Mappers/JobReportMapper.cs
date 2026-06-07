@@ -26,8 +26,9 @@ public static class JobReportMapper
         decimal? totalHours = null)
     {
         var customer = row.CustomerRow;
+        var organizationName = row.OrganizationRow?.Name ?? "-";
         return new(
-            row.Id, row.OrganizationId,
+            row.Id, row.OrganizationId, organizationName,
             customer is not null ? new CustomerInfo(customer.Id, customer.Name, customer.Address, customer.Email, customer.ContactPerson, customer.Phone) : null,
             row.ReportNumber, ParseStatus(row.Status), ToDateOnly(row.ReportDate),
             row.TaskDescription, row.CustomerObservations, row.TechnicalObservations,

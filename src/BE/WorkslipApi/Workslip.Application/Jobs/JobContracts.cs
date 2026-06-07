@@ -148,6 +148,7 @@ public sealed record JobListItemResponse(
 public sealed record JobReportResponse(
     Guid Id,
     Guid OrganizationId,
+    string OrganizationName,
     CustomerInfo? Customer,
     string? ReportNumber,
     JobStatus Status,
@@ -207,6 +208,7 @@ public sealed record AssignedUserResponse(
 public sealed record JobReportSummaryResponse(
     Guid Id,
     Guid OrganizationId,
+    string OrganizationName,
     string? ReportNumber,
     JobStatus Status,
     CustomerInfo Customer,

@@ -1385,9 +1385,25 @@
                 "pdf"
               ]
             },
-            "description": "Exports the job report as a 4V05 PDF matching the original paper report layout."
+            "description": "Exports the full job detail as a PDF including customer data, work/control selections, assigned users, worksheets, totals, and related job links."
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('pdf content type', function () { pm.expect(pm.response.headers.get('Content-Type')).to.include('application/pdf'); });",
+                  "  pm.test('pdf is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });",
+                  "  pm.test('pdf has binary body', function () { pm.expect(pm.response.responseSize).to.be.above(1000); });",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "/api/jobs/{id} with If-None-Match",
