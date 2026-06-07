@@ -389,6 +389,7 @@ export function useJobDetails(jobId: string | undefined) {
     id?: string;
     jobId: string;
     userId: string;
+    userDisplayName: string;
     workDate: string;
     hoursWorked: number;
     sleptOnJob: boolean;
@@ -399,6 +400,7 @@ export function useJobDetails(jobId: string | undefined) {
         id: params.id ?? null,
         jobId: params.jobId,
         userId: params.userId,
+        userDisplayName: params.userDisplayName,
         workDate: params.workDate,
         hoursWorked: params.hoursWorked,
         sleptOnJob: params.sleptOnJob,

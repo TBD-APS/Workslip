@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
-import { useAuth } from '../../../../providers/AuthContext';
+import { useAuth } from '../../../../providers/useAuth';
 import { useCan } from '../../../../providers/permissions';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import { MultiSelectDropdown } from '../../../../components/forms/MultiSelectDropdown';
@@ -61,7 +61,7 @@ type JobWorksheetsStepProps = {
   isLoadingUsers: boolean;
   isSaving: boolean;
   isDeleting: boolean;
-  onUpsert: (params: { id?: string; jobId: string; userId: string; workDate: string; hoursWorked: number; sleptOnJob: boolean }) => Promise<unknown>;
+  onUpsert: (params: { id?: string; jobId: string; userId: string; userDisplayName: string; workDate: string; hoursWorked: number; sleptOnJob: boolean }) => Promise<unknown>;
   onDelete: (params: { worksheetId: string; jobId: string }) => void;
 };
 
@@ -318,6 +318,7 @@ export function JobWorksheetsStep({
         id: worksheetId,
         jobId,
         userId: draft.userId,
+        userDisplayName: displayNameFor(draft.userId),
         workDate: dateKey(draft.workDate),
         hoursWorked,
         sleptOnJob: draft.sleptOnJob,

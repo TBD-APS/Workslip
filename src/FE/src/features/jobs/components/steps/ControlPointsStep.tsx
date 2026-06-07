@@ -10,48 +10,6 @@ type ControlPointsStepProps = {
   onToggleCategoryIrrelevant: (typeId: string, categoryId: string) => void;
 };
 
-export function validateControlPoints(
-  form: JobForm,
-  referenceData: ReferenceData | null
-): { valid: boolean; error?: string } {
-  const selectedInstallationTypes = (referenceData?.installationTypes ?? [])
-    .filter((t) => form.work.categoryIds.includes(t.id));
-
-  for (const installationType of selectedInstallationTypes) {
-    let hasAnyControlPoint = false;
-
-    for (const cat of installationType.categories) {
-      const compositeId = `${installationType.id}-${cat.id}`;
-      const isIrrelevant = form.work.irrelevantCategoryIds.includes(compositeId);
-
-      if (!isIrrelevant) {
-        const hasSelectedControlPoint = (cat.controlPoints ?? []).some(
-          (cp) => form.work.controlPointSelections[cp.id]
-        );
-
-        if (hasSelectedControlPoint) {
-          hasAnyControlPoint = true;
-        } else {
-          return {
-            valid: false,
-            error: `Mindst et kontrolpunkt skal vælges for "${installationType.name} i ${capitalizeFirstLetter(cat.name)}"`,
-          };
-        }
-      }
-    }
-
-    // Check if at least one category in this installation type has a control point selected
-    if (!hasAnyControlPoint) {
-      return {
-        valid: false,
-        error: `Mindst én kategori i "${installationType.name}" skal have et kontrolpunkt valgt (kan ikke markere alle som "ikke relevant")`,
-      };
-    }
-  }
-
-  return { valid: true };
-}
-
 function bySortOrder(a: { sortOrder: string | number }, b: { sortOrder: string | number }) {
   return Number(a.sortOrder) - Number(b.sortOrder);
 }

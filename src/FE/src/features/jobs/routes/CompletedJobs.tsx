@@ -1,33 +1,30 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
+import type { KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
+import { AlertCircle, ChevronRight, FileCheck2, MapPin, Timer, User } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
-import type { AssignedUserResponse, CustomerInfo, JobStatus } from '../../../api/generated/models';
-import { getResponseData } from '../utils';
+import { JobStatus } from '../../../api/generated/models/jobStatus';
+import type { AssignedUserResponse, CustomerInfo } from '../../../api/generated/models';
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
+import { getResponseData } from '../utils';
 
-const SCROLL_CONTAINER_SELECTOR = '.app-content';
-const SCROLL_STORAGE_KEY = 'jobListScrollTop';
-
-function getScrollContainer(): HTMLElement | null {
-  return document.querySelector(SCROLL_CONTAINER_SELECTOR);
-}
-
-type JobListItemViewModel = {
+type CompletedJobListItemViewModel = {
   id: string;
   organizationId: string;
   customer: CustomerInfo | null;
   reportNumber: string | null;
   status: JobStatus;
+  reportDate: string | null;
+  submittedAt: string | null;
   installationTypes: string[];
   assignedUsers: AssignedUserResponse[];
-  softDeleted: boolean;
   totalHours: number | null;
 };
 
-const SkeletonCard = () => (
+const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+const CompletedJobSkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
     <div className="job-card-header">
       <div className="skeleton skeleton-badge" />
@@ -37,45 +34,26 @@ const SkeletonCard = () => (
     <div className="skeleton skeleton-address" />
     <div className="job-card-footer">
       <div className="skeleton skeleton-tag" />
-      <div className="skeleton skeleton-chevron" />
+      <div className="skeleton skeleton-badge" />
     </div>
   </div>
 );
 
-export const JobList = () => {
+export const CompletedJobs = () => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const query = useGetApiJobs({ limit: 200 });
-  const allJobs = getJobListItems(query.data);
+  const query = useGetApiJobs({ status: JobStatus.Submitted, limit: 200 });
+  const allJobs = getCompletedJobListItems(query.data);
   const jobs = useMemo(() => {
-    if (isAdmin) return allJobs;
+    const submittedJobs = allJobs.filter((job) => job.status === JobStatus.Submitted);
+    if (isAdmin) return submittedJobs;
+
     const currentUserId = user?.id;
     if (!currentUserId) return [];
-    return allJobs.filter((job) => job.assignedUsers.some((u) => u.id === currentUserId));
+
+    return submittedJobs.filter((job) => job.assignedUsers.some((assignedUser) => assignedUser.id === currentUserId));
   }, [allJobs, isAdmin, user?.id]);
-
-  useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
-  }, [queryClient]);
-
-  useEffect(() => {
-    if (query.isLoading) return;
-    const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY);
-    if (saved) {
-      getScrollContainer()?.scrollTo({ top: Number(saved) });
-    }
-  }, [query.isLoading]);
-
-  useEffect(() => {
-    return () => {
-      const top = getScrollContainer()?.scrollTop;
-      if (top != null) {
-        sessionStorage.setItem(SCROLL_STORAGE_KEY, String(top));
-      }
-    };
-  }, []);
 
   if (query.isLoading) {
     return (
@@ -85,9 +63,8 @@ export const JobList = () => {
           <div className="skeleton skeleton-subtitle" />
         </div>
         <div className="job-list">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
+          <CompletedJobSkeletonCard />
+          <CompletedJobSkeletonCard />
         </div>
       </div>
     );
@@ -98,7 +75,7 @@ export const JobList = () => {
       <div className="page-container">
         <div className="error-state">
           <AlertCircle size={32} />
-          <p>Kunne ikke hente jobs. Sørg for at du er logget ind.</p>
+          <p>Kunne ikke hente afsluttede sager.</p>
           <button className="btn btn-primary" onClick={() => query.refetch()}>
             Prøv igen
           </button>
@@ -110,22 +87,27 @@ export const JobList = () => {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2>Opgaver</h2>
+        <h2>Afsluttede sager</h2>
         {isAdmin ? (
-          <p className="subtitle">{jobs.length} registrerede opgaver</p>
+          <p className="subtitle">{jobs.length} indsendte sager klar til PDF</p>
         ) : (
-          <p className="subtitle">Viser kun sager tildelt dig · {jobs.length} {jobs.length === 1 ? 'sag' : 'sager'}</p>
+          <p className="subtitle">Viser kun afsluttede sager tildelt dig · {jobs.length} {jobs.length === 1 ? 'sag' : 'sager'}</p>
         )}
       </div>
 
       <div className="job-list">
         {jobs.map((job) => (
-          <JobCard key={job.id} job={job} onOpen={() => navigate(`/app/job/${job.id}`)} />
+          <CompletedJobCard
+            key={job.id}
+            job={job}
+            onOpen={() => navigate(`/app/completed/${job.id}`)}
+          />
         ))}
 
         {jobs.length === 0 && (
           <div className="empty-state">
-            <p>{isAdmin ? 'Du har ingen opgaver endnu.' : 'Du har ingen opgaver tildelt endnu.'}</p>
+            <FileCheck2 size={32} />
+            <p>{isAdmin ? 'Der er ingen afsluttede sager endnu.' : 'Du har ingen afsluttede sager tildelt endnu.'}</p>
           </div>
         )}
       </div>
@@ -133,16 +115,29 @@ export const JobList = () => {
   );
 };
 
-function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => void }) {
+function CompletedJobCard({
+  job,
+  onOpen,
+}: {
+  job: CompletedJobListItemViewModel;
+  onOpen: () => void;
+}) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onOpen();
+    }
+  };
+
   return (
-    <button className="job-card" onClick={onOpen} type="button">
+    <article className="job-card completed-job-card" role="button" tabIndex={0} onClick={onOpen} onKeyDown={handleKeyDown}>
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
           <h3 className="job-customer">{job.customer?.name || 'Ukendt kunde'}</h3>
         </div>
         <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>
-          {job.status}
+          Indsendt
         </span>
       </div>
 
@@ -153,6 +148,7 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
 
       <div className="job-card-meta">
         <span className="meta-item">{formatInstallationTypes(job.installationTypes)}</span>
+        {job.submittedAt && <span className="meta-item">Indsendt {formatDate(job.submittedAt)}</span>}
         {job.totalHours != null && (
           <span className="meta-item meta-hours">
             <Timer size={14} /> {job.totalHours} t
@@ -160,13 +156,13 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
         )}
       </div>
 
-      <div className="job-card-footer">
+      <div className="job-card-footer completed-job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="Åbn sag">
+        <span className="btn-icon" aria-label="Åbn sagsoverblik">
           <ChevronRight size={20} />
         </span>
       </div>
-    </button>
+    </article>
   );
 }
 
@@ -193,13 +189,19 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
   );
 }
 
-function getJobListItems(value: unknown): JobListItemViewModel[] {
+function getCompletedJobListItems(value: unknown): CompletedJobListItemViewModel[] {
   const data = getResponseData(value);
-  return Array.isArray(data) ? data as JobListItemViewModel[] : [];
+  return Array.isArray(data) ? data as CompletedJobListItemViewModel[] : [];
 }
 
 function formatInstallationTypes(installationTypes: string[]) {
   if (installationTypes.length === 0) return 'Ingen installationstype';
   if (installationTypes.length === 1) return installationTypes[0];
   return `${installationTypes[0]} +${installationTypes.length - 1}`;
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return DATE_FORMATTER.format(date);
 }

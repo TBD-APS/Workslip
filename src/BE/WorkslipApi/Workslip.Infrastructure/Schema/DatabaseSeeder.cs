@@ -1,4 +1,4 @@
-﻿using AutoBogus;
+using AutoBogus;
 using Bogus;
 using Microsoft.EntityFrameworkCore;
 using Workslip.Domain.Models;
@@ -9,6 +9,8 @@ public static class DatabaseSeeder
 {
     public static async Task Seed(SqlDbContext db)
     {
+        await NormalizeExclusiveClosureFlagSelectionsAsync(db);
+
         if (await db.Organizations.AnyAsync())
         {
             return;
@@ -268,9 +270,14 @@ public static class DatabaseSeeder
         }
 
         var jobClosureFlagJoins = new List<JobReportClosureFlagRow>();
+        var exclusiveClosureFlags = jobClosureFlags.Where(flag => flag.IsExclusive).ToArray();
+        var combinableClosureFlags = jobClosureFlags.Where(flag => !flag.IsExclusive).ToArray();
         foreach (var job in jobs)
         {
-            var selectedFlags = faker.PickRandom(jobClosureFlags, faker.Random.Int(1, jobClosureFlags.Count));
+            var selectedFlags = exclusiveClosureFlags.Length > 0 && faker.Random.Bool(0.25f)
+                ? [faker.PickRandom(exclusiveClosureFlags)]
+                : faker.PickRandom(combinableClosureFlags, faker.Random.Int(1, combinableClosureFlags.Length)).ToArray();
+
             var sortOrder = 0;
             foreach (var flag in selectedFlags)
             {
@@ -299,6 +306,43 @@ public static class DatabaseSeeder
         await db.Users.AddRangeAsync(users);
         await db.Worksheets.AddRangeAsync(worksheets);
 
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task NormalizeExclusiveClosureFlagSelectionsAsync(SqlDbContext db)
+    {
+        var closureFlagSelections = await db.JobReportClosureFlags
+            .Include(selection => selection.ClosureFlag)
+            .ToListAsync();
+
+        var invalidSelections = closureFlagSelections
+            .GroupBy(selection => selection.JobReportId)
+            .Select(group =>
+            {
+                var selections = group.ToArray();
+                var exclusiveSelections = selections
+                    .Where(selection => selection.ClosureFlag.IsExclusive)
+                    .OrderBy(selection => selection.SortOrder)
+                    .ThenBy(selection => selection.ClosureFlag.SortOrder)
+                    .ToArray();
+
+                if (exclusiveSelections.Length == 0 || selections.Length == 1)
+                {
+                    return [];
+                }
+
+                var keepSelectionId = exclusiveSelections[0].Id;
+                return selections.Where(selection => selection.Id != keepSelectionId).ToArray();
+            })
+            .SelectMany(selections => selections)
+            .ToArray();
+
+        if (invalidSelections.Length == 0)
+        {
+            return;
+        }
+
+        db.JobReportClosureFlags.RemoveRange(invalidSelections);
         await db.SaveChangesAsync();
     }
 }

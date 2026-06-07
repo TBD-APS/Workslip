@@ -10,7 +10,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../useAuth';
 import { hasPermission, type Permission } from './permissions';
 
 type CanProps = {

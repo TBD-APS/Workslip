@@ -1,6 +1,6 @@
 import { useNavigate, NavLink, Outlet } from 'react-router-dom';
-import { ClipboardList, LogOut, PlusCircle, Settings, User } from 'lucide-react';
-import { useAuth } from '../../providers/AuthContext';
+import { ClipboardList, FileCheck2, LogOut, PlusCircle, Settings, User } from 'lucide-react';
+import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
 
 export const AppLayout = () => {
@@ -60,6 +60,12 @@ export const AppLayout = () => {
             </button>
           </Can>
         </div>
+        <Can permission="job:viewAll">
+          <NavLink to="/app/completed" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <FileCheck2 size={24} />
+            <span>Afsluttede sager</span>
+          </NavLink>
+        </Can>
         <NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Settings size={24} />
           <span>Indstillinger</span>
