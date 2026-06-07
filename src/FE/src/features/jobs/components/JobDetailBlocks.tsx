@@ -3,6 +3,7 @@ import { CollapsibleSection } from '../../../components/forms/CollapsibleSection
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
 import { ValidatedInput } from '../../../components/forms/ValidatedInput';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
+import { useCan } from '../../../providers/permissions';
 import type { CustomerInfo } from '../../../api/generated/models';
 import type { AssignableUser, LinkableJob } from '../types';
 
@@ -15,6 +16,7 @@ type CustomerBlockProps = {
     isLoadingUsers: boolean;
     onAssignedUsersChange: (userIds: string[]) => void;
   };
+  readOnlyAssigned?: { id: string; displayName: string }[];
   onCustomerChange: (field: keyof CustomerInfo, value: string | null) => void;
   onReportNumberChange: (value: string) => void;
 };
@@ -23,9 +25,12 @@ export function CustomerDetailsBlock({
   form,
   reportNumberReadOnly,
   assignment,
+  readOnlyAssigned,
   onCustomerChange,
   onReportNumberChange,
 }: CustomerBlockProps) {
+  const canAssign = useCan('job:assign');
+
   return (
     <section className="detail-section customer-details-section">
       <div className="section-header-row">
@@ -55,7 +60,7 @@ export function CustomerDetailsBlock({
           <ValidatedInput label="Kontaktperson" value={form.customer.contactPerson} placeholder="Kontaktperson" onChange={(value) => onCustomerChange('contactPerson', value)} />
         </div>
 
-        {assignment && (
+        {assignment && canAssign && (
           <MultiSelectDropdown
             label="Tildelte medarbejdere"
             placeholder="Vælg medarbejdere"
@@ -68,6 +73,24 @@ export function CustomerDetailsBlock({
             commitOnClose
             onChange={assignment.onAssignedUsersChange}
           />
+        )}
+
+        {assignment && !canAssign && (
+          <div className="form-group">
+            <label className="form-label">Tildelte medarbejdere</label>
+            <div className="form-readonly-list" aria-readonly="true">
+              {(readOnlyAssigned && readOnlyAssigned.length > 0) ? (
+                readOnlyAssigned.map((u) => (
+                  <span key={u.id} className="form-readonly-chip">
+                    <Users size={12} />
+                    <span>{u.displayName}</span>
+                  </span>
+                ))
+              ) : (
+                <span className="form-readonly-empty">Ingen medarbejdere tildelt</span>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </section>

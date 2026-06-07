@@ -41,19 +41,9 @@ export const emptyForm: JobForm = {
   },
 };
 
-export function getResponseData<T>(
-  value: T | { data: T } | { data: { data: T } } | undefined,
-): T | undefined {
-  if (!value) return undefined;
-  if (!('data' in (value as object))) return value as T;
+import { getResponseData } from '../../lib/unwrapResponse';
 
-  const firstData = (value as { data: T | { data: T } }).data;
-  if (firstData && typeof firstData === 'object' && 'data' in firstData) {
-    return (firstData as { data: T }).data;
-  }
-
-  return firstData as T;
-}
+export { getResponseData };
 
 export function getUserList(value: unknown): AssignableUser[] {
   const data = getResponseData<
