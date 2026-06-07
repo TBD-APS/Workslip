@@ -10,6 +10,7 @@ public sealed record UpsertWorksheetRequest(
     Guid? Id,
     Guid JobId,
     Guid UserId,
+    string UserDisplayName,
     DateOnly WorkDate,
     decimal HoursWorked,
     bool SleptOnJob);
@@ -23,6 +24,7 @@ public sealed record WorksheetResponse(
     Guid OrganizationId,
     Guid JobId,
     Guid UserId,
+    string UserDisplayName,
     DateOnly WorkDate,
     decimal HoursWorked,
     bool SleptOnJob,

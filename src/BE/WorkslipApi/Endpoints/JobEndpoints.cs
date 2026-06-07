@@ -57,14 +57,20 @@ public static class JobEndpoints
             return CachedOk(result, httpContext, events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
-        group.MapGet("/{id:guid}/report/pdf", async (Guid id, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
+        group.MapGet("/{id:guid}/report/pdf", async (Guid id, HttpContext httpContext, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
         {
             var result = await service.GetSingleJobAsync(id, cancellationToken);
             if (!result.IsSuccess)
                 return ResultExtensions.ToHttpResult(result);
 
-            var pdf = pdfService.Generate(result.Value, result.Value.Status);
-            return Results.File(pdf, "application/pdf", $"rapport-{result.Value.ReportNumber}.pdf");
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var jobBaseUri = new Uri($"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/jobs/");
+            var pdf = pdfService.Generate(result.Value, result.Value.Status, jobBaseUri);
+            var reportNumber = string.IsNullOrWhiteSpace(result.Value.ReportNumber)
+                ? result.Value.Id.ToString("N")[..8]
+                : result.Value.ReportNumber;
+
+            return Results.File(pdf, "application/pdf", $"rapport-{reportNumber}.pdf");
         });
 
         group.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, IJobService service, CancellationToken cancellationToken) =>

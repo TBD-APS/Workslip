@@ -563,6 +563,8 @@ public sealed class JobService(
         return new(
             report.Id,
             report.OrganizationId,
+            report.OrganizationName,
+            report.OrganizationCvr,
             report.ReportNumber,
             report.Status,
             report.Customer ?? new CustomerInfo(null, null, null, null, null, null),

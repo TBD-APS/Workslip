@@ -100,6 +100,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             existing.OrganizationId,
             existing.JobId,
             existing.UserId,
+            user.DisplayName,
             request.WorkDate,
             existing.HoursWorked,
             existing.SleptOnJob,
@@ -133,21 +134,27 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
 
     private async Task<IReadOnlyList<WorksheetResponse>> ListByJobAsyncCoreAsync(Guid jobId, CancellationToken cancellationToken)
     {
-        var rows = await _dbContext.Worksheets
-            .AsNoTracking()
-            .Where(w => w.JobId == jobId && w.OrganizationId == _currentUser.OrganizationId)
-            .ToListAsync(cancellationToken);
+        var rows = await (
+            from worksheet in _dbContext.Worksheets.AsNoTracking()
+            join user in _dbContext.Users.AsNoTracking() on worksheet.UserId equals user.Id
+            where worksheet.JobId == jobId
+                && worksheet.OrganizationId == _currentUser.OrganizationId
+                && user.OrganizationId == _currentUser.OrganizationId
+            orderby worksheet.WorkDate, user.DisplayName
+            select new { Worksheet = worksheet, user.DisplayName }
+        ).ToListAsync(cancellationToken);
 
-        return rows.Select(w => new WorksheetResponse(
-            w.Id,
-            w.OrganizationId,
-            w.JobId,
-            w.UserId,
-            DateOnly.FromDateTime(w.WorkDate),
-            w.HoursWorked,
-            w.SleptOnJob,
-            w.CreatedAt,
-            w.UpdatedAt)).ToArray();
+        return rows.Select(row => new WorksheetResponse(
+            row.Worksheet.Id,
+            row.Worksheet.OrganizationId,
+            row.Worksheet.JobId,
+            row.Worksheet.UserId,
+            row.DisplayName,
+            DateOnly.FromDateTime(row.Worksheet.WorkDate),
+            row.Worksheet.HoursWorked,
+            row.Worksheet.SleptOnJob,
+            row.Worksheet.CreatedAt,
+            row.Worksheet.UpdatedAt)).ToArray();
     }
 
     public Task<IReadOnlyList<WorksheetUserGroupResponse>> GetGroupedByJobAsync(Guid jobId, CancellationToken cancellationToken) =>
