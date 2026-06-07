@@ -43,6 +43,9 @@ var tags = {
   project: companyName
 }
 
+var appInsightsConnectionString = appInsights.properties.ConnectionString
+var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
+
 // ──────────────────────────────────────────────────────────────────────────────
 // User-Assigned Managed Identity
 // One identity, shared by all resources. All RBAC is granted to this identity.
@@ -107,7 +110,9 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
   name: webApiName
   location: location
   kind: 'app'
-  tags: tags
+  tags: union(tags, {
+    'hidden-link:${appInsights.id}': 'Resource'
+  })
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: { '${identity.id}': {} }
@@ -142,7 +147,23 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
         }
         {
           name: 'Azure__ApplicationInsights__ConnectionString'
-          value: appInsights.properties.ConnectionString
+          value: appInsightsConnectionString
+        }
+        {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: appInsightsConnectionString
+        }
+        {
+          name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
+          value: appInsightsInstrumentationKey
+        }
+        {
+          name: 'ApplicationInsightsAgent_EXTENSION_VERSION'
+          value: '~3'
+        }
+        {
+          name: 'XDT_MicrosoftApplicationInsights_Mode'
+          value: 'recommended'
         }
         {
           name: 'KEY_VAULT_URL'
