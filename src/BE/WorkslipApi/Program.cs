@@ -28,17 +28,14 @@ try
 
     var app = builder.Build();
 
-    if (app.Environment.IsDevelopment())
+    await using (var scope = app.Services.CreateAsyncScope())
     {
-        await using (var scope = app.Services.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<SqlDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<SqlDbContext>();
 
-            await db.Database.EnsureCreatedAsync();
-            await db.Database.MigrateAsync();
-            await db.Database.CanConnectAsync();
-            await DatabaseSeeder.Seed(db);
-        }
+        await db.Database.EnsureCreatedAsync();
+        await db.Database.MigrateAsync();
+        await db.Database.CanConnectAsync();
+        await DatabaseSeeder.Seed(db);
     }
 
     app.ConfigurePipeline();
