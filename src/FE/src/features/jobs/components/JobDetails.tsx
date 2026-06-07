@@ -196,6 +196,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         isLastStep={isLastStep}
         disableNext={disableNext}
         nextDisabledReason={nextDisabledReason}
+        hideDoneButton={isLastStep}
         onBack={() => {
           if (details.currentStep === 0) {
             details.flushSave();

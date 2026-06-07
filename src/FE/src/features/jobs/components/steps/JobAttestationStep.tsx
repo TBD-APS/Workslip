@@ -101,7 +101,7 @@ export function JobAttestationStep({
             <span>
               {isSubmitted
                 ? 'Backend har registreret sagen som indsendt.'
-                : 'Tjek kun de valgte oplysninger, timesedler og kontrolpunkter før indsendelse.'}
+                : 'Tjek de valgte oplysninger, timesedler og kontrolpunkter før indsendelse.'}
             </span>
           </div>
         </div>
@@ -242,23 +242,76 @@ export function JobAttestationStep({
           </div>
         )}
 
-        <Checkbox
-          checked={confirmed || isSubmitted}
-          disabled={isSubmitted || details.isSubmittingJob || isSavingDraft}
-          label="Jeg bekræfter, at sagen er gennemgået og klar til indsendelse"
-          description="Attestering registreres som indsendt sag med den aktuelle bruger hos backend."
-          onChange={() => onConfirmedChange(!confirmed)}
-        />
+        <div className="attestation-confirm-card">
+          <div className="attestation-confirm-card-header">
+            <ShieldCheck size={20} className="attestation-confirm-card-icon" aria-hidden="true" />
+            <div className="attestation-confirm-card-heading">
+              <h3 className="attestation-confirm-card-title">Bekræft og indsend</h3>
+              <p className="attestation-confirm-card-subtitle">
+                Når du attesterer, registreres sagen som indsendt hos kontoret med den aktuelle bruger.
+              </p>
+            </div>
+          </div>
 
-        <button
-          type="button"
-          className="btn btn-primary attestation-submit-button"
-          onClick={handleSubmit}
-          disabled={!confirmed || isSubmitted || details.isSubmittingJob || isSavingDraft}
-        >
-          {details.isSubmittingJob || isSavingDraft ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
-          <span>{isSavingDraft ? 'Gemmer...' : details.isSubmittingJob ? 'Indsender...' : isSubmitted ? 'Attesteret' : 'Attestér og indsend'}</span>
-        </button>
+          {!isSubmitted && !confirmed && !details.isSubmittingJob && !isSavingDraft && (
+            <div className="attestation-confirm-required" role="status" aria-live="polite">
+              <AlertCircle size={18} aria-hidden="true" />
+              <span>
+                <strong>Trin 1 kræves:</strong> Markér bekræftelsen nedenfor for at aktivere indsendelse.
+              </span>
+            </div>
+          )}
+
+          <label className={confirmed ? 'attestation-confirm-row confirmed' : 'attestation-confirm-row'}>
+            <span className="attestation-confirm-step" aria-hidden="true">1</span>
+            <div className="attestation-confirm-body">
+              <Checkbox
+                checked={confirmed || isSubmitted}
+                disabled={isSubmitted || details.isSubmittingJob || isSavingDraft}
+                label="Jeg bekræfter, at sagen er gennemgået og klar til indsendelse"
+                description="Attestering kan ikke fortrydes — sagens status sættes til Indsendt."
+                onChange={() => onConfirmedChange(!confirmed)}
+              />
+            </div>
+          </label>
+
+          {isSubmitted ? (
+            <div className="attestation-submitted-badge" role="status" aria-live="polite">
+              <CheckCircle2 size={20} aria-hidden="true" />
+              <div>
+                <span className="attestation-submitted-badge-title">Sagen er attesteret</span>
+                <span className="attestation-submitted-badge-subtitle">
+                  Status er opdateret hos backend. Du kan ikke indsende sagen igen.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="attestation-submit-row">
+              <span className="attestation-confirm-step" aria-hidden="true">2</span>
+              <button
+                type="button"
+                className={confirmed ? 'btn btn-primary attestation-submit-button' : 'btn attestation-submit-button attestation-submit-button-locked'}
+                onClick={handleSubmit}
+                disabled={!confirmed || details.isSubmittingJob || isSavingDraft}
+                title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
+                aria-disabled={!confirmed || details.isSubmittingJob || isSavingDraft}
+              >
+                {details.isSubmittingJob || isSavingDraft ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <ShieldCheck size={18} />
+                )}
+                <span>
+                  {isSavingDraft
+                    ? 'Gemmer...'
+                    : details.isSubmittingJob
+                      ? 'Indsender...'
+                      : 'Attestér og indsend'}
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
       </section>
     </>
   );

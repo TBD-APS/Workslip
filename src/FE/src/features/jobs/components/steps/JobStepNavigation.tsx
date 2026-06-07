@@ -43,6 +43,7 @@ type StepNavigationProps = {
   disableDone?: boolean;
   nextDisabledReason?: string;
   doneDisabledReason?: string;
+  hideDoneButton?: boolean;
 };
 
 export function StepNavigation({
@@ -57,6 +58,7 @@ export function StepNavigation({
   disableDone = false,
   nextDisabledReason,
   doneDisabledReason,
+  hideDoneButton = false,
 }: StepNavigationProps) {
   const [isVisible, setIsVisible] = useState(true);
 
@@ -110,7 +112,7 @@ export function StepNavigation({
           <span>Næste</span>
           <ChevronRight size={18} />
         </button>
-      ) : (
+      ) : !hideDoneButton ? (
         <button
           className="step-nav-btn step-nav-btn-next"
           onClick={onDone}
@@ -121,7 +123,7 @@ export function StepNavigation({
           {doneIcon}
           <span>{doneLabel}</span>
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

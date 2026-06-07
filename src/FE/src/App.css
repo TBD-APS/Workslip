@@ -1296,6 +1296,8 @@
   font-size: 0.78rem;
   color: var(--text-secondary);
   white-space: nowrap;
+  flex: 1;
+  text-align: center;
 }
 
 .control-points-list {
@@ -2212,8 +2214,189 @@
   margin: 0;
 }
 
+.attestation-confirm-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.4rem 1.5rem;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--surface-selected) 0%, rgba(37, 99, 235, 0.04) 100%);
+  border: 1px solid rgba(96, 165, 250, 0.32);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.attestation-confirm-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.attestation-confirm-card-icon {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: #60a5fa;
+}
+
+.attestation-confirm-card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.attestation-confirm-card-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.attestation-confirm-card-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.attestation-confirm-required {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 0.95rem;
+  border-radius: 10px;
+  background: rgba(234, 179, 8, 0.10);
+  border: 1px solid rgba(234, 179, 8, 0.32);
+  color: #fde68a;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.attestation-confirm-required svg {
+  flex-shrink: 0;
+  color: #fbbf24;
+}
+
+.attestation-confirm-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(96, 165, 250, 0.18);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  color: #bfdbfe;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.attestation-confirm-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.attestation-confirm-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(96, 165, 250, 0.30);
+}
+
+.attestation-confirm-row.confirmed {
+  background: rgba(34, 197, 94, 0.10);
+  border-color: rgba(34, 197, 94, 0.32);
+}
+
+.attestation-confirm-row.confirmed .attestation-confirm-step {
+  background: rgba(34, 197, 94, 0.20);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: #bbf7d0;
+}
+
+.attestation-confirm-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.attestation-submit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.attestation-submit-row .attestation-confirm-step {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--text-secondary);
+}
+
+.attestation-submit-row .attestation-confirm-step.unlocked {
+  background: rgba(37, 99, 235, 0.22);
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #dbeafe;
+}
+
 .attestation-submit-button {
-  width: fit-content;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border-radius: 12px;
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.attestation-submit-button-locked {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.attestation-submit-button-locked:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: none;
+  box-shadow: none;
+}
+
+.attestation-submitted-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 12px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.32);
+  color: #86efac;
+}
+
+.attestation-submitted-badge > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.attestation-submitted-badge-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #bbf7d0;
+}
+
+.attestation-submitted-badge-subtitle {
+  font-size: 0.8rem;
+  color: rgba(134, 239, 172, 0.85);
+  line-height: 1.4;
 }
 
 @media (max-width: 640px) {
