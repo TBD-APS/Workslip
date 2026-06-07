@@ -1,78 +1,65 @@
-name: Build and deploy Workslip API to Azure
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
+name: Build and deploy ASP.Net Core app to Azure Web App - api-npteknik-udv
 
 on:
-  workflow_dispatch:
-    inputs:
-      app_name:
-        description: 'Azure Web App name'
-        required: false
-        default: 'api-npteknik-udv'
-      environment:
-        description: 'GitHub environment name'
-        required: false
-        default: 'udv'
   push:
-    branches: [main]
-    paths:
-      - 'src/BE/WorkslipApi/**'
-      - '.github/workflows/azure-api-deploy.yml'
-
-env:
-  DOTNET_VERSION: '10.0.x'
-  API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
-  PUBLISH_DIR: ${{ github.workspace }}/publish/api
-
-permissions:
-  contents: read
-
-concurrency:
-  group: azure-api-${{ github.event.inputs.environment || 'udv' }}
-  cancel-in-progress: false
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build API
     runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    permissions:
+      contents: read #This is required for actions/checkout
 
-      - name: Setup .NET
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET Core
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-version: '10.x'
 
-      - name: Restore
-        run: dotnet restore ${{ env.API_PROJECT }} --nologo
+      - name: Build with dotnet
+        run: dotnet build --configuration Release
 
-      - name: Build
-        run: dotnet build ${{ env.API_PROJECT }} --configuration Release --no-restore --nologo
+      - name: dotnet publish
+        run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
 
-      - name: Publish
-        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output "${{ env.PUBLISH_DIR }}" --nologo
-
-      - name: Upload artifact
+      - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
-          name: workslip-api
-          path: ${{ env.PUBLISH_DIR }}
-          if-no-files-found: error
+          name: .net-app
+          path: ${{env.DOTNET_ROOT}}/myapp
 
   deploy:
-    name: Deploy API
     runs-on: windows-latest
     needs: build
-    environment: ${{ github.event.inputs.environment || 'udv' }}
+    permissions:
+      id-token: write #This is required for requesting the JWT
+      contents: read #This is required for actions/checkout
+
     steps:
-      - name: Download artifact
+      - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: workslip-api
-          path: ${{ env.PUBLISH_DIR }}
+          name: .net-app
+      
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_E91F3E30F48B4D8B8FA50AC0FEAEF323 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D5B1ABA18F5346F7B8A79F80E6BABEFB }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B25BCB92F32F47919010A3D0FF99E7AB }}
 
       - name: Deploy to Azure Web App
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ github.event.inputs.app_name || 'api-npteknik-udv' }}
-          package: ${{ env.PUBLISH_DIR }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          app-name: 'api-npteknik-udv'
+          slot-name: 'Production'
+          package: .
+          
