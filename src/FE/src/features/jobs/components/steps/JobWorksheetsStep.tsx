@@ -565,7 +565,7 @@ function WorksheetList({
             <div className="worksheet-list-item-row">
               <div className="worksheet-list-item-info">
                 <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
-                <span className="worksheet-list-item-meta">{assigneeName ?? worksheet.userId.slice(0, 8)}</span>
+                <span className="worksheet-list-item-meta">{assigneeName}</span>
               </div>
               <div className="worksheet-list-item-metrics">
                 <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
