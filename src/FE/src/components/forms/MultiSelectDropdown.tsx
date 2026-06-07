@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
-
 const COMMIT_DELAY_MS = 1000;
 
 export type MultiSelectOption = {
@@ -19,7 +17,6 @@ type MultiSelectDropdownProps = {
   options: MultiSelectOption[];
   selectedIds: string[];
   isLoading?: boolean;
-  saveStatus?: SaveStatus;
   icon?: React.ReactNode;
   commitOnClose?: boolean;
   onChange: (selectedIds: string[]) => void;
@@ -33,7 +30,6 @@ export function MultiSelectDropdown({
   options,
   selectedIds,
   isLoading = false,
-  saveStatus,
   icon,
   commitOnClose = false,
   onChange,
@@ -140,7 +136,6 @@ export function MultiSelectDropdown({
     <div className="multi-select-field">
       <div className="multi-select-field-header">
         <label className="form-label">{label}</label>
-        {saveStatus && <StatusIndicator saveStatus={saveStatus} />}
       </div>
 
       <div className="multi-select-dropdown" ref={dropdownRef}>
@@ -218,10 +213,4 @@ export function MultiSelectDropdown({
 
 function sameSelection(a: string[], b: string[]) {
   return a.length === b.length && a.every((id) => b.includes(id));
-}
-
-function StatusIndicator({ saveStatus }: { saveStatus: SaveStatus }) {
-  if (saveStatus === 'idle') return null;
-
-  return <span className={`save-indicator ${saveStatus}`}>{saveStatus === 'saving' ? 'Gemmer...' : saveStatus === 'saved' ? 'Gemt' : 'Fejl ved gem'}</span>;
 }

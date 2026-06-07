@@ -4,7 +4,7 @@ import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdo
 import { ValidatedInput } from '../../../components/forms/ValidatedInput';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CustomerInfo } from '../../../api/generated/models';
-import type { AssignableUser, LinkableJob, SaveStatus } from '../types';
+import type { AssignableUser, LinkableJob } from '../types';
 
 type CustomerBlockProps = {
   form: { customer: CustomerInfo; reportNumber: string };
@@ -12,7 +12,6 @@ type CustomerBlockProps = {
   assignment?: {
     users: AssignableUser[];
     assignedUserIds: string[];
-    assignmentStatus: SaveStatus;
     isLoadingUsers: boolean;
     onAssignedUsersChange: (userIds: string[]) => void;
   };
@@ -65,7 +64,6 @@ export function CustomerDetailsBlock({
             options={assignment.users.map((user) => ({ id: user.id, label: user.displayName, description: user.email }))}
             selectedIds={assignment.assignedUserIds}
             isLoading={assignment.isLoadingUsers}
-            saveStatus={assignment.assignmentStatus}
             icon={<Users size={16} />}
             commitOnClose
             onChange={assignment.onAssignedUsersChange}
@@ -79,12 +77,11 @@ export function CustomerDetailsBlock({
 type LinkedJobsBlockProps = {
   jobs: LinkableJob[];
   linkedJobIds: string[];
-  saveStatus: SaveStatus;
   isLoading: boolean;
   onChange: (jobIds: string[]) => void;
 };
 
-export function LinkedJobsBlock({ jobs, linkedJobIds, saveStatus, isLoading, onChange }: LinkedJobsBlockProps) {
+export function LinkedJobsBlock({ jobs, linkedJobIds, isLoading, onChange }: LinkedJobsBlockProps) {
   return (
     <section className="detail-section">
       <MultiSelectDropdown
@@ -95,7 +92,6 @@ export function LinkedJobsBlock({ jobs, linkedJobIds, saveStatus, isLoading, onC
         options={jobs}
         selectedIds={linkedJobIds}
         isLoading={isLoading}
-        saveStatus={saveStatus}
         icon={<FileText size={16} />}
         commitOnClose
         onChange={onChange}

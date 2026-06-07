@@ -432,11 +432,9 @@ function WorksheetsSection({
 
   return (
     <section className="detail-section worksheet-section">
-      <div className="worksheet-section-header">
-        <div className="worksheet-section-header-left">
-          <FileSpreadsheet size={22} className="worksheet-section-header-icon" />
-          <h2 className="worksheet-section-title">Timesedler</h2>
-        </div>
+      <div className="section-header-row worksheet-section-header">
+        <FileSpreadsheet size={18} />
+        <h3>Timesedler</h3>
         <span className="worksheet-section-header-totals" aria-label="Timeseddel totaler">{totalsLabel}</span>
       </div>
 

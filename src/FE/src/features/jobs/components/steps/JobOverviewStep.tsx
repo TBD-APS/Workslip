@@ -17,7 +17,6 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         assignment={{
           users: details.assignableUsers,
           assignedUserIds: details.assignedUserIds,
-          assignmentStatus: details.assignmentStatus,
           isLoadingUsers: details.isLoadingUsers,
           onAssignedUsersChange: details.updateAssignedUsers,
         }}
@@ -27,7 +26,6 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
       <LinkedJobsBlock
         jobs={details.linkableJobs}
         linkedJobIds={details.linkedJobIds}
-        saveStatus={details.linksStatus}
         isLoading={details.isLoadingJobs}
         onChange={details.updateLinkedJobs}
       />
