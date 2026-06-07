@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import type { AssignedUserResponse, CustomerInfo, JobStatus } from '../../../api/generated/models';
 import { getResponseData } from '../utils';
+import { useAuth } from '../../../providers/AuthContext';
+import { useIsAdmin } from '../../../providers/permissions';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-content';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
@@ -43,8 +45,16 @@ const SkeletonCard = () => (
 export const JobList = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = useIsAdmin();
   const query = useGetApiJobs({ limit: 200 });
-  const jobs = getJobListItems(query.data);
+  const allJobs = getJobListItems(query.data);
+  const jobs = useMemo(() => {
+    if (isAdmin) return allJobs;
+    const currentUserId = user?.id;
+    if (!currentUserId) return [];
+    return allJobs.filter((job) => job.assignedUsers.some((u) => u.id === currentUserId));
+  }, [allJobs, isAdmin, user?.id]);
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
@@ -101,7 +111,11 @@ export const JobList = () => {
     <div className="page-container">
       <div className="page-header">
         <h2>Opgaver</h2>
-        <p className="subtitle">{jobs.length} registrerede opgaver</p>
+        {isAdmin ? (
+          <p className="subtitle">{jobs.length} registrerede opgaver</p>
+        ) : (
+          <p className="subtitle">Viser kun sager tildelt dig · {jobs.length} {jobs.length === 1 ? 'sag' : 'sager'}</p>
+        )}
       </div>
 
       <div className="job-list">
@@ -111,7 +125,7 @@ export const JobList = () => {
 
         {jobs.length === 0 && (
           <div className="empty-state">
-            <p>Du har ingen opgaver endnu.</p>
+            <p>{isAdmin ? 'Du har ingen opgaver endnu.' : 'Du har ingen opgaver tildelt endnu.'}</p>
           </div>
         )}
       </div>

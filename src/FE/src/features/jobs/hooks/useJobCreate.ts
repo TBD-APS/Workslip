@@ -10,6 +10,7 @@ import {
 import { useGetApiUsers } from '../../../api/generated/users/users';
 import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
 import { useAuth } from '../../../providers/AuthContext';
+import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import { emptyForm, getResponseData, getUserList, isValidCreateForm } from '../utils';
 import type { CustomerInfo, CreateJobRequest } from '../../../api/generated/models';
@@ -18,12 +19,13 @@ import type { JobForm, ReferenceData } from '../types';
 export function useJobCreate(onCreated: (jobId: string) => void) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const isAdmin = useIsAdmin();
   const referenceDataQuery = useGetApiReferenceData();
   const referenceData = getResponseData<ReferenceData>(
     referenceDataQuery.data as ReferenceData | { data: ReferenceData } | { data: { data: ReferenceData } } | undefined,
   ) ?? null;
-  const usersQuery = useGetApiUsers();
-  const assignableUsers = getUserList(usersQuery.data);
+  const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
+  const assignableUsers = isAdmin ? getUserList(usersQuery.data) : [];
   const [form, setForm] = useState<JobForm>(emptyForm);
   const [linkedJobIds, setLinkedJobIds] = useState<string[]>([]);
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
@@ -33,6 +35,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   const defaultAssignmentSetRef = useRef(false);
 
   useEffect(() => {
+    if (!isAdmin) return;
     if (!defaultAssignmentSetRef.current && assignableUsers.length > 0 && user?.email) {
       const currentUser = assignableUsers.find((u) => u.email === user.email);
       if (currentUser) {
@@ -40,7 +43,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
         defaultAssignmentSetRef.current = true;
       }
     }
-  }, [assignableUsers, user?.email]);
+  }, [assignableUsers, user?.email, isAdmin]);
 
   const createMutation = usePostApiJobs({
     mutation: {
@@ -112,6 +115,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   };
 
   const updateAssignedUsers = (userIds: string[]) => {
+    if (!isAdmin) return;
     setAssignedUserIds(userIds);
     setAssignmentStatus('idle');
   };

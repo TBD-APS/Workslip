@@ -20,6 +20,7 @@ import {
 import { useGetApiUsers } from '../../../api/generated/users/users';
 import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
+import { useIsAdmin } from '../../../providers/permissions';
 import {
   emptyForm,
   getWorkValidationMessage,
@@ -43,6 +44,7 @@ type LinksDraft = { jobId: string; linkedJobIds: string[] };
 
 export function useJobDetails(jobId: string | undefined) {
   const queryClient = useQueryClient();
+  const isAdmin = useIsAdmin();
   const [draft, setDraft] = useState<JobDetailsDraft | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [saveStatus, setSaveStatus] = useTimedStatus();
@@ -59,7 +61,7 @@ export function useJobDetails(jobId: string | undefined) {
   });
   
   const job = getResponseData<JobReportSummaryViewModel>(query.data);
-  const usersQuery = useGetApiUsers();
+  const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
   const referenceDataQuery = useGetApiReferenceData();
   const jobsData = queryClient.getQueryData(getGetApiJobsQueryKey({ limit: 200 }));
   const assignableUsers = getUserList(usersQuery.data);
@@ -343,7 +345,7 @@ export function useJobDetails(jobId: string | undefined) {
   };
 
   const updateAssignedUsers = (userIds: string[]) => {
-    if (!jobId) return;
+    if (!jobId || !isAdmin) return;
     setAssignmentDraft({ jobId, userIds });
     setAssignmentStatus('saving');
     assignmentMutation.mutate({ id: jobId, data: { userIds } });

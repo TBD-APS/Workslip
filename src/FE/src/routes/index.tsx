@@ -1,5 +1,6 @@
 import { useRoutes, Navigate } from 'react-router-dom';
 import { useAuth } from '../providers/AuthContext';
+import { RoleGuard } from '../providers/permissions';
 import { LandingPage } from '../features/landing/routes/LandingPage';
 import { Login } from '../features/auth/routes/Login';
 import { JobList } from '../features/jobs/routes/JobList';
@@ -36,7 +37,7 @@ export const AppRoutes = () => {
       element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
       children: [
         { index: true, element: <JobList /> },
-        { path: 'job/new', element: <JobCreate /> },
+        { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
         { path: 'job/:id', element: <JobDetail /> },
         // { path: 'settings', element: <Settings /> },
       ],

@@ -1,6 +1,7 @@
 import { FileText, MessageSquare, Wrench } from 'lucide-react';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../JobDetailBlocks';
+import { useCan } from '../../../../providers/permissions';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -9,17 +10,24 @@ type JobOverviewStepProps = {
 };
 
 export function JobOverviewStep({ details }: JobOverviewStepProps) {
+  const canAssign = useCan('job:assign');
   return (
     <>
       <CustomerDetailsBlock
         form={details.form}
         reportNumberReadOnly={details.reportNumberReadOnly}
-        assignment={{
-          users: details.assignableUsers,
-          assignedUserIds: details.assignedUserIds,
-          isLoadingUsers: details.isLoadingUsers,
-          onAssignedUsersChange: details.updateAssignedUsers,
-        }}
+        {...(canAssign
+          ? {
+              assignment: {
+                users: details.assignableUsers,
+                assignedUserIds: details.assignedUserIds,
+                isLoadingUsers: details.isLoadingUsers,
+                onAssignedUsersChange: details.updateAssignedUsers,
+              },
+            }
+          : {
+              readOnlyAssigned: details.job?.assignedUsers ?? [],
+            })}
         onCustomerChange={details.updateCustomer}
         onReportNumberChange={details.updateReportNumber}
       />

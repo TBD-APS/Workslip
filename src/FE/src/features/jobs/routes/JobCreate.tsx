@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import { useJobCreate } from '../hooks/useJobCreate';
 import { CreateOverviewStep } from '../components/steps/CreateOverviewStep';
@@ -43,11 +43,11 @@ export const JobCreate = () => {
           Tilbage
         </button>
         <button
-          className="step-nav-btn step-nav-btn-next"
+          className="step-nav-btn step-nav-btn-next step-nav-btn-next--wide"
           onClick={create.save}
           disabled={create.isSaving || !create.canSave}
         >
-          {create.isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+          {create.isSaving ? <Loader2 className="animate-spin" size={18} /> : null}
           <span>{create.isSaving ? 'Gemmer...' : 'Opret sag'}</span>
         </button>
       </div>

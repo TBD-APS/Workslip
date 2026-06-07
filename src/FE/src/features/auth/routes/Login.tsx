@@ -263,26 +263,33 @@ export const Login = () => {
         {import.meta.env.DEV && (
           <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--surface-border)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <button
-                onClick={async () => {
-                  setErrorMsg(null);
-                  setIsSubmitting(true);
-                  try {
-                    const success = await devLogin('rbj@17v3ygzs.mailosaur.net');
-                    if (success) navigate('/app');
-                    else setErrorMsg('Dev login failed - user not found');
-                  } catch {
-                    setErrorMsg('Dev login failed');
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }}
-                disabled={isSubmitting}
-                className="btn btn-secondary"
-                style={{ width: '100%', fontSize: '0.85rem' }}
-              >
-                Dev Login (rbj@17v3ygzs.mailosaur.net) 
-              </button>
+              {[
+                { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net' },
+                { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net' },
+                { label: 'Dev Login · SuperAdmin', email: 'rbj@17v3ygzs.mailosaur.net' },
+              ].map((entry) => (
+                <button
+                  key={entry.email}
+                  onClick={async () => {
+                    setErrorMsg(null);
+                    setIsSubmitting(true);
+                    try {
+                      const success = await devLogin(entry.email);
+                      if (success) navigate('/app');
+                      else setErrorMsg(`Dev login failed - ${entry.email} not found`);
+                    } catch {
+                      setErrorMsg('Dev login failed');
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="btn btn-secondary"
+                  style={{ width: '100%', fontSize: '0.85rem' }}
+                >
+                  {entry.label}
+                </button>
+              ))}
             </div>
           </div>
         )}

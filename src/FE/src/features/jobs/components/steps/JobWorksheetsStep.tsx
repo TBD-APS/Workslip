@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent } fro
 import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { useAuth } from '../../../../providers/AuthContext';
+import { useCan } from '../../../../providers/permissions';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import { MultiSelectDropdown } from '../../../../components/forms/MultiSelectDropdown';
 import type { WorksheetResponse } from '../../../../api/generated/models';
@@ -205,10 +206,26 @@ export function JobWorksheetsStep({
   onDelete,
 }: JobWorksheetsStepProps) {
   const { user } = useAuth();
-  const usersQuery = useGetApiUsers();
-  const resolvedUsers = assignableUsers.length > 0 ? assignableUsers : getUserList(usersQuery.data);
-  const defaultUserId = user?.email ? (resolvedUsers.find((u) => u.email === user.email)?.id ?? '') : '';
+  const canPickUser = useCan('worksheet:assign');
+  const usersQuery = useGetApiUsers({ query: { enabled: canPickUser } });
+  const resolvedUsers = useMemo(
+    () => (canPickUser
+      ? (assignableUsers.length > 0 ? assignableUsers : getUserList(usersQuery.data))
+      : []),
+    [canPickUser, assignableUsers, usersQuery.data],
+  );
+  const defaultUserId = canPickUser
+    ? (user?.email ? (resolvedUsers.find((u) => u.email === user.email)?.id ?? '') : '')
+    : (user?.id ?? '');
   const userOptions = resolvedUsers.map((u) => ({ id: u.id, label: u.displayName, description: u.email }));
+  const currentUserName = user?.displayName ?? user?.email ?? 'dig';
+
+  // Non-admins only see their own worksheets; show the current user's name on
+  // every row regardless of who actually created the entry.
+  const displayNameFor = (userId: string): string => {
+    if (!canPickUser) return currentUserName;
+    return resolvedUsers.find((u) => u.id === userId)?.displayName ?? userId.slice(0, 8);
+  };
 
   const [uiState, dispatch] = useReducer(worksheetUiReducer, defaultUserId, initialWorksheetUiState);
   const { addDraft, editDraft, editingWorksheetId, openActionMenu, isAddOpen, formError } = uiState;
@@ -346,8 +363,10 @@ export function JobWorksheetsStep({
     <>
       <WorksheetsSection
         sortedWorksheets={sortedWorksheets}
-        resolvedUsers={resolvedUsers}
+        displayNameFor={displayNameFor}
         userOptions={userOptions}
+        canPickUser={canPickUser}
+        currentUserName={currentUserName}
         addDraft={addDraft}
         editDraft={editDraft}
         editingWorksheetId={editingWorksheetId}
@@ -381,8 +400,10 @@ export function JobWorksheetsStep({
 
 type WorksheetsSectionProps = {
   sortedWorksheets: WorksheetResponse[];
-  resolvedUsers: AssignableUser[];
+  displayNameFor: (userId: string) => string;
   userOptions: UserOption[];
+  canPickUser: boolean;
+  currentUserName: string;
   addDraft: WorksheetDraft;
   editDraft: WorksheetDraft | null;
   editingWorksheetId: string | null;
@@ -405,8 +426,10 @@ type WorksheetsSectionProps = {
 
 function WorksheetsSection({
   sortedWorksheets,
-  resolvedUsers,
+  displayNameFor,
   userOptions,
+  canPickUser,
+  currentUserName,
   addDraft,
   editDraft,
   editingWorksheetId,
@@ -444,8 +467,10 @@ function WorksheetsSection({
 
       <WorksheetList
         sortedWorksheets={sortedWorksheets}
-        resolvedUsers={resolvedUsers}
+        displayNameFor={displayNameFor}
         userOptions={userOptions}
+        canPickUser={canPickUser}
+        currentUserName={currentUserName}
         editDraft={editDraft}
         editingWorksheetId={editingWorksheetId}
         openActionMenu={openActionMenu}
@@ -474,6 +499,8 @@ function WorksheetsSection({
           title="Ny timeseddel"
           draft={addDraft}
           userOptions={userOptions}
+          canPickUser={canPickUser}
+          currentUserName={currentUserName}
           isLoadingUsers={isLoadingUsers}
           isSaving={isSaving}
           submitLabel="Tilføj"
@@ -489,8 +516,10 @@ function WorksheetsSection({
 
 type WorksheetListProps = {
   sortedWorksheets: WorksheetResponse[];
-  resolvedUsers: AssignableUser[];
+  displayNameFor: (userId: string) => string;
   userOptions: UserOption[];
+  canPickUser: boolean;
+  currentUserName: string;
   editDraft: WorksheetDraft | null;
   editingWorksheetId: string | null;
   openActionMenu: ActionMenuState | null;
@@ -505,8 +534,10 @@ type WorksheetListProps = {
 
 function WorksheetList({
   sortedWorksheets,
-  resolvedUsers,
+  displayNameFor,
   userOptions,
+  canPickUser,
+  currentUserName,
   editDraft,
   editingWorksheetId,
   openActionMenu,
@@ -525,7 +556,7 @@ function WorksheetList({
   return (
     <ul className={editingWorksheetId ? 'worksheet-list expanded' : 'worksheet-list'}>
       {sortedWorksheets.map((worksheet) => {
-        const assignee = resolvedUsers.find((u) => u.id === worksheet.userId);
+        const assigneeName = displayNameFor(worksheet.userId);
         const isEditing = editingWorksheetId === worksheet.id && editDraft;
 
         return (
@@ -533,7 +564,7 @@ function WorksheetList({
             <div className="worksheet-list-item-row">
               <div className="worksheet-list-item-info">
                 <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
-                <span className="worksheet-list-item-meta">{assignee?.displayName ?? worksheet.userId}</span>
+                <span className="worksheet-list-item-meta">{assigneeName ?? worksheet.userId.slice(0, 8)}</span>
               </div>
               <div className="worksheet-list-item-metrics">
                 <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
@@ -563,6 +594,8 @@ function WorksheetList({
                 title="Rediger timeseddel"
                 draft={editDraft}
                 userOptions={userOptions}
+                canPickUser={canPickUser}
+                currentUserName={currentUserName}
                 isLoadingUsers={isLoadingUsers}
                 isSaving={isSaving}
                 submitLabel="Gem"
@@ -625,6 +658,8 @@ type WorksheetDraftFormProps = {
   title: string;
   draft: WorksheetDraft;
   userOptions: UserOption[];
+  canPickUser: boolean;
+  currentUserName: string;
   isLoadingUsers: boolean;
   isSaving: boolean;
   submitLabel: string;
@@ -638,6 +673,8 @@ function WorksheetDraftForm({
   title,
   draft,
   userOptions,
+  canPickUser,
+  currentUserName,
   isLoadingUsers,
   isSaving,
   submitLabel,
@@ -654,17 +691,24 @@ function WorksheetDraftForm({
       <div className="worksheet-form-grid worksheet-form-grid-main">
         <CalendarPicker value={draft.workDate} onChange={(workDate) => updateDraft({ workDate })} />
 
-        <MultiSelectDropdown
-          label="Montør"
-          placeholder="Vælg montør"
-          emptyText="Ingen medarbejdere fundet"
-          loadingText="Henter medarbejdere..."
-          options={userOptions}
-          selectedIds={draft.userId ? [draft.userId] : []}
-          isLoading={isLoadingUsers}
-          icon={<Users size={16} />}
-          onChange={(ids) => updateDraft({ userId: ids.at(-1) ?? '' })}
-        />
+        {canPickUser ? (
+          <MultiSelectDropdown
+            label="Montør"
+            placeholder="Vælg montør"
+            emptyText="Ingen medarbejdere fundet"
+            loadingText="Henter medarbejdere..."
+            options={userOptions}
+            selectedIds={draft.userId ? [draft.userId] : []}
+            isLoading={isLoadingUsers}
+            icon={<Users size={16} />}
+            onChange={(ids) => updateDraft({ userId: ids.at(-1) ?? '' })}
+          />
+        ) : (
+          <div className="form-group form-readonly">
+            <span className="form-label">Montør</span>
+            <span className="form-readonly-value">{currentUserName}</span>
+          </div>
+        )}
       </div>
 
       <div className="worksheet-form-grid worksheet-form-grid-hours">

@@ -1,10 +1,11 @@
 import { useNavigate, NavLink, Outlet } from 'react-router-dom';
-import { ClipboardList, PlusCircle, Settings, User } from 'lucide-react';
+import { ClipboardList, LogOut, PlusCircle, Settings, User } from 'lucide-react';
 import { useAuth } from '../../providers/AuthContext';
+import { Can } from '../../providers/permissions';
 
 export const AppLayout = () => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const handleLogout = () => {
     logout();
@@ -23,8 +24,21 @@ export const AppLayout = () => {
           </svg>
           Workslip
         </div>
-        <div className="user-avatar" onClick={handleLogout} style={{ cursor: 'pointer' }} title="Log ud">
-          <User size={20} />
+        <div className="app-header-actions">
+          <span className="app-header-user" title={user?.email ?? ''}>
+            <User size={16} />
+            <span>{user?.displayName ?? user?.email ?? ''}</span>
+          </span>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="app-header-logout"
+            aria-label="Log ud"
+            title="Log ud"
+          >
+            <LogOut size={18} />
+            <span>Log ud</span>
+          </button>
         </div>
       </header>
 
@@ -40,9 +54,11 @@ export const AppLayout = () => {
           <span>Mine Jobs</span>
         </NavLink>
         <div className="nav-item-fab">
-          <button className="fab-button" onClick={() => navigate('/app/job/new')}>
-            <PlusCircle size={28} />
-          </button>
+          <Can permission="job:create">
+            <button className="fab-button" onClick={() => navigate('/app/job/new')} aria-label="Opret sag">
+              <PlusCircle size={28} />
+            </button>
+          </Can>
         </div>
         <NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Settings size={24} />
