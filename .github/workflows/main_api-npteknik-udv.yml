@@ -80,9 +80,9 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           
-      - name: Deploy to Azure Web App
+     - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ github.event.inputs.app_name || 'api-npteknik-udv' }}
+          app-name: ${{github.event.inputs.app_name }}
           package: ${{ env.PUBLISH_DIR }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+
