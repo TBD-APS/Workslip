@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, MoreHorizontal, Pencil, Plus, Save, Trash2, Users } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { useAuth } from '../../../../providers/AuthContext';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import { MultiSelectDropdown } from '../../../../components/forms/MultiSelectDropdown';
@@ -356,6 +356,8 @@ export function JobWorksheetsStep({
         isLoadingUsers={isLoadingUsers}
         isSaving={isSaving}
         formError={formError}
+        totalHoursValue={totalHoursValue}
+        totalOutlayValue={totalOutlayValue}
         onToggleActionMenu={toggleActionMenu}
         onEditDraftChange={(draft) => dispatch({ type: 'setEditDraft', draft })}
         onSaveEdit={(draft, worksheetId) => saveDraft(draft, worksheetId)}
@@ -365,8 +367,6 @@ export function JobWorksheetsStep({
         onSaveAdd={(draft) => saveDraft(draft)}
         onCancelAdd={() => dispatch({ type: 'cancelAdd', defaultUserId })}
       />
-
-      <WorksheetTotalsSection totalHoursValue={totalHoursValue} totalOutlayValue={totalOutlayValue} />
 
       <WorksheetActionMenuPortal
         openActionMenu={openActionMenu}
@@ -391,6 +391,8 @@ type WorksheetsSectionProps = {
   isLoadingUsers: boolean;
   isSaving: boolean;
   formError: string | null;
+  totalHoursValue: number;
+  totalOutlayValue: number;
   onToggleActionMenu: (event: MouseEvent<HTMLButtonElement>, worksheetId: string) => void;
   onEditDraftChange: (draft: WorksheetDraft) => void;
   onSaveEdit: (draft: WorksheetDraft, worksheetId: string) => void;
@@ -413,6 +415,8 @@ function WorksheetsSection({
   isLoadingUsers,
   isSaving,
   formError,
+  totalHoursValue,
+  totalOutlayValue,
   onToggleActionMenu,
   onEditDraftChange,
   onSaveEdit,
@@ -422,12 +426,23 @@ function WorksheetsSection({
   onSaveAdd,
   onCancelAdd,
 }: WorksheetsSectionProps) {
+  const totalsLabel = `${formatNumber(totalHoursValue)} ${formatUnit(totalHoursValue, 'time', 'timer')}${
+    totalOutlayValue > 0 ? ` · ${formatNumber(totalOutlayValue)} ${formatUnit(totalOutlayValue, 'dag', 'dage')}` : ''
+  }`;
+
   return (
-    <section className="detail-section">
-      <div className="section-header-row">
-        <FileSpreadsheet size={18} />
-        <h3>Timesedler</h3>
+    <section className="detail-section worksheet-section">
+      <div className="worksheet-section-header">
+        <div className="worksheet-section-header-left">
+          <FileSpreadsheet size={22} className="worksheet-section-header-icon" />
+          <h2 className="worksheet-section-title">Timesedler</h2>
+        </div>
+        <span className="worksheet-section-header-totals" aria-label="Timeseddel totaler">{totalsLabel}</span>
       </div>
+
+      {sortedWorksheets.length > 0 && (
+        <span className="worksheet-list-label">Registrerede timesedler</span>
+      )}
 
       <WorksheetList
         sortedWorksheets={sortedWorksheets}
@@ -446,7 +461,11 @@ function WorksheetsSection({
       />
 
       {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
-        <button type="button" className="btn btn-primary worksheet-add-trigger" onClick={onOpenAddForm}>
+        <button
+          type="button"
+          className={sortedWorksheets.length === 0 ? 'btn btn-primary worksheet-add-trigger worksheet-add-trigger-cta' : 'btn btn-secondary worksheet-add-trigger'}
+          onClick={onOpenAddForm}
+        >
           <Plus size={16} />
           <span>Tilføj timeseddel</span>
         </button>
@@ -454,7 +473,7 @@ function WorksheetsSection({
 
       {!editingWorksheetId && isAddOpen && (
         <WorksheetDraftForm
-          title="Tilføj timeseddel"
+          title="Ny timeseddel"
           draft={addDraft}
           userOptions={userOptions}
           isLoadingUsers={isLoadingUsers}
@@ -502,7 +521,7 @@ function WorksheetList({
   onCancelEdit,
 }: WorksheetListProps) {
   if (sortedWorksheets.length === 0) {
-    return <p className="empty-state-text">Ingen timesedler endnu.</p>;
+    return <p className="empty-state-text worksheet-empty-state">Ingen registrerede timesedler</p>;
   }
 
   return (
@@ -518,11 +537,13 @@ function WorksheetList({
                 <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
                 <span className="worksheet-list-item-meta">{assignee?.displayName ?? worksheet.userId}</span>
               </div>
-              <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
-                <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
-                <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+              <div className="worksheet-list-item-metrics">
+                <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
+                  <span className="worksheet-list-item-hours-value">{formatNumber(parseHours(worksheet.hoursWorked))}</span>
+                  <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+                </div>
+                {worksheet.sleptOnJob && <span className="worksheet-list-item-outlay">Udlæg</span>}
               </div>
-              {worksheet.sleptOnJob && <span className="worksheet-list-item-outlay">Udlæg</span>}
               <div className="worksheet-list-item-actions">
                 <div className="worksheet-actions-menu-root">
                   <button
@@ -557,21 +578,6 @@ function WorksheetList({
         );
       })}
     </ul>
-  );
-}
-
-function WorksheetTotalsSection({ totalHoursValue, totalOutlayValue }: { totalHoursValue: number; totalOutlayValue: number }) {
-  return (
-    <section className="detail-section worksheet-total-section" aria-label="Timeseddel totaler">
-      <div className="worksheet-total-row">
-        <span className="worksheet-total-label">Timer i alt:</span>
-        <strong>{formatNumber(totalHoursValue)} {formatUnit(totalHoursValue, 'time', 'timer')}</strong>
-      </div>
-      <div className="worksheet-total-row">
-        <span className="worksheet-total-label">Udlæg:</span>
-        <strong>{formatNumber(totalOutlayValue)} {formatUnit(totalOutlayValue, 'dag', 'dage')}</strong>
-      </div>
-    </section>
   );
 }
 
@@ -699,7 +705,6 @@ function WorksheetDraftForm({
           disabled={isSaving}
         >
           {isSaving && <Loader2 className="animate-spin" size={16} />}
-          {!isSaving && submitLabel !== 'Tilføj' && <Save size={16} />}
           <span>{isSaving ? 'Gemmer...' : submitLabel}</span>
         </button>
         {onCancel && (

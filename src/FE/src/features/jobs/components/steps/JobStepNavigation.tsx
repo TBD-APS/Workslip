@@ -1,14 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileSpreadsheet, FileText, ShieldCheck } from 'lucide-react';
-
-export const JOB_STEPS = [
-  { icon: Building2, label: 'Sagsdetaljer' },
-  { icon: FileText, label: 'Kategorier' },
-  { icon: ClipboardList, label: 'Kontrolpunkter' },
-  { icon: FileSpreadsheet, label: 'Arbejdssedler' },
-  { icon: ShieldCheck, label: 'Attestering' },
-  { icon: CheckCircle2, label: 'Afslutning' },
-] as const;
+import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { JOB_STEPS } from './jobSteps';
 
 type StepIndicatorsProps = {
   currentStep: number;
@@ -27,7 +19,8 @@ export function StepIndicators({ currentStep, onStepChange }: StepIndicatorsProp
             key={step.label}
             className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
             onClick={() => onStepChange(index)}
-            aria-label={step.label}
+            aria-label={isActive ? `${step.label} - aktuelt trin` : step.label}
+            aria-current={isActive ? 'step' : undefined}
           >
             <StepIcon size={14} />
             <span className="step-label">{step.label}</span>
@@ -48,6 +41,9 @@ type StepNavigationProps = {
   doneIcon?: ReactNode;
   disableNext?: boolean;
   disableDone?: boolean;
+  nextDisabledReason?: string;
+  doneDisabledReason?: string;
+  hideDoneButton?: boolean;
 };
 
 export function StepNavigation({
@@ -60,6 +56,9 @@ export function StepNavigation({
   doneIcon = <CheckCircle2 size={18} />,
   disableNext = false,
   disableDone = false,
+  nextDisabledReason,
+  doneDisabledReason,
+  hideDoneButton = false,
 }: StepNavigationProps) {
   const [isVisible, setIsVisible] = useState(true);
 
@@ -103,16 +102,28 @@ export function StepNavigation({
       <span className="step-nav-counter">Trin {currentStep + 1} / {JOB_STEPS.length}</span>
 
       {!isLastStep ? (
-        <button className="step-nav-btn step-nav-btn-next" onClick={onNext} disabled={disableNext}>
+        <button
+          className="step-nav-btn step-nav-btn-next"
+          onClick={onNext}
+          disabled={disableNext}
+          title={disableNext ? nextDisabledReason : undefined}
+          aria-label={disableNext ? `Næste — ${nextDisabledReason ?? 'ikke tilgængelig'}` : 'Næste'}
+        >
           <span>Næste</span>
           <ChevronRight size={18} />
         </button>
-      ) : (
-        <button className="step-nav-btn step-nav-btn-next" onClick={onDone} disabled={disableDone}>
+      ) : !hideDoneButton ? (
+        <button
+          className="step-nav-btn step-nav-btn-next"
+          onClick={onDone}
+          disabled={disableDone}
+          title={disableDone ? doneDisabledReason : undefined}
+          aria-label={disableDone ? `${doneLabel} — ${doneDisabledReason ?? 'ikke tilgængelig'}` : doneLabel}
+        >
           {doneIcon}
           <span>{doneLabel}</span>
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

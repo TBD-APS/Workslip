@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, ClipboardList, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, ClipboardList } from 'lucide-react';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import type { JobForm, ReferenceData } from '../../types';
 
@@ -92,7 +92,7 @@ export function ControlPointsStep({
           <ClipboardList size={18} />
           <h3>Kontrolpunkter</h3>
         </div>
-        <p className="empty-state-text">Vælg mindst én kategori for at se kontrolpunkter.</p>
+        <p className="empty-state-text">Vælg mindst én anlægstype for at se kontrolpunkter.</p>
       </section>
     );
   }
@@ -122,41 +122,35 @@ export function ControlPointsStep({
 
             return (
               <div key={cat.id} className={`control-point-category-group${isIrrelevant ? ' irrelevant' : ''}`}>
-                <div className="control-point-category-header-row">
-                  <div className="control-point-category-header">
-                    <span className="control-point-category-label">{capitalizeFirstLetter(cat.name)}</span>
-                  </div>
+                <div className="control-point-category-header">
+                  <span className="control-point-category-label">{capitalizeFirstLetter(cat.name)}</span>
+                </div>
 
+                <div className="control-points-list">
                   <button
-                    className={`multi-select-option checkbox-right${isIrrelevant ? ' selected' : ''}`}
+                    className={`multi-select-option selection-row control-point-irrelevant-row${isIrrelevant ? ' selected' : ''}`}
                     type="button"
                     onClick={() => onToggleCategoryIrrelevant(instType.id, cat.id)}
                     aria-label={`${isIrrelevant ? 'Marker' : 'Umarker'} ${cat.name} som ${isIrrelevant ? 'relevant' : 'ikke relevant'}`}
                     title={isIrrelevant ? 'Marker som relevant' : 'Marker som ikke relevant'}
+                    aria-pressed={isIrrelevant}
                   >
-                    <span className="multi-select-checkbox" aria-hidden="true">
-                      {isIrrelevant && <CheckCircle2 size={14} />}
-                    </span>
                     <span className="multi-select-option-text">
                       <span>Irrelevant</span>
                     </span>
                   </button>
-                </div>
 
-                {!isIrrelevant && (
-                  <div className="control-points-list">
-                    {(cat.controlPoints ?? []).sort(bySortOrder).map((cp) => (
-                      <Checkbox
-                        key={cp.id}
-                        checked={form.work.controlPointSelections[cp.id] ?? false}
-                        label={cp.name}
-                        description={cp.description ?? undefined}
-                        onChange={() => onToggleControlPoint(cp.id)}
-                        alignRight
-                      />
-                    ))}
-                  </div>
-                )}
+                  {!isIrrelevant && (cat.controlPoints ?? []).sort(bySortOrder).map((cp) => (
+                    <Checkbox
+                      key={cp.id}
+                      checked={form.work.controlPointSelections[cp.id] ?? false}
+                      label={cp.name}
+                      description={cp.description ?? undefined}
+                      onChange={() => onToggleControlPoint(cp.id)}
+                      alignRight
+                    />
+                  ))}
+                </div>
               </div>
             );
           })}

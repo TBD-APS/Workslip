@@ -28,7 +28,7 @@ export function CustomerDetailsBlock({
   onReportNumberChange,
 }: CustomerBlockProps) {
   return (
-    <section className="detail-section">
+    <section className="detail-section customer-details-section">
       <div className="section-header-row">
         <Building2 size={18} />
         <h3>Kundeoplysninger</h3>

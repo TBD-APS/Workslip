@@ -57,10 +57,9 @@ export function JobAttestationStep({
     { label: 'Sag', value: job.reportNumber },
     { label: 'Kunde', value: job.customer.name },
     { label: 'Adresse', value: job.customer.address },
-    { label: 'Kontakt', value: formatContact(job.customer.contactPerson, job.customer.phone) },
-    { label: 'Arbejde', value: formatWorkKind(job.work.workKind) },
-    { label: 'Kategorier', value: selectedInstallationTypeNames.join(', ') },
-    { label: 'Status', value: formatStatus(job.status) },
+    { label: 'Kontakt', value: formatContact(job.customer.contactPerson, job.customer.phone, job.customer.email) },
+    { label: 'Opgavetype', value: formatWorkKind(job.work.workKind) },
+    { label: 'Anlægstyper', value: selectedInstallationTypeNames.join(', ') },
   ]);
   const observationItems = compactObservations([
     { label: 'Opgave', value: job.observations.taskDescription },
@@ -68,8 +67,15 @@ export function JobAttestationStep({
     { label: 'Teknisk', value: job.observations.technicalObservations },
     { label: 'Bemærkninger', value: job.work.remarks },
   ]);
-  const totalHoursLabel = `${formatNumber(job.totalHours)} ${formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}`;
+  const totalHoursValue = parseNullableNumber(job.totalHours);
+  const totalHoursLabel = (
+    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(totalHoursValue, 'time', 'timer')}</span>
+  );
   const totalOutlayValue = parseNullableNumber(job.totalOutlay);
+  const totalOutlayLabel = totalOutlayValue > 0 ? (
+    <span><strong>{formatNumber(totalOutlayValue)}</strong> {formatUnit(totalOutlayValue, 'udlæg', 'udlæg')}</span>
+  ) : null;
+  const selectedClosureFlags = job.work.closureFlags ?? [];
 
   const handleSubmit = async () => {
     try {
@@ -91,39 +97,51 @@ export function JobAttestationStep({
         <div className={isSubmitted ? 'attestation-status submitted' : 'attestation-status'}>
           {isSubmitted ? <CheckCircle2 size={20} /> : <Clock size={20} />}
           <div>
-            <strong>{isSubmitted ? 'Sagen er attesteret' : 'Klar til attestering'}</strong>
+            <span className="attestation-status-title">{isSubmitted ? 'Sagen er attesteret' : 'Klar til attestering'}</span>
             <span>
               {isSubmitted
                 ? 'Backend har registreret sagen som indsendt.'
-                : 'Tjek kun de valgte oplysninger, timesedler og kontrolpunkter før indsendelse.'}
+                : 'Tjek de valgte oplysninger, timesedler og kontrolpunkter før indsendelse.'}
             </span>
           </div>
         </div>
       </section>
 
-      {summaryItems.length > 0 && (
+      {(summaryItems.length > 0 || observationItems.length > 0) && (
         <section className="detail-section attestation-summary-section">
           <div className="section-header-row attestation-compact-header">
             <FileCheck2 size={18} />
-            <h3>Valgte data</h3>
+            <h3>Information</h3>
           </div>
 
-          <div className="attestation-summary-grid compact">
-            {summaryItems.map((item) => <SummaryItem key={item.label} label={item.label} value={item.value} />)}
-          </div>
+          {summaryItems.length > 0 && (
+            <dl className="attestation-data-list">
+              {summaryItems.map((item) => (
+                <div key={item.label} className="attestation-data-pair">
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          {observationItems.length > 0 && (
+            <div className="attestation-observations-list">
+              {observationItems.map((item) => (
+                <div key={item.label} className="attestation-data-pair observation">
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
       <section className="detail-section attestation-timesheet-section">
-        <div className="attestation-timesheet-heading">
-          <div className="section-header-row attestation-compact-header">
-            <FileCheck2 size={18} />
-            <h3>Timesedler</h3>
-          </div>
-          <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
-            <span><strong>{totalHoursLabel}</strong></span>
-            {totalOutlayValue > 0 && <span><strong>{formatNumber(totalOutlayValue)}</strong> {formatUnit(totalOutlayValue, 'udlæg', 'udlæg')}</span>}
-          </div>
+        <div className="section-header-row attestation-compact-header">
+          <FileCheck2 size={18} />
+          <h3>Timesedler</h3>
         </div>
 
         {sortedWorksheets.length === 0 ? (
@@ -135,12 +153,12 @@ export function JobAttestationStep({
               return (
                 <li key={worksheet.id}>
                   <div className="attestation-timesheet-main">
-                    <strong>{formatDate(worksheet.workDate)}</strong>
-                    <span>{getUserName(worksheet.userId, details)}</span>
+                    <span className="attestation-timesheet-date">{formatDate(worksheet.workDate)}</span>
+                    <span className="attestation-timesheet-user">{getUserName(worksheet.userId, details)}</span>
                   </div>
                   <div className="attestation-timesheet-hours">
-                    <strong>{formatNumber(hours)}</strong>
-                    <span>{formatUnit(hours, 'time', 'timer')}</span>
+                    <span className="attestation-timesheet-hours-value">{formatNumber(hours)}</span>
+                    <span className="attestation-timesheet-hours-unit">{formatUnit(hours, 'time', 'timer')}</span>
                   </div>
                   {worksheet.sleptOnJob && <span className="attestation-timesheet-badge">Udlæg</span>}
                 </li>
@@ -148,16 +166,29 @@ export function JobAttestationStep({
             })}
           </ul>
         )}
+
+        {(totalHoursLabel || totalOutlayLabel) && (
+          <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
+            {totalHoursLabel}
+            {totalOutlayLabel}
+          </div>
+        )}
       </section>
 
-      {observationItems.length > 0 && (
-        <section className="detail-section attestation-observations-section compact">
-          {observationItems.map((item) => (
-            <div key={item.label} className="attestation-observation-block compact">
-              <span>{item.label}</span>
-              <p>{item.value}</p>
-            </div>
-          ))}
+      {selectedClosureFlags.length > 0 && (
+        <section className="detail-section attestation-control-section compact">
+          <div className="section-header-row attestation-compact-header">
+            <CheckCircle2 size={18} />
+            <h3>Afslutning</h3>
+          </div>
+          <ul className="attestation-control-list compact">
+            {selectedClosureFlags.map((flag) => (
+              <li key={flag.id}>
+                <span className="attestation-control-accent" aria-hidden="true" />
+                <span>{flag.label}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
@@ -172,7 +203,7 @@ export function JobAttestationStep({
             <ul className="attestation-control-list compact">
               {selectedControlPoints.map((controlPoint) => (
                 <li key={controlPoint.id}>
-                  <CheckCircle2 size={14} />
+                  <span className="attestation-control-accent" aria-hidden="true" />
                   <span>{controlPoint.name}</span>
                   <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
                 </li>
@@ -181,9 +212,16 @@ export function JobAttestationStep({
           )}
 
           {irrelevantCategories.length > 0 && (
-            <div className="attestation-muted-list compact">
-              <span>Markeret irrelevant</span>
-              <p>{irrelevantCategories.map((item) => `${item.installationType} · ${capitalize(item.category)}`).join(', ')}</p>
+            <div className="attestation-irrelevant-block">
+              <span className="attestation-irrelevant-label">Markeret irrelevant</span>
+              <ul className="attestation-control-list compact">
+                {irrelevantCategories.map((item) => (
+                  <li key={item.id} className="attestation-control-list-item-muted">
+                    <span className="attestation-control-accent muted" aria-hidden="true" />
+                    <span>{item.installationType} · {capitalize(item.category)}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </section>
@@ -194,7 +232,7 @@ export function JobAttestationStep({
           <div className="validation-error attestation-validation-error">
             <AlertCircle size={18} />
             <div>
-              <strong>Sagen mangler oplysninger før attestering:</strong>
+              <span className="attestation-validation-title">Sagen mangler oplysninger før attestering:</span>
               <ul>
                 {details.submitJobFieldErrors.map((error) => (
                   <li key={`${error.field}-${error.message}`}>{error.message}</li>
@@ -204,34 +242,78 @@ export function JobAttestationStep({
           </div>
         )}
 
-        <Checkbox
-          checked={confirmed || isSubmitted}
-          disabled={isSubmitted || details.isSubmittingJob || isSavingDraft}
-          label="Jeg bekræfter, at sagen er gennemgået og klar til indsendelse"
-          description="Attestering registreres som indsendt sag med den aktuelle bruger hos backend."
-          onChange={() => onConfirmedChange(!confirmed)}
-        />
+        <div className="attestation-confirm-card">
+          <div className="attestation-confirm-card-header">
+            <ShieldCheck size={20} className="attestation-confirm-card-icon" aria-hidden="true" />
+            <div className="attestation-confirm-card-heading">
+              <h3 className="attestation-confirm-card-title">Bekræft og indsend</h3>
+              <p className="attestation-confirm-card-subtitle">
+                Når du attesterer, registreres sagen som indsendt hos kontoret med den aktuelle bruger.
+              </p>
+            </div>
+          </div>
 
-        <button
-          type="button"
-          className="btn btn-primary attestation-submit-button"
-          onClick={handleSubmit}
-          disabled={!confirmed || isSubmitted || details.isSubmittingJob || isSavingDraft}
-        >
-          {details.isSubmittingJob || isSavingDraft ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
-          <span>{isSavingDraft ? 'Gemmer...' : details.isSubmittingJob ? 'Indsender...' : isSubmitted ? 'Attesteret' : 'Attestér og indsend'}</span>
-        </button>
+          {!isSubmitted && !confirmed && !details.isSubmittingJob && !isSavingDraft && (
+            <div className="attestation-confirm-required" role="status" aria-live="polite">
+              <AlertCircle size={18} aria-hidden="true" />
+              <span>
+                <strong>Trin 1 kræves:</strong> Markér bekræftelsen nedenfor for at aktivere indsendelse.
+              </span>
+            </div>
+          )}
+
+          <label className={confirmed ? 'attestation-confirm-row confirmed' : 'attestation-confirm-row'}>
+            <span className="attestation-confirm-step" aria-hidden="true">1</span>
+            <div className="attestation-confirm-body">
+              <Checkbox
+                checked={confirmed || isSubmitted}
+                disabled={isSubmitted || details.isSubmittingJob || isSavingDraft}
+                label="Jeg bekræfter, at sagen er gennemgået og klar til indsendelse"
+                description="Attestering kan ikke fortrydes — sagens status sættes til Indsendt."
+                onChange={() => onConfirmedChange(!confirmed)}
+              />
+            </div>
+          </label>
+
+          {isSubmitted ? (
+            <div className="attestation-submitted-badge" role="status" aria-live="polite">
+              <CheckCircle2 size={20} aria-hidden="true" />
+              <div>
+                <span className="attestation-submitted-badge-title">Sagen er attesteret</span>
+                <span className="attestation-submitted-badge-subtitle">
+                  Status er opdateret hos backend. Du kan ikke indsende sagen igen.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="attestation-submit-row">
+              <span className="attestation-confirm-step" aria-hidden="true">2</span>
+              <button
+                type="button"
+                className={confirmed ? 'btn btn-primary attestation-submit-button' : 'btn attestation-submit-button attestation-submit-button-locked'}
+                onClick={handleSubmit}
+                disabled={!confirmed || details.isSubmittingJob || isSavingDraft}
+                title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
+                aria-disabled={!confirmed || details.isSubmittingJob || isSavingDraft}
+              >
+                {details.isSubmittingJob || isSavingDraft ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <ShieldCheck size={18} />
+                )}
+                <span>
+                  {isSavingDraft
+                    ? 'Gemmer...'
+                    : details.isSubmittingJob
+                      ? 'Indsender...'
+                      : 'Attestér og indsend'}
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
       </section>
     </>
-  );
-}
-
-function SummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="attestation-summary-item compact">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
   );
 }
 
@@ -253,8 +335,12 @@ function getUserName(userId: string, details: JobDetailsState) {
     ?? userId;
 }
 
-function formatContact(contactPerson: string | null | undefined, phone: string | null | undefined) {
-  return [contactPerson, phone].filter(hasText).join(' · ');
+function formatContact(
+  contactPerson: string | null | undefined,
+  phone: string | null | undefined,
+  email: string | null | undefined,
+) {
+  return [contactPerson, phone, email].filter(hasText).join(' · ');
 }
 
 function formatNumber(value: number | string | null) {
@@ -280,18 +366,6 @@ function formatDate(value: string) {
 function formatWorkKind(workKind: { label?: string | null; customWorkKind?: string | null } | null) {
   if (!workKind) return '';
   return workKind.customWorkKind || workKind.label || '';
-}
-
-function formatStatus(status: string) {
-  const labels: Record<string, string> = {
-    Draft: 'Kladde',
-    Submitted: 'Indsendt',
-    InReview: 'Under review',
-    Approved: 'Godkendt',
-    Rejected: 'Afvist',
-    Archived: 'Arkiveret',
-  };
-  return labels[status] ?? status;
 }
 
 function capitalize(value: string) {

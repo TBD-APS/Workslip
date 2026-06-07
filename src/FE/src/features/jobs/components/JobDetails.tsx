@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { useJobDetails } from '../hooks/useJobDetails';
@@ -9,10 +9,12 @@ import { DeleteButton } from '../../../components/common/DeleteButton';
 import { isValidJobForm, isValidWork } from '../utils';
 import { ControlPointsStep, validateControlPoints } from './steps/ControlPointsStep';
 import { JobAttestationStep } from './steps/JobAttestationStep';
+import { JobCompletionStep } from './steps/JobCompletionStep';
 import { JobOverviewStep } from './steps/JobOverviewStep';
-import { JOB_STEPS, StepIndicators, StepNavigation } from './steps/JobStepNavigation';
+import { StepIndicators, StepNavigation } from './steps/JobStepNavigation';
 import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
+import { JOB_STEPS } from './steps/jobSteps';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -25,6 +27,7 @@ type JobDetailsPageProps = {
 export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps) {
   const queryClient = useQueryClient();
   const [attestationConfirmed, setAttestationConfirmed] = useState(false);
+  const [submission, setSubmission] = useState<{ reportNumber: string; submittedAt: Date } | null>(null);
   const deleteMutation = useDeleteApiJobsId({
     mutation: {
       onSuccess: () => {
@@ -74,16 +77,31 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     );
   }
 
+  if (submission) {
+    return (
+      <div className="page-container job-detail-page">
+        <div className="job-details-header-spacer" />
+        <SubmittedConfirmation
+          reportNumber={submission.reportNumber}
+          submittedAt={submission.submittedAt}
+          onDone={onDone}
+        />
+      </div>
+    );
+  }
+
   const isLastStep = details.currentStep === JOB_STEPS.length - 1;
   const disableNext = !canAdvanceCurrentStep(details);
+  const nextDisabledReason = disableNext ? getNextDisabledReason(details) : undefined;
+  const completedSteps = [
+    isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly }),
+    isValidWork(details.form, details.referenceData),
+    validateControlPoints(details.form, details.referenceData).valid,
+    details.worksheets.length > 0,
+  ];
   const handleStepChange = (nextStep: number) => {
     if (nextStep > 3 && details.worksheets.length === 0) {
       toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
-      return;
-    }
-
-    if (nextStep > 4 && details.job?.status !== 'Submitted') {
-      toast.error('Attestér sagen før afslutning');
       return;
     }
 
@@ -101,6 +119,12 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       />
 
       <StepIndicators currentStep={details.currentStep} onStepChange={handleStepChange} />
+
+      <StepsCompletionPrompt
+        currentStep={details.currentStep}
+        completedSteps={completedSteps}
+        navigateToStep={details.navigateToStep}
+      />
 
       {details.currentStep === 0 && (
         <JobOverviewStep details={details} />
@@ -142,25 +166,37 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       )}
 
       {details.currentStep === 4 && (
+        <JobCompletionStep
+          form={details.form}
+          referenceData={details.referenceData}
+          isLoading={details.isLoadingReferenceData}
+          onClosureFlagsChange={details.updateClosureFlags}
+          worksheetCount={details.worksheets.length}
+        />
+      )}
+
+      {details.currentStep === 5 && (
         <JobAttestationStep
           details={details}
           confirmed={attestationConfirmed}
           onConfirmedChange={setAttestationConfirmed}
           onSubmitted={() => {
             setAttestationConfirmed(false);
-            details.navigateToStep(5);
+            setSubmission({
+              reportNumber: (details.job?.reportNumber || details.job?.id.slice(0, 4) || '').toUpperCase(),
+              submittedAt: new Date(),
+            });
+            queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
           }}
         />
-      )}
-
-      {details.currentStep === 5 && (
-        <JobCompletionStep worksheetCount={details.worksheets.length} />
       )}
 
       <StepNavigation
         currentStep={details.currentStep}
         isLastStep={isLastStep}
         disableNext={disableNext}
+        nextDisabledReason={nextDisabledReason}
+        hideDoneButton={isLastStep}
         onBack={() => {
           if (details.currentStep === 0) {
             details.flushSave();
@@ -182,29 +218,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
             toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
             return;
           }
-          if (details.currentStep === 4 && details.job?.status !== 'Submitted') {
-            toast.error('Attestér sagen før afslutning');
-            return;
-          }
           details.navigateToStep(details.currentStep + 1);
         }}
         onDone={onDone}
       />
     </div>
-  );
-}
-
-function JobCompletionStep({ worksheetCount }: { worksheetCount: number }) {
-  return (
-    <section className="detail-section">
-      <div className="section-header-row">
-        <CheckCircle2 size={18} />
-        <h3>Afslutning</h3>
-      </div>
-      <p className="subtitle">
-        Sagen har {worksheetCount} {worksheetCount === 1 ? 'arbejdsseddel' : 'arbejdssedler'} og er klar til afslutning.
-      </p>
-    </section>
   );
 }
 
@@ -226,10 +244,75 @@ function canAdvanceCurrentStep(details: JobDetailsState) {
   }
 
   if (details.currentStep === 4) {
+    return true;
+  }
+
+  if (details.currentStep === 5) {
     return details.job?.status === 'Submitted';
   }
 
   return true;
+}
+
+function getNextDisabledReason(details: JobDetailsState): string {
+  switch (details.currentStep) {
+    case 0:
+      return 'Udfyld alle obligatoriske felter i sagsdetaljer før du fortsætter.';
+    case 1:
+      return 'Vælg mindst én arbejdskategori og et arbejdsslag før du fortsætter.';
+    case 2: {
+      const validation = validateControlPoints(details.form, details.referenceData);
+      return validation.error ?? 'Kontrolpunkter kræver din handling før du fortsætter.';
+    }
+    case 3:
+      return 'Tilføj mindst én arbejdsseddel før du fortsætter.';
+    case 5:
+      return 'Indsend sagen fra attestering før du afslutter.';
+    default:
+      return 'Næste trin er ikke tilgængeligt endnu.';
+  }
+}
+
+type StepsCompletionPromptProps = {
+  currentStep: number;
+  completedSteps: boolean[];
+  navigateToStep: (step: number) => void;
+};
+
+function StepsCompletionPrompt({ currentStep, completedSteps, navigateToStep }: StepsCompletionPromptProps) {
+  if (currentStep === 0) return null;
+
+  const incompleteSteps = completedSteps
+    .map((isValid, index) => ({ index, label: JOB_STEPS[index].label, isValid }))
+    .filter((s) => !s.isValid && s.index < currentStep);
+
+  if (incompleteSteps.length === 0) return null;
+
+  const isAfslutning = currentStep === 4;
+  const title = isAfslutning
+    ? 'Nogle trin kræver din handling før sagen kan afsluttes:'
+    : 'Følgende tidligere trin kræver din handling:';
+
+  return (
+    <div className="invalid-steps-warning">
+      <p className="warning-title">
+        <AlertTriangle size={16} />
+        {title}
+      </p>
+      <div className="invalid-steps-links">
+        {incompleteSteps.map((step) => (
+          <button
+            key={step.index}
+            type="button"
+            className="btn btn-secondary invalid-step-btn"
+            onClick={() => navigateToStep(step.index)}
+          >
+            Gå til {step.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 type HeaderProps = {
@@ -275,6 +358,31 @@ function SaveStatusIndicator({ saveStatus }: { saveStatus: SaveStatus }) {
       )}
       {saveStatus === 'error' && <span className="save-indicator error">Fejl ved gem</span>}
     </div>
+  );
+}
+
+const SUBMITTED_DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+type SubmittedConfirmationProps = {
+  reportNumber: string;
+  submittedAt: Date;
+  onDone: () => void;
+};
+
+function SubmittedConfirmation({ reportNumber, submittedAt, onDone }: SubmittedConfirmationProps) {
+  return (
+    <section className="detail-section submitted-confirmation">
+      <div className="submitted-confirmation-icon" aria-hidden="true">
+        <CheckCircle2 size={48} />
+      </div>
+      <h2 className="submitted-confirmation-title">Sag indsendt</h2>
+      <p className="submitted-confirmation-body">
+        Du har indsendt sag {reportNumber} til kontoret d. {SUBMITTED_DATE_FORMATTER.format(submittedAt)}.
+      </p>
+      <button type="button" className="btn btn-primary submitted-confirmation-button" onClick={onDone}>
+        Tilbage til oversigt
+      </button>
+    </section>
   );
 }
 
