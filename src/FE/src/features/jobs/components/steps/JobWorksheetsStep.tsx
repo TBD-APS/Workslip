@@ -61,7 +61,7 @@ type JobWorksheetsStepProps = {
   isLoadingUsers: boolean;
   isSaving: boolean;
   isDeleting: boolean;
-  onUpsert: (params: { id?: string; jobId: string; userId: string; workDate: string; hoursWorked: number; sleptOnJob: boolean }) => Promise<unknown>;
+  onUpsert: (params: { id?: string; jobId: string; userId: string; userDisplayName: string; workDate: string; hoursWorked: number; sleptOnJob: boolean }) => Promise<unknown>;
   onDelete: (params: { worksheetId: string; jobId: string }) => void;
 };
 
@@ -318,6 +318,7 @@ export function JobWorksheetsStep({
         id: worksheetId,
         jobId,
         userId: draft.userId,
+        userDisplayName: displayNameFor(draft.userId),
         workDate: dateKey(draft.workDate),
         hoursWorked,
         sleptOnJob: draft.sleptOnJob,
