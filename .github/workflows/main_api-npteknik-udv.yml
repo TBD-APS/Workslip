@@ -83,6 +83,6 @@ jobs:
      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{github.event.inputs.app_name }}
+          app-name: ${{ github.event.inputs.app_name }}
           package: ${{ env.PUBLISH_DIR }}
 
