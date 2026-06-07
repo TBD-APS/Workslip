@@ -21,7 +21,6 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
         assignment={{
           users: create.assignableUsers,
           assignedUserIds: create.assignedUserIds,
-          assignmentStatus: create.assignmentStatus,
           isLoadingUsers: create.isLoadingUsers,
           onAssignedUsersChange: create.updateAssignedUsers,
         }}
@@ -30,7 +29,6 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
       <LinkedJobsBlock
         jobs={linkableJobs}
         linkedJobIds={create.linkedJobIds}
-        saveStatus={create.linksStatus}
         isLoading={isLoadingJobs}
         onChange={create.updateLinkedJobs}
       />

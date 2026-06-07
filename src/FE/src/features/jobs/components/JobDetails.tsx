@@ -93,6 +93,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   const isLastStep = details.currentStep === JOB_STEPS.length - 1;
   const disableNext = !canAdvanceCurrentStep(details);
   const nextDisabledReason = disableNext ? getNextDisabledReason(details) : undefined;
+  const globalSaveStatus = getGlobalSaveStatus([
+    details.saveStatus,
+    details.assignmentStatus,
+    details.linksStatus,
+  ]);
   const completedSteps = [
     isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly }),
     isValidWork(details.form, details.referenceData),
@@ -113,7 +118,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       <JobDetailsHeader
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
-        saveStatus={details.saveStatus}
+        saveStatus={globalSaveStatus}
         onBack={handleBack}
         onDelete={handleDelete}
       />
@@ -342,8 +347,10 @@ function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete }: He
 }
 
 function SaveStatusIndicator({ saveStatus }: { saveStatus: SaveStatus }) {
+  if (saveStatus === 'idle') return null;
+
   return (
-    <div className="save-status">
+    <div className="save-status" aria-live="polite" aria-atomic="true">
       {saveStatus === 'saving' && (
         <span className="save-indicator saving">
           <Loader2 className="animate-spin" size={14} />
@@ -359,6 +366,13 @@ function SaveStatusIndicator({ saveStatus }: { saveStatus: SaveStatus }) {
       {saveStatus === 'error' && <span className="save-indicator error">Fejl ved gem</span>}
     </div>
   );
+}
+
+function getGlobalSaveStatus(statuses: SaveStatus[]): SaveStatus {
+  if (statuses.includes('saving')) return 'saving';
+  if (statuses.includes('error')) return 'error';
+  if (statuses.includes('saved')) return 'saved';
+  return 'idle';
 }
 
 const SUBMITTED_DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
