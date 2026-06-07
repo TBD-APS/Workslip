@@ -3,7 +3,7 @@ import { AppProvider } from './providers/AppProvider';
 import { AppRoutes } from './routes';
 
 import './index.css';
-import './app.css';
+import './App.css';
 
 function App() {
   return (
