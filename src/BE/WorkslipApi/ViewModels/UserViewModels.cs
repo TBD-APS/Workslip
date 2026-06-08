@@ -14,6 +14,25 @@ public sealed record UserListViewModel(
     IReadOnlyList<UserViewModel> Users,
     int Total);
 
+public sealed record AssignedJobViewModel(
+    Guid ReportId,
+    string? ReportNumber,
+    string Status,
+    DateTimeOffset UpdatedAt,
+    string? CustomerName,
+    string? CustomerEmail,
+    string? CustomerAddress);
+
+public sealed record UserDetailViewModel(
+    Guid Id,
+    Guid OrganizationId,
+    string Email,
+    string DisplayName,
+    string Phone,
+    string Role,
+    IReadOnlyList<AssignedJobViewModel> AssignedJobs,
+    decimal? TotalHours);
+
 public static class UserViewModelBuilder
 {
     public static UserViewModel ToUser(UserResponse user) => new(
@@ -27,4 +46,21 @@ public static class UserViewModelBuilder
     public static UserListViewModel ToUserList(UserListResponse list) => new(
         list.Users.Select(ToUser).ToArray(),
         list.Total);
+
+    public static UserDetailViewModel ToUserDetail(UserDetailResponse detail) => new(
+        detail.Id,
+        detail.OrganizationId,
+        detail.Email,
+        detail.DisplayName,
+        detail.Phone,
+        detail.Role,
+        detail.AssignedJobs.Select(j => new AssignedJobViewModel(
+            j.ReportId,
+            j.ReportNumber,
+            j.Status,
+            j.UpdatedAt,
+            j.CustomerName,
+            j.CustomerEmail,
+            j.CustomerAddress)).ToArray(),
+        detail.TotalHours);
 }

@@ -112,6 +112,37 @@ public sealed class EfUserRepository : IUserRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<AssignedJobResponse>> GetAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken)
+    {
+        var query =
+            from a in _dbContext.JobAssignments.AsNoTracking()
+            join r in _dbContext.JobReports.AsNoTracking()
+                on new { a.ReportId, a.OrganizationId } equals new { ReportId = r.Id, r.OrganizationId }
+            join c in _dbContext.Customers.AsNoTracking()
+                on r.CustomerId equals (Guid?)c.Id into customerJoin
+            from c in customerJoin.DefaultIfEmpty()
+            where a.OrganizationId == organizationId && a.UserId == userId && !r.IsSoftDeleted
+            orderby r.UpdatedAt descending
+            select new AssignedJobResponse(
+                r.Id,
+                r.ReportNumber,
+                r.Status,
+                r.UpdatedAt,
+                c.Name,
+                c.Email,
+                c.Address);
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public async Task<decimal?> GetTotalHoursAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Worksheets
+            .AsNoTracking()
+            .Where(w => w.OrganizationId == organizationId && w.UserId == userId)
+            .SumAsync(w => (decimal?)w.HoursWorked, cancellationToken);
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var user = await _dbContext.Users

@@ -1,5 +1,5 @@
 import { useNavigate, NavLink, Outlet } from 'react-router-dom';
-import { ClipboardList, FileCheck2, LogOut, PlusCircle, Settings, User } from 'lucide-react';
+import { ClipboardList, FileCheck2, LogOut, PlusCircle, Settings, User, Users } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
 
@@ -52,6 +52,12 @@ export const AppLayout = () => {
           <ClipboardList size={24} />
           <span>Mine Jobs</span>
         </NavLink>
+        <Can permission="user:manage">
+          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Users size={24} />
+            <span>Folk</span>
+          </NavLink>
+        </Can>
         <div className="nav-item-fab">
           <Can permission="job:create">
             <button className="fab-button" onClick={() => navigate('/app/job/new')} aria-label="Opret sag">

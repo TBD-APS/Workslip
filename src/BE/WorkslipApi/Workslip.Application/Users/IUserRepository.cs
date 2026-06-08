@@ -12,4 +12,6 @@ public interface IUserRepository
     Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken);
     Task UpdateAsync(UserDataRow user, CancellationToken cancellationToken);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
+    Task<IReadOnlyList<AssignedJobResponse>> GetAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
+    Task<decimal?> GetTotalHoursAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
 }

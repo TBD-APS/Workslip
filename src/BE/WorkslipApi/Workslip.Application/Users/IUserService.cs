@@ -8,6 +8,8 @@ public interface IUserService
 
     Task<Result<UserResponse>> GetAsync(Guid userId, CancellationToken cancellationToken);
 
+    Task<Result<UserDetailResponse>> GetDetailAsync(Guid userId, CancellationToken cancellationToken);
+
     Task<Result<UserListResponse>> GetByOrganizationAsync(CancellationToken cancellationToken);
 
     Task<Result<UserResponse>> UpdateAsync(Guid userId, UpdateUserRequest request, CancellationToken cancellationToken);

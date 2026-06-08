@@ -1,11 +1,10 @@
 import { AlertCircle, CheckCircle2, Clock, FileCheck2, Loader2, ShieldCheck } from 'lucide-react';
 import type { useJobDetails } from '../../hooks/useJobDetails';
-import { Checkbox } from '../../../../components/forms/Checkbox';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
 const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
-const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
+const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 type JobAttestationStepProps = {
   details: JobDetailsState;
@@ -28,6 +27,7 @@ export function JobAttestationStep({
 
   const isSubmitted = job.status === 'Submitted';
   const isSavingDraft = details.saveStatus === 'saving';
+  const confirmationDisabled = isSubmitted || details.isSubmittingJob || isSavingDraft;
   const sortedWorksheets = [...details.worksheets].sort((left, right) => right.workDate.localeCompare(left.workDate));
   const selectedControlPoints = job.work.installationTypes.flatMap((installationType) =>
     installationType.categories.flatMap((category) =>
@@ -242,57 +242,70 @@ export function JobAttestationStep({
           </div>
         )}
 
-        <div className="section-header-row">
-          <ShieldCheck size={18} />
-          <h3>Bekræft og indsend</h3>
-        </div>
-
-        <p className="subtitle" style={{ marginBottom: '1rem' }}>
-          Når du attesterer, registreres sagen som indsendt hos kontoret med den aktuelle bruger.
-        </p>
-
-        <Checkbox
-          checked={confirmed || isSubmitted}
-          disabled={isSubmitted || details.isSubmittingJob || isSavingDraft}
-          label="Jeg bekræfter, at sagen er gennemgået og klar til indsendelse"
-          description="Attestering kan ikke fortrydes — sagens status sættes til Indsendt."
-          onChange={() => onConfirmedChange(!confirmed)}
-        />
-
-        {isSubmitted ? (
-          <div className="attestation-submitted-badge" role="status" aria-live="polite">
-            <CheckCircle2 size={20} aria-hidden="true" />
-            <div>
-              <span className="attestation-submitted-badge-title">Sagen er attesteret</span>
-              <span className="attestation-submitted-badge-subtitle">
-                Status er opdateret hos backend. Du kan ikke indsende sagen igen.
-              </span>
+        <div className="attestation-confirm-card">
+          <div className="attestation-confirm-card-header">
+            <ShieldCheck size={20} className="attestation-confirm-card-icon" aria-hidden="true" />
+            <div className="attestation-confirm-card-heading">
+              <h3 className="attestation-confirm-card-title">Bekræft og indsend</h3>
+              <p className="attestation-confirm-card-subtitle">
+                Når du attesterer, registreres sagen som indsendt hos kontoret med den aktuelle bruger.
+              </p>
             </div>
           </div>
-        ) : (
-          <div className="attestation-submit-row attestation-submit-row-simple">
-            <button
-              type="button"
-              className={'attestation-submit-button' + (confirmed ? ' attestation-submit-button-ready' : ' attestation-submit-button-locked')}
-              onClick={handleSubmit}
-              disabled={!confirmed || details.isSubmittingJob || isSavingDraft}
-              title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
-            >
-              {details.isSubmittingJob || isSavingDraft ? (
-                <Loader2 className="animate-spin" size={18} />
-              ) : (
-                <ShieldCheck size={18} />
-              )}
-              <span>
-                {isSavingDraft
-                  ? 'Gemmer...'
-                  : details.isSubmittingJob
-                    ? 'Indsender...'
-                    : 'Attestér og indsend'}
+
+          <label className={`attestation-confirm-row${confirmed || isSubmitted ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
+            <span className="attestation-confirm-copy">
+              <span className="attestation-confirm-label">
+                Jeg bekræfter, at sagen er gennemgået og klar til indsendelse
               </span>
-            </button>
-          </div>
-        )}
+              <span className="attestation-confirm-description">
+                Attestering kan ikke fortrydes — sagens status sættes til Indsendt.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={confirmed || isSubmitted}
+              disabled={confirmationDisabled}
+              onChange={(event) => onConfirmedChange(event.target.checked)}
+            />
+          </label>
+
+          {isSubmitted ? (
+            <div className="attestation-submitted-badge" role="status" aria-live="polite">
+              <CheckCircle2 size={20} aria-hidden="true" />
+              <div>
+                <span className="attestation-submitted-badge-title">Sagen er attesteret</span>
+                <span className="attestation-submitted-badge-subtitle">
+                  Status er opdateret hos backend. Du kan ikke indsende sagen igen.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="attestation-submit-row">
+              <button
+                type="button"
+                className={confirmed ? 'btn btn-primary attestation-submit-button' : 'btn attestation-submit-button attestation-submit-button-locked'}
+                onClick={handleSubmit}
+                disabled={!confirmed || confirmationDisabled}
+                title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
+                aria-disabled={!confirmed || confirmationDisabled}
+              >
+                {details.isSubmittingJob || isSavingDraft ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <ShieldCheck size={18} />
+                )}
+                <span>
+                  {isSavingDraft
+                    ? 'Gemmer...'
+                    : details.isSubmittingJob
+                      ? 'Indsender...'
+                      : 'Attestér og indsend'}
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
       </section>
     </>
   );
