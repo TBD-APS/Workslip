@@ -1,21 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Timer, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { useGetApiJobsId } from '../../../api/generated/jobs/jobs';
 import type {
   InstallationTypeResponse,
   JobLinkInfoResponse,
   JobReportSummaryViewModel,
   WorksheetResponse,
 } from '../../../api/generated/models';
-import { getResponseData } from '../utils';
+import { useIsAdmin } from '../../../providers/permissions';
+import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
+import { ControlPointsStep } from '../components/steps/ControlPointsStep';
+import { JobCompletionStep } from '../components/steps/JobCompletionStep';
+import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
+import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
+import { useJobDetailsState } from '../hooks/useJobDetails';
 import { createJobReportPdfPreview, type JobReportPdfPreview } from '../utils/downloadJobReportPdf';
 
-const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
 
 type DetailPair = { label: string; value: string | null | undefined };
+type CompletedJobDetailsState = ReturnType<typeof useJobDetailsState>;
 
 type SelectedControlPoint = {
   id: string;
@@ -34,10 +40,12 @@ type IrrelevantCategory = {
 export const CompletedJobReport = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const details = useJobDetailsState(id, { autoSave: false });
+  const isAdmin = useIsAdmin();
   const [isOpeningPdf, setIsOpeningPdf] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<JobReportPdfPreview | null>(null);
-  const query = useGetApiJobsId(id ?? '', { query: { enabled: Boolean(id) } });
-  const job = getResponseData<JobReportSummaryViewModel>(query.data);
+  const job = details.job;
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
@@ -67,7 +75,25 @@ export const CompletedJobReport = () => {
     }
   };
 
-  if (query.isLoading) {
+  const handleStartEdit = () => {
+    details.discardChanges();
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    details.discardChanges();
+    setIsEditing(false);
+  };
+
+  const handleSaveEdit = async () => {
+    const saved = await details.saveAllChanges();
+    if (!saved) return;
+
+    setIsEditing(false);
+    toast.success('Sagen er opdateret');
+  };
+
+  if (details.isLoading) {
     return (
       <div className="page-container report-overview-page">
         <div className="detail-loading">
@@ -78,13 +104,13 @@ export const CompletedJobReport = () => {
     );
   }
 
-  if (query.isError || !job) {
+  if (details.isError || !job) {
     return (
       <div className="page-container report-overview-page">
         <div className="error-state">
           <AlertCircle size={32} />
           <p>Kunne ikke hente sagsrapporten.</p>
-          <button className="btn btn-primary" onClick={() => query.refetch()}>
+          <button className="btn btn-primary" onClick={() => details.refetch()}>
             Prøv igen
           </button>
         </div>
@@ -125,83 +151,101 @@ export const CompletedJobReport = () => {
           <h2 className="detail-title">Komplet sagsoverblik</h2>
         </div>
         <div className="report-overview-actions" aria-label="Rapport handlinger">
-          <button className="btn btn-secondary report-overview-icon-action" type="button" disabled aria-label="Rediger sag" title="Rediger sag kommer senere">
-            <Pencil size={16} />
-          </button>
-          <button className="btn btn-secondary report-overview-icon-action" type="button" disabled aria-label="Versioner" title="Versioner kommer senere">
+          {isEditing ? (
+            <>
+              <button className="btn btn-secondary report-overview-icon-action edit-form-cancel-btn" type="button" onClick={handleCancelEdit} aria-label="Annuller redigering" disabled={details.saveStatus === 'saving'}>
+                <X size={16} />
+              </button>
+              <button className="btn btn-primary edit-form-header-save-btn" type="button" onClick={handleSaveEdit} aria-label="Gem ændringer" disabled={details.saveStatus === 'saving'}>
+                {details.saveStatus === 'saving' ? <Loader2 size={18} className="spin" /> : <Save size={18} />}
+                <span>{details.saveStatus === 'saving' ? 'Gemmer...' : 'Gem ændringer'}</span>
+              </button>
+            </>
+          ) : (
+            <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} disabled={!isAdmin} aria-label="Rediger sag" title={isAdmin ? 'Rediger sag' : 'Kun admins kan redigere afsluttede sager'}>
+              <Pencil size={16} />
+            </button>
+          )}
+          <button className={`btn btn-secondary report-overview-icon-action ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" disabled aria-label="Versioner" title="Versioner kommer senere">
             <History size={16} />
           </button>
-          <button className="btn btn-secondary pdf-download-button report-overview-pdf" type="button" onClick={handleOpenPdf} disabled={isOpeningPdf}>
+          <button className={`btn btn-secondary ${isEditing ? 'report-overview-icon-action' : 'pdf-download-button report-overview-pdf'} ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" onClick={handleOpenPdf} disabled={isOpeningPdf || isEditing}>
             {isOpeningPdf ? <Loader2 size={16} className="spin" /> : <Eye size={16} />}
-            <span>{isOpeningPdf ? 'Åbner...' : 'Vis PDF'}</span>
+            {!isEditing && <span>{isOpeningPdf ? 'Åbner...' : 'Vis PDF'}</span>}
           </button>
         </div>
       </div>
 
-      <section className="detail-section">
-        <div className="section-header-row attestation-compact-header">
-          <User size={18} />
-          <h3>Kunde og bemanding</h3>
-        </div>
-        <DetailGrid items={customerPairs} />
-        <AssignedUsers users={job.assignedUsers} />
-      </section>
+      {isEditing ? (
+        <CompletedJobEditForm details={details} onCancel={handleCancelEdit} onSave={handleSaveEdit} />
+      ) : (
+        <>
+          <section className="detail-section">
+            <div className="section-header-row attestation-compact-header">
+              <User size={18} />
+              <h3>Kunde og bemanding</h3>
+            </div>
+            <DetailGrid items={customerPairs} />
+            <AssignedUsers users={job.assignedUsers} />
+          </section>
 
-      <section className="detail-section report-overview-hero">
-        <div className="section-header-row attestation-compact-header">
-          <FileCheck2 size={18} />
-          <h3>Sag</h3>
-        </div>
-        <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>{formatStatus(job.status)}</span>
-        <DetailGrid items={summaryPairs} />
-      </section>
+          <section className="detail-section report-overview-hero">
+            <div className="section-header-row attestation-compact-header">
+              <FileCheck2 size={18} />
+              <h3>Sag</h3>
+            </div>
+            <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>{formatStatus(job.status)}</span>
+            <DetailGrid items={summaryPairs} />
+          </section>
 
-      <section className="detail-section">
-        <div className="section-header-row attestation-compact-header">
-          <Link2 size={18} />
-          <h3>Tilknyttede sager</h3>
-        </div>
-        <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`)} />
-      </section>
+          <section className="detail-section">
+            <div className="section-header-row attestation-compact-header">
+              <Link2 size={18} />
+              <h3>Tilknyttede sager</h3>
+            </div>
+            <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`)} />
+          </section>
 
-      <section className="detail-section attestation-timesheet-section">
-        <div className="section-header-row attestation-compact-header">
-          <Timer size={18} />
-          <h3>Timesedler</h3>
-        </div>
-        <Worksheets worksheets={sortedWorksheets} />
-        <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
-          <span>{formatNumber(job.totalHours)} {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
-          {parseNullableNumber(job.totalOutlay) > 0 && (
-            <span>{formatNumber(job.totalOutlay)} {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
-          )}
-        </div>
-      </section>
+          <section className="detail-section attestation-timesheet-section">
+            <div className="section-header-row attestation-compact-header">
+              <Timer size={18} />
+              <h3>Timesedler</h3>
+            </div>
+            <Worksheets worksheets={sortedWorksheets} />
+            <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
+              <span>{formatNumber(job.totalHours)} {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
+              {parseNullableNumber(job.totalOutlay) > 0 && (
+                <span>{formatNumber(job.totalOutlay)} {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
+              )}
+            </div>
+          </section>
 
-      {observationPairs.length > 0 && (
-        <section className="detail-section attestation-summary-section">
-          <div className="section-header-row attestation-compact-header">
-            <FileCheck2 size={18} />
-            <h3>Observationer og noter</h3>
-          </div>
-          <div className="attestation-observations-list">
-            {observationPairs.map((item) => (
-              <div key={item.label} className="attestation-data-pair observation">
-                <dt>{item.label}</dt>
-                <dd>{item.value}</dd>
+          {observationPairs.length > 0 && (
+            <section className="detail-section attestation-summary-section">
+              <div className="section-header-row attestation-compact-header">
+                <FileCheck2 size={18} />
+                <h3>Observationer og noter</h3>
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+              <div className="attestation-observations-list">
+                {observationPairs.map((item) => (
+                  <div key={item.label} className="attestation-data-pair observation">
+                    <dt>{item.label}</dt>
+                    <dd>{item.value}</dd>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
-      <section className="detail-section attestation-control-section compact">
-        <div className="section-header-row attestation-compact-header">
-          <CheckCircle2 size={18} />
-          <h3>Kontrolpunkter</h3>
-        </div>
-        <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
-      </section>
+          <section className="detail-section attestation-control-section compact">
+            <div className="section-header-row attestation-compact-header">
+              <CheckCircle2 size={18} />
+              <h3>Kontrolpunkter</h3>
+            </div>
+            <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
+          </section>
+        </>
+      )}
 
       {pdfPreview && <PdfPreviewDialog preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
     </div>
@@ -227,6 +271,117 @@ function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; 
     </div>
   );
 }
+
+function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFormProps) {
+  if (!details.job) return null;
+
+  return (
+    <>
+      <CustomerDetailsBlock
+        form={details.form}
+        reportNumberReadOnly={details.reportNumberReadOnly}
+        assignment={{
+          users: details.assignableUsers,
+          assignedUserIds: details.assignedUserIds,
+          isLoadingUsers: details.isLoadingUsers,
+          onAssignedUsersChange: details.updateAssignedUsers,
+        }}
+        readOnlyAssigned={details.job.assignedUsers}
+        onCustomerChange={details.updateCustomer}
+        onReportNumberChange={details.updateReportNumber}
+      />
+
+      <LinkedJobsBlock
+        jobs={details.linkableJobs}
+        linkedJobIds={details.linkedJobIds}
+        isLoading={details.isLoadingJobs}
+        onChange={details.updateLinkedJobs}
+      />
+
+      <section className="detail-section attestation-summary-section">
+        <div className="section-header-row attestation-compact-header">
+          <FileCheck2 size={18} />
+          <h3>Observationer og noter</h3>
+        </div>
+        <TextAreaBlock
+          icon={<FileCheck2 size={18} />}
+          title="Opgave"
+          value={details.form.taskDescription}
+          onChange={details.updateTaskDescription}
+          placeholder="Beskriv opgaven..."
+        />
+        <TextAreaBlock
+          icon={<User size={18} />}
+          title="Kundeinfo"
+          value={details.form.customerObservations}
+          onChange={details.updateCustomerObservations}
+          placeholder="Notér oplysninger til kunden..."
+        />
+        <TextAreaBlock
+          icon={<CheckCircle2 size={18} />}
+          title="Teknisk"
+          value={details.form.technicalObservations}
+          onChange={details.updateTechnicalObservations}
+          placeholder="Notér tekniske observationer..."
+        />
+      </section>
+
+      <WorkCategoryStep
+        form={details.form}
+        referenceData={details.referenceData}
+        isLoading={details.isLoadingReferenceData}
+        onCategoriesChange={details.updateWorkCategories}
+        onWorkKindChange={details.updateWorkKind}
+        onCustomWorkKindChange={details.updateCustomWorkKind}
+      />
+
+      <ControlPointsStep
+        form={details.form}
+        referenceData={details.referenceData}
+        onToggleControlPoint={details.toggleControlPoint}
+        onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
+      />
+
+      <JobWorksheetsStep
+        jobId={details.job.id}
+        worksheets={details.worksheets}
+        totalHours={details.job.totalHours}
+        totalOutlay={details.job.totalOutlay}
+        assignableUsers={details.assignableUsers}
+        isLoadingUsers={details.isLoadingUsers}
+        isSaving={details.isSavingWorksheet}
+        isDeleting={details.isDeletingWorksheet}
+        onUpsert={details.upsertWorksheet}
+        onDelete={details.deleteWorksheet}
+      />
+
+      <JobCompletionStep
+        form={details.form}
+        referenceData={details.referenceData}
+        isLoading={details.isLoadingReferenceData}
+        onClosureFlagsChange={details.updateClosureFlags}
+        worksheetCount={details.worksheets.length}
+      />
+
+      <div className="edit-form-bottom-actions">
+        <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={onCancel} disabled={details.saveStatus === 'saving'}>
+          <X size={18} />
+          Annuller
+        </button>
+        <button className="btn btn-primary edit-form-bottom-btn edit-form-save-btn" type="button" onClick={onSave} disabled={details.saveStatus === 'saving'}>
+          {details.saveStatus === 'saving' ? <Loader2 size={18} className="spin" /> : <Save size={18} />}
+          {details.saveStatus === 'saving' ? 'Gemmer...' : 'Gem ændringer'}
+        </button>
+      </div>
+    </>
+  );
+}
+
+type CompletedJobEditFormProps = {
+  details: CompletedJobDetailsState;
+  onCancel: () => void;
+  onSave: () => void;
+};
 
 function DetailGrid({ items }: { items: DetailPair[] }) {
   if (items.length === 0) {

@@ -18,7 +18,7 @@ var appConfigValues = {
 
   //OAuth
   'Azure:AdOAuth:TenantId': tenant().tenantId
-  'Azure:AdOAuth:Instance': 'https://login.microsoftonline.com/'
+  'Azure:AdOAuth:Instance': az.environment().authentication.loginEndpoint
   'Azure:AdOAuth:Domain': 'rasmusvm6hotmail.onmicrosoft.com'
   
   //LocalJwt

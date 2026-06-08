@@ -11,7 +11,7 @@ import { getUserList } from '../../utils';
 import { useGetApiUsers } from '../../../../api/generated/users/users';
 
 const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
-const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 const MONTH_FORMATTER = new Intl.DateTimeFormat('da-DK', { month: 'long', year: 'numeric' });
 
 type WorksheetDraft = {
@@ -392,7 +392,7 @@ export function JobWorksheetsStep({
         openActionMenu={openActionMenu}
         openActionWorksheet={openActionWorksheet}
         isDeleting={isDeleting}
-        canDelete={canPickUser}
+        canDelete={canPickUser || openActionWorksheet?.userId === user?.id}
         onStartEdit={startEdit}
         onDelete={handleDelete}
       />

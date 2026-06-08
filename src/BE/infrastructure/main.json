@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "9067671011428842815"
+      "templateHash": "17001151144668086175"
     }
   },
   "parameters": {
@@ -577,7 +577,7 @@
             "value": "[reference('identity').clientId]"
           }
         ],
-        "scriptContent": "set -euo pipefail\n\ninstall_sqlcmd() {\n  if command -v sqlcmd >/dev/null 2>&1; then\n    return 0\n  fi\n\n  apt-get update\n  apt-get install -y curl gnupg apt-transport-https ca-certificates unixodbc\n  curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb\n  dpkg -i /tmp/packages-microsoft-prod.deb\n  apt-get update\n  ACCEPT_EULA=Y apt-get install -y mssql-tools18\n  export PATH=\"$PATH:/opt/mssql-tools18/bin\"\n}\n\nsql_user_sid=$(python3 - <<'PY'\nimport os\nimport uuid\n\nprint('0x' + uuid.UUID(os.environ['WEB_API_CLIENT_ID']).bytes_le.hex().upper())\nPY\n)\n\ninstall_sqlcmd\nexport PATH=\"$PATH:/opt/mssql-tools18/bin\"\n\naz_with_retry() {\n  local attempt=1\n  local max_attempts=12\n\n  while true; do\n    if az \"$@\"; then\n      return 0\n    fi\n\n    if [ \"$attempt\" -ge \"$max_attempts\" ]; then\n      return 1\n    fi\n\n    sleep $((attempt * 10))\n    attempt=$((attempt + 1))\n  done\n}\n\nprovisioning_ip=$(curl -fsSL https://api.ipify.org)\naz_with_retry sql server firewall-rule create \\\n  --resource-group \"$RESOURCE_GROUP\" \\\n  --server \"$SQL_SERVER_NAME\" \\\n  --name \"AllowSqlProvisioningScript\" \\\n  --start-ip-address \"$provisioning_ip\" \\\n  --end-ip-address \"$provisioning_ip\" \\\n  --output none\n\ncleanup() {\n  az sql server firewall-rule delete --resource-group \"$RESOURCE_GROUP\" --server \"$SQL_SERVER_NAME\" --name \"AllowSqlProvisioningScript\" --yes --output none || true\n  rm -f /tmp/sqltoken /tmp/grant-web-api-access.sql\n}\ntrap cleanup EXIT\n\ncat > /tmp/grant-web-api-access.sql <<SQL\nDECLARE @userName sysname = N'${WEB_API_SQL_USER_NAME}';\n\nIF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @userName)\nBEGIN\n  DECLARE @createUserSql nvarchar(max) = N'CREATE USER ' + QUOTENAME(@userName) + N' WITH SID = ${sql_user_sid}, TYPE = E;';\n  EXEC sp_executesql @createUserSql;\nEND;\n\nIF IS_ROLEMEMBER(N'db_datareader', @userName) <> 1\nBEGIN\n  EXEC(N'ALTER ROLE db_datareader ADD MEMBER ' + QUOTENAME(@userName));\nEND;\n\nIF IS_ROLEMEMBER(N'db_datawriter', @userName) <> 1\nBEGIN\n  EXEC(N'ALTER ROLE db_datawriter ADD MEMBER ' + QUOTENAME(@userName));\nEND;\n\nIF IS_ROLEMEMBER(N'db_ddladmin', @userName) <> 1\nBEGIN\n  EXEC(N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName));\nEND;\nSQL\n\nrun_sql_with_retry() {\n  local attempt=1\n  local max_attempts=12\n\n  while true; do\n    az account get-access-token --resource https://database.windows.net --query accessToken --output tsv | tr -d '\\n' | iconv -f ascii -t UTF-16LE > /tmp/sqltoken\n\n    if sqlcmd -S \"$SQL_SERVER_FQDN\" -d \"$SQL_DATABASE_NAME\" -G -P /tmp/sqltoken -b -l 30 -i /tmp/grant-web-api-access.sql; then\n      return 0\n    fi\n\n    if [ \"$attempt\" -ge \"$max_attempts\" ]; then\n      return 1\n    fi\n\n    sleep $((attempt * 10))\n    attempt=$((attempt + 1))\n  done\n}\n\nrun_sql_with_retry\n"
+        "scriptContent": "set -euo pipefail\n\ninstall_sqlcmd() {\n  if command -v sqlcmd >/dev/null 2>&1; then\n    return 0\n  fi\n\n  apt-get update\n  apt-get install -y curl gnupg apt-transport-https ca-certificates unixodbc\n  curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb\n  dpkg -i /tmp/packages-microsoft-prod.deb\n  apt-get update\n  ACCEPT_EULA=Y apt-get install -y mssql-tools18\n  export PATH=\"$PATH:/opt/mssql-tools18/bin\"\n}\n\nsql_user_sid=$(python3 - <<'PY'\nimport os\nimport uuid\n\nprint('0x' + uuid.UUID(os.environ['WEB_API_CLIENT_ID']).bytes_le.hex().upper())\nPY\n)\n\ninstall_sqlcmd\nexport PATH=\"$PATH:/opt/mssql-tools18/bin\"\n\naz_with_retry() {\n  local attempt=1\n  local max_attempts=12\n\n  while true; do\n    if az \"$@\"; then\n      return 0\n    fi\n\n    if [ \"$attempt\" -ge \"$max_attempts\" ]; then\n      return 1\n    fi\n\n    sleep $((attempt * 10))\n    attempt=$((attempt + 1))\n  done\n}\n\nprovisioning_ip=$(curl -fsSL https://api.ipify.org)\naz_with_retry sql server firewall-rule create \\\n  --resource-group \"$RESOURCE_GROUP\" \\\n  --server \"$SQL_SERVER_NAME\" \\\n  --name \"AllowSqlProvisioningScript\" \\\n  --start-ip-address \"$provisioning_ip\" \\\n  --end-ip-address \"$provisioning_ip\" \\\n  --output none\n\ncleanup() {\n  az sql server firewall-rule delete --resource-group \"$RESOURCE_GROUP\" --server \"$SQL_SERVER_NAME\" --name \"AllowSqlProvisioningScript\" --yes --output none || true\n  rm -f /tmp/sqltoken /tmp/grant-web-api-access.sql\n}\ntrap cleanup EXIT\n\ncat > /tmp/grant-web-api-access.sql <<SQL\nDECLARE @userName sysname = N'${WEB_API_SQL_USER_NAME}';\n\nIF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @userName)\nBEGIN\n  DECLARE @createUserSql nvarchar(max) = N'CREATE USER ' + QUOTENAME(@userName) + N' WITH SID = ${sql_user_sid}, TYPE = E;';\n  EXEC sp_executesql @createUserSql;\nEND;\n\nIF IS_ROLEMEMBER(N'db_datareader', @userName) <> 1\nBEGIN\n  EXEC(N'ALTER ROLE db_datareader ADD MEMBER ' + QUOTENAME(@userName));\nEND;\n\nIF IS_ROLEMEMBER(N'db_datawriter', @userName) <> 1\nBEGIN\n  EXEC(N'ALTER ROLE db_datawriter ADD MEMBER ' + QUOTENAME(@userName));\nEND;\n\nIF IS_ROLEMEMBER(N'db_ddladmin', @userName) <> 1\nBEGIN\n  EXEC(N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName));\nEND;\nSQL\n\nrun_sql_with_retry() {\n  local attempt=1\n  local max_attempts=12\n\n  while true; do\n    sql_token_resource=\"https://${SQL_SERVER_FQDN#*.}/\"\n    az account get-access-token --resource \"$sql_token_resource\" --query accessToken --output tsv | tr -d '\\n' | iconv -f ascii -t UTF-16LE > /tmp/sqltoken\n\n    if sqlcmd -S \"$SQL_SERVER_FQDN\" -d \"$SQL_DATABASE_NAME\" -G -P /tmp/sqltoken -b -l 30 -i /tmp/grant-web-api-access.sql; then\n      return 0\n    fi\n\n    if [ \"$attempt\" -ge \"$max_attempts\" ]; then\n      return 1\n    fi\n\n    sleep $((attempt * 10))\n    attempt=$((attempt + 1))\n  done\n}\n\nrun_sql_with_retry\n"
       },
       "dependsOn": [
         "deploymentIdentity",
@@ -727,7 +727,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "5701714775411256250"
+              "templateHash": "4267325095283567776"
             }
           },
           "parameters": {
@@ -738,7 +738,7 @@
           "variables": {
             "appConfigValues": {
               "Azure:AdOAuth:TenantId": "[tenant().tenantId]",
-              "Azure:AdOAuth:Instance": "https://login.microsoftonline.com/",
+              "Azure:AdOAuth:Instance": "[environment().authentication.loginEndpoint]",
               "Azure:AdOAuth:Domain": "rasmusvm6hotmail.onmicrosoft.com",
               "Jwt:Issuer": "WorkslipApiLocal",
               "Jwt:Audience": "WorkslipClientLocal",
@@ -751,8 +751,7 @@
               "Authorization:RoleHierarchy:Admin:0": "User",
               "Azure:Acs:PLainHeaderText": "Du er blevet inviteret til Workslip",
               "Azure:Acs:HtmlInviteText": "  <html>\n  <body style=\"font-family: Arial, sans-serif; padding: 24px;\">\n    <h2>Velkommen til Workslip</h2>\n    <p>Du er blevet inviteret til at deltage i Workslip.</p>\n    <p>\n      <a href=\"{inviteLink}\"\n         style=\"display: inline-block; padding: 12px 24px; background-color: #0057b7; color: #fff; text-decoration: none; border-radius: 6px;\">\n        Accepter invitation\n      </a>\n    </p>\n    <p>Linket udløber om 7 dage.</p>\n    <hr/>\n    <p style=\"color: #666; font-size: 12px;\">Workslip – automatisk invitation</p>\n  </body>\n</html>",
-              "name": "Azure:Acs:PlainInviteText",
-              "value": "    Du er blevet inviteret til Workslip.\n    Klik på følgende link for at acceptere invitationen:\n    {inviteLink}\n    Linket udløber om 7 dage.\n"
+              "Azure:Acs:PlainInviteText": "    Du er blevet inviteret til Workslip.\n    Klik på følgende link for at acceptere invitationen:\n    {inviteLink}\n    Linket udløber om 7 dage.\n"
             }
           },
           "resources": [
