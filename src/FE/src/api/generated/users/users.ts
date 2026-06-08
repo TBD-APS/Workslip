@@ -25,7 +25,10 @@ import type {
 
 import type {
   CreateUserRequest,
-  UpdateUserRequest
+  UpdateUserRequest,
+  UserDetailViewModel,
+  UserListViewModel,
+  UserViewModel
 } from '../models';
 
 import { customAxiosInstance } from '../../fetcherOrval';
@@ -36,7 +39,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 export type postApiUsersResponse200 = {
-  data: void
+  data: UserViewModel
   status: 200
 }
 
@@ -111,7 +114,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getPostApiUsersMutationOptions(options), queryClient);
     }
     export type getApiUsersResponse200 = {
-  data: void
+  data: UserListViewModel
   status: 200
 }
 
@@ -217,7 +220,7 @@ export function useGetApiUsers<TData = Awaited<ReturnType<typeof getApiUsers>>, 
 
 
 export type getApiUsersIdResponse200 = {
-  data: void
+  data: UserDetailViewModel
   status: 200
 }
 
@@ -323,7 +326,7 @@ export function useGetApiUsersId<TData = Awaited<ReturnType<typeof getApiUsersId
 
 
 export type patchApiUsersIdResponse200 = {
-  data: void
+  data: UserViewModel
   status: 200
 }
 

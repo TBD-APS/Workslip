@@ -2,7 +2,8 @@ import Axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
 
-var apiUrl = `${process.env.VITE_API_URL}/api`;
+const apiUrl = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api`;
+
 export const apiClient = Axios.create({
   baseURL: apiUrl,
 });

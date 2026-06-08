@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
+export * from './assignedJobViewModel';
 export * from './assignedUserResponse';
 export * from './assignJobRequest';
 export * from './changeJobStatusRequest';
@@ -43,6 +44,8 @@ export * from './sendCodeRequest';
 export * from './updateJobRequest';
 export * from './updateUserRequest';
 export * from './upsertWorksheetRequest';
+export * from './userDetailViewModel';
+export * from './userListViewModel';
 export * from './userViewModel';
 export * from './verifyCodeRequest';
 export * from './verifyInviteRequest';
