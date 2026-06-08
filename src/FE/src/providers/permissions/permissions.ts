@@ -28,7 +28,7 @@ const PERMISSIONS: Record<Permission, readonly Role[]> = {
   'job:delete': ADMIN_ROLES,
   'job:viewAll': ADMIN_ROLES,
   'worksheet:assign': ADMIN_ROLES,
-  'user:manage': [ROLES.Superadmin],
+  'user:manage': ADMIN_ROLES,
 };
 
 export function hasPermission(role: string | null | undefined, permission: Permission): boolean {

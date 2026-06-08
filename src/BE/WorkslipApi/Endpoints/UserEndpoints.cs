@@ -21,8 +21,8 @@ public static class UserEndpoints
 
         group.MapGet("/{id}", async (Guid id, IUserService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.GetAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
+            var result = await service.GetDetailAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUserDetail);
         }).RequireAuthorization(AuthPolicies.RequireUser);
 
         group.MapGet("/", async (IUserService service, CancellationToken cancellationToken) =>

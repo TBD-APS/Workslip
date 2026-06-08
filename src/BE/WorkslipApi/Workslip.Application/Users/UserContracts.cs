@@ -23,6 +23,25 @@ public sealed record UserListResponse(
     IReadOnlyList<UserResponse> Users,
     int Total);
 
+public sealed record AssignedJobResponse(
+    Guid ReportId,
+    string? ReportNumber,
+    string Status,
+    DateTimeOffset UpdatedAt,
+    string? CustomerName,
+    string? CustomerEmail,
+    string? CustomerAddress);
+
+public sealed record UserDetailResponse(
+    Guid Id,
+    Guid OrganizationId,
+    string Email,
+    string DisplayName,
+    string Phone,
+    string Role,
+    IReadOnlyList<AssignedJobResponse> AssignedJobs,
+    decimal? TotalHours);
+
 public sealed record InviteUsersRequest(
     IReadOnlyList<string> Emails,
     string InviteBaseUrl,

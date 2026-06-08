@@ -1,6 +1,5 @@
 import { AlertCircle, CheckCircle2, Clock, FileCheck2, Loader2, ShieldCheck } from 'lucide-react';
 import type { useJobDetails } from '../../hooks/useJobDetails';
-import { Checkbox } from '../../../../components/forms/Checkbox';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -28,6 +27,7 @@ export function JobAttestationStep({
 
   const isSubmitted = job.status === 'Submitted';
   const isSavingDraft = details.saveStatus === 'saving';
+  const confirmationDisabled = isSubmitted || details.isSubmittingJob || isSavingDraft;
   const sortedWorksheets = [...details.worksheets].sort((left, right) => right.workDate.localeCompare(left.workDate));
   const selectedControlPoints = job.work.installationTypes.flatMap((installationType) =>
     installationType.categories.flatMap((category) =>
@@ -253,26 +253,21 @@ export function JobAttestationStep({
             </div>
           </div>
 
-          {!isSubmitted && !confirmed && !details.isSubmittingJob && !isSavingDraft && (
-            <div className="attestation-confirm-required" role="status" aria-live="polite">
-              <AlertCircle size={18} aria-hidden="true" />
-              <span>
-                <strong>Trin 1 kræves:</strong> Markér bekræftelsen nedenfor for at aktivere indsendelse.
+          <label className={`attestation-confirm-row${confirmed || isSubmitted ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
+            <span className="attestation-confirm-copy">
+              <span className="attestation-confirm-label">
+                Jeg bekræfter, at sagen er gennemgået og klar til indsendelse
               </span>
-            </div>
-          )}
-
-          <label className={confirmed ? 'attestation-confirm-row confirmed' : 'attestation-confirm-row'}>
-            <span className="attestation-confirm-step" aria-hidden="true">1</span>
-            <div className="attestation-confirm-body">
-              <Checkbox
-                checked={confirmed || isSubmitted}
-                disabled={isSubmitted || details.isSubmittingJob || isSavingDraft}
-                label="Jeg bekræfter, at sagen er gennemgået og klar til indsendelse"
-                description="Attestering kan ikke fortrydes — sagens status sættes til Indsendt."
-                onChange={() => onConfirmedChange(!confirmed)}
-              />
-            </div>
+              <span className="attestation-confirm-description">
+                Attestering kan ikke fortrydes — sagens status sættes til Indsendt.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={confirmed || isSubmitted}
+              disabled={confirmationDisabled}
+              onChange={(event) => onConfirmedChange(event.target.checked)}
+            />
           </label>
 
           {isSubmitted ? (
@@ -287,14 +282,13 @@ export function JobAttestationStep({
             </div>
           ) : (
             <div className="attestation-submit-row">
-              <span className="attestation-confirm-step" aria-hidden="true">2</span>
               <button
                 type="button"
                 className={confirmed ? 'btn btn-primary attestation-submit-button' : 'btn attestation-submit-button attestation-submit-button-locked'}
                 onClick={handleSubmit}
-                disabled={!confirmed || details.isSubmittingJob || isSavingDraft}
+                disabled={!confirmed || confirmationDisabled}
                 title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
-                aria-disabled={!confirmed || details.isSubmittingJob || isSavingDraft}
+                aria-disabled={!confirmed || confirmationDisabled}
               >
                 {details.isSubmittingJob || isSavingDraft ? (
                   <Loader2 className="animate-spin" size={18} />

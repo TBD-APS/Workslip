@@ -614,9 +614,29 @@
                 "{{userId}}"
               ]
             },
-            "description": "Gets user by id."
+            "description": "Gets user detail by id, including assigned jobs and total hours."
           },
-          "response": [],
+          "response": [
+            {
+              "name": "200 OK (example)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/users/{{userId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "users", "{{userId}}"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": \"f01cc945-5bd1-4c81-993e-56a468235256\",\n  \"orgId\": \"f01cc945-5bd1-4c81-993e-56a468235256\",\n  \"email\": \"user@example.com\",\n  \"displayName\": \"John Doe\",\n  \"phone\": \"+4512345678\",\n  \"role\": \"Admin\",\n  \"assignedJobs\": [\n    {\n      \"reportId\": \"a1b2c3d4-0000-0000-0000-000000000001\",\n      \"reportNumber\": 1001,\n      \"status\": \"Active\",\n      \"updatedAt\": \"2026-06-01T10:30:00Z\"\n    }\n  ],\n  \"totalHours\": 42.5\n}",
+              "cookie": []
+            }
+          ],
           "event": [
             {
               "listen": "test",
@@ -627,6 +647,8 @@
                   "if (pm.response.code === 200) {",
                   "  const json = pm.response.json();",
                   "  pm.test('user view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "  pm.test('response has assignedJobs array', function () { pm.expect(json.assignedJobs).to.be.an('array'); });",
+                  "  pm.test('response has totalHours', function () { pm.expect(json).to.have.property('totalHours'); });",
                   "}"
                 ]
               }

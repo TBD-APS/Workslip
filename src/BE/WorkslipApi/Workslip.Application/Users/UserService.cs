@@ -65,6 +65,37 @@ public sealed class UserService(
         return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
+    public async Task<Result<UserDetailResponse>> GetDetailAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<UserDetailResponse>.Unauthorized();
+        }
+
+        var user = await repository.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            logger.LogInformation("User not found. UserId: {UserId}.", userId);
+            return Result<UserDetailResponse>.NotFound();
+        }
+
+        var assignedJobs = await repository.GetAssignedJobsAsync(organizationId.Value, userId, cancellationToken);
+        var totalHours = await repository.GetTotalHoursAsync(organizationId.Value, userId, cancellationToken);
+
+        return Result<UserDetailResponse>.Success(new UserDetailResponse(
+            user.Id,
+            user.OrganizationId,
+            user.Email,
+            user.DisplayName,
+            user.Phone,
+            user.Role,
+            assignedJobs,
+            totalHours));
+    }
+
     public async Task<Result<UserListResponse>> GetByOrganizationAsync(
         CancellationToken cancellationToken)
     {

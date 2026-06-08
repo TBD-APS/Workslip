@@ -653,6 +653,14 @@
 /* ------------------------------------------------------------
    Card footer: assigned users + chevron
    ------------------------------------------------------------ */
+.job-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
 .job-card-footer {
   display: flex;
   justify-content: space-between;
@@ -2464,7 +2472,7 @@
   gap: 1.1rem;
   padding: 1.4rem 1.5rem;
   border-radius: 16px;
-  background: linear-gradient(180deg, var(--surface-selected) 0%, rgba(37, 99, 235, 0.04) 100%);
+  background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(96, 165, 250, 0.32);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
 }
@@ -2503,89 +2511,110 @@
   line-height: 1.45;
 }
 
-.attestation-confirm-required {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.75rem 0.95rem;
-  border-radius: 10px;
-  background: rgba(234, 179, 8, 0.10);
-  border: 1px solid rgba(234, 179, 8, 0.32);
-  color: #fde68a;
-  font-size: 0.88rem;
-  line-height: 1.4;
-}
-
-.attestation-confirm-required svg {
-  flex-shrink: 0;
-  color: #fbbf24;
-}
-
-.attestation-confirm-step {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: rgba(96, 165, 250, 0.18);
-  border: 1px solid rgba(96, 165, 250, 0.35);
-  color: #bfdbfe;
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
 .attestation-confirm-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.85rem;
+  justify-content: space-between;
+  gap: 1rem;
   padding: 0.9rem 1rem;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .attestation-confirm-row:hover {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(96, 165, 250, 0.30);
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(96, 165, 250, 0.28);
 }
 
 .attestation-confirm-row.confirmed {
-  background: rgba(34, 197, 94, 0.10);
-  border-color: rgba(34, 197, 94, 0.32);
+  background: rgba(37, 99, 235, 0.10);
+  border-color: rgba(96, 165, 250, 0.38);
 }
 
-.attestation-confirm-row.confirmed .attestation-confirm-step {
-  background: rgba(34, 197, 94, 0.20);
-  border-color: rgba(34, 197, 94, 0.45);
-  color: #bbf7d0;
+.attestation-confirm-row.disabled {
+  cursor: default;
+  opacity: 0.65;
 }
 
-.attestation-confirm-body {
-  flex: 1 1 auto;
+.attestation-confirm-row.disabled:hover {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.attestation-confirm-row.confirmed.disabled:hover {
+  background: rgba(37, 99, 235, 0.10);
+  border-color: rgba(96, 165, 250, 0.38);
+}
+
+.attestation-confirm-copy {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.attestation-confirm-label {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.attestation-confirm-description {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.attestation-confirm-row input {
+  position: relative;
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.05rem 0 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.attestation-confirm-row input:checked {
+  background: #2563eb;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.16);
+}
+
+.attestation-confirm-row input:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 0.32rem;
+  height: 0.62rem;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+  transform-origin: center;
+}
+
+.attestation-confirm-row input:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.75);
+  outline-offset: 2px;
+}
+
+.attestation-confirm-row input:disabled {
+  cursor: default;
 }
 
 .attestation-submit-row {
   display: flex;
-  align-items: center;
-  gap: 0.85rem;
-}
-
-.attestation-submit-row .attestation-confirm-step {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: var(--text-secondary);
-}
-
-.attestation-submit-row .attestation-confirm-step.unlocked {
-  background: rgba(37, 99, 235, 0.22);
-  border-color: rgba(96, 165, 250, 0.45);
-  color: #dbeafe;
 }
 
 .attestation-submit-button {
@@ -2786,6 +2815,119 @@
 
 .job-details-header-spacer {
   height: 0;
+}
+
+.btn-icon-back {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: all 0.2s;
+  margin-right: 0.25rem;
+}
+
+.btn-icon-back:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.section-title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 1rem 0 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+.user-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface-card);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.detail-row svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.75rem 0.65rem 2.2rem;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.9rem;
+  background: var(--surface-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.search-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.search-input:focus {
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+.search-input-icon {
+  position: absolute;
+  left: 0.65rem;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.job-card--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.meta-item--success {
+  color: #22c55e;
+}
+
+.meta-item--muted {
+  color: var(--text-secondary);
+}
+
+.meta-item--action {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 
 @media (max-width: 640px) {
