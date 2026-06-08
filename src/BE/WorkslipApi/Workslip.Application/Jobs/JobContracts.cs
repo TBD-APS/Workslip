@@ -11,6 +11,57 @@ public sealed record JobQuery(Guid OrganizationId, JobStatus? Status, int Limit,
     string? CustomerEmail = null,
     string? CustomerAddress = null);
 
+public enum JobDeleteRepositoryStatus
+{
+    Deleted,
+    NotFound,
+    BlockedByWorksheets
+}
+
+public sealed record JobDeleteRepositoryResult(JobDeleteRepositoryStatus Status, int WorksheetCount)
+{
+    public static JobDeleteRepositoryResult Deleted() => new(JobDeleteRepositoryStatus.Deleted, 0);
+    public static JobDeleteRepositoryResult NotFound() => new(JobDeleteRepositoryStatus.NotFound, 0);
+    public static JobDeleteRepositoryResult BlockedByWorksheets(int worksheetCount) => new(JobDeleteRepositoryStatus.BlockedByWorksheets, worksheetCount);
+}
+
+public sealed record JobDeleteErrorResponse(string Code, string Message, int WorksheetCount)
+{
+    private const string ConflictSeparator = ":";
+
+    public static JobDeleteErrorResponse HasAttachedWorksheets(int worksheetCount) => new(
+        "job_has_attached_worksheets",
+        BuildAttachedWorksheetMessage(worksheetCount),
+        worksheetCount);
+
+    public string ToConflictError() => string.Join(ConflictSeparator, Code, WorksheetCount);
+
+    public static JobDeleteErrorResponse FromConflictError(string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            return new("job_delete_conflict", "Sagen kunne ikke slettes.", 0);
+        }
+
+        var parts = error.Split(ConflictSeparator, 2);
+        if (parts[0] == "job_has_attached_worksheets")
+        {
+            var worksheetCount = parts.Length == 2 && int.TryParse(parts[1], out var parsed)
+                ? parsed
+                : 1;
+            return HasAttachedWorksheets(worksheetCount);
+        }
+
+        return new(parts[0], "Sagen kunne ikke slettes.", 0);
+    }
+
+    private static string BuildAttachedWorksheetMessage(int worksheetCount)
+    {
+        var noun = worksheetCount == 1 ? "timeseddel" : "timesedler";
+        return $"Sagen kan ikke slettes, fordi den har {worksheetCount} {noun}. Slet {noun} først.";
+    }
+}
+
 public sealed record ControlCheckRequest(
     string ItemId,
     bool Checked,

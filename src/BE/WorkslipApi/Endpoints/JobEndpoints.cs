@@ -88,8 +88,13 @@ public static class JobEndpoints
         group.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
-        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+            return result.Status == Ardalis.Result.ResultStatus.Conflict
+                ? Results.Conflict(JobDeleteErrorResponse.FromConflictError(result.Errors.FirstOrDefault()))
+                : ResultExtensions.ToHttpResult(result);
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces<JobDeleteErrorResponse>(StatusCodes.Status409Conflict)
+        .RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/{id:guid}/restore/deletion", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {

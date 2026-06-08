@@ -446,26 +446,37 @@ public sealed class JobService(
         return Result.Success();
     }
 
-     public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken)
+     public async Task<Result<JobDeleteErrorResponse>> DeleteAsync(Guid id, CancellationToken cancellationToken)
      {
          var organizationId = currentUser.OrganizationId;
          if (organizationId is null)
          {
-             return Result.Unauthorized();
+             return Result<JobDeleteErrorResponse>.Unauthorized();
          }
 
-         var isDeleted = await _jobRepository.DeleteAsync(id, organizationId.Value, cancellationToken);
-         if (!isDeleted)
+         var deleteResult = await _jobRepository.DeleteAsync(id, organizationId.Value, cancellationToken);
+         if (deleteResult.Status == JobDeleteRepositoryStatus.NotFound)
          {
-             logger.LogWarning("Job delete returned not found. JobId: {JobId} in org {OrgId}", id, organizationId);
-             return Result.NotFound();
+             logger.LogWarning("Job delete returned not found. JobId: {JobId}. OrganizationId: {OrganizationId}", id, organizationId.Value);
+             return Result<JobDeleteErrorResponse>.NotFound();
+         }
+
+         if (deleteResult.Status == JobDeleteRepositoryStatus.BlockedByWorksheets)
+         {
+             var error = JobDeleteErrorResponse.HasAttachedWorksheets(deleteResult.WorksheetCount);
+             logger.LogWarning("Job delete blocked by attached worksheets. JobId: {JobId}. OrganizationId: {OrganizationId}. WorksheetCount: {WorksheetCount}",
+                 id, organizationId.Value, deleteResult.WorksheetCount);
+             return Conflict(error);
          }
 
          await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
          logger.LogInformation("Job deleted. JobId: {JobId}.", id);
 
-         return Result.NoContent();
+         return Result<JobDeleteErrorResponse>.NoContent();
       }
+
+    private static Result<JobDeleteErrorResponse> Conflict(JobDeleteErrorResponse error) =>
+        Result<JobDeleteErrorResponse>.Conflict(error.ToConflictError());
 
      public async Task<Result<JobReportSummaryResponse>> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken)
      {

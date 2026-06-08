@@ -6,8 +6,9 @@ import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import type { AssignedUserResponse, CustomerInfo } from '../../../api/generated/models';
 import { useAuth } from '../../../providers/useAuth';
-import { useIsAdmin } from '../../../providers/permissions';
+import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { getResponseData } from '../utils';
+import { formatJobStatus } from '../statusLabels';
 
 type CompletedJobListItemViewModel = {
   id: string;
@@ -137,7 +138,7 @@ function CompletedJobCard({
           <h3 className="job-customer">{job.customer?.name || 'Ukendt kunde'}</h3>
         </div>
         <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>
-          Indsendt
+          {formatJobStatus(job.status)}
         </span>
       </div>
 
