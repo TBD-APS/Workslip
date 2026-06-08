@@ -2,8 +2,9 @@ import Axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
 
+var apiUrl = `${process.env.VITE_API_URL}/api`;
 export const apiClient = Axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: apiUrl,
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
