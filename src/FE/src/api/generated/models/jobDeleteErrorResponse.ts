@@ -5,11 +5,9 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface WorkKindResponse {
-  id: string;
-  normalizedLabel: string;
-  label: string;
-  requiresCustomWorkKind: boolean;
+export interface JobDeleteErrorResponse {
+  code: string;
+  message: string;
   /** @pattern ^-?(?:0|[1-9]\d*)$ */
-  sortOrder: number | string;
+  worksheetCount: number | string;
 }

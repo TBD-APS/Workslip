@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "local": "dotenv -e .env.local -- orval --config orval.config.ts",
+    "generate:api": "orval --config orval.config.ts",
+    "generate:api:local": "dotenv -e .env.local -- orval --config orval.config.ts",
+    "generate:api:prod": "dotenv -e .env.production -- orval --config orval.config.ts",
     "build": "npm run generate:api && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "generate:api": "orval --config orval.config.ts",
     "generate:api:watch": "orval --watch",
     "doctor": "npx react-doctor@latest"
   },
@@ -34,10 +37,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^24.12.3",
+    "@types/node": "^24.13.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

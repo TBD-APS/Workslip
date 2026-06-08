@@ -1,14 +1,12 @@
 import { defineConfig } from "orval";
 
-const apiBaseUrl = import.meta.env.DEV
-  ? "http://localhost:5262"
-  : import.meta.env.VITE_API_BASE_URL;
 
+const openApiUrl = process.env.OPENAPI_URL ?? '';
 
 export default defineConfig({
   workslip: {
     input: {
-      target: `${apiBaseUrl}/openapi/v1.json`,
+      target: openApiUrl,
     },
     output: {
       mode: "tags-split",
@@ -18,7 +16,7 @@ export default defineConfig({
       clean: true,
       override: {
         mutator: {
-          path: "./src/api/fetcherOrval.ts",
+          path: "src/api/fetcherOrval.ts",
           name: "customAxiosInstance",
         },
       },
