@@ -43,6 +43,11 @@ type AssignmentDraft = { jobId: string; userIds: string[] };
 type LinksDraft = { jobId: string; linkedJobIds: string[] };
 
 export function useJobDetails(jobId: string | undefined) {
+  return useJobDetailsState(jobId);
+}
+
+export function useJobDetailsState(jobId: string | undefined, options: { autoSave?: boolean } = {}) {
+  const autoSave = options.autoSave ?? true;
   const queryClient = useQueryClient();
   const isAdmin = useIsAdmin();
   const [draft, setDraft] = useState<JobDetailsDraft | null>(null);
@@ -220,6 +225,7 @@ export function useJobDetails(jobId: string | undefined) {
   });
 
   useEffect(() => {
+    if (!autoSave) return;
     const currentInitialForm = initialFormRef.current;
     const currentJob = jobRef.current;
     const currentMutate = mutateRef.current;
@@ -247,7 +253,7 @@ export function useJobDetails(jobId: string | undefined) {
     }, 1500);
 
     return () => clearTimeout(debounceTimerRef.current);
-  }, [draft, jobId, referenceData, setSaveStatus]);
+  }, [autoSave, draft, jobId, referenceData, setSaveStatus]);
 
   const updateDraft = (nextForm: JobForm) => {
     if (!jobId) return;
@@ -450,6 +456,44 @@ export function useJobDetails(jobId: string | undefined) {
     return true;
   };
 
+  const saveAllChanges = async () => {
+    clearTimeout(debounceTimerRef.current);
+    if (!draft || !initialForm || !job || !jobId) return true;
+    if (sameForm(initialForm, draft.form)) {
+      setDraft(null);
+      return true;
+    }
+    if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
+      setSaveStatus('error');
+      toast.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
+      return false;
+    }
+    if (!isValidWork(draft.form, referenceData)) {
+      setSaveStatus('error');
+      toast.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
+        id: 'job-work-validation-error',
+      });
+      return false;
+    }
+
+    setSaveStatus('saving');
+    try {
+      await mutation.mutateAsync({
+        id: jobId,
+        data: toUpdateRequest(job, initialForm, draft.form, referenceData, { includeWork: true }),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const discardChanges = () => {
+    clearTimeout(debounceTimerRef.current);
+    setDraft(null);
+    setSaveStatus('idle');
+  };
+
   const saveCurrentStep = (options: { validateWork?: boolean } = {}) => flushSave({
     includeWork: currentStep >= 1,
     validateWork: options.validateWork ?? false,
@@ -498,6 +542,7 @@ export function useJobDetails(jobId: string | undefined) {
     setCurrentStep,
     isLoading: query.isLoading,
     isError: query.isError,
+    refetch: query.refetch,
     isLoadingUsers: usersQuery.isLoading,
     isLoadingReferenceData: referenceDataQuery.isLoading,
     isLoadingJobs: false,
@@ -507,6 +552,8 @@ export function useJobDetails(jobId: string | undefined) {
     canContinue: isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber) }) && isValidWork(form, referenceData),
     reportNumberReadOnly: Boolean(job?.reportNumber),
     flushSave,
+    saveAllChanges,
+    discardChanges,
     saveCurrentStep,
     saveCurrentStepAndSetCurrentStep,
     navigateToStep,

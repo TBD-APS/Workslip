@@ -652,7 +652,8 @@ run_sql_with_retry() {
   local max_attempts=12
 
   while true; do
-    az account get-access-token --resource https://database.windows.net --query accessToken --output tsv | tr -d '\n' | iconv -f ascii -t UTF-16LE > /tmp/sqltoken
+    sql_token_resource="https://${SQL_SERVER_FQDN#*.}/"
+    az account get-access-token --resource "$sql_token_resource" --query accessToken --output tsv | tr -d '\n' | iconv -f ascii -t UTF-16LE > /tmp/sqltoken
 
     if sqlcmd -S "$SQL_SERVER_FQDN" -d "$SQL_DATABASE_NAME" -G -P /tmp/sqltoken -b -l 30 -i /tmp/grant-web-api-access.sql; then
       return 0
