@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 
 type CollapsibleSectionProps = {
@@ -10,6 +10,13 @@ type CollapsibleSectionProps = {
 
 export function CollapsibleSection({ icon, title, children, defaultOpen = true }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [isOpen]);
 
   return (
     <section className="detail-section collapsible-section">
@@ -26,7 +33,7 @@ export function CollapsibleSection({ icon, title, children, defaultOpen = true }
         <ChevronRight className={isOpen ? 'collapsible-chevron open' : 'collapsible-chevron'} size={18} />
       </button>
 
-      {isOpen && <div className="collapsible-section-content">{children}</div>}
+      {isOpen && <div ref={contentRef} className="collapsible-section-content">{children}</div>}
     </section>
   );
 }

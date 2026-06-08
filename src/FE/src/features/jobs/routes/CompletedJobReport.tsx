@@ -17,7 +17,7 @@ import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
 import { useJobDetailsState } from '../hooks/useJobDetails';
 import { createJobReportPdfPreview, type JobReportPdfPreview } from '../utils/downloadJobReportPdf';
 
-const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
 
 type DetailPair = { label: string; value: string | null | undefined };

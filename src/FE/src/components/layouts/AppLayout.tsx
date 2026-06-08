@@ -9,7 +9,6 @@ export const AppLayout = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
   };
 
   return (
