@@ -379,7 +379,7 @@ function getGlobalSaveStatus(statuses: SaveStatus[]): SaveStatus {
   return 'idle';
 }
 
-const SUBMITTED_DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const SUBMITTED_DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 
 type SubmittedConfirmationProps = {
   reportNumber: string;

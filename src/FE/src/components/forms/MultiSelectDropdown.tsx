@@ -79,6 +79,7 @@ export function MultiSelectDropdown({
       if (!dropdownRef.current?.contains(event.target as Node)) {
         commitDraftSelectionRef.current();
         setSearchQuery('');
+        (document.activeElement as HTMLElement)?.blur();
         setIsOpen(false);
       }
     };

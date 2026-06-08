@@ -22,7 +22,7 @@ type CompletedJobListItemViewModel = {
   totalHours: number | null;
 };
 
-const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 
 const CompletedJobSkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">

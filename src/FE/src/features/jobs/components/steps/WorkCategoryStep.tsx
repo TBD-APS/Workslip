@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { FileText } from 'lucide-react';
 import type { JobForm, ReferenceData } from '../../types';
 
@@ -18,11 +19,19 @@ export function WorkCategoryStep({
   onWorkKindChange,
   onCustomWorkKindChange,
 }: WorkCategoryStepProps) {
+  const customWorkKindRef = useRef<HTMLLabelElement | null>(null);
   const categories = [...(referenceData?.installationTypes ?? [])];
   const workKinds = [...(referenceData?.workKinds ?? [])]
     .sort((left, right) => Number(left.sortOrder) - Number(right.sortOrder));
   const selectedWorkKind = workKinds.find((kind) => kind.normalizedLabel === form.work.workKind);
   const requiresCustomWorkKind = selectedWorkKind?.requiresCustomWorkKind ?? false;
+
+  useEffect(() => {
+    if (requiresCustomWorkKind) {
+      customWorkKindRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      setTimeout(() => customWorkKindRef.current?.querySelector<HTMLInputElement>('input')?.focus(), 350);
+    }
+  }, [requiresCustomWorkKind]);
 
   const toggleCategory = (categoryId: string) => {
     const nextCategoryIds = form.work.categoryIds.includes(categoryId)
@@ -92,7 +101,7 @@ export function WorkCategoryStep({
           </div>
 
           {requiresCustomWorkKind && (
-            <label className="work-field-group">
+            <label className="work-field-group" ref={customWorkKindRef}>
               <span className="work-field-label">Beskriv anden opgavetype</span>
               <input
                 className="form-input"
