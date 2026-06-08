@@ -17,25 +17,26 @@ public static class UserEndpoints
         {
             var result = await service.CreateAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
-        });
+        }).Produces<UserViewModel>();
 
         group.MapGet("/{id}", async (Guid id, IUserService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetDetailAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUserDetail);
-        }).RequireAuthorization(AuthPolicies.RequireUser);
+        }).Produces<UserDetailViewModel>()
+        .RequireAuthorization(AuthPolicies.RequireUser);
 
         group.MapGet("/", async (IUserService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetByOrganizationAsync(cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUserList);
-        });
+        }).Produces<UserListViewModel>();
 
         group.MapPatch("/{id}", async (Guid id, UpdateUserRequest request, IUserService service, CancellationToken cancellationToken) =>
         {
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
-        }).RequireAuthorization(AuthPolicies.RequireUser); 
+        }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireUser); 
 
         group.MapDelete("/{id}", async (Guid id, IUserService service, CancellationToken cancellationToken) =>
         {

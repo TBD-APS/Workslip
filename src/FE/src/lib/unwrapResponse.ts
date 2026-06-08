@@ -9,11 +9,10 @@
  *   - { data: T }
  *   - { data: { data: T } }
  */
-export function getResponseData<T>(
-  value: T | { data: T } | { data: { data: T } } | undefined,
-): T | undefined {
+export function getResponseData<T>(value: unknown): T | undefined {
   if (!value) return undefined;
-  if (!('data' in (value as object))) return value as T;
+  if (typeof value !== 'object') return value as T;
+  if (!('data' in value)) return value as T;
 
   const firstData = (value as { data: T | { data: T } }).data;
   if (firstData && typeof firstData === 'object' && 'data' in firstData) {
