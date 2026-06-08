@@ -361,10 +361,7 @@ public sealed class EfJobRepository : IJobRepository
         var existing = await _dbContext.JobReports
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
-        if (existing is null) return null;
-
-        var currentStatus = JobReportMapper.ParseStatus(existing.Status);
-        if (!JobStatusPolicy.CanTransition(currentStatus, nextStatus))
+        if (existing is null)
             return null;
 
         var now = DateTimeOffset.UtcNow;
