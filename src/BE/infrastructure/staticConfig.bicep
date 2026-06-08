@@ -57,8 +57,7 @@ var appConfigValues = {
   </body>
 </html>'''
   
-name:'Azure:Acs:PlainInviteText'
-value:'''
+'Azure:Acs:PlainInviteText': '''
     Du er blevet inviteret til Workslip.
     Klik på følgende link for at acceptere invitationen:
     {inviteLink}
