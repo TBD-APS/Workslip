@@ -1,9 +1,10 @@
 import { defineConfig } from "orval";
 
+var jsonUrl = import.meta.env.OPENAPI_URL
 export default defineConfig({
   workslip: {
     input: {
-      target: "http://localhost:5262/openapi/v1.json",
+      target: `${jsonUrl}/openapi/v1.json`,
     },
     output: {
       mode: "tags-split",

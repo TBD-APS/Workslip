@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run generate:api && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "generate:api": "orval",
+    "generate:api": "orval --config orval.config.ts",
     "generate:api:watch": "orval --watch",
     "doctor": "npx react-doctor@latest"
   },
@@ -42,7 +42,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
-    "orval": "^8.14.0",
+    "orval": "^8.16.0",
     "react-doctor": "^0.4.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
