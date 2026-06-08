@@ -117,7 +117,7 @@ public sealed class EfJobRepository : IJobRepository
         await tx.CommitAsync(cancellationToken);
 
         var job = await GetSingleJobAsync(reportId, organizationId, cancellationToken);
-        return job ?? null!;
+        return job;
     }
 
     public Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
@@ -133,6 +133,7 @@ public sealed class EfJobRepository : IJobRepository
             from c in rjc.DefaultIfEmpty()
             where r.OrganizationId == query.OrganizationId
             where query.Status == null || r.Status == query.Status.ToString()
+            where r.IsSoftDeleted == false
             where query.ReportNumber == null || (r.ReportNumber != null && r.ReportNumber.Contains(query.ReportNumber))
             where query.CustomerName == null || (c != null && c.Name.Contains(query.CustomerName))
             where query.CustomerEmail == null || (c != null && c.Email != null && c.Email.Contains(query.CustomerEmail))
@@ -379,39 +380,40 @@ public sealed class EfJobRepository : IJobRepository
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
-    public Task<bool> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
+    public Task<JobDeleteRepositoryResult> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("jobs.delete", token => DeleteAsyncCoreAsync(id, organizationId, token), cancellationToken);
 
-    private async Task<bool> DeleteAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
+    private async Task<JobDeleteRepositoryResult> DeleteAsyncCoreAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {
+        _dbContext.ChangeTracker.Clear();
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        var potentialLinks = await _dbContext.JobReportLinks
+        var existingJob = await _dbContext.JobReports
+            .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
+
+        if (existingJob is null)
+            return JobDeleteRepositoryResult.NotFound();
+
+        var worksheetCount = await _dbContext.Worksheets
             .AsNoTracking()
+            .CountAsync(w => w.JobId == id && w.OrganizationId == organizationId, cancellationToken);
+
+        if (worksheetCount > 0)
+            return JobDeleteRepositoryResult.BlockedByWorksheets(worksheetCount);
+
+        var potentialLinks = await _dbContext.JobReportLinks
             .Where(l => (l.SourceReportId == id || l.TargetReportId == id) && l.OrganizationId == organizationId)
             .ToListAsync(cancellationToken);
 
         if (potentialLinks.Count > 0)
             _dbContext.JobReportLinks.RemoveRange(potentialLinks);
 
-        var existingJob = await _dbContext.JobReports
-            .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
-
-        if (existingJob is null)
-            return false;
-
-        var timesheetCount = await _dbContext.Worksheets.AsNoTracking()
-            .CountAsync(w => w.JobId == id && w.OrganizationId == organizationId, cancellationToken);
-
-        if (timesheetCount > 0)
-            return false;
-
         _dbContext.JobReports.Remove(existingJob);
-        var success = await _dbContext.SaveChangesAsync(cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         await tx.CommitAsync(cancellationToken);
 
-        return success > 0;
+        return JobDeleteRepositoryResult.Deleted();
     }
 
     public Task<JobReportResponse?> RestoreDeletionAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>

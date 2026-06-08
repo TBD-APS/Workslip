@@ -624,14 +624,23 @@
                 "header": [],
                 "url": {
                   "raw": "{{baseUrl}}/api/users/{{userId}}",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["api", "users", "{{userId}}"]
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "{{userId}}"
+                  ]
                 }
               },
               "status": "OK",
               "code": 200,
               "header": [
-                { "key": "Content-Type", "value": "application/json" }
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
               ],
               "body": "{\n  \"id\": \"f01cc945-5bd1-4c81-993e-56a468235256\",\n  \"orgId\": \"f01cc945-5bd1-4c81-993e-56a468235256\",\n  \"email\": \"user@example.com\",\n  \"displayName\": \"John Doe\",\n  \"phone\": \"+4512345678\",\n  \"role\": \"Admin\",\n  \"assignedJobs\": [\n    {\n      \"reportId\": \"a1b2c3d4-0000-0000-0000-000000000001\",\n      \"reportNumber\": 1001,\n      \"status\": \"Active\",\n      \"updatedAt\": \"2026-06-01T10:30:00Z\"\n    }\n  ],\n  \"totalHours\": 42.5\n}",
               "cookie": []
@@ -1573,7 +1582,7 @@
                 "{{jobId}}"
               ]
             },
-            "description": "Schedules a job for deletion after the retention period. Requires admin."
+            "description": "Permanently deletes a job only when it has no attached worksheets. Requires admin. Returns 409 with worksheet count when blocked."
           },
           "response": [],
           "event": [
@@ -1582,11 +1591,17 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
-                  "if (pm.response.code === 200) {",
+                  "pm.test('204 No Content, 404 Not Found, or 409 Conflict', function () { pm.expect([204, 404, 409]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 409) {",
                   "  const json = pm.response.json();",
-                  "  pm.test('delete response marks job softDeleted', function () { pm.expect(json.softDeleted).to.eql(true); });",
-                  "  pm.test('delete response hides internal timestamps', function () { ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "  pm.test('delete conflict explains attached worksheets', function () {",
+                  "    pm.expect(json.code || json.error).to.eql('job_has_attached_worksheets');",
+                  "    pm.expect(json.message).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.worksheetCount).to.be.a('number').and.at.least(1);",
+                  "  });",
+                  "}",
+                  "if (pm.response.code === 204) {",
+                  "  pm.test('delete success has no body', function () { pm.expect(pm.response.text()).to.eql(''); });",
                   "}"
                 ]
               }

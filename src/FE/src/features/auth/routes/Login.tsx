@@ -143,7 +143,7 @@ export const Login = () => {
               <input 
                 {...emailForm.register('email')}
                 type="email" 
-                placeholder="dit@email.dk"
+                placeholder="din@email.dk"
                 className="form-input"
                 autoComplete="email"
                 style={emailForm.formState.errors.email ? { borderColor: '#ef4444' } : {}}
