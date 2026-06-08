@@ -8,9 +8,7 @@ import { useAuth } from '../../../providers/useAuth';
 import { sendAuthCode } from '../api/devToken';
 import { toast } from 'sonner';
 
-const apiBaseUrl = import.meta.env.DEV
-  ? "http://localhost:5262"
-  : import.meta.env.VITE_API_BASE_URL;
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
 const EmailSchema = z.object({
   email: z.string().email({ message: 'Ugyldig email adresse' }),
