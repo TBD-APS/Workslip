@@ -1,10 +1,14 @@
 import { defineConfig } from "orval";
 
-var jsonUrl = import.meta.env.OPENAPI_URL
+const apiBaseUrl = import.meta.env.DEV
+  ? "http://localhost:5262"
+  : import.meta.env.VITE_API_BASE_URL;
+
+
 export default defineConfig({
   workslip: {
     input: {
-      target: `${jsonUrl}/openapi/v1.json`,
+      target: `${apiBaseUrl}/openapi/v1.json`,
     },
     output: {
       mode: "tags-split",
