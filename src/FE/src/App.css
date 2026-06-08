@@ -302,6 +302,57 @@
   transform: none;
 }
 
+.edit-form-header-save-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.2rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.edit-form-cancel-btn {
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.edit-form-cancel-btn:hover {
+  opacity: 1;
+}
+
+.edit-form-aux-btn {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.edit-form-bottom-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.edit-form-bottom-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.edit-form-save-btn {
+  min-width: 180px;
+  justify-content: center;
+}
 
 .report-overview-hero {
   display: flex;
