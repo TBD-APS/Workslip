@@ -18,6 +18,7 @@ param appConfigurationName string     = take('appcs-${companyName}-${toLower(env
 ])
 param appConfigurationCreateMode string = 'Default'
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
+param deploymentIdentityName string   = 'id-${companyName}-${toLower(environment)}-deploy'
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
@@ -25,6 +26,7 @@ param emailServiceName string         = take('email-${companyName}-${toLower(env
 param githubRepository string         = 'rasm105k/Workslip-v2.0'
 param githubEnvironment string        = environment
 param sqlAdminGroupName string        = 'sql-${companyName}-${toLower(environment)}-admins'
+param provisionWebApiSqlAccess bool   = false
 
 // ── Role definition IDs ───────────────────────────────────────────────────────
 // Centralised here so they're easy to audit and update.
@@ -65,8 +67,14 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
   tags: tags
 }
 
+resource deploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: deploymentIdentityName
+  location: location
+  tags: tags
+}
+
 resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
-  parent: identity
+  parent: deploymentIdentity
   name: 'github-${toLower(environment)}'
   properties: {
     audiences: [
@@ -199,10 +207,10 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(webApi.id, identity.id, roles.websiteContributor)
+  name: guid(webApi.id, deploymentIdentity.id, roles.websiteContributor)
   scope: webApi
   properties: {
-    principalId: identity.properties.principalId
+    principalId: deploymentIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.websiteContributor)
   }
@@ -363,16 +371,10 @@ module EntraAppRegistrations './entraRegistrations.bicep' = {
 resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
   uniqueName: sqlAdminGroupName
   displayName: sqlAdminGroupName
-  description: 'Azure SQL administrators for ${secureAdminName}, ${environment}, and the Web API managed identity.'
+  description: 'Azure SQL administrators for ${secureAdminName}, ${environment}, and deployment automation.'
   mailEnabled: false
   mailNickname: sqlAdminGroupMailNickname
   securityEnabled: true
-  members: {
-    relationships: [
-      globalAdminId
-      identity.properties.principalId
-    ]
-  }
   owners: {
     relationships: [
       globalAdminId
@@ -428,10 +430,10 @@ resource firewallAllowAzureIPs 'Microsoft.Sql/servers/firewallRules@2023-08-01-p
 }
 
 resource sqlFirewallManagerForIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(sqlServer.id, identity.id, roles.sqlSecurityManager)
+  name: guid(sqlServer.id, deploymentIdentity.id, roles.sqlSecurityManager)
   scope: sqlServer
   properties: {
-    principalId: identity.properties.principalId
+    principalId: deploymentIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.sqlSecurityManager)
   }
@@ -444,7 +446,7 @@ resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-
   tags: tags
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
+    userAssignedIdentities: { '${deploymentIdentity.id}': {} }
   }
   properties: {
     azCliVersion: '2.61.0'
@@ -469,10 +471,28 @@ resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-
     scriptContent: '''
 set -euo pipefail
 
+az_with_retry() {
+  local attempt=1
+  local max_attempts=12
+
+  while true; do
+    if az "$@"; then
+      return 0
+    fi
+
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      return 1
+    fi
+
+    sleep $((attempt * 10))
+    attempt=$((attempt + 1))
+  done
+}
+
 # Keep only the firewall rules managed by this script in sync with App Service outbound IPs.
-existing_rules=$(az sql server firewall-rule list --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --query "[?starts_with(name, 'AllowWebApiOutbound')].name" --output tsv)
+existing_rules=$(az_with_retry sql server firewall-rule list --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --query "[?starts_with(name, 'AllowWebApiOutbound')].name" --output tsv)
 for rule in $existing_rules; do
-  az sql server firewall-rule delete --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --name "$rule" --yes --output none
+  az_with_retry sql server firewall-rule delete --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --name "$rule" --yes --output none
 done
 
 IFS=',' read -ra ips <<< "$OUTBOUND_IPS"
@@ -483,7 +503,7 @@ for ip in "${ips[@]}"; do
     continue
   fi
 
-  az sql server firewall-rule create \
+  az_with_retry sql server firewall-rule create \
     --resource-group "$RESOURCE_GROUP" \
     --server "$SQL_SERVER_NAME" \
     --name "AllowWebApiOutbound${index}" \
@@ -493,6 +513,161 @@ for ip in "${ips[@]}"; do
 
   index=$((index + 1))
 done
+'''
+  }
+  dependsOn: [
+    sqlFirewallManagerForIdentity
+  ]
+}
+
+resource grantWebApiSqlAccess 'Microsoft.Resources/deploymentScripts@2023-08-01' = if (provisionWebApiSqlAccess) {
+  name: 'grant-web-api-sql-access-${toLower(environment)}'
+  location: location
+  kind: 'AzureCLI'
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${deploymentIdentity.id}': {} }
+  }
+  properties: {
+    azCliVersion: '2.61.0'
+    cleanupPreference: 'OnSuccess'
+    retentionInterval: 'P1D'
+    timeout: 'PT20M'
+    forceUpdateTag: identity.properties.clientId
+    environmentVariables: [
+      {
+        name: 'RESOURCE_GROUP'
+        value: resourceGroup().name
+      }
+      {
+        name: 'SQL_SERVER_NAME'
+        value: sqlServer.name
+      }
+      {
+        name: 'SQL_SERVER_FQDN'
+        value: sqlServer.properties.fullyQualifiedDomainName
+      }
+      {
+        name: 'SQL_DATABASE_NAME'
+        value: sqlDatabase.name
+      }
+      {
+        name: 'WEB_API_SQL_USER_NAME'
+        value: identity.name
+      }
+      {
+        name: 'WEB_API_CLIENT_ID'
+        value: identity.properties.clientId
+      }
+    ]
+    scriptContent: '''
+set -euo pipefail
+
+install_sqlcmd() {
+  if command -v sqlcmd >/dev/null 2>&1; then
+    return 0
+  fi
+
+  apt-get update
+  apt-get install -y curl gnupg apt-transport-https ca-certificates unixodbc
+  curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb
+  dpkg -i /tmp/packages-microsoft-prod.deb
+  apt-get update
+  ACCEPT_EULA=Y apt-get install -y mssql-tools18
+  export PATH="$PATH:/opt/mssql-tools18/bin"
+}
+
+sql_user_sid=$(python3 - <<'PY'
+import os
+import uuid
+
+print('0x' + uuid.UUID(os.environ['WEB_API_CLIENT_ID']).bytes_le.hex().upper())
+PY
+)
+
+install_sqlcmd
+export PATH="$PATH:/opt/mssql-tools18/bin"
+
+az_with_retry() {
+  local attempt=1
+  local max_attempts=12
+
+  while true; do
+    if az "$@"; then
+      return 0
+    fi
+
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      return 1
+    fi
+
+    sleep $((attempt * 10))
+    attempt=$((attempt + 1))
+  done
+}
+
+provisioning_ip=$(curl -fsSL https://api.ipify.org)
+az_with_retry sql server firewall-rule create \
+  --resource-group "$RESOURCE_GROUP" \
+  --server "$SQL_SERVER_NAME" \
+  --name "AllowSqlProvisioningScript" \
+  --start-ip-address "$provisioning_ip" \
+  --end-ip-address "$provisioning_ip" \
+  --output none
+
+cleanup() {
+  az sql server firewall-rule delete --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --name "AllowSqlProvisioningScript" --yes --output none || true
+  rm -f /tmp/sqltoken /tmp/grant-web-api-access.sql
+}
+trap cleanup EXIT
+
+cat > /tmp/grant-web-api-access.sql <<SQL
+DECLARE @userName sysname = N'${WEB_API_SQL_USER_NAME}';
+
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @userName)
+BEGIN
+  DECLARE @createUserSql nvarchar(max) = N'CREATE USER ' + QUOTENAME(@userName) + N' WITH SID = ${sql_user_sid}, TYPE = E;';
+  EXEC sp_executesql @createUserSql;
+END;
+
+IF IS_ROLEMEMBER(N'db_datareader', @userName) <> 1
+BEGIN
+  EXEC(N'ALTER ROLE db_datareader ADD MEMBER ' + QUOTENAME(@userName));
+END;
+
+IF IS_ROLEMEMBER(N'db_datawriter', @userName) <> 1
+BEGIN
+  EXEC(N'ALTER ROLE db_datawriter ADD MEMBER ' + QUOTENAME(@userName));
+END;
+
+IF IS_ROLEMEMBER(N'db_ddladmin', @userName) <> 1
+BEGIN
+  EXEC(N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName));
+END;
+SQL
+
+run_sql_with_retry() {
+  local attempt=1
+  local max_attempts=12
+
+  while true; do
+    az account get-access-token --resource https://database.windows.net --query accessToken --output tsv | tr -d '\n' | iconv -f ascii -t UTF-16LE > /tmp/sqltoken
+
+    if sqlcmd -S "$SQL_SERVER_FQDN" -d "$SQL_DATABASE_NAME" -G -P /tmp/sqltoken -b -l 30 -i /tmp/grant-web-api-access.sql; then
+      return 0
+    fi
+
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      return 1
+    fi
+
+    sleep $((attempt * 10))
+    attempt=$((attempt + 1))
+  done
+}
+
+run_sql_with_retry
 '''
   }
   dependsOn: [
@@ -608,6 +783,9 @@ output WEB_API_URL string                      = 'https://${webApi.properties.de
 output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
+output DEPLOYMENT_IDENTITY_CLIENT_ID string    = deploymentIdentity.properties.clientId
+output DEPLOYMENT_IDENTITY_PRINCIPAL_ID string = deploymentIdentity.properties.principalId
+output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
 output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
 output KEY_VAULT_URI string                    = keyVault.properties.vaultUri

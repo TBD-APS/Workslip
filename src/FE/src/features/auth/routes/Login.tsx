@@ -8,6 +8,10 @@ import { useAuth } from '../../../providers/useAuth';
 import { sendAuthCode } from '../api/devToken';
 import { toast } from 'sonner';
 
+const apiBaseUrl = import.meta.env.DEV
+  ? "http://localhost:5262"
+  : import.meta.env.VITE_API_BASE_URL;
+
 const EmailSchema = z.object({
   email: z.string().email({ message: 'Ugyldig email adresse' }),
 });
@@ -260,7 +264,7 @@ export const Login = () => {
           <Link to="/" style={{ color: 'var(--text-secondary)' }}>← Tilbage til forsiden</Link>
         </div>
 
-        {import.meta.env.DEV && (
+        {apiBaseUrl && (
           <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--surface-border)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {[

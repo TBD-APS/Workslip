@@ -38,8 +38,10 @@ Write-Host "Subscription: $account"
 # ─── register providers ───────────────────────────────
 Write-Host "Registering resource providers…" -ForegroundColor Cyan
 @("Microsoft.Web", "Microsoft.Storage",
-   "Microsoft.OperationalInsights", "Microsoft.Insights",
-   "Microsoft.KeyVault", "Microsoft.AppConfiguration") | ForEach-Object {
+    "Microsoft.OperationalInsights", "Microsoft.Insights",
+   "Microsoft.KeyVault", "Microsoft.AppConfiguration",
+   "Microsoft.Sql", "Microsoft.ManagedIdentity",
+   "Microsoft.Communication", "Microsoft.Resources") | ForEach-Object {
      $state = az provider show --namespace $_ --query registrationState -o tsv 2>$null
      if ($state -ne "Registered") {
          Write-Host "   Registering $_ …"
@@ -48,6 +50,13 @@ Write-Host "Registering resource providers…" -ForegroundColor Cyan
          Write-Host "   $_ ✅"
      }
 }
+
+Write-Host "Checking Microsoft Graph deployment access…" -ForegroundColor Cyan
+az rest --method GET --uri "https://graph.microsoft.com/v1.0/groups?`$top=1" -o none 2>$null
+if ($LASTEXITCODE -ne 0) {
+    throw "Microsoft Graph access check failed. This template creates Microsoft Graph resources during Bicep deployment; sign in with an account that can manage groups and app registrations in this tenant."
+}
+Write-Host "   Microsoft Graph access ✅"
 
 # ─── resource group ───────────────────────────────────
 Write-Host "Ensuring resource group…" -ForegroundColor Cyan
@@ -60,26 +69,106 @@ if ($exists -eq "false") {
 }
 
 # ─── deploy azure ressources ───────────────────────────────────────────
-Write-Host "Deploying Bicep template…" -ForegroundColor Cyan
+function Invoke-BicepDeployment {
+    param(
+        [Parameter(Mandatory=$true)] [string]$DeploymentName,
+        [Parameter(Mandatory=$true)] [bool]$ProvisionWebApiSqlAccess
+    )
 
-$DeploymentJson = az deployment group create `
-   --resource-group $RESOURCE_GROUP `
-   --name $DEPLOY_NAME `
-   --mode Incremental `
-   --template-file $TEMPLATE `
-   --parameters companyName=$COMPANY_NAME `
-   --parameters environment=$Environment `
-   --parameters globalAdminId=$GlobalAdminId `
-   -o json
+    $ProvisionWebApiSqlAccessValue = $ProvisionWebApiSqlAccess.ToString().ToLowerInvariant()
 
-if ($LASTEXITCODE -ne 0 -or -not $DeploymentJson) {
-    throw "Azure deployment failed: $DEPLOY_NAME"
+    Write-Host "Deploying Bicep template: $DeploymentName" -ForegroundColor Cyan
+
+    $DeploymentJson = az deployment group create `
+       --resource-group $RESOURCE_GROUP `
+       --name $DeploymentName `
+       --mode Incremental `
+       --template-file $TEMPLATE `
+       --parameters companyName=$COMPANY_NAME `
+       --parameters environment=$Environment `
+       --parameters globalAdminId=$GlobalAdminId `
+       --parameters provisionWebApiSqlAccess=$ProvisionWebApiSqlAccessValue `
+       -o json
+
+    if ($LASTEXITCODE -ne 0 -or -not $DeploymentJson) {
+        throw "Azure deployment failed: $DeploymentName"
+    }
+
+    return $DeploymentJson | ConvertFrom-Json
 }
 
-$DeploymentResult = $DeploymentJson | ConvertFrom-Json
+function Wait-GraphDirectoryObject {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ObjectId,
+        [Parameter(Mandatory=$true)] [string]$Description
+    )
+
+    for ($attempt = 1; $attempt -le 30; $attempt++) {
+        az rest --method GET --uri "https://graph.microsoft.com/v1.0/directoryObjects/$ObjectId" -o none 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+
+        Start-Sleep -Seconds ([Math]::Min($attempt * 5, 30))
+    }
+
+    throw "Timed out waiting for Microsoft Graph object '$Description' ($ObjectId)."
+}
+
+function Add-GraphGroupMember {
+    param(
+        [Parameter(Mandatory=$true)] [string]$GroupId,
+        [Parameter(Mandatory=$true)] [string]$MemberId,
+        [Parameter(Mandatory=$true)] [string]$Description
+    )
+
+    Wait-GraphDirectoryObject -ObjectId $GroupId -Description "SQL admin group"
+    Wait-GraphDirectoryObject -ObjectId $MemberId -Description $Description
+
+    $Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json -Compress
+    $AddMemberOutput = az rest `
+      --method POST `
+      --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
+      --headers "Content-Type=application/json" `
+      --body $Body `
+      -o none 2>&1
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Added SQL admin group member: $Description"
+        return
+    }
+
+    if (($AddMemberOutput | Out-String) -match "already exist") {
+        Write-Host "SQL admin group member already exists: $Description"
+        return
+    }
+
+    throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
+}
+
+$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
-Write-Host "Deployment complete: $DEPLOY_NAME" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
+$SqlAdminGroupId = $DeploymentOutputs.SQL_ADMIN_GROUP_ID.value
+$DeploymentIdentityPrincipalId = $DeploymentOutputs.DEPLOYMENT_IDENTITY_PRINCIPAL_ID.value
+
+if ([string]::IsNullOrWhiteSpace($SqlAdminGroupId)) {
+    throw "Deployment output SQL_ADMIN_GROUP_ID was empty."
+}
+
+if ([string]::IsNullOrWhiteSpace($DeploymentIdentityPrincipalId)) {
+    throw "Deployment output DEPLOYMENT_IDENTITY_PRINCIPAL_ID was empty."
+}
+
+Write-Host "Ensuring SQL admin group membership…" -ForegroundColor Cyan
+Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $GlobalAdminId -Description "global administrator"
+Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $DeploymentIdentityPrincipalId -Description "deployment managed identity"
+
+$SqlAccessDeploymentName = "$DEPLOY_NAME-sql"
+$DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true
+$DeploymentOutputs = $DeploymentResult.properties.outputs
+
+Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
 
 
 # ─── Add Graph roles to Managed Identity ───────────────────────────────────────────

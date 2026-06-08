@@ -1,8 +1,13 @@
 import axios from "axios";
 import type { AxiosRequestConfig } from "axios";
 
+const apiBaseUrl = import.meta.env.DEV
+  ? "http://localhost:5262"
+  : import.meta.env.VITE_API_BASE_URL;
+
+
 export const AXIOS_INSTANCE = axios.create({
-  baseURL: normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? ""),
+  baseURL: normalizeApiBaseUrl(apiBaseUrl),
 });
 
 AXIOS_INSTANCE.interceptors.request.use((config) => {

@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "13934890899602561157"
+      "templateHash": "9067671011428842815"
     }
   },
   "parameters": {
@@ -70,6 +70,10 @@
       "type": "string",
       "defaultValue": "[format('id-{0}-{1}', parameters('companyName'), toLower(parameters('environment')))]"
     },
+    "deploymentIdentityName": {
+      "type": "string",
+      "defaultValue": "[format('id-{0}-{1}-deploy', parameters('companyName'), toLower(parameters('environment')))]"
+    },
     "keyVaultName": {
       "type": "string",
       "defaultValue": "[take(format('kv-{0}-{1}', parameters('companyName'), toLower(parameters('environment'))), 24)]"
@@ -97,6 +101,10 @@
     "sqlAdminGroupName": {
       "type": "string",
       "defaultValue": "[format('sql-{0}-{1}-admins', parameters('companyName'), toLower(parameters('environment')))]"
+    },
+    "provisionWebApiSqlAccess": {
+      "type": "bool",
+      "defaultValue": false
     }
   },
   "variables": {
@@ -135,10 +143,17 @@
       "location": "[parameters('location')]",
       "tags": "[variables('tags')]"
     },
+    "deploymentIdentity": {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[parameters('deploymentIdentityName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]"
+    },
     "githubFederatedCredential": {
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
       "apiVersion": "2024-11-30",
-      "name": "[format('{0}/{1}', parameters('identityName'), format('github-{0}', toLower(parameters('environment'))))]",
+      "name": "[format('{0}/{1}', parameters('deploymentIdentityName'), format('github-{0}', toLower(parameters('environment'))))]",
       "properties": {
         "audiences": [
           "api://AzureADTokenExchange"
@@ -147,7 +162,7 @@
         "subject": "[format('repo:{0}:environment:{1}', parameters('githubRepository'), parameters('githubEnvironment'))]"
       },
       "dependsOn": [
-        "identity"
+        "deploymentIdentity"
       ]
     },
     "logAnalyticsWorkspace": {
@@ -278,14 +293,14 @@
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[resourceId('Microsoft.Web/sites', parameters('webApiName'))]",
-      "name": "[guid(resourceId('Microsoft.Web/sites', parameters('webApiName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('roles').websiteContributor)]",
+      "name": "[guid(resourceId('Microsoft.Web/sites', parameters('webApiName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('deploymentIdentityName')), variables('roles').websiteContributor)]",
       "properties": {
-        "principalId": "[reference('identity').principalId]",
+        "principalId": "[reference('deploymentIdentity').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').websiteContributor)]"
       },
       "dependsOn": [
-        "identity",
+        "deploymentIdentity",
         "webApi"
       ]
     },
@@ -395,25 +410,16 @@
       "properties": {
         "uniqueName": "[parameters('sqlAdminGroupName')]",
         "displayName": "[parameters('sqlAdminGroupName')]",
-        "description": "[format('Azure SQL administrators for {0}, {1}, and the Web API managed identity.', parameters('secureAdminName'), parameters('environment'))]",
+        "description": "[format('Azure SQL administrators for {0}, {1}, and deployment automation.', parameters('secureAdminName'), parameters('environment'))]",
         "mailEnabled": false,
         "mailNickname": "[variables('sqlAdminGroupMailNickname')]",
         "securityEnabled": true,
-        "members": {
-          "relationships": [
-            "[parameters('globalAdminId')]",
-            "[reference('identity').principalId]"
-          ]
-        },
         "owners": {
           "relationships": [
             "[parameters('globalAdminId')]"
           ]
         }
-      },
-      "dependsOn": [
-        "identity"
-      ]
+      }
     },
     "sqlServer": {
       "type": "Microsoft.Sql/servers",
@@ -472,14 +478,14 @@
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[resourceId('Microsoft.Sql/servers', format('db-{0}-server', parameters('companyName')))]",
-      "name": "[guid(resourceId('Microsoft.Sql/servers', format('db-{0}-server', parameters('companyName'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('roles').sqlSecurityManager)]",
+      "name": "[guid(resourceId('Microsoft.Sql/servers', format('db-{0}-server', parameters('companyName'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('deploymentIdentityName')), variables('roles').sqlSecurityManager)]",
       "properties": {
-        "principalId": "[reference('identity').principalId]",
+        "principalId": "[reference('deploymentIdentity').principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').sqlSecurityManager)]"
       },
       "dependsOn": [
-        "identity",
+        "deploymentIdentity",
         "sqlServer"
       ]
     },
@@ -493,7 +499,7 @@
       "identity": {
         "type": "UserAssigned",
         "userAssignedIdentities": {
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')))]": {}
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('deploymentIdentityName')))]": {}
         }
       },
       "properties": {
@@ -516,13 +522,69 @@
             "value": "[reference('webApi').outboundIpAddresses]"
           }
         ],
-        "scriptContent": "set -euo pipefail\n\n# Keep only the firewall rules managed by this script in sync with App Service outbound IPs.\nexisting_rules=$(az sql server firewall-rule list --resource-group \"$RESOURCE_GROUP\" --server \"$SQL_SERVER_NAME\" --query \"[?starts_with(name, 'AllowWebApiOutbound')].name\" --output tsv)\nfor rule in $existing_rules; do\n  az sql server firewall-rule delete --resource-group \"$RESOURCE_GROUP\" --server \"$SQL_SERVER_NAME\" --name \"$rule\" --yes --output none\ndone\n\nIFS=',' read -ra ips <<< \"$OUTBOUND_IPS\"\nindex=0\nfor ip in \"${ips[@]}\"; do\n  trimmed_ip=$(echo \"$ip\" | xargs)\n  if [ -z \"$trimmed_ip\" ]; then\n    continue\n  fi\n\n  az sql server firewall-rule create \\\n    --resource-group \"$RESOURCE_GROUP\" \\\n    --server \"$SQL_SERVER_NAME\" \\\n    --name \"AllowWebApiOutbound${index}\" \\\n    --start-ip-address \"$trimmed_ip\" \\\n    --end-ip-address \"$trimmed_ip\" \\\n    --output none\n\n  index=$((index + 1))\ndone\n"
+        "scriptContent": "set -euo pipefail\n\naz_with_retry() {\n  local attempt=1\n  local max_attempts=12\n\n  while true; do\n    if az \"$@\"; then\n      return 0\n    fi\n\n    if [ \"$attempt\" -ge \"$max_attempts\" ]; then\n      return 1\n    fi\n\n    sleep $((attempt * 10))\n    attempt=$((attempt + 1))\n  done\n}\n\n# Keep only the firewall rules managed by this script in sync with App Service outbound IPs.\nexisting_rules=$(az_with_retry sql server firewall-rule list --resource-group \"$RESOURCE_GROUP\" --server \"$SQL_SERVER_NAME\" --query \"[?starts_with(name, 'AllowWebApiOutbound')].name\" --output tsv)\nfor rule in $existing_rules; do\n  az_with_retry sql server firewall-rule delete --resource-group \"$RESOURCE_GROUP\" --server \"$SQL_SERVER_NAME\" --name \"$rule\" --yes --output none\ndone\n\nIFS=',' read -ra ips <<< \"$OUTBOUND_IPS\"\nindex=0\nfor ip in \"${ips[@]}\"; do\n  trimmed_ip=$(echo \"$ip\" | xargs)\n  if [ -z \"$trimmed_ip\" ]; then\n    continue\n  fi\n\n  az_with_retry sql server firewall-rule create \\\n    --resource-group \"$RESOURCE_GROUP\" \\\n    --server \"$SQL_SERVER_NAME\" \\\n    --name \"AllowWebApiOutbound${index}\" \\\n    --start-ip-address \"$trimmed_ip\" \\\n    --end-ip-address \"$trimmed_ip\" \\\n    --output none\n\n  index=$((index + 1))\ndone\n"
       },
       "dependsOn": [
-        "identity",
+        "deploymentIdentity",
         "sqlFirewallManagerForIdentity",
         "sqlServer",
         "webApi"
+      ]
+    },
+    "grantWebApiSqlAccess": {
+      "condition": "[parameters('provisionWebApiSqlAccess')]",
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "name": "[format('grant-web-api-sql-access-{0}', toLower(parameters('environment')))]",
+      "location": "[parameters('location')]",
+      "kind": "AzureCLI",
+      "tags": "[variables('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('deploymentIdentityName')))]": {}
+        }
+      },
+      "properties": {
+        "azCliVersion": "2.61.0",
+        "cleanupPreference": "OnSuccess",
+        "retentionInterval": "P1D",
+        "timeout": "PT20M",
+        "forceUpdateTag": "[reference('identity').clientId]",
+        "environmentVariables": [
+          {
+            "name": "RESOURCE_GROUP",
+            "value": "[resourceGroup().name]"
+          },
+          {
+            "name": "SQL_SERVER_NAME",
+            "value": "[format('db-{0}-server', parameters('companyName'))]"
+          },
+          {
+            "name": "SQL_SERVER_FQDN",
+            "value": "[reference('sqlServer').fullyQualifiedDomainName]"
+          },
+          {
+            "name": "SQL_DATABASE_NAME",
+            "value": "[format('db-{0}-{1}', parameters('companyName'), parameters('environment'))]"
+          },
+          {
+            "name": "WEB_API_SQL_USER_NAME",
+            "value": "[parameters('identityName')]"
+          },
+          {
+            "name": "WEB_API_CLIENT_ID",
+            "value": "[reference('identity').clientId]"
+          }
+        ],
+        "scriptContent": "set -euo pipefail\n\ninstall_sqlcmd() {\n  if command -v sqlcmd >/dev/null 2>&1; then\n    return 0\n  fi\n\n  apt-get update\n  apt-get install -y curl gnupg apt-transport-https ca-certificates unixodbc\n  curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb\n  dpkg -i /tmp/packages-microsoft-prod.deb\n  apt-get update\n  ACCEPT_EULA=Y apt-get install -y mssql-tools18\n  export PATH=\"$PATH:/opt/mssql-tools18/bin\"\n}\n\nsql_user_sid=$(python3 - <<'PY'\nimport os\nimport uuid\n\nprint('0x' + uuid.UUID(os.environ['WEB_API_CLIENT_ID']).bytes_le.hex().upper())\nPY\n)\n\ninstall_sqlcmd\nexport PATH=\"$PATH:/opt/mssql-tools18/bin\"\n\naz_with_retry() {\n  local attempt=1\n  local max_attempts=12\n\n  while true; do\n    if az \"$@\"; then\n      return 0\n    fi\n\n    if [ \"$attempt\" -ge \"$max_attempts\" ]; then\n      return 1\n    fi\n\n    sleep $((attempt * 10))\n    attempt=$((attempt + 1))\n  done\n}\n\nprovisioning_ip=$(curl -fsSL https://api.ipify.org)\naz_with_retry sql server firewall-rule create \\\n  --resource-group \"$RESOURCE_GROUP\" \\\n  --server \"$SQL_SERVER_NAME\" \\\n  --name \"AllowSqlProvisioningScript\" \\\n  --start-ip-address \"$provisioning_ip\" \\\n  --end-ip-address \"$provisioning_ip\" \\\n  --output none\n\ncleanup() {\n  az sql server firewall-rule delete --resource-group \"$RESOURCE_GROUP\" --server \"$SQL_SERVER_NAME\" --name \"AllowSqlProvisioningScript\" --yes --output none || true\n  rm -f /tmp/sqltoken /tmp/grant-web-api-access.sql\n}\ntrap cleanup EXIT\n\ncat > /tmp/grant-web-api-access.sql <<SQL\nDECLARE @userName sysname = N'${WEB_API_SQL_USER_NAME}';\n\nIF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @userName)\nBEGIN\n  DECLARE @createUserSql nvarchar(max) = N'CREATE USER ' + QUOTENAME(@userName) + N' WITH SID = ${sql_user_sid}, TYPE = E;';\n  EXEC sp_executesql @createUserSql;\nEND;\n\nIF IS_ROLEMEMBER(N'db_datareader', @userName) <> 1\nBEGIN\n  EXEC(N'ALTER ROLE db_datareader ADD MEMBER ' + QUOTENAME(@userName));\nEND;\n\nIF IS_ROLEMEMBER(N'db_datawriter', @userName) <> 1\nBEGIN\n  EXEC(N'ALTER ROLE db_datawriter ADD MEMBER ' + QUOTENAME(@userName));\nEND;\n\nIF IS_ROLEMEMBER(N'db_ddladmin', @userName) <> 1\nBEGIN\n  EXEC(N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName));\nEND;\nSQL\n\nrun_sql_with_retry() {\n  local attempt=1\n  local max_attempts=12\n\n  while true; do\n    az account get-access-token --resource https://database.windows.net --query accessToken --output tsv | tr -d '\\n' | iconv -f ascii -t UTF-16LE > /tmp/sqltoken\n\n    if sqlcmd -S \"$SQL_SERVER_FQDN\" -d \"$SQL_DATABASE_NAME\" -G -P /tmp/sqltoken -b -l 30 -i /tmp/grant-web-api-access.sql; then\n      return 0\n    fi\n\n    if [ \"$attempt\" -ge \"$max_attempts\" ]; then\n      return 1\n    fi\n\n    sleep $((attempt * 10))\n    attempt=$((attempt + 1))\n  done\n}\n\nrun_sql_with_retry\n"
+      },
+      "dependsOn": [
+        "deploymentIdentity",
+        "identity",
+        "sqlDatabase",
+        "sqlFirewallManagerForIdentity",
+        "sqlServer"
       ]
     },
     "storageAccount": {
@@ -1175,6 +1237,18 @@
     "MANAGED_IDENTITY_PRINCIPAL_ID": {
       "type": "string",
       "value": "[reference('identity').principalId]"
+    },
+    "DEPLOYMENT_IDENTITY_CLIENT_ID": {
+      "type": "string",
+      "value": "[reference('deploymentIdentity').clientId]"
+    },
+    "DEPLOYMENT_IDENTITY_PRINCIPAL_ID": {
+      "type": "string",
+      "value": "[reference('deploymentIdentity').principalId]"
+    },
+    "SQL_ADMIN_GROUP_ID": {
+      "type": "string",
+      "value": "[reference('sqlAdminGroup').id]"
     },
     "GITHUB_FEDERATED_CREDENTIAL_SUBJECT": {
       "type": "string",
