@@ -1,3 +1,5 @@
+extension microsoftGraphV1
+
 param companyName string = ''
 param environment string = ''
 param globalAdminId string = ''
@@ -20,6 +22,9 @@ param keyVaultName string             = take('kv-${companyName}-${toLower(enviro
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
 param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
+param githubRepository string         = 'rasm105k/Workslip-v2.0'
+param githubEnvironment string        = environment
+param sqlAdminGroupName string        = 'sql-${companyName}-${toLower(environment)}-admins'
 
 // ── Role definition IDs ───────────────────────────────────────────────────────
 // Centralised here so they're easy to audit and update.
@@ -30,6 +35,8 @@ var roles = {
   keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
   keyVaultSecretsUserRole: '4633458b-17de-408a-b874-0445c86b69e6'
   appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
+  websiteContributor: 'de139f84-1756-47ae-9be6-808fbbe84772'
+  sqlSecurityManager: '056cd41c-7e88-42e1-933e-88ba6a50c9c3'
 
 
   UserReadWriteAll: '741f1ec0-4c47-4952-b971-50c2d3d7d31f'
@@ -45,6 +52,7 @@ var tags = {
 
 var appInsightsConnectionString = appInsights.properties.ConnectionString
 var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
+var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
 
 // ──────────────────────────────────────────────────────────────────────────────
 // User-Assigned Managed Identity
@@ -55,6 +63,18 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
   name: identityName
   location: location
   tags: tags
+}
+
+resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
+  parent: identity
+  name: 'github-${toLower(environment)}'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: 'https://token.actions.githubusercontent.com'
+    subject: 'repo:${githubRepository}:environment:${githubEnvironment}'
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -129,7 +149,7 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
       http20Enabled: true
       minTlsVersion: '1.2'
       netFrameworkVersion: 'v10.0'
-      use32BitWorkerProcess: false
+      use32BitWorkerProcess: true
       metadata: [
         {
           name: 'CURRENT_STACK'
@@ -173,12 +193,18 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
           name: 'XDT_MicrosoftApplicationInsights_Mode'
           value: 'recommended'
         }
-        {
-          name: 'KEY_VAULT_URL'
-          value: keyVault.properties.vaultUri
-        }
       ]
     }
+  }
+}
+
+resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(webApi.id, identity.id, roles.websiteContributor)
+  scope: webApi
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.websiteContributor)
   }
 }
 
@@ -227,7 +253,6 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
 
     acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
     acsSenderAddress:  '${senderUsername.properties.username}@${emailDomain.properties.fromSenderDomain}'
-    acsEndpoint: 'https://${communicationService.properties.hostName}'
 
     storageAccountName: storageAccount.name
     applicationInsightsConnectionString: appInsights.properties.ConnectionString
@@ -335,6 +360,25 @@ module EntraAppRegistrations './entraRegistrations.bicep' = {
 // Data and stuff
 // ──────────────────────────────────────────────────────────────────────────────
 
+resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
+  uniqueName: sqlAdminGroupName
+  displayName: sqlAdminGroupName
+  description: 'Azure SQL administrators for ${secureAdminName}, ${environment}, and the Web API managed identity.'
+  mailEnabled: false
+  mailNickname: sqlAdminGroupMailNickname
+  securityEnabled: true
+  members: {
+    relationships: [
+      globalAdminId
+      identity.properties.principalId
+    ]
+  }
+  owners: {
+    relationships: [
+      globalAdminId
+    ]
+  }
+}
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: 'db-${companyName}-server'
@@ -342,9 +386,9 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   properties: {
     administrators: {
       administratorType: 'ActiveDirectory'
-      principalType: 'User'
-      login: secureAdminName
-      sid: globalAdminId
+      principalType: 'Group'
+      login: sqlAdminGroup.displayName
+      sid: sqlAdminGroup.id
       tenantId: subscription().tenantId
       azureADOnlyAuthentication: true // <-- DETTE DEAKTIVERER SQL PASSWORDS PERMANENT
     }
@@ -381,6 +425,79 @@ resource firewallAllowAzureIPs 'Microsoft.Sql/servers/firewallRules@2023-08-01-p
     startIpAddress: developerIp
     endIpAddress: developerIp
   }
+}
+
+resource sqlFirewallManagerForIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(sqlServer.id, identity.id, roles.sqlSecurityManager)
+  scope: sqlServer
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.sqlSecurityManager)
+  }
+}
+
+resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  name: 'sync-web-api-sql-firewall-${toLower(environment)}'
+  location: location
+  kind: 'AzureCLI'
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
+  properties: {
+    azCliVersion: '2.61.0'
+    cleanupPreference: 'OnSuccess'
+    retentionInterval: 'P1D'
+    timeout: 'PT10M'
+    forceUpdateTag: webApi.properties.outboundIpAddresses
+    environmentVariables: [
+      {
+        name: 'RESOURCE_GROUP'
+        value: resourceGroup().name
+      }
+      {
+        name: 'SQL_SERVER_NAME'
+        value: sqlServer.name
+      }
+      {
+        name: 'OUTBOUND_IPS'
+        value: webApi.properties.outboundIpAddresses
+      }
+    ]
+    scriptContent: '''
+set -euo pipefail
+
+# Keep only the firewall rules managed by this script in sync with App Service outbound IPs.
+existing_rules=$(az sql server firewall-rule list --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --query "[?starts_with(name, 'AllowWebApiOutbound')].name" --output tsv)
+for rule in $existing_rules; do
+  az sql server firewall-rule delete --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --name "$rule" --yes --output none
+done
+
+IFS=',' read -ra ips <<< "$OUTBOUND_IPS"
+index=0
+for ip in "${ips[@]}"; do
+  trimmed_ip=$(echo "$ip" | xargs)
+  if [ -z "$trimmed_ip" ]; then
+    continue
+  fi
+
+  az sql server firewall-rule create \
+    --resource-group "$RESOURCE_GROUP" \
+    --server "$SQL_SERVER_NAME" \
+    --name "AllowWebApiOutbound${index}" \
+    --start-ip-address "$trimmed_ip" \
+    --end-ip-address "$trimmed_ip" \
+    --output none
+
+  index=$((index + 1))
+done
+'''
+  }
+  dependsOn: [
+    sqlFirewallManagerForIdentity
+  ]
 }
 
 // ──────────────────────────────────────────────────────────
@@ -491,6 +608,7 @@ output WEB_API_URL string                      = 'https://${webApi.properties.de
 output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
+output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
 output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
 output DOCUMENT_INTELLIGENCE_NAME string       = documentIntelligenceName

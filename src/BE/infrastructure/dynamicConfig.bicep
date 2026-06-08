@@ -3,7 +3,6 @@ param managedIdentityClientId string
 param appConfigurationEndpoint string
 param azureAdOAuthClientId string
 param oauthServerAppId string
-param acsEndpoint string
 param acsSenderAddress string
 @secure()
 param acsConnectionString string

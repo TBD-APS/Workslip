@@ -1,0 +1,1216 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.43.8.12551",
+      "templateHash": "13934890899602561157"
+    }
+  },
+  "parameters": {
+    "companyName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "environment": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "globalAdminId": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "secureAdminName": {
+      "type": "string",
+      "defaultValue": "rbjadmin"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "defaultValue": "[take(format('st{0}{1}', parameters('companyName'), toLower(parameters('environment'))), 24)]"
+    },
+    "logicAppName": {
+      "type": "string",
+      "defaultValue": "[format('la-{0}-{1}', parameters('companyName'), toLower(parameters('environment')))]"
+    },
+    "appInsightsName": {
+      "type": "string",
+      "defaultValue": "[format('ai-{0}-{1}', parameters('companyName'), toLower(parameters('environment')))]"
+    },
+    "logAnalyticsName": {
+      "type": "string",
+      "defaultValue": "[format('logAnal-{0}-{1}', parameters('companyName'), toLower(parameters('environment')))]"
+    },
+    "webApiServerName": {
+      "type": "string",
+      "defaultValue": "[take(format('plan-{0}-{1}', parameters('companyName'), toLower(parameters('environment'))), 40)]"
+    },
+    "webApiName": {
+      "type": "string",
+      "defaultValue": "[take(format('api-{0}-{1}', parameters('companyName'), toLower(parameters('environment'))), 60)]"
+    },
+    "appConfigurationName": {
+      "type": "string",
+      "defaultValue": "[take(format('appcs-{0}-{1}', parameters('companyName'), toLower(parameters('environment'))), 50)]"
+    },
+    "appConfigurationCreateMode": {
+      "type": "string",
+      "defaultValue": "Default",
+      "allowedValues": [
+        "Default",
+        "Recover"
+      ]
+    },
+    "identityName": {
+      "type": "string",
+      "defaultValue": "[format('id-{0}-{1}', parameters('companyName'), toLower(parameters('environment')))]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "defaultValue": "[take(format('kv-{0}-{1}', parameters('companyName'), toLower(parameters('environment'))), 24)]"
+    },
+    "documentIntelligenceName": {
+      "type": "string",
+      "defaultValue": "[format('di-{0}-{1}', parameters('companyName'), toLower(parameters('environment')))]"
+    },
+    "communicationServiceName": {
+      "type": "string",
+      "defaultValue": "[take(format('acs-{0}-{1}', parameters('companyName'), toLower(parameters('environment'))), 64)]"
+    },
+    "emailServiceName": {
+      "type": "string",
+      "defaultValue": "[take(format('email-{0}-{1}', parameters('companyName'), toLower(parameters('environment'))), 64)]"
+    },
+    "githubRepository": {
+      "type": "string",
+      "defaultValue": "rasm105k/Workslip-v2.0"
+    },
+    "githubEnvironment": {
+      "type": "string",
+      "defaultValue": "[parameters('environment')]"
+    },
+    "sqlAdminGroupName": {
+      "type": "string",
+      "defaultValue": "[format('sql-{0}-{1}-admins', parameters('companyName'), toLower(parameters('environment')))]"
+    }
+  },
+  "variables": {
+    "roles": {
+      "cognitiveServicesUser": "a97b65f3-24c7-4388-baec-2e87135dc908",
+      "storageBlobContributor": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+      "appConfigurationDataReader": "516239f1-63e1-4d78-a4de-a74fb236a071",
+      "keyVaultAdministrator": "00482a5a-887f-4fb3-b363-3b7fe8e74483",
+      "keyVaultSecretsUserRole": "4633458b-17de-408a-b874-0445c86b69e6",
+      "appConfigurationDataOwnerRole": "5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b",
+      "websiteContributor": "de139f84-1756-47ae-9be6-808fbbe84772",
+      "sqlSecurityManager": "056cd41c-7e88-42e1-933e-88ba6a50c9c3",
+      "UserReadWriteAll": "741f1ec0-4c47-4952-b971-50c2d3d7d31f",
+      "ApplicationReadAll": "9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30",
+      "AppRoleAssignmentReadWriteAll": "06b03e2b-286b-4043-9a0b-116a43319a53",
+      "UserAuthenticationMethodReadWriteAll": "48db3110-388d-4be9-b467-36e2f11ffc8f"
+    },
+    "tags": {
+      "environment": "[parameters('environment')]",
+      "project": "[parameters('companyName')]"
+    },
+    "sqlAdminGroupMailNickname": "[take(replace(parameters('sqlAdminGroupName'), '-', ''), 64)]",
+    "developerIp": "83.93.49.174"
+  },
+  "imports": {
+    "microsoftGraphV1": {
+      "provider": "MicrosoftGraph",
+      "version": "1.0.0"
+    }
+  },
+  "resources": {
+    "identity": {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[parameters('identityName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]"
+    },
+    "githubFederatedCredential": {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+      "apiVersion": "2024-11-30",
+      "name": "[format('{0}/{1}', parameters('identityName'), format('github-{0}', toLower(parameters('environment'))))]",
+      "properties": {
+        "audiences": [
+          "api://AzureADTokenExchange"
+        ],
+        "issuer": "https://token.actions.githubusercontent.com",
+        "subject": "[format('repo:{0}:environment:{1}', parameters('githubRepository'), parameters('githubEnvironment'))]"
+      },
+      "dependsOn": [
+        "identity"
+      ]
+    },
+    "logAnalyticsWorkspace": {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[parameters('logAnalyticsName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "workspaceCapping": {
+          "dailyQuotaGb": 1
+        },
+        "publicNetworkAccessForIngestion": "Enabled",
+        "publicNetworkAccessForQuery": "Enabled"
+      }
+    },
+    "appInsights": {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[parameters('appInsightsName')]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+      },
+      "dependsOn": [
+        "logAnalyticsWorkspace"
+      ]
+    },
+    "webApiServer": {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-12-01",
+      "name": "[parameters('webApiServerName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "F1",
+        "tier": "Free",
+        "capacity": 1
+      },
+      "properties": {}
+    },
+    "webApi": {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-12-01",
+      "name": "[parameters('webApiName')]",
+      "location": "[parameters('location')]",
+      "kind": "app",
+      "tags": "[union(variables('tags'), createObject(format('hidden-link:{0}', resourceId('Microsoft.Insights/components', parameters('appInsightsName'))), 'Resource'))]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')))]": {}
+        }
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('webApiServerName'))]",
+        "httpsOnly": true,
+        "clientAffinityEnabled": false,
+        "publicNetworkAccess": "Enabled",
+        "keyVaultReferenceIdentity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName'))]",
+        "siteConfig": {
+          "alwaysOn": false,
+          "ftpsState": "Disabled",
+          "http20Enabled": true,
+          "minTlsVersion": "1.2",
+          "netFrameworkVersion": "v10.0",
+          "use32BitWorkerProcess": true,
+          "metadata": [
+            {
+              "name": "CURRENT_STACK",
+              "value": "dotnet"
+            }
+          ],
+          "appSettings": [
+            {
+              "name": "ASPNETCORE_ENVIRONMENT",
+              "value": "Production"
+            },
+            {
+              "name": "AZURE_CLIENT_ID",
+              "value": "[reference('identity').clientId]"
+            },
+            {
+              "name": "Azure__ManagedIdentity__ClientId",
+              "value": "[reference('identity').clientId]"
+            },
+            {
+              "name": "Azure__AppConfiguration__Endpoint",
+              "value": "[reference('appConfiguration').endpoint]"
+            },
+            {
+              "name": "Azure__ApplicationInsights__ConnectionString",
+              "value": "[reference('appInsights').ConnectionString]"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[reference('appInsights').ConnectionString]"
+            },
+            {
+              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "value": "[reference('appInsights').InstrumentationKey]"
+            },
+            {
+              "name": "ApplicationInsightsAgent_EXTENSION_VERSION",
+              "value": "~3"
+            },
+            {
+              "name": "XDT_MicrosoftApplicationInsights_Mode",
+              "value": "recommended"
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "appConfiguration",
+        "appInsights",
+        "identity",
+        "webApiServer"
+      ]
+    },
+    "webApiDeploymentRoleForGithubIdentity": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Web/sites', parameters('webApiName'))]",
+      "name": "[guid(resourceId('Microsoft.Web/sites', parameters('webApiName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('roles').websiteContributor)]",
+      "properties": {
+        "principalId": "[reference('identity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').websiteContributor)]"
+      },
+      "dependsOn": [
+        "identity",
+        "webApi"
+      ]
+    },
+    "appConfiguration": {
+      "type": "Microsoft.AppConfiguration/configurationStores",
+      "apiVersion": "2023-03-01",
+      "name": "[parameters('appConfigurationName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "free"
+      },
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')))]": {}
+        }
+      },
+      "tags": "[variables('tags')]",
+      "properties": {
+        "createMode": "[parameters('appConfigurationCreateMode')]",
+        "publicNetworkAccess": "Enabled",
+        "disableLocalAuth": false
+      },
+      "dependsOn": [
+        "identity"
+      ]
+    },
+    "appConfigurationRoleIdentity": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.AppConfiguration/configurationStores', parameters('appConfigurationName'))]",
+      "name": "[guid(format('{0}{1}{2}', resourceId('Microsoft.AppConfiguration/configurationStores', parameters('appConfigurationName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('roles').appConfigurationDataReader))]",
+      "properties": {
+        "principalId": "[reference('identity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').appConfigurationDataReader)]"
+      },
+      "dependsOn": [
+        "appConfiguration",
+        "identity"
+      ]
+    },
+    "keyVaultSecretsUserForApp": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('roles').keyVaultSecretsUserRole)]",
+      "properties": {
+        "principalId": "[reference('identity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').keyVaultSecretsUserRole)]"
+      },
+      "dependsOn": [
+        "identity",
+        "keyVault"
+      ]
+    },
+    "appConfigurationDataOwnerForAdmin": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.AppConfiguration/configurationStores', parameters('appConfigurationName'))]",
+      "name": "[guid(resourceId('Microsoft.AppConfiguration/configurationStores', parameters('appConfigurationName')), parameters('globalAdminId'), variables('roles').appConfigurationDataOwnerRole)]",
+      "properties": {
+        "principalId": "[parameters('globalAdminId')]",
+        "principalType": "User",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').appConfigurationDataOwnerRole)]"
+      },
+      "dependsOn": [
+        "appConfiguration"
+      ]
+    },
+    "keyVault": {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-02-01",
+      "name": "[parameters('keyVaultName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "sku": {
+          "name": "standard",
+          "family": "A"
+        },
+        "tenantId": "[subscription().tenantId]",
+        "enableRbacAuthorization": true,
+        "enableSoftDelete": true,
+        "softDeleteRetentionInDays": 7,
+        "enablePurgeProtection": true
+      }
+    },
+    "keyVaultSecretsOfficerForAdmin": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('globalAdminId'), variables('roles').keyVaultAdministrator)]",
+      "properties": {
+        "principalId": "[parameters('globalAdminId')]",
+        "principalType": "User",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').keyVaultAdministrator)]"
+      },
+      "dependsOn": [
+        "keyVault"
+      ]
+    },
+    "sqlAdminGroup": {
+      "import": "microsoftGraphV1",
+      "type": "Microsoft.Graph/groups@v1.0",
+      "properties": {
+        "uniqueName": "[parameters('sqlAdminGroupName')]",
+        "displayName": "[parameters('sqlAdminGroupName')]",
+        "description": "[format('Azure SQL administrators for {0}, {1}, and the Web API managed identity.', parameters('secureAdminName'), parameters('environment'))]",
+        "mailEnabled": false,
+        "mailNickname": "[variables('sqlAdminGroupMailNickname')]",
+        "securityEnabled": true,
+        "members": {
+          "relationships": [
+            "[parameters('globalAdminId')]",
+            "[reference('identity').principalId]"
+          ]
+        },
+        "owners": {
+          "relationships": [
+            "[parameters('globalAdminId')]"
+          ]
+        }
+      },
+      "dependsOn": [
+        "identity"
+      ]
+    },
+    "sqlServer": {
+      "type": "Microsoft.Sql/servers",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('db-{0}-server', parameters('companyName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "administrators": {
+          "administratorType": "ActiveDirectory",
+          "principalType": "Group",
+          "login": "[reference('sqlAdminGroup').displayName]",
+          "sid": "[reference('sqlAdminGroup').id]",
+          "tenantId": "[subscription().tenantId]",
+          "azureADOnlyAuthentication": true
+        },
+        "version": "12.0",
+        "publicNetworkAccess": "Enabled"
+      },
+      "dependsOn": [
+        "sqlAdminGroup"
+      ]
+    },
+    "sqlDatabase": {
+      "type": "Microsoft.Sql/servers/databases",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('{0}/{1}', format('db-{0}-server', parameters('companyName')), format('db-{0}-{1}', parameters('companyName'), parameters('environment')))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "GP_S_Gen5_1",
+        "tier": "GeneralPurpose",
+        "family": "Gen5",
+        "capacity": 1
+      },
+      "properties": {
+        "collation": "SQL_Latin1_General_CP1_CI_AS",
+        "maxSizeBytes": 34359738368,
+        "requestedBackupStorageRedundancy": "Local"
+      },
+      "dependsOn": [
+        "sqlServer"
+      ]
+    },
+    "firewallAllowAzureIPs": {
+      "type": "Microsoft.Sql/servers/firewallRules",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('{0}/{1}', format('db-{0}-server', parameters('companyName')), 'AllowAzureServices')]",
+      "properties": {
+        "startIpAddress": "[variables('developerIp')]",
+        "endIpAddress": "[variables('developerIp')]"
+      },
+      "dependsOn": [
+        "sqlServer"
+      ]
+    },
+    "sqlFirewallManagerForIdentity": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Sql/servers', format('db-{0}-server', parameters('companyName')))]",
+      "name": "[guid(resourceId('Microsoft.Sql/servers', format('db-{0}-server', parameters('companyName'))), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('roles').sqlSecurityManager)]",
+      "properties": {
+        "principalId": "[reference('identity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').sqlSecurityManager)]"
+      },
+      "dependsOn": [
+        "identity",
+        "sqlServer"
+      ]
+    },
+    "syncWebApiSqlFirewallRules": {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "name": "[format('sync-web-api-sql-firewall-{0}', toLower(parameters('environment')))]",
+      "location": "[parameters('location')]",
+      "kind": "AzureCLI",
+      "tags": "[variables('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')))]": {}
+        }
+      },
+      "properties": {
+        "azCliVersion": "2.61.0",
+        "cleanupPreference": "OnSuccess",
+        "retentionInterval": "P1D",
+        "timeout": "PT10M",
+        "forceUpdateTag": "[reference('webApi').outboundIpAddresses]",
+        "environmentVariables": [
+          {
+            "name": "RESOURCE_GROUP",
+            "value": "[resourceGroup().name]"
+          },
+          {
+            "name": "SQL_SERVER_NAME",
+            "value": "[format('db-{0}-server', parameters('companyName'))]"
+          },
+          {
+            "name": "OUTBOUND_IPS",
+            "value": "[reference('webApi').outboundIpAddresses]"
+          }
+        ],
+        "scriptContent": "set -euo pipefail\n\n# Keep only the firewall rules managed by this script in sync with App Service outbound IPs.\nexisting_rules=$(az sql server firewall-rule list --resource-group \"$RESOURCE_GROUP\" --server \"$SQL_SERVER_NAME\" --query \"[?starts_with(name, 'AllowWebApiOutbound')].name\" --output tsv)\nfor rule in $existing_rules; do\n  az sql server firewall-rule delete --resource-group \"$RESOURCE_GROUP\" --server \"$SQL_SERVER_NAME\" --name \"$rule\" --yes --output none\ndone\n\nIFS=',' read -ra ips <<< \"$OUTBOUND_IPS\"\nindex=0\nfor ip in \"${ips[@]}\"; do\n  trimmed_ip=$(echo \"$ip\" | xargs)\n  if [ -z \"$trimmed_ip\" ]; then\n    continue\n  fi\n\n  az sql server firewall-rule create \\\n    --resource-group \"$RESOURCE_GROUP\" \\\n    --server \"$SQL_SERVER_NAME\" \\\n    --name \"AllowWebApiOutbound${index}\" \\\n    --start-ip-address \"$trimmed_ip\" \\\n    --end-ip-address \"$trimmed_ip\" \\\n    --output none\n\n  index=$((index + 1))\ndone\n"
+      },
+      "dependsOn": [
+        "identity",
+        "sqlFirewallManagerForIdentity",
+        "sqlServer",
+        "webApi"
+      ]
+    },
+    "storageAccount": {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[parameters('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "tags": "[variables('tags')]",
+      "properties": {
+        "minimumTlsVersion": "TLS1_2",
+        "supportsHttpsTrafficOnly": true,
+        "allowBlobPublicAccess": false
+      }
+    },
+    "blobService": {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}', parameters('storageAccountName'), 'default')]",
+      "properties": {
+        "deleteRetentionPolicy": {
+          "enabled": true,
+          "days": 7
+        }
+      },
+      "dependsOn": [
+        "storageAccount"
+      ]
+    },
+    "uploadsContainer": {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', 'uploads')]",
+      "dependsOn": [
+        "blobService"
+      ]
+    },
+    "documentsContainer": {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', 'documents')]",
+      "dependsOn": [
+        "blobService"
+      ]
+    },
+    "storageRoleBlob": {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+      "name": "[guid(format('{0}{1}{2}', resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), variables('roles').storageBlobContributor))]",
+      "properties": {
+        "principalId": "[reference('identity').principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').storageBlobContributor)]"
+      },
+      "dependsOn": [
+        "identity",
+        "storageAccount"
+      ]
+    },
+    "communicationService": {
+      "type": "Microsoft.Communication/communicationServices",
+      "apiVersion": "2023-04-01",
+      "name": "[parameters('communicationServiceName')]",
+      "location": "global",
+      "tags": "[variables('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')))]": {}
+        }
+      },
+      "properties": {
+        "dataLocation": "europe",
+        "linkedDomains": [
+          "[resourceId('Microsoft.Communication/emailServices/domains', parameters('emailServiceName'), 'AzureManagedDomain')]"
+        ]
+      },
+      "dependsOn": [
+        "emailDomain",
+        "identity"
+      ]
+    },
+    "emailService": {
+      "type": "Microsoft.Communication/emailServices",
+      "apiVersion": "2023-04-01",
+      "name": "[parameters('emailServiceName')]",
+      "location": "global",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "dataLocation": "europe"
+      }
+    },
+    "emailDomain": {
+      "type": "Microsoft.Communication/emailServices/domains",
+      "apiVersion": "2023-04-01",
+      "name": "[format('{0}/{1}', parameters('emailServiceName'), 'AzureManagedDomain')]",
+      "location": "global",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "domainManagement": "AzureManaged"
+      },
+      "dependsOn": [
+        "emailService"
+      ]
+    },
+    "senderUsername": {
+      "type": "Microsoft.Communication/emailServices/domains/senderUsernames",
+      "apiVersion": "2023-03-31",
+      "name": "[format('{0}/{1}/{2}', parameters('emailServiceName'), 'AzureManagedDomain', 'DoNotReply')]",
+      "properties": {
+        "displayName": "Workslip",
+        "username": "DoNotReply"
+      },
+      "dependsOn": [
+        "emailDomain"
+      ]
+    },
+    "staticConfig": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "static-config-values",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "appConfigurationName": {
+            "value": "[parameters('appConfigurationName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "5701714775411256250"
+            }
+          },
+          "parameters": {
+            "appConfigurationName": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "appConfigValues": {
+              "Azure:AdOAuth:TenantId": "[tenant().tenantId]",
+              "Azure:AdOAuth:Instance": "https://login.microsoftonline.com/",
+              "Azure:AdOAuth:Domain": "rasmusvm6hotmail.onmicrosoft.com",
+              "Jwt:Issuer": "WorkslipApiLocal",
+              "Jwt:Audience": "WorkslipClientLocal",
+              "Authorization:Policies:RequireSuperadmin": "SuperAdmin",
+              "Authorization:Policies:RequireAdmin": "Admin",
+              "Authorization:Policies:RequireUser": "User",
+              "Azure:DocumentFileStorage:ContainerName": "report-attachments",
+              "Azure:DocumentFileStorage:LocalRootPath": "UploadedFiles",
+              "Authorization:RoleHierarchy:Superadmin:0": "Admin",
+              "Authorization:RoleHierarchy:Admin:0": "User",
+              "Azure:Acs:PLainHeaderText": "Du er blevet inviteret til Workslip",
+              "Azure:Acs:HtmlInviteText": "  <html>\n  <body style=\"font-family: Arial, sans-serif; padding: 24px;\">\n    <h2>Velkommen til Workslip</h2>\n    <p>Du er blevet inviteret til at deltage i Workslip.</p>\n    <p>\n      <a href=\"{inviteLink}\"\n         style=\"display: inline-block; padding: 12px 24px; background-color: #0057b7; color: #fff; text-decoration: none; border-radius: 6px;\">\n        Accepter invitation\n      </a>\n    </p>\n    <p>Linket udløber om 7 dage.</p>\n    <hr/>\n    <p style=\"color: #666; font-size: 12px;\">Workslip – automatisk invitation</p>\n  </body>\n</html>",
+              "name": "Azure:Acs:PlainInviteText",
+              "value": "    Du er blevet inviteret til Workslip.\n    Klik på følgende link for at acceptere invitationen:\n    {inviteLink}\n    Linket udløber om 7 dage.\n"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "staticConfigValues",
+                "count": "[length(items(variables('appConfigValues')))]"
+              },
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), items(variables('appConfigValues'))[copyIndex()].key)]",
+              "properties": {
+                "value": "[string(items(variables('appConfigValues'))[copyIndex()].value)]"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "appConfiguration"
+      ]
+    },
+    "dynamicAppConfigValues": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "app-config-values",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "appConfigurationName": {
+            "value": "[parameters('appConfigurationName')]"
+          },
+          "jwtSigninKey": {
+            "value": "[reference('keyVaultConfigs').outputs.jwtSigninKey.value]"
+          },
+          "managedIdentityClientId": {
+            "value": "[reference('identity').clientId]"
+          },
+          "appConfigurationEndpoint": {
+            "value": "[format('https://{0}.azconfig.io', parameters('appConfigurationName'))]"
+          },
+          "azureAdOAuthClientId": {
+            "value": "[reference('EntraAppRegistrations').outputs.OAuthClientId.value]"
+          },
+          "oauthServerAppId": {
+            "value": "[reference('EntraAppRegistrations').outputs.OAuthAppId.value]"
+          },
+          "acsConnectionString": {
+            "value": "[reference('keyVaultConfigs').outputs.acsConnectionStringSecretUri.value]"
+          },
+          "acsSenderAddress": {
+            "value": "[format('{0}@{1}', reference('senderUsername').username, reference('emailDomain').fromSenderDomain)]"
+          },
+          "storageAccountName": {
+            "value": "[parameters('storageAccountName')]"
+          },
+          "applicationInsightsConnectionString": {
+            "value": "[reference('appInsights').ConnectionString]"
+          },
+          "sqlConnectionString": {
+            "value": "[reference('keyVaultConfigs').outputs.sqlConnectionstring.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "14166196894122333580"
+            }
+          },
+          "parameters": {
+            "appConfigurationName": {
+              "type": "string"
+            },
+            "managedIdentityClientId": {
+              "type": "string"
+            },
+            "appConfigurationEndpoint": {
+              "type": "string"
+            },
+            "azureAdOAuthClientId": {
+              "type": "string"
+            },
+            "oauthServerAppId": {
+              "type": "string"
+            },
+            "acsSenderAddress": {
+              "type": "string"
+            },
+            "acsConnectionString": {
+              "type": "securestring"
+            },
+            "storageAccountName": {
+              "type": "string"
+            },
+            "applicationInsightsConnectionString": {
+              "type": "string"
+            },
+            "sqlConnectionString": {
+              "type": "securestring"
+            },
+            "jwtSigninKey": {
+              "type": "securestring"
+            }
+          },
+          "variables": {
+            "keyVaultReferenceContentType": "application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:ManagedIdentity:ClientId')]",
+              "properties": {
+                "value": "[parameters('managedIdentityClientId')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:AppConfiguration:Endpoint')]",
+              "properties": {
+                "value": "[parameters('appConfigurationEndpoint')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:AdOAuth:ClientId')]",
+              "properties": {
+                "value": "[parameters('azureAdOAuthClientId')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:AdOAuth:Audience')]",
+              "properties": {
+                "value": "[parameters('azureAdOAuthClientId')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:GraphApp:OAuthAppId')]",
+              "properties": {
+                "value": "[parameters('oauthServerAppId')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:Acs:SenderAddress')]",
+              "properties": {
+                "value": "[parameters('acsSenderAddress')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:DocumentFileStorage:StorageAccountName')]",
+              "properties": {
+                "value": "[parameters('storageAccountName')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:ApplicationInsights:ConnectionString')]",
+              "properties": {
+                "value": "[parameters('applicationInsightsConnectionString')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:Acs:ConnectionString')]",
+              "properties": {
+                "value": "[string(createObject('uri', parameters('acsConnectionString')))]",
+                "contentType": "[variables('keyVaultReferenceContentType')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Azure:Sql:ConnectionString')]",
+              "properties": {
+                "value": "[string(createObject('uri', parameters('sqlConnectionString')))]",
+                "contentType": "[variables('keyVaultReferenceContentType')]"
+              }
+            },
+            {
+              "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('appConfigurationName'), 'Jwt:SigningKey')]",
+              "properties": {
+                "value": "[string(createObject('uri', parameters('jwtSigninKey')))]",
+                "contentType": "[variables('keyVaultReferenceContentType')]"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "appConfiguration",
+        "appInsights",
+        "emailDomain",
+        "EntraAppRegistrations",
+        "identity",
+        "keyVaultConfigs",
+        "senderUsername",
+        "storageAccount"
+      ]
+    },
+    "keyVaultConfigs": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "key-vault-secrets",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[parameters('keyVaultName')]"
+          },
+          "communicationServiceName": {
+            "value": "[parameters('communicationServiceName')]"
+          },
+          "sqlConnectionString": {
+            "value": "[format('Server=tcp:{0},1433;Initial Catalog=db-{1}-{2}; TrustServerCertificate=False; Authentication=\"Active Directory Default\";', reference('sqlServer').fullyQualifiedDomainName, parameters('companyName'), parameters('environment'))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "9244516086738459141"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string"
+            },
+            "communicationServiceName": {
+              "type": "string"
+            },
+            "sqlConnectionString": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "generatedSigningKey": "[guid(subscription().id, resourceGroup().id, 'verysecretkeyformylocaljwt')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'Azure--Acs--ConnectionString')]",
+              "properties": {
+                "value": "[listKeys(resourceId('Microsoft.Communication/communicationServices', parameters('communicationServiceName')), '2023-03-31').primaryConnectionString]"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'Azure--Sql--ConnectionString')]",
+              "properties": {
+                "value": "[parameters('sqlConnectionString')]"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), 'Jwt--SigningKey')]",
+              "properties": {
+                "value": "[variables('generatedSigningKey')]"
+              }
+            }
+          ],
+          "outputs": {
+            "acsConnectionStringSecretUri": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), 'Azure--Acs--ConnectionString'), '2023-07-01').secretUri]"
+            },
+            "sqlConnectionstring": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), 'Azure--Sql--ConnectionString'), '2023-07-01').secretUri]"
+            },
+            "jwtSigninKey": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), 'Jwt--SigningKey'), '2023-07-01').secretUri]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "communicationService",
+        "keyVault",
+        "sqlServer"
+      ]
+    },
+    "EntraAppRegistrations": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "entraApps",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "globalAdminId": {
+            "value": "[parameters('globalAdminId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "16385456769970477216"
+            }
+          },
+          "parameters": {
+            "environment": {
+              "type": "string"
+            },
+            "globalAdminId": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "uniqueSuffix": "[substring(uniqueString(subscription().id, resourceGroup().id, parameters('environment')), 0, 5)]"
+          },
+          "imports": {
+            "microsoftGraphV1": {
+              "provider": "MicrosoftGraph",
+              "version": "1.0.0"
+            }
+          },
+          "resources": {
+            "OAuthServerApp": {
+              "import": "microsoftGraphV1",
+              "type": "Microsoft.Graph/applications@v1.0",
+              "properties": {
+                "uniqueName": "[format('Oauth-server-{0}-{1}', parameters('environment'), variables('uniqueSuffix'))]",
+                "displayName": "[format('Oauth server {0}', parameters('environment'))]",
+                "signInAudience": "AzureADMyOrg",
+                "publicClient": {
+                  "redirectUris": [
+                    "nativepasskeydemo://auth"
+                  ]
+                },
+                "owners": {
+                  "relationships": [
+                    "[parameters('globalAdminId')]"
+                  ]
+                },
+                "appRoles": [
+                  {
+                    "id": "[guid('SuperAdmin', parameters('environment'))]",
+                    "allowedMemberTypes": [
+                      "User"
+                    ],
+                    "displayName": "SuperAdmin",
+                    "description": "Super administrator",
+                    "value": "SuperAdmin",
+                    "isEnabled": true
+                  },
+                  {
+                    "id": "[guid('Admin', parameters('environment'))]",
+                    "allowedMemberTypes": [
+                      "User"
+                    ],
+                    "displayName": "Admin",
+                    "description": "Administrator",
+                    "value": "Admin",
+                    "isEnabled": true
+                  },
+                  {
+                    "id": "[guid('User', parameters('environment'))]",
+                    "allowedMemberTypes": [
+                      "User"
+                    ],
+                    "displayName": "User",
+                    "description": "Standard user",
+                    "value": "User",
+                    "isEnabled": true
+                  }
+                ],
+                "api": {
+                  "requestedAccessTokenVersion": 2,
+                  "oauth2PermissionScopes": [
+                    {
+                      "id": "[guid('access_as_user')]",
+                      "adminConsentDescription": "Access Workslip API as the signed-in user",
+                      "adminConsentDisplayName": "Access Workslip API",
+                      "userConsentDescription": "Access Workslip API on your behalf",
+                      "userConsentDisplayName": "Access Workslip API",
+                      "value": "access_as_user",
+                      "type": "User",
+                      "isEnabled": true
+                    }
+                  ]
+                }
+              }
+            },
+            "OAuthServerServicePrincipal": {
+              "import": "microsoftGraphV1",
+              "type": "Microsoft.Graph/servicePrincipals@v1.0",
+              "properties": {
+                "appId": "[reference('OAuthServerApp').appId]",
+                "tags": [
+                  "WindowsAzureActiveDirectoryIntegratedApp"
+                ]
+              },
+              "dependsOn": [
+                "OAuthServerApp"
+              ]
+            }
+          },
+          "outputs": {
+            "OAuthClientId": {
+              "type": "string",
+              "value": "[reference('OAuthServerApp').appId]"
+            },
+            "OAuthAppId": {
+              "type": "string",
+              "value": "[reference('OAuthServerApp').id]"
+            }
+          }
+        }
+      }
+    }
+  },
+  "outputs": {
+    "STORAGE_ACCOUNT_NAME": {
+      "type": "string",
+      "value": "[parameters('storageAccountName')]"
+    },
+    "LOGIC_APP_NAME": {
+      "type": "string",
+      "value": "[parameters('logicAppName')]"
+    },
+    "WEB_API_NAME": {
+      "type": "string",
+      "value": "[parameters('webApiName')]"
+    },
+    "WEB_API_DEFAULT_HOSTNAME": {
+      "type": "string",
+      "value": "[reference('webApi').defaultHostName]"
+    },
+    "WEB_API_URL": {
+      "type": "string",
+      "value": "[format('https://{0}', reference('webApi').defaultHostName)]"
+    },
+    "WEB_API_SERVER_NAME": {
+      "type": "string",
+      "value": "[parameters('webApiServerName')]"
+    },
+    "MANAGED_IDENTITY_CLIENT_ID": {
+      "type": "string",
+      "value": "[reference('identity').clientId]"
+    },
+    "MANAGED_IDENTITY_PRINCIPAL_ID": {
+      "type": "string",
+      "value": "[reference('identity').principalId]"
+    },
+    "GITHUB_FEDERATED_CREDENTIAL_SUBJECT": {
+      "type": "string",
+      "value": "[reference('githubFederatedCredential').subject]"
+    },
+    "APP_INSIGHTS_CONNECTION_STRING": {
+      "type": "string",
+      "value": "[reference('appInsights').ConnectionString]"
+    },
+    "KEY_VAULT_URI": {
+      "type": "string",
+      "value": "[reference('keyVault').vaultUri]"
+    },
+    "DOCUMENT_INTELLIGENCE_NAME": {
+      "type": "string",
+      "value": "[parameters('documentIntelligenceName')]"
+    },
+    "AZURE_APP_CONFIG_ENDPOINT": {
+      "type": "string",
+      "value": "[reference('appConfiguration').endpoint]"
+    },
+    "AZURE_AD_OAUTH_APP_OBJECT_ID": {
+      "type": "string",
+      "value": "[reference('EntraAppRegistrations').outputs.OAuthClientId.value]"
+    },
+    "AZURE_AD_OAUTH_APP_CLIENT_ID": {
+      "type": "string",
+      "value": "[reference('EntraAppRegistrations').outputs.OAuthAppId.value]"
+    },
+    "ACS_ENDPOINT": {
+      "type": "string",
+      "value": "[format('https://{0}', reference('communicationService').hostName)]"
+    },
+    "ACS_SENDER_ADDRESS": {
+      "type": "string",
+      "value": "[format('DoNotReply@{0}', reference('emailDomain').mailFromSenderDomain)]"
+    }
+  }
+}
