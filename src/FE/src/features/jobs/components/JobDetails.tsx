@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import type { AxiosError } from 'axios';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
@@ -26,6 +27,13 @@ type JobDetailsPageProps = {
   onDone: () => void;
 };
 
+type JobDeleteErrorResponse = {
+  code?: string;
+  error?: string;
+  message?: string;
+  worksheetCount?: number;
+};
+
 export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps) {
   const queryClient = useQueryClient();
   const canDeleteJob = useCan('job:delete');
@@ -38,8 +46,8 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         toast.success('Sagen er slettet');
         onDone();
       },
-      onError: () => {
-        toast.error('Kunne ikke slette sagen');
+      onError: (error) => {
+        toast.error(getJobDeleteErrorMessage(error));
       },
     },
   });
@@ -47,7 +55,13 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   const handleDelete = () => {
     if (!canDeleteJob) return;
     if (!details.job?.id) return;
-    if (!confirm('Er du sikker på at du vil slette denne sag?')) return;
+
+    if (details.worksheets.length > 0) {
+      toast.error(getAttachedWorksheetsMessage(details.worksheets.length));
+      return;
+    }
+
+    if (!confirm('Slet sagen permanent? Det kan kun lade sig gøre, hvis sagen ikke har timesedler.')) return;
     deleteMutation.mutate({ id: details.job.id });
   };
 
@@ -377,6 +391,23 @@ function getGlobalSaveStatus(statuses: SaveStatus[]): SaveStatus {
   if (statuses.includes('error')) return 'error';
   if (statuses.includes('saved')) return 'saved';
   return 'idle';
+}
+
+function getJobDeleteErrorMessage(error: unknown): string {
+  const data = (error as AxiosError<JobDeleteErrorResponse>).response?.data;
+  if (data?.message) return data.message;
+
+  const code = data?.code ?? data?.error;
+  if (code === 'job_has_attached_worksheets') {
+    return getAttachedWorksheetsMessage(data?.worksheetCount ?? 1);
+  }
+
+  return 'Kunne ikke slette sagen';
+}
+
+function getAttachedWorksheetsMessage(worksheetCount: number): string {
+  const noun = worksheetCount === 1 ? 'timeseddel' : 'timesedler';
+  return `Sagen kan ikke slettes, fordi den har ${worksheetCount} ${noun}. Slet ${noun} først.`;
 }
 
 const SUBMITTED_DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });

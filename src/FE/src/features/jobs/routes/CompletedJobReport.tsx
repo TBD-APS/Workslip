@@ -8,13 +8,14 @@ import type {
   JobReportSummaryViewModel,
   WorksheetResponse,
 } from '../../../api/generated/models';
-import { useIsAdmin } from '../../../providers/permissions';
+import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
 import { ControlPointsStep } from '../components/steps/ControlPointsStep';
 import { JobCompletionStep } from '../components/steps/JobCompletionStep';
 import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
 import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
 import { useJobDetailsState } from '../hooks/useJobDetails';
+import { formatJobStatus } from '../statusLabels';
 import { createJobReportPdfPreview, type JobReportPdfPreview } from '../utils/downloadJobReportPdf';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -120,7 +121,7 @@ export const CompletedJobReport = () => {
 
   const summaryPairs = compactPairs([
     { label: 'Sagsnummer', value: formatReportNumber(job) },
-    { label: 'Status', value: formatStatus(job.status) },
+    { label: 'Status', value: formatJobStatus(job.status) },
     { label: 'Rapportdato', value: formatDate(job.observations.reportDate) },
     { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
@@ -194,7 +195,7 @@ export const CompletedJobReport = () => {
               <FileCheck2 size={18} />
               <h3>Sag</h3>
             </div>
-            <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>{formatStatus(job.status)}</span>
+            <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>{formatJobStatus(job.status)}</span>
             <DetailGrid items={summaryPairs} />
           </section>
 
@@ -428,7 +429,7 @@ function LinkedJobs({ links, onOpen }: { links: JobLinkInfoResponse[]; onOpen: (
         <button key={link.id} type="button" className="report-overview-link-card" onClick={() => onOpen(link.linkedReportId)}>
           <span className="job-number">SAG-{link.linkedReportNumber || link.linkedReportId.slice(0, 4).toUpperCase()}</span>
           <span className="report-overview-link-title">{link.linkedCustomerName || 'Ukendt kunde'}</span>
-          <span className={`status-badge status-${link.linkedStatus.toLowerCase()}`}>{formatStatus(link.linkedStatus)}</span>
+          <span className={`status-badge status-${link.linkedStatus.toLowerCase()}`}>{formatJobStatus(link.linkedStatus)}</span>
         </button>
       ))}
     </div>
@@ -543,19 +544,6 @@ function hasText(value: string | null | undefined): value is string {
 
 function formatReportNumber(job: Pick<JobReportSummaryViewModel, 'id' | 'reportNumber'>) {
   return `SAG-${(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}`;
-}
-
-function formatStatus(status: string) {
-  const labels: Record<string, string> = {
-    Draft: 'Kladde',
-    Submitted: 'Indsendt',
-    InReview: 'Under review',
-    Approved: 'Godkendt',
-    Rejected: 'Afvist',
-    Archived: 'Arkiveret',
-  };
-
-  return labels[status] ?? status;
 }
 
 function formatWorkKind(job: JobReportSummaryViewModel) {

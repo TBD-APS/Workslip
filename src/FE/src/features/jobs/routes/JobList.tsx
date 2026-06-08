@@ -6,7 +6,8 @@ import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import type { AssignedUserResponse, CustomerInfo, JobStatus } from '../../../api/generated/models';
 import { getResponseData } from '../utils';
 import { useAuth } from '../../../providers/useAuth';
-import { useIsAdmin } from '../../../providers/permissions';
+import { useIsAdmin } from '../../../providers/permissions/usePermissions';
+import { formatJobStatus } from '../statusLabels';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-content';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
@@ -142,7 +143,7 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
           <h3 className="job-customer">{job.customer?.name || 'Ukendt kunde'}</h3>
         </div>
         <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>
-          {job.status}
+          {formatJobStatus(job.status)}
         </span>
       </div>
 

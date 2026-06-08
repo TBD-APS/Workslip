@@ -19,6 +19,7 @@ import { useGetApiUsersId, getGetApiUsersIdQueryKey } from '../../../api/generat
 import { useGetApiJobs, usePostApiJobsIdAssign } from '../../../api/generated/jobs/jobs';
 import { getResponseData } from '../../../lib/unwrapResponse';
 import { formatDate } from '../../../lib/formatDate';
+import { formatJobStatus } from '../../jobs/statusLabels';
 
 type AssignedJob = {
   reportId: string;
@@ -191,7 +192,7 @@ export const UserDetail = () => {
                 </span>
               </div>
               <span className={`status-badge status-${job.status.toLowerCase()}`}>
-                {job.status}
+                {formatJobStatus(job.status)}
               </span>
             </div>
             <div className="job-card-body">
@@ -284,7 +285,7 @@ export const UserDetail = () => {
                     </span>
                   </div>
                   <span className={`status-badge status-${job.status.toLowerCase()}`}>
-                    {job.status}
+                    {formatJobStatus(job.status)}
                   </span>
                 </div>
                 <div className="job-card-body">
