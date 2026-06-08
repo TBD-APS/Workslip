@@ -1,7 +1,7 @@
 import { defineConfig } from "orval";
 
 
-const openApiUrl = process.env.OPENAPI_URL ?? '';
+const openApiUrl = process.env.VITE_API_URL ?? '';
 
 export default defineConfig({
   workslip: {
