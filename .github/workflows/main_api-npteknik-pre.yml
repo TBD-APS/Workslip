@@ -21,21 +21,19 @@ env:
   DOTNET_VERSION: '10.0.x'
   API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish/api
-  ENVIRONMENT: ${{ github.event.inputs.environment }}
 
 permissions:
   id-token: write
   contents: read
 
 concurrency:
-  group: azure-api-${{ env.$ENVIRONMENT }}
+  group: azure-api-${{ github.event.inputs.environment || 'pre' }}
   cancel-in-progress: false
 
 jobs:
   build:
     name: Build API
     runs-on: ubuntu-latest
-    environment: ${{ env.$ENVIRONMENT }}
     steps:
         
       - name: Checkout
@@ -66,7 +64,7 @@ jobs:
     name: Deploy API
     runs-on: ubuntu-latest
     needs: build
-    environment: ${{ env.$ENVIRONMENT }}
+    environment: ${{ github.event.inputs.environment }}
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
@@ -84,6 +82,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: api-npteknik-${{ env.$ENVIRONMENT }}
+          app-name: api-npteknik-${{ github.event.inputs.environment }}
           package: ${{ env.PUBLISH_DIR }}
 
