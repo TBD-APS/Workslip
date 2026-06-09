@@ -25,7 +25,6 @@ import {
   emptyForm,
   getWorkValidationMessage,
   getLinkableJobs,
-  getUserList,
   isValidJobForm,
   isValidWork,
   sameForm,
@@ -68,7 +67,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
   const referenceDataQuery = useGetApiReferenceData();
   const jobsData = queryClient.getQueryData(getGetApiJobsQueryKey({ limit: 200 }));
-  const assignableUsers = getUserList(usersQuery.data);
+  const assignableUsers = usersQuery.data?.users ??  null;
   const referenceData = referenceDataQuery.data ?? null;
 
   const linkableJobs = getLinkableJobs(jobsData, jobId);

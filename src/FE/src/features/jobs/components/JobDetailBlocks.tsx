@@ -4,14 +4,14 @@ import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdo
 import { ValidatedInput } from '../../../components/forms/ValidatedInput';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import { useCan } from '../../../providers/permissions';
-import type { CustomerInfo } from '../../../api/generated/models';
-import type { AssignableUser, LinkableJob } from '../types';
+import type { CustomerInfo, UserViewModel } from '../../../api/generated/models';
+import type { LinkableJob } from '../types';
 
 type CustomerBlockProps = {
   form: { customer: CustomerInfo; reportNumber: string };
   reportNumberReadOnly?: boolean;
   assignment?: {
-    users: AssignableUser[];
+    users: UserViewModel[];
     assignedUserIds: string[];
     isLoadingUsers: boolean;
     onAssignedUsersChange: (userIds: string[]) => void;

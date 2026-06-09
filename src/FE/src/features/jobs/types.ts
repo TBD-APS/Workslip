@@ -1,4 +1,4 @@
-import type { CustomerInfo, ClosureFlagResponse } from '../../api/generated/models';
+import type { CustomerInfo } from '../../api/generated/models';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -36,11 +36,6 @@ export type ReferenceWorkKind = {
   sortOrder: number | string;
 };
 
-export type ReferenceData = {
-  installationTypes: ReferenceCategory[];
-  workKinds: ReferenceWorkKind[];
-  closureFlags: ClosureFlagResponse[];
-};
 
 export type JobForm = {
   customer: CustomerInfo;
@@ -51,11 +46,6 @@ export type JobForm = {
   work: JobWorkForm;
 };
 
-export type AssignableUser = {
-  id: string;
-  displayName: string;
-  email: string;
-};
 
 export type LinkableJob = {
   id: string;

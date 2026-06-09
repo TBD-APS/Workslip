@@ -2,10 +2,11 @@ import type {
   CreateJobWorkRequest,
   CustomerInfo,
   JobReportSummaryViewModel,
+  ReferenceDataResponse,
   UpdateJobRequest,
 } from '../../api/generated/models';
 import { validateEmail, validatePhoneNumber } from '../../components/forms/validators';
-import type { AssignableUser, JobForm, LinkableJob, ReferenceData } from './types';
+import type { JobForm, LinkableJob } from './types';
 
 type JobListItemViewModel = {
   id: string;
@@ -43,7 +44,7 @@ export function getLinkableJobs(
   value: unknown,
   currentJobId: string | undefined,
 ): LinkableJob[] {
-  const data = (value as { data?: unknown })?.data;
+  const data = value;
   const jobs = Array.isArray(data) ? data as JobListItemViewModel[] : [];
 
   return jobs
@@ -98,7 +99,7 @@ export function toUpdateRequest(
   job: JobReportSummaryViewModel,
   initial: JobForm,
   form: JobForm,
-  referenceData: ReferenceData | null,
+  referenceData: ReferenceDataResponse | null,
   options: { includeWork?: boolean } = {},
 ): UpdateJobRequest {
   const includeWork = options.includeWork ?? true;
@@ -127,7 +128,7 @@ export function toUpdateRequest(
 
 export function toWorkRequest(
   form: JobForm,
-  referenceData: ReferenceData | null,
+  referenceData: ReferenceDataResponse | null,
 ): CreateJobWorkRequest {
   const selectedTypes = referenceData?.installationTypes
     .filter((type) => form.work.categoryIds.includes(type.id)) ?? [];
@@ -195,11 +196,11 @@ export function isValidCreateForm(form: JobForm) {
   return isValidJobForm(form);
 }
 
-export function isValidWork(form: JobForm, referenceData: ReferenceData | null) {
+export function isValidWork(form: JobForm, referenceData: ReferenceDataResponse | null) {
   return getWorkValidationMessage(form, referenceData) === null;
 }
 
-export function getWorkValidationMessage(form: JobForm, referenceData: ReferenceData | null) {
+export function getWorkValidationMessage(form: JobForm, referenceData: ReferenceDataResponse | null) {
   const selectedWorkKind = referenceData?.workKinds.find(
     (kind) => kind.normalizedLabel === form.work.workKind,
   );
