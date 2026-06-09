@@ -332,7 +332,7 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
   params: {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
-    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment}; TrustServerCertificate=False; Authentication="Active Directory Default";'
+    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=adminrbj;Password=Num64bqe!; TrustServerCertificate=False;'
   }
 }
 
