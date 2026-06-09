@@ -38,37 +38,19 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type postApiUsersResponse200 = {
-  data: UserViewModel
-  status: 200
-}
-
-export type postApiUsersResponseSuccess = (postApiUsersResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiUsersResponse = (postApiUsersResponseSuccess)
-
-export const getPostApiUsersUrl = () => {
+export const postApiUsers = (
+    createUserRequest: CreateUserRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/users`
-}
-
-export const postApiUsers = async (createUserRequest: CreateUserRequest, options?: RequestInit): Promise<postApiUsersResponse> => {
-
-  return customAxiosInstance<postApiUsersResponse>(getPostApiUsersUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(createUserRequest)
-  }
-);}
-
+      return customAxiosInstance<UserViewModel>(
+      {url: `/api/users`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createUserRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -113,37 +95,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiUsersMutationOptions(options), queryClient);
     }
-    export type getApiUsersResponse200 = {
-  data: UserListViewModel
-  status: 200
-}
+    export const getApiUsers = (
 
-export type getApiUsersResponseSuccess = (getApiUsersResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getApiUsersResponse = (getApiUsersResponseSuccess)
-
-export const getGetApiUsersUrl = () => {
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/users`
-}
-
-export const getApiUsers = async ( options?: RequestInit): Promise<getApiUsersResponse> => {
-
-  return customAxiosInstance<getApiUsersResponse>(getGetApiUsersUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
+      return customAxiosInstance<UserListViewModel>(
+      {url: `/api/users`, method: 'GET', signal
+    },
+      options);
+    }
 
 
 
@@ -164,7 +126,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiUsers>>> = ({ signal }) => getApiUsers({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiUsers>>> = ({ signal }) => getApiUsers(requestOptions, signal);
 
 
 
@@ -219,37 +181,17 @@ export function useGetApiUsers<TData = Awaited<ReturnType<typeof getApiUsers>>, 
 
 
 
-export type getApiUsersIdResponse200 = {
-  data: UserDetailViewModel
-  status: 200
-}
-
-export type getApiUsersIdResponseSuccess = (getApiUsersIdResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getApiUsersIdResponse = (getApiUsersIdResponseSuccess)
-
-export const getGetApiUsersIdUrl = (id: string,) => {
+export const getApiUsersId = (
+    id: string,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/users/${id}`
-}
-
-export const getApiUsersId = async (id: string, options?: RequestInit): Promise<getApiUsersIdResponse> => {
-
-  return customAxiosInstance<getApiUsersIdResponse>(getGetApiUsersIdUrl(id),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
+      return customAxiosInstance<UserDetailViewModel>(
+      {url: `/api/users/${id}`, method: 'GET', signal
+    },
+      options);
+    }
 
 
 
@@ -270,7 +212,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiUsersId>>> = ({ signal }) => getApiUsersId(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiUsersId>>> = ({ signal }) => getApiUsersId(id, requestOptions, signal);
 
 
 
@@ -325,38 +267,20 @@ export function useGetApiUsersId<TData = Awaited<ReturnType<typeof getApiUsersId
 
 
 
-export type patchApiUsersIdResponse200 = {
-  data: UserViewModel
-  status: 200
-}
-
-export type patchApiUsersIdResponseSuccess = (patchApiUsersIdResponse200) & {
-  headers: Headers;
-};
-;
-
-export type patchApiUsersIdResponse = (patchApiUsersIdResponseSuccess)
-
-export const getPatchApiUsersIdUrl = (id: string,) => {
+export const patchApiUsersId = (
+    id: string,
+    updateUserRequest: UpdateUserRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/users/${id}`
-}
-
-export const patchApiUsersId = async (id: string,
-    updateUserRequest: UpdateUserRequest, options?: RequestInit): Promise<patchApiUsersIdResponse> => {
-
-  return customAxiosInstance<patchApiUsersIdResponse>(getPatchApiUsersIdUrl(id),
-  {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(updateUserRequest)
-  }
-);}
-
+      return customAxiosInstance<UserViewModel>(
+      {url: `/api/users/${id}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateUserRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -401,37 +325,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPatchApiUsersIdMutationOptions(options), queryClient);
     }
-    export type deleteApiUsersIdResponse200 = {
-  data: void
-  status: 200
-}
-
-export type deleteApiUsersIdResponseSuccess = (deleteApiUsersIdResponse200) & {
-  headers: Headers;
-};
-;
-
-export type deleteApiUsersIdResponse = (deleteApiUsersIdResponseSuccess)
-
-export const getDeleteApiUsersIdUrl = (id: string,) => {
+    export const deleteApiUsersId = (
+    id: string,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/users/${id}`
-}
-
-export const deleteApiUsersId = async (id: string, options?: RequestInit): Promise<deleteApiUsersIdResponse> => {
-
-  return customAxiosInstance<deleteApiUsersIdResponse>(getDeleteApiUsersIdUrl(id),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/users/${id}`, method: 'DELETE', signal
+    },
+      options);
+    }
 
 
 

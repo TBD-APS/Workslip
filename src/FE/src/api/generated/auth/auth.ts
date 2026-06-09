@@ -38,37 +38,17 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type getApiAuthMeResponse200 = {
-  data: UserViewModel
-  status: 200
-}
+export const getApiAuthMe = (
 
-export type getApiAuthMeResponseSuccess = (getApiAuthMeResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getApiAuthMeResponse = (getApiAuthMeResponseSuccess)
-
-export const getGetApiAuthMeUrl = () => {
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/auth/me`
-}
-
-export const getApiAuthMe = async ( options?: RequestInit): Promise<getApiAuthMeResponse> => {
-
-  return customAxiosInstance<getApiAuthMeResponse>(getGetApiAuthMeUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
+      return customAxiosInstance<UserViewModel>(
+      {url: `/api/auth/me`, method: 'GET', signal
+    },
+      options);
+    }
 
 
 
@@ -89,7 +69,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAuthMe>>> = ({ signal }) => getApiAuthMe({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiAuthMe>>> = ({ signal }) => getApiAuthMe(requestOptions, signal);
 
 
 
@@ -144,37 +124,19 @@ export function useGetApiAuthMe<TData = Awaited<ReturnType<typeof getApiAuthMe>>
 
 
 
-export type postApiAuthSendCodeResponse200 = {
-  data: void
-  status: 200
-}
-
-export type postApiAuthSendCodeResponseSuccess = (postApiAuthSendCodeResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiAuthSendCodeResponse = (postApiAuthSendCodeResponseSuccess)
-
-export const getPostApiAuthSendCodeUrl = () => {
+export const postApiAuthSendCode = (
+    sendCodeRequest: SendCodeRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/auth/send-code`
-}
-
-export const postApiAuthSendCode = async (sendCodeRequest: SendCodeRequest, options?: RequestInit): Promise<postApiAuthSendCodeResponse> => {
-
-  return customAxiosInstance<postApiAuthSendCodeResponse>(getPostApiAuthSendCodeUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(sendCodeRequest)
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/auth/send-code`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: sendCodeRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -219,37 +181,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiAuthSendCodeMutationOptions(options), queryClient);
     }
-    export type postApiAuthVerifyCodeResponse200 = {
-  data: void
-  status: 200
-}
-
-export type postApiAuthVerifyCodeResponseSuccess = (postApiAuthVerifyCodeResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiAuthVerifyCodeResponse = (postApiAuthVerifyCodeResponseSuccess)
-
-export const getPostApiAuthVerifyCodeUrl = () => {
+    export const postApiAuthVerifyCode = (
+    verifyCodeRequest: VerifyCodeRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/auth/verify-code`
-}
-
-export const postApiAuthVerifyCode = async (verifyCodeRequest: VerifyCodeRequest, options?: RequestInit): Promise<postApiAuthVerifyCodeResponse> => {
-
-  return customAxiosInstance<postApiAuthVerifyCodeResponse>(getPostApiAuthVerifyCodeUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(verifyCodeRequest)
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/auth/verify-code`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: verifyCodeRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -294,37 +238,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiAuthVerifyCodeMutationOptions(options), queryClient);
     }
-    export type postApiAuthVerifyInviteResponse200 = {
-  data: void
-  status: 200
-}
-
-export type postApiAuthVerifyInviteResponseSuccess = (postApiAuthVerifyInviteResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiAuthVerifyInviteResponse = (postApiAuthVerifyInviteResponseSuccess)
-
-export const getPostApiAuthVerifyInviteUrl = () => {
+    export const postApiAuthVerifyInvite = (
+    verifyInviteRequest: VerifyInviteRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/auth/verify-invite`
-}
-
-export const postApiAuthVerifyInvite = async (verifyInviteRequest: VerifyInviteRequest, options?: RequestInit): Promise<postApiAuthVerifyInviteResponse> => {
-
-  return customAxiosInstance<postApiAuthVerifyInviteResponse>(getPostApiAuthVerifyInviteUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(verifyInviteRequest)
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/auth/verify-invite`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: verifyInviteRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -369,37 +295,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiAuthVerifyInviteMutationOptions(options), queryClient);
     }
-    export type postApiAuthInviteResponse200 = {
-  data: void
-  status: 200
-}
-
-export type postApiAuthInviteResponseSuccess = (postApiAuthInviteResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiAuthInviteResponse = (postApiAuthInviteResponseSuccess)
-
-export const getPostApiAuthInviteUrl = () => {
+    export const postApiAuthInvite = (
+    inviteUsersRequest: InviteUsersRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/auth/invite`
-}
-
-export const postApiAuthInvite = async (inviteUsersRequest: InviteUsersRequest, options?: RequestInit): Promise<postApiAuthInviteResponse> => {
-
-  return customAxiosInstance<postApiAuthInviteResponse>(getPostApiAuthInviteUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(inviteUsersRequest)
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/auth/invite`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: inviteUsersRequest, signal
+    },
+      options);
+    }
 
 
 

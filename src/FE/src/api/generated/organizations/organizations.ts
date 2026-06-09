@@ -25,37 +25,19 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type postApiOrganizationsResponse200 = {
-  data: void
-  status: 200
-}
-
-export type postApiOrganizationsResponseSuccess = (postApiOrganizationsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiOrganizationsResponse = (postApiOrganizationsResponseSuccess)
-
-export const getPostApiOrganizationsUrl = () => {
+export const postApiOrganizations = (
+    createOrganizationRequest: CreateOrganizationRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/organizations`
-}
-
-export const postApiOrganizations = async (createOrganizationRequest: CreateOrganizationRequest, options?: RequestInit): Promise<postApiOrganizationsResponse> => {
-
-  return customAxiosInstance<postApiOrganizationsResponse>(getPostApiOrganizationsUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(createOrganizationRequest)
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/organizations`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createOrganizationRequest, signal
+    },
+      options);
+    }
 
 
 

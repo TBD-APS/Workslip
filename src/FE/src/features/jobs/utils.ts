@@ -39,16 +39,6 @@ export const emptyForm: JobForm = {
   },
 };
 
-export function getUserList(value: unknown): AssignableUser[] {
-  const data = (value as { data?: unknown })?.data;
-  const users = Array.isArray(data) ? data : (data as any)?.users ?? [];
-  return users.map((user: any) => ({
-    id: user.id,
-    displayName: user.displayName,
-    email: user.email,
-  }));
-}
-
 export function getLinkableJobs(
   value: unknown,
   currentJobId: string | undefined,

@@ -26,37 +26,17 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type getHealthResponse200 = {
-  data: void
-  status: 200
-}
+export const getHealth = (
 
-export type getHealthResponseSuccess = (getHealthResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getHealthResponse = (getHealthResponseSuccess)
-
-export const getGetHealthUrl = () => {
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/health`
-}
-
-export const getHealth = async ( options?: RequestInit): Promise<getHealthResponse> => {
-
-  return customAxiosInstance<getHealthResponse>(getGetHealthUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/health`, method: 'GET', signal
+    },
+      options);
+    }
 
 
 
@@ -77,7 +57,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHealth>>> = ({ signal }) => getHealth(requestOptions, signal);
 
 
 

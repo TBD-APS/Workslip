@@ -30,37 +30,17 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type getApiReferenceDataResponse200 = {
-  data: ReferenceDataResponse
-  status: 200
-}
+export const getApiReferenceData = (
 
-export type getApiReferenceDataResponseSuccess = (getApiReferenceDataResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getApiReferenceDataResponse = (getApiReferenceDataResponseSuccess)
-
-export const getGetApiReferenceDataUrl = () => {
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/reference-data`
-}
-
-export const getApiReferenceData = async ( options?: RequestInit): Promise<getApiReferenceDataResponse> => {
-
-  return customAxiosInstance<getApiReferenceDataResponse>(getGetApiReferenceDataUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
+      return customAxiosInstance<ReferenceDataResponse>(
+      {url: `/api/reference-data`, method: 'GET', signal
+    },
+      options);
+    }
 
 
 
@@ -81,7 +61,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiReferenceData>>> = ({ signal }) => getApiReferenceData({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiReferenceData>>> = ({ signal }) => getApiReferenceData(requestOptions, signal);
 
 
 

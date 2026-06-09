@@ -32,6 +32,7 @@ import type {
   GetApiJobsIdHistoryParams,
   GetApiJobsParams,
   JobDeleteErrorResponse,
+  JobListItemViewModel,
   JobReportSummaryViewModel,
   UpdateJobRequest
 } from '../models';
@@ -43,37 +44,19 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type postApiJobsResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
-
-export type postApiJobsResponseSuccess = (postApiJobsResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiJobsResponse = (postApiJobsResponseSuccess)
-
-export const getPostApiJobsUrl = () => {
+export const postApiJobs = (
+    createJobRequest: CreateJobRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs`
-}
-
-export const postApiJobs = async (createJobRequest: CreateJobRequest, options?: RequestInit): Promise<postApiJobsResponse> => {
-
-  return customAxiosInstance<postApiJobsResponse>(getPostApiJobsUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(createJobRequest)
-  }
-);}
-
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/jobs`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createJobRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -118,44 +101,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiJobsMutationOptions(options), queryClient);
     }
-    export type getApiJobsResponse200 = {
-  data: void
-  status: 200
-}
+    export const getApiJobs = (
+    params?: GetApiJobsParams,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
-export type getApiJobsResponseSuccess = (getApiJobsResponse200) & {
-  headers: Headers;
-};
-;
 
-export type getApiJobsResponse = (getApiJobsResponseSuccess)
-
-export const getGetApiJobsUrl = (params?: GetApiJobsParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
+      return customAxiosInstance<JobListItemViewModel[]>(
+      {url: `/api/jobs`, method: 'GET',
+        params, signal
+    },
+      options);
     }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/jobs?${stringifiedParams}` : `/api/jobs`
-}
-
-export const getApiJobs = async (params?: GetApiJobsParams, options?: RequestInit): Promise<getApiJobsResponse> => {
-
-  return customAxiosInstance<getApiJobsResponse>(getGetApiJobsUrl(params),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
 
 
 
@@ -176,7 +133,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobs>>> = ({ signal }) => getApiJobs(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobs>>> = ({ signal }) => getApiJobs(params, requestOptions, signal);
 
 
 
@@ -231,37 +188,17 @@ export function useGetApiJobs<TData = Awaited<ReturnType<typeof getApiJobs>>, TE
 
 
 
-export type getApiJobsMyAssignedResponse200 = {
-  data: void
-  status: 200
-}
+export const getApiJobsMyAssigned = (
 
-export type getApiJobsMyAssignedResponseSuccess = (getApiJobsMyAssignedResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getApiJobsMyAssignedResponse = (getApiJobsMyAssignedResponseSuccess)
-
-export const getGetApiJobsMyAssignedUrl = () => {
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/my-assigned`
-}
-
-export const getApiJobsMyAssigned = async ( options?: RequestInit): Promise<getApiJobsMyAssignedResponse> => {
-
-  return customAxiosInstance<getApiJobsMyAssignedResponse>(getGetApiJobsMyAssignedUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
+      return customAxiosInstance<JobListItemViewModel[]>(
+      {url: `/api/jobs/my-assigned`, method: 'GET', signal
+    },
+      options);
+    }
 
 
 
@@ -282,7 +219,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobsMyAssigned>>> = ({ signal }) => getApiJobsMyAssigned({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobsMyAssigned>>> = ({ signal }) => getApiJobsMyAssigned(requestOptions, signal);
 
 
 
@@ -337,37 +274,17 @@ export function useGetApiJobsMyAssigned<TData = Awaited<ReturnType<typeof getApi
 
 
 
-export type getApiJobsIdResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
-
-export type getApiJobsIdResponseSuccess = (getApiJobsIdResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getApiJobsIdResponse = (getApiJobsIdResponseSuccess)
-
-export const getGetApiJobsIdUrl = (id: string,) => {
+export const getApiJobsId = (
+    id: string,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/${id}`
-}
-
-export const getApiJobsId = async (id: string, options?: RequestInit): Promise<getApiJobsIdResponse> => {
-
-  return customAxiosInstance<getApiJobsIdResponse>(getGetApiJobsIdUrl(id),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/jobs/${id}`, method: 'GET', signal
+    },
+      options);
+    }
 
 
 
@@ -388,7 +305,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobsId>>> = ({ signal }) => getApiJobsId(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobsId>>> = ({ signal }) => getApiJobsId(id, requestOptions, signal);
 
 
 
@@ -443,38 +360,20 @@ export function useGetApiJobsId<TData = Awaited<ReturnType<typeof getApiJobsId>>
 
 
 
-export type patchApiJobsIdResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
-
-export type patchApiJobsIdResponseSuccess = (patchApiJobsIdResponse200) & {
-  headers: Headers;
-};
-;
-
-export type patchApiJobsIdResponse = (patchApiJobsIdResponseSuccess)
-
-export const getPatchApiJobsIdUrl = (id: string,) => {
+export const patchApiJobsId = (
+    id: string,
+    updateJobRequest: UpdateJobRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/${id}`
-}
-
-export const patchApiJobsId = async (id: string,
-    updateJobRequest: UpdateJobRequest, options?: RequestInit): Promise<patchApiJobsIdResponse> => {
-
-  return customAxiosInstance<patchApiJobsIdResponse>(getPatchApiJobsIdUrl(id),
-  {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(updateJobRequest)
-  }
-);}
-
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/jobs/${id}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateJobRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -519,44 +418,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPatchApiJobsIdMutationOptions(options), queryClient);
     }
-    export type deleteApiJobsIdResponse204 = {
-  data: void
-  status: 204
-}
-
-export type deleteApiJobsIdResponse409 = {
-  data: JobDeleteErrorResponse
-  status: 409
-}
-
-export type deleteApiJobsIdResponseSuccess = (deleteApiJobsIdResponse204) & {
-  headers: Headers;
-};
-export type deleteApiJobsIdResponseError = (deleteApiJobsIdResponse409) & {
-  headers: Headers;
-};
-
-export type deleteApiJobsIdResponse = (deleteApiJobsIdResponseSuccess | deleteApiJobsIdResponseError)
-
-export const getDeleteApiJobsIdUrl = (id: string,) => {
+    export const deleteApiJobsId = (
+    id: string,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/${id}`
-}
-
-export const deleteApiJobsId = async (id: string, options?: RequestInit): Promise<deleteApiJobsIdResponse> => {
-
-  return customAxiosInstance<deleteApiJobsIdResponse>(getDeleteApiJobsIdUrl(id),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/jobs/${id}`, method: 'DELETE', signal
+    },
+      options);
+    }
 
 
 
@@ -601,46 +473,19 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getDeleteApiJobsIdMutationOptions(options), queryClient);
     }
-    export type getApiJobsIdHistoryResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
+    export const getApiJobsIdHistory = (
+    id: string,
+    params?: GetApiJobsIdHistoryParams,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
-export type getApiJobsIdHistoryResponseSuccess = (getApiJobsIdHistoryResponse200) & {
-  headers: Headers;
-};
-;
 
-export type getApiJobsIdHistoryResponse = (getApiJobsIdHistoryResponseSuccess)
-
-export const getGetApiJobsIdHistoryUrl = (id: string,
-    params?: GetApiJobsIdHistoryParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/jobs/${id}/history`, method: 'GET',
+        params, signal
+    },
+      options);
     }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/jobs/${id}/history?${stringifiedParams}` : `/api/jobs/${id}/history`
-}
-
-export const getApiJobsIdHistory = async (id: string,
-    params?: GetApiJobsIdHistoryParams, options?: RequestInit): Promise<getApiJobsIdHistoryResponse> => {
-
-  return customAxiosInstance<getApiJobsIdHistoryResponse>(getGetApiJobsIdHistoryUrl(id,params),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
 
 
 
@@ -663,7 +508,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobsIdHistory>>> = ({ signal }) => getApiJobsIdHistory(id,params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobsIdHistory>>> = ({ signal }) => getApiJobsIdHistory(id,params, requestOptions, signal);
 
 
 
@@ -722,37 +567,17 @@ export function useGetApiJobsIdHistory<TData = Awaited<ReturnType<typeof getApiJ
 
 
 
-export type getApiJobsIdReportPdfResponse200 = {
-  data: void
-  status: 200
-}
-
-export type getApiJobsIdReportPdfResponseSuccess = (getApiJobsIdReportPdfResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getApiJobsIdReportPdfResponse = (getApiJobsIdReportPdfResponseSuccess)
-
-export const getGetApiJobsIdReportPdfUrl = (id: string,) => {
+export const getApiJobsIdReportPdf = (
+    id: string,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/${id}/report/pdf`
-}
-
-export const getApiJobsIdReportPdf = async (id: string, options?: RequestInit): Promise<getApiJobsIdReportPdfResponse> => {
-
-  return customAxiosInstance<getApiJobsIdReportPdfResponse>(getGetApiJobsIdReportPdfUrl(id),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/jobs/${id}/report/pdf`, method: 'GET', signal
+    },
+      options);
+    }
 
 
 
@@ -773,7 +598,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobsIdReportPdf>>> = ({ signal }) => getApiJobsIdReportPdf(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiJobsIdReportPdf>>> = ({ signal }) => getApiJobsIdReportPdf(id, requestOptions, signal);
 
 
 
@@ -828,38 +653,20 @@ export function useGetApiJobsIdReportPdf<TData = Awaited<ReturnType<typeof getAp
 
 
 
-export type postApiJobsIdStatusResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
-
-export type postApiJobsIdStatusResponseSuccess = (postApiJobsIdStatusResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiJobsIdStatusResponse = (postApiJobsIdStatusResponseSuccess)
-
-export const getPostApiJobsIdStatusUrl = (id: string,) => {
+export const postApiJobsIdStatus = (
+    id: string,
+    changeJobStatusRequest: ChangeJobStatusRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/${id}/status`
-}
-
-export const postApiJobsIdStatus = async (id: string,
-    changeJobStatusRequest: ChangeJobStatusRequest, options?: RequestInit): Promise<postApiJobsIdStatusResponse> => {
-
-  return customAxiosInstance<postApiJobsIdStatusResponse>(getPostApiJobsIdStatusUrl(id),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(changeJobStatusRequest)
-  }
-);}
-
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/jobs/${id}/status`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: changeJobStatusRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -904,37 +711,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiJobsIdStatusMutationOptions(options), queryClient);
     }
-    export type postApiJobsIdRestoreDeletionResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
-
-export type postApiJobsIdRestoreDeletionResponseSuccess = (postApiJobsIdRestoreDeletionResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiJobsIdRestoreDeletionResponse = (postApiJobsIdRestoreDeletionResponseSuccess)
-
-export const getPostApiJobsIdRestoreDeletionUrl = (id: string,) => {
+    export const postApiJobsIdRestoreDeletion = (
+    id: string,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/${id}/restore/deletion`
-}
-
-export const postApiJobsIdRestoreDeletion = async (id: string, options?: RequestInit): Promise<postApiJobsIdRestoreDeletionResponse> => {
-
-  return customAxiosInstance<postApiJobsIdRestoreDeletionResponse>(getPostApiJobsIdRestoreDeletionUrl(id),
-  {
-    ...options,
-    method: 'POST'
-
-
-  }
-);}
-
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/jobs/${id}/restore/deletion`, method: 'POST', signal
+    },
+      options);
+    }
 
 
 
@@ -979,38 +766,20 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiJobsIdRestoreDeletionMutationOptions(options), queryClient);
     }
-    export type postApiJobsIdAssignResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
-
-export type postApiJobsIdAssignResponseSuccess = (postApiJobsIdAssignResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiJobsIdAssignResponse = (postApiJobsIdAssignResponseSuccess)
-
-export const getPostApiJobsIdAssignUrl = (id: string,) => {
+    export const postApiJobsIdAssign = (
+    id: string,
+    assignJobRequest: AssignJobRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/${id}/assign`
-}
-
-export const postApiJobsIdAssign = async (id: string,
-    assignJobRequest: AssignJobRequest, options?: RequestInit): Promise<postApiJobsIdAssignResponse> => {
-
-  return customAxiosInstance<postApiJobsIdAssignResponse>(getPostApiJobsIdAssignUrl(id),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(assignJobRequest)
-  }
-);}
-
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/jobs/${id}/assign`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: assignJobRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -1055,38 +824,20 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiJobsIdAssignMutationOptions(options), queryClient);
     }
-    export type postApiJobsIdLinksResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
-
-export type postApiJobsIdLinksResponseSuccess = (postApiJobsIdLinksResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiJobsIdLinksResponse = (postApiJobsIdLinksResponseSuccess)
-
-export const getPostApiJobsIdLinksUrl = (id: string,) => {
+    export const postApiJobsIdLinks = (
+    id: string,
+    createJobLinkRequest: CreateJobLinkRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/${id}/links`
-}
-
-export const postApiJobsIdLinks = async (id: string,
-    createJobLinkRequest: CreateJobLinkRequest, options?: RequestInit): Promise<postApiJobsIdLinksResponse> => {
-
-  return customAxiosInstance<postApiJobsIdLinksResponse>(getPostApiJobsIdLinksUrl(id),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(createJobLinkRequest)
-  }
-);}
-
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/jobs/${id}/links`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createJobLinkRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -1131,38 +882,20 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiJobsIdLinksMutationOptions(options), queryClient);
     }
-    export type deleteApiJobsIdLinksResponse200 = {
-  data: void
-  status: 200
-}
-
-export type deleteApiJobsIdLinksResponseSuccess = (deleteApiJobsIdLinksResponse200) & {
-  headers: Headers;
-};
-;
-
-export type deleteApiJobsIdLinksResponse = (deleteApiJobsIdLinksResponseSuccess)
-
-export const getDeleteApiJobsIdLinksUrl = (id: string,) => {
+    export const deleteApiJobsIdLinks = (
+    id: string,
+    deleteJobLinksRequest: DeleteJobLinksRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/jobs/${id}/links`
-}
-
-export const deleteApiJobsIdLinks = async (id: string,
-    deleteJobLinksRequest: DeleteJobLinksRequest, options?: RequestInit): Promise<deleteApiJobsIdLinksResponse> => {
-
-  return customAxiosInstance<deleteApiJobsIdLinksResponse>(getDeleteApiJobsIdLinksUrl(id),
-  {
-    ...options,
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(deleteJobLinksRequest)
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/jobs/${id}/links`, method: 'DELETE',
+      headers: {'Content-Type': 'application/json', },
+      data: deleteJobLinksRequest, signal
+    },
+      options);
+    }
 
 
 
