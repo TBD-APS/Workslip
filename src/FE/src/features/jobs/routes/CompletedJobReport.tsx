@@ -304,7 +304,7 @@ export const CompletedJobReport = () => {
             <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
           </section>
 
-          {job.status === JobStatus.InReview && (
+          {job.status === JobStatus.InReview && isAdmin && (
             <section className="detail-section">
               <div className="edit-form-bottom-actions">
                 <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
