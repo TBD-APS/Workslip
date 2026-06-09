@@ -12,19 +12,19 @@ import { useGetApiReferenceData } from '../../../api/generated/reference-data/re
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
-import { emptyForm, getUserList, isValidCreateForm } from '../utils';
+import { emptyForm, isValidCreateForm } from '../utils';
 import type { CustomerInfo, CreateJobRequest } from '../../../api/generated/models';
-import type { JobForm, ReferenceData } from '../types';
+import type { JobForm } from '../types';
 
 export function useJobCreate(onCreated: (jobId: string) => void) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
   const referenceDataQuery = useGetApiReferenceData();
-  const referenceData = (referenceDataQuery.data as ReferenceData | undefined) ?? null;
+  const referenceData = referenceDataQuery.data ?? null;
   const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
   const userEmail = user?.email ?? null;
-  const assignableUsers = useMemo(() => (isAdmin ? getUserList(usersQuery.data) : []), [isAdmin, usersQuery.data]);
+  const assignableUsers = usersQuery.data?.users ?? [];
   const defaultAssignedUserIds = useMemo(() => {
     if (!isAdmin || !userEmail) return [];
     const currentUser = assignableUsers.find((assignableUser) => assignableUser.email === userEmail);

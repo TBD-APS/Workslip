@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { ChevronRight, ClipboardList } from 'lucide-react';
 import { Checkbox } from '../../../../components/forms/Checkbox';
-import type { JobForm, ReferenceData } from '../../types';
+import type { JobForm } from '../../types';
+import type { ReferenceDataResponse } from '../../../../api/generated/models';
 
 type ControlPointsStepProps = {
   form: JobForm;
-  referenceData: ReferenceData | null;
+  referenceData: ReferenceDataResponse;
   onToggleControlPoint: (cpId: string) => void;
   onToggleCategoryIrrelevant: (typeId: string, categoryId: string) => void;
 };
@@ -40,8 +41,7 @@ export function ControlPointsStep({
     );
   }
 
-  const selectedTypes = (referenceData.installationTypes ?? [])
-    .filter((t) => form.work.categoryIds.includes(t.id));
+  const selectedTypes = referenceData.installationTypes.filter((t) => form.work.categoryIds.includes(t.id));
 
   if (selectedTypes.length === 0) {
     return (
@@ -103,7 +103,6 @@ export function ControlPointsStep({
                       key={cp.id}
                       checked={form.work.controlPointSelections[cp.id] ?? false}
                       label={cp.name}
-                      description={cp.description ?? undefined}
                       onChange={() => onToggleControlPoint(cp.id)}
                       alignRight
                     />

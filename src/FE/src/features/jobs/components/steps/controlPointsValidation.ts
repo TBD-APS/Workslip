@@ -1,13 +1,14 @@
-import type { JobForm, ReferenceData } from '../../types';
+import type { ReferenceDataResponse } from '../../../../api/generated/models';
+import type { JobForm } from '../../types';
 
 export function validateControlPoints(
   form: JobForm,
-  referenceData: ReferenceData | null,
+  referenceData: ReferenceDataResponse | null,
 ): { valid: boolean; error?: string } {
-  const selectedInstallationTypes = (referenceData?.installationTypes ?? [])
-    .filter((t) => form.work.categoryIds.includes(t.id));
 
-  for (const installationType of selectedInstallationTypes) {
+  const selectedInstallationTypes = referenceData?.installationTypes.filter((t) => form.work.categoryIds.includes(t.id));
+
+  for (const installationType of selectedInstallationTypes ?? []) {
     let hasAnyControlPoint = false;
 
     for (const cat of installationType.categories) {
@@ -15,7 +16,7 @@ export function validateControlPoints(
       const isIrrelevant = form.work.irrelevantCategoryIds.includes(compositeId);
 
       if (!isIrrelevant) {
-        const hasSelectedControlPoint = (cat.controlPoints ?? []).some(
+        const hasSelectedControlPoint = cat.controlPoints?.some(
           (cp) => form.work.controlPointSelections[cp.id],
         );
 

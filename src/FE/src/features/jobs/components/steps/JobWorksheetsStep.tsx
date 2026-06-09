@@ -5,9 +5,7 @@ import { useAuth } from '../../../../providers/useAuth';
 import { useCan } from '../../../../providers/permissions';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import { MultiSelectDropdown } from '../../../../components/forms/MultiSelectDropdown';
-import type { WorksheetResponse } from '../../../../api/generated/models';
-import type { AssignableUser } from '../../types';
-import { getUserList } from '../../utils';
+import type { UserViewModel, WorksheetResponse } from '../../../../api/generated/models';
 import { useGetApiUsers } from '../../../../api/generated/users/users';
 
 const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
@@ -57,7 +55,7 @@ type JobWorksheetsStepProps = {
   worksheets: WorksheetResponse[];
   totalHours: number | string | null;
   totalOutlay: number | string | null;
-  assignableUsers: AssignableUser[];
+  assignableUsers: UserViewModel[];
   isLoadingUsers: boolean;
   isSaving: boolean;
   isDeleting: boolean;
@@ -210,8 +208,8 @@ export function JobWorksheetsStep({
   const usersQuery = useGetApiUsers({ query: { enabled: canPickUser } });
   const resolvedUsers = useMemo(
     () => (canPickUser
-      ? (assignableUsers.length > 0 ? assignableUsers : getUserList(usersQuery.data))
-      : []),
+      ? (assignableUsers.length > 0 ? assignableUsers : null)
+      : []) ?? [],
     [canPickUser, assignableUsers, usersQuery.data],
   );
   const defaultUserId = canPickUser

@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { FileText } from 'lucide-react';
-import type { JobForm, ReferenceData } from '../../types';
+import type { JobForm } from '../../types';
+import type { ReferenceDataResponse } from '../../../../api/generated/models';
 
 type WorkCategoryStepProps = {
   form: JobForm;
-  referenceData: ReferenceData | null;
+  referenceData: ReferenceDataResponse | null;
   isLoading: boolean;
   onCategoriesChange: (categoryIds: string[]) => void;
   onWorkKindChange: (workKind: string) => void;

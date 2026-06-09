@@ -19,7 +19,7 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         {...(canAssign
           ? {
               assignment: {
-                users: details.assignableUsers,
+                users: details.assignableUsers!,
                 assignedUserIds: details.assignedUserIds,
                 isLoadingUsers: details.isLoadingUsers,
                 onAssignedUsersChange: details.updateAssignedUsers,

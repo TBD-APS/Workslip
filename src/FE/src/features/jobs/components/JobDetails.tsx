@@ -179,7 +179,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
           worksheets={details.worksheets}
           totalHours={details.job.totalHours}
           totalOutlay={details.job.totalOutlay}
-          assignableUsers={details.assignableUsers}
+          assignableUsers={details.assignableUsers!}
           isLoadingUsers={details.isLoadingUsers}
           isSaving={details.isSavingWorksheet}
           isDeleting={details.isDeletingWorksheet}

@@ -324,7 +324,7 @@ function hasText(value: string | null | undefined): value is string {
 }
 
 function getUserName(userId: string, details: JobDetailsState) {
-  return details.assignableUsers.find((user) => user.id === userId)?.displayName
+  return details.assignableUsers?.find((user) => user.id === userId)?.displayName
     ?? details.job?.assignedUsers.find((user) => user.id === userId)?.displayName
     ?? userId;
 }

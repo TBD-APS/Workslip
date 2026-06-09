@@ -1,9 +1,10 @@
 import { CheckCircle2 } from 'lucide-react';
-import type { JobForm, ReferenceData } from '../../types';
+import type { JobForm } from '../../types';
+import type { ReferenceDataResponse } from '../../../../api/generated/models';
 
 type JobCompletionStepProps = {
   form: JobForm;
-  referenceData: ReferenceData | null;
+  referenceData: ReferenceDataResponse | null;
   isLoading: boolean;
   onClosureFlagsChange: (closureFlags: string[]) => void;
   worksheetCount: number;

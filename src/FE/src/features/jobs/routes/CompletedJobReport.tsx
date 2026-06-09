@@ -313,7 +313,7 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         form={details.form}
         reportNumberReadOnly={details.reportNumberReadOnly}
         assignment={{
-          users: details.assignableUsers,
+          users: details.assignableUsers!,
           assignedUserIds: details.assignedUserIds,
           isLoadingUsers: details.isLoadingUsers,
           onAssignedUsersChange: details.updateAssignedUsers,
@@ -379,7 +379,7 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         worksheets={details.worksheets}
         totalHours={details.job.totalHours}
         totalOutlay={details.job.totalOutlay}
-        assignableUsers={details.assignableUsers}
+        assignableUsers={details.assignableUsers!}
         isLoadingUsers={details.isLoadingUsers}
         isSaving={details.isSavingWorksheet}
         isDeleting={details.isDeletingWorksheet}

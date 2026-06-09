@@ -11,6 +11,7 @@ import {
   usePostApiJobsIdLinks,
   usePostApiJobsIdStatus,
   usePatchApiJobsId,
+  useGetApiJobs,
 } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import {
@@ -25,7 +26,6 @@ import {
   emptyForm,
   getWorkValidationMessage,
   getLinkableJobs,
-  getUserList,
   isValidJobForm,
   isValidWork,
   sameForm,
@@ -67,11 +67,11 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const job = query.data;
   const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
   const referenceDataQuery = useGetApiReferenceData();
-  const jobsData = queryClient.getQueryData(getGetApiJobsQueryKey({ limit: 200 }));
-  const assignableUsers = getUserList(usersQuery.data);
-  const referenceData = referenceDataQuery.data ?? null;
+  const jobsData = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Submitted, JobStatus.Approved, JobStatus.InReview], limit: 200 });
+  const assignableUsers = usersQuery.data?.users ??  null;
+  const referenceData = referenceDataQuery.data!;
 
-  const linkableJobs = getLinkableJobs(jobsData, jobId);
+  const linkableJobs = getLinkableJobs(jobsData.data, jobId);
   const initialForm = job ? toForm(job) : null;
   const form =
     draft && draft.jobId === jobId ? draft.form : initialForm ?? emptyForm;
