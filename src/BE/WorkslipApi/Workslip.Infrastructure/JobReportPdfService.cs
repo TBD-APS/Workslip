@@ -444,7 +444,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static string StatusLabel(JobStatus status) => status switch
     {
-        JobStatus.Draft => "Kladde",
+        JobStatus.Draft => "Aktiv",
         JobStatus.InReview => "Til gennemsyn",
         JobStatus.Approved => "Godkendt",
         JobStatus.Rejected => "Returneret",

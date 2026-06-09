@@ -140,16 +140,25 @@ export const CompletedJobReport = () => {
 
   const handleApprove = async () => {
     if (!job) return;
-    await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Approved } });
-    toast.success('Sagen er godkendt');
-    navigate('/app/completed');
+    try {
+      await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.InReview } });
+      toast.success('Sagen er godkendt');
+      navigate('/app/completed');
+    }
+    catch{
+       toast.error('Kunne ikke godkende sagen. Prøv igen.');
+     }
   };
 
   const handleReject = async () => {
     if (!job) return;
+    try {
     await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
     toast.success('Sagen er afvist');
     navigate('/app/completed');
+  } catch {
+    toast.error('Kunne ikke afvise sagen. Prøv igen.');
+  }
   };
 
   if (details.isLoading) {
