@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -8,6 +9,8 @@ import type {
   JobReportSummaryViewModel,
   WorksheetResponse,
 } from '../../../api/generated/models';
+import { usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
+import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
 import { ControlPointsStep } from '../components/steps/ControlPointsStep';
@@ -42,6 +45,8 @@ export const CompletedJobReport = () => {
   const navigate = useNavigate();
   const details = useJobDetailsState(id, { autoSave: false });
   const isAdmin = useIsAdmin();
+  const queryClient = useQueryClient();
+  const statusMutation = usePostApiJobsIdStatus();
   const [isOpeningPdf, setIsOpeningPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<JobReportPdfPreview | null>(null);
@@ -123,6 +128,22 @@ export const CompletedJobReport = () => {
     setIsEditing(false);
     document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
     toast.success('Sagen er opdateret');
+  };
+
+  const handleApprove = async () => {
+    if (!job) return;
+    await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Approved } });
+    queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+    toast.success('Sagen er godkendt');
+    navigate('/app/completed');
+  };
+
+  const handleReject = async () => {
+    if (!job) return;
+    await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
+    queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+    toast.success('Sagen er afvist');
+    navigate('/app/completed');
   };
 
   if (details.isLoading) {
@@ -276,6 +297,21 @@ export const CompletedJobReport = () => {
             </div>
             <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
           </section>
+
+          {job.status === JobStatus.InReview && (
+            <section className="detail-section">
+              <div className="edit-form-bottom-actions">
+                <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
+                  <X size={18} />
+                  Afvis
+                </button>
+                <button className="btn btn-primary edit-form-bottom-btn" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
+                  {statusMutation.isPending ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
+                  {statusMutation.isPending ? 'Godkender...' : 'Godkend'}
+                </button>
+              </div>
+            </section>
+          )}
         </>
       )}
 

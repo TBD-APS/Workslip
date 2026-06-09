@@ -12,6 +12,7 @@ import { StatusFilter } from '../../../components/filters/StatusFilter';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-content';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
+const STATUS_FILTER_KEY = 'jobListStatusFilter';
 
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector(SCROLL_CONTAINER_SELECTOR);
@@ -37,7 +38,16 @@ export const JobList = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>([JobStatus.Draft, JobStatus.Submitted]);
+  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() => {
+    try {
+      const saved = sessionStorage.getItem(STATUS_FILTER_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [JobStatus.Draft, JobStatus.Submitted];
+  });
   const fetchStatuses = isAdmin
     ? [JobStatus.Draft, JobStatus.Submitted, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Archived]
     : [JobStatus.Draft, JobStatus.Submitted, JobStatus.Approved];
@@ -57,6 +67,10 @@ export const JobList = () => {
 
     return result;
   }, [allJobs, isAdmin, user?.id, selectedStatuses]);
+
+  useEffect(() => {
+    sessionStorage.setItem(STATUS_FILTER_KEY, JSON.stringify(selectedStatuses));
+  }, [selectedStatuses]);
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });

@@ -640,8 +640,8 @@
 }
 
 .status-submitted {
-  background: rgba(16, 185, 129, 0.12);
-  color: #34d399;
+  background: rgba(10, 0, 0, 0.12);
+  color: #ffffff;
 }
 
 .status-inreview {

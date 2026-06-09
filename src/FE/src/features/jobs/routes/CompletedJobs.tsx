@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronRight, FileCheck2, MapPin, Timer, User } from 'lucide-react';
@@ -29,9 +29,20 @@ export const CompletedJobs = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
+  const STATUS_FILTER_KEY = 'completedJobsStatusFilter';
+  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() => {
+    try {
+      const saved = sessionStorage.getItem(STATUS_FILTER_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [JobStatus.Submitted, JobStatus.Approved];
+  });
   const query = useGetApiJobs({ status: [JobStatus.Submitted, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Archived], limit: 200 });
   const allJobs = query.data ?? [];
-  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>([JobStatus.Submitted, JobStatus.Approved]);
+
   const jobs = useMemo(() => {
     let result = allJobs;
 
@@ -45,6 +56,14 @@ export const CompletedJobs = () => {
 
     return result;
   }, [allJobs, isAdmin, user?.id, selectedStatuses]);
+
+  useEffect(() => {
+    sessionStorage.setItem(STATUS_FILTER_KEY, JSON.stringify(selectedStatuses));
+  }, [selectedStatuses]);
+
+  useEffect(() => {
+    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
+  }, []);
 
   if (query.isLoading) {
     return (
