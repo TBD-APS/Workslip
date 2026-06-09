@@ -69,7 +69,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const referenceDataQuery = useGetApiReferenceData();
   const jobsData = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Submitted, JobStatus.Approved, JobStatus.InReview], limit: 200 });
   const assignableUsers = usersQuery.data?.users ??  null;
-  const referenceData = referenceDataQuery.data ?? null;
+  const referenceData = referenceDataQuery.data!;
 
   const linkableJobs = getLinkableJobs(jobsData.data, jobId);
   const initialForm = job ? toForm(job) : null;
