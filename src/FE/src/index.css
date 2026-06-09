@@ -134,6 +134,11 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
 }
 
 .logo-icon {
