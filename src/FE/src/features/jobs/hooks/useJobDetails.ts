@@ -25,7 +25,6 @@ import {
   emptyForm,
   getWorkValidationMessage,
   getLinkableJobs,
-  getResponseData,
   getUserList,
   isValidJobForm,
   isValidWork,
@@ -35,8 +34,8 @@ import {
   toNullable,
   toUpdateRequest,
 } from '../utils';
-import type { CustomerInfo, JobReportSummaryViewModel } from '../../../api/generated/models';
-import type { JobForm, ReferenceData } from '../types';
+import type { CustomerInfo } from '../../../api/generated/models';
+import type { JobForm } from '../types';
 
 type JobDetailsDraft = { jobId: string; form: JobForm };
 type AssignmentDraft = { jobId: string; userIds: string[] };
@@ -65,14 +64,12 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     query: { enabled: Boolean(jobId) },
   });
   
-  const job = getResponseData<JobReportSummaryViewModel>(query.data);
+  const job = query.data;
   const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
   const referenceDataQuery = useGetApiReferenceData();
   const jobsData = queryClient.getQueryData(getGetApiJobsQueryKey({ limit: 200 }));
   const assignableUsers = getUserList(usersQuery.data);
-  const referenceData = getResponseData<ReferenceData>(
-    referenceDataQuery.data as ReferenceData | { data: ReferenceData } | { data: { data: ReferenceData } } | undefined,
-  ) ?? null;
+  const referenceData = referenceDataQuery.data ?? null;
 
   const linkableJobs = getLinkableJobs(jobsData, jobId);
   const initialForm = job ? toForm(job) : null;
@@ -94,7 +91,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
         const currentDraft = draftRef.current;
-        const newInitialForm = toForm(data.data);
+        const newInitialForm = toForm(data);
         if (currentDraft && !sameFormWithoutWork(newInitialForm, currentDraft.form)) {
           setDraft(currentDraft);
         } else {

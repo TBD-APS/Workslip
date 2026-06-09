@@ -1,19 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronRight, Mail, Shield } from 'lucide-react';
 import { useGetApiUsers } from '../../../api/generated/users/users';
-import { getResponseData } from '../../../lib/unwrapResponse';
-
-type UserViewModel = {
-  id: string;
-  displayName: string;
-  email: string;
-  role: string;
-};
-
-type UserListViewModel = {
-  users: UserViewModel[];
-  total: number;
-};
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -28,7 +15,7 @@ const SkeletonCard = () => (
 export const UserList = () => {
   const navigate = useNavigate();
   const query = useGetApiUsers();
-  const data = getResponseData<UserListViewModel>(query.data);
+  const data = query.data;
   const users = data?.users ?? [];
 
   if (query.isLoading) {

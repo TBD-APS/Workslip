@@ -2,9 +2,9 @@ import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
+import { type JobListItemViewModel } from '../../../api/generated/models';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
-import { JobStatus, type AssignedUserResponse, type CustomerInfo } from '../../../api/generated/models';
-import { getResponseData } from '../utils';
+import { JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
@@ -15,18 +15,6 @@ const SCROLL_STORAGE_KEY = 'jobListScrollTop';
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector(SCROLL_CONTAINER_SELECTOR);
 }
-
-type JobListItemViewModel = {
-  id: string;
-  organizationId: string;
-  customer: CustomerInfo | null;
-  reportNumber: string | null;
-  status: JobStatus;
-  installationTypes: string[];
-  assignedUsers: AssignedUserResponse[];
-  softDeleted: boolean;
-  totalHours: number | null;
-};
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -49,11 +37,16 @@ export const JobList = () => {
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
   const query = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Submitted], limit: 200 });
-  const allJobs = getJobListItems(query.data);
+  const allJobs = query.data ?? [];
+
   const jobs = useMemo(() => {
-    if (isAdmin) return allJobs;
+    if (isAdmin) 
+      return allJobs;
+    
     const currentUserId = user?.id;
-    if (!currentUserId) return [];
+
+    if (!currentUserId) 
+      return [];
     return allJobs.filter((job) => job.assignedUsers.some((u) => u.id === currentUserId));
   }, [allJobs, isAdmin, user?.id]);
 
@@ -156,7 +149,7 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
         <span className="meta-item">{formatInstallationTypes(job.installationTypes)}</span>
         {job.totalHours != null && (
           <span className="meta-item meta-hours">
-            <Timer size={14} /> {job.totalHours} t
+            <Timer size={14} /> {job.totalHours} 
           </span>
         )}
       </div>
@@ -192,11 +185,6 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
       {users.length > 2 && <span className="assigned-user">+{users.length - 2}</span>}
     </div>
   );
-}
-
-function getJobListItems(value: unknown): JobListItemViewModel[] {
-  const data = getResponseData(value);
-  return Array.isArray(data) ? data as JobListItemViewModel[] : [];
 }
 
 function formatInstallationTypes(installationTypes: string[]) {

@@ -12,7 +12,7 @@ import { useGetApiReferenceData } from '../../../api/generated/reference-data/re
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
-import { emptyForm, getResponseData, getUserList, isValidCreateForm } from '../utils';
+import { emptyForm, getUserList, isValidCreateForm } from '../utils';
 import type { CustomerInfo, CreateJobRequest } from '../../../api/generated/models';
 import type { JobForm, ReferenceData } from '../types';
 
@@ -21,9 +21,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
   const referenceDataQuery = useGetApiReferenceData();
-  const referenceData = getResponseData<ReferenceData>(
-    referenceDataQuery.data as ReferenceData | { data: ReferenceData } | { data: { data: ReferenceData } } | undefined,
-  ) ?? null;
+  const referenceData = (referenceDataQuery.data as ReferenceData | undefined) ?? null;
   const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
   const userEmail = user?.email ?? null;
   const assignableUsers = useMemo(() => (isAdmin ? getUserList(usersQuery.data) : []), [isAdmin, usersQuery.data]);
@@ -42,7 +40,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   const createMutation = usePostApiJobs({
     mutation: {
       onSuccess: (response) => {
-        const jobId = (response.data as unknown as { id: string }).id;
+        const jobId = response.id;
 
         const promises: Promise<unknown>[] = [];
 

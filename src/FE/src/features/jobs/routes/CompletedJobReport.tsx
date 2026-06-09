@@ -29,7 +29,6 @@ type SelectedControlPoint = {
   installationType: string;
   category: string;
   name: string;
-  description: string | null;
 };
 
 type IrrelevantCategory = {
@@ -515,7 +514,6 @@ function ControlPointOverview({
               <span className="attestation-control-accent" aria-hidden="true" />
               <span>{controlPoint.name}</span>
               <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
-              {controlPoint.description && <small>{controlPoint.description}</small>}
             </li>
           ))}
         </ul>
@@ -547,8 +545,7 @@ function getSelectedControlPoints(installationTypes: InstallationTypeResponse[])
           id: controlPoint.id,
           installationType: installationType.name,
           category: category.name,
-          name: controlPoint.name,
-          description: controlPoint.description,
+          name: controlPoint.name
         })),
     ),
   );

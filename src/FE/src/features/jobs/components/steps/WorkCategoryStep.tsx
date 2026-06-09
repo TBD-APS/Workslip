@@ -11,7 +11,8 @@ type WorkCategoryStepProps = {
   onCustomWorkKindChange: (customWorkKind: string) => void;
 };
 
-export function WorkCategoryStep({
+export function WorkCategoryStep(
+{
   form,
   referenceData,
   isLoading,

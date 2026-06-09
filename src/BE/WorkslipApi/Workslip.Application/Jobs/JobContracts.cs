@@ -112,7 +112,6 @@ public sealed record InstallationTypeCategoryResponse(
 public sealed record InstallationTypeResponse(
     Guid Id,
     string Name,
-    string? Description,
     int SortOrder,
     IReadOnlyList<InstallationTypeCategoryResponse> Categories);
 

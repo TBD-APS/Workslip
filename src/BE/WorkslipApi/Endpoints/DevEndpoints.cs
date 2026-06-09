@@ -27,7 +27,7 @@ public static class DevEndpoints
 
             var response = JwtHelper.GenerateToken(authUser, configuration);
             return Results.Ok(response);
-        }).AllowAnonymous();
+        }).Produces<AuthTokenResponse?>().AllowAnonymous();
 
 
         group.MapGet("/debug", (HttpContext httpContext, ICurrentUserContext currentUser) =>

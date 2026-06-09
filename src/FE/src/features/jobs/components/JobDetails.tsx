@@ -118,8 +118,8 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   ]);
   const completedSteps = [
     isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly }),
-    isValidWork(details.form, details.referenceData),
-    validateControlPoints(details.form, details.referenceData).valid,
+    isValidWork(details.form, details.referenceData!),
+    validateControlPoints(details.form, details.referenceData!).valid,
     details.worksheets.length > 0,
   ];
   const handleStepChange = (nextStep: number) => {
@@ -167,7 +167,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       {details.currentStep === 2 && (
         <ControlPointsStep
           form={details.form}
-          referenceData={details.referenceData}
+          referenceData={details.referenceData!}
           onToggleControlPoint={details.toggleControlPoint}
           onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
         />
@@ -191,7 +191,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       {details.currentStep === 4 && (
         <JobCompletionStep
           form={details.form}
-          referenceData={details.referenceData}
+          referenceData={details.referenceData!}
           isLoading={details.isLoadingReferenceData}
           onClosureFlagsChange={details.updateClosureFlags}
           worksheetCount={details.worksheets.length}
@@ -231,7 +231,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         onNext={() => {
           // Validate control points step
           if (details.currentStep === 2) {
-            const validation = validateControlPoints(details.form, details.referenceData);
+            const validation = validateControlPoints(details.form, details.referenceData!);
             if (!validation.valid) {
               toast.error(validation.error || 'Venligst validér kontrolpunkterne');
               return;
@@ -255,11 +255,11 @@ function canAdvanceCurrentStep(details: JobDetailsState) {
   }
 
   if (details.currentStep === 1) {
-    return isValidWork(details.form, details.referenceData);
+    return isValidWork(details.form, details.referenceData!);
   }
 
   if (details.currentStep === 2) {
-    return validateControlPoints(details.form, details.referenceData).valid;
+    return validateControlPoints(details.form, details.referenceData!).valid;
   }
 
   if (details.currentStep === 3) {
@@ -284,7 +284,7 @@ function getNextDisabledReason(details: JobDetailsState): string {
     case 1:
       return 'Vælg mindst én arbejdskategori og et arbejdsslag før du fortsætter.';
     case 2: {
-      const validation = validateControlPoints(details.form, details.referenceData);
+      const validation = validateControlPoints(details.form, details.referenceData!);
       return validation.error ?? 'Kontrolpunkter kræver din handling før du fortsætter.';
     }
     case 3:

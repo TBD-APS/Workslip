@@ -3,8 +3,6 @@ import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
 import { getGetApiAuthMeQueryKey, useGetApiAuthMe } from '../api/generated/auth/auth';
-import type { UserViewModel } from '../api/generated/models';
-import { getResponseData } from '../lib/unwrapResponse';
 import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY } from './authContextValue';
 
 
@@ -20,7 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const user = getResponseData<UserViewModel>(meQuery.data) ?? null;
+  const user = meQuery.data ?? null;
   const isAuthenticated = Boolean(authToken) && Boolean(user);
   const isLoading = Boolean(authToken) && meQuery.isPending;
 

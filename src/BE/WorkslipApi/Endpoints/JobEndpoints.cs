@@ -38,7 +38,7 @@ public static class JobEndpoints
            return CachedOk(result, httpContext,
                 jobs => HttpCacheHeaders.JobListEtag(jobs, currentUser.OrganizationId!.Value, statusList, reportNumber, customerName, customerEmail, customerAddress, limit, offset),
                 jobs => jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
-        });
+        }).Produces<List<JobListItemViewModel>>();
 
         group.MapGet("/my-assigned", async (HttpContext httpContext, ICurrentUserContext currentUser, IJobService service, CancellationToken cancellationToken) =>
         {
@@ -46,7 +46,7 @@ public static class JobEndpoints
             return CachedOk(result, httpContext,
                 jobs => HttpCacheHeaders.JobAssignedEtag(jobs, currentUser.OrganizationId!.Value),
                 jobs => jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
-        });
+        }).Produces<List<JobListItemViewModel>>();
 
         group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {

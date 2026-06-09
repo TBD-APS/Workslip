@@ -7,8 +7,6 @@ import type {
 import { validateEmail, validatePhoneNumber } from '../../components/forms/validators';
 import type { AssignableUser, JobForm, LinkableJob, ReferenceData } from './types';
 
-type UserViewModel = { id: string; displayName: string; email: string };
-type UserListViewModel = { users: UserViewModel[] };
 type JobListItemViewModel = {
   id: string;
   reportNumber: string | null;
@@ -41,22 +39,10 @@ export const emptyForm: JobForm = {
   },
 };
 
-import { getResponseData } from '../../lib/unwrapResponse';
-
-export { getResponseData };
-
 export function getUserList(value: unknown): AssignableUser[] {
-  const data = getResponseData<
-    UserListViewModel | UserViewModel[]
-  >(
-    value as
-      | UserListViewModel
-      | UserViewModel[]
-      | { data: UserListViewModel | UserViewModel[] }
-      | undefined,
-  );
-  const users = Array.isArray(data) ? data : data?.users ?? [];
-  return users.map((user) => ({
+  const data = (value as { data?: unknown })?.data;
+  const users = Array.isArray(data) ? data : (data as any)?.users ?? [];
+  return users.map((user: any) => ({
     id: user.id,
     displayName: user.displayName,
     email: user.email,
@@ -67,13 +53,8 @@ export function getLinkableJobs(
   value: unknown,
   currentJobId: string | undefined,
 ): LinkableJob[] {
-  const data = getResponseData<JobListItemViewModel[]>(
-    value as
-      | JobListItemViewModel[]
-      | { data: JobListItemViewModel[] }
-      | undefined,
-  );
-  const jobs = Array.isArray(data) ? data : [];
+  const data = (value as { data?: unknown })?.data;
+  const jobs = Array.isArray(data) ? data as JobListItemViewModel[] : [];
 
   return jobs
     .filter((job) => job.id !== currentJobId)

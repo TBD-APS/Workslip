@@ -5,7 +5,7 @@ import type { AxiosRequestConfig } from "axios";
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 
 export const AXIOS_INSTANCE = axios.create({
-  baseURL: normalizeApiBaseUrl(apiBaseUrl),
+  baseURL: apiBaseUrl,
    paramsSerializer: {
     serialize: (params) =>
       qs.stringify(params, {
@@ -38,16 +38,12 @@ AXIOS_INSTANCE.interceptors.response.use(
 
 export const customAxiosInstance = async <T>(
   config: AxiosRequestConfig,
+  options?: AxiosRequestConfig,
 ): Promise<T> => {
-  const response = await AXIOS_INSTANCE.request<T>(config);
+  const response = await AXIOS_INSTANCE.request<T>({
+    ...config,
+    ...options,
+  });
 
-  return {
-    data: response.data,
-    status: response.status,
-    headers: response.headers,
-  } as T;
+  return response.data;
 };
-
-function normalizeApiBaseUrl(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, "").replace(/\/api$/i, "");
-}

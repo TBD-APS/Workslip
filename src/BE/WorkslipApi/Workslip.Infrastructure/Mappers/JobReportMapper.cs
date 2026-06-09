@@ -82,8 +82,7 @@ public static class JobReportMapper
             .ToListAsync(cancellationToken);
 
         return installations.Select(i => new InstallationTypeResponse(
-            i.DefId, i.DefName, null, i.SortOrder,
-            i.Categories.Select(c => new InstallationTypeCategoryResponse(
+            i.DefId, i.DefName, i.SortOrder, i.Categories.Select(c => new InstallationTypeCategoryResponse(
                 c.CatId, c.CatName, c.SortOrder,
                 c.ControlPoints.Select(cp => new InstallationTypeControlPointResponse(
                     cp.Id, cp.Name, cp.SortOrder, cp.IsRequired, cp.IsChecked

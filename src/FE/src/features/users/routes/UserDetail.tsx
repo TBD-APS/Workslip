@@ -17,28 +17,9 @@ import {
 } from 'lucide-react';
 import { useGetApiUsersId, getGetApiUsersIdQueryKey } from '../../../api/generated/users/users';
 import { useGetApiJobs, usePostApiJobsIdAssign } from '../../../api/generated/jobs/jobs';
-import { getResponseData } from '../../../lib/unwrapResponse';
 import { formatDate } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
 
-type AssignedJob = {
-  reportId: string;
-  reportNumber: string | null;
-  status: string;
-  updatedAt: string;
-  customerName: string | null;
-  customerEmail: string | null;
-  customerAddress: string | null;
-};
-
-type UserDetailViewModel = {
-  id: string;
-  displayName: string;
-  email: string;
-  role: string;
-  assignedJobs: AssignedJob[];
-  totalHours: number | null;
-};
 
 type SearchResult = {
   id: string;
@@ -61,7 +42,7 @@ export const UserDetail = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = useGetApiUsersId(id!);
-  const user = getResponseData<UserDetailViewModel>(query.data);
+  const user = query.data;
 
   const [searchValue, setSearchValue] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -84,8 +65,8 @@ export const UserDetail = () => {
   );
 
   const searchResults: SearchResult[] = useMemo(() => {
-    const data = getResponseData<SearchResult[]>(searchQuery.data);
-    return Array.isArray(data) ? data : [];
+    const responseData = (searchQuery.data);
+    return Array.isArray(responseData) ? responseData as SearchResult[] : [];
   }, [searchQuery.data]);
 
   const assignMutation = usePostApiJobsIdAssign({

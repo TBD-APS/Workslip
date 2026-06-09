@@ -4,26 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronRight, FileCheck2, MapPin, Timer, User } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
-import type { AssignedUserResponse, CustomerInfo } from '../../../api/generated/models';
+import type { AssignedUserResponse, JobListItemViewModel } from '../../../api/generated/models';
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
-import { getResponseData } from '../utils';
 import { formatJobStatus } from '../statusLabels';
-
-type CompletedJobListItemViewModel = {
-  id: string;
-  organizationId: string;
-  customer: CustomerInfo | null;
-  reportNumber: string | null;
-  status: JobStatus;
-  reportDate: string | null;
-  submittedAt: string | null;
-  installationTypes: string[];
-  assignedUsers: AssignedUserResponse[];
-  totalHours: number | null;
-};
-
-const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 
 const CompletedJobSkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -44,8 +28,8 @@ export const CompletedJobs = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const query = useGetApiJobs({ status: JobStatus.Submitted, limit: 200 });
-  const allJobs = getCompletedJobListItems(query.data);
+  const query = useGetApiJobs({ status: [JobStatus.InReview, JobStatus.Submitted, JobStatus.Approved, JobStatus.Approved], limit: 200 });
+  const allJobs = query.data ?? [];
   const jobs = useMemo(() => {
     const submittedJobs = allJobs.filter((job) => job.status === JobStatus.Submitted);
     if (isAdmin) return submittedJobs;
@@ -120,7 +104,7 @@ function CompletedJobCard({
   job,
   onOpen,
 }: {
-  job: CompletedJobListItemViewModel;
+  job: JobListItemViewModel;
   onOpen: () => void;
 }) {
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -149,7 +133,6 @@ function CompletedJobCard({
 
       <div className="job-card-meta">
         <span className="meta-item">{formatInstallationTypes(job.installationTypes)}</span>
-        {job.submittedAt && <span className="meta-item">Indsendt {formatDate(job.submittedAt)}</span>}
         {job.totalHours != null && (
           <span className="meta-item meta-hours">
             <Timer size={14} /> {job.totalHours} t
@@ -190,19 +173,8 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
   );
 }
 
-function getCompletedJobListItems(value: unknown): CompletedJobListItemViewModel[] {
-  const data = getResponseData(value);
-  return Array.isArray(data) ? data as CompletedJobListItemViewModel[] : [];
-}
-
 function formatInstallationTypes(installationTypes: string[]) {
   if (installationTypes.length === 0) return 'Ingen installationstype';
   if (installationTypes.length === 1) return installationTypes[0];
   return `${installationTypes[0]} +${installationTypes.length - 1}`;
-}
-
-function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return DATE_FORMATTER.format(date);
 }

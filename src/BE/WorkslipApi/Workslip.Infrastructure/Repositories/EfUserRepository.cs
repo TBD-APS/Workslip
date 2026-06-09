@@ -17,11 +17,12 @@ public sealed class EfUserRepository : IUserRepository
         _currentUser = currentUser;
     }
 
-    public async Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        await _dbContext.Users
+    public async Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);
-
+            .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);   
+    }
     public async Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) =>
         await _dbContext.Users
             .AsNoTracking()
