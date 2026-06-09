@@ -11,6 +11,7 @@ import type {
 import { usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
+import { useAuth } from '../../../providers/useAuth';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
 import { ControlPointsStep } from '../components/steps/ControlPointsStep';
 import { JobCompletionStep } from '../components/steps/JobCompletionStep';
@@ -44,6 +45,7 @@ export const CompletedJobReport = () => {
   const navigate = useNavigate();
   const details = useJobDetailsState(id, { autoSave: false });
   const isAdmin = useIsAdmin();
+  const { user } = useAuth();
   const statusMutation = usePostApiJobsIdStatus();
   const [isOpeningPdf, setIsOpeningPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -53,8 +55,14 @@ export const CompletedJobReport = () => {
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const sortedWorksheets = useMemo(
-    () => [...(job?.worksheets ?? [])].sort((left, right) => right.workDate.localeCompare(left.workDate)),
-    [job?.worksheets],
+    () => {
+      const allWorksheets = [...(job?.worksheets ?? [])].sort((left, right) => right.workDate.localeCompare(left.workDate));
+      if (!isAdmin && user?.id) {
+        return allWorksheets.filter((ws) => ws.userId === user.id);
+      }
+      return allWorksheets;
+    },
+    [job?.worksheets, isAdmin, user?.id],
   );
 
   useEffect(() => {
@@ -169,7 +177,7 @@ export const CompletedJobReport = () => {
 
   const summaryPairs = compactPairs([
     { label: 'Sagsnummer', value: formatReportNumber(job) },
-    { label: 'Status', value: formatJobStatus(job.status) },
+    { label: 'Status', value: formatJobStatus(job.status)},
     { label: 'Rapportdato', value: formatDate(job.observations.reportDate) },
     { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
@@ -211,9 +219,11 @@ export const CompletedJobReport = () => {
               </button>
             </>
           ) : (
-            <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} disabled={!isAdmin} aria-label="Rediger sag" title={isAdmin ? 'Rediger sag' : 'Kun admins kan redigere afsluttede sager'}>
-              <Pencil size={16} />
-            </button>
+            isAdmin && (
+              <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} aria-label="Rediger sag">
+                <Pencil size={16} />
+              </button>
+            )
           )}
           <button className={`btn btn-secondary report-overview-icon-action ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" disabled aria-label="Versioner" title="Versioner kommer senere">
             <History size={16} />

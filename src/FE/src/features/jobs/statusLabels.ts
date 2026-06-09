@@ -1,11 +1,13 @@
 import type { JobStatus } from '../../api/generated/models/jobStatus';
 
-const JOB_STATUS_LABELS = {
+const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   Draft: 'Kladde',
+  Submitted: 'Indsendt',
   InReview: 'Til gennemsyn',
   Approved: 'Godkendt',
   Rejected: 'Afvist',
-} as const satisfies Record<JobStatus, string>;
+  Archived: 'Arkiveret',
+} as const;
 
 export function formatJobStatus<TStatus extends JobStatus>(status: TStatus): (typeof JOB_STATUS_LABELS)[TStatus];
 export function formatJobStatus(status: string): string;

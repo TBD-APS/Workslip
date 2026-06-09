@@ -303,6 +303,22 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
+        var job = await _jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
+        var referenceData = await referenceDataRepository.GetAsync(organizationId.Value, cancellationToken);
+
+        if (job is null)
+        {
+            logger.LogWarning("Job submit returned not found. JobId: {JobId} with orgId {OrgId}.", job.Id, organizationId.Value);
+            return Result<JobReportSummaryResponse>.NotFound();
+        }
+
+        var isValidResponse = new JobValidationService(logger).ValidateSubmitReady(job, referenceData);
+
+        if (!isValidResponse.IsSuccess)
+        {
+            return isValidResponse;
+        }
+
         return await TransitionAsync(id, request.Status, cancellationToken);
     }
 
@@ -762,14 +778,6 @@ public sealed class JobService(
         logger.LogInformation(
             "Job updated. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKindId: {WorkKindId}. InstallationTypeCount: {InstallationTypeCount}.",
             job.Id, job.OrganizationId, job.Status, job.ReportNumber, job.WorkKind?.Id, job.InstallationTypes.Count);
-
-    private static void AddRequired(List<ValidationError> errors, string identifier, string? value, string message)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            errors.Add(new ValidationError { Identifier = identifier, ErrorMessage = message });
-        }
-    }
 
     private async Task InvalidateJobCachesAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {

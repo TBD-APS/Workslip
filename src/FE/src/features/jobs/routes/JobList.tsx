@@ -13,6 +13,9 @@ import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection }
 const SCROLL_CONTAINER_SELECTOR = '.app-content';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
 
+const isCompletedStatus = (status: JobStatus) =>
+  status === JobStatus.InReview || status === JobStatus.Approved || status === JobStatus.Rejected;
+
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector(SCROLL_CONTAINER_SELECTOR);
 }
@@ -161,7 +164,7 @@ export const JobList = () => {
 
       <div className="job-list">
         {jobs.map((job) => (
-          <JobCard key={job.id} job={job} onOpen={() => navigate(`/app/job/${job.id}`)} />
+          <JobCard key={job.id} job={job} onOpen={() => navigate(isCompletedStatus(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`)} />
         ))}
 
         {jobs.length === 0 && (

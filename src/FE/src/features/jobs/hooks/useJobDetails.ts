@@ -68,7 +68,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
   const referenceDataQuery = useGetApiReferenceData();
   const jobsData = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 });
-  const assignableUsers = usersQuery.data?.users ??  null;
+  const assignableUsers = usersQuery.data?.users ?? [];
   const referenceData = referenceDataQuery.data!;
 
   const linkableJobs = getLinkableJobs(jobsData.data, jobId);
