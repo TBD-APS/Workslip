@@ -223,7 +223,7 @@ public sealed class JobInstallationSelectionValidatorTests
             [
                 new DefinitionCategoryResponse(allowedCategoryId, "Modtagekontrol", 1,
                 [
-                    new DefinitionControlPointResponse(allowedControlPointId, "Rør og fittings", null, 1, true)
+                    new DefinitionControlPointResponse(allowedControlPointId, "Rør og fittings", 1, true)
                 ])
             ])
         ], [], []);

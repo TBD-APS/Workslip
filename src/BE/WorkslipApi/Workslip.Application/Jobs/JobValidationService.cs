@@ -12,16 +12,16 @@ namespace Workslip.Application.Jobs
             _logger = logger;
         }
 
-        public Result<JobReportSummaryResponse> ValidateSubmitReady(JobReportResponse job, ReferenceDataResponse refData)
+        public Result ValidateSubmitReady(JobReportResponse job, ReferenceDataResponse refData)
         {
             var validationErrors = ValidateReadyForSubmission(job, refData);
             if (validationErrors.Count == 0)
-                return Result<JobReportSummaryResponse>.Success(null);
+                return Result.Success();
 
             _logger.LogWarning("Job submit validation failed. JobId: {JobId}. Fields: {ValidationFields}",
                 job.Id, ValidationFields(validationErrors));
 
-            return Result<JobReportSummaryResponse>.Invalid(validationErrors);
+            return Result.Invalid(validationErrors);
         }
 
         private static List<ValidationError> ValidateReadyForSubmission(JobReportResponse report, ReferenceDataResponse referenceData)
