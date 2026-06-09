@@ -2424,7 +2424,7 @@ output ACS_SENDER_ADDRESS string               = 'DoNotReply@${emailDomain.prope
             "appConfigValues": {
               "Azure:AdOAuth:TenantId": "[tenant().tenantId]",
               "Azure:AdOAuth:Instance": "https://login.microsoftonline.com/",
-              "Azure:AdOAuth:Domain": "rasmusvm6hotmail.onmicrosoft.com",
+              "Azure:AdOAuth:Domain": "rasmusbp15.onmicrosoft.com",
               "Jwt:Issuer": "WorkslipApiLocal",
               "Jwt:Audience": "WorkslipClientLocal",
               "Authorization:Policies:RequireSuperadmin": "SuperAdmin",
@@ -3104,7 +3104,7 @@ var appConfigValues = {
   //OAuth
   'Azure:AdOAuth:TenantId': tenant().tenantId
   'Azure:AdOAuth:Instance': 'https://login.microsoftonline.com/'
-  'Azure:AdOAuth:Domain': 'rasmusvm6hotmail.onmicrosoft.com'
+  'Azure:AdOAuth:Domain': 'rasmusbp15.onmicrosoft.com'
   
   //LocalJwt
   'Jwt:Issuer': 'WorkslipApiLocal'

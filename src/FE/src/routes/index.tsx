@@ -44,7 +44,7 @@ export const AppRoutes = () => {
         { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
         { path: 'job/:id', element: <JobDetail /> },
         { path: 'completed', element: <RoleGuard permission="job:viewAll"><CompletedJobs /></RoleGuard> },
-        { path: 'completed/:id', element: <RoleGuard permission="job:viewAll"><CompletedJobReport /></RoleGuard> },
+        { path: 'completed/:id', element: <CompletedJobReport /> },
         { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
         { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
         // { path: 'settings', element: <Settings /> },

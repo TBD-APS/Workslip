@@ -7,8 +7,8 @@ public sealed class ChangeJobStatusRequestValidator : AbstractValidator<ChangeJo
 {
     private static readonly HashSet<JobStatus> AllowedStatuses =
     [
-        JobStatus.Submitted,
-        JobStatus.Approved,
+        JobStatus.Draft,
+        JobStatus.InReview,
         JobStatus.Rejected
     ];
 

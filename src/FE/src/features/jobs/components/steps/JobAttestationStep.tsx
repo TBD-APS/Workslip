@@ -1,4 +1,5 @@
 import { AlertCircle, CheckCircle2, Clock, FileCheck2, Loader2, ShieldCheck } from 'lucide-react';
+import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
@@ -25,9 +26,9 @@ export function JobAttestationStep({
   const job = details.job;
   if (!job) return null;
 
-  const isSubmitted = job.status === 'Submitted';
+  const isInReview = job.status === JobStatus.InReview;
   const isSavingDraft = details.saveStatus === 'saving';
-  const confirmationDisabled = isSubmitted || details.isSubmittingJob || isSavingDraft;
+  const confirmationDisabled = isInReview || details.isSubmittingJob || isSavingDraft;
   const sortedWorksheets = [...details.worksheets].sort((left, right) => right.workDate.localeCompare(left.workDate));
   const selectedControlPoints = job.work.installationTypes.flatMap((installationType) =>
     installationType.categories.flatMap((category) =>
@@ -94,12 +95,12 @@ export function JobAttestationStep({
           <h3>Digital attestering</h3>
         </div>
 
-        <div className={isSubmitted ? 'attestation-status submitted' : 'attestation-status'}>
-          {isSubmitted ? <CheckCircle2 size={20} /> : <Clock size={20} />}
+        <div className={isInReview ? 'attestation-status submitted' : 'attestation-status'}>
+          {isInReview ? <CheckCircle2 size={20} /> : <Clock size={20} />}
           <div>
-            <span className="attestation-status-title">{isSubmitted ? 'Sagen er attesteret' : 'Klar til attestering'}</span>
+            <span className="attestation-status-title">{isInReview ? 'Sagen er attesteret' : 'Klar til attestering'}</span>
             <span>
-              {isSubmitted
+              {isInReview
                 ? 'Backend har registreret sagen som indsendt.'
                 : 'Tjek de valgte oplysninger, timesedler og kontrolpunkter før indsendelse.'}
             </span>
@@ -253,7 +254,7 @@ export function JobAttestationStep({
             </div>
           </div>
 
-          <label className={`attestation-confirm-row${confirmed || isSubmitted ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
+          <label className={`attestation-confirm-row${confirmed || isInReview ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
             <span className="attestation-confirm-copy">
               <span className="attestation-confirm-label">
                 Jeg bekræfter, at sagen er gennemgået og klar til indsendelse
@@ -264,13 +265,13 @@ export function JobAttestationStep({
             </span>
             <input
               type="checkbox"
-              checked={confirmed || isSubmitted}
+              checked={confirmed || isInReview}
               disabled={confirmationDisabled}
               onChange={(event) => onConfirmedChange(event.target.checked)}
             />
           </label>
 
-          {isSubmitted ? (
+          {isInReview ? (
             <div className="attestation-submitted-badge" role="status" aria-live="polite">
               <CheckCircle2 size={20} aria-hidden="true" />
               <div>
