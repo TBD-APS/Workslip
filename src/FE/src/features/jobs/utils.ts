@@ -41,11 +41,14 @@ export const emptyForm: JobForm = {
 };
 
 export function getLinkableJobs(
-  value: unknown,
+  value: JobListItemViewModel[] | undefined,
   currentJobId: string | undefined,
 ): LinkableJob[] {
-  const data = value;
-  const jobs = Array.isArray(data) ? data as JobListItemViewModel[] : [];
+
+  if(value === null || value === undefined)
+    return [];
+
+  const jobs = value;
 
   return jobs
     .filter((job) => job.id !== currentJobId)
