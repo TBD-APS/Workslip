@@ -1,4 +1,5 @@
 import { apiClient } from '../../../lib/axios';
+import { type AuthTokenResponse } from '../../../api/generated/models';
 
 export interface AuthUserResponse {
   userId: string;
@@ -6,13 +7,6 @@ export interface AuthUserResponse {
   email: string;
   displayName: string;
   role: string;
-}
-
-export interface DevTokenResponse {
-  token: string;
-  tokenType: string;
-  expiresIn: number;
-  user: AuthUserResponse;
 }
 
 export interface AuthCodeResponse {
@@ -26,7 +20,7 @@ export interface DevTokenRequest {
   email: string;
 }
 
-export const getDevToken = async (email: string): Promise<DevTokenResponse> => {
+export const getDevToken = async (email: string): Promise<AuthTokenResponse> => {
   return apiClient.post('/dev/token', { email });
 };
 

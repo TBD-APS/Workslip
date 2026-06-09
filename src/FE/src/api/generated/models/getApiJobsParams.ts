@@ -7,7 +7,7 @@
 import type { JobStatus } from './jobStatus';
 
 export type GetApiJobsParams = {
-status?: JobStatus;
+status?: JobStatus[];
 reportNumber?: string;
 customerName?: string;
 customerEmail?: string;

@@ -24,6 +24,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AuthTokenResponse,
   DevTokenRequest
 } from '../models';
 
@@ -34,37 +35,19 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type postApiDevTokenResponse200 = {
-  data: void
-  status: 200
-}
-
-export type postApiDevTokenResponseSuccess = (postApiDevTokenResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiDevTokenResponse = (postApiDevTokenResponseSuccess)
-
-export const getPostApiDevTokenUrl = () => {
+export const postApiDevToken = (
+    devTokenRequest: DevTokenRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/dev/token`
-}
-
-export const postApiDevToken = async (devTokenRequest: DevTokenRequest, options?: RequestInit): Promise<postApiDevTokenResponse> => {
-
-  return customAxiosInstance<postApiDevTokenResponse>(getPostApiDevTokenUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(devTokenRequest)
-  }
-);}
-
+      return customAxiosInstance<AuthTokenResponse>(
+      {url: `/api/dev/token`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: devTokenRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -109,37 +92,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiDevTokenMutationOptions(options), queryClient);
     }
-    export type getApiDevDebugResponse200 = {
-  data: void
-  status: 200
-}
+    export const getApiDevDebug = (
 
-export type getApiDevDebugResponseSuccess = (getApiDevDebugResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getApiDevDebugResponse = (getApiDevDebugResponseSuccess)
-
-export const getGetApiDevDebugUrl = () => {
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/dev/debug`
-}
-
-export const getApiDevDebug = async ( options?: RequestInit): Promise<getApiDevDebugResponse> => {
-
-  return customAxiosInstance<getApiDevDebugResponse>(getGetApiDevDebugUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
+      return customAxiosInstance<void>(
+      {url: `/api/dev/debug`, method: 'GET', signal
+    },
+      options);
+    }
 
 
 
@@ -160,7 +123,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiDevDebug>>> = ({ signal }) => getApiDevDebug({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiDevDebug>>> = ({ signal }) => getApiDevDebug(requestOptions, signal);
 
 
 

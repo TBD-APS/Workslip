@@ -127,12 +127,14 @@ public sealed class EfJobRepository : IJobRepository
     {
         _dbContext.ChangeTracker.Clear();
 
+        var statuses = query.Statuses?.Select(x => x.ToString()).Distinct();
+
         var projected = await (
             from r in _dbContext.JobReports.AsNoTracking()
             join c in _dbContext.Customers.AsNoTracking() on new { Id = r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
             from c in rjc.DefaultIfEmpty()
             where r.OrganizationId == query.OrganizationId
-            where query.Status == null || r.Status == query.Status.ToString()
+            where statuses.Contains(r.Status)
             where r.IsSoftDeleted == false
             where query.ReportNumber == null || (r.ReportNumber != null && r.ReportNumber.Contains(query.ReportNumber))
             where query.CustomerName == null || (c != null && c.Name.Contains(query.CustomerName))

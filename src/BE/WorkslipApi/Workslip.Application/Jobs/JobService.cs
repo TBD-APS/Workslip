@@ -103,7 +103,7 @@ public sealed class JobService(
     }
 
     public async Task<Result<IReadOnlyList<JobListItemResponse>>> ListAsync(
-        JobStatus? status,
+        List<JobStatus>? statuses,
         string? reportNumber,
         string? customerName,
         string? customerEmail,
@@ -124,7 +124,7 @@ public sealed class JobService(
             return Result<IReadOnlyList<JobListItemResponse>>.Invalid(searchErrors);
         }
 
-        var query = BuildJobQuery(organizationId.Value, status, reportNumber, customerName, customerEmail, customerAddress, limit, offset);
+        var query = BuildJobQuery(organizationId.Value, statuses, reportNumber, customerName, customerEmail, customerAddress, limit, offset);
 
         var cacheKey = BuildJobListCacheKey(query);
         var jobs = await cache.GetOrCreateAsync(
@@ -748,7 +748,7 @@ public sealed class JobService(
     }
 
     private static JobQuery BuildJobQuery(
-        Guid organizationId, JobStatus? status,
+        Guid organizationId, List<JobStatus> statuses,
         string? reportNumber, string? customerName, string? customerEmail, string? customerAddress,
         int? limit, int? offset)
     {
@@ -757,12 +757,12 @@ public sealed class JobService(
         var normalizedEmailSearch = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim();
         var normalizedAddressSearch = string.IsNullOrWhiteSpace(customerAddress) ? null : customerAddress.Trim();
 
-        return new JobQuery(organizationId, status, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0),
+        return new JobQuery(organizationId, statuses, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0),
             normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
     }
 
     private static string BuildJobListCacheKey(JobQuery query) =>
-        $"jobs:list:organization={query.OrganizationId:N}:status={query.Status?.ToString() ?? "all"}" +
+        $"jobs:list:organization={query.OrganizationId:N}:status={query.Statuses.Select(x => x.ToString())?.ToString() ?? "all"}" +
         $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
         $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
 

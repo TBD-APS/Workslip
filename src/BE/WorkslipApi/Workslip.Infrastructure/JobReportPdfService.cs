@@ -257,8 +257,6 @@ public sealed class JobReportPdfService : IJobReportPdfService
             row.RelativeItem().Column(col =>
             {
                 col.Item().Text(controlPoint.Name).FontSize(8).FontColor(TextDark);
-                if (HasValue(controlPoint.Description))
-                    col.Item().Text(controlPoint.Description!).FontSize(7).FontColor(TextMedium);
             });
         });
     }

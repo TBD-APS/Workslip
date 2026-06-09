@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "orval": "dotenv -e .env.local -- orval --config orval.config.ts",
+    "generate:api:local": "dotenv -e .env.local -- orval --config orval.config.ts",
     "generate:api:dev": "dotenv -e .env.dev -- orval --config orval.config.ts",
     "generate:api:prod": "dotenv -e .env.production -- orval --config orval.config.ts",
     "build": "npm run generate:api:dev && tsc -b && vite build",
@@ -24,6 +25,7 @@
     "i18next": "^26.3.0",
     "idb-keyval": "^6.2.4",
     "lucide-react": "^1.17.0",
+    "qs": "^6.15.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-error-boundary": "^6.1.2",
@@ -37,6 +39,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.13.1",
+    "@types/qs": "^6.15.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

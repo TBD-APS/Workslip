@@ -55,7 +55,6 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
                         g.Select(m => new DefinitionControlPointResponse(
                             m.ControlPoint.Id,
                             m.ControlPoint.Name,
-                            m.ControlPoint.Description,
                             m.SortOrder,
                             m.IsRequired))
                             .ToArray()))

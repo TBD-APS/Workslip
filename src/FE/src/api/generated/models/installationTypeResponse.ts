@@ -9,8 +9,6 @@ import type { InstallationTypeCategoryResponse } from './installationTypeCategor
 export interface InstallationTypeResponse {
   id: string;
   name: string;
-  /** @nullable */
-  description: string | null;
   /** @pattern ^-?(?:0|[1-9]\d*)$ */
   sortOrder: number | string;
   categories: InstallationTypeCategoryResponse[];

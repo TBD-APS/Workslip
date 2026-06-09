@@ -26,38 +26,20 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export type postApiWorksheetsJobsJobIdResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
-
-export type postApiWorksheetsJobsJobIdResponseSuccess = (postApiWorksheetsJobsJobIdResponse200) & {
-  headers: Headers;
-};
-;
-
-export type postApiWorksheetsJobsJobIdResponse = (postApiWorksheetsJobsJobIdResponseSuccess)
-
-export const getPostApiWorksheetsJobsJobIdUrl = (jobId: string,) => {
+export const postApiWorksheetsJobsJobId = (
+    jobId: string,
+    upsertWorksheetRequest: UpsertWorksheetRequest,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/worksheets/jobs/${jobId}`
-}
-
-export const postApiWorksheetsJobsJobId = async (jobId: string,
-    upsertWorksheetRequest: UpsertWorksheetRequest, options?: RequestInit): Promise<postApiWorksheetsJobsJobIdResponse> => {
-
-  return customAxiosInstance<postApiWorksheetsJobsJobIdResponse>(getPostApiWorksheetsJobsJobIdUrl(jobId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(upsertWorksheetRequest)
-  }
-);}
-
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/worksheets/jobs/${jobId}`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: upsertWorksheetRequest, signal
+    },
+      options);
+    }
 
 
 
@@ -102,39 +84,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiWorksheetsJobsJobIdMutationOptions(options), queryClient);
     }
-    export type deleteApiWorksheetsWorksheetIdJobsJobIdResponse200 = {
-  data: JobReportSummaryViewModel
-  status: 200
-}
-
-export type deleteApiWorksheetsWorksheetIdJobsJobIdResponseSuccess = (deleteApiWorksheetsWorksheetIdJobsJobIdResponse200) & {
-  headers: Headers;
-};
-;
-
-export type deleteApiWorksheetsWorksheetIdJobsJobIdResponse = (deleteApiWorksheetsWorksheetIdJobsJobIdResponseSuccess)
-
-export const getDeleteApiWorksheetsWorksheetIdJobsJobIdUrl = (worksheetId: string,
-    jobId: string,) => {
+    export const deleteApiWorksheetsWorksheetIdJobsJobId = (
+    worksheetId: string,
+    jobId: string,
+ options?: SecondParameter<typeof customAxiosInstance>,signal?: AbortSignal
+) => {
 
 
-
-
-  return `/api/worksheets/${worksheetId}/jobs/${jobId}`
-}
-
-export const deleteApiWorksheetsWorksheetIdJobsJobId = async (worksheetId: string,
-    jobId: string, options?: RequestInit): Promise<deleteApiWorksheetsWorksheetIdJobsJobIdResponse> => {
-
-  return customAxiosInstance<deleteApiWorksheetsWorksheetIdJobsJobIdResponse>(getDeleteApiWorksheetsWorksheetIdJobsJobIdUrl(worksheetId,jobId),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
+      return customAxiosInstance<JobReportSummaryViewModel>(
+      {url: `/api/worksheets/${worksheetId}/jobs/${jobId}`, method: 'DELETE', signal
+    },
+      options);
+    }
 
 
 

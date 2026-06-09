@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -29,7 +29,6 @@ type SelectedControlPoint = {
   installationType: string;
   category: string;
   name: string;
-  description: string | null;
 };
 
 type IrrelevantCategory = {
@@ -63,6 +62,35 @@ export const CompletedJobReport = () => {
     };
   }, [pdfPreview]);
 
+  const initialLoadDone = useRef(false);
+  const editScrollDone = useRef(false);
+
+  useEffect(() => {
+    if (!job || initialLoadDone.current) return;
+    initialLoadDone.current = true;
+
+    const el = document.querySelector<HTMLElement>('.app-content');
+    if (!el) return;
+
+    el.scrollTo(0, 0);
+    requestAnimationFrame(() => el.scrollTop = 0);
+  }, [job]);
+
+  useEffect(() => {
+    if (!isEditing || editScrollDone.current) return;
+    editScrollDone.current = true;
+
+    const el = document.querySelector<HTMLElement>('.app-content');
+    if (!el) return;
+
+    el.scrollTo(0, 0);
+    requestAnimationFrame(() => el.scrollTop = 0);
+  }, [isEditing]);
+
+  useEffect(() => {
+    if (!isEditing) editScrollDone.current = false;
+  }, [isEditing]);
+
   const handleOpenPdf = async () => {
     if (!job) return;
     setIsOpeningPdf(true);
@@ -79,11 +107,13 @@ export const CompletedJobReport = () => {
   const handleStartEdit = () => {
     details.discardChanges();
     setIsEditing(true);
+    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
   };
 
   const handleCancelEdit = () => {
     details.discardChanges();
     setIsEditing(false);
+    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
   };
 
   const handleSaveEdit = async () => {
@@ -91,6 +121,7 @@ export const CompletedJobReport = () => {
     if (!saved) return;
 
     setIsEditing(false);
+    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
     toast.success('Sagen er opdateret');
   };
 
@@ -483,7 +514,6 @@ function ControlPointOverview({
               <span className="attestation-control-accent" aria-hidden="true" />
               <span>{controlPoint.name}</span>
               <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
-              {controlPoint.description && <small>{controlPoint.description}</small>}
             </li>
           ))}
         </ul>
@@ -515,8 +545,7 @@ function getSelectedControlPoints(installationTypes: InstallationTypeResponse[])
           id: controlPoint.id,
           installationType: installationType.name,
           category: category.name,
-          name: controlPoint.name,
-          description: controlPoint.description,
+          name: controlPoint.name
         })),
     ),
   );

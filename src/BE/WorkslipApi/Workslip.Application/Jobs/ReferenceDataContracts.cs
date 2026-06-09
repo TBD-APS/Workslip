@@ -22,7 +22,6 @@ public sealed record DefinitionCategoryResponse(
 public sealed record DefinitionControlPointResponse(
     Guid Id,
     string Name,
-    string? Description,
     int SortOrder,
     bool IsRequired);
 

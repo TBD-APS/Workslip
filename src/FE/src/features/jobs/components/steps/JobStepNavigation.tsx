@@ -14,7 +14,10 @@ export function StepIndicators({ currentStep, onStepChange }: StepIndicatorsProp
     const container = containerRef.current;
     if (!container) return;
     const activeDot = container.querySelector<HTMLButtonElement>('button[aria-current="step"]');
-    activeDot?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    if (!activeDot) return;
+
+    const targetLeft = activeDot.offsetLeft - (container.clientWidth - activeDot.clientWidth) / 2;
+    container.scrollTo({ left: targetLeft, behavior: 'smooth' });
   }, [currentStep]);
 
   return (

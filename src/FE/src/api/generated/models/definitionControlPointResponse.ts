@@ -8,8 +8,6 @@
 export interface DefinitionControlPointResponse {
   id: string;
   name: string;
-  /** @nullable */
-  description: string | null;
   /** @pattern ^-?(?:0|[1-9]\d*)$ */
   sortOrder: number | string;
   isRequired: boolean;

@@ -103,6 +103,7 @@
 .app-content {
   flex: 1;
   overflow-y: auto;
+  overflow-anchor: none;
   padding: 1.5rem;
   padding-bottom: calc(80px + 1.5rem); /* Make room for bottom nav */
 }
