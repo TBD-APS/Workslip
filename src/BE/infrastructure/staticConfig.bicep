@@ -19,7 +19,7 @@ var appConfigValues = {
   //OAuth
   'Azure:AdOAuth:TenantId': tenant().tenantId
   'Azure:AdOAuth:Instance': az.environment().authentication.loginEndpoint
-  'Azure:AdOAuth:Domain': 'rasmusvm6hotmail.onmicrosoft.com'
+  'Azure:AdOAuth:Domain': 'rasmusbp15gmail.onmicrosoft.com'
   
   //LocalJwt
   'Jwt:Issuer': 'WorkslipApiLocal'

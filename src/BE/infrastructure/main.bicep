@@ -383,7 +383,7 @@ resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
 }
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
-  name: 'db-${companyName}-server'
+  name: 'db-${companyName}-${environment}-server'
   location: location
   properties: {
     administrators: {
