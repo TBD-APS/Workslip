@@ -303,12 +303,6 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
-        if (request.Status == JobStatus.Submitted)
-        {
-            var result = await ValidateSubmitReadyAsync(id, organizationId.Value, cancellationToken);
-            if (result is not null) return result;
-        }
-
         return await TransitionAsync(id, request.Status, cancellationToken);
     }
 
@@ -593,7 +587,6 @@ public sealed class JobService(
             report.Links,
             report.CreatedAt,
             report.UpdatedAt,
-            report.SubmittedAt,
             report.AssignedUsers,
             worksheets,
             totalHours,
@@ -676,60 +669,6 @@ public sealed class JobService(
         }
 
         return errors;
-    }
-
-    private static List<ValidationError> ValidateReadyForSubmission(JobReportResponse report, ReferenceDataResponse referenceData)
-    {
-        var errors = new List<ValidationError>();
-        AddRequired(errors, nameof(JobReportResponse.ReportNumber), report.ReportNumber, "Report number is required.");
-        AddRequired(errors, $"{nameof(JobReportResponse.Customer)}.{nameof(CustomerInfo.Name)}", report.Customer?.Name, "Customer name is required.");
-        AddRequired(errors, $"{nameof(JobReportResponse.Customer)}.{nameof(CustomerInfo.Address)}", report.Customer?.Address, "Customer address is required.");
-
-        if (report.InstallationTypes.Count == 0)
-        {
-            errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.InstallationTypes), ErrorMessage = "Select at least one installation type." });
-        }
-
-        var workKindsByLabel = referenceData.WorkKinds
-            .ToDictionary(w => w.NormalizedLabel, StringComparer.OrdinalIgnoreCase);
-
-        if (report.WorkKind is null)
-        {
-            errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Work kind is required." });
-        }
-        else if (!workKindsByLabel.TryGetValue(report.WorkKind.NormalizedLabel, out var workKind))
-        {
-            errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = $"Unknown work kind '{report.WorkKind.NormalizedLabel}'." });
-        }
-        else if (workKind.RequiresCustomWorkKind && string.IsNullOrWhiteSpace(report.WorkKind.CustomWorkKind))
-        {
-            errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Custom work kind is required for this work kind." });
-        }
-        else if (!workKind.RequiresCustomWorkKind && !string.IsNullOrWhiteSpace(report.WorkKind.CustomWorkKind))
-        {
-            errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Custom work kind is only allowed for work kinds that require custom text." });
-        }
-
-        return errors;
-    }
-
-    private async Task<Result<JobReportSummaryResponse>?> ValidateSubmitReadyAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
-    {
-        var current = await _jobRepository.GetSingleJobAsync(id, organizationId, cancellationToken);
-        if (current is null)
-        {
-            logger.LogWarning("Job submit returned not found. JobId: {JobId}.", id);
-            return Result<JobReportSummaryResponse>.NotFound();
-        }
-
-        var refData = await referenceDataRepository.GetAsync(organizationId, cancellationToken);
-        var validationErrors = ValidateReadyForSubmission(current, refData);
-        if (validationErrors.Count == 0) return null;
-
-        logger.LogWarning("Job submit validation failed. JobId: {JobId}. Fields: {ValidationFields}",
-            id, ValidationFields(validationErrors));
-
-        return Result<JobReportSummaryResponse>.Invalid(validationErrors);
     }
 
     private static List<ValidationError> ValidateSearchFilters(

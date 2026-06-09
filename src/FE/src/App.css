@@ -221,6 +221,7 @@
   border-radius: 999px;
   cursor: pointer;
   transition: border-color 0.16s, background 0.16s, color 0.16s;
+  white-space: nowrap;
 }
 
 .status-filter-btn:hover {

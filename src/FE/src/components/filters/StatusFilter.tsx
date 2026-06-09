@@ -1,3 +1,42 @@
+const LAST_ACTIVE_KEY = 'statusFilter:lastActive';
+
+export function getSavedStatusFilter<T extends string>(sectionKey: string, defaults: T[]): T[] {
+  try {
+    const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
+    sessionStorage.setItem(LAST_ACTIVE_KEY, sectionKey);
+
+    if (lastActive !== sectionKey) {
+      if (lastActive) {
+        sessionStorage.removeItem(`statusFilter:${lastActive}`);
+      }
+      sessionStorage.removeItem(`statusFilter:${sectionKey}`);
+      return defaults;
+    }
+
+    const saved = sessionStorage.getItem(`statusFilter:${sectionKey}`);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed as T[];
+      }
+    }
+  } catch {}
+  return defaults;
+}
+
+export function saveStatusFilter(sectionKey: string, statuses: string[]) {
+  sessionStorage.setItem(`statusFilter:${sectionKey}`, JSON.stringify(statuses));
+}
+
+/** Call on mount on pages that are section boundaries (e.g. UserList, any page outside the filter's section). */
+export function announceSection(sectionKey: string) {
+  const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
+  sessionStorage.setItem(LAST_ACTIVE_KEY, sectionKey);
+  if (lastActive && lastActive !== sectionKey) {
+    sessionStorage.removeItem(`statusFilter:${lastActive}`);
+  }
+}
+
 type StatusOption<T extends string> = {
   value: T;
   label: string;

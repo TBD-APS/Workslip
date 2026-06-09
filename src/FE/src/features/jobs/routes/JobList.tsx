@@ -8,11 +8,10 @@ import { JobStatus, type AssignedUserResponse } from '../../../api/generated/mod
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
-import { StatusFilter } from '../../../components/filters/StatusFilter';
+import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-content';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
-const STATUS_FILTER_KEY = 'jobListStatusFilter';
 
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector(SCROLL_CONTAINER_SELECTOR);
@@ -38,19 +37,12 @@ export const JobList = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() => {
-    try {
-      const saved = sessionStorage.getItem(STATUS_FILTER_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [JobStatus.Draft, JobStatus.Submitted];
-  });
+  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() =>
+    getSavedStatusFilter('mine-jobs', [JobStatus.Draft]),
+  );
   const fetchStatuses = isAdmin
-    ? [JobStatus.Draft, JobStatus.Submitted, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Archived]
-    : [JobStatus.Draft, JobStatus.Submitted, JobStatus.Approved];
+    ? [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected]
+    : [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved];
   const query = useGetApiJobs({ status: fetchStatuses, limit: 200 });
   const allJobs = query.data ?? [];
 
@@ -69,8 +61,22 @@ export const JobList = () => {
   }, [allJobs, isAdmin, user?.id, selectedStatuses]);
 
   useEffect(() => {
-    sessionStorage.setItem(STATUS_FILTER_KEY, JSON.stringify(selectedStatuses));
+    saveStatusFilter('mine-jobs', selectedStatuses);
   }, [selectedStatuses]);
+
+  useEffect(() => {
+    announceSection('mine-jobs');
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setSelectedStatuses(getSavedStatusFilter('mine-jobs', [JobStatus.Draft]));
+      }
+    };
+    window.addEventListener('pageshow', handler);
+    return () => window.removeEventListener('pageshow', handler);
+  }, []);
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
@@ -139,15 +145,13 @@ export const JobList = () => {
           isAdmin
             ? [
                 { value: JobStatus.Draft, label: 'Kladde' },
-                { value: JobStatus.Submitted, label: 'Indsendt' },
                 { value: JobStatus.InReview, label: 'Til gennemsyn' },
                 { value: JobStatus.Approved, label: 'Godkendt' },
                 { value: JobStatus.Rejected, label: 'Afvist' },
-                { value: JobStatus.Archived, label: 'Arkiveret' },
               ]
             : [
                 { value: JobStatus.Draft, label: 'Kladde' },
-                { value: JobStatus.Submitted, label: 'Indsendt' },
+                { value: JobStatus.InReview, label: 'Til gennemsyn' },
                 { value: JobStatus.Approved, label: 'Godkendt' },
               ]
         }

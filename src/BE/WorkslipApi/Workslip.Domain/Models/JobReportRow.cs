@@ -23,6 +23,5 @@ public sealed class JobReportRow
     public bool IsSoftDeleted { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
-    public DateTimeOffset? SubmittedAt { get; init; }
     public DateTimeOffset? DeletionScheduledAt { get; init; }
 }

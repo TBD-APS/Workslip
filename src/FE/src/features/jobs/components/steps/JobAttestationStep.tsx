@@ -1,4 +1,5 @@
 import { AlertCircle, CheckCircle2, Clock, FileCheck2, Loader2, ShieldCheck } from 'lucide-react';
+import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
@@ -25,7 +26,7 @@ export function JobAttestationStep({
   const job = details.job;
   if (!job) return null;
 
-  const isSubmitted = job.status === 'Submitted';
+  const isSubmitted = job.status === JobStatus.InReview;
   const isSavingDraft = details.saveStatus === 'saving';
   const confirmationDisabled = isSubmitted || details.isSubmittingJob || isSavingDraft;
   const sortedWorksheets = [...details.worksheets].sort((left, right) => right.workDate.localeCompare(left.workDate));

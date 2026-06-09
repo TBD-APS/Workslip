@@ -248,7 +248,7 @@ public sealed class SqlDbContext : DbContext
         entity.ToTable("JobReports", t =>
         {
             t.HasCheckConstraint("CK_JobReports_Status",
-                "Status in ('Draft', 'Submitted', 'InReview', 'Approved', 'Rejected', 'Archived')");
+                "Status in ('Draft', 'InReview', 'Approved', 'Rejected')");
         });
         entity.HasKey(e => e.Id);
 
@@ -268,7 +268,6 @@ public sealed class SqlDbContext : DbContext
 
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.UpdatedAt).HasColumnType("datetimeoffset");
-        entity.Property(e => e.SubmittedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.DeletionScheduledAt).HasColumnType("datetimeoffset");
 
         entity.HasOne(x => x.OrganizationRow)

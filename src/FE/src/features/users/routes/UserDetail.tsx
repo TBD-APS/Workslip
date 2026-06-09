@@ -19,6 +19,7 @@ import { useGetApiUsersId, getGetApiUsersIdQueryKey } from '../../../api/generat
 import { useGetApiJobs, usePostApiJobsIdAssign } from '../../../api/generated/jobs/jobs';
 import { formatDate } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
+import { announceSection } from '../../../components/filters/StatusFilter';
 
 
 type SearchResult = {
@@ -47,6 +48,10 @@ export const UserDetail = () => {
   const [searchValue, setSearchValue] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [assigningJobId, setAssigningJobId] = useState<string | null>(null);
+
+  useEffect(() => {
+    announceSection('users');
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchValue), 300);

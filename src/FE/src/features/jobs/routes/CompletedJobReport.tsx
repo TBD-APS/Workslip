@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -45,7 +44,6 @@ export const CompletedJobReport = () => {
   const navigate = useNavigate();
   const details = useJobDetailsState(id, { autoSave: false });
   const isAdmin = useIsAdmin();
-  const queryClient = useQueryClient();
   const statusMutation = usePostApiJobsIdStatus();
   const [isOpeningPdf, setIsOpeningPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -133,7 +131,6 @@ export const CompletedJobReport = () => {
   const handleApprove = async () => {
     if (!job) return;
     await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Approved } });
-    queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
     toast.success('Sagen er godkendt');
     navigate('/app/completed');
   };
@@ -141,7 +138,6 @@ export const CompletedJobReport = () => {
   const handleReject = async () => {
     if (!job) return;
     await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
-    queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
     toast.success('Sagen er afvist');
     navigate('/app/completed');
   };

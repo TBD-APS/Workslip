@@ -104,7 +104,7 @@ public static class DatabaseSeeder
         users.AddRange(adminUser);
         users.AddRange(regularUser);
 
-        var statuses = new[] { "Draft", "Submitted", "InReview", "Approved", "Rejected", "Archived" };
+        var statuses = new[] { "Draft", "InReview", "Approved", "Rejected" };
 
         var jobs = new Faker<JobReportRow>()
             .RuleFor(x => x.Id, _ => Guid.NewGuid())

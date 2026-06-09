@@ -67,7 +67,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const job = query.data;
   const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
   const referenceDataQuery = useGetApiReferenceData();
-  const jobsData = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Submitted, JobStatus.Approved, JobStatus.InReview], limit: 200 });
+  const jobsData = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 });
   const assignableUsers = usersQuery.data?.users ??  null;
   const referenceData = referenceDataQuery.data!;
 
@@ -420,7 +420,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
 
   const submitJob = () => {
     if (!jobId) return Promise.resolve();
-    return submitJobMutation.mutateAsync({ id: jobId, data: { status: JobStatus.Submitted } });
+    return submitJobMutation.mutateAsync({ id: jobId, data: { status: JobStatus.InReview } });
   };
 
   const submitJobFieldErrors = getSubmitFieldErrors(submitJobMutation.error);

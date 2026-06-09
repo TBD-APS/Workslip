@@ -8,7 +8,7 @@ import type { AssignedUserResponse, JobListItemViewModel } from '../../../api/ge
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
-import { StatusFilter } from '../../../components/filters/StatusFilter';
+import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
 
 const CompletedJobSkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -29,18 +29,10 @@ export const CompletedJobs = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const STATUS_FILTER_KEY = 'completedJobsStatusFilter';
-  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() => {
-    try {
-      const saved = sessionStorage.getItem(STATUS_FILTER_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [JobStatus.Submitted, JobStatus.Approved];
-  });
-  const query = useGetApiJobs({ status: [JobStatus.Submitted, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Archived], limit: 200 });
+  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() =>
+    getSavedStatusFilter('completed', [JobStatus.InReview, JobStatus.Approved]),
+  );
+  const query = useGetApiJobs({ status: [JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected], limit: 200 });
   const allJobs = query.data ?? [];
 
   const jobs = useMemo(() => {
@@ -58,8 +50,22 @@ export const CompletedJobs = () => {
   }, [allJobs, isAdmin, user?.id, selectedStatuses]);
 
   useEffect(() => {
-    sessionStorage.setItem(STATUS_FILTER_KEY, JSON.stringify(selectedStatuses));
+    saveStatusFilter('completed', selectedStatuses);
   }, [selectedStatuses]);
+
+  useEffect(() => {
+    announceSection('completed');
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setSelectedStatuses(getSavedStatusFilter('completed', [JobStatus.InReview, JobStatus.Approved]));
+      }
+    };
+    window.addEventListener('pageshow', handler);
+    return () => window.removeEventListener('pageshow', handler);
+  }, []);
 
   useEffect(() => {
     document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
@@ -107,11 +113,9 @@ export const CompletedJobs = () => {
 
       <StatusFilter
         options={[
-          { value: JobStatus.Submitted, label: 'Indsendt' },
           { value: JobStatus.InReview, label: 'Til gennemsyn' },
           { value: JobStatus.Approved, label: 'Godkendt' },
           { value: JobStatus.Rejected, label: 'Afvist' },
-          { value: JobStatus.Archived, label: 'Arkiveret' },
         ]}
         selected={selectedStatuses}
         onChange={setSelectedStatuses}

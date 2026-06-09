@@ -6,6 +6,7 @@ import type { AxiosError } from 'axios';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
+import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { DeleteButton } from '../../../components/common/DeleteButton';
 import { useCan } from '../../../providers/permissions';
 import { isValidJobForm, isValidWork } from '../utils';
@@ -271,7 +272,7 @@ function canAdvanceCurrentStep(details: JobDetailsState) {
   }
 
   if (details.currentStep === 5) {
-    return details.job?.status === 'Submitted';
+    return details.job?.status === JobStatus.InReview;
   }
 
   return true;
