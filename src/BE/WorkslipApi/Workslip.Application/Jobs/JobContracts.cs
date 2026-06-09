@@ -5,7 +5,7 @@ using Workslip.Domain.Models;
 
 namespace Workslip.Application.Jobs;
 
-public sealed record JobQuery(Guid OrganizationId, JobStatus? Status, int Limit, int Offset,
+public sealed record JobQuery(Guid OrganizationId, List<JobStatus>? Statuses, int Limit, int Offset,
     string? ReportNumber = null,
     string? CustomerName = null, 
     string? CustomerEmail = null,
@@ -98,7 +98,6 @@ public sealed record ControlInstallationTypeResponse(
 public sealed record InstallationTypeControlPointResponse(
     Guid Id,
     string Name,
-    string? Description,
     int SortOrder,
     bool IsRequired,
     bool IsChecked);

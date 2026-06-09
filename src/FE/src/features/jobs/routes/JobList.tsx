@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
-import type { AssignedUserResponse, CustomerInfo, JobStatus } from '../../../api/generated/models';
+import { JobStatus, type AssignedUserResponse, type CustomerInfo } from '../../../api/generated/models';
 import { getResponseData } from '../utils';
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
@@ -48,7 +48,7 @@ export const JobList = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const query = useGetApiJobs({ limit: 200 });
+  const query = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Submitted], limit: 200 });
   const allJobs = getJobListItems(query.data);
   const jobs = useMemo(() => {
     if (isAdmin) return allJobs;

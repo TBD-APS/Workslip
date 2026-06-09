@@ -103,7 +103,7 @@ public sealed class JobService(
     }
 
     public async Task<Result<IReadOnlyList<JobListItemResponse>>> ListAsync(
-        JobStatus? status,
+        List<JobStatus>? status,
         string? reportNumber,
         string? customerName,
         string? customerEmail,
@@ -748,7 +748,7 @@ public sealed class JobService(
     }
 
     private static JobQuery BuildJobQuery(
-        Guid organizationId, JobStatus? status,
+        Guid organizationId, List<JobStatus> status,
         string? reportNumber, string? customerName, string? customerEmail, string? customerAddress,
         int? limit, int? offset)
     {
@@ -762,7 +762,7 @@ public sealed class JobService(
     }
 
     private static string BuildJobListCacheKey(JobQuery query) =>
-        $"jobs:list:organization={query.OrganizationId:N}:status={query.Status?.ToString() ?? "all"}" +
+        $"jobs:list:organization={query.OrganizationId:N}:status={query.Statuses.Select(x => x.ToString())?.ToString() ?? "all"}" +
         $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
         $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
 

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
 using Workslip.Api.Services;
 using Workslip.Api.ViewModels;
@@ -19,21 +20,23 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).Produces<JobReportSummaryViewModel>().RequireAuthorization(AuthPolicies.RequireAdmin);
 
-        group.MapGet("/", async (JobStatus? status,
-            string? reportNumber,
-            string? customerName,
-            string? customerEmail,
-            string? customerAddress,
-            int? limit,
-            int? offset,
+        group.MapGet("/", async (
+            [FromQuery(Name = "status")] JobStatus[]? statuses,
+            [FromQuery] string? reportNumber,
+            [FromQuery] string? customerName,
+            [FromQuery] string? customerEmail,
+            [FromQuery] string? customerAddress,
+            [FromQuery] int? limit,
+            [FromQuery] int? offset,
             HttpContext httpContext,
             ICurrentUserContext currentUser,
             IJobService service,
             CancellationToken cancellationToken) =>
         {
-            var result = await service.ListAsync(status, reportNumber, customerName, customerEmail, customerAddress, limit, offset, cancellationToken);
-            return CachedOk(result, httpContext,
-                jobs => HttpCacheHeaders.JobListEtag(jobs, currentUser.OrganizationId!.Value, status, reportNumber, customerName, customerEmail, customerAddress, limit, offset),
+            var statusList = statuses?.ToList();
+            var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, limit, offset, cancellationToken);
+           return CachedOk(result, httpContext,
+                jobs => HttpCacheHeaders.JobListEtag(jobs, currentUser.OrganizationId!.Value, statusList, reportNumber, customerName, customerEmail, customerAddress, limit, offset),
                 jobs => jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
         });
 

@@ -149,7 +149,6 @@ namespace Workslip.Infrastructure.Schema
                         .RuleFor(x => x.Id, f => f.Random.Guid())
                         .RuleFor(x => x.OrganizationId, _ => organizationId)
                         .RuleFor(x => x.Name, _ => controlPoint.Label)
-                        .RuleFor(x => x.Description, _ => null)
                         .RuleFor(x => x.IsActive, _ => true)
                         .RuleFor(x => x.SortOrder, _ => index + 1)
                         .RuleFor(x => x.JobReportInstallationControlPoints, _ => [])

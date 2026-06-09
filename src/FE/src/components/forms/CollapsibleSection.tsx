@@ -11,8 +11,13 @@ type CollapsibleSectionProps = {
 export function CollapsibleSection({ icon, title, children, defaultOpen = true }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (isOpen) {
       contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }

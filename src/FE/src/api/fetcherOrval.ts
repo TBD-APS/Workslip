@@ -1,10 +1,17 @@
 import axios from "axios";
+import qs from "qs";
 import type { AxiosRequestConfig } from "axios";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 
 export const AXIOS_INSTANCE = axios.create({
   baseURL: normalizeApiBaseUrl(apiBaseUrl),
+   paramsSerializer: {
+    serialize: (params) =>
+      qs.stringify(params, {
+        arrayFormat: "repeat",
+      }),
+  },
 });
 
 AXIOS_INSTANCE.interceptors.request.use((config) => {
@@ -30,16 +37,9 @@ AXIOS_INSTANCE.interceptors.response.use(
 );
 
 export const customAxiosInstance = async <T>(
-  url: string,
-  options?: RequestInit,
+  config: AxiosRequestConfig,
 ): Promise<T> => {
-  const response = await AXIOS_INSTANCE.request<T>({
-    url,
-    method: options?.method as AxiosRequestConfig["method"],
-    headers: options?.headers as AxiosRequestConfig["headers"],
-    data: parseRequestBody(options?.body),
-    signal: options?.signal ?? undefined,
-  });
+  const response = await AXIOS_INSTANCE.request<T>(config);
 
   return {
     data: response.data,
@@ -47,16 +47,6 @@ export const customAxiosInstance = async <T>(
     headers: response.headers,
   } as T;
 };
-
-function parseRequestBody(body: BodyInit | null | undefined) {
-  if (typeof body !== "string") return body;
-
-  try {
-    return JSON.parse(body);
-  } catch {
-    return body;
-  }
-}
 
 function normalizeApiBaseUrl(baseUrl: string) {
   return baseUrl.replace(/\/+$/, "").replace(/\/api$/i, "");

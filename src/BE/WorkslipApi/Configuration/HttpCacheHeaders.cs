@@ -78,7 +78,7 @@ public static class HttpCacheHeaders
     public static string JobListEtag(
         IEnumerable<JobListItemResponse> jobs,
         Guid organizationId,
-        JobStatus? status,
+        List<JobStatus>? status,
         string? reportNumber,
         string? customerName,
         string? customerEmail,
@@ -90,7 +90,7 @@ public static class HttpCacheHeaders
             .Append("jobs:list:")
             .Append(organizationId.ToString("N"))
             .Append(':')
-            .Append(status?.ToString() ?? "all")
+            .Append(status.Select(x => x.ToString()).ToString() ?? "all")
             .Append(':')
             .Append(reportNumber?.ToLowerInvariant() ?? "none")
             .Append(':')
