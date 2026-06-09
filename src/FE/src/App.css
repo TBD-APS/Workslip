@@ -204,6 +204,36 @@
   gap: 0.25rem;
 }
 
+.status-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.status-filter-btn {
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s, color 0.16s;
+}
+
+.status-filter-btn:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text-primary);
+}
+
+.status-filter-btn.selected {
+  border-color: rgba(96, 165, 250, 0.42);
+  background: rgba(37, 99, 235, 0.08);
+  color: #bfdbfe;
+}
+
 /* ------------------------------------------------------------
    Card
    ------------------------------------------------------------ */
@@ -620,8 +650,8 @@
 }
 
 .status-approved {
-  background: rgba(16, 185, 129, 0.12);
-  color: #34d399;
+  background: rgba(161, 161, 170, 0.12);
+  color: #a1a1aa;
 }
 
 .status-rejected {

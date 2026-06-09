@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronRight, FileCheck2, MapPin, Timer, User } from 'lucide-react';
@@ -8,6 +8,7 @@ import type { AssignedUserResponse, JobListItemViewModel } from '../../../api/ge
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
+import { StatusFilter } from '../../../components/filters/StatusFilter';
 
 const CompletedJobSkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -28,17 +29,22 @@ export const CompletedJobs = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const query = useGetApiJobs({ status: [JobStatus.InReview, JobStatus.Submitted, JobStatus.Approved, JobStatus.Approved], limit: 200 });
+  const query = useGetApiJobs({ status: [JobStatus.Submitted, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Archived], limit: 200 });
   const allJobs = query.data ?? [];
+  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>([JobStatus.Submitted, JobStatus.Approved]);
   const jobs = useMemo(() => {
-    const submittedJobs = allJobs.filter((job) => job.status === JobStatus.Submitted);
-    if (isAdmin) return submittedJobs;
+    let result = allJobs;
 
-    const currentUserId = user?.id;
-    if (!currentUserId) return [];
+    if (!isAdmin) {
+      const currentUserId = user?.id;
+      if (!currentUserId) return [];
+      result = result.filter((job) => job.assignedUsers.some((assignedUser) => assignedUser.id === currentUserId));
+    }
 
-    return submittedJobs.filter((job) => job.assignedUsers.some((assignedUser) => assignedUser.id === currentUserId));
-  }, [allJobs, isAdmin, user?.id]);
+    result = result.filter((job) => selectedStatuses.includes(job.status));
+
+    return result;
+  }, [allJobs, isAdmin, user?.id, selectedStatuses]);
 
   if (query.isLoading) {
     return (
@@ -79,6 +85,18 @@ export const CompletedJobs = () => {
           <p className="subtitle">Viser kun afsluttede sager tildelt dig · {jobs.length} {jobs.length === 1 ? 'sag' : 'sager'}</p>
         )}
       </div>
+
+      <StatusFilter
+        options={[
+          { value: JobStatus.Submitted, label: 'Indsendt' },
+          { value: JobStatus.InReview, label: 'Til gennemsyn' },
+          { value: JobStatus.Approved, label: 'Godkendt' },
+          { value: JobStatus.Rejected, label: 'Afvist' },
+          { value: JobStatus.Archived, label: 'Arkiveret' },
+        ]}
+        selected={selectedStatuses}
+        onChange={setSelectedStatuses}
+      />
 
       <div className="job-list">
         {jobs.map((job) => (

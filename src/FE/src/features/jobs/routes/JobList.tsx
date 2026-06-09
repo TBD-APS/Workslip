@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
@@ -8,6 +8,7 @@ import { JobStatus, type AssignedUserResponse } from '../../../api/generated/mod
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
+import { StatusFilter } from '../../../components/filters/StatusFilter';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-content';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
@@ -36,19 +37,26 @@ export const JobList = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const query = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Submitted], limit: 200 });
+  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>([JobStatus.Draft, JobStatus.Submitted]);
+  const fetchStatuses = isAdmin
+    ? [JobStatus.Draft, JobStatus.Submitted, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected, JobStatus.Archived]
+    : [JobStatus.Draft, JobStatus.Submitted, JobStatus.Approved];
+  const query = useGetApiJobs({ status: fetchStatuses, limit: 200 });
   const allJobs = query.data ?? [];
 
   const jobs = useMemo(() => {
-    if (isAdmin) 
-      return allJobs;
-    
-    const currentUserId = user?.id;
+    let result = allJobs;
 
-    if (!currentUserId) 
-      return [];
-    return allJobs.filter((job) => job.assignedUsers.some((u) => u.id === currentUserId));
-  }, [allJobs, isAdmin, user?.id]);
+    if (!isAdmin) {
+      const currentUserId = user?.id;
+      if (!currentUserId) return [];
+      result = result.filter((job) => job.assignedUsers.some((u) => u.id === currentUserId));
+    }
+
+    result = result.filter((job) => selectedStatuses.includes(job.status));
+
+    return result;
+  }, [allJobs, isAdmin, user?.id, selectedStatuses]);
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
@@ -111,6 +119,27 @@ export const JobList = () => {
           <p className="subtitle">Viser kun sager tildelt dig · {jobs.length} {jobs.length === 1 ? 'sag' : 'sager'}</p>
         )}
       </div>
+
+      <StatusFilter
+        options={
+          isAdmin
+            ? [
+                { value: JobStatus.Draft, label: 'Kladde' },
+                { value: JobStatus.Submitted, label: 'Indsendt' },
+                { value: JobStatus.InReview, label: 'Til gennemsyn' },
+                { value: JobStatus.Approved, label: 'Godkendt' },
+                { value: JobStatus.Rejected, label: 'Afvist' },
+                { value: JobStatus.Archived, label: 'Arkiveret' },
+              ]
+            : [
+                { value: JobStatus.Draft, label: 'Kladde' },
+                { value: JobStatus.Submitted, label: 'Indsendt' },
+                { value: JobStatus.Approved, label: 'Godkendt' },
+              ]
+        }
+        selected={selectedStatuses}
+        onChange={setSelectedStatuses}
+      />
 
       <div className="job-list">
         {jobs.map((job) => (
