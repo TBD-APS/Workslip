@@ -56,10 +56,12 @@ export const CompletedJobReport = () => {
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const sortedWorksheets = useMemo(
     () => {
-      const allWorksheets = [...(job?.worksheets ?? [])].sort((left, right) => right.workDate.localeCompare(left.workDate));
-      if (!isAdmin && user?.id) {
-        return allWorksheets.filter((ws) => ws.userId === user.id);
+      const allWorksheets = [...(job?.worksheets ?? [])].sort((left, right) => right.userId.localeCompare(left.userId));
+      
+      if (!isAdmin) {
+        return allWorksheets?.filter((ws) => ws.userId === user?.id) ?? [];
       }
+
       return allWorksheets;
     },
     [job?.worksheets, isAdmin, user?.id],
