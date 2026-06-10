@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { JobDetailsPage } from '../components/JobDetails';
 import { useJobDetails } from '../hooks/useJobDetails';
 
 export const JobDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
   const details = useJobDetails(id);
   const initialLoadDone = useRef(false);
 
@@ -23,8 +25,8 @@ export const JobDetail = () => {
   return (
     <JobDetailsPage
       details={details}
-      onBack={() => navigate('/app')}
-      onDone={() => navigate('/app')}
+      onBack={() => navigate(-1)}
+      onDone={() => navigate(from)}
     />
   );
 };

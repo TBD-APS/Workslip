@@ -61,4 +61,95 @@ public sealed class EfCustomerRepository : ICustomerRepository
         return row.Id;
     }
 
+    public async Task<IReadOnlyList<CustomerListItemResponse>> ListAsync(Guid organizationId, CancellationToken cancellationToken)
+    {
+        var customers = await _dbContext.Customers
+            .AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId)
+            .OrderBy(c => c.Name)
+            .Select(c => new
+            {
+                c.Id,
+                c.Name,
+                c.Address,
+                c.Email,
+                c.ContactPerson,
+                c.Phone,
+                JobCount = _dbContext.JobReports
+                    .Count(r => r.OrganizationId == organizationId
+                                && r.CustomerId == c.Id
+                                && !r.IsSoftDeleted)
+            })
+            .ToListAsync(cancellationToken);
+
+        return customers
+            .Select(c => new CustomerListItemResponse(
+                c.Id,
+                c.Name,
+                c.Address,
+                c.Email,
+                c.ContactPerson,
+                c.Phone,
+                c.JobCount))
+            .ToArray();
+    }
+
+    public async Task<CustomerDetailResponse?> GetByIdAsync(Guid organizationId, Guid id, CancellationToken cancellationToken)
+    {
+        var customer = await _dbContext.Customers
+            .AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId && c.Id == id)
+            .Select(c => new
+            {
+                c.Id,
+                c.Name,
+                c.Address,
+                c.Email,
+                c.ContactPerson,
+                c.Phone,
+                JobCount = _dbContext.JobReports
+                    .Count(r => r.OrganizationId == organizationId
+                                && r.CustomerId == c.Id
+                                && !r.IsSoftDeleted),
+                Jobs = _dbContext.JobReports
+                    .Where(r => r.OrganizationId == organizationId
+                                && r.CustomerId == c.Id
+                                && !r.IsSoftDeleted)
+                    .OrderByDescending(r => r.UpdatedAt)
+                    .Select(r => new
+                    {
+                        r.Id,
+                        r.ReportNumber,
+                        r.Status,
+                        r.UpdatedAt,
+                        ContactPerson = c.ContactPerson,
+                        ContactPhone = c.Phone
+                    })
+                    .ToList()
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (customer is null)
+        {
+            return null;
+        }
+
+        return new CustomerDetailResponse(
+            customer.Id,
+            customer.Name,
+            customer.Address,
+            customer.Email,
+            customer.ContactPerson,
+            customer.Phone,
+            customer.JobCount,
+            customer.Jobs
+                .Select(j => new CustomerJobResponse(
+                    j.Id,
+                    j.ReportNumber,
+                    j.Status,
+                    j.UpdatedAt,
+                    j.ContactPerson,
+                    j.ContactPhone))
+                .ToArray());
+    }
 }
