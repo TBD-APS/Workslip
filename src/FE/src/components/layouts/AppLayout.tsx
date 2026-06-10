@@ -1,5 +1,5 @@
 import { useNavigate, NavLink, Outlet } from 'react-router-dom';
-import { ClipboardList, FileCheck2, LogOut, PlusCircle, Settings, User, Users } from 'lucide-react';
+import { ClipboardList, FileCheck2, Building2, LogOut, PlusCircle, Settings, User, Users } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
 
@@ -56,6 +56,12 @@ export const AppLayout = () => {
           <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Users size={24} />
             <span>Folk</span>
+          </NavLink>
+        </Can>
+        <Can permission="job:viewAll">
+          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Building2 size={24} />
+            <span>Kunder</span>
           </NavLink>
         </Can>
         <div className="nav-item-fab">

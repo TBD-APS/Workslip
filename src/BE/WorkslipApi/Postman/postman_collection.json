@@ -157,6 +157,11 @@
       "key": "workDate",
       "value": "",
       "type": "string"
+    },
+    {
+      "value": "",
+      "type": "string",
+      "key": "customerId"
     }
   ],
   "auth": {
@@ -822,6 +827,80 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "/api/customers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ]
+            },
+            "description": "Lists all customers for the organization."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('customers list returned', function () { pm.expect(json).to.be.an('array'); });",
+                  "pm.test('customer view model hides internal timestamps', function () { if (json.length > 0) ['createdAt', 'updatedAt'].forEach(field => pm.expect(json[0]).to.not.have.property(field)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/customers/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}"
+              ]
+            },
+            "description": "Gets detailed customer info with associated jobs."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('customer detail returned', function () { pm.expect(json).to.have.property('id'); pm.expect(json).to.have.property('name'); });",
+                  "  pm.test('jobs array present', function () { pm.expect(json).to.have.property('jobs').that.is.an('array'); });",
+                  "}"
                 ]
               }
             }
