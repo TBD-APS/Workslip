@@ -29,5 +29,5 @@ export const sendAuthCode = async (email: string): Promise<void> => {
 };
 
 export const verifyAuthCode = async (email: string, code: string): Promise<AuthCodeResponse> => {
-  return apiClient.post('/auth/verify-code', { email, code });
+  return apiClient.post(`/auth/verify-code/${code}`, { email });
 };

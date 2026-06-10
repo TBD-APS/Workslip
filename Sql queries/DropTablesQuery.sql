@@ -1,4 +1,4 @@
-USE [db-npteknik-udv]
+USE [db-npteknik-pre]
 GO
 
 DECLARE @sql NVARCHAR(MAX) = N'';

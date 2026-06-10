@@ -29,15 +29,21 @@ public sealed class AcsEmailService(
     private readonly string _senderHtmlText = configuration["Azure:Acs:HtmlInviteText"]
         ?? throw new InvalidOperationException("ACS sender address is not configured. Set Azure:Acs:HtmlInviteText.");
 
-    public async Task SendInviteEmailAsync(string toEmail, string inviteLink, CancellationToken cancellationToken)
+    private readonly string _acsInviteBaseUrlLink = new(
+    configuration["Azure:Acs:InviteBaseUrl"]
+    ?? throw new InvalidOperationException("ACS endpoint is not configured. Set Acs:Endpoint or ACS_ENDPOINT."));
+
+    public async Task SendInviteEmailAsync(string toEmail, string token, CancellationToken cancellationToken)
     {
         var emailClient = new EmailClient(_acsEndpoint);
 
+        var overwrite = true ? "http://localhost:5173/invite" : _acsInviteBaseUrlLink.TrimEnd('/');
+        var callBackUrl = $"{overwrite}/{token}";
 
         var emailContent = new EmailContent(_senderPlaínHeaderText)
         {
-            Html = _senderHtmlText.Replace("{inviteLink}", inviteLink),
-            PlainText = _senderPlainText.Replace("{inviteLink}", inviteLink)
+            Html = _senderHtmlText.Replace("{inviteLink}", callBackUrl),
+            PlainText = _senderPlainText.Replace("{inviteLink}", callBackUrl)
         };
 
         var message = new EmailMessage(

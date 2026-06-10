@@ -10,4 +10,6 @@ public sealed class InviteTokenRow
     public DateTimeOffset ExpiresAt { get; set; }
     public bool Consumed { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? OpenedAt { get; set; }
+    public DateTimeOffset? AcceptedAt { get; set; }
 }

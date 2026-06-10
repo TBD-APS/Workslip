@@ -7,7 +7,6 @@
 
 export interface InviteUsersRequest {
   emails: string[];
-  inviteBaseUrl: string;
   /** @nullable */
   role: string | null;
 }

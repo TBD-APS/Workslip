@@ -8,5 +8,9 @@ public interface IInviteRepository
 
     Task<InviteTokenRow?> GetByTokenAsync(string token, CancellationToken cancellationToken);
 
+    Task<List<InviteTokenRow>> GetByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken);
+
     Task MarkConsumedAsync(Guid id, CancellationToken cancellationToken);
+
+    Task MarkOpenedAsync(Guid id, CancellationToken cancellationToken);
 }

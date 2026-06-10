@@ -24,23 +24,35 @@ public static class AuthEndpoints
             return Results.Ok(new { message = "Hvis e-mailen findes, er en kode sendt." });
         });
 
-        group.MapPost("/verify-code", async (VerifyCodeRequest request, IAuthService service, IConfiguration configuration, CancellationToken cancellationToken) =>
+        group.MapPost("/verify-code/{code}", async (string code, SendCodeRequest request, IAuthService service, IConfiguration configuration, CancellationToken cancellationToken) =>
         {
-            var result = await service.VerifyLoginCodeAsync(request, cancellationToken);
+            var result = await service.VerifyLoginCodeAsync(new VerifyCodeRequest(request.Email, code), cancellationToken);
             return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
-        });
+        }).Produces<AuthTokenResponse>();
 
-        group.MapPost("/verify-invite", async (VerifyInviteRequest request, IInvitationService service, IConfiguration configuration, CancellationToken cancellationToken) =>
+        group.MapPost("/verify-invite/{token}", async (string token, CompleteInviteRequest body, IInvitationService service, IConfiguration configuration, CancellationToken cancellationToken) =>
         {
-            var result = await service.VerifyInviteAsync(request, cancellationToken);
+            var result = await service.VerifyInviteAsync(new VerifyInviteRequest(token, body.DisplayName, body.Phone), cancellationToken);
             return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
-        });
+        }).Produces<AuthTokenResponse>();
 
         group.MapPost("/invite", async (InviteUsersRequest request, IInvitationService service, CancellationToken cancellationToken) =>
         {
             var result = await service.InviteUsersAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
+
+        group.MapGet("/invites", async (IInvitationService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetOrganizationInvitesAsync(cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+
+        group.MapPost("/invite/{token}/open", async (string token, IInvitationService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.MarkOpenedAsync(token, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
 
         return app;
     }

@@ -30,6 +30,21 @@ export const AppLayout = () => {
           </span>
           <button
             type="button"
+            onClick={() => navigate('/app/profil')}
+            className="user-avatar"
+            aria-label="Profil"
+            title="Profil"
+          >
+            {user?.displayName ? (
+              <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>
+                {user.displayName.charAt(0).toUpperCase()}
+              </span>
+            ) : (
+              <User size={18} />
+            )}
+          </button>
+          <button
+            type="button"
             onClick={handleLogout}
             className="app-header-logout"
             aria-label="Log ud"
@@ -71,10 +86,12 @@ export const AppLayout = () => {
             <span>Kunder</span>
           </NavLink>
         </Can>
-        <NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-          <Settings size={24} />
-          <span>Indstillinger</span>
-        </NavLink>
+        <Can permission="user:manage">
+          <NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Settings size={24} />
+            <span>Indstillinger</span>
+          </NavLink>
+        </Can>
       </nav>
     </div>
   );
