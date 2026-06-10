@@ -65,7 +65,7 @@ export const AppLayout = () => {
             </button>
           </Can>
         </div>
-        <Can permission="job:viewAll">
+        <Can permission="user:manage">
           <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Building2 size={24} />
             <span>Kunder</span>

@@ -864,7 +864,8 @@
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
                   "pm.test('customers list returned', function () { pm.expect(json).to.be.an('array'); });",
-                  "pm.test('customer view model hides internal timestamps', function () { if (json.length > 0) ['createdAt', 'updatedAt'].forEach(field => pm.expect(json[0]).to.not.have.property(field)); });"
+                  "pm.test('customer view model hides internal timestamps', function () { if (json.length > 0) ['createdAt', 'updatedAt'].forEach(field => pm.expect(json[0]).to.not.have.property(field)); });",
+                  "if (json.length > 0) { pm.collectionVariables.set('customerId', json[0].id); }"
                 ]
               }
             }

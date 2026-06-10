@@ -168,7 +168,7 @@ export const UserDetail = () => {
           <button
             key={job.reportId}
             className="job-card"
-            onClick={() => navigate(`/app/completed/${job.reportId}`)}
+            onClick={() => navigate(`/app/completed/${job.reportId}`, { state: { from: `/app/users/${id}` } })}
             type="button"
           >
             <div className="job-card-top">

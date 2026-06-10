@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Clock, Mail, MapPin, Timer, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Mail, MapPin, Phone, Users } from 'lucide-react';
 import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
 import { formatDate } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
@@ -74,7 +74,7 @@ export const CustomerDetail = () => {
         )}
         {customer.phone && (
           <div className="detail-row">
-            <Timer size={16} />
+            <Phone size={16} />
             <span>{customer.phone}</span>
           </div>
         )}
@@ -85,7 +85,7 @@ export const CustomerDetail = () => {
           <button
             key={job.id}
             className="job-card"
-            onClick={() => navigate(`/app/completed/${job.id}`)}
+            onClick={() => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } })}
             type="button"
           >
             <div className="job-card-top">
@@ -107,14 +107,14 @@ export const CustomerDetail = () => {
               )}
               {job.contactPhone && (
                 <span className="meta-item">
-                  <Timer size={14} />
+                  <Phone size={14} />
                   <span>{job.contactPhone}</span>
                 </span>
               )}
             </div>
             <div className="job-card-footer">
               <span className="meta-item">
-                <Clock size={14} />
+                <Phone size={14} />
                 <span>Sidst opdateret: {formatDate(job.updatedAt)}</span>
               </span>
             </div>

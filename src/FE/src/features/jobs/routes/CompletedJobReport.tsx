@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -43,6 +43,8 @@ type IrrelevantCategory = {
 export const CompletedJobReport = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
   const details = useJobDetailsState(id, { autoSave: false });
   const isAdmin = useIsAdmin();
   const { user } = useAuth();
@@ -143,7 +145,7 @@ export const CompletedJobReport = () => {
     try {
       await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Approved } });
       toast.success('Sagen er godkendt');
-      navigate('/app');
+      navigate(from);
     }
     catch{
        toast.error('Kunne ikke godkende sagen. Prøv igen.');
@@ -155,7 +157,7 @@ export const CompletedJobReport = () => {
     try {
     await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
     toast.success('Sagen er afvist');
-    navigate('/app');
+    navigate(from);
   } catch {
     toast.error('Kunne ikke afvise sagen. Prøv igen.');
   }
@@ -211,7 +213,7 @@ export const CompletedJobReport = () => {
   return (
     <div className="page-container report-overview-page">
       <div className="detail-header report-overview-header">
-        <button className="btn-icon" type="button" onClick={() => navigate('/app/')} aria-label="Tilbage til afsluttede sager">
+        <button className="btn-icon" type="button" onClick={() => navigate(-1)} aria-label="Tilbage til afsluttede sager">
           <ArrowLeft size={22} />
         </button>
         <div>
@@ -273,7 +275,7 @@ export const CompletedJobReport = () => {
               <Link2 size={18} />
               <h3>Tilknyttede sager</h3>
             </div>
-            <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`)} />
+            <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
           </section>
 
           <section className="detail-section attestation-timesheet-section">

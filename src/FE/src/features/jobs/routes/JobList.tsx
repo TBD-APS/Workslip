@@ -74,7 +74,6 @@ export const JobList = () => {
       job.customer?.contactPerson,
       job.customer?.phone,
       job.reportNumber,
-      ...job.installationTypes,
       ...job.assignedUsers.map((u) => u.displayName),
     ].some((v) => v?.toLowerCase().includes(term)),
   );
@@ -183,7 +182,7 @@ export const JobList = () => {
 
       <div className="job-list">
         {jobs.map((job) => (
-          <JobCard key={job.id} job={job} onOpen={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`)} />
+          <JobCard key={job.id} job={job} onOpen={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })} />
         ))}
 
         {jobs.length === 0 && (
