@@ -42,6 +42,20 @@ public static class AuthEndpoints
             return ResultExtensions.ToHttpResult(result);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
+        group.MapGet("/invites", async (IInvitationService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetOrganizationInvitesAsync(cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+
+        group.MapPost("/invite/{token}/open", async (string token, IInvitationService service, IInviteRepository inviteRepository, CancellationToken cancellationToken) =>
+        {
+            var invite = await inviteRepository.GetByTokenAsync(token, cancellationToken);
+            if (invite is null) return Results.NotFound();
+            await service.MarkOpenedAsync(invite.Id, cancellationToken);
+            return Results.Ok();
+        });
+
         return app;
     }
 }

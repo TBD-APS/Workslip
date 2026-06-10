@@ -71,10 +71,12 @@ export const AppLayout = () => {
             <span>Kunder</span>
           </NavLink>
         </Can>
-        <NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-          <Settings size={24} />
-          <span>Indstillinger</span>
-        </NavLink>
+        <Can permission="user:manage">
+          <NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Settings size={24} />
+            <span>Administrativt</span>
+          </NavLink>
+        </Can>
       </nav>
     </div>
   );

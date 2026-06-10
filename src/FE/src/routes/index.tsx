@@ -12,6 +12,7 @@ import { UserDetail } from '../features/users/routes/UserDetail';
 import { CustomerList } from '../features/customers/routes/CustomerList';
 import { CustomerDetail } from '../features/customers/routes/CustomerDetail';
 import { AppLayout } from '../components/layouts/AppLayout';
+import { Settings } from '../features/settings/routes/Settings';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -49,7 +50,7 @@ export const AppRoutes = () => {
         { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
         { path: 'customers', element: <RoleGuard permission="user:manage"><CustomerList /></RoleGuard> },
         { path: 'customers/:id', element: <RoleGuard permission="user:manage"><CustomerDetail /></RoleGuard> },
-        // { path: 'settings', element: <Settings /> },
+        { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
       ],
     },
   ]);

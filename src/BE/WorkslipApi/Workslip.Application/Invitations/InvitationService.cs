@@ -121,6 +121,37 @@ public sealed class InvitationService(
         }
     }
 
+    public async Task<Result<InviteListResponse>> GetOrganizationInvitesAsync(CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<InviteListResponse>.Unauthorized();
+        }
+
+        var invites = await inviteRepository.GetByOrganizationAsync(organizationId.Value, cancellationToken);
+
+        var response = new InviteListResponse(
+            invites.Select(i => new InviteTokenResponse(
+                i.Id,
+                i.Email,
+                i.Role,
+                i.CreatedAt,
+                i.ExpiresAt,
+                i.Consumed,
+                i.OpenedAt,
+                i.AcceptedAt
+            )).ToList());
+
+        return Result<InviteListResponse>.Success(response);
+    }
+
+    public async Task<Result> MarkOpenedAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await inviteRepository.MarkOpenedAsync(id, cancellationToken);
+        return Result.Success();
+    }
+
     private static UserDataRow BuildUserFromInvite(InviteTokenRow invite, CreateEntraUserResult entraUser) =>
         new()
         {
