@@ -9,6 +9,7 @@ public sealed class ChangeJobStatusRequestValidator : AbstractValidator<ChangeJo
     [
         JobStatus.Draft,
         JobStatus.InReview,
+        JobStatus.Approved,
         JobStatus.Rejected
     ];
 

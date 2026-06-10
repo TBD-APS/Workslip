@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Building2, ChevronRight, Mail, Timer, Users, MapPin } from 'lucide-react';
+import { AlertCircle, Building2, ChevronRight, Mail, Users, MapPin, Phone } from 'lucide-react';
 import { useGetApiCustomers } from '../../../api/generated/customers/customers';
+import { SearchBar } from '../../../components/filters/SearchBar';
+import { useSearch } from '../../../hooks/useSearch';
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -14,9 +17,13 @@ const SkeletonCard = () => (
 
 export const CustomerList = () => {
   const navigate = useNavigate();
+  const [search, setSearch] = useState('');
   const query = useGetApiCustomers();
   const data = query.data;
-  const customers = data ?? [];
+  const sorted = (data ?? []).sort((a, b) => b.jobCount - a.jobCount);
+  const customers = useSearch(sorted, search, (c, term) =>
+    [c.name, c.address, c.email, c.contactPerson, c.phone].some((v) => v?.toLowerCase().includes(term)),
+  );
 
   if (query.isLoading) {
     return (
@@ -55,6 +62,9 @@ export const CustomerList = () => {
         <p className="subtitle">{customers.length} {customers.length === 1 ? 'kunde' : 'kunder'}</p>
       </div>
 
+      <SearchBar value={search} onChange={setSearch} placeholder="Søg kunder..." />
+      <div className="search-bar-spacer" />
+
       <div className="job-list">
         {customers.map((customer) => (
           <button
@@ -69,7 +79,6 @@ export const CustomerList = () => {
                 <h3 className="job-customer" style={{ display: 'inline' }}>{customer.name}</h3>
               </div>
               <span className="meta-item">
-                <Users size={14} />
                 <span>{customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}</span>
               </span>
             </div>
@@ -95,7 +104,7 @@ export const CustomerList = () => {
               )}
               {customer.phone && (
                 <span className="meta-item">
-                  <Timer size={14} />
+                  <Phone size={14} />
                   <span>{customer.phone}</span>
                 </span>
               )}

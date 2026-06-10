@@ -141,9 +141,9 @@ export const CompletedJobReport = () => {
   const handleApprove = async () => {
     if (!job) return;
     try {
-      await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.InReview } });
+      await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Approved } });
       toast.success('Sagen er godkendt');
-      navigate('/app/completed');
+      navigate('/app');
     }
     catch{
        toast.error('Kunne ikke godkende sagen. Prøv igen.');
@@ -155,7 +155,7 @@ export const CompletedJobReport = () => {
     try {
     await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
     toast.success('Sagen er afvist');
-    navigate('/app/completed');
+    navigate('/app');
   } catch {
     toast.error('Kunne ikke afvise sagen. Prøv igen.');
   }
@@ -211,7 +211,7 @@ export const CompletedJobReport = () => {
   return (
     <div className="page-container report-overview-page">
       <div className="detail-header report-overview-header">
-        <button className="btn-icon" type="button" onClick={() => navigate('/app/completed')} aria-label="Tilbage til afsluttede sager">
+        <button className="btn-icon" type="button" onClick={() => navigate('/app/')} aria-label="Tilbage til afsluttede sager">
           <ArrowLeft size={22} />
         </button>
         <div>

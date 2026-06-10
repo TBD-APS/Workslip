@@ -1,5 +1,5 @@
 import { useNavigate, NavLink, Outlet } from 'react-router-dom';
-import { ClipboardList, FileCheck2, Building2, LogOut, PlusCircle, Settings, User, Users } from 'lucide-react';
+import { ClipboardList, Building2, LogOut, PlusCircle, Settings, User, Users } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
 
@@ -58,12 +58,6 @@ export const AppLayout = () => {
             <span>Folk</span>
           </NavLink>
         </Can>
-        <Can permission="job:viewAll">
-          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Building2 size={24} />
-            <span>Kunder</span>
-          </NavLink>
-        </Can>
         <div className="nav-item-fab">
           <Can permission="job:create">
             <button className="fab-button" onClick={() => navigate('/app/job/new')} aria-label="Opret sag">
@@ -72,9 +66,9 @@ export const AppLayout = () => {
           </Can>
         </div>
         <Can permission="job:viewAll">
-          <NavLink to="/app/completed" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <FileCheck2 size={24} />
-            <span>Afsluttede sager</span>
+          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Building2 size={24} />
+            <span>Kunder</span>
           </NavLink>
         </Can>
         <NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>

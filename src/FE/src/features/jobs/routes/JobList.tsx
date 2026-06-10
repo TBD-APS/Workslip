@@ -5,6 +5,8 @@ import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel } from '../../../api/generated/models';
 import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import { JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
+import { SearchBar } from '../../../components/filters/SearchBar';
+import { useSearch } from '../../../hooks/useSearch';
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
@@ -40,6 +42,7 @@ export const JobList = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
+  const [search, setSearch] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() =>
     getSavedStatusFilter('mine-jobs', [JobStatus.Draft]),
   );
@@ -49,7 +52,7 @@ export const JobList = () => {
   const query = useGetApiJobs({ status: fetchStatuses, limit: 200 });
   const allJobs = query.data ?? [];
 
-  const jobs = useMemo(() => {
+  const filtered = useMemo(() => {
     let result = allJobs;
 
     if (!isAdmin) {
@@ -62,6 +65,19 @@ export const JobList = () => {
 
     return result;
   }, [allJobs, isAdmin, user?.id, selectedStatuses]);
+
+  const jobs = useSearch(filtered, search, (job, term) =>
+    [
+      job.customer?.name,
+      job.customer?.address,
+      job.customer?.email,
+      job.customer?.contactPerson,
+      job.customer?.phone,
+      job.reportNumber,
+      ...job.installationTypes,
+      ...job.assignedUsers.map((u) => u.displayName),
+    ].some((v) => v?.toLowerCase().includes(term)),
+  );
 
   useEffect(() => {
     saveStatusFilter('mine-jobs', selectedStatuses);
@@ -161,6 +177,9 @@ export const JobList = () => {
         selected={selectedStatuses}
         onChange={setSelectedStatuses}
       />
+
+      <SearchBar value={search} onChange={setSearch} placeholder="Søg opgaver..." />
+      <div className="search-bar-spacer" />
 
       <div className="job-list">
         {jobs.map((job) => (

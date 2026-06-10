@@ -52,6 +52,7 @@ export const CustomerDetail = () => {
         </div>
       </div>
 
+
       <div className="customer-detail-info">
         {customer.address && (
           <div className="detail-row">
@@ -78,8 +79,6 @@ export const CustomerDetail = () => {
           </div>
         )}
       </div>
-
-      <h3 className="section-title">Sager for denne kunde</h3>
 
       <div className="job-list">
         {customer.jobs.map((job) => (

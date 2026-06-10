@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronRight, Mail, Shield } from 'lucide-react';
 import { useGetApiUsers } from '../../../api/generated/users/users';
+import { SearchBar } from '../../../components/filters/SearchBar';
+import { useSearch } from '../../../hooks/useSearch';
 import { announceSection } from '../../../components/filters/StatusFilter';
 
 const SkeletonCard = () => (
@@ -16,9 +18,13 @@ const SkeletonCard = () => (
 
 export const UserList = () => {
   const navigate = useNavigate();
+  const [search, setSearch] = useState('');
   const query = useGetApiUsers();
   const data = query.data;
-  const users = data?.users ?? [];
+  const allUsers = data?.users ?? [];
+  const users = useSearch(allUsers, search, (u, term) =>
+    [u.displayName, u.email, u.phone, u.role].some((v) => v?.toLowerCase().includes(term)),
+  );
 
   useEffect(() => {
     announceSection('users');
@@ -60,6 +66,9 @@ export const UserList = () => {
         <h2>Folk</h2>
         <p className="subtitle">{users.length} {users.length === 1 ? 'bruger' : 'brugere'}</p>
       </div>
+
+      <SearchBar value={search} onChange={setSearch} placeholder="Søg brugere..." />
+      <div className="search-bar-spacer" />
 
       <div className="job-list">
         {users.map((user) => (

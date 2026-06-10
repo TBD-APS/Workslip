@@ -6,7 +6,6 @@ import { Login } from '../features/auth/routes/Login';
 import { JobList } from '../features/jobs/routes/JobList';
 import { JobDetail } from '../features/jobs/routes/JobDetail';
 import { JobCreate } from '../features/jobs/routes/JobCreate';
-import { CompletedJobs } from '../features/jobs/routes/CompletedJobs';
 import { CompletedJobReport } from '../features/jobs/routes/CompletedJobReport';
 import { UserList } from '../features/users/routes/UserList';
 import { UserDetail } from '../features/users/routes/UserDetail';
@@ -45,7 +44,6 @@ export const AppRoutes = () => {
         { index: true, element: <JobList /> },
         { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
         { path: 'job/:id', element: <JobDetail /> },
-        { path: 'completed', element: <RoleGuard permission="job:viewAll"><CompletedJobs /></RoleGuard> },
         { path: 'completed/:id', element: <CompletedJobReport /> },
         { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
         { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
