@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
@@ -8,9 +8,13 @@ import { JobStatus, type AssignedUserResponse } from '../../../api/generated/mod
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
+import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-content';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
+
+const isReadonlyState = (status: JobStatus) =>
+  status === JobStatus.InReview || status === JobStatus.Approved;
 
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector(SCROLL_CONTAINER_SELECTOR);
@@ -36,19 +40,46 @@ export const JobList = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const query = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Submitted], limit: 200 });
+  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() =>
+    getSavedStatusFilter('mine-jobs', [JobStatus.Draft]),
+  );
+  const fetchStatuses = isAdmin
+    ? [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected]
+    : [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved];
+  const query = useGetApiJobs({ status: fetchStatuses, limit: 200 });
   const allJobs = query.data ?? [];
 
   const jobs = useMemo(() => {
-    if (isAdmin) 
-      return allJobs;
-    
-    const currentUserId = user?.id;
+    let result = allJobs;
 
-    if (!currentUserId) 
-      return [];
-    return allJobs.filter((job) => job.assignedUsers.some((u) => u.id === currentUserId));
-  }, [allJobs, isAdmin, user?.id]);
+    if (!isAdmin) {
+      const currentUserId = user?.id;
+      if (!currentUserId) return [];
+      result = result.filter((job) => job.assignedUsers.some((u) => u.id === currentUserId));
+    }
+
+    result = result.filter((job) => selectedStatuses.includes(job.status));
+
+    return result;
+  }, [allJobs, isAdmin, user?.id, selectedStatuses]);
+
+  useEffect(() => {
+    saveStatusFilter('mine-jobs', selectedStatuses);
+  }, [selectedStatuses]);
+
+  useEffect(() => {
+    announceSection('mine-jobs');
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setSelectedStatuses(getSavedStatusFilter('mine-jobs', [JobStatus.Draft]));
+      }
+    };
+    window.addEventListener('pageshow', handler);
+    return () => window.removeEventListener('pageshow', handler);
+  }, []);
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
@@ -112,9 +143,28 @@ export const JobList = () => {
         )}
       </div>
 
+      <StatusFilter
+        options={
+          isAdmin
+            ? [
+                { value: JobStatus.Draft, label: 'Aktiv' },
+                { value: JobStatus.InReview, label: 'Til gennemsyn' },
+                { value: JobStatus.Approved, label: 'Godkendt' },
+                { value: JobStatus.Rejected, label: 'Afvist' },
+              ]
+            : [
+                { value: JobStatus.Draft, label: 'Aktiv' },
+                { value: JobStatus.InReview, label: 'Til gennemsyn' },
+                { value: JobStatus.Approved, label: 'Godkendt' },
+              ]
+        }
+        selected={selectedStatuses}
+        onChange={setSelectedStatuses}
+      />
+
       <div className="job-list">
         {jobs.map((job) => (
-          <JobCard key={job.id} job={job} onOpen={() => navigate(`/app/job/${job.id}`)} />
+          <JobCard key={job.id} job={job} onOpen={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`)} />
         ))}
 
         {jobs.length === 0 && (

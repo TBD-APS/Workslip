@@ -50,9 +50,7 @@ public static class HttpCacheHeaders
             .Append(':')
             .Append(report.Id.ToString("N"))
             .Append(':')
-            .Append(report.UpdatedAt.UtcTicks)
-            .Append(':')
-            .Append(report.SubmittedAt?.UtcTicks ?? 0);
+            .Append(report.UpdatedAt.UtcTicks);
 
         foreach (var link in report.Links.OrderBy(link => link.Id))
         {
@@ -90,7 +88,7 @@ public static class HttpCacheHeaders
             .Append("jobs:list:")
             .Append(organizationId.ToString("N"))
             .Append(':')
-            .Append(status.Select(x => x.ToString()).ToString() ?? "all")
+            .Append(status?.Select(x => x.ToString()).ToString() ?? "all")
             .Append(':')
             .Append(reportNumber?.ToLowerInvariant() ?? "none")
             .Append(':')

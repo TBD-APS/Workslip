@@ -8,7 +8,10 @@ import type {
   JobReportSummaryViewModel,
   WorksheetResponse,
 } from '../../../api/generated/models';
+import { usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
+import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
+import { useAuth } from '../../../providers/useAuth';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
 import { ControlPointsStep } from '../components/steps/ControlPointsStep';
 import { JobCompletionStep } from '../components/steps/JobCompletionStep';
@@ -42,6 +45,8 @@ export const CompletedJobReport = () => {
   const navigate = useNavigate();
   const details = useJobDetailsState(id, { autoSave: false });
   const isAdmin = useIsAdmin();
+  const { user } = useAuth();
+  const statusMutation = usePostApiJobsIdStatus();
   const [isOpeningPdf, setIsOpeningPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<JobReportPdfPreview | null>(null);
@@ -50,8 +55,16 @@ export const CompletedJobReport = () => {
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const sortedWorksheets = useMemo(
-    () => [...(job?.worksheets ?? [])].sort((left, right) => right.workDate.localeCompare(left.workDate)),
-    [job?.worksheets],
+    () => {
+      const allWorksheets = [...(job?.worksheets ?? [])].sort((left, right) => right.userId.localeCompare(left.userId));
+      
+      if (!isAdmin) {
+        return allWorksheets?.filter((ws) => ws.userId === user?.id) ?? [];
+      }
+
+      return allWorksheets;
+    },
+    [job?.worksheets, isAdmin, user?.id],
   );
 
   useEffect(() => {
@@ -125,6 +138,29 @@ export const CompletedJobReport = () => {
     toast.success('Sagen er opdateret');
   };
 
+  const handleApprove = async () => {
+    if (!job) return;
+    try {
+      await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.InReview } });
+      toast.success('Sagen er godkendt');
+      navigate('/app/completed');
+    }
+    catch{
+       toast.error('Kunne ikke godkende sagen. Prøv igen.');
+     }
+  };
+
+  const handleReject = async () => {
+    if (!job) return;
+    try {
+    await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
+    toast.success('Sagen er afvist');
+    navigate('/app/completed');
+  } catch {
+    toast.error('Kunne ikke afvise sagen. Prøv igen.');
+  }
+  };
+
   if (details.isLoading) {
     return (
       <div className="page-container report-overview-page">
@@ -152,7 +188,7 @@ export const CompletedJobReport = () => {
 
   const summaryPairs = compactPairs([
     { label: 'Sagsnummer', value: formatReportNumber(job) },
-    { label: 'Status', value: formatJobStatus(job.status) },
+    { label: 'Status', value: formatJobStatus(job.status)},
     { label: 'Rapportdato', value: formatDate(job.observations.reportDate) },
     { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
@@ -194,9 +230,11 @@ export const CompletedJobReport = () => {
               </button>
             </>
           ) : (
-            <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} disabled={!isAdmin} aria-label="Rediger sag" title={isAdmin ? 'Rediger sag' : 'Kun admins kan redigere afsluttede sager'}>
-              <Pencil size={16} />
-            </button>
+            isAdmin && (
+              <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} aria-label="Rediger sag">
+                <Pencil size={16} />
+              </button>
+            )
           )}
           <button className={`btn btn-secondary report-overview-icon-action ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" disabled aria-label="Versioner" title="Versioner kommer senere">
             <History size={16} />
@@ -276,6 +314,21 @@ export const CompletedJobReport = () => {
             </div>
             <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
           </section>
+
+          {job.status === JobStatus.InReview && isAdmin && (
+            <section className="detail-section">
+              <div className="edit-form-bottom-actions">
+                <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
+                  <X size={18} />
+                  Afvis
+                </button>
+                <button className="btn btn-primary edit-form-bottom-btn" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
+                  {statusMutation.isPending ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
+                  {statusMutation.isPending ? 'Godkender...' : 'Godkend'}
+                </button>
+              </div>
+            </section>
+          )}
         </>
       )}
 

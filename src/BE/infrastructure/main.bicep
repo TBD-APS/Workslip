@@ -332,7 +332,7 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
   params: {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
-    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment}; TrustServerCertificate=False; Authentication="Active Directory Default";'
+    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=adminrbj;Password=Num64bqe!; TrustServerCertificate=False;'
   }
 }
 
@@ -383,7 +383,7 @@ resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
 }
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
-  name: 'db-${companyName}-server'
+  name: 'db-${companyName}-${environment}-server'
   location: location
   properties: {
     administrators: {

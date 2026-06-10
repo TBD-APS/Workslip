@@ -163,7 +163,6 @@ public sealed class EfJobRepository : IJobRepository
                     r.CustomWorkKind) : null,
                 r.CreatedAt,
                 r.UpdatedAt,
-                r.SubmittedAt,
                 r.IsSoftDeleted,
                 r.DeletionScheduledAt
             }
@@ -194,7 +193,7 @@ public sealed class EfJobRepository : IJobRepository
                 customerInfo,
                 x.ReportNumber, JobReportMapper.ParseStatus(x.Status), JobReportMapper.ToDateOnly(x.ReportDate),
                 installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
-                x.CreatedAt, x.UpdatedAt, x.SubmittedAt,
+                x.CreatedAt, x.UpdatedAt,
                 assignedUsersByReport.GetValueOrDefault(x.Id) ?? [],
                 x.IsSoftDeleted, x.DeletionScheduledAt,
                 totalHoursByJob.GetValueOrDefault(x.Id));
@@ -371,9 +370,6 @@ public sealed class EfJobRepository : IJobRepository
         var entry = _dbContext.Entry(existing);
         entry.Property(e => e.Status).CurrentValue = nextStatus.ToString();
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
-        if (nextStatus == JobStatus.Submitted)
-            entry.Property(e => e.SubmittedAt).CurrentValue = now;
-
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await InsertEventAsync(organizationId, id, actorId, nextStatus.ToString().ToLowerInvariant(), JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(new { status = nextStatus.ToString() }), now, cancellationToken);

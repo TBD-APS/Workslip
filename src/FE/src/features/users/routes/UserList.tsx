@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronRight, Mail, Shield } from 'lucide-react';
 import { useGetApiUsers } from '../../../api/generated/users/users';
+import { announceSection } from '../../../components/filters/StatusFilter';
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -17,6 +19,10 @@ export const UserList = () => {
   const query = useGetApiUsers();
   const data = query.data;
   const users = data?.users ?? [];
+
+  useEffect(() => {
+    announceSection('users');
+  }, []);
 
   if (query.isLoading) {
     return (

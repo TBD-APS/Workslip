@@ -1,9 +1,9 @@
 param(
     [Parameter(Position=0)]
-    [string]$Environment = "udv",
+    [string]$Environment = "pre",
     [string]$Location = "westeurope",
     [string]$COMPANY_NAME = "npteknik",
-    [string]$GlobalAdminId = "141e797e-ee4a-41fd-9778-5430ed0a712e"
+    [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7"
 )
 
 $ErrorActionPreference = "Stop"
@@ -125,15 +125,27 @@ function Add-GraphGroupMember {
     Wait-GraphDirectoryObject -ObjectId $GroupId -Description "SQL admin group"
     Wait-GraphDirectoryObject -ObjectId $MemberId -Description $Description
 
-    $Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json -Compress
+    
+    #$Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json -Compress
+    
+    $BodyObject = @{
+        '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId"
+    }
+    $TempBodyFile = New-TemporaryFile
+    
+    $BodyObject |
+            ConvertTo-Json -Depth 10 -Compress |
+            Set-Content -Path $TempBodyFile -Encoding utf8
+
     $AddMemberOutput = az rest `
-      --method POST `
-      --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
-      --headers "Content-Type=application/json" `
-      --body $Body `
-      -o none 2>&1
+          --method POST `
+          --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
+          --headers "Content-Type=application/json" `
+          --body "@$TempBodyFile" `
+          -o none 2>&1
 
     if ($LASTEXITCODE -eq 0) {
+        Remove-Item $TempBodyFile -ErrorAction SilentlyContinue
         Write-Host "Added SQL admin group member: $Description"
         return
     }

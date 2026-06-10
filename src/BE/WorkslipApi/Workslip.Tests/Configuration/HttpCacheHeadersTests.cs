@@ -52,7 +52,6 @@ public sealed class HttpCacheHeadersTests
             links ?? [],
             DateTimeOffset.UnixEpoch,
             DateTimeOffset.UnixEpoch,
-            null,
             assignedUsers ?? [],
             [],
             null,

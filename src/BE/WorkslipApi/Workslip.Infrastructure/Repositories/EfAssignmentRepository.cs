@@ -114,7 +114,6 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                     r.CustomWorkKind) : null,
                 r.CreatedAt,
                 r.UpdatedAt,
-                r.SubmittedAt,
                 r.IsSoftDeleted,
                 r.DeletionScheduledAt
             }).ToListAsync(cancellationToken);
@@ -164,7 +163,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 customerInfo,
                 x.ReportNumber, Enum.Parse<JobStatus>(x.Status, ignoreCase: true), JobReportMapper.ToDateOnly(x.ReportDate),
                 installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
-                x.CreatedAt, x.UpdatedAt, x.SubmittedAt,
+                x.CreatedAt, x.UpdatedAt,
                 assignedDictionary.GetValueOrDefault(x.Id) ?? [],
                 x.IsSoftDeleted, x.DeletionScheduledAt,
                 totalHoursByJob.GetValueOrDefault(x.Id));

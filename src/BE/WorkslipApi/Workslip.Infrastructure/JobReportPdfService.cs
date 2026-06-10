@@ -114,7 +114,6 @@ public sealed class JobReportPdfService : IJobReportPdfService
                     row.RelativeItem().Column(col =>
                     {
                         col.Item().Element(c => Field(c, "Status", StatusLabel(job.Status)));
-                        col.Item().Element(c => Field(c, "Indsendt", FormatDateTime(job.SubmittedAt)));
                         col.Item().Element(c => Field(c, "Oprettet", FormatDateTime(job.CreatedAt)));
                         col.Item().Element(c => Field(c, "Senest ændret", FormatDateTime(job.UpdatedAt)));
                     });
@@ -445,23 +444,19 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static string StatusLabel(JobStatus status) => status switch
     {
-        JobStatus.Draft => "Kladde",
-        JobStatus.Submitted => "Indsendt",
+        JobStatus.Draft => "Aktiv",
         JobStatus.InReview => "Til gennemsyn",
         JobStatus.Approved => "Godkendt",
         JobStatus.Rejected => "Returneret",
-        JobStatus.Archived => "Arkiveret",
         _ => status.ToString()
     };
 
     private static Color StatusColor(JobStatus status) => status switch
     {
         JobStatus.Draft => Color.FromHex("#CBD5E1"),
-        JobStatus.Submitted => Color.FromHex("#FACC15"),
         JobStatus.InReview => Color.FromHex("#93C5FD"),
         JobStatus.Approved => Color.FromHex("#86EFAC"),
         JobStatus.Rejected => Color.FromHex("#FCA5A5"),
-        JobStatus.Archived => Color.FromHex("#CBD5E1"),
         _ => Colors.White
     };
 }
