@@ -1,16 +1,24 @@
-import Axios from 'axios';
+import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
+import qs from 'qs';
+import { AUTH_TOKEN_KEY } from '../providers/authContextValue';
 
-const apiUrl = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api`;
+const apiUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 
-export const apiClient = Axios.create({
+export const apiClient = axios.create({
   baseURL: apiUrl,
+  paramsSerializer: {
+    serialize: (params) =>
+      qs.stringify(params, {
+        arrayFormat: 'repeat',
+      }),
+  },
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Attach auth token from localStorage
-  const token = localStorage.getItem('authToken');
+  // Attach auth token from sessionStorage
+  const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -23,12 +31,23 @@ apiClient.interceptors.response.use(
     return response.data;
   },
   (error) => {
+    if (
+      axios.isCancel(error) ||
+      error?.name === 'CanceledError' ||
+      error?.code === 'ERR_CANCELED' ||
+      error?.message?.toLowerCase().includes('cancel') ||
+      error?.message?.toLowerCase().includes('abort')
+    ) {
+      return Promise.reject(error);
+    }
+
     const message = error.response?.data?.message || error.message;
     
     // Handle specific backend error patterns (from AGENTS.md rules)
     if (error.response?.status === 401) {
       toast.error('Log ind for at fortsætte');
-      // window.location.assign('/login');
+      sessionStorage.removeItem(AUTH_TOKEN_KEY);
+      window.location.assign('/login');
     } else if (error.response?.status === 403) {
       toast.error('Du har ikke adgang til denne handling');
     } else if (error.response?.status === 400 && error.response?.data?.errors) {

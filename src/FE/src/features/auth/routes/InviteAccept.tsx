@@ -44,7 +44,7 @@ export const InviteAccept = () => {
 
     try {
       const response = await acceptInvite(token, displayName.trim(), phone.trim() || undefined);
-      localStorage.setItem(AUTH_TOKEN_KEY, response.token);
+      sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
       setState({ status: 'success' });
     } catch (err: unknown) {
       const errorCode = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;

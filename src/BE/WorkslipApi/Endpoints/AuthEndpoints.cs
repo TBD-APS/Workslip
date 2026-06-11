@@ -51,8 +51,11 @@ public static class AuthEndpoints
         group.MapPost("/invite/{token}/open", async (string token, IInvitationService service, IInviteRepository inviteRepository, CancellationToken cancellationToken) =>
         {
             var invite = await inviteRepository.GetByTokenAsync(token, cancellationToken);
-            if (invite is null) return Results.NotFound();
-            await service.MarkOpenedAsync(invite.Id, cancellationToken);
+
+            if (invite is null) 
+                return Results.NotFound();
+            
+            await service.MarkOpenedAsync(invite.Id.ToString(), cancellationToken);
             return Results.Ok();
         });
 

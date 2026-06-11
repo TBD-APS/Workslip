@@ -7,7 +7,7 @@ import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY } from './authContextValue'
 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem(AUTH_TOKEN_KEY));
+  const [authToken, setAuthToken] = useState<string | null>(() => sessionStorage.getItem(AUTH_TOKEN_KEY));
   const queryClient = useQueryClient();
 
   const meQuery = useGetApiAuthMe({
@@ -26,8 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, code: string): Promise<boolean> => {
       try {
         const response = await verifyAuthCode(email, code);
-        localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        localStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
         setAuthToken(response.token);
         queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
         return true;
@@ -42,8 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string): Promise<boolean> => {
       try {
         const response = await getDevToken(email);
-        localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        localStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
         setAuthToken(response.token);
         queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
         return true;
@@ -55,8 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    localStorage.removeItem(USER_EMAIL_KEY);
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(USER_EMAIL_KEY);
     setAuthToken(null);
     queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
   }, [queryClient]);
