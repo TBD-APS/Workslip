@@ -5,9 +5,10 @@ import { JOB_STEPS } from './jobSteps';
 type StepIndicatorsProps = {
   currentStep: number;
   onStepChange: (step: number) => void;
+  completedSteps: boolean[];
 };
 
-export function StepIndicators({ currentStep, onStepChange }: StepIndicatorsProps) {
+export function StepIndicators({ currentStep, onStepChange, completedSteps }: StepIndicatorsProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -26,11 +27,13 @@ export function StepIndicators({ currentStep, onStepChange }: StepIndicatorsProp
         const StepIcon = step.icon;
         const isActive = index === currentStep;
         const isCompleted = index < currentStep;
+        const isDisabled = index === 3 && !completedSteps[2]; // Disable Worksheets if ControlPoints not valid
         return (
           <button
             key={step.label}
             className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-            onClick={() => onStepChange(index)}
+            onClick={() => !isDisabled && onStepChange(index)}
+            disabled={isDisabled}
             aria-label={isActive ? `${step.label} - aktuelt trin` : step.label}
             aria-current={isActive ? 'step' : undefined}
           >

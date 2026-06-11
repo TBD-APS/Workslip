@@ -269,6 +269,23 @@ public static class DatabaseSeeder
             }
         }
 
+        AddYearlyDemoWorksheets(
+            worksheets,
+            jobs,
+            organization.Id,
+            regularUserId,
+            now,
+            seed: 701,
+            maxEntriesPerMonth: 16);
+        AddYearlyDemoWorksheets(
+            worksheets,
+            jobs,
+            organization.Id,
+            adminUserId,
+            now,
+            seed: 902,
+            maxEntriesPerMonth: 18);
+
         var jobClosureFlagJoins = new List<JobReportClosureFlagRow>();
         var exclusiveClosureFlags = jobClosureFlags.Where(flag => flag.IsExclusive).ToArray();
         var combinableClosureFlags = jobClosureFlags.Where(flag => !flag.IsExclusive).ToArray();
@@ -308,6 +325,80 @@ public static class DatabaseSeeder
 
         await db.SaveChangesAsync();
     }
+
+    private static void AddYearlyDemoWorksheets(
+        List<WorksheetRow> worksheets,
+        IReadOnlyList<JobReportRow> jobs,
+        Guid organizationId,
+        Guid userId,
+        DateTimeOffset now,
+        int seed,
+        int maxEntriesPerMonth)
+    {
+        var random = new Random(seed);
+        var demoJobs = jobs
+            .Where(job => job.OrganizationId == organizationId && !job.IsSoftDeleted)
+            .OrderBy(job => job.ReportNumber)
+            .Take(18)
+            .ToArray();
+
+        if (demoJobs.Length == 0)
+        {
+            return;
+        }
+
+        var year = now.Year;
+        for (var month = 1; month <= 12; month++)
+        {
+            var daysInMonth = DateTime.DaysInMonth(year, month);
+            var entryCount = Math.Min(maxEntriesPerMonth, random.Next(10, maxEntriesPerMonth + 1));
+            var usedDates = new HashSet<DateTime>();
+
+            for (var index = 0; index < entryCount; index++)
+            {
+                var workDate = NextWeekday(year, month, daysInMonth, random, usedDates);
+                var job = demoJobs[random.Next(demoJobs.Length)];
+                var hours = QuarterHour(random.Next(8, 33) / 4m);
+                var timestamp = new DateTimeOffset(workDate, TimeSpan.Zero).AddHours(8);
+
+                worksheets.Add(new WorksheetRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organizationId,
+                    JobId = job.Id,
+                    UserId = userId,
+                    WorkDate = workDate,
+                    HoursWorked = hours,
+                    SleptOnJob = random.NextDouble() < 0.18,
+                    CreatedAt = timestamp,
+                    UpdatedAt = timestamp
+                });
+            }
+        }
+    }
+
+    private static DateTime NextWeekday(int year, int month, int daysInMonth, Random random, HashSet<DateTime> usedDates)
+    {
+        for (var attempt = 0; attempt < 80; attempt++)
+        {
+            var candidate = new DateTime(year, month, random.Next(1, daysInMonth + 1));
+            if (candidate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday || usedDates.Contains(candidate))
+            {
+                continue;
+            }
+
+            usedDates.Add(candidate);
+            return candidate;
+        }
+
+        var fallback = Enumerable.Range(1, daysInMonth)
+            .Select(day => new DateTime(year, month, day))
+            .First(date => date.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday && !usedDates.Contains(date));
+        usedDates.Add(fallback);
+        return fallback;
+    }
+
+    private static decimal QuarterHour(decimal hours) => Math.Round(hours * 4, MidpointRounding.AwayFromZero) / 4;
 
     private static async Task NormalizeExclusiveClosureFlagSelectionsAsync(SqlDbContext db)
     {

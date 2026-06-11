@@ -30,6 +30,37 @@ public class WorksheetService : IWorksheetService
         _logger = logger;
     }
 
+
+    public async Task<Result<MyWorksheetsMonthResponse>> GetWorksheetsForUserAsync(int? year, int? month, CancellationToken cancellationToken)
+    {
+        var userId = _currentUserContext.UserId;
+        var organizationId = _currentUserContext.OrganizationId;
+
+        if (userId is null || organizationId is null)
+        {
+            return Result<MyWorksheetsMonthResponse>.Unauthorized();
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var selectedYear = year ?? now.Year;
+        var selectedMonth = month ?? now.Month;
+
+        if (selectedYear is < 2000 or > 2100 || selectedMonth is < 1 or > 12)
+        {
+            return Result<MyWorksheetsMonthResponse>.Invalid([new ValidationError
+            {
+                Identifier = "month",
+                ErrorMessage = "Vælg en gyldig måned."
+            }]);
+        }
+
+        var monthStart = new DateOnly(selectedYear, selectedMonth, 1);
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        var entries = await _repository.GetWorksheetsForUserAsync(userId.Value, organizationId.Value, monthStart, monthEnd, cancellationToken);
+
+        return Result<MyWorksheetsMonthResponse>.Success(BuildMonthResponse(selectedYear, selectedMonth, monthStart, monthEnd, entries));
+    }
+
     public async Task<Result<JobReportSummaryResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken)
     {
         var organizationId = _currentUserContext.OrganizationId;
@@ -88,8 +119,66 @@ public class WorksheetService : IWorksheetService
         return await _jobService.GetSingleJobAsync(jobId, cancellationToken);
     }
 
+    private static MyWorksheetsMonthResponse BuildMonthResponse(
+        int year,
+        int month,
+        DateOnly monthStart,
+        DateOnly monthEnd,
+        IReadOnlyList<MyWorksheetEntryResponse> entries)
+    {
+        var entriesByDate = entries
+            .GroupBy(e => e.WorkDate)
+            .ToDictionary(g => g.Key, g => g.OrderBy(e => e.CustomerName).ThenBy(e => e.ReportNumber).ToArray());
+
+        var weekStart = StartOfWeek(monthStart);
+        var lastWeekStart = StartOfWeek(monthEnd);
+        var weeks = new List<MyWorksheetWeekResponse>();
+
+        for (var start = weekStart; start <= lastWeekStart; start = start.AddDays(7))
+        {
+            var days = Enumerable.Range(0, 7)
+                .Select(offset => BuildDayResponse(start.AddDays(offset), entriesByDate))
+                .ToArray();
+
+            weeks.Add(new MyWorksheetWeekResponse(
+                start,
+                start.AddDays(6),
+                days.Sum(d => d.TotalHours),
+                days.Sum(d => d.OutlayCount),
+                days));
+        }
+
+        return new MyWorksheetsMonthResponse(
+            year,
+            month,
+            monthStart,
+            monthEnd,
+            weeks.Sum(w => w.TotalHours),
+            weeks.Sum(w => w.OutlayCount),
+            weeks);
+    }
+
+    private static MyWorksheetDayResponse BuildDayResponse(
+        DateOnly date,
+        IReadOnlyDictionary<DateOnly, MyWorksheetEntryResponse[]> entriesByDate)
+    {
+        var entries = entriesByDate.GetValueOrDefault(date) ?? [];
+        return new MyWorksheetDayResponse(
+            date,
+            entries.Sum(e => e.HoursWorked),
+            entries.Count(e => e.HasOutlay),
+            entries);
+    }
+
+    private static DateOnly StartOfWeek(DateOnly date)
+    {
+        var daysFromMonday = ((int)date.DayOfWeek + 6) % 7;
+        return date.AddDays(-daysFromMonday);
+    }
+
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors
             .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
             .ToList();
+
 }

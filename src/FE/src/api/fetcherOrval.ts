@@ -10,5 +10,5 @@ export const customAxiosInstance = async <T>(
   return AXIOS_INSTANCE.request<T>({
     ...config,
     ...options,
-  });
+  }) as Promise<T>;
 };

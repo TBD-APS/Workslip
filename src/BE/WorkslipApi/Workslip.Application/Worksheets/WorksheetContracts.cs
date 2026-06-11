@@ -31,8 +31,40 @@ public sealed record WorksheetResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
+public sealed record MyWorksheetEntryResponse(
+    DateOnly WorkDate,
+    Guid JobId,
+    string? ReportNumber,
+    string CustomerName,
+    string? CustomerAddress,
+    decimal HoursWorked,
+    bool HasOutlay);
+
+public sealed record MyWorksheetDayResponse(
+    DateOnly Date,
+    decimal TotalHours,
+    int OutlayCount,
+    IReadOnlyList<MyWorksheetEntryResponse> Entries);
+
+public sealed record MyWorksheetWeekResponse(
+    DateOnly WeekStart,
+    DateOnly WeekEnd,
+    decimal TotalHours,
+    int OutlayCount,
+    IReadOnlyList<MyWorksheetDayResponse> Days);
+
+public sealed record MyWorksheetsMonthResponse(
+    int Year,
+    int Month,
+    DateOnly MonthStart,
+    DateOnly MonthEnd,
+    decimal TotalHours,
+    int OutlayCount,
+    IReadOnlyList<MyWorksheetWeekResponse> Weeks);
+
 public interface IWorksheetService
 {
     Task<Result<JobReportSummaryResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken);
     Task<Result<JobReportSummaryResponse>> DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken);
+    Task<Result<MyWorksheetsMonthResponse>> GetWorksheetsForUserAsync(int? year, int? month, CancellationToken cancellationToken);
 }

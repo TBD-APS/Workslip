@@ -15,6 +15,7 @@ import { CustomerDetail } from '../features/customers/routes/CustomerDetail';
 import { AppLayout } from '../components/layouts/AppLayout';
 import { Settings } from '../features/settings/routes/Settings';
 import { Profile } from '../features/settings/routes/Profile';
+import { MyWorksheets } from '../features/worksheets/routes/MyWorksheets';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -49,6 +50,7 @@ export const AppRoutes = () => {
       element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
       children: [
         { index: true, element: <JobList /> },
+        { path: 'timer', element: <MyWorksheets /> },
         { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
         { path: 'job/:id', element: <JobDetail /> },
         { path: 'completed/:id', element: <CompletedJobReport /> },
