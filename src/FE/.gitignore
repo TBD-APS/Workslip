@@ -8,7 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 node_modules
 dist
-**../generated/
+src/api/generated/
 dist-ssr
 *.local
 
