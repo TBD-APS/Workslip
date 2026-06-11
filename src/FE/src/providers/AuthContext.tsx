@@ -29,13 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
         sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
         setAuthToken(response.token);
-        queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
         return true;
       } catch {
         return false;
       }
     },
-    [queryClient],
+    [],
   );
 
   const devLogin = useCallback(
@@ -45,13 +44,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
         sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
         setAuthToken(response.token);
-        queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
         return true;
       } catch {
         return false;
       }
     },
-    [queryClient],
+    [],
   );
 
   const logout = useCallback(() => {

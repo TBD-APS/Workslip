@@ -31,13 +31,14 @@ apiClient.interceptors.response.use(
     return response.data;
   },
   (error) => {
-    if (
-      axios.isCancel(error) ||
-      error?.name === 'CanceledError' ||
+    const isCanceled = 
+      axios.isCancel(error) || 
+      error?.name === 'CanceledError' || 
       error?.code === 'ERR_CANCELED' ||
-      error?.message?.toLowerCase().includes('cancel') ||
-      error?.message?.toLowerCase().includes('abort')
-    ) {
+      error?.message === 'canceled';
+
+    // Silent fail for cancellations - this is normal behavior for React Query & unmounting
+    if (isCanceled) {
       return Promise.reject(error);
     }
 
@@ -45,9 +46,11 @@ apiClient.interceptors.response.use(
     
     // Handle specific backend error patterns (from AGENTS.md rules)
     if (error.response?.status === 401) {
-      toast.error('Log ind for at fortsætte');
-      sessionStorage.removeItem(AUTH_TOKEN_KEY);
-      window.location.assign('/login');
+      if (!window.location.pathname.includes('/login')) {
+        toast.error('Log ind for at fortsætte');
+        sessionStorage.removeItem(AUTH_TOKEN_KEY);
+        window.location.assign('/login');
+      }
     } else if (error.response?.status === 403) {
       toast.error('Du har ikke adgang til denne handling');
     } else if (error.response?.status === 400 && error.response?.data?.errors) {
@@ -56,8 +59,10 @@ apiClient.interceptors.response.use(
     } else if (error.response?.status === 409) {
       // Conflict
       toast.error(`Konflikt: ${error.response.data.error || message}`);
+    } else if (message) {
+      toast.error(message);
     } else {
-      toast.error(message || 'Der opstod en uventet fejl');
+      toast.error('Der opstod en uventet fejl');
     }
     
     return Promise.reject(error);
