@@ -260,7 +260,7 @@ export function JobAttestationStep({
                 Jeg bekræfter, at sagen er gennemgået og klar til indsendelse
               </span>
               <span className="attestation-confirm-description">
-                Attestering kan ikke fortrydes — sagens status sættes til Indsendt.
+                Attestering kan ikke fortrydes efter indsendelse.
               </span>
             </span>
             <input

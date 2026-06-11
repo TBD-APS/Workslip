@@ -1,4 +1,5 @@
-﻿using Workslip.Api.Helpers;
+﻿using Microsoft.AspNetCore.Mvc;
+using Workslip.Api.Helpers;
 using Workslip.Api.ViewModels;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
@@ -23,6 +24,12 @@ namespace Workslip.Api.Endpoints
                 var result = await service.DeleteAsync(worksheetId, jobId, cancellationToken);
                 return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
             }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+
+            group.MapGet("/my", async ([FromQuery] int? year, [FromQuery] int? month, IWorksheetService service, CancellationToken cancellationToken) =>
+            {
+                var result = await service.GetWorksheetsForUserAsync(year, month, cancellationToken);
+                return ResultExtensions.ToHttpResult(result);
+            }).Produces<MyWorksheetsMonthResponse>(StatusCodes.Status200OK);
 
             return app;
         }

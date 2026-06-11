@@ -1,7 +1,7 @@
 import { apiClient } from '../../../lib/axios';
 import type { AuthTokenResponse } from '../../../api/generated/models';
 
-export const acceptInvite = (token: string, displayName: string, phone?: string): Promise<TokenResponse> => {
+export const acceptInvite = (token: string, displayName: string, phone?: string): Promise<AuthTokenResponse> => {
   return apiClient.post(`/api/auth/verify-invite/${token}`, { displayName, phone });
 };
 

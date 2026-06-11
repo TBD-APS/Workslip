@@ -142,7 +142,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         onDelete={canDeleteJob ? handleDelete : undefined}
       />
 
-      <StepIndicators currentStep={details.currentStep} onStepChange={handleStepChange} />
+      <StepIndicators 
+        currentStep={details.currentStep} 
+        onStepChange={handleStepChange} 
+        completedSteps={completedSteps} 
+      />
 
       <StepsCompletionPrompt
         currentStep={details.currentStep}

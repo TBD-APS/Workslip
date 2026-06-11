@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Jobs;
 
 namespace Workslip.Infrastructure.Mappers;
@@ -10,6 +9,17 @@ public static class WorksheetMapper
         public DateTime WorkDate { get; init; }
         public decimal HoursWorked { get; init; }
         public string DisplayName { get; init; } = "";
+    }
+
+    public sealed record WorksheetMyProjection
+    {
+        public DateTime WorkDate { get; init; }
+        public Guid JobId { get; init; }
+        public string? ReportNumber { get; init; }
+        public string CustomerName { get; init; } = "";
+        public string? CustomerAddress { get; init; }
+        public bool HasOutlay { get; init; }
+        public decimal HoursWorked { get; init; }
     }
 
     public static IReadOnlyList<WorksheetUserGroupResponse> ToGroupedResponse(

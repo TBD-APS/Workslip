@@ -20,7 +20,7 @@ export interface DevTokenRequest {
   email: string;
 }
 
-export const getDevToken = (email: string): Promise<TokenResponse> => {
+export const getDevToken = (email: string): Promise<AuthTokenResponse> => {
   return apiClient.post('/api/dev/token', { email });
 };
 
@@ -28,6 +28,6 @@ export const sendAuthCode = (email: string): Promise<void> => {
   return apiClient.post('/api/auth/send-code', { email });
 };
 
-export const verifyAuthCode = (email: string, code: string): Promise<TokenResponse> => {
+export const verifyAuthCode = (email: string, code: string): Promise<AuthTokenResponse> => {
   return apiClient.post(`/api/auth/verify-code/${code}`, { email });
 };

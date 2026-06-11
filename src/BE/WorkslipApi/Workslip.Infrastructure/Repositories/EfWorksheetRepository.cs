@@ -6,6 +6,7 @@ using Workslip.Domain.Models;
 using Workslip.Infrastructure.Mappers;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using static Workslip.Infrastructure.Mappers.WorksheetMapper;
 
 namespace Workslip.Infrastructure.Repositories;
 
@@ -20,6 +21,61 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         _dbContext = dbContext;
         _currentUser = currentUser;
         _retryPolicy = retryPolicy;
+    }
+
+    public Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserAsync(
+        Guid userId,
+        Guid organizationId,
+        DateOnly monthStart,
+        DateOnly monthEnd,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "worksheets.my",
+            token => GetWorksheetsForUserCoreAsync(userId, organizationId, monthStart, monthEnd, token),
+            cancellationToken);
+
+    private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserCoreAsync(
+        Guid userId,
+        Guid organizationId,
+        DateOnly monthStart,
+        DateOnly monthEnd,
+        CancellationToken cancellationToken)
+    {
+        var fromDate = monthStart.ToDateTime(TimeOnly.MinValue);
+        var toDate = monthEnd.ToDateTime(TimeOnly.MaxValue);
+
+        var rows = await (
+            from w in _dbContext.Worksheets.AsNoTracking()
+            join r in _dbContext.JobReports.AsNoTracking() on w.JobId equals r.Id
+            join c in _dbContext.Customers.AsNoTracking() on new { Id = r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
+            from c in rjc.DefaultIfEmpty()
+            where w.UserId == userId
+                && w.OrganizationId == organizationId
+                && r.OrganizationId == organizationId
+                && w.WorkDate >= fromDate
+                && w.WorkDate <= toDate
+                && !r.IsSoftDeleted
+            orderby w.WorkDate, r.ReportNumber, c != null ? c.Name : null
+            select new WorksheetMapper.WorksheetMyProjection
+            {
+                WorkDate = w.WorkDate,
+                JobId = w.JobId,
+                ReportNumber = r.ReportNumber,
+                CustomerName = c != null ? c.Name : "Ukendt kunde",
+                CustomerAddress = c != null ? c.Address : null,
+                HasOutlay = w.SleptOnJob,
+                HoursWorked = w.HoursWorked
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(row => new MyWorksheetEntryResponse(
+            DateOnly.FromDateTime(row.WorkDate),
+            row.JobId,
+            row.ReportNumber,
+            row.CustomerName,
+            row.CustomerAddress,
+            row.HoursWorked,
+            row.HasOutlay)).ToArray();
     }
 
     public Task<WorksheetResponse> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken) =>
@@ -205,4 +261,5 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
 
         return rows.ToDictionary(r => r.JobId, r => r.TotalHours);
     }
+
 }
