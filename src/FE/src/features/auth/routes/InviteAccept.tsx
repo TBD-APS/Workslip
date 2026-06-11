@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, Loader2, LogIn, ArrowRight, User, Phone } from 'lucide-react';
 import { acceptInvite, verifyInviteToken } from '../api/inviteAccept';
@@ -23,12 +23,17 @@ export const InviteAccept = () => {
   const [state, setState] = useState<InviteState>({ status: 'checking' });
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
+  const calledRef = useRef(false);
 
   useEffect(() => {
     if (!token) {
       setState({ status: 'invalid', message: 'Manglende invitationslink.' });
       return;
     }
+
+    if (calledRef.current) return;
+    calledRef.current = true;
+
     verifyInviteToken(token)
       .then(() => {
         window.history.replaceState(null, '', '/invite');

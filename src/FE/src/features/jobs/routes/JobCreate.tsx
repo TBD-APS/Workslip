@@ -6,11 +6,15 @@ import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
 import { useJobCreate } from '../hooks/useJobCreate';
 import { CreateOverviewStep } from '../components/steps/CreateOverviewStep';
 import { getLinkableJobs } from '../utils';
+import { JobStatus } from '../../../api/generated/models';
 
 export const JobCreate = () => {
   const navigate = useNavigate();
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
-  const { data: jobsData, isLoading: isLoadingJobs } = useGetApiJobs({ limit: 200 });
+  const { data: jobsData, isLoading: isLoadingJobs } = useGetApiJobs({ 
+    status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview],
+    limit: 200 
+  });
   const linkableJobs = getLinkableJobs(jobsData, undefined);
 
   const create = useJobCreate((jobId) => setCreatedJobId(jobId));

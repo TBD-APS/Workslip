@@ -51,7 +51,7 @@ public sealed class InvitationService(
 
         var user = BuildUserFromInvite(invite, entraUser, request.DisplayName, request.Phone);
         var userId = await userRepository.CreateAsync(user, cancellationToken);
-        await inviteRepository.MarkConsumedAsync(invite.Id, cancellationToken);
+        await inviteRepository.MarkConsumedAsync(invite, cancellationToken);
 
         var org = await organizationRepository.GetByIdAsync(invite.OrganizationId, cancellationToken);
         logger.LogInformation("Invite accepted. UserId: {UserId}. Organization: {Org}. Email: {Email}. Role: {Role}.",
@@ -89,28 +89,35 @@ public sealed class InvitationService(
         if (string.IsNullOrWhiteSpace(email))
             return new InviteUserResult(email, false, "Email address is empty.", null);
 
-        var existing = await userRepository.GetByEmailAsync(email, cancellationToken);
-
-        if (existing != null)
-            return new InviteUserResult(email, false, "User already exists.", null);
-
-        var token = Guid.NewGuid().ToString("N");
-
-        var inviteRow = new InviteTokenRow
-        {
-            Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
-            Email = email,
-            Token = token,
-            Role = role,
-            ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
-            Consumed = false,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-
         try
         {
-            await inviteRepository.CreateAsync(inviteRow, cancellationToken);
+            var token = Guid.NewGuid().ToString("N");
+            var existingInvite = await inviteRepository.GetInviteByEmailAsync(organizationId, email, cancellationToken);
+
+            if(existingInvite == null)
+            {
+                var newInviteRow = new InviteTokenRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organizationId,
+                    Email = email,
+                    Token = token,
+                    Role = role,
+                    ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+                    Consumed = false,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+
+                await inviteRepository.CreateAsync(newInviteRow, cancellationToken);
+            }
+            else
+            {
+                existingInvite.ExpiresAt = DateTimeOffset.UtcNow.AddDays(7);
+                existingInvite.Token = token;
+                existingInvite.Consumed = false;
+                await inviteRepository.UpdateAsync(existingInvite, cancellationToken);
+            }
+
             await emailService.SendInviteEmailAsync(email, token, cancellationToken);
             logger.LogInformation("Invite sent to {Email}. Token: {Token}", email, token);
             return new InviteUserResult(email, true, null, token);
@@ -148,12 +155,16 @@ public sealed class InvitationService(
     public async Task<Result> MarkOpenedAsync(string token, CancellationToken cancellationToken)
     {
         var invite = await inviteRepository.GetByTokenAsync(token, cancellationToken);
+        
         if (invite is null)
         {
+            logger.LogError($"Unable to mark {token} because not found in db");
             return Result.NotFound();
         }
 
-        await inviteRepository.MarkOpenedAsync(invite.Id, cancellationToken);
+        await inviteRepository.MarkOpenedAsync(invite, cancellationToken);
+        logger.LogError($"Marked {token} opened in db");
+
         return Result.Success();
     }
 

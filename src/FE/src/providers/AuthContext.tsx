@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
-import { getGetApiAuthMeQueryKey, useGetApiAuthMe } from '../api/generated/auth/auth';
+import { useGetApiAuthMe } from '../api/generated/auth/auth';
 import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY } from './authContextValue';
 
 
@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(AUTH_TOKEN_KEY);
     sessionStorage.removeItem(USER_EMAIL_KEY);
     setAuthToken(null);
-    queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
+    queryClient.clear();
   }, [queryClient]);
 
   return (
