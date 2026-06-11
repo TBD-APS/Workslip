@@ -1,10 +1,10 @@
 namespace Workslip.Domain.Models;
 
-public sealed class JobReportClosureFlagRow
+public sealed class JobReportClosureFlagRow : IJobRelated
 {
     public Guid Id { get; init; }
-    public Guid OrganizationId { get; init; }
     public Guid JobReportId { get; init; }
+    public Guid OrganizationId { get; init; }
     public Guid ClosureFlagId { get; init; }
     public int SortOrder { get; init; }
 

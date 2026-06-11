@@ -16,6 +16,23 @@ public static class JobReportMapper
         ReferenceHandler = ReferenceHandler.IgnoreCycles
     };
 
+    private static readonly Dictionary<string, string> DisplayNames = new()
+    {
+        { "ReportNumber", "Sagsnummer" },
+        { "Status", "Status" },
+        { "ReportDate", "Sagsdato" },
+        { "TaskDescription", "Opgavebeskrivelse" },
+        { "CustomerObservations", "Kundens observationer" },
+        { "TechnicalObservations", "Tekniske observationer" },
+        { "Remarks", "Bemærkninger" },
+        { "CustomWorkKind", "Anden opgavetype" },
+        { "WorkDate", "Arbejdsdato" },
+        { "HoursWorked", "Timer" },
+        { "SleptOnJob", "Overnatning" },
+        { "IsChecked", "Afkrydset" },
+        { "IsIrrelevant", "Ikke relevant" }
+    };
+
     public static JobReportResponse ToResponse(
         JobReportRow row,
         IReadOnlyList<JobLinkInfoResponse> links,
@@ -40,8 +57,45 @@ public static class JobReportMapper
             row.IsSoftDeleted, row.DeletionScheduledAt, totalHours);
     }
 
+    public static JobHistoryResponse ToHistoryResponse(JobEventRow row, string? actorName)
+    {
+        var before = ToJsonObject(row.BeforeJson);
+        var after = ToJsonObject(row.AfterJson);
+        var changes = new List<PropertyChange>();
+
+        if (before != null || after != null)
+        {
+            var keys = (before?.Select(x => x.Key) ?? Enumerable.Empty<string>())
+                .Union(after?.Select(x => x.Key) ?? Enumerable.Empty<string>())
+                .Distinct();
+
+            foreach (var key in keys)
+            {
+                var beforeValue = before?[key]?.ToString();
+                var afterValue = after?[key]?.ToString();
+
+                if (beforeValue != afterValue)
+                {
+                    changes.Add(new PropertyChange(
+                        key,
+                        DisplayNames.GetValueOrDefault(key, key),
+                        beforeValue,
+                        afterValue));
+                }
+            }
+        }
+
+        return new JobHistoryResponse(
+            row.Id,
+            row.ActorId,
+            actorName,
+            row.EventType,
+            changes,
+            row.CreatedAt);
+    }
+
     public static JobEventResponse ToEventResponse(JobEventRow row) => new(
-        row.Id, row.ReportId, row.ActorId, row.EventType,
+        row.Id, row.ReportId ?? Guid.Empty, row.ActorId, row.EventType,
         ToJsonObject(row.BeforeJson), ToJsonObject(row.AfterJson), row.CreatedAt);
 
     public static async Task<IReadOnlyList<InstallationTypeResponse>> LoadInstallationTypesAsync(

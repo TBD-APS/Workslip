@@ -290,6 +290,20 @@ public sealed record JobReportSummaryObservationResponse(
     string? CustomerObservations,
     string? TechnicalObservations);
 
+public sealed record JobHistoryResponse(
+    Guid Id,
+    Guid? ActorId,
+    string? ActorName,
+    string EventType,
+    IReadOnlyList<PropertyChange> Changes,
+    DateTimeOffset CreatedAt);
+
+public sealed record PropertyChange(
+    string PropertyName,
+    string? DisplayName,
+    string? Before,
+    string? After);
+
 public sealed record JobEventResponse(
     Guid Id,
     Guid ReportId,

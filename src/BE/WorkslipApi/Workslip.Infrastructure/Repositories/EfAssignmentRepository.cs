@@ -19,8 +19,6 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     private readonly ICurrentUserContext _currentUser;
     private readonly IWorksheetRepository _worksheetRepo;
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     public EfAssignmentRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy,
         ICurrentUserContext currentUser, IWorksheetRepository worksheetRepo)
     {
@@ -48,8 +46,6 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
 
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        var existingAssignedUsers = await GetSingleAssignedUsersAsync(organizationId, jobId, cancellationToken);
-        var targetAssignedUsers = await GetAssignedUsersByIdsAsync(organizationId, userIds, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         
         await _dbContext.JobAssignments
@@ -65,11 +61,6 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         }
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var eventType = existingAssignedUsers.Count == 0 ? "assigned" : "reassigned";
-        var before = JobReportMapper.ToJsonNode(new { assignedUsers = existingAssignedUsers });
-        var after = JobReportMapper.ToJsonNode(new { assignedUsers = targetAssignedUsers });
-
-        await InsertEventAsync(organizationId, jobId, actorId, eventType, before, after, now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
     }
 
@@ -233,24 +224,4 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     private async Task<IReadOnlyList<AssignedUserResponse>> GetSingleAssignedUsersAsync(
         Guid organizationId, Guid reportId, CancellationToken cancellationToken) =>
         (await GetAssignedUsersByReportAsync(organizationId, [reportId], cancellationToken)).GetValueOrDefault(reportId) ?? [];
-
-    private async Task InsertEventAsync(
-        Guid organizationId, Guid reportId, Guid? actorId,
-        string eventType, JsonObject? before, JsonObject? after,
-        DateTimeOffset now, CancellationToken cancellationToken)
-    {
-        _dbContext.JobEvents.Add(new JobEventRow
-        {
-            Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
-            ReportId = reportId,
-            ActorId = actorId,
-            EventType = eventType,
-            BeforeJson = before?.ToJsonString(JsonOptions),
-            AfterJson = after?.ToJsonString(JsonOptions),
-            CreatedAt = now
-        });
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
 }

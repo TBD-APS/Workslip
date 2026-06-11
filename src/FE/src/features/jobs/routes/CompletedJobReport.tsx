@@ -20,6 +20,7 @@ import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
 import { useJobDetailsState } from '../hooks/useJobDetails';
 import { formatJobStatus } from '../statusLabels';
 import { createJobReportPdfPreview, type JobReportPdfPreview } from '../utils/downloadJobReportPdf';
+import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
@@ -52,6 +53,7 @@ export const CompletedJobReport = () => {
   const [isOpeningPdf, setIsOpeningPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<JobReportPdfPreview | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const job = details.job;
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
@@ -238,7 +240,7 @@ export const CompletedJobReport = () => {
               </button>
             )
           )}
-          <button className={`btn btn-secondary report-overview-icon-action ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" disabled aria-label="Versioner" title="Versioner kommer senere">
+          <button className={`btn btn-secondary report-overview-icon-action ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" onClick={() => setHistoryOpen(true)} aria-label="Historik" title="Vis sagshistorik">
             <History size={16} />
           </button>
           <button className={`btn btn-secondary ${isEditing ? 'report-overview-icon-action' : 'pdf-download-button report-overview-pdf'} ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" onClick={handleOpenPdf} disabled={isOpeningPdf || isEditing}>
@@ -335,6 +337,12 @@ export const CompletedJobReport = () => {
       )}
 
       {pdfPreview && <PdfPreviewDialog preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
+      
+      <JobHistoryDrawer 
+        jobId={job.id} 
+        isOpen={historyOpen} 
+        onClose={() => setHistoryOpen(false)} 
+      />
     </div>
   );
 };

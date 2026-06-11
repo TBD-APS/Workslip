@@ -1,8 +1,9 @@
 namespace Workslip.Domain.Models;
 
-public sealed class JobReportRow
+public sealed class JobReportRow : IJobRelated
 {
     public Guid Id { get; init; }
+    public Guid JobReportId => Id;
     public Guid OrganizationId { get; init; }
     public OrganizationRow? OrganizationRow { get; set; }
     public Guid? CustomerId { get; init; }

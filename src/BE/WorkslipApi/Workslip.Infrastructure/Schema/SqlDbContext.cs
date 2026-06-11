@@ -5,6 +5,8 @@ namespace Workslip.Infrastructure.Schema;
 
 public sealed class SqlDbContext : DbContext
 {
+    public bool IsSeeding { get; set; }
+
     public SqlDbContext(DbContextOptions<SqlDbContext> options) : base(options)
     {
     }

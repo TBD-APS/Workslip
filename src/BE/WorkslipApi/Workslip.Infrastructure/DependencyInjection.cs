@@ -23,11 +23,16 @@ public static class DependencyInjection
         services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
 
+        services.AddScoped<AuditInterceptor>();
+
         services.AddDbContext<SqlDbContext>((sp, options) =>
         {
             var configuration = sp.GetRequiredService<IConfiguration>();
             var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
             options.UseSqlServer(connectionString, b => b.MigrationsAssembly("Workslip.Api"));
+
+            var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
+            options.AddInterceptors(auditInterceptor);
 
             options.ConfigureWarnings(warnings =>
             warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));

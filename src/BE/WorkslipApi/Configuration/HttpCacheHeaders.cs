@@ -136,7 +136,7 @@ public static class HttpCacheHeaders
         return ToWeakEtag(builder.ToString());
     }
 
-    public static string JobHistoryEtag(Guid jobId, IEnumerable<JobEventResponse> events, int? limit, int? offset)
+    public static string JobHistoryEtag(Guid jobId, IEnumerable<JobHistoryResponse> events, int? limit, int? offset)
     {
         var builder = new StringBuilder()
             .Append("jobs:history:")

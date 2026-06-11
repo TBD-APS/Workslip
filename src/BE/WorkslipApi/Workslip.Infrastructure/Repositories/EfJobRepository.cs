@@ -1,7 +1,7 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Workslip.Application.Auth;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
@@ -11,6 +11,7 @@ using Workslip.Domain.Models;
 using Workslip.Infrastructure.Mappers;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using static Microsoft.IO.RecyclableMemoryStreamManager;
 
 namespace Workslip.Infrastructure.Repositories;
 
@@ -25,7 +26,6 @@ public sealed class EfJobRepository : IJobRepository
     private readonly IJobLinkRepository _linkRepo;
     private readonly IWorksheetRepository _worksheetRepo;
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly TimeSpan DeletionRetentionPeriod = TimeSpan.FromDays(30);
 
     public EfJobRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICustomerRepository customerRepository, IAssignmentRepository assignmentRepo, IJobLinkRepository linkRepo, IWorksheetRepository worksheetRepo)
@@ -111,8 +111,6 @@ public sealed class EfJobRepository : IJobRepository
 
         var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
         await _assignmentRepo.AddAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
-        var assignedUsers = await _assignmentRepo.GetAssignedUsersByIdsAsync(organizationId, normalizedUserIds, cancellationToken);
-        await InsertEventAsync(organizationId, reportId, actorId, "created", null, JobReportMapper.ToJsonNode(new { reportId, assignedUsers }), now, cancellationToken);
 
         await tx.CommitAsync(cancellationToken);
 
@@ -127,7 +125,7 @@ public sealed class EfJobRepository : IJobRepository
     {
         _dbContext.ChangeTracker.Clear();
 
-        var statuses = query.Statuses?.Select(x => x.ToString()).Distinct();
+        var statuses = query.Statuses?.Select(x => x.ToString()).Distinct() ?? [];
 
         var projected = await (
             from r in _dbContext.JobReports.AsNoTracking()
@@ -231,24 +229,30 @@ public sealed class EfJobRepository : IJobRepository
         return JobReportMapper.ToResponse(row, links, assignedUsers, worksheetEntries, installationTypes, closureFlags, totalHours.GetValueOrDefault(id));
     }
 
-    public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
+    public Task<IReadOnlyList<JobHistoryResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("jobs.events", token => GetEventsAsyncCoreAsync(id, organizationId, limit, offset, token), cancellationToken);
 
-    private async Task<IReadOnlyList<JobEventResponse>?> GetEventsAsyncCoreAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<JobHistoryResponse>?> GetEventsAsyncCoreAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken)
     {
         _dbContext.ChangeTracker.Clear();
 
         var exists = await _dbContext.JobReports.AsNoTracking().AnyAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
         if (!exists) return null;
 
-        var rows = await _dbContext.JobEvents
-            .AsNoTracking()
-            .Where(e => e.ReportId == id && e.OrganizationId == organizationId)
-            .OrderByDescending(e => e.CreatedAt)
+        var query = from e in _dbContext.JobEvents.AsNoTracking()
+                    join u in _dbContext.Users.AsNoTracking() on e.ActorId equals u.Id into users
+                    from u in users.DefaultIfEmpty()
+                    where e.ReportId == id && e.OrganizationId == organizationId
+                    orderby e.CreatedAt descending
+                    select new { Row = e, ActorName = u != null ? u.DisplayName : null };
+
+        var rows = await query
             .Skip(offset).Take(limit)
             .ToListAsync(cancellationToken);
 
-        return rows.Select(JobReportMapper.ToEventResponse).ToArray();
+        var response = rows.Select(e => JobReportMapper.ToHistoryResponse(e.Row, e.ActorName)).ToList();
+
+        return response;
     }
 
     public Task<JobReportResponse?> UpdateAsync(Guid id, Guid organizationId, UpdateJobRequest request, CancellationToken cancellationToken) =>
@@ -345,7 +349,6 @@ public sealed class EfJobRepository : IJobRepository
             throw new DuplicateReportNumberException(reportNumber, ex);
         }
 
-        await InsertEventAsync(organizationId, id, null, "updated", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(request), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -372,7 +375,6 @@ public sealed class EfJobRepository : IJobRepository
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await InsertEventAsync(organizationId, id, actorId, nextStatus.ToString().ToLowerInvariant(), JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(new { status = nextStatus.ToString() }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -441,7 +443,6 @@ public sealed class EfJobRepository : IJobRepository
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await InsertEventAsync(organizationId, id, null, "deletionRestored", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(new { deletionScheduledAt = (DateTimeOffset?)null }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -480,26 +481,6 @@ public sealed class EfJobRepository : IJobRepository
         return deletedCount;
     }
 
-
-    private async Task InsertEventAsync(
-        Guid organizationId, Guid reportId, Guid? actorId,
-        string eventType, JsonObject? before, JsonObject? after,
-        DateTimeOffset now, CancellationToken cancellationToken)
-    {
-        _dbContext.JobEvents.Add(new JobEventRow
-        {
-            Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
-            ReportId = reportId,
-            ActorId = actorId,
-            EventType = eventType,
-            BeforeJson = before?.ToJsonString(JsonOptions),
-            AfterJson = after?.ToJsonString(JsonOptions),
-            CreatedAt = now
-        });
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
 
     private async Task AddClosureFlagsAsync(
         Guid organizationId,

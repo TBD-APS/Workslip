@@ -58,7 +58,7 @@ public static class JobEndpoints
         {
             var result = await service.GetHistoryAsync(id, limit, offset, cancellationToken);
             return CachedOk(result, httpContext, events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
-        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+        }).Produces<List<JobHistoryResponse>>(StatusCodes.Status200OK);
 
         group.MapGet("/{id:guid}/report/pdf", async (Guid id, HttpContext httpContext, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
         {
