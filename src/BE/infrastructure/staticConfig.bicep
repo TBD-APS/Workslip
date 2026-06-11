@@ -32,12 +32,13 @@ var appConfigValues = {
   //Storage account
   'Azure:DocumentFileStorage:ContainerName': 'report-attachments' //fix
   'Azure:DocumentFileStorage:LocalRootPath': 'UploadedFiles' //fix
-
+  
   // Role hierarchy
   'Authorization:RoleHierarchy:Superadmin:0': 'Admin'
   'Authorization:RoleHierarchy:Admin:0': 'User'
   
   //Email
+  'Azure:Acs:InviteBaseUrl': 'https://workslip-v2-0.vercel.app/invite'
   'Azure:Acs:PLainHeaderText': 'Du er blevet inviteret til Workslip'
   
   'Azure:Acs:HtmlInviteText': '''

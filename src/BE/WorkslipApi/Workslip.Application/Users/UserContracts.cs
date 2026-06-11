@@ -56,3 +56,16 @@ public sealed record InviteUserResult(
 public sealed record InviteUsersResponse(
     IReadOnlyList<InviteUserResult> Results);
 
+public sealed record InviteTokenResponse(
+    Guid Id,
+    string Email,
+    string? Role,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset ExpiresAt,
+    bool Consumed,
+    DateTimeOffset? OpenedAt,
+    DateTimeOffset? AcceptedAt);
+
+public sealed record InviteListResponse(
+    IReadOnlyList<InviteTokenResponse> Invites);
+

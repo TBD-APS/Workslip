@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "agent-browser": "^0.27.2"
+  }
+}

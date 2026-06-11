@@ -442,6 +442,12 @@ public sealed class SqlDbContext : DbContext
             .HasColumnType("datetimeoffset")
             .HasDefaultValueSql("sysutcdatetime()");
 
+        entity.Property(e => e.OpenedAt)
+            .HasColumnType("datetimeoffset");
+
+        entity.Property(e => e.AcceptedAt)
+            .HasColumnType("datetimeoffset");
+
         entity.HasOne<OrganizationRow>()
             .WithMany()
             .HasForeignKey(e => e.OrganizationId)

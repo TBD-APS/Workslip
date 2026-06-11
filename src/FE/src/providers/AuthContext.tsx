@@ -2,12 +2,12 @@ import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
-import { getGetApiAuthMeQueryKey, useGetApiAuthMe } from '../api/generated/auth/auth';
+import { useGetApiAuthMe } from '../api/generated/auth/auth';
 import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY } from './authContextValue';
 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem(AUTH_TOKEN_KEY));
+  const [authToken, setAuthToken] = useState<string | null>(() => sessionStorage.getItem(AUTH_TOKEN_KEY));
   const queryClient = useQueryClient();
 
   const meQuery = useGetApiAuthMe({
@@ -26,39 +26,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, code: string): Promise<boolean> => {
       try {
         const response = await verifyAuthCode(email, code);
-        localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        localStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
         setAuthToken(response.token);
-        queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
         return true;
       } catch {
         return false;
       }
     },
-    [queryClient],
+    [],
   );
 
   const devLogin = useCallback(
     async (email: string): Promise<boolean> => {
       try {
         const response = await getDevToken(email);
-        localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        localStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
         setAuthToken(response.token);
-        queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
         return true;
       } catch {
         return false;
       }
     },
-    [queryClient],
+    [],
   );
 
   const logout = useCallback(() => {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    localStorage.removeItem(USER_EMAIL_KEY);
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(USER_EMAIL_KEY);
     setAuthToken(null);
-    queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
+    queryClient.clear();
   }, [queryClient]);
 
   return (

@@ -1,16 +1,24 @@
-import Axios from 'axios';
+import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
+import qs from 'qs';
+import { AUTH_TOKEN_KEY } from '../providers/authContextValue';
 
-const apiUrl = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api`;
+const apiUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 
-export const apiClient = Axios.create({
+export const apiClient = axios.create({
   baseURL: apiUrl,
+  paramsSerializer: {
+    serialize: (params) =>
+      qs.stringify(params, {
+        arrayFormat: 'repeat',
+      }),
+  },
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Attach auth token from localStorage
-  const token = localStorage.getItem('authToken');
+  // Attach auth token from sessionStorage
+  const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -23,12 +31,26 @@ apiClient.interceptors.response.use(
     return response.data;
   },
   (error) => {
+    const isCanceled = 
+      axios.isCancel(error) || 
+      error?.name === 'CanceledError' || 
+      error?.code === 'ERR_CANCELED' ||
+      error?.message === 'canceled';
+
+    // Silent fail for cancellations - this is normal behavior for React Query & unmounting
+    if (isCanceled) {
+      return Promise.reject(error);
+    }
+
     const message = error.response?.data?.message || error.message;
     
     // Handle specific backend error patterns (from AGENTS.md rules)
     if (error.response?.status === 401) {
-      toast.error('Log ind for at fortsætte');
-      // window.location.assign('/login');
+      if (!window.location.pathname.includes('/login')) {
+        toast.error('Log ind for at fortsætte');
+        sessionStorage.removeItem(AUTH_TOKEN_KEY);
+        window.location.assign('/login');
+      }
     } else if (error.response?.status === 403) {
       toast.error('Du har ikke adgang til denne handling');
     } else if (error.response?.status === 400 && error.response?.data?.errors) {
@@ -37,8 +59,10 @@ apiClient.interceptors.response.use(
     } else if (error.response?.status === 409) {
       // Conflict
       toast.error(`Konflikt: ${error.response.data.error || message}`);
+    } else if (message) {
+      toast.error(message);
     } else {
-      toast.error(message || 'Der opstod en uventet fejl');
+      toast.error('Der opstod en uventet fejl');
     }
     
     return Promise.reject(error);

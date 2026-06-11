@@ -20,14 +20,14 @@ export interface DevTokenRequest {
   email: string;
 }
 
-export const getDevToken = async (email: string): Promise<AuthTokenResponse> => {
-  return apiClient.post('/dev/token', { email });
+export const getDevToken = (email: string): Promise<TokenResponse> => {
+  return apiClient.post('/api/dev/token', { email });
 };
 
-export const sendAuthCode = async (email: string): Promise<void> => {
-  return apiClient.post('/auth/send-code', { email });
+export const sendAuthCode = (email: string): Promise<void> => {
+  return apiClient.post('/api/auth/send-code', { email });
 };
 
-export const verifyAuthCode = async (email: string, code: string): Promise<AuthCodeResponse> => {
-  return apiClient.post('/auth/verify-code', { email, code });
+export const verifyAuthCode = (email: string, code: string): Promise<TokenResponse> => {
+  return apiClient.post(`/api/auth/verify-code/${code}`, { email });
 };

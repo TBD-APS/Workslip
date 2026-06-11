@@ -94,10 +94,56 @@
   height: 36px;
   border-radius: 50%;
   background: var(--surface-elevated);
+  border: 1px solid var(--surface-border);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.user-avatar:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent-color);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 0 15px rgba(0, 112, 243, 0.25), 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.user-avatar:active {
+  transform: translateY(0) scale(0.95);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.user-avatar svg {
+  transition: transform 0.25s ease;
+}
+
+.user-avatar:hover svg {
+  transform: scale(1.1);
+}
+
+.user-avatar--large {
+  width: 48px;
+  height: 48px;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: default;
+}
+
+.user-avatar--large:hover {
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-color: var(--surface-border);
+}
+
+.user-avatar--accent {
+  background: var(--accent-color);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 .app-content {
@@ -3020,4 +3066,134 @@
 
 .edit-form-bottom-actions .btn-primary {
   flex: 1.5;
+}
+
+.invite-send-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 1.5rem;
+  margin-top: 1rem;
+}
+
+.invite-send-btn:disabled {
+  opacity: 0.35;
+  background: #4b5563;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Settings / Invite UI */
+.section-card {
+  background: var(--surface-card);
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+
+.section-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0 0 1rem;
+  color: var(--text-primary);
+}
+
+.invite-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.invite-add-btn {
+  flex-shrink: 0;
+  padding: 0.75rem 1rem;
+}
+
+.invite-email-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.invite-email-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-elevated);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.invite-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.invite-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.75rem;
+  background: var(--surface-elevated);
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
+.invite-status-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.invite-status-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.invite-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.invite-status-badge.status-sent {
+  background: rgba(96,165,250,0.12);
+  color: #93c5fd;
+}
+
+.invite-status-badge.status-opened {
+  background: rgba(251,191,36,0.12);
+  color: #fcd34d;
+}
+
+.invite-status-badge.status-accepted {
+  background: rgba(52,211,153,0.12);
+  color: #6ee7b7;
+}
+
+.invite-status-badge.status-expired {
+  background: rgba(248,113,113,0.12);
+  color: #fca5a5;
+}
+
+.invite-status-date {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
 }

@@ -3,6 +3,7 @@ import { useAuth } from '../providers/useAuth';
 import { RoleGuard } from '../providers/permissions';
 import { LandingPage } from '../features/landing/routes/LandingPage';
 import { Login } from '../features/auth/routes/Login';
+import { InviteAccept } from '../features/auth/routes/InviteAccept';
 import { JobList } from '../features/jobs/routes/JobList';
 import { JobDetail } from '../features/jobs/routes/JobDetail';
 import { JobCreate } from '../features/jobs/routes/JobCreate';
@@ -12,6 +13,8 @@ import { UserDetail } from '../features/users/routes/UserDetail';
 import { CustomerList } from '../features/customers/routes/CustomerList';
 import { CustomerDetail } from '../features/customers/routes/CustomerDetail';
 import { AppLayout } from '../components/layouts/AppLayout';
+import { Settings } from '../features/settings/routes/Settings';
+import { Profile } from '../features/settings/routes/Profile';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -38,6 +41,10 @@ export const AppRoutes = () => {
       element: <Login />,
     },
     {
+      path: '/invite/:token',
+      element: <InviteAccept />,
+    },
+    {
       path: '/app',
       element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
       children: [
@@ -49,7 +56,8 @@ export const AppRoutes = () => {
         { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
         { path: 'customers', element: <RoleGuard permission="user:manage"><CustomerList /></RoleGuard> },
         { path: 'customers/:id', element: <RoleGuard permission="user:manage"><CustomerDetail /></RoleGuard> },
-        // { path: 'settings', element: <Settings /> },
+        { path: 'profil', element: <Profile /> },
+        { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
       ],
     },
   ]);

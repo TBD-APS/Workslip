@@ -367,7 +367,7 @@
           ]
         },
         {
-          "name": "/api/auth/verify-code",
+          "name": "/api/auth/verify-code/{code}",
           "request": {
             "method": "POST",
             "header": [
@@ -377,20 +377,21 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/auth/verify-code",
+              "raw": "{{baseUrl}}/api/auth/verify-code/123456",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "auth",
-                "verify-code"
+                "verify-code",
+                "123456"
               ]
             },
-            "description": "Verifies the one-time code and returns a local JWT token. Save token to authToken variable.",
+            "description": "Verifies the one-time code and returns a local JWT token. Save token to authToken variable. Code in URL path, email in body.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"code\": \"123456\"\n}",
+              "raw": "{\n  \"email\": \"{{testEmail}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -973,36 +974,23 @@
           ]
         },
         {
-          "name": "/api/auth/verify-invite (valid token)",
+          "name": "/api/auth/verify-invite/{token} (valid token)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/auth/verify-invite",
+              "raw": "{{baseUrl}}/api/auth/verify-invite/{{inviteToken}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "auth",
-                "verify-invite"
+                "verify-invite",
+                "{{inviteToken}}"
               ]
             },
-            "description": "Verifies a valid invite token captured from invite creation. Creates the user and returns a LocalJwt on success.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": "Verifies a valid invite token captured from invite creation. Creates the user and returns a LocalJwt on success. Token in URL path."
           },
           "response": [],
           "event": [
@@ -1037,36 +1025,23 @@
           ]
         },
         {
-          "name": "/api/auth/verify-invite (consumed token)",
+          "name": "/api/auth/verify-invite/{token} (consumed token)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/auth/verify-invite",
+              "raw": "{{baseUrl}}/api/auth/verify-invite/{{inviteToken}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "auth",
-                "verify-invite"
+                "verify-invite",
+                "{{inviteToken}}"
               ]
             },
-            "description": "Verifies the same token again - expects 400 because it was already consumed. The user was already created on first use.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token\": \"{{inviteToken}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": "Verifies the same token again - expects 400 because it was already consumed. The user was already created on first use. Token in URL path."
           },
           "response": [],
           "event": [
@@ -1090,36 +1065,23 @@
           ]
         },
         {
-          "name": "/api/auth/verify-invite (invalid token)",
+          "name": "/api/auth/verify-invite/{token} (invalid token)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/auth/verify-invite",
+              "raw": "{{baseUrl}}/api/auth/verify-invite/invlid00000000000000000000000000",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "auth",
-                "verify-invite"
+                "verify-invite",
+                "invlid00000000000000000000000000"
               ]
             },
-            "description": "Verifies a non-existent token - expects 400 with error.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token\": \"invlaid0000000000000000000000000\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": "Verifies a non-existent token - expects 400 with error. Token in URL path."
           },
           "response": [],
           "event": [
@@ -1132,6 +1094,86 @@
                   "pm.test('error message', function () {",
                   "  pm.expect(pm.response.json().error).to.be.a('string');",
                   "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/auth/invites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/invites",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "invites"
+              ]
+            },
+            "description": "Lists all invites for the current organization (admin only)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('returns invite list', function () { pm.expect(json).to.be.an('array'); });",
+                  "if (json.length > 0) {",
+                  "  pm.test('invite items have required fields', function () {",
+                  "    json.forEach(function(invite) {",
+                  "      pm.expect(invite.email).to.be.a('string');",
+                  "      pm.expect(invite.status).to.be.a('string');",
+                  "      pm.expect(invite.createdAt).to.be.a('string');",
+                  "    });",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/auth/invite/{token}/open",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/invite/{{inviteToken}}/open",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "invite",
+                "{{inviteToken}}",
+                "open"
+              ]
+            },
+            "description": "Marks an invite as opened (first view by the invited user). Idempotent — only sets OpenedAt once."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const token = pm.collectionVariables.get('inviteToken');",
+                  "if (!token) {",
+                  "  pm.test('skipped — no invite token captured', function () { pm.expect(true).to.eql(true); });",
+                  "} else {",
+                  "  pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "}"
                 ]
               }
             }
