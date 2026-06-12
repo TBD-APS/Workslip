@@ -14,6 +14,7 @@ import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { useAuth } from '../../../providers/useAuth';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
 import { ControlPointsStep } from '../components/steps/ControlPointsStep';
+import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import { JobCompletionStep } from '../components/steps/JobCompletionStep';
 import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
 import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
@@ -134,6 +135,12 @@ export const CompletedJobReport = () => {
   };
 
   const handleSaveEdit = async () => {
+    const cpValidation = validateControlPoints(details.form, details.referenceData!);
+    if (!cpValidation.valid) {
+      toast.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter');
+      return;
+    }
+
     const saved = await details.saveAllChanges();
     if (!saved) return;
 

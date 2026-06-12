@@ -34,6 +34,7 @@ import {
   toNullable,
   toUpdateRequest,
 } from '../utils';
+import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import type { CustomerInfo } from '../../../api/generated/models';
 import type { JobForm } from '../types';
 
@@ -469,6 +470,15 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
       setSaveStatus('error');
       toast.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
         id: 'job-work-validation-error',
+      });
+      return false;
+    }
+
+    const cpValidation = validateControlPoints(draft.form, referenceData);
+    if (!cpValidation.valid) {
+      setSaveStatus('error');
+      toast.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter', {
+        id: 'job-cp-validation-error',
       });
       return false;
     }

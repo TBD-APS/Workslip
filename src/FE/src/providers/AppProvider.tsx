@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
@@ -29,18 +30,21 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             {children}
-            <Toaster 
-              theme="dark" 
-              position="top-center" 
-              toastOptions={{
-                style: {
-                  background: 'var(--surface-color)',
-                  border: '1px solid var(--surface-border)',
-                  backdropFilter: 'blur(20px)',
-                  color: 'var(--text-primary)'
-                }
-              }} 
-            />
+            {createPortal(
+              <Toaster 
+                theme="dark" 
+                position="top-center" 
+                toastOptions={{
+                  style: {
+                    background: 'var(--surface-color)',
+                    border: '1px solid var(--surface-border)',
+                    backdropFilter: 'blur(20px)',
+                    color: 'var(--text-primary)'
+                  }
+                }} 
+              />,
+              document.body
+            )}
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
