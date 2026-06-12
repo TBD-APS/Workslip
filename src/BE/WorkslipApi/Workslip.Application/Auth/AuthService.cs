@@ -81,6 +81,31 @@ public sealed class AuthService(
         return ResolveUserAsync(email, cancellationToken);
     }
 
+    public async Task<Result<AuthUserInfo>> CompleteEntraLoginAsync(CancellationToken cancellationToken)
+    {
+        var userId = currentUser.UserId;
+        var organizationId = currentUser.OrganizationId;
+        if (userId is null || organizationId is null)
+        {
+            logger.LogWarning("Entra login failed: authenticated Entra user was not mapped to a Workslip user.");
+            return Result<AuthUserInfo>.Unauthorized();
+        }
+
+        var user = await userRepository.GetByIdAsync(userId.Value, cancellationToken);
+        if (user is null)
+        {
+            logger.LogWarning("Entra login failed: mapped Workslip user was not found. UserId: {UserId}.", userId);
+            return Result<AuthUserInfo>.Unauthorized();
+        }
+
+        return Result<AuthUserInfo>.Success(new AuthUserInfo(
+            user.Id,
+            user.OrganizationId,
+            user.Email,
+            user.DisplayName,
+            user.Role));
+    }
+
     private async Task<Result<AuthUserInfo>> ResolveUserAsync(string email, CancellationToken cancellationToken)
     {
         var user = await userRepository.GetByEmailAsync(email, cancellationToken);

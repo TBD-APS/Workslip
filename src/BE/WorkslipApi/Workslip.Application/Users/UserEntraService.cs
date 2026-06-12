@@ -20,15 +20,43 @@ public sealed class UserEntraService(
         var existingUser = await FindExistingEntraUserAsync(mailNickname, userPrincipalName, ct);
         if (existingUser != null)
         {
-            return new CreateEntraUserResult(existingUser.Id!, existingUser.UserPrincipalName!, displayName);
+            return new CreateEntraUserResult(existingUser.Id!, existingUser.UserPrincipalName!, displayName, Created: false);
         }
 
         var newUser = BuildEntraUser(displayName, mailNickname, userPrincipalName);
         var createdUser = await CreateEntraUserAsync(newUser, displayName, email, userPrincipalName, ct);
 
-        await AssignAppRoleTo(createdUser.Id!, "User", ct);
+        try
+        {
+            await AssignAppRoleTo(createdUser.Id!, "User", ct);
+        }
+        catch
+        {
+            await DeleteUserAsync(createdUser.Id!, ct);
+            throw;
+        }
 
-        return new CreateEntraUserResult(createdUser.Id!, userPrincipalName, displayName);
+        return new CreateEntraUserResult(createdUser.Id!, userPrincipalName, displayName, Created: true);
+    }
+
+    public async Task DeleteUserAsync(string entraUserId, CancellationToken ct)
+    {
+        logger.LogWarning("Graph deleting rollback user. CorrelationId={CorrelationId} UserId={UserId}",
+            correlationIdAccessor.CorrelationId, entraUserId);
+
+        try
+        {
+            await graphClient.Users[entraUserId].DeleteAsync(cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Graph rollback delete failed. CorrelationId={CorrelationId} UserId={UserId}",
+                correlationIdAccessor.CorrelationId, entraUserId);
+            throw;
+        }
+
+        logger.LogInformation("Graph rollback user deleted. CorrelationId={CorrelationId} UserId={UserId}",
+            correlationIdAccessor.CorrelationId, entraUserId);
     }
 
     public async Task AssignAppRoleTo(string entraUserId, string appRoleValue, CancellationToken ct)
@@ -47,7 +75,7 @@ public sealed class UserEntraService(
                 {
                     PrincipalId = Guid.Parse(entraUserId),
                     ResourceId = Guid.Parse(servicePrincipal.Id!),
-                    AppRoleId = appRole.Id.Value
+                    AppRoleId = appRole.Id!.Value
                 },
                 cancellationToken: ct
             );
@@ -163,5 +191,6 @@ public sealed class UserEntraService(
 public record CreateEntraUserResult(
     string EntraUserId,
     string EntraMail,
-    string DisplayName
+    string DisplayName,
+    bool Created
 );

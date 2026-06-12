@@ -36,6 +36,22 @@ public static class AuthEndpoints
             return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
         }).Produces<AuthTokenResponse>();
 
+        group.MapPost("/entra-enroll", async (EntraEnrollRequest request, IInvitationService service, IConfiguration configuration, CancellationToken cancellationToken) =>
+        {
+            var result = await service.CompleteEnrollmentAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
+        })
+        .Produces<AuthTokenResponse>()
+        .RequireAuthorization(policy => policy.AddAuthenticationSchemes("EntraJwt").RequireAuthenticatedUser());
+
+        group.MapPost("/entra-login", async (IAuthService service, IConfiguration configuration, CancellationToken cancellationToken) =>
+        {
+            var result = await service.CompleteEntraLoginAsync(cancellationToken);
+            return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
+        })
+        .Produces<AuthTokenResponse>()
+        .RequireAuthorization(policy => policy.AddAuthenticationSchemes("EntraJwt").RequireAuthenticatedUser());
+
         group.MapPost("/invite", async (InviteUsersRequest request, IInvitationService service, CancellationToken cancellationToken) =>
         {
             var result = await service.InviteUsersAsync(request, cancellationToken);

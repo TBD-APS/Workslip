@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Workslip.Application;
+using Workslip.Application.Common;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Application.Organizations;
@@ -13,6 +14,7 @@ using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using Workslip.Infrastructure.Transactions;
 
 namespace Workslip.Infrastructure;
 
@@ -22,6 +24,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+        services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
 
         services.AddScoped<AuditInterceptor>();
 

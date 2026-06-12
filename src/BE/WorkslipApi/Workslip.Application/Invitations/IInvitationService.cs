@@ -10,6 +10,8 @@ public interface IInvitationService
 
     Task<Result<AuthUserInfo>> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken);
 
+    Task<Result<AuthUserInfo>> CompleteEnrollmentAsync(EntraEnrollRequest request, CancellationToken cancellationToken);
+
     Task<Result<InviteListResponse>> GetOrganizationInvitesAsync(CancellationToken cancellationToken);
 
     Task<Result> MarkOpenedAsync(string token, CancellationToken cancellationToken);

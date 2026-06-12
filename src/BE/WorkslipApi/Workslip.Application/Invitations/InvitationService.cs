@@ -1,6 +1,7 @@
 using Ardalis.Result;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
+using Workslip.Application.Common;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 using Workslip.Domain.Models;
@@ -11,6 +12,7 @@ public sealed class InvitationService(
     IUserRepository userRepository,
     IInviteRepository inviteRepository,
     IUserEntraService entraService,
+    IApplicationTransactionFactory transactionFactory,
     IOrganizationRepository organizationRepository,
     IEmailService emailService,
     ICurrentUserContext currentUser,
@@ -36,7 +38,29 @@ public sealed class InvitationService(
 
     public async Task<Result<AuthUserInfo>> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken)
     {
-        var invite = await inviteRepository.GetByTokenAsync(request.Token, cancellationToken);
+        return await CompleteInviteAsync(request.Token, request.DisplayName, request.Phone, cancellationToken);
+    }
+
+    public async Task<Result<AuthUserInfo>> CompleteEnrollmentAsync(EntraEnrollRequest request, CancellationToken cancellationToken)
+    {
+        return await CompleteInviteAsync(request.Token, request.DisplayName, request.Phone, cancellationToken);
+    }
+
+    private async Task<Result<AuthUserInfo>> CompleteInviteAsync(string token, string displayName, string? phone, CancellationToken cancellationToken)
+    {
+        displayName = displayName.Trim();
+        phone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+
+        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(displayName))
+        {
+            return Result<AuthUserInfo>.Invalid(new ValidationError
+            {
+                Identifier = string.IsNullOrWhiteSpace(token) ? nameof(EntraEnrollRequest.Token) : nameof(EntraEnrollRequest.DisplayName),
+                ErrorMessage = "Invite token and display name are required."
+            });
+        }
+
+        var invite = await inviteRepository.GetByTokenAsync(token, cancellationToken);
         if (invite is null)
         {
             logger.LogWarning("Invite verification failed: token not found.");
@@ -47,17 +71,68 @@ public sealed class InvitationService(
         if (validationError is not null) 
             return validationError;
 
-        var entraUser = await entraService.CreateUserAsync(invite.Email, request.DisplayName, cancellationToken);
+        CreateEntraUserResult entraUser;
+        try
+        {
+            entraUser = await entraService.CreateUserAsync(invite.Email, displayName, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Invite enrollment failed during Entra user creation. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
+            throw;
+        }
 
-        var user = BuildUserFromInvite(invite, entraUser, request.DisplayName, request.Phone);
-        var userId = await userRepository.CreateAsync(user, cancellationToken);
-        await inviteRepository.MarkConsumedAsync(invite, cancellationToken);
+        await using var transaction = await transactionFactory.BeginTransactionAsync(cancellationToken);
 
-        var org = await organizationRepository.GetByIdAsync(invite.OrganizationId, cancellationToken);
-        logger.LogInformation("Invite accepted. UserId: {UserId}. Organization: {Org}. Email: {Email}. Role: {Role}.",
-            userId, org?.Name ?? invite.OrganizationId.ToString(), invite.Email, user.Role);
+        try
+        {
+            var user = BuildUserFromInvite(invite, entraUser, displayName, phone);
+            var userId = await userRepository.CreateAsync(user, cancellationToken);
+            await inviteRepository.MarkConsumedAsync(invite, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
-        return Result<AuthUserInfo>.Success(new AuthUserInfo(userId, invite.OrganizationId, invite.Email, user.DisplayName, user.Role));
+            var org = await organizationRepository.GetByIdAsync(invite.OrganizationId, cancellationToken);
+            logger.LogInformation("Invite accepted. UserId: {UserId}. Organization: {Org}. Email: {Email}. Role: {Role}.",
+                userId, org?.Name ?? invite.OrganizationId.ToString(), invite.Email, user.Role);
+
+            return Result<AuthUserInfo>.Success(new AuthUserInfo(userId, invite.OrganizationId, invite.Email, user.DisplayName, user.Role));
+        }
+        catch (Exception ex)
+        {
+            await RollbackTransactionAsync(transaction, cancellationToken);
+            await DeleteRollbackUserAsync(entraUser, cancellationToken);
+            logger.LogError(ex, "Invite enrollment failed. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
+            throw;
+        }
+    }
+
+    private async Task RollbackTransactionAsync(IApplicationTransaction transaction, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await transaction.RollbackAsync(cancellationToken);
+        }
+        catch (Exception rollbackException)
+        {
+            logger.LogError(rollbackException, "SQL transaction rollback failed during invite enrollment.");
+        }
+    }
+
+    private async Task DeleteRollbackUserAsync(CreateEntraUserResult? entraUser, CancellationToken cancellationToken)
+    {
+        if (entraUser is not { Created: true })
+        {
+            return;
+        }
+
+        try
+        {
+            await entraService.DeleteUserAsync(entraUser.EntraUserId, cancellationToken);
+        }
+        catch (Exception deleteException)
+        {
+            logger.LogError(deleteException, "Failed to delete newly-created Entra user after invite enrollment rollback. EntraUserId: {EntraUserId}", entraUser.EntraUserId);
+        }
     }
 
     private async Task<Result<AuthUserInfo>?> ValidateInviteAsync(InviteTokenRow invite, CancellationToken cancellationToken)

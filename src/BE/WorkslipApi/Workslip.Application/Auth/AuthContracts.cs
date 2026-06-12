@@ -20,3 +20,5 @@ public sealed record AuthTokenResponse(
 public sealed record VerifyInviteRequest(string Token, string DisplayName, string? Phone);
 
 public sealed record CompleteInviteRequest(string DisplayName, string? Phone);
+
+public sealed record EntraEnrollRequest(string Token, string DisplayName, string? Phone);
