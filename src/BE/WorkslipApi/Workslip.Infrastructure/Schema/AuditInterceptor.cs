@@ -88,6 +88,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         dbContext.ChangeTracker.DetectChanges();
         var auditEntries = new List<AuditEntry>();
         var buildContext = new AuditBuildContext(dbContext, currentUser, displayResolver);
+        var reportsWithWorkKindChange = ReportsWithWorkKindChange(dbContext);
 
         foreach (var entry in dbContext.ChangeTracker.Entries())
         {
@@ -100,11 +101,26 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             var policy = policies.First(x => x.CanHandle(entry));
             auditEntries.AddRange(policy
                 .BuildEvents(buildContext, entry, changeCollector)
+                .Where(auditEntry => !ShouldSuppressInstallationHierarchyChurn(auditEntry, reportsWithWorkKindChange))
                 .Where(auditEntry => ShouldCaptureAuditEntry(dbContext, auditEntry)));
         }
 
         return auditEntries;
     }
+
+    private static HashSet<Guid> ReportsWithWorkKindChange(DbContext dbContext) =>
+        dbContext.ChangeTracker.Entries<JobReportRow>()
+            .Where(entry => entry.State == EntityState.Modified
+                && entry.Property(report => report.WorkKindId).IsModified)
+            .Select(entry => entry.Entity.Id)
+            .ToHashSet();
+
+    private static bool ShouldSuppressInstallationHierarchyChurn(AuditEntry auditEntry, HashSet<Guid> reportsWithWorkKindChange) =>
+        auditEntry.ReportId is Guid reportId
+        && reportsWithWorkKindChange.Contains(reportId)
+        && (auditEntry.Entry.Entity is JobReportInstallationRow
+            or JobReportInstallationCategoryRow
+            or JobReportInstallationControlPointRow);
 
     private static bool ShouldCaptureAuditEntry(DbContext dbContext, AuditEntry auditEntry)
     {

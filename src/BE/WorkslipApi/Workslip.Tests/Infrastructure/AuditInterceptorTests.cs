@@ -273,6 +273,83 @@ public sealed class AuditInterceptorTests
     }
 
     [Fact]
+    public async Task Work_kind_change_suppresses_installation_category_and_control_point_churn_in_same_save()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var firstWorkKindId = Guid.NewGuid();
+        var secondWorkKindId = Guid.NewGuid();
+        var installationTypeId = Guid.NewGuid();
+        var installationId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var categoryJoinId = Guid.NewGuid();
+        var controlPointId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobWorkKinds.AddRange(
+            new JobWorkKindRow { Id = firstWorkKindId, NormalizedLabel = "service", Label = "Service", IsActive = true, SortOrder = 1 },
+            new JobWorkKindRow { Id = secondWorkKindId, NormalizedLabel = "repair", Label = "Reparation", IsActive = true, SortOrder = 2 });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            WorkKindId = firstWorkKindId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.Add(new InstallationTypeDefinitionRow { Id = installationTypeId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 });
+        context.ControlCategoryRow.Add(new ControlCategoryRow { Id = categoryId, Name = "Modtagekontrol", SortOrder = 1 });
+        context.ControlPointRow.Add(new ControlPointRow { Id = controlPointId, Name = "Trykprøvning", SortOrder = 1 });
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = installationId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = installationTypeId,
+            SortOrder = 1
+        });
+        context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = categoryJoinId,
+            JobReportInstallationId = installationId,
+            ControlCategoryId = categoryId,
+            SortOrder = 1,
+            IsIrrelevant = false
+        });
+        context.JobReportInstallationControlPoints.Add(new JobReportInstallationControlPointRow
+        {
+            JobReportInstallationCategoryId = categoryJoinId,
+            ControlPointId = controlPointId,
+            SortOrder = 1,
+            IsRequired = true,
+            IsChecked = true
+        });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        var report = await context.JobReports.SingleAsync(r => r.Id == jobId);
+        context.Entry(report).Property(e => e.WorkKindId).CurrentValue = secondWorkKindId;
+        context.JobReportInstallationControlPoints.Remove(await context.JobReportInstallationControlPoints.SingleAsync());
+        context.JobReportInstallationCategories.Remove(await context.JobReportInstallationCategories.SingleAsync());
+        context.JobReportInstallations.Remove(await context.JobReportInstallations.SingleAsync());
+        await context.SaveChangesAsync();
+
+        var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
+        Assert.Equal("WorkKind changed: 'Service' → 'Reparation'", audit.Summary);
+
+        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
+        var change = Assert.Single(response.Changes);
+        Assert.Equal("WorkKind", change.PropertyName);
+        Assert.Equal("Service", change.Before);
+        Assert.Equal("Reparation", change.After);
+    }
+
+    [Fact]
     public async Task Job_report_added_audit_uses_work_kind_display_name()
     {
         var orgId = Guid.NewGuid();

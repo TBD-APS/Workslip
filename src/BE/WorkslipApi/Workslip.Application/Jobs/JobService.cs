@@ -716,11 +716,16 @@ public sealed class JobService(
             normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
     }
 
-    private static string BuildJobListCacheKey(JobQuery query) =>
-        $"jobs:list:organization={query.OrganizationId:N}:status={query.Statuses?.Select(x => x.ToString())?.ToString() ?? "all"}" +
-        $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
-        $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
-
+    private static string BuildJobListCacheKey(JobQuery query)
+    {
+        var statusKey = query.Statuses is not null && query.Statuses.Count > 0
+            ? string.Join(",", query.Statuses.OrderBy(x => x).Select(x => x.ToString()))
+            : "all";
+    
+        return $"jobs:list:organization={query.OrganizationId:N}:status={statusKey}" +
+            $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
+            $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
+    }
     private async Task<ValidationError?> ValidateLinkTargetAsync(Guid reportId, Guid targetId, Guid organizationId, CancellationToken cancellationToken)
     {
         var report = await _jobRepository.GetSingleJobAsync(reportId, organizationId, cancellationToken);

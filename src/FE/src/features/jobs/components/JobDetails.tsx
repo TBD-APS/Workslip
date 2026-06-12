@@ -6,7 +6,6 @@ import type { AxiosError } from 'axios';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
-import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { DeleteButton } from '../../../components/common/DeleteButton';
 import { useCan } from '../../../providers/permissions';
 import { isValidJobForm, isValidWork } from '../utils';
@@ -158,54 +157,53 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         {details.currentStep === 1 && (
           <WorkCategoryStep
             form={details.form}
-            referenceData={details.referenceData!}
-            updateForm={details.updateForm}
+            referenceData={details.referenceData}
+            isLoading={details.isLoadingReferenceData}
+            onCategoriesChange={details.updateWorkCategories}
+            onWorkKindChange={details.updateWorkKind}
+            onCustomWorkKindChange={details.updateCustomWorkKind}
           />
         )}
         {details.currentStep === 2 && (
           <ControlPointsStep
             form={details.form}
-            updateForm={details.updateForm}
+            referenceData={details.referenceData}
+            onToggleControlPoint={details.toggleControlPoint}
+            onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
           />
         )}
         {details.currentStep === 3 && (
           <JobWorksheetsStep
             jobId={details.job.id}
             worksheets={details.worksheets}
-            onAdd={details.addWorksheet}
-            onUpdate={details.updateWorksheet}
+            totalHours={details.job.totalHours}
+            totalOutlay={details.job.totalOutlay}
+            assignableUsers={details.assignableUsers}
+            isLoadingUsers={details.isLoadingUsers}
+            isSaving={details.isSavingWorksheet}
+            isDeleting={details.isDeletingWorksheet}
+            onUpsert={details.upsertWorksheet}
             onDelete={details.deleteWorksheet}
           />
         )}
         {details.currentStep === 4 && (
           <JobCompletionStep
             form={details.form}
-            updateForm={details.updateForm}
-            onSubmit={async () => {
-              const res = await details.changeStatus(JobStatus.InReview);
-              if (res) {
-                setSubmission({
-                  reportNumber: res.reportNumber ?? '',
-                  submittedAt: new Date(),
-                });
-              }
-            }}
-            isSubmitting={details.statusStatus === 'saving'}
+            referenceData={details.referenceData}
+            isLoading={details.isLoadingReferenceData}
+            onClosureFlagsChange={details.updateClosureFlags}
+            worksheetCount={details.worksheets.length}
           />
         )}
         {details.currentStep === 5 && (
           <JobAttestationStep
-            job={details.job}
-            onApprove={async () => {
-              const res = await details.changeStatus(JobStatus.Approved);
-              if (res) {
-                toast.success('Sagen er attesteret og godkendt');
-                onDone();
-              }
-            }}
-            isAttesting={details.statusStatus === 'saving'}
+            details={details}
             confirmed={attestationConfirmed}
-            onConfirmChange={setAttestationConfirmed}
+            onConfirmedChange={setAttestationConfirmed}
+            onSubmitted={() => setSubmission({
+              reportNumber: details.job?.reportNumber ?? '',
+              submittedAt: new Date(),
+            })}
           />
         )}
       </div>

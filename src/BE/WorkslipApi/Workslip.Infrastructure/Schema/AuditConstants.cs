@@ -34,7 +34,7 @@ internal static class AuditDisplayNames
         { "CustomerObservations", "Kundens observationer" },
         { "TechnicalObservations", "Tekniske observationer" },
         { "Remarks", "Bemærkninger" },
-        { "CustomWorkKind", "Anden opgavetype" },
+        { "CustomWorkKind", "Service/Andet" },
         { "WorkDate", "Arbejdsdato" },
         { "HoursWorked", "Timer" },
         { "SleptOnJob", "Overnatning" },
