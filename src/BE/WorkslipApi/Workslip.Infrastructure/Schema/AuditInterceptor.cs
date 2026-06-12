@@ -86,6 +86,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             return [];
 
         dbContext.ChangeTracker.DetectChanges();
+        JobReportInstallationAuditPolicy.ResetSession();
         var auditEntries = new List<AuditEntry>();
         var buildContext = new AuditBuildContext(dbContext, currentUser, displayResolver);
         var reportsWithWorkKindChange = ReportsWithWorkKindChange(dbContext);
@@ -169,7 +170,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
 
     private static bool IsTransitionToInReview(AuditEntry auditEntry) =>
         auditEntry.EventType == AuditEventTypes.Modified
-        && auditEntry.AfterValues.TryGetValue("Status", out var status)
+        && auditEntry.AfterValues.TryGetValue(AuditSuffixes.Status, out var status)
         && string.Equals(status?.ToString(), JobStatus.InReview.ToString(), StringComparison.Ordinal);
 
     private static bool IsHistoryStatus(string status) =>
