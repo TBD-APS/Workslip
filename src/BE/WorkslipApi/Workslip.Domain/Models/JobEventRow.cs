@@ -4,9 +4,10 @@ public sealed class JobEventRow
 {
     public Guid Id { get; init; }
     public Guid OrganizationId { get; init; }
-    public Guid ReportId { get; init; }
+    public Guid? ReportId { get; init; }
     public Guid? ActorId { get; init; }
     public string EventType { get; init; } = string.Empty;
+    public string? Summary { get; init; }
     public string? BeforeJson { get; init; }
     public string? AfterJson { get; init; }
     public DateTimeOffset CreatedAt { get; init; }

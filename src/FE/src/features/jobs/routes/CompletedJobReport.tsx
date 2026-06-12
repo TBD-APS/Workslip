@@ -14,12 +14,14 @@ import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { useAuth } from '../../../providers/useAuth';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
 import { ControlPointsStep } from '../components/steps/ControlPointsStep';
+import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import { JobCompletionStep } from '../components/steps/JobCompletionStep';
 import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
 import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
 import { useJobDetailsState } from '../hooks/useJobDetails';
 import { formatJobStatus } from '../statusLabels';
 import { createJobReportPdfPreview, type JobReportPdfPreview } from '../utils/downloadJobReportPdf';
+import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
@@ -52,6 +54,7 @@ export const CompletedJobReport = () => {
   const [isOpeningPdf, setIsOpeningPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<JobReportPdfPreview | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const job = details.job;
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
@@ -132,6 +135,12 @@ export const CompletedJobReport = () => {
   };
 
   const handleSaveEdit = async () => {
+    const cpValidation = validateControlPoints(details.form, details.referenceData!);
+    if (!cpValidation.valid) {
+      toast.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter');
+      return;
+    }
+
     const saved = await details.saveAllChanges();
     if (!saved) return;
 
@@ -238,7 +247,14 @@ export const CompletedJobReport = () => {
               </button>
             )
           )}
-          <button className={`btn btn-secondary report-overview-icon-action ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" disabled aria-label="Versioner" title="Versioner kommer senere">
+          <button 
+            className={`btn btn-secondary report-overview-icon-action`} 
+            type="button" 
+            onClick={() => setHistoryOpen(true)} 
+            disabled={isEditing}
+            aria-label="Historik" 
+            title="Vis sagshistorik"
+          >
             <History size={16} />
           </button>
           <button className={`btn btn-secondary ${isEditing ? 'report-overview-icon-action' : 'pdf-download-button report-overview-pdf'} ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" onClick={handleOpenPdf} disabled={isOpeningPdf || isEditing}>
@@ -335,6 +351,12 @@ export const CompletedJobReport = () => {
       )}
 
       {pdfPreview && <PdfPreviewDialog preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
+      
+      <JobHistoryDrawer 
+        jobId={job.id} 
+        isOpen={historyOpen} 
+        onClose={() => setHistoryOpen(false)} 
+      />
     </div>
   );
 };
@@ -347,13 +369,12 @@ function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; 
           <div>
             <span className="job-number">PDF rapport</span>
             <h3>{preview.fileName}</h3>
-            <p>Brug PDF-viserens egen download-knap, hvis rapporten skal gemmes.</p>
           </div>
           <button className="btn-icon" type="button" onClick={onClose} aria-label="Luk PDF">
             <X size={22} />
           </button>
         </div>
-        <iframe className="pdf-preview-frame" src={`${preview.url}#toolbar=1&navpanes=0`} title={preview.fileName} />
+        <iframe className="pdf-preview-frame" src={`${preview.url}#toolbar=1&navpanes=0`} title={preview.fileName} scrolling="yes" />
       </div>
     </div>
   );

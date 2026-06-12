@@ -19,8 +19,6 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     private readonly ICurrentUserContext _currentUser;
     private readonly IWorksheetRepository _worksheetRepo;
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     public EfAssignmentRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy,
         ICurrentUserContext currentUser, IWorksheetRepository worksheetRepo)
     {
@@ -48,28 +46,47 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
 
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        var existingAssignedUsers = await GetSingleAssignedUsersAsync(organizationId, jobId, cancellationToken);
-        var targetAssignedUsers = await GetAssignedUsersByIdsAsync(organizationId, userIds, cancellationToken);
         var now = DateTimeOffset.UtcNow;
-        
-        await _dbContext.JobAssignments
+        var normalizedUserIds = userIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
+
+        var currentAssignments = await _dbContext.JobAssignments
             .Where(a => a.ReportId == jobId && a.OrganizationId == organizationId)
-            .ExecuteDeleteAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
 
-        if (userIds.Count >= 1)
+        var assignmentsToRemove = currentAssignments
+            .Where(a => !normalizedUserIds.Contains(a.UserId))
+            .ToArray();
+
+        var existingUserIds = currentAssignments.Select(a => a.UserId).ToHashSet();
+        var userIdsToAdd = normalizedUserIds
+            .Where(userId => !existingUserIds.Contains(userId))
+            .ToArray();
+
+        _dbContext.JobAssignments.RemoveRange(assignmentsToRemove);
+
+        foreach (var userId in userIdsToAdd)
         {
-            await AddAssignedUsersAsync(organizationId, jobId, userIds, actorId, now, cancellationToken);
+            _dbContext.JobAssignments.Add(new JobAssignmentRow
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                ReportId = jobId,
+                UserId = userId,
+                AssignedByUserId = actorId,
+                AssignedAt = now
+            });
+        }
 
+        if (assignmentsToRemove.Length > 0 || userIdsToAdd.Length > 0)
+        {
             var entry = _dbContext.Entry(existing);
             entry.Property(e => e.UpdatedAt).CurrentValue = now;
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
-        await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var eventType = existingAssignedUsers.Count == 0 ? "assigned" : "reassigned";
-        var before = JobReportMapper.ToJsonNode(new { assignedUsers = existingAssignedUsers });
-        var after = JobReportMapper.ToJsonNode(new { assignedUsers = targetAssignedUsers });
-
-        await InsertEventAsync(organizationId, jobId, actorId, eventType, before, after, now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
     }
 
@@ -233,24 +250,4 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     private async Task<IReadOnlyList<AssignedUserResponse>> GetSingleAssignedUsersAsync(
         Guid organizationId, Guid reportId, CancellationToken cancellationToken) =>
         (await GetAssignedUsersByReportAsync(organizationId, [reportId], cancellationToken)).GetValueOrDefault(reportId) ?? [];
-
-    private async Task InsertEventAsync(
-        Guid organizationId, Guid reportId, Guid? actorId,
-        string eventType, JsonObject? before, JsonObject? after,
-        DateTimeOffset now, CancellationToken cancellationToken)
-    {
-        _dbContext.JobEvents.Add(new JobEventRow
-        {
-            Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
-            ReportId = reportId,
-            ActorId = actorId,
-            EventType = eventType,
-            BeforeJson = before?.ToJsonString(JsonOptions),
-            AfterJson = after?.ToJsonString(JsonOptions),
-            CreatedAt = now
-        });
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
 }

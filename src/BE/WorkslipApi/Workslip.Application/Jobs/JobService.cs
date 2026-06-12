@@ -195,12 +195,12 @@ public sealed class JobService(
         return Result<JobReportResponse>.Success(report);
     }
 
-    public async Task<Result<IReadOnlyList<JobEventResponse>>> GetHistoryAsync(Guid id, int? limit, int? offset, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<JobHistoryResponse>>> GetHistoryAsync(Guid id, int? limit, int? offset, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            return Result<IReadOnlyList<JobEventResponse>>.Unauthorized();
+            return Result<IReadOnlyList<JobHistoryResponse>>.Unauthorized();
         }
 
         var normalizedLimit = Math.Clamp(limit ?? 50, 1, 200);
@@ -209,7 +209,7 @@ public sealed class JobService(
         if (events is null)
         {
             logger.LogWarning("Job history lookup returned not found. JobId: {JobId}.", id);
-            return Result<IReadOnlyList<JobEventResponse>>.NotFound();
+            return Result<IReadOnlyList<JobHistoryResponse>>.NotFound();
         }
 
         logger.LogInformation("Job history fetched. JobId: {JobId}. Limit: {Limit}. Offset: {Offset}. EventCount: {EventCount}.",
@@ -218,7 +218,7 @@ public sealed class JobService(
             normalizedOffset,
             events.Count);
 
-        return Result<IReadOnlyList<JobEventResponse>>.Success(events);
+        return Result<IReadOnlyList<JobHistoryResponse>>.Success(events);
     }
 
     public async Task<Result<JobReportSummaryResponse>> UpdateAsync(Guid id, UpdateJobRequest request, CancellationToken cancellationToken)
@@ -308,7 +308,7 @@ public sealed class JobService(
 
         if (job is null)
         {
-            logger.LogWarning("Job submit returned not found. JobId: {JobId} with orgId {OrgId}.", job.Id, organizationId.Value);
+            logger.LogWarning("Job submit returned not found. JobId: {JobId} with orgId {OrgId}.", id, organizationId.Value);
             return Result<JobReportSummaryResponse>.NotFound();
         }
 
@@ -703,7 +703,7 @@ public sealed class JobService(
     }
 
     private static JobQuery BuildJobQuery(
-        Guid organizationId, List<JobStatus> statuses,
+        Guid organizationId, List<JobStatus>? statuses,
         string? reportNumber, string? customerName, string? customerEmail, string? customerAddress,
         int? limit, int? offset)
     {
@@ -716,11 +716,16 @@ public sealed class JobService(
             normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
     }
 
-    private static string BuildJobListCacheKey(JobQuery query) =>
-        $"jobs:list:organization={query.OrganizationId:N}:status={query.Statuses.Select(x => x.ToString())?.ToString() ?? "all"}" +
-        $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
-        $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
-
+    private static string BuildJobListCacheKey(JobQuery query)
+    {
+        var statusKey = query.Statuses is not null && query.Statuses.Count > 0
+            ? string.Join(",", query.Statuses.OrderBy(x => x).Select(x => x.ToString()))
+            : "all";
+    
+        return $"jobs:list:organization={query.OrganizationId:N}:status={statusKey}" +
+            $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
+            $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
+    }
     private async Task<ValidationError?> ValidateLinkTargetAsync(Guid reportId, Guid targetId, Guid organizationId, CancellationToken cancellationToken)
     {
         var report = await _jobRepository.GetSingleJobAsync(reportId, organizationId, cancellationToken);

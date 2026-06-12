@@ -1,6 +1,6 @@
 namespace Workslip.Domain.Models;
 
-public sealed class CustomerRow
+public sealed class CustomerRow : IAuditable
 {
     public Guid Id { get; init; }
     public Guid OrganizationId { get; init; }

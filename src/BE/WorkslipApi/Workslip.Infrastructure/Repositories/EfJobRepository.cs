@@ -1,7 +1,7 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Workslip.Application.Auth;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
@@ -11,6 +11,7 @@ using Workslip.Domain.Models;
 using Workslip.Infrastructure.Mappers;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using static Microsoft.IO.RecyclableMemoryStreamManager;
 
 namespace Workslip.Infrastructure.Repositories;
 
@@ -25,7 +26,6 @@ public sealed class EfJobRepository : IJobRepository
     private readonly IJobLinkRepository _linkRepo;
     private readonly IWorksheetRepository _worksheetRepo;
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly TimeSpan DeletionRetentionPeriod = TimeSpan.FromDays(30);
 
     public EfJobRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICustomerRepository customerRepository, IAssignmentRepository assignmentRepo, IJobLinkRepository linkRepo, IWorksheetRepository worksheetRepo)
@@ -111,8 +111,6 @@ public sealed class EfJobRepository : IJobRepository
 
         var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
         await _assignmentRepo.AddAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
-        var assignedUsers = await _assignmentRepo.GetAssignedUsersByIdsAsync(organizationId, normalizedUserIds, cancellationToken);
-        await InsertEventAsync(organizationId, reportId, actorId, "created", null, JobReportMapper.ToJsonNode(new { reportId, assignedUsers }), now, cancellationToken);
 
         await tx.CommitAsync(cancellationToken);
 
@@ -127,7 +125,7 @@ public sealed class EfJobRepository : IJobRepository
     {
         _dbContext.ChangeTracker.Clear();
 
-        var statuses = query.Statuses?.Select(x => x.ToString()).Distinct();
+        var statuses = query.Statuses?.Select(x => x.ToString()).Distinct() ?? [];
 
         var projected = await (
             from r in _dbContext.JobReports.AsNoTracking()
@@ -231,24 +229,32 @@ public sealed class EfJobRepository : IJobRepository
         return JobReportMapper.ToResponse(row, links, assignedUsers, worksheetEntries, installationTypes, closureFlags, totalHours.GetValueOrDefault(id));
     }
 
-    public Task<IReadOnlyList<JobEventResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
+    public Task<IReadOnlyList<JobHistoryResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("jobs.events", token => GetEventsAsyncCoreAsync(id, organizationId, limit, offset, token), cancellationToken);
 
-    private async Task<IReadOnlyList<JobEventResponse>?> GetEventsAsyncCoreAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<JobHistoryResponse>?> GetEventsAsyncCoreAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken)
     {
         _dbContext.ChangeTracker.Clear();
 
         var exists = await _dbContext.JobReports.AsNoTracking().AnyAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
         if (!exists) return null;
 
-        var rows = await _dbContext.JobEvents
-            .AsNoTracking()
-            .Where(e => e.ReportId == id && e.OrganizationId == organizationId)
-            .OrderByDescending(e => e.CreatedAt)
+        var query = from e in _dbContext.JobEvents.AsNoTracking()
+                    join u in _dbContext.Users.AsNoTracking()
+                        on new { UserId = e.ActorId, e.OrganizationId }
+                        equals new { UserId = (Guid?)u.Id, u.OrganizationId } into users
+                    from u in users.DefaultIfEmpty()
+                    where e.ReportId == id && e.OrganizationId == organizationId
+                    orderby e.CreatedAt descending
+                    select new { Row = e, ActorName = u != null ? u.DisplayName : null };
+
+        var rows = await query
             .Skip(offset).Take(limit)
             .ToListAsync(cancellationToken);
 
-        return rows.Select(JobReportMapper.ToEventResponse).ToArray();
+        var response = rows.Select(e => JobReportMapper.ToHistoryResponse(e.Row, e.ActorName)).ToList();
+
+        return response;
     }
 
     public Task<JobReportResponse?> UpdateAsync(Guid id, Guid organizationId, UpdateJobRequest request, CancellationToken cancellationToken) =>
@@ -313,25 +319,12 @@ public sealed class EfJobRepository : IJobRepository
 
             if (request.Work.InstallationTypes is not null)
             {
-                var existingInstallations = await _dbContext.JobReportInstallations
-                    .Where(it => it.JobReportId == id && it.OrganizationId == organizationId)
-                    .ToListAsync(cancellationToken);
-                _dbContext.JobReportInstallations.RemoveRange(existingInstallations);
-
-                await AddSelectedInstallationsAsync(organizationId, id, request.Work.InstallationTypes, now, cancellationToken);
+                await SyncSelectedInstallationsAsync(organizationId, id, request.Work.InstallationTypes, cancellationToken);
             }
 
             if (request.Work.ClosureFlags is not null)
             {
-                var existingFlags = await _dbContext.JobReportClosureFlags
-                    .Where(f => f.JobReportId == id && f.OrganizationId == organizationId)
-                    .ToListAsync(cancellationToken);
-                _dbContext.JobReportClosureFlags.RemoveRange(existingFlags);
-
-                if (request.Work.ClosureFlags.Count > 0)
-                {
-                    await AddClosureFlagsAsync(organizationId, id, request.Work.ClosureFlags, cancellationToken);
-                }
+                await SyncClosureFlagsAsync(organizationId, id, request.Work.ClosureFlags, cancellationToken);
             }
         }
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
@@ -345,7 +338,6 @@ public sealed class EfJobRepository : IJobRepository
             throw new DuplicateReportNumberException(reportNumber, ex);
         }
 
-        await InsertEventAsync(organizationId, id, null, "updated", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(request), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -372,7 +364,6 @@ public sealed class EfJobRepository : IJobRepository
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await InsertEventAsync(organizationId, id, actorId, nextStatus.ToString().ToLowerInvariant(), JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(new { status = nextStatus.ToString() }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -441,7 +432,6 @@ public sealed class EfJobRepository : IJobRepository
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await InsertEventAsync(organizationId, id, null, "deletionRestored", JobReportMapper.ToJsonNode(existing), JobReportMapper.ToJsonNode(new { deletionScheduledAt = (DateTimeOffset?)null }), now, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -481,24 +471,60 @@ public sealed class EfJobRepository : IJobRepository
     }
 
 
-    private async Task InsertEventAsync(
-        Guid organizationId, Guid reportId, Guid? actorId,
-        string eventType, JsonObject? before, JsonObject? after,
-        DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task SyncClosureFlagsAsync(
+        Guid organizationId,
+        Guid jobReportId,
+        IReadOnlyList<string> normalizedLabels,
+        CancellationToken cancellationToken)
     {
-        _dbContext.JobEvents.Add(new JobEventRow
-        {
-            Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
-            ReportId = reportId,
-            ActorId = actorId,
-            EventType = eventType,
-            BeforeJson = before?.ToJsonString(JsonOptions),
-            AfterJson = after?.ToJsonString(JsonOptions),
-            CreatedAt = now
-        });
+        var labels = normalizedLabels
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .Select(l => l.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var flags = labels.Length == 0
+            ? []
+            : await _dbContext.JobClosureFlags
+                .AsNoTracking()
+                .Where(f => labels.Contains(f.NormalizedLabel))
+                .ToListAsync(cancellationToken);
+        var flagsByLabel = flags.ToDictionary(f => f.NormalizedLabel, StringComparer.OrdinalIgnoreCase);
+        var requestedFlags = labels
+            .Where(flagsByLabel.ContainsKey)
+            .Select(label => flagsByLabel[label])
+            .ToArray();
+        var requestedFlagIds = requestedFlags.Select(flag => flag.Id).ToHashSet();
+
+        var existingFlags = await _dbContext.JobReportClosureFlags
+            .Where(flag => flag.JobReportId == jobReportId && flag.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+        var existingByFlagId = existingFlags.ToDictionary(flag => flag.ClosureFlagId);
+
+        var flagsToRemove = existingFlags
+            .Where(flag => !requestedFlagIds.Contains(flag.ClosureFlagId))
+            .ToArray();
+        if (flagsToRemove.Length > 0)
+            _dbContext.JobReportClosureFlags.RemoveRange(flagsToRemove);
+
+        for (var sortOrder = 0; sortOrder < requestedFlags.Length; sortOrder++)
+        {
+            var flag = requestedFlags[sortOrder];
+            if (existingByFlagId.TryGetValue(flag.Id, out var existingFlag))
+            {
+                _dbContext.Entry(existingFlag).Property(e => e.SortOrder).CurrentValue = sortOrder + 1;
+                continue;
+            }
+
+            _dbContext.JobReportClosureFlags.Add(new JobReportClosureFlagRow
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                JobReportId = jobReportId,
+                ClosureFlagId = flag.Id,
+                SortOrder = sortOrder + 1
+            });
+        }
     }
 
     private async Task AddClosureFlagsAsync(
@@ -535,6 +561,162 @@ public sealed class EfJobRepository : IJobRepository
                 ClosureFlagId = flag.Id,
                 SortOrder = ++sortOrder
             });
+        }
+    }
+
+    private async Task SyncSelectedInstallationsAsync(
+        Guid organizationId,
+        Guid jobReportId,
+        IReadOnlyList<CreateInstallationTypeRequest> installationRequests,
+        CancellationToken cancellationToken)
+    {
+        var requested = installationRequests
+            .Where(request => request is not null)
+            .GroupBy(request => request.Id)
+            .Select(group => group.First())
+            .ToArray();
+
+        var requestedDefinitionIds = requested.Select(request => request.Id).ToHashSet();
+        var definitions = await _dbContext.InstallationTypeDefinitions
+            .AsNoTracking()
+            .Where(definition => definition.OrganizationId == organizationId && requestedDefinitionIds.Contains(definition.Id))
+            .Include(definition => definition.Mappings)
+            .ToDictionaryAsync(definition => definition.Id, cancellationToken);
+
+        var existingInstallations = await _dbContext.JobReportInstallations
+            .Where(installation => installation.JobReportId == jobReportId && installation.OrganizationId == organizationId)
+            .Include(installation => installation.Categories)
+            .ThenInclude(category => category.ControlPoints)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+
+        var existingByDefinitionId = existingInstallations.ToDictionary(installation => installation.InstallationTypeDefinitionId);
+        var requestedValidDefinitionIds = requested
+            .Where(request => definitions.ContainsKey(request.Id))
+            .Select(request => request.Id)
+            .ToHashSet();
+
+        var installationsToRemove = existingInstallations
+            .Where(installation => !requestedValidDefinitionIds.Contains(installation.InstallationTypeDefinitionId))
+            .ToArray();
+        if (installationsToRemove.Length > 0)
+            _dbContext.JobReportInstallations.RemoveRange(installationsToRemove);
+
+        for (var installationIndex = 0; installationIndex < requested.Length; installationIndex++)
+        {
+            var installationRequest = requested[installationIndex];
+            if (!definitions.TryGetValue(installationRequest.Id, out var definition))
+                continue;
+
+            if (!existingByDefinitionId.TryGetValue(installationRequest.Id, out var installation))
+            {
+                installation = new JobReportInstallationRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organizationId,
+                    JobReportId = jobReportId,
+                    InstallationTypeDefinitionId = installationRequest.Id,
+                    SortOrder = installationIndex + 1
+                };
+                _dbContext.JobReportInstallations.Add(installation);
+            }
+            else
+            {
+                installation.SortOrder = installationIndex + 1;
+            }
+
+            SyncInstallationCategories(installation, definition, installationRequest.Categories ?? []);
+        }
+    }
+
+    private void SyncInstallationCategories(
+        JobReportInstallationRow installation,
+        InstallationTypeDefinitionRow definition,
+        IReadOnlyList<CreateInstallationTypeCategoryRequest> categoryRequests)
+    {
+        var requested = categoryRequests
+            .Where(request => request is not null)
+            .GroupBy(request => request.Id)
+            .Select(group => group.First())
+            .ToArray();
+        var requestedCategoryIds = requested.Select(request => request.Id).ToHashSet();
+        var existingCategories = installation.Categories.ToList();
+        var existingByCategoryId = existingCategories.ToDictionary(category => category.ControlCategoryId);
+        var mappingsByPair = definition.Mappings.ToDictionary(mapping => (mapping.ControlCategoryId, mapping.ControlPointId));
+        var allowedCategoryIds = definition.Mappings.Select(mapping => mapping.ControlCategoryId).ToHashSet();
+
+        var categoriesToRemove = existingCategories
+            .Where(category => !requestedCategoryIds.Contains(category.ControlCategoryId))
+            .ToArray();
+        if (categoriesToRemove.Length > 0)
+            _dbContext.JobReportInstallationCategories.RemoveRange(categoriesToRemove);
+
+        for (var categoryIndex = 0; categoryIndex < requested.Length; categoryIndex++)
+        {
+            var categoryRequest = requested[categoryIndex];
+            if (!allowedCategoryIds.Contains(categoryRequest.Id))
+                continue;
+
+            if (!existingByCategoryId.TryGetValue(categoryRequest.Id, out var category))
+            {
+                category = new JobReportInstallationCategoryRow
+                {
+                    Id = Guid.NewGuid(),
+                    JobReportInstallationId = installation.Id,
+                    ControlCategoryId = categoryRequest.Id,
+                    JobReportInstallation = installation
+                };
+                _dbContext.JobReportInstallationCategories.Add(category);
+                installation.Categories.Add(category);
+            }
+
+            category.SortOrder = categoryIndex + 1;
+            category.IsIrrelevant = categoryRequest.IsIrrelevant ?? false;
+            SyncInstallationControlPoints(category, mappingsByPair, categoryRequest.ControlPoints ?? []);
+        }
+    }
+
+    private void SyncInstallationControlPoints(
+        JobReportInstallationCategoryRow category,
+        IReadOnlyDictionary<(Guid ControlCategoryId, Guid ControlPointId), InstallationTypeDefinitionMappingRow> mappingsByPair,
+        IReadOnlyList<CreateInstallationTypeControlPointRequest> controlPointRequests)
+    {
+        var requested = controlPointRequests
+            .Where(request => request is not null)
+            .GroupBy(request => request.Id)
+            .Select(group => group.First())
+            .ToArray();
+        var requestedControlPointIds = requested.Select(request => request.Id).ToHashSet();
+        var existingControlPoints = category.ControlPoints.ToList();
+        var existingByControlPointId = existingControlPoints.ToDictionary(controlPoint => controlPoint.ControlPointId);
+
+        var controlPointsToRemove = existingControlPoints
+            .Where(controlPoint => !requestedControlPointIds.Contains(controlPoint.ControlPointId))
+            .ToArray();
+        if (controlPointsToRemove.Length > 0)
+            _dbContext.JobReportInstallationControlPoints.RemoveRange(controlPointsToRemove);
+
+        for (var controlPointIndex = 0; controlPointIndex < requested.Length; controlPointIndex++)
+        {
+            var controlPointRequest = requested[controlPointIndex];
+            if (!mappingsByPair.TryGetValue((category.ControlCategoryId, controlPointRequest.Id), out var mapping))
+                continue;
+
+            if (!existingByControlPointId.TryGetValue(controlPointRequest.Id, out var controlPoint))
+            {
+                controlPoint = new JobReportInstallationControlPointRow
+                {
+                    JobReportInstallationCategoryId = category.Id,
+                    ControlPointId = controlPointRequest.Id,
+                    JobReportInstallationCategory = category
+                };
+                _dbContext.JobReportInstallationControlPoints.Add(controlPoint);
+                category.ControlPoints.Add(controlPoint);
+            }
+
+            controlPoint.SortOrder = controlPointRequest.SortOrder ?? mapping.SortOrder;
+            controlPoint.IsRequired = controlPointRequest.IsRequired ?? mapping.IsRequired;
+            controlPoint.IsChecked = controlPointRequest.IsChecked ?? false;
         }
     }
 

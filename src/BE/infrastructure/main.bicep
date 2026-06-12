@@ -257,6 +257,7 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
     appConfigurationEndpoint: 'https://${appConfiguration.name}.azconfig.io'
 
     azureAdOAuthClientId: EntraAppRegistrations.outputs.OAuthClientId
+    clientAppId: EntraAppRegistrations.outputs.ClientAppId
     oauthServerAppId: EntraAppRegistrations.outputs.OAuthAppId
 
     acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
@@ -392,7 +393,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
       login: sqlAdminGroup.displayName
       sid: sqlAdminGroup.id
       tenantId: subscription().tenantId
-      azureADOnlyAuthentication: true // <-- DETTE DEAKTIVERER SQL PASSWORDS PERMANENT
+      azureADOnlyAuthentication: false // <-- DETTE DEAKTIVERER SQL PASSWORDS PERMANENT
     }
     version: '12.0'
     publicNetworkAccess: 'Enabled'

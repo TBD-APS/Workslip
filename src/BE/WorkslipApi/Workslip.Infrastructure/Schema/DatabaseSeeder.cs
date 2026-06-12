@@ -9,6 +9,19 @@ public static class DatabaseSeeder
 {
     public static async Task Seed(SqlDbContext db)
     {
+        db.IsSeeding = true;
+        try
+        {
+            await SeedCore(db);
+        }
+        finally
+        {
+            db.IsSeeding = false;
+        }
+    }
+
+    private static async Task SeedCore(SqlDbContext db)
+    {
         await NormalizeExclusiveClosureFlagSelectionsAsync(db);
 
         if (await db.Organizations.AnyAsync())
@@ -324,6 +337,7 @@ public static class DatabaseSeeder
         await db.Worksheets.AddRangeAsync(worksheets);
 
         await db.SaveChangesAsync();
+        
     }
 
     private static void AddYearlyDemoWorksheets(

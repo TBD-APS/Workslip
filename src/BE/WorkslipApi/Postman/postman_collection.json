@@ -1985,7 +1985,7 @@
                 "reference-data"
               ]
             },
-            "description": "Returns installation type definitions (with category/control-point hierarchy), work kinds, and closure flags. Cached publicly with 24h TTL and ETag."
+            "description": "Returns installation type definitions (with category/control-point hierarchy), work kinds, and closure flags. Uses private revalidation with ETag."
           },
           "response": [],
           "event": [
@@ -2009,7 +2009,7 @@
                   "    }",
                   "  }",
                   "});",
-                  "pm.test('public cache with 24h TTL', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('public'); });",
+                  "pm.test('private revalidation cache', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
                   "pm.test('ETag header present', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
                   "pm.collectionVariables.set('referenceDataEtag', pm.response.headers.get('ETag'));"
                 ]

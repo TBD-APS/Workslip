@@ -2,6 +2,7 @@ param appConfigurationName string
 param managedIdentityClientId string
 param appConfigurationEndpoint string
 param azureAdOAuthClientId string
+param clientAppId string
 param oauthServerAppId string
 param acsSenderAddress string
 @secure()
@@ -12,6 +13,16 @@ param applicationInsightsConnectionString string
 param sqlConnectionString string
 @secure()
 param jwtSigninKey string
+
+// ... (existing resources) ...
+
+resource configClientAppId 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+  parent: appConfiguration
+  name: 'Azure:AdOAuth:ClientAppId'
+  properties: {
+    value: clientAppId
+  }
+}
 
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
   name: appConfigurationName

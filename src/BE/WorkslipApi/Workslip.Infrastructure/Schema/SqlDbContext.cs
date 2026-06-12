@@ -5,6 +5,8 @@ namespace Workslip.Infrastructure.Schema;
 
 public sealed class SqlDbContext : DbContext
 {
+    public bool IsSeeding { get; set; }
+
     public SqlDbContext(DbContextOptions<SqlDbContext> options) : base(options)
     {
     }
@@ -392,6 +394,8 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.EventType)
             .HasMaxLength(80)
             .IsRequired();
+
+        entity.Property(e => e.Summary).HasMaxLength(500);
 
         entity.Property(e => e.BeforeJson).HasColumnType("nvarchar(max)");
         entity.Property(e => e.AfterJson).HasColumnType("nvarchar(max)");
