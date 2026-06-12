@@ -63,6 +63,7 @@ export const Settings = () => {
         data: {
           emails,
           role: null,
+          inviteBaseUrl: window.location.origin,
         },
       });
       toast.success(`${emails.length} invitation(er) sendt`);

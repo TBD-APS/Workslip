@@ -20,7 +20,7 @@ export const CustomerList = () => {
   const [search, setSearch] = useState('');
   const query = useGetApiCustomers();
   const data = query.data;
-  const sorted = (data ?? []).sort((a, b) => b.jobCount - a.jobCount);
+  const sorted = (data ?? []).sort((a, b) => Number(b.jobCount) - Number(a.jobCount));
   const customers = useSearch(sorted, search, (c, term) =>
     [c.name, c.address, c.email, c.contactPerson, c.phone].some((v) => v?.toLowerCase().includes(term)),
   );

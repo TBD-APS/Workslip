@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useGetApiJobsIdHistory } from '../../../api/generated/jobs/jobs';
 import { format } from 'date-fns';
 import { da } from 'date-fns/locale';
-import type { JobHistoryResponse, PropertyChange } from '../../../api/generated/models';
+import type { JobHistoryResponse } from '../../../api/generated/models';
 
 type JobHistoryDrawerProps = {
   jobId: string;
@@ -145,7 +145,7 @@ function formatEventType(type: string) {
   }
 }
 
-function formatValue(value: string | undefined) {
+function formatValue(value: string | null | undefined) {
   if (value === undefined || value === null || value === 'null' || value === '') {
     return <span className="value-empty">(tom)</span>;
   }
