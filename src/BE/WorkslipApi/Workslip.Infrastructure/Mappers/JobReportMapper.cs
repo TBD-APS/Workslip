@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -16,22 +17,8 @@ public static class JobReportMapper
         ReferenceHandler = ReferenceHandler.IgnoreCycles
     };
 
-    private static readonly Dictionary<string, string> DisplayNames = new()
-    {
-        { "ReportNumber", "Sagsnummer" },
-        { "Status", "Status" },
-        { "ReportDate", "Sagsdato" },
-        { "TaskDescription", "Opgavebeskrivelse" },
-        { "CustomerObservations", "Kundens observationer" },
-        { "TechnicalObservations", "Tekniske observationer" },
-        { "Remarks", "Bemærkninger" },
-        { "CustomWorkKind", "Anden opgavetype" },
-        { "WorkDate", "Arbejdsdato" },
-        { "HoursWorked", "Timer" },
-        { "SleptOnJob", "Overnatning" },
-        { "IsChecked", "Afkrydset" },
-        { "IsIrrelevant", "Ikke relevant" }
-    };
+    private static readonly IReadOnlyDictionary<string, string> DisplayNames = AuditDisplayNames.Labels;
+    private static readonly CultureInfo DanishCulture = CultureInfo.GetCultureInfo("da-DK");
 
     public static JobReportResponse ToResponse(
         JobReportRow row,
@@ -71,14 +58,17 @@ public static class JobReportMapper
 
             foreach (var key in keys)
             {
-                var beforeValue = before?[key]?.ToString();
-                var afterValue = after?[key]?.ToString();
+                var rawBeforeValue = before?[key]?.ToString();
+                var rawAfterValue = after?[key]?.ToString();
+                var beforeValue = FormatHistoryValue(rawBeforeValue);
+                var afterValue = FormatHistoryValue(rawAfterValue);
+                var displayName = DisplayNames.GetValueOrDefault(key, key);
 
-                if (beforeValue != afterValue)
+                if (rawBeforeValue != rawAfterValue)
                 {
                     changes.Add(new PropertyChange(
                         key,
-                        DisplayNames.GetValueOrDefault(key, key),
+                        displayName,
                         beforeValue,
                         afterValue));
                 }
@@ -90,12 +80,13 @@ public static class JobReportMapper
             row.ActorId,
             actorName,
             row.EventType,
+            BuildDanishHistorySummary(row.EventType, changes),
             changes,
             row.CreatedAt);
     }
 
     public static JobEventResponse ToEventResponse(JobEventRow row) => new(
-        row.Id, row.ReportId ?? Guid.Empty, row.ActorId, row.EventType,
+        row.Id, row.ReportId ?? Guid.Empty, row.ActorId, row.EventType, row.Summary,
         ToJsonObject(row.BeforeJson), ToJsonObject(row.AfterJson), row.CreatedAt);
 
     public static async Task<IReadOnlyList<InstallationTypeResponse>> LoadInstallationTypesAsync(
@@ -179,4 +170,91 @@ public static class JobReportMapper
 
     private static JsonObject? ToJsonObject(string? json) =>
         string.IsNullOrWhiteSpace(json) ? null : JsonNode.Parse(json) as JsonObject;
+
+    private static string BuildDanishHistorySummary(string eventType, IReadOnlyList<PropertyChange> changes)
+    {
+        var visibleChanges = changes.Where(change => !string.IsNullOrWhiteSpace(change.DisplayName ?? change.PropertyName)).ToArray();
+        if (visibleChanges.Length == 0)
+        {
+            return eventType.ToLowerInvariant() switch
+            {
+                AuditEventTypes.Added => "Oprettet",
+                AuditEventTypes.Deleted => "Slettet",
+                AuditEventTypes.Modified => "Ændret",
+                _ => "Opdateret"
+            };
+        }
+
+        if (visibleChanges.Length == 1)
+        {
+            var change = visibleChanges[0];
+            var label = change.DisplayName ?? change.PropertyName;
+            return eventType.ToLowerInvariant() switch
+            {
+                AuditEventTypes.Added => $"{label} tilføjet: '{DisplayValueForSummary(change.After)}'",
+                AuditEventTypes.Deleted => $"{label} fjernet: '{DisplayValueForSummary(change.Before)}'",
+                AuditEventTypes.Modified => $"{label} ændret: '{DisplayValueForSummary(change.Before)}' → '{DisplayValueForSummary(change.After)}'",
+                _ => $"{label} opdateret"
+            };
+        }
+
+        var fields = string.Join(", ", visibleChanges.Select(change => change.DisplayName ?? change.PropertyName));
+        return eventType.ToLowerInvariant() switch
+        {
+            AuditEventTypes.Added => $"Felter tilføjet: {fields}",
+            AuditEventTypes.Deleted => $"Felter fjernet: {fields}",
+            AuditEventTypes.Modified => $"Felter ændret: {fields}",
+            _ => $"Felter opdateret: {fields}"
+        };
+    }
+
+    private static string DisplayValueForSummary(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "tom" : value;
+
+    private static string? FormatHistoryValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || string.Equals(value, "null", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (TryFormatHistoryDate(value, out var formattedDate))
+            return formattedDate;
+
+        return Guid.TryParse(value, out _) ? "Ikke vist" : value;
+    }
+
+    private static bool TryFormatHistoryDate(string value, out string formattedDate)
+    {
+        formattedDate = string.Empty;
+        if (!LooksLikeIsoDate(value))
+            return false;
+
+        if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var dateTimeOffset))
+        {
+            formattedDate = dateTimeOffset.ToString("d. MMMM yyyy", DanishCulture);
+            return true;
+        }
+
+        if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var dateTime))
+        {
+            formattedDate = dateTime.ToString("d. MMMM yyyy", DanishCulture);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool LooksLikeIsoDate(string value) =>
+        value.Length >= 10
+        && char.IsDigit(value[0])
+        && char.IsDigit(value[1])
+        && char.IsDigit(value[2])
+        && char.IsDigit(value[3])
+        && value[4] == '-'
+        && char.IsDigit(value[5])
+        && char.IsDigit(value[6])
+        && value[7] == '-'
+        && char.IsDigit(value[8])
+        && char.IsDigit(value[9]);
+
 }
+

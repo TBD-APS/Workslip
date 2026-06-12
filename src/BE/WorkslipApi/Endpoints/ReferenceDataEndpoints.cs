@@ -18,7 +18,7 @@ public static class ReferenceDataEndpoints
                 return ResultExtensions.ToHttpResult(result);
 
             var etag = HttpCacheHeaders.ReferenceDataEtag(result.Value);
-            HttpCacheHeaders.SetPublicLongCache(httpContext, etag);
+            HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
 
             return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
                 ? Results.StatusCode(StatusCodes.Status304NotModified)

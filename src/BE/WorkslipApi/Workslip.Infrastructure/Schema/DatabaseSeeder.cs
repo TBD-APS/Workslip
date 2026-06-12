@@ -336,14 +336,8 @@ public static class DatabaseSeeder
         await db.Users.AddRangeAsync(users);
         await db.Worksheets.AddRangeAsync(worksheets);
 
-        try
-        {
-            await db.SaveChangesAsync();
-        }
-        catch (Exception e)
-        {
-            return;
-        }
+        await db.SaveChangesAsync();
+        
     }
 
     private static void AddYearlyDemoWorksheets(

@@ -7,6 +7,7 @@ public sealed class JobEventRow
     public Guid? ReportId { get; init; }
     public Guid? ActorId { get; init; }
     public string EventType { get; init; } = string.Empty;
+    public string? Summary { get; init; }
     public string? BeforeJson { get; init; }
     public string? AfterJson { get; init; }
     public DateTimeOffset CreatedAt { get; init; }

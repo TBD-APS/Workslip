@@ -486,10 +486,9 @@
 .pdf-preview-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 2000;
   display: flex;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.9);
 }
 
 .pdf-preview-panel {
@@ -498,10 +497,8 @@
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--surface);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  background: var(--bg-color);
+  height: 100%;
 }
 
 .pdf-preview-header {
@@ -509,8 +506,10 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  background: var(--surface-elevated);
+  border-bottom: 1px solid var(--surface-border);
+  flex-shrink: 0;
 }
 
 .pdf-preview-header h3 {
@@ -530,25 +529,8 @@
 .pdf-preview-frame {
   flex: 1;
   width: 100%;
-  min-height: 65vh;
   border: 0;
-  background: #1f2937;
-}
-
-@media (max-width: 640px) {
-  .pdf-preview-overlay {
-    padding: 0;
-  }
-
-  .pdf-preview-panel {
-    min-height: 100dvh;
-    border: 0;
-    border-radius: 0;
-  }
-
-  .pdf-preview-frame {
-    min-height: 70vh;
-  }
+  background: var(--bg-color);
 }
 
 .spin {
@@ -3652,17 +3634,21 @@
   align-items: center;
 }
 
-.history-event-type {
+.history-event-type-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.85rem;
   font-weight: 500;
-  padding: 0.2rem 0.6rem;
-  border-radius: 6px;
-  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
-.event-added { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.event-modified { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-.event-deleted { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.history-event-summary {
+  padding: 0 1rem 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
 
 .history-event-details {
   border-top: 1px solid var(--surface-border);
@@ -3696,6 +3682,12 @@
   color: var(--text-primary);
   font-weight: 500;
   width: 30%; /* Set explicit width */
+}
+
+.change-value-old {
+  color: var(--text-secondary);
+  text-decoration: line-through !important;
+  opacity: 0.7;
 }
 
 .change-value-old, .change-value-new {

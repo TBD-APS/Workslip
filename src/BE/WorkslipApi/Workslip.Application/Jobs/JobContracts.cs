@@ -295,6 +295,7 @@ public sealed record JobHistoryResponse(
     Guid? ActorId,
     string? ActorName,
     string EventType,
+    string? Summary,
     IReadOnlyList<PropertyChange> Changes,
     DateTimeOffset CreatedAt);
 
@@ -309,6 +310,7 @@ public sealed record JobEventResponse(
     Guid ReportId,
     Guid? ActorId,
     string EventType,
+    string? Summary,
     JsonObject? Before,
     JsonObject? After,
     DateTimeOffset CreatedAt);

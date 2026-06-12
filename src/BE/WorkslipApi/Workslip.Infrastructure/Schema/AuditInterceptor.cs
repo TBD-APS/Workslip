@@ -1,7 +1,5 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Workslip.Application.Auth;
 using Workslip.Domain;
@@ -9,7 +7,7 @@ using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Schema;
 
-public sealed class AuditInterceptor(ICurrentUserContext currentUser) : SaveChangesInterceptor
+public sealed class AuditInterceptor : SaveChangesInterceptor
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -18,6 +16,27 @@ public sealed class AuditInterceptor(ICurrentUserContext currentUser) : SaveChan
     };
 
     private static readonly AsyncLocal<bool> IsSaving = new();
+
+    private readonly ICurrentUserContext currentUser;
+    private readonly AuditDisplayResolver displayResolver = new();
+    private readonly AuditChangeCollector changeCollector = new();
+    private readonly IReadOnlyList<IAuditEntityPolicy> policies =
+    [
+        new JobReportAuditPolicy(),
+        new WorksheetAuditPolicy(),
+        new JobAssignmentAuditPolicy(),
+        new JobReportLinkAuditPolicy(),
+        new JobReportClosureFlagAuditPolicy(),
+        new JobReportInstallationAuditPolicy(),
+        new JobReportInstallationCategoryAuditPolicy(),
+        new JobReportInstallationControlPointAuditPolicy(),
+        new DefaultAuditPolicy()
+    ];
+
+    public AuditInterceptor(ICurrentUserContext currentUser)
+    {
+        this.currentUser = currentUser;
+    }
 
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
@@ -35,14 +54,25 @@ public sealed class AuditInterceptor(ICurrentUserContext currentUser) : SaveChan
 
             var auditEntries = OnBeforeSaveChanges(dbContext);
 
-            var interceptionResult = await base.SavingChangesAsync(eventData, result, cancellationToken);
-
             if (auditEntries.Count > 0)
             {
-                await OnAfterSaveChanges(dbContext, auditEntries, cancellationToken);
+                var eventRows = auditEntries.Select(ae => new JobEventRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = ae.OrganizationId,
+                    ReportId = ae.ReportId,
+                    ActorId = ae.ActorId,
+                    EventType = ae.EventType,
+                    Summary = ae.Summary,
+                    BeforeJson = ae.BeforeValues.Count > 0 ? JsonSerializer.Serialize(ae.BeforeValues, JsonOptions) : null,
+                    AfterJson = ae.AfterValues.Count > 0 ? JsonSerializer.Serialize(ae.AfterValues, JsonOptions) : null,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
+
+                dbContext.Set<JobEventRow>().AddRange(eventRows);
             }
 
-            return interceptionResult;
+            return await base.SavingChangesAsync(eventData, result, cancellationToken);
         }
         finally
         {
@@ -57,6 +87,7 @@ public sealed class AuditInterceptor(ICurrentUserContext currentUser) : SaveChan
 
         dbContext.ChangeTracker.DetectChanges();
         var auditEntries = new List<AuditEntry>();
+        var buildContext = new AuditBuildContext(dbContext, currentUser, displayResolver);
 
         foreach (var entry in dbContext.ChangeTracker.Entries())
         {
@@ -66,141 +97,66 @@ public sealed class AuditInterceptor(ICurrentUserContext currentUser) : SaveChan
             if (entry.Entity is not IAuditable)
                 continue;
 
-            var auditEntry = new AuditEntry(entry)
-            {
-                OrganizationId = currentUser.OrganizationId ?? Guid.Empty,
-                ActorId = currentUser.UserId,
-                EventType = entry.State.ToString().ToLowerInvariant()
-            };
-
-            // Link to job if possible
-            if (entry.Entity is IJobRelated jobRelated)
-            {
-                auditEntry.ReportId = jobRelated.JobReportId;
-            }
-            else
-            {
-                auditEntry.ReportId = TryFindReportId(entry, dbContext);
-            }
-
-            foreach (var property in entry.Properties)
-            {
-                if (property.IsTemporary)
-                {
-                    auditEntry.TemporaryProperties.Add(property);
-                    continue;
-                }
-
-                string propertyName = property.Metadata.Name;
-                if (property.Metadata.IsPrimaryKey())
-                {
-                    auditEntry.KeyValues[propertyName] = property.CurrentValue;
-                    continue;
-                }
-
-                switch (entry.State)
-                {
-                    case EntityState.Added:
-                        auditEntry.AfterValues[propertyName] = property.CurrentValue;
-                        break;
-
-                    case EntityState.Deleted:
-                        auditEntry.BeforeValues[propertyName] = property.OriginalValue;
-                        break;
-
-                    case EntityState.Modified:
-                        if (property.IsModified && propertyName != "UpdatedAt")
-                        {
-                            auditEntry.BeforeValues[propertyName] = property.OriginalValue;
-                            auditEntry.AfterValues[propertyName] = property.CurrentValue;
-                        }
-                        break;
-                }
-            }
-
-            if (entry.State is EntityState.Modified && auditEntry.BeforeValues.Count == 0 && auditEntry.AfterValues.Count == 0)
-                continue;
-
-            auditEntries.Add(auditEntry);
+            var policy = policies.First(x => x.CanHandle(entry));
+            auditEntries.AddRange(policy
+                .BuildEvents(buildContext, entry, changeCollector)
+                .Where(auditEntry => ShouldCaptureAuditEntry(dbContext, auditEntry)));
         }
 
         return auditEntries;
     }
 
-    private static Guid? TryFindReportId(EntityEntry entry, DbContext dbContext)
+    private static bool ShouldCaptureAuditEntry(DbContext dbContext, AuditEntry auditEntry)
     {
-        // Category -> Installation -> JobReport
-        if (entry.Entity is JobReportInstallationCategoryRow category)
-        {
-            var installation = dbContext.Set<JobReportInstallationRow>().Local.FirstOrDefault(x => x.Id == category.JobReportInstallationId)
-                ?? dbContext.Set<JobReportInstallationRow>().AsNoTracking().FirstOrDefault(x => x.Id == category.JobReportInstallationId);
-            return installation?.JobReportId;
-        }
+        if (auditEntry.ReportId == Guid.Empty)
+            return false;
 
-        // ControlPoint -> Category -> Installation -> JobReport
-        if (entry.Entity is JobReportInstallationControlPointRow cp)
-        {
-            var cat = dbContext.Set<JobReportInstallationCategoryRow>().Local.FirstOrDefault(x => x.Id == cp.JobReportInstallationCategoryId)
-                ?? dbContext.Set<JobReportInstallationCategoryRow>().AsNoTracking().Include(x => x.JobReportInstallation).FirstOrDefault(x => x.Id == cp.JobReportInstallationCategoryId);
-            
-            if (cat?.JobReportInstallation != null) return cat.JobReportInstallation.JobReportId;
-            
-            // If JobReportInstallation was not included in the AsNoTracking query
-            var inst = dbContext.Set<JobReportInstallationRow>().Local.FirstOrDefault(x => x.Id == cat.JobReportInstallationId)
-                ?? dbContext.Set<JobReportInstallationRow>().AsNoTracking().FirstOrDefault(x => x.Id == cat.JobReportInstallationId);
-            
-            return inst?.JobReportId;
-        }
+        var reportState = ResolveReportState(dbContext, auditEntry);
+        if (reportState is null)
+            return false;
 
-        return null;
+        auditEntry.OrganizationId = reportState.Value.OrganizationId;
+
+        if (IsTransitionToInReview(auditEntry))
+            return true;
+
+        if (dbContext.Set<JobEventRow>().Local.Any(e => e.ReportId == auditEntry.ReportId && e.OrganizationId == auditEntry.OrganizationId))
+            return true;
+
+        if (dbContext.Set<JobEventRow>().AsNoTracking().Any(e => e.ReportId == auditEntry.ReportId && e.OrganizationId == auditEntry.OrganizationId))
+            return true;
+
+        return IsHistoryStatus(reportState.Value.CurrentStatus) || IsHistoryStatus(reportState.Value.OriginalStatus);
     }
 
-    private async Task OnAfterSaveChanges(DbContext dbContext, List<AuditEntry> auditEntries, CancellationToken cancellationToken)
+    private static (Guid OrganizationId, string CurrentStatus, string OriginalStatus)? ResolveReportState(DbContext dbContext, AuditEntry auditEntry)
     {
-        var rows = new List<JobEventRow>();
-        foreach (var auditEntry in auditEntries)
+        var local = dbContext.Set<JobReportRow>().Local
+            .FirstOrDefault(r => r.Id == auditEntry.ReportId
+                && (auditEntry.OrganizationId == Guid.Empty || r.OrganizationId == auditEntry.OrganizationId));
+        if (local is not null)
         {
-            foreach (var prop in auditEntry.TemporaryProperties)
-            {
-                if (prop.Metadata.IsPrimaryKey())
-                {
-                    auditEntry.KeyValues[prop.Metadata.Name] = prop.CurrentValue;
-                }
-                else
-                {
-                    auditEntry.AfterValues[prop.Metadata.Name] = prop.CurrentValue;
-                }
-            }
-
-            var eventRow = new JobEventRow
-            {
-                Id = Guid.NewGuid(),
-                OrganizationId = auditEntry.OrganizationId,
-                ReportId = auditEntry.ReportId,
-                ActorId = auditEntry.ActorId,
-                EventType = auditEntry.EventType,
-                BeforeJson = auditEntry.BeforeValues.Count > 0 ? JsonSerializer.Serialize(auditEntry.BeforeValues, JsonOptions) : null,
-                AfterJson = auditEntry.AfterValues.Count > 0 ? JsonSerializer.Serialize(auditEntry.AfterValues, JsonOptions) : null,
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-
-            rows.Add(eventRow);
+            var entry = dbContext.Entry(local);
+            var originalStatus = entry.State is EntityState.Modified
+                ? entry.Property(r => r.Status).OriginalValue
+                : local.Status;
+            return (local.OrganizationId, local.Status, originalStatus);
         }
 
-        dbContext.Set<JobEventRow>().AddRange(rows);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var stored = dbContext.Set<JobReportRow>().AsNoTracking()
+            .Where(r => r.Id == auditEntry.ReportId
+                && (auditEntry.OrganizationId == Guid.Empty || r.OrganizationId == auditEntry.OrganizationId))
+            .Select(r => new { r.OrganizationId, r.Status })
+            .FirstOrDefault();
+        return stored is null ? null : (stored.OrganizationId, stored.Status, stored.Status);
     }
-}
 
-internal sealed class AuditEntry(EntityEntry entry)
-{
-    public EntityEntry Entry { get; } = entry;
-    public Guid OrganizationId { get; set; }
-    public Guid? ActorId { get; set; }
-    public Guid? ReportId { get; set; }
-    public string EventType { get; set; } = string.Empty;
-    public Dictionary<string, object?> KeyValues { get; } = new();
-    public Dictionary<string, object?> BeforeValues { get; } = new();
-    public Dictionary<string, object?> AfterValues { get; } = new();
-    public List<PropertyEntry> TemporaryProperties { get; } = new();
+    private static bool IsTransitionToInReview(AuditEntry auditEntry) =>
+        auditEntry.EventType == AuditEventTypes.Modified
+        && auditEntry.AfterValues.TryGetValue("Status", out var status)
+        && string.Equals(status?.ToString(), JobStatus.InReview.ToString(), StringComparison.Ordinal);
+
+    private static bool IsHistoryStatus(string status) =>
+        !string.Equals(status, JobStatus.Draft.ToString(), StringComparison.Ordinal);
+
 }

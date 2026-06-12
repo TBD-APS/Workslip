@@ -1,4 +1,4 @@
-import { History, X, User, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { History, X, User, Clock, ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useGetApiJobsIdHistory } from '../../../api/generated/jobs/jobs';
 import { format } from 'date-fns';
@@ -63,6 +63,9 @@ function HistoryEventItem({ event }: { event: JobHistoryResponse }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasChanges = event.changes && event.changes.length > 0;
 
+  const isAdded = event.eventType.toLowerCase() === 'added';
+  const Icon = getEventIcon(event.eventType);
+
   return (
     <div className="history-event">
       <div className="history-event-header" onClick={() => hasChanges && setIsExpanded(!isExpanded)}>
@@ -77,9 +80,10 @@ function HistoryEventItem({ event }: { event: JobHistoryResponse }) {
           </div>
         </div>
         <div className="history-event-type-container">
-          <span className={`history-event-type event-${event.eventType}`}>
-            {formatEventType(event.eventType)}
-          </span>
+          <div className="history-event-type-label">
+            {Icon}
+            <span>{formatEventType(event.eventType)}</span>
+          </div>
           {hasChanges && (
             <div className="history-expand-icon">
               {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -87,31 +91,49 @@ function HistoryEventItem({ event }: { event: JobHistoryResponse }) {
           )}
         </div>
       </div>
+      
+      {event.summary && (
+        <div className="history-event-summary">
+          {event.summary}
+        </div>
+      )}
 
       {isExpanded && hasChanges && (
         <div className="history-event-details">
           <table className="history-changes-table">
             <thead>
               <tr>
-                <th>Felt</th>
-                <th>Før</th>
-                <th>Efter</th>
+                <th style={{ width: '40%' }}>Felt</th>
+                {!isAdded && <th style={{ width: '30%' }}>Før</th>}
+                <th style={{ width: isAdded ? '60%' : '30%' }}>{isAdded ? 'Værdi' : 'Efter'}</th>
               </tr>
             </thead>
             <tbody>
-              {event.changes.map((change, idx) => (
-                <tr key={idx}>
-                  <td className="change-field">{change.displayName || change.propertyName}</td>
-                  <td className="change-value-old">{formatValue(change.before)}</td>
-                  <td className="change-value-new">{formatValue(change.after)}</td>
-                </tr>
-              ))}
+              {event.changes.map((change, idx) => {
+                const isModified = event.eventType.toLowerCase() === 'modified';
+                return (
+                  <tr key={idx}>
+                    <td className="change-field">{change.displayName || change.propertyName}</td>
+                    {!isAdded && <td className={isModified ? "change-value-old" : ""}>{formatValue(change.before)}</td>}
+                    <td className="change-value-new">{formatValue(change.after)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
     </div>
   );
+}
+
+function getEventIcon(type: string) {
+  switch (type.toLowerCase()) {
+    case 'added': return <Plus size={14} />;
+    case 'modified': return <Pencil size={14} />;
+    case 'deleted': return <Trash2 size={14} />;
+    default: return null;
+  }
 }
 
 function formatEventType(type: string) {

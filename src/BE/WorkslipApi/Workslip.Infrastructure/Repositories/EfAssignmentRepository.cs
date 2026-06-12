@@ -47,19 +47,45 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
-        
-        await _dbContext.JobAssignments
+        var normalizedUserIds = userIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
+
+        var currentAssignments = await _dbContext.JobAssignments
             .Where(a => a.ReportId == jobId && a.OrganizationId == organizationId)
-            .ExecuteDeleteAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
 
-        if (userIds.Count >= 1)
+        var assignmentsToRemove = currentAssignments
+            .Where(a => !normalizedUserIds.Contains(a.UserId))
+            .ToArray();
+
+        var existingUserIds = currentAssignments.Select(a => a.UserId).ToHashSet();
+        var userIdsToAdd = normalizedUserIds
+            .Where(userId => !existingUserIds.Contains(userId))
+            .ToArray();
+
+        _dbContext.JobAssignments.RemoveRange(assignmentsToRemove);
+
+        foreach (var userId in userIdsToAdd)
         {
-            await AddAssignedUsersAsync(organizationId, jobId, userIds, actorId, now, cancellationToken);
+            _dbContext.JobAssignments.Add(new JobAssignmentRow
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                ReportId = jobId,
+                UserId = userId,
+                AssignedByUserId = actorId,
+                AssignedAt = now
+            });
+        }
 
+        if (assignmentsToRemove.Length > 0 || userIdsToAdd.Length > 0)
+        {
             var entry = _dbContext.Entry(existing);
             entry.Property(e => e.UpdatedAt).CurrentValue = now;
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
-        await _dbContext.SaveChangesAsync(cancellationToken);
 
         await tx.CommitAsync(cancellationToken);
     }

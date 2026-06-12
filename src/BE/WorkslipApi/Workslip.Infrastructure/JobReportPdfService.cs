@@ -16,14 +16,30 @@ public interface IJobReportPdfService
 public sealed class JobReportPdfService : IJobReportPdfService
 {
     private static readonly CultureInfo DanishCulture = CultureInfo.GetCultureInfo("da-DK");
-    private static readonly Color Primary = Color.FromHex("#1B3A5C");
-    private static readonly Color PrimaryLight = Color.FromHex("#E8EDF2");
-    private static readonly Color Accent = Color.FromHex("#3B82F6");
-    private static readonly Color TextDark = Colors.Black;
-    private static readonly Color TextMedium = Color.FromHex("#475569");
-    private static readonly Color TextLight = Colors.Grey.Darken1;
-    private static readonly Color BorderColor = Color.FromHex("#CBD5E1");
-    private static readonly Color SectionBackground = Color.FromHex("#F8FAFC");
+
+    private static class PdfStyle
+    {
+        public static readonly Color Primary = Color.FromHex("#1B3A5C");
+        public static readonly Color PrimaryLight = Color.FromHex("#E8EDF2");
+        public static readonly Color Accent = Color.FromHex("#3B82F6");
+        public static readonly Color TextDark = Colors.Black;
+        public static readonly Color TextMedium = Color.FromHex("#475569");
+        public static readonly Color TextLight = Colors.Grey.Darken1;
+        public static readonly Color BorderColor = Color.FromHex("#CBD5E1");
+        public static readonly Color SectionBackground = Color.FromHex("#F8FAFC");
+        public static readonly string FontFamily = "Helvetica";
+
+        // Font Sizes
+        public const int BaseFontSize = 14;
+        public const int TitleSize = 20;
+        public const int HeaderSize = 18;
+        public const int SubHeaderSize = 14;
+        public const int LabelSize = 10;
+        public const int FieldValueSize = 12;
+        public const int SectionTitleSize = 14;
+        public const int SmallTextSize = 10;
+        public const int MarkerSize = 12;
+    }
 
     public byte[] Generate(JobReportSummaryResponse job, JobStatus status, Uri? jobBaseUri = null)
     {
@@ -33,7 +49,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
             {
                 page.Size(PageSizes.A4);
                 page.Margin(36);
-                page.DefaultTextStyle(x => x.FontSize(9).FontFamily("Helvetica"));
+                page.DefaultTextStyle(x => x.FontSize(PdfStyle.BaseFontSize).FontFamily(PdfStyle.FontFamily));
 
                 page.Header().Element(c => ComposeHeader(c, job, status));
                 page.Content().PaddingTop(10).Element(c => ComposeContent(c, job, jobBaseUri));
@@ -46,22 +62,22 @@ public sealed class JobReportPdfService : IJobReportPdfService
     {
         container.Column(col =>
         {
-            col.Item().Background(Primary).Padding(12).Row(row =>
+            col.Item().Background(PdfStyle.Primary).Padding(12).Row(row =>
             {
                 row.RelativeItem().Column(brand =>
                 {
-                    brand.Item().Text("WORKSLIP").FontSize(16).Bold().FontColor(Colors.White);
-                    brand.Item().Text("4V05-rapport").FontSize(8).FontColor(Color.FromHex("#CBD5E1"));
+                    brand.Item().Text("WORKSLIP").FontSize(PdfStyle.TitleSize).Bold().FontColor(Colors.White);
+                    brand.Item().Text("4V05-rapport").FontSize(PdfStyle.SubHeaderSize).FontColor(Color.FromHex("#CBD5E1"));
                 });
 
                 row.RelativeItem().AlignRight().Column(info =>
                 {
-                    info.Item().Text(job.ReportNumber ?? ShortId(job.Id)).FontSize(14).Bold().FontColor(Colors.White);
-                    info.Item().Text(StatusLabel(status)).FontSize(9).FontColor(StatusColor(status));
+                    info.Item().Text(job.ReportNumber ?? ShortId(job.Id)).FontSize(PdfStyle.HeaderSize).Bold().FontColor(Colors.White);
+                    info.Item().Text(StatusLabel(status)).FontSize(PdfStyle.SubHeaderSize).FontColor(StatusColor(status));
                 });
             });
 
-            col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Row(row =>
+            col.Item().Border(1).BorderColor(PdfStyle.BorderColor).BorderTop(0).Padding(8).Row(row =>
             {
                 row.RelativeItem().Element(c => Field(c, "Kunde", Value(job.Customer.Name)));
                 row.RelativeItem().Element(c => Field(c, "Rapportdato", FormatDate(job.Observations.ReportDate)));
@@ -97,7 +113,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 if (job.SoftDeleted)
                 {
                     section.Item().Background(Color.FromHex("#FEF3C7")).Border(1).BorderColor(Color.FromHex("#F59E0B"))
-                        .Padding(6).Text("Rapporten er markeret slettet.").FontSize(8).FontColor(Color.FromHex("#92400E"));
+                        .Padding(6).Text("Rapporten er markeret slettet.").FontSize(PdfStyle.LabelSize).FontColor(Color.FromHex("#92400E"));
                 }
 
                 section.Item().Row(row =>
@@ -152,7 +168,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
         {
             if (job.AssignedUsers.Count == 0)
             {
-                body.Text("Ingen medarbejdere tildelt.").FontColor(TextLight).Italic();
+                body.Text("Ingen medarbejdere tildelt.").FontColor(PdfStyle.TextLight).Italic();
                 return;
             }
 
@@ -186,7 +202,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
                 if (job.Work.InstallationTypes.Count == 0)
                 {
-                    col.Item().Text("Ingen anlægstyper valgt.").FontColor(TextLight).Italic();
+                    col.Item().Text("Ingen anlægstyper valgt.").FontColor(PdfStyle.TextLight).Italic();
                     return;
                 }
 
@@ -200,10 +216,10 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static void ComposeInstallation(IContainer container, InstallationTypeResponse installation)
     {
-        container.Border(1).BorderColor(BorderColor).Background(SectionBackground).Padding(7).Column(col =>
+        container.Border(1).BorderColor(PdfStyle.BorderColor).Background(PdfStyle.SectionBackground).Padding(7).Column(col =>
         {
             col.Spacing(5);
-            col.Item().Text(installation.Name).FontSize(10).Bold().FontColor(Primary);
+            col.Item().Text(installation.Name).FontSize(12).Bold().FontColor(PdfStyle.Primary);
 
             foreach (var category in installation.Categories.OrderBy(x => x.IsIrrelevant).ThenBy(x => x.SortOrder))
             {
@@ -214,48 +230,75 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static void ComposeCategory(IContainer container, InstallationTypeCategoryResponse category)
     {
-        container.Background(Colors.White).Border(1).BorderColor(Color.FromHex("#E2E8F0")).Padding(6).Column(col =>
+        container.Background(Colors.White).Border(1).BorderColor(Color.FromHex("#E2E8F0")).Padding(8).Column(col =>
         {
-            col.Spacing(3);
+            col.Spacing(4);
             col.Item().Row(row =>
             {
-                row.RelativeItem().Text(category.Name).FontSize(9).SemiBold().FontColor(TextDark);
+                row.RelativeItem().Text(category.Name).FontSize(11).SemiBold().FontColor(PdfStyle.TextDark);
                 if (category.IsIrrelevant)
                 {
-                    row.AutoItem().Text("Irrelevant").FontSize(8).FontColor(Color.FromHex("#B45309"));
+                    row.AutoItem().Text("Irrelevant").FontSize(10).FontColor(Color.FromHex("#B45309"));
                 }
             });
 
             if (category.IsIrrelevant)
             {
-                col.Item().Text("Kategorien er markeret irrelevant.").FontSize(8).FontColor(TextMedium);
+                col.Item().Text("Kategorien er markeret irrelevant.").FontSize(10).FontColor(PdfStyle.TextMedium);
                 return;
             }
 
             if (category.ControlPoints.Count == 0)
             {
-                col.Item().Text("Ingen kontrolpunkter valgt.").FontSize(8).FontColor(TextLight).Italic();
+                col.Item().Text("Ingen kontrolpunkter valgt.").FontSize(10).FontColor(PdfStyle.TextLight).Italic();
                 return;
             }
 
-            foreach (var controlPoint in category.ControlPoints.OrderBy(x => x.SortOrder))
+            var controlPoints = category.ControlPoints.OrderBy(x => x.SortOrder).ToList();
+            var columnCount = 3;
+            var rowCount = (int)Math.Ceiling((double)controlPoints.Count / columnCount);
+
+            col.Item().Table(table =>
             {
-                col.Item().Element(c => ControlPointRow(c, controlPoint));
-            }
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.RelativeColumn();
+                    columns.RelativeColumn();
+                    columns.RelativeColumn();
+                });
+
+                for (int i = 0; i < rowCount; i++)
+                {
+                    table.Cell().Element(c => RenderControlPointCell(c, controlPoints, i * columnCount + 0));
+                    table.Cell().Element(c => RenderControlPointCell(c, controlPoints, i * columnCount + 1));
+                    table.Cell().Element(c => RenderControlPointCell(c, controlPoints, i * columnCount + 2));
+                }
+            });
         });
+    }
+
+    private static void RenderControlPointCell(IContainer container, IReadOnlyList<InstallationTypeControlPointResponse> controlPoints, int index)
+    {
+        if (index >= controlPoints.Count)
+        {
+            container.Padding(2);
+            return;
+        }
+
+        ControlPointRow(container, controlPoints[index]);
     }
 
     private static void ControlPointRow(IContainer container, InstallationTypeControlPointResponse controlPoint)
     {
         var marker = controlPoint.IsChecked ? "✓" : "□";
-        var color = controlPoint.IsChecked ? Color.FromHex("#166534") : TextLight;
+        var color = controlPoint.IsChecked ? Color.FromHex("#166534") : PdfStyle.TextLight;
 
-        container.Row(row =>
+        container.PaddingVertical(2).Row(row =>
         {
-            row.ConstantItem(14).Text(marker).FontSize(9).FontColor(color);
+            row.ConstantItem(16).Text(marker).FontSize(PdfStyle.MarkerSize).FontColor(color);
             row.RelativeItem().Column(col =>
             {
-                col.Item().Text(controlPoint.Name).FontSize(8).FontColor(TextDark);
+                col.Item().Text(controlPoint.Name).FontSize(10).FontColor(PdfStyle.TextDark);
             });
         });
     }
@@ -290,7 +333,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
                 if (job.Worksheets.Count == 0)
                 {
-                    col.Item().Text("Ingen arbejdssedler registreret.").FontColor(TextLight).Italic();
+                    col.Item().Text("Ingen arbejdssedler registreret.").FontColor(PdfStyle.TextLight).Italic();
                     return;
                 }
 
@@ -322,7 +365,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
         {
             if (job.Links.Count == 0)
             {
-                body.Text("Ingen relaterede sager.").FontColor(TextLight).Italic();
+                body.Text("Ingen relaterede sager.").FontColor(PdfStyle.TextLight).Italic();
                 return;
             }
 
@@ -345,8 +388,8 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
         linkContainer.Border(1).BorderColor(Color.FromHex("#E2E8F0")).Padding(6).Text(text =>
         {
-            text.Span($"{link.LinkedReportNumber} · {link.LinkedCustomerName}").FontSize(9).FontColor(Accent).Underline();
-            text.Span($" ({link.LinkedStatus})").FontSize(8).FontColor(TextMedium);
+            text.Span($"{link.LinkedReportNumber} · {link.LinkedCustomerName}").FontSize(11).FontColor(PdfStyle.Accent).Underline();
+            text.Span($" ({link.LinkedStatus})").FontSize(10).FontColor(PdfStyle.TextMedium);
         });
     }
 
@@ -354,18 +397,18 @@ public sealed class JobReportPdfService : IJobReportPdfService
     {
         container.Column(col =>
         {
-            col.Item().Background(PrimaryLight).PaddingVertical(6).PaddingHorizontal(8)
-                .Text(title.ToUpperInvariant()).FontSize(10).Bold().FontColor(Primary);
-            col.Item().Border(1).BorderColor(BorderColor).BorderTop(0).Padding(8).Element(c => compose(c));
+            col.Item().Background(PdfStyle.PrimaryLight).PaddingVertical(8).PaddingHorizontal(10)
+                .Text(title.ToUpperInvariant()).FontSize(PdfStyle.SectionTitleSize).Bold().FontColor(PdfStyle.Primary);
+            col.Item().Border(1).BorderColor(PdfStyle.BorderColor).BorderTop(0).Padding(10).Element(c => compose(c));
         });
     }
 
     private static void Field(IContainer container, string label, string value)
     {
-        container.PaddingVertical(2).Column(col =>
+        container.PaddingVertical(3).Column(col =>
         {
-            col.Item().Text(label).FontSize(7).FontColor(TextLight);
-            col.Item().Text(value).FontSize(9).FontColor(TextDark);
+            col.Item().Text(label).FontSize(PdfStyle.LabelSize).FontColor(PdfStyle.TextLight);
+            col.Item().Text(value).FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.TextDark);
         });
     }
 
@@ -379,8 +422,8 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
         container.Column(col =>
         {
-            col.Item().Text(label).FontSize(7).FontColor(TextLight);
-            col.Item().Text(value!).FontSize(9).FontColor(TextDark);
+            col.Item().Text(label).FontSize(PdfStyle.LabelSize).FontColor(PdfStyle.TextLight);
+            col.Item().Text(value!).FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.TextDark);
         });
     }
 
@@ -388,8 +431,8 @@ public sealed class JobReportPdfService : IJobReportPdfService
     {
         container.Row(row =>
         {
-            row.ConstantItem(12).Text("•").FontSize(9).FontColor(Accent);
-            row.RelativeItem().Text(title).FontSize(9).FontColor(TextDark);
+            row.ConstantItem(12).Text("•").FontSize(12).FontColor(PdfStyle.Accent);
+            row.RelativeItem().Text(title).FontSize(12).FontColor(PdfStyle.TextDark);
         });
     }
 
@@ -397,11 +440,11 @@ public sealed class JobReportPdfService : IJobReportPdfService
     {
         container.Column(col =>
         {
-            col.Item().PaddingTop(8).LineHorizontal(1).LineColor(BorderColor);
-            col.Item().PaddingTop(6).Row(row =>
+            col.Item().PaddingTop(12).LineHorizontal(1).LineColor(PdfStyle.BorderColor);
+            col.Item().PaddingTop(8).Row(row =>
             {
-                row.RelativeItem().Text($"PDF genereret {DateTimeOffset.Now:dd.MM.yyyy HH:mm}").FontSize(7).FontColor(TextLight);
-                row.RelativeItem().AlignRight().Text("WORKSLIP · Jobrapport").FontSize(7).FontColor(TextLight);
+                row.RelativeItem().Text($"PDF genereret {DateTimeOffset.Now:dd.MM.yyyy HH:mm}").FontSize(PdfStyle.SmallTextSize).FontColor(PdfStyle.TextLight);
+                row.RelativeItem().AlignRight().Text("WORKSLIP · Jobrapport").FontSize(PdfStyle.SmallTextSize).FontColor(PdfStyle.TextLight);
             });
         });
     }
@@ -426,15 +469,22 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
     private static string ShortId(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
 
-    private static string FormatDate(DateOnly? value) => value?.ToString("dd.MM.yyyy", DanishCulture) ?? "-";
+    private static string FormatDate(DateOnly? value) => value.HasValue ? CapitalizeDanishDate(value.Value.ToString("d. MMMM yyyy", DanishCulture)) : "-";
 
-    private static string FormatDate(DateOnly value) => value.ToString("dd.MM.yyyy", DanishCulture);
+    private static string FormatDate(DateOnly value) => CapitalizeDanishDate(value.ToString("d. MMMM yyyy", DanishCulture));
 
     private static string FormatDateTime(DateTimeOffset? value) =>
-        value?.ToLocalTime().ToString("dd.MM.yyyy HH:mm", DanishCulture) ?? "-";
+        value.HasValue ? CapitalizeDanishDate(value.Value.ToLocalTime().ToString("d. MMMM yyyy HH:mm", DanishCulture)) : "-";
 
     private static string FormatDateTime(DateTimeOffset value) =>
-        value.ToLocalTime().ToString("dd.MM.yyyy HH:mm", DanishCulture);
+        CapitalizeDanishDate(value.ToLocalTime().ToString("d. MMMM yyyy HH:mm", DanishCulture));
+
+    private static string CapitalizeDanishDate(string date)
+    {
+        var parts = date.Split(' ', 2);
+        if (parts.Length < 2) return date;
+        return $"{parts[0]} {char.ToUpper(parts[1][0])}{parts[1].Substring(1)}";
+    }
 
     private static string FormatDecimal(decimal? value) =>
         value.HasValue ? value.Value.ToString("0.##", DanishCulture) : "-";

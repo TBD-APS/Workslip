@@ -240,7 +240,14 @@ export const CompletedJobReport = () => {
               </button>
             )
           )}
-          <button className={`btn btn-secondary report-overview-icon-action ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" onClick={() => setHistoryOpen(true)} aria-label="Historik" title="Vis sagshistorik">
+          <button 
+            className={`btn btn-secondary report-overview-icon-action`} 
+            type="button" 
+            onClick={() => setHistoryOpen(true)} 
+            disabled={isEditing}
+            aria-label="Historik" 
+            title="Vis sagshistorik"
+          >
             <History size={16} />
           </button>
           <button className={`btn btn-secondary ${isEditing ? 'report-overview-icon-action' : 'pdf-download-button report-overview-pdf'} ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" onClick={handleOpenPdf} disabled={isOpeningPdf || isEditing}>
@@ -355,13 +362,12 @@ function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; 
           <div>
             <span className="job-number">PDF rapport</span>
             <h3>{preview.fileName}</h3>
-            <p>Brug PDF-viserens egen download-knap, hvis rapporten skal gemmes.</p>
           </div>
           <button className="btn-icon" type="button" onClick={onClose} aria-label="Luk PDF">
             <X size={22} />
           </button>
         </div>
-        <iframe className="pdf-preview-frame" src={`${preview.url}#toolbar=1&navpanes=0`} title={preview.fileName} />
+        <iframe className="pdf-preview-frame" src={`${preview.url}#toolbar=1&navpanes=0`} title={preview.fileName} scrolling="yes" />
       </div>
     </div>
   );

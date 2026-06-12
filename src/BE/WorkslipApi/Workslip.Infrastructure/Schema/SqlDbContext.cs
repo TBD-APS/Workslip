@@ -395,6 +395,8 @@ public sealed class SqlDbContext : DbContext
             .HasMaxLength(80)
             .IsRequired();
 
+        entity.Property(e => e.Summary).HasMaxLength(500);
+
         entity.Property(e => e.BeforeJson).HasColumnType("nvarchar(max)");
         entity.Property(e => e.AfterJson).HasColumnType("nvarchar(max)");
 
