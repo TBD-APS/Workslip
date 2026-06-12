@@ -15,6 +15,7 @@ import { useAuth } from '../../../providers/useAuth';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
 import { ControlPointsStep } from '../components/steps/ControlPointsStep';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
+import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { JobCompletionStep } from '../components/steps/JobCompletionStep';
 import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
 import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
@@ -201,8 +202,8 @@ export const CompletedJobReport = () => {
     { label: 'Sagsnummer', value: formatReportNumber(job) },
     { label: 'Status', value: formatJobStatus(job.status)},
     { label: 'Rapportdato', value: formatDate(job.observations.reportDate) },
-    { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
+    { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Afslutning', value: formatClosureFlags(job) },
   ]);
   const customerPairs = compactPairs([
@@ -286,28 +287,6 @@ export const CompletedJobReport = () => {
             <DetailGrid items={summaryPairs} />
           </section>
 
-          <section className="detail-section">
-            <div className="section-header-row attestation-compact-header">
-              <Link2 size={18} />
-              <h3>Tilknyttede sager</h3>
-            </div>
-            <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
-          </section>
-
-          <section className="detail-section attestation-timesheet-section">
-            <div className="section-header-row attestation-compact-header">
-              <Timer size={18} />
-              <h3>Timesedler</h3>
-            </div>
-            <Worksheets worksheets={sortedWorksheets} />
-            <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
-              <span>{formatNumber(job.totalHours)} {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
-              {parseNullableNumber(job.totalOutlay) > 0 && (
-                <span>{formatNumber(job.totalOutlay)} {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
-              )}
-            </div>
-          </section>
-
           {observationPairs.length > 0 && (
             <section className="detail-section attestation-summary-section">
               <div className="section-header-row attestation-compact-header">
@@ -325,13 +304,55 @@ export const CompletedJobReport = () => {
             </section>
           )}
 
-          <section className="detail-section attestation-control-section compact">
+          <section className="detail-section">
             <div className="section-header-row attestation-compact-header">
-              <CheckCircle2 size={18} />
-              <h3>Kontrolpunkter</h3>
+              <Link2 size={18} />
+              <h3>Tilknyttede sager</h3>
             </div>
-            <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
+            <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
           </section>
+
+          {sortedWorksheets.length > 3 ? (
+            <CollapsibleSection
+              icon={<Timer size={18} />}
+              title={`Timesedler (${sortedWorksheets.length})`}
+              defaultOpen={false}
+            >
+              <div className="attestation-timesheet-section">
+                <Worksheets worksheets={sortedWorksheets} />
+                <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
+                  <span>{formatNumber(job.totalHours)} {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
+                  {parseNullableNumber(job.totalOutlay) > 0 && (
+                    <span>{formatNumber(job.totalOutlay)} {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
+                  )}
+                </div>
+              </div>
+            </CollapsibleSection>
+          ) : (
+            <section className="detail-section attestation-timesheet-section">
+              <div className="section-header-row attestation-compact-header">
+                <Timer size={18} />
+                <h3>Timesedler</h3>
+              </div>
+              <Worksheets worksheets={sortedWorksheets} />
+              <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
+                <span>{formatNumber(job.totalHours)} {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
+                {parseNullableNumber(job.totalOutlay) > 0 && (
+                  <span>{formatNumber(job.totalOutlay)} {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
+                )}
+              </div>
+            </section>
+          )}
+
+          <CollapsibleSection
+            icon={<CheckCircle2 size={18} />}
+            title="Kontrolpunkter"
+            defaultOpen={false}
+          >
+            <div className="attestation-control-section compact">
+              <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
+            </div>
+          </CollapsibleSection>
 
           {job.status === JobStatus.InReview && isAdmin && (
             <section className="detail-section">
@@ -434,21 +455,45 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         />
       </section>
 
-      <WorkCategoryStep
-        form={details.form}
-        referenceData={details.referenceData}
-        isLoading={details.isLoadingReferenceData}
-        onCategoriesChange={details.updateWorkCategories}
-        onWorkKindChange={details.updateWorkKind}
-        onCustomWorkKindChange={details.updateCustomWorkKind}
-      />
+      <section className="detail-section">
+        <div className="section-header-row attestation-compact-header">
+          <FileCheck2 size={18} />
+          <h3>Opgavetype</h3>
+        </div>
+        <WorkCategoryStep
+          form={details.form}
+          referenceData={details.referenceData}
+          isLoading={details.isLoadingReferenceData}
+          onCategoriesChange={details.updateWorkCategories}
+          onWorkKindChange={details.updateWorkKind}
+          onCustomWorkKindChange={details.updateCustomWorkKind}
+          mode="work-kind"
+        />
+      </section>
 
-      <ControlPointsStep
-        form={details.form}
-        referenceData={details.referenceData}
-        onToggleControlPoint={details.toggleControlPoint}
-        onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
-      />
+      <section className="detail-section">
+        <div className="section-header-row attestation-compact-header">
+          <CheckCircle2 size={18} />
+          <h3>Anlægstyper og kontrolpunkter</h3>
+        </div>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <WorkCategoryStep
+            form={details.form}
+            referenceData={details.referenceData}
+            isLoading={details.isLoadingReferenceData}
+            onCategoriesChange={details.updateWorkCategories}
+            onWorkKindChange={details.updateWorkKind}
+            onCustomWorkKindChange={details.updateCustomWorkKind}
+            mode="categories"
+          />
+        </div>
+        <ControlPointsStep
+          form={details.form}
+          referenceData={details.referenceData}
+          onToggleControlPoint={details.toggleControlPoint}
+          onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
+        />
+      </section>
 
       <JobWorksheetsStep
         jobId={details.job.id}
