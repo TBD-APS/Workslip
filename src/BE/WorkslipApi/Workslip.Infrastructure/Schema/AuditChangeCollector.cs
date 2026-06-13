@@ -181,7 +181,7 @@ internal sealed class AuditChangeCollector
         switch (auditEntry.EventType)
         {
             case AuditEventTypes.Added:
-                return $"{entityName} created";
+                return $"{entityName} oprettet";
 
             case AuditEventTypes.Deleted:
             {
@@ -202,17 +202,17 @@ internal sealed class AuditChangeCollector
                     .ToList();
 
                 if (changed.Count == 0)
-                    return $"{entityName} updated";
+                    return $"{entityName} opdateret";
 
                 if (changed.Count == 1)
                 {
                     var prop = changed[0];
-                    var before = auditEntry.BeforeValues[prop]?.ToString() ?? "(empty)";
-                    var after = auditEntry.AfterValues[prop]?.ToString() ?? "(empty)";
-                    return $"{prop} changed: '{before}' → '{after}'";
+                    var before = auditEntry.BeforeValues[prop]?.ToString() ?? "(tom)";
+                    var after = auditEntry.AfterValues[prop]?.ToString() ?? "(tom)";
+                    return $"{prop} ændret: '{before}' → '{after}'";
                 }
 
-                return $"{string.Join(", ", changed)} changed";
+                return $"{string.Join(", ", changed)} ændret";
             }
 
             default:

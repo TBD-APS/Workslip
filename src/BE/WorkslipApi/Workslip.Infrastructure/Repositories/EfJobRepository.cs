@@ -100,6 +100,9 @@ public sealed class EfJobRepository : IJobRepository
             await AddClosureFlagsAsync(organizationId, reportId, request.Work.ClosureFlags, cancellationToken);
         }
 
+        var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+        await _assignmentRepo.AddAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
+
         try
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
@@ -108,9 +111,6 @@ public sealed class EfJobRepository : IJobRepository
         {
             throw new DuplicateReportNumberException(reportNumber, ex);
         }
-
-        var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
-        await _assignmentRepo.AddAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
 
         await tx.CommitAsync(cancellationToken);
 

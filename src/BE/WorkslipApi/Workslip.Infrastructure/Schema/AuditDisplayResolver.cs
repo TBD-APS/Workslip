@@ -5,109 +5,111 @@ namespace Workslip.Infrastructure.Schema;
 
 internal sealed class AuditDisplayResolver
 {
-    public string ResolveReportDisplayValue(Guid organizationId, Guid reportId, DbContext dbContext) =>
-        dbContext.Set<JobReportRow>().Local
-            .Where(x => x.OrganizationId == organizationId && x.Id == reportId)
-            .Select(x => x.ReportNumber)
-            .FirstOrDefault()
-        ?? dbContext.Set<JobReportRow>().AsNoTracking()
-            .Where(x => x.OrganizationId == organizationId && x.Id == reportId)
-            .Select(x => x.ReportNumber)
-            .FirstOrDefault()
-        ?? "Ukendt sag";
+    public string ResolveReportDisplayValue(AuditBuildContext context, Guid organizationId, Guid reportId) =>
+        GetOrAdd(context.ReportDisplayCache, (organizationId, reportId), () =>
+            context.DbContext.Set<JobReportRow>().Local
+                .Where(x => x.OrganizationId == organizationId && x.Id == reportId)
+                .Select(x => x.ReportNumber)
+                .FirstOrDefault()
+            ?? context.DbContext.Set<JobReportRow>().AsNoTracking()
+                .Where(x => x.OrganizationId == organizationId && x.Id == reportId)
+                .Select(x => x.ReportNumber)
+                .FirstOrDefault()
+            ?? "Ukendt sag");
 
-    public string ResolveUserDisplayValue(Guid organizationId, Guid userId, DbContext dbContext) =>
-        dbContext.Set<UserDataRow>().Local
-            .Where(x => x.OrganizationId == organizationId && x.Id == userId)
-            .Select(x => x.DisplayName)
-            .FirstOrDefault()
-        ?? dbContext.Set<UserDataRow>().AsNoTracking()
-            .Where(x => x.OrganizationId == organizationId && x.Id == userId)
-            .Select(x => x.DisplayName)
-            .FirstOrDefault()
-        ?? "Ukendt bruger";
+    public string ResolveUserDisplayValue(AuditBuildContext context, Guid organizationId, Guid userId) =>
+        GetOrAdd(context.UserDisplayCache, (organizationId, userId), () =>
+            context.DbContext.Set<UserDataRow>().Local
+                .Where(x => x.OrganizationId == organizationId && x.Id == userId)
+                .Select(x => x.DisplayName)
+                .FirstOrDefault()
+            ?? context.DbContext.Set<UserDataRow>().AsNoTracking()
+                .Where(x => x.OrganizationId == organizationId && x.Id == userId)
+                .Select(x => x.DisplayName)
+                .FirstOrDefault()
+            ?? "Ukendt bruger");
 
-    public string? ResolveCustomerDisplayValue(Guid organizationId, Guid? customerId, DbContext dbContext)
+    public string? ResolveCustomerDisplayValue(AuditBuildContext context, Guid organizationId, Guid? customerId)
     {
         if (customerId is null)
             return null;
 
-        return dbContext.Set<CustomerRow>().Local
-            .Where(x => x.OrganizationId == organizationId && x.Id == customerId.Value)
-            .Select(x => x.Name)
-            .FirstOrDefault()
-        ?? dbContext.Set<CustomerRow>().AsNoTracking()
-            .Where(x => x.OrganizationId == organizationId && x.Id == customerId.Value)
-            .Select(x => x.Name)
-            .FirstOrDefault()
-        ?? "Ukendt kunde";
+        return GetOrAdd(context.CustomerDisplayCache, (organizationId, customerId.Value), () =>
+            context.DbContext.Set<CustomerRow>().Local
+                .Where(x => x.OrganizationId == organizationId && x.Id == customerId.Value)
+                .Select(x => x.Name)
+                .FirstOrDefault()
+            ?? context.DbContext.Set<CustomerRow>().AsNoTracking()
+                .Where(x => x.OrganizationId == organizationId && x.Id == customerId.Value)
+                .Select(x => x.Name)
+                .FirstOrDefault()
+            ?? "Ukendt kunde");
     }
 
-
-
-    public string? ResolveWorkKindDisplayValue(Guid? workKindId, DbContext dbContext)
+    public string? ResolveWorkKindDisplayValue(AuditBuildContext context, Guid? workKindId)
     {
         if (workKindId is null)
             return null;
 
-        return dbContext.Set<JobWorkKindRow>().Local
-            .Where(x => x.Id == workKindId.Value)
-            .Select(x => x.Label)
-            .FirstOrDefault()
-        ?? dbContext.Set<JobWorkKindRow>().AsNoTracking()
-            .Where(x => x.Id == workKindId.Value)
-            .Select(x => x.Label)
-            .FirstOrDefault()
-        ?? "Ukendt opgavetype";
+        return GetOrAdd(context.WorkKindDisplayCache, workKindId.Value, () =>
+            context.DbContext.Set<JobWorkKindRow>().Local
+                .Where(x => x.Id == workKindId.Value)
+                .Select(x => x.Label)
+                .FirstOrDefault()
+            ?? context.DbContext.Set<JobWorkKindRow>().AsNoTracking()
+                .Where(x => x.Id == workKindId.Value)
+                .Select(x => x.Label)
+                .FirstOrDefault()
+            ?? "Ukendt opgavetype");
     }
 
+    public string ResolveInstallationTypeDisplayValue(AuditBuildContext context, Guid organizationId, Guid installationTypeDefinitionId) =>
+        GetOrAdd(context.InstallationTypeDisplayCache, (organizationId, installationTypeDefinitionId), () =>
+            context.DbContext.Set<InstallationTypeDefinitionRow>().Local
+                .Where(x => x.OrganizationId == organizationId && x.Id == installationTypeDefinitionId)
+                .Select(x => x.Name)
+                .FirstOrDefault()
+            ?? context.DbContext.Set<InstallationTypeDefinitionRow>().AsNoTracking()
+                .Where(x => x.OrganizationId == organizationId && x.Id == installationTypeDefinitionId)
+                .Select(x => x.Name)
+                .FirstOrDefault()
+            ?? "Ukendt anlægstype");
 
+    public string ResolveControlCategoryDisplayValue(AuditBuildContext context, Guid categoryId) =>
+        GetOrAdd(context.ControlCategoryDisplayCache, categoryId, () =>
+            context.DbContext.Set<ControlCategoryRow>().Local
+                .Where(x => x.Id == categoryId)
+                .Select(x => x.Name)
+                .FirstOrDefault()
+            ?? context.DbContext.Set<ControlCategoryRow>().AsNoTracking()
+                .Where(x => x.Id == categoryId)
+                .Select(x => x.Name)
+                .FirstOrDefault()
+            ?? "Ukendt kategori");
 
-    public string ResolveInstallationTypeDisplayValue(Guid organizationId, Guid installationTypeDefinitionId, DbContext dbContext) =>
-        dbContext.Set<InstallationTypeDefinitionRow>().Local
-            .Where(x => x.OrganizationId == organizationId && x.Id == installationTypeDefinitionId)
-            .Select(x => x.Name)
-            .FirstOrDefault()
-        ?? dbContext.Set<InstallationTypeDefinitionRow>().AsNoTracking()
-            .Where(x => x.OrganizationId == organizationId && x.Id == installationTypeDefinitionId)
-            .Select(x => x.Name)
-            .FirstOrDefault()
-        ?? "Ukendt anlægstype";
+    public string ResolveControlPointDisplayValue(AuditBuildContext context, Guid controlPointId) =>
+        GetOrAdd(context.ControlPointDisplayCache, controlPointId, () =>
+            context.DbContext.Set<ControlPointRow>().Local
+                .Where(x => x.Id == controlPointId)
+                .Select(x => x.Name)
+                .FirstOrDefault()
+            ?? context.DbContext.Set<ControlPointRow>().AsNoTracking()
+                .Where(x => x.Id == controlPointId)
+                .Select(x => x.Name)
+                .FirstOrDefault()
+            ?? "Ukendt kontrolpunkt");
 
-    public string ResolveControlCategoryDisplayValue(Guid categoryId, DbContext dbContext) =>
-        dbContext.Set<ControlCategoryRow>().Local
-            .Where(x => x.Id == categoryId)
-            .Select(x => x.Name)
-            .FirstOrDefault()
-        ?? dbContext.Set<ControlCategoryRow>().AsNoTracking()
-            .Where(x => x.Id == categoryId)
-            .Select(x => x.Name)
-            .FirstOrDefault()
-        ?? "Ukendt kategori";
-
-    public string ResolveControlPointDisplayValue(Guid controlPointId, DbContext dbContext) =>
-        dbContext.Set<ControlPointRow>().Local
-            .Where(x => x.Id == controlPointId)
-            .Select(x => x.Name)
-            .FirstOrDefault()
-        ?? dbContext.Set<ControlPointRow>().AsNoTracking()
-            .Where(x => x.Id == controlPointId)
-            .Select(x => x.Name)
-            .FirstOrDefault()
-        ?? "Ukendt kontrolpunkt";
-
-
-
-    public string ResolveClosureFlagDisplayValue(Guid closureFlagId, DbContext dbContext) =>
-        dbContext.Set<JobClosureFlagRow>().Local
-            .Where(x => x.Id == closureFlagId)
-            .Select(x => x.Label)
-            .FirstOrDefault()
-        ?? dbContext.Set<JobClosureFlagRow>().AsNoTracking()
-            .Where(x => x.Id == closureFlagId)
-            .Select(x => x.Label)
-            .FirstOrDefault()
-        ?? "Ukendt afslutningsflag";
+    public string ResolveClosureFlagDisplayValue(AuditBuildContext context, Guid closureFlagId) =>
+        GetOrAdd(context.ClosureFlagDisplayCache, closureFlagId, () =>
+            context.DbContext.Set<JobClosureFlagRow>().Local
+                .Where(x => x.Id == closureFlagId)
+                .Select(x => x.Label)
+                .FirstOrDefault()
+            ?? context.DbContext.Set<JobClosureFlagRow>().AsNoTracking()
+                .Where(x => x.Id == closureFlagId)
+                .Select(x => x.Label)
+                .FirstOrDefault()
+            ?? "Ukendt afslutningsflag");
 
     public string? ResolveForeignKeyDisplayValue(Type type, Dictionary<string, object?> pkValues, DbContext dbContext)
     {
@@ -157,6 +159,17 @@ internal sealed class AuditDisplayResolver
         }
 
         return null;
+    }
+
+    private static TValue GetOrAdd<TKey, TValue>(IDictionary<TKey, TValue> cache, TKey key, Func<TValue> resolve)
+        where TKey : notnull
+    {
+        if (cache.TryGetValue(key, out var cached))
+            return cached;
+
+        var value = resolve();
+        cache[key] = value;
+        return value;
     }
 
     private static bool TryGetValue<T>(Dictionary<string, object?> dict, string key, out T value)

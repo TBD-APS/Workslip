@@ -24,6 +24,7 @@ export function WorkCategoryStep(
   mode = 'full',
 }: WorkCategoryStepProps) {
   const customWorkKindRef = useRef<HTMLLabelElement | null>(null);
+  const prevWorkKindRef = useRef(form.work.workKind);
   const categories = [...(referenceData?.installationTypes ?? [])];
   const workKinds = [...(referenceData?.workKinds ?? [])]
     .sort((left, right) => Number(left.sortOrder) - Number(right.sortOrder));
@@ -31,11 +32,16 @@ export function WorkCategoryStep(
   const requiresCustomWorkKind = selectedWorkKind?.requiresCustomWorkKind ?? false;
 
   useEffect(() => {
-    if (requiresCustomWorkKind) {
+    const previousWorkKind = prevWorkKindRef.current;
+    const workKindChanged = previousWorkKind !== form.work.workKind;
+
+    if (workKindChanged && requiresCustomWorkKind) {
       customWorkKindRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       setTimeout(() => customWorkKindRef.current?.querySelector<HTMLInputElement>('input')?.focus(), 350);
     }
-  }, [requiresCustomWorkKind]);
+
+    prevWorkKindRef.current = form.work.workKind;
+  }, [form.work.workKind, requiresCustomWorkKind]);
 
   const toggleCategory = (categoryId: string) => {
     const nextCategoryIds = form.work.categoryIds.includes(categoryId)
