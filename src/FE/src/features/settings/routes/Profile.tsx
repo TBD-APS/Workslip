@@ -43,7 +43,7 @@ export const Profile = () => {
         data: { displayName: displayName.trim(), phone: phone.trim() || null, role: null },
       });
 
-      updateUser({ displayName: displayName.trim(), phone: phone.trim() || null });
+      updateUser({ displayName: displayName.trim(), phone: phone.trim() || undefined });
 
       setIsEditing(false);
       toast.success('Profil opdateret');
