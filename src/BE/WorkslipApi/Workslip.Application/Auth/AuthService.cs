@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Ardalis.Result;
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Users;
 
@@ -11,6 +12,7 @@ public sealed class AuthService(
     ICurrentUserContext currentUser,
     IUserRepository userRepository,
     IEmailService emailService,
+    IValidator<UpdateUserRequest> updateUserValidator,
     ILogger<AuthService> logger) : IAuthService
 {
     private static readonly ConcurrentDictionary<string, OtcEntry> _otcStore = new();
@@ -35,13 +37,26 @@ public sealed class AuthService(
 
     public async Task<Result<UserResponse>> UpdateCurrentUserAsync(UpdateUserRequest request, CancellationToken cancellationToken)
     {
-        var userId = currentUser.UserId ?? throw new UnauthorizedAccessException("User is not logged in");
-        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
+        var userId = currentUser.UserId;
+        if (userId is null)
+        {
+            return Result<UserResponse>.Unauthorized();
+        }
+        var user = await userRepository.GetByIdAsync(userId.Value, cancellationToken);
 
         if (user == null)
         {
             logger.LogError("Current user not found for update. UserId: {UserId}", userId);
             return Result<UserResponse>.NotFound();
+        }
+
+        var validationResult = await updateUserValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
+                .ToList();
+            return Result<UserResponse>.Invalid(errors);
         }
 
         if (!string.IsNullOrEmpty(request.DisplayName))
