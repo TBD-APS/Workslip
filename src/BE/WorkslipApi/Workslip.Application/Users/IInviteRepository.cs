@@ -15,4 +15,6 @@ public interface IInviteRepository
     Task MarkConsumedAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken);
 
     Task MarkOpenedAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<InviteTokenRow>> GetStaleEntraProvisionedAsync(DateTimeOffset now, int take, CancellationToken cancellationToken);
 }

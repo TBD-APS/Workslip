@@ -42,6 +42,10 @@ export const AppRoutes = () => {
       element: <Login />,
     },
     {
+      path: '/invite/callback',
+      element: <InviteAccept />,
+    },
+    {
       path: '/invite/:token',
       element: <InviteAccept />,
     },

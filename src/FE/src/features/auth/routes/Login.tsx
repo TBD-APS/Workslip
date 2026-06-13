@@ -3,10 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Mail, ArrowLeft, Loader2 } from 'lucide-react';
+import { Mail, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../providers/useAuth';
 import { sendAuthCode } from '../api/devToken';
 import { toast } from 'sonner';
+import { AUTH_TOKEN_KEY, USER_EMAIL_KEY } from '../../../providers/authContextValue';
+import { clearEntraLoginSession, completeEntraLogin, hasEntraLoginCallback, sanitizeReturnTo, startEntraLogin } from '../api/entraLogin';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
@@ -28,6 +30,7 @@ export const Login = () => {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showOtcLogin, setShowOtcLogin] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(EmailSchema),
@@ -36,6 +39,40 @@ export const Login = () => {
     resolver: zodResolver(CodeSchema),
   });
   const { ref: codeFieldRef, ...codeField } = codeForm.register('code');
+
+  useEffect(() => {
+    if (!hasEntraLoginCallback()) return;
+
+    setIsSubmitting(true);
+    completeEntraLogin()
+      .then(result => {
+        sessionStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
+        sessionStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
+        clearEntraLoginSession();
+        window.history.replaceState(null, '', '/login');
+        window.location.assign(result.returnTo);
+      })
+      .catch((err: unknown) => {
+        window.history.replaceState(null, '', '/login');
+        clearEntraLoginSession();
+        const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
+        setErrorMsg(message);
+        toast.error(message);
+      })
+      .finally(() => setIsSubmitting(false));
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (hasEntraLoginCallback() || params.get('reauth') !== '1') return;
+
+    const returnTo = sanitizeReturnTo(params.get('returnTo'));
+    setIsSubmitting(true);
+    startEntraLogin({ returnTo, prompt: 'none' }).catch(() => {
+      setIsSubmitting(false);
+      setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+    });
+  }, []);
 
   useEffect(() => {
     if (step !== 'code' || !codeInputRef.current) return undefined;
@@ -56,6 +93,20 @@ export const Login = () => {
       toast.error('Kunne ikke sende kode. Prøv igen.');
       setErrorMsg('Kunne ikke sende kode. Prøv igen.');
     } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    try {
+      const returnTo = sanitizeReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
+      await startEntraLogin({ returnTo });
+    } catch (err: unknown) {
+      const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
+      setErrorMsg(message);
+      toast.error(message);
       setIsSubmitting(false);
     }
   };
@@ -106,7 +157,7 @@ export const Login = () => {
           </div>
           <h2 style={{ marginBottom: '0.5rem' }}>Log ind på Workslip</h2>
           {step === 'email' && (
-            <p style={{ color: 'var(--text-secondary)' }}>Indtast din email for at få en engangskode</p>
+            <p style={{ color: 'var(--text-secondary)' }}>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
           )}
           {step === 'code' && (
             <div>
@@ -134,7 +185,46 @@ export const Login = () => {
           </div>
         )}
 
-        {step === 'email' && (
+        {step === 'email' && !showOtcLogin && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleMicrosoftLogin}
+              disabled={isSubmitting}
+              style={{
+                width: '100%',
+                opacity: isSubmitting ? 0.7 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                cursor: isSubmitting ? 'wait' : 'pointer'
+              }}
+            >
+              {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
+              <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowOtcLogin(true)}
+              style={{
+                width: '100%',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                fontSize: '0.9rem',
+                padding: '0.75rem'
+              }}
+            >
+              Passkey virker ikke / ny telefon? Brug engangskode
+            </button>
+          </div>
+        )}
+
+        {step === 'email' && showOtcLogin && (
           <form onSubmit={emailForm.handleSubmit(handleSendCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="form-group">
               <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 400 }}>Email</label>

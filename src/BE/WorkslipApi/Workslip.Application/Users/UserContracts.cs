@@ -64,7 +64,11 @@ public sealed record InviteTokenResponse(
     DateTimeOffset ExpiresAt,
     bool Consumed,
     DateTimeOffset? OpenedAt,
-    DateTimeOffset? AcceptedAt);
+    DateTimeOffset? AcceptedAt,
+    string? EntraUserId,
+    bool EntraCreatedByInvite,
+    DateTimeOffset? EntraProvisionedAt,
+    DateTimeOffset? EntraCleanedAt);
 
 public sealed record InviteListResponse(
     IReadOnlyList<InviteTokenResponse> Invites);
