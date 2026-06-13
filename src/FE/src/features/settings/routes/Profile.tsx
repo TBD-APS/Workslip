@@ -4,9 +4,6 @@ import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../../providers/useAuth';
 import { usePatchApiAuthMe } from '../../../api/generated/auth/auth';
-import { getGetApiAuthMeQueryKey } from '../../../api/generated/auth/auth';
-import { useQueryClient } from '@tanstack/react-query';
-import type { UserViewModel } from '../../../api/generated/models';
 
 const roleLabels: Record<string, string> = {
   Admin: 'Administrator',
@@ -14,11 +11,10 @@ const roleLabels: Record<string, string> = {
 };
 
 export const Profile = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const location = useLocation();
   const fromInvite = (location.state as { fromInvite?: boolean })?.fromInvite;
 
-  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
@@ -42,18 +38,18 @@ export const Profile = () => {
       return;
     }
 
-    await patchMutation.mutateAsync({
-      data: { displayName: displayName.trim(), phone: phone.trim() || null, role: null },
-    });
+    try {
+      await patchMutation.mutateAsync({
+        data: { displayName: displayName.trim(), phone: phone.trim() || null, role: null },
+      });
 
-    queryClient.setQueryData(getGetApiAuthMeQueryKey(), (old: UserViewModel) => ({
-      ...old,
-      displayName: displayName.trim(),
-      phone: phone.trim(),
-    }));
+      updateUser({ displayName: displayName.trim(), phone: phone.trim() || null });
 
-    setIsEditing(false);
-    toast.success('Profil opdateret');
+      setIsEditing(false);
+      toast.success('Profil opdateret');
+    } catch {
+      toast.error('Kunne ikke opdatere profilen. Prøv igen.');
+    }
   };
 
   return (
@@ -107,8 +103,9 @@ export const Profile = () => {
           {isEditing ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Navn</label>
+                <label htmlFor="profile-display-name" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Navn</label>
                 <input
+                  id="profile-display-name"
                   className="form-input"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
@@ -116,8 +113,9 @@ export const Profile = () => {
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Telefon</label>
+                <label htmlFor="profile-phone" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Telefon</label>
                 <input
+                  id="profile-phone"
                   className="form-input"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
