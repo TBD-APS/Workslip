@@ -53,13 +53,13 @@ public sealed class AuditInterceptorTests
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
         Assert.Equal(actorId, audit.ActorId);
-        Assert.Equal("Tech Tim assigned", audit.Summary);
+        Assert.Equal("Tech Tim tilføjet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.Equal("Planner Pia", response.ActorName);
         var change = Assert.Single(response.Changes);
         Assert.Equal("AssignedUser", change.PropertyName);
-        Assert.Equal("Tildelt bruger", change.DisplayName);
+        Assert.Equal("Tildelt medarbejder", change.DisplayName);
         Assert.Null(change.Before);
         Assert.Equal("Tech Tim", change.After);
     }
@@ -104,13 +104,70 @@ public sealed class AuditInterceptorTests
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
         Assert.Equal(actorId, audit.ActorId);
-        Assert.Equal("Tech Tim unassigned", audit.Summary);
+        Assert.Equal("Tech Tim fjernet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
         Assert.Equal("AssignedUser", change.PropertyName);
         Assert.Equal("Tech Tim", change.Before);
         Assert.Null(change.After);
+    }
+
+    [Fact]
+    public async Task Job_assignment_add_and_remove_in_same_save_produces_one_consolidated_event()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var removedUserId = Guid.NewGuid();
+        var addedUserId = Guid.NewGuid();
+        var keptUserId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var removedAssignmentId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.Users.AddRange(
+            new UserDataRow { Id = actorId, OrganizationId = orgId, DisplayName = "Planner Pia", Email = "pia@example.test", Role = "Admin" },
+            new UserDataRow { Id = removedUserId, OrganizationId = orgId, DisplayName = "Removed Ron", Email = "ron@example.test", Role = "User" },
+            new UserDataRow { Id = addedUserId, OrganizationId = orgId, DisplayName = "Added Ada", Email = "ada@example.test", Role = "User" },
+            new UserDataRow { Id = keptUserId, OrganizationId = orgId, DisplayName = "Kept Kim", Email = "kim@example.test", Role = "User" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.JobAssignments.AddRange(
+            new JobAssignmentRow { Id = removedAssignmentId, OrganizationId = orgId, ReportId = jobId, UserId = removedUserId, AssignedByUserId = actorId, AssignedAt = DateTimeOffset.UtcNow },
+            new JobAssignmentRow { Id = Guid.NewGuid(), OrganizationId = orgId, ReportId = jobId, UserId = keptUserId, AssignedByUserId = actorId, AssignedAt = DateTimeOffset.UtcNow });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        var removedAssignment = await context.JobAssignments.SingleAsync(a => a.Id == removedAssignmentId);
+        context.JobAssignments.Remove(removedAssignment);
+        context.JobAssignments.Add(new JobAssignmentRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            ReportId = jobId,
+            UserId = addedUserId,
+            AssignedByUserId = actorId,
+            AssignedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
+        Assert.Equal("Tildelte medarbejdere ændret", audit.Summary);
+
+        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
+        Assert.Equal(2, response.Changes.Count);
+        Assert.Contains(response.Changes, c => c.PropertyName == "Tildelt medarbejder / Removed Ron" && c.Before == "Removed Ron" && c.After is null);
+        Assert.Contains(response.Changes, c => c.PropertyName == "Tildelt medarbejder / Added Ada" && c.Before is null && c.After == "Added Ada");
+        Assert.Equal("Tildelte medarbejdere ændret: 1 tilføjet, 1 fjernet", response.Summary);
     }
 
     [Fact]
@@ -153,7 +210,7 @@ public sealed class AuditInterceptorTests
         await repository.AssignAsync(jobId, orgId, [keptUserId], actorId, CancellationToken.None);
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Removed Ron unassigned", audit.Summary);
+        Assert.Equal("Removed Ron fjernet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
@@ -190,11 +247,11 @@ public sealed class AuditInterceptorTests
         Assert.Equal(2, events.Count);
 
         var sourceEvent = Assert.Single(events, e => e.ReportId == sourceReportId);
-        Assert.Equal("Link to JOB-2 removed", sourceEvent.Summary);
+        Assert.Equal("Link til JOB-2 fjernet", sourceEvent.Summary);
         Assert.Equal("JOB-2", Assert.Single(JobReportMapper.ToHistoryResponse(sourceEvent, "Planner Pia").Changes).Before);
 
         var targetEvent = Assert.Single(events, e => e.ReportId == targetReportId);
-        Assert.Equal("Link to JOB-1 removed", targetEvent.Summary);
+        Assert.Equal("Link til JOB-1 fjernet", targetEvent.Summary);
         Assert.Equal("JOB-1", Assert.Single(JobReportMapper.ToHistoryResponse(targetEvent, "Planner Pia").Changes).Before);
     }
 
@@ -221,13 +278,50 @@ public sealed class AuditInterceptorTests
         await repository.DeleteLinksAsync(orgId, [firstLinkId, secondLinkId], CancellationToken.None);
 
         var events = await context.JobEvents.AsNoTracking().ToListAsync();
-        Assert.Equal(4, events.Count);
-        Assert.Contains(events, e => e.ReportId == sourceReportId && e.Summary == "Link to JOB-2 removed");
-        Assert.Contains(events, e => e.ReportId == sourceReportId && e.Summary == "Link to JOB-3 removed");
-        Assert.Contains(events, e => e.ReportId == firstTargetReportId && e.Summary == "Link to JOB-1 removed");
-        Assert.Contains(events, e => e.ReportId == secondTargetReportId && e.Summary == "Link to JOB-1 removed");
+        Assert.Equal(3, events.Count);
+
+        var sourceEvent = Assert.Single(events, e => e.ReportId == sourceReportId);
+        Assert.Equal("Relaterede sager fjernet", sourceEvent.Summary);
+        var sourceResponse = JobReportMapper.ToHistoryResponse(sourceEvent, "Planner Pia");
+        Assert.Equal("Relaterede sager fjernet: 2", sourceResponse.Summary);
+        Assert.Contains(sourceResponse.Changes, c => c.PropertyName == "Relateret sag / JOB-2" && c.Before == "JOB-2" && c.After is null);
+        Assert.Contains(sourceResponse.Changes, c => c.PropertyName == "Relateret sag / JOB-3" && c.Before == "JOB-3" && c.After is null);
+
+        Assert.Contains(events, e => e.ReportId == firstTargetReportId && e.Summary == "Link til JOB-1 fjernet");
+        Assert.Contains(events, e => e.ReportId == secondTargetReportId && e.Summary == "Link til JOB-1 fjernet");
     }
 
+
+    [Fact]
+    public async Task Job_link_repository_can_audit_multiple_added_links_in_one_call()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var sourceReportId = Guid.NewGuid();
+        var firstTargetReportId = Guid.NewGuid();
+        var secondTargetReportId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        SeedReportsWithLinks(context, orgId,
+            [(sourceReportId, "JOB-1"), (firstTargetReportId, "JOB-2"), (secondTargetReportId, "JOB-3")],
+            []);
+
+        var repository = new EfJobLinkRepository(context, new NoRetryPolicy());
+        await repository.CreateLinksAsync(orgId, sourceReportId, [firstTargetReportId, secondTargetReportId], CancellationToken.None);
+
+        var events = await context.JobEvents.AsNoTracking().ToListAsync();
+        Assert.Equal(3, events.Count);
+
+        var sourceEvent = Assert.Single(events, e => e.ReportId == sourceReportId);
+        Assert.Equal("Relaterede sager tilføjet", sourceEvent.Summary);
+        var sourceResponse = JobReportMapper.ToHistoryResponse(sourceEvent, "Planner Pia");
+        Assert.Equal("Relaterede sager tilføjet: 2", sourceResponse.Summary);
+        Assert.Contains(sourceResponse.Changes, c => c.PropertyName == "Relateret sag / JOB-2" && c.Before is null && c.After == "JOB-2");
+        Assert.Contains(sourceResponse.Changes, c => c.PropertyName == "Relateret sag / JOB-3" && c.Before is null && c.After == "JOB-3");
+
+        Assert.Contains(events, e => e.ReportId == firstTargetReportId && e.Summary == "Link til JOB-1 tilføjet");
+        Assert.Contains(events, e => e.ReportId == secondTargetReportId && e.Summary == "Link til JOB-1 tilføjet");
+    }
 
     [Fact]
     public async Task Job_report_work_kind_audit_uses_work_kind_display_name()
@@ -262,7 +356,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("WorkKind changed: 'Service' → 'Reparation'", audit.Summary);
+        Assert.Equal("WorkKind ændret: 'Service' → 'Reparation'", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
@@ -340,7 +434,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("WorkKind changed: 'Service' → 'Reparation'", audit.Summary);
+        Assert.Equal("WorkKind ændret: 'Service' → 'Reparation'", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
@@ -471,7 +565,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Installation type Gasinstallation added", audit.Summary);
+        Assert.Equal("Installationstype Gasinstallation tilføjet", audit.Summary);
         Assert.Null(audit.BeforeJson);
         Assert.Null(audit.AfterJson);
     }
@@ -534,13 +628,14 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync());
-        Assert.Equal("Installation type Gasinstallation updated", audit.Summary);
+        Assert.Equal("Installationstype Gasinstallation opdateret", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
         Assert.Equal("Modtagekontrol / Trykprøvning", change.PropertyName);
         Assert.Equal("✗", change.Before);
         Assert.Equal("✓", change.After);
+        Assert.Equal("Modtagekontrol: 1 ændring", response.Summary);
     }
 
 
@@ -571,14 +666,15 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Status changed: 'Draft' → 'InReview'", audit.Summary);
+        Assert.Equal("Status ændret: 'Draft' → 'InReview'", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
         Assert.Equal("Status", change.PropertyName);
         Assert.Equal("Status", change.DisplayName);
-        Assert.Equal("Draft", change.Before);
-        Assert.Equal("InReview", change.After);
+        Assert.Equal("Aktiv", change.Before);
+        Assert.Equal("Til gennemsyn", change.After);
+        Assert.Equal("Status ændret: 'Aktiv' → 'Til gennemsyn'", response.Summary);
     }
 
     [Fact]
@@ -624,7 +720,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Closure flag Færdigmeldt added", audit.Summary);
+        Assert.Equal("Afslutning af sag Færdigmeldt tilføjet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
@@ -680,13 +776,87 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Closure flag Færdigmeldt removed", audit.Summary);
+        Assert.Equal("Afslutning af Færdigmeldt fjernet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
         Assert.Equal("ClosureFlag", change.PropertyName);
         Assert.Equal("Færdigmeldt", change.Before);
         Assert.Null(change.After);
+    }
+
+
+    [Fact]
+    public async Task Closure_flag_add_and_remove_in_same_save_produces_one_consolidated_event()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var removedFlagId = Guid.NewGuid();
+        var addedFlagId = Guid.NewGuid();
+        var removedJoinId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.JobClosureFlags.AddRange(
+            new JobClosureFlagRow
+            {
+                Id = removedFlagId,
+                NormalizedLabel = "finished",
+                Label = "Færdigmeldt",
+                IsActive = true,
+                SortOrder = 1,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+            new JobClosureFlagRow
+            {
+                Id = addedFlagId,
+                NormalizedLabel = "not-finished",
+                Label = "Ikke udført",
+                IsActive = true,
+                SortOrder = 2,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+        context.JobReportClosureFlags.Add(new JobReportClosureFlagRow
+        {
+            Id = removedJoinId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            ClosureFlagId = removedFlagId,
+            SortOrder = 1
+        });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        var removedFlag = await context.JobReportClosureFlags.SingleAsync(f => f.Id == removedJoinId);
+        context.JobReportClosureFlags.Remove(removedFlag);
+        context.JobReportClosureFlags.Add(new JobReportClosureFlagRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            ClosureFlagId = addedFlagId,
+            SortOrder = 1
+        });
+        await context.SaveChangesAsync();
+
+        var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
+        Assert.Equal("Afslutningsflag ændret", audit.Summary);
+
+        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
+        Assert.Equal(2, response.Changes.Count);
+        Assert.Contains(response.Changes, c => c.PropertyName == "Afslutningsflag / Færdigmeldt" && c.Before == "Færdigmeldt" && c.After is null);
+        Assert.Contains(response.Changes, c => c.PropertyName == "Afslutningsflag / Ikke udført" && c.Before is null && c.After == "Ikke udført");
     }
 
 
@@ -731,14 +901,15 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Worksheet for Tech Tim added", audit.Summary);
+        Assert.Equal("Arbejdsseddel for Tech Tim tilføjet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.Contains(response.Changes, change => change.PropertyName == "Report" && change.DisplayName == "Sag" && change.After == "JOB-1");
-        Assert.Contains(response.Changes, change => change.PropertyName == "AssignedUser" && change.DisplayName == "Tildelt bruger" && change.After == "Tech Tim");
+        Assert.Contains(response.Changes, change => change.PropertyName == "AssignedUser" && change.DisplayName == "Tildelt medarbejder" && change.After == "Tech Tim");
         Assert.Contains(response.Changes, change => change.PropertyName == "WorkDate" && change.DisplayName == "Arbejdsdato" && change.After == "11. juni 2026");
         Assert.Contains(response.Changes, change => change.PropertyName == "HoursWorked" && change.DisplayName == "Timer" && change.After == "7.5");
-        Assert.Contains(response.Changes, change => change.PropertyName == "SleptOnJob" && change.DisplayName == "Overnatning" && change.After == "true");
+        Assert.Contains(response.Changes, change => change.PropertyName == "SleptOnJob" && change.DisplayName == "Overnatning" && change.After == "Ja");
+        Assert.Equal("Arbejdsseddel oprettet d. 11. juni 2026 med 7,5 timer", response.Summary);
         Assert.DoesNotContain(response.Changes, change => change.PropertyName == "JobId");
         Assert.DoesNotContain(response.Changes, change => change.PropertyName == "UserId");
     }
@@ -787,10 +958,11 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Worksheet for Tech Tim removed", audit.Summary);
+        Assert.Equal("Arbejdsseddel for Tech Tim fjernet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.Contains(response.Changes, change => change.PropertyName == "AssignedUser" && change.Before == "Tech Tim" && change.After is null);
+        Assert.Equal("Arbejdsseddel fjernet d. 11. juni 2026 med 7,5 timer", response.Summary);
         Assert.DoesNotContain(response.Changes, change => change.PropertyName == "UserId");
     }
 
@@ -842,12 +1014,13 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("HoursWorked, SleptOnJob, AssignedUser changed", audit.Summary);
+        Assert.Equal("HoursWorked, SleptOnJob, AssignedUser ændret", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.Contains(response.Changes, change => change.PropertyName == "AssignedUser" && change.Before == "Tech Tim" && change.After == "Tech Tina");
         Assert.Contains(response.Changes, change => change.PropertyName == "HoursWorked" && change.Before == "7.5" && change.After == "8.25");
-        Assert.Contains(response.Changes, change => change.PropertyName == "SleptOnJob" && change.Before == "false" && change.After == "true");
+        Assert.Contains(response.Changes, change => change.PropertyName == "SleptOnJob" && change.Before == "Nej" && change.After == "Ja");
+        Assert.Equal("Arbejdsseddel ændret: Timer, Overnatning, Tildelt medarbejder", response.Summary);
         Assert.DoesNotContain(response.Changes, change => change.PropertyName == "UserId");
     }
 
@@ -910,7 +1083,7 @@ public sealed class AuditInterceptorTests
 
         var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
         Assert.Equal(2, events.Count);
-        Assert.Contains(events, e => e.Summary!.Contains("Category Modtagekontrol"));
+        Assert.Contains(events, e => e.Summary!.Contains("Kategori Modtagekontrol"));
         Assert.Contains(events, e => e.Summary!.Contains("Trykprøvning"));
 
         context.JobEvents.RemoveRange(context.JobEvents);
@@ -924,7 +1097,7 @@ public sealed class AuditInterceptorTests
 
         events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
         Assert.Equal(2, events.Count);
-        Assert.Contains(events, e => e.Summary!.Contains("Category Modtagekontrol") && e.EventType == "deleted");
+        Assert.Contains(events, e => e.Summary!.Contains("Kategori Modtagekontrol") && e.EventType == "deleted");
         Assert.Contains(events, e => e.Summary!.Contains("Trykprøvning") && e.EventType == "deleted");
     }
 
@@ -988,7 +1161,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Installation type Gasinstallation added", audit.Summary);
+        Assert.Equal("Installationstype Gasinstallation tilføjet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.DoesNotContain(response.Changes, c => c.PropertyName == "InstallationType");
@@ -1046,7 +1219,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Installation type Gasinstallation updated", audit.Summary);
+        Assert.Equal("Installationstype Gasinstallation opdateret", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
@@ -1106,8 +1279,8 @@ public sealed class AuditInterceptorTests
 
         var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
         Assert.Equal(2, events.Count);
-        Assert.Contains(events, e => e.Summary == "Installation type Gasinstallation added");
-        Assert.Contains(events, e => e.Summary == "Installation type Oliefyr added");
+        Assert.Contains(events, e => e.Summary == "Installationstype Gasinstallation tilføjet");
+        Assert.Contains(events, e => e.Summary == "Installationstype Oliefyr tilføjet");
     }
 
     [Fact]
@@ -1209,7 +1382,7 @@ public sealed class AuditInterceptorTests
 
         var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
         Assert.Single(events);
-        Assert.Equal("Installation type Gasinstallation removed", events[0].Summary);
+        Assert.Equal("Installationstype Gasinstallation fjernet", events[0].Summary);
     }
 
     [Fact]
@@ -1456,7 +1629,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Installation type Gasinstallation added", audit.Summary);
+        Assert.Equal("Installationstype Gasinstallation tilføjet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.DoesNotContain(response.Changes, c => c.PropertyName == "InstallationType");
@@ -1585,10 +1758,10 @@ public sealed class AuditInterceptorTests
         Assert.Equal(2, events.Count);
 
         var deleteEvent = Assert.Single(events, e => e.EventType == "deleted");
-        Assert.Equal("Installation type Gasinstallation removed", deleteEvent.Summary);
+        Assert.Equal("Installationstype Gasinstallation fjernet", deleteEvent.Summary);
 
         var addEvent = Assert.Single(events, e => e.EventType == "added");
-        Assert.Equal("Installation type Oliefyr added", addEvent.Summary);
+        Assert.Equal("Installationstype Oliefyr tilføjet", addEvent.Summary);
     }
 
     [Fact]
@@ -1654,8 +1827,8 @@ public sealed class AuditInterceptorTests
 
         var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
         Assert.Equal(2, events.Count);
-        Assert.Contains(events, e => e.Summary == "Installation type Gasinstallation removed");
-        Assert.Contains(events, e => e.Summary == "Installation type Oliefyr removed");
+        Assert.Contains(events, e => e.Summary == "Installationstype Gasinstallation fjernet");
+        Assert.Contains(events, e => e.Summary == "Installationstype Oliefyr fjernet");
         foreach (var e in events)
         {
             var response = JobReportMapper.ToHistoryResponse(e, "Planner Pia");
@@ -1751,10 +1924,10 @@ public sealed class AuditInterceptorTests
         Assert.Equal(3, events.Count);
 
         var deleteEvent = Assert.Single(events, e => e.EventType == "deleted");
-        Assert.Equal("Installation type Gasinstallation removed", deleteEvent.Summary);
+        Assert.Equal("Installationstype Gasinstallation fjernet", deleteEvent.Summary);
 
         var addEvent = Assert.Single(events, e => e.EventType == "added");
-        Assert.Equal("Installation type Oliefyr added", addEvent.Summary);
+        Assert.Equal("Installationstype Oliefyr tilføjet", addEvent.Summary);
 
         var modifiedEvent = Assert.Single(events, e => e.EventType == "modified");
         Assert.Contains("Elfyr", modifiedEvent.Summary);
@@ -1816,7 +1989,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var transition = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Status changed: 'Draft' → 'InReview'", transition.Summary);
+        Assert.Equal("Status ændret: 'Draft' → 'InReview'", transition.Summary);
 
         report = await context.JobReports.SingleAsync(r => r.Id == jobId);
         context.Entry(report).Property(e => e.TaskDescription).CurrentValue = "Efter review";
@@ -1824,7 +1997,7 @@ public sealed class AuditInterceptorTests
 
         var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).OrderBy(e => e.CreatedAt).ToListAsync();
         Assert.Equal(2, events.Count);
-        Assert.Contains(events, e => e.Summary == "TaskDescription changed: '(empty)' → 'Efter review'");
+        Assert.Contains(events, e => e.Summary == "TaskDescription ændret: '(tom)' → 'Efter review'");
     }
 
     [Fact]
@@ -1853,7 +2026,7 @@ public sealed class AuditInterceptorTests
             ReportId = jobId,
             ActorId = actorId,
             EventType = "modified",
-            Summary = "Status changed: 'Draft' → 'InReview'",
+            Summary = "Status ændret: 'Draft' → 'InReview'",
             CreatedAt = DateTimeOffset.UtcNow
         });
         await context.SaveChangesAsync();
@@ -1930,9 +2103,9 @@ public sealed class AuditInterceptorTests
             .ToListAsync();
 
         Assert.Equal(3, summaries.Count);
-        Assert.Contains("Status changed: 'InReview' → 'Draft'", summaries);
-        Assert.Contains("Tech Tim assigned", summaries);
-        Assert.Contains("Closure flag Færdigmeldt added", summaries);
+        Assert.Contains("Status ændret: 'InReview' → 'Draft'", summaries);
+        Assert.Contains("Tech Tim tilføjet", summaries);
+        Assert.Contains("Afslutning af sag Færdigmeldt tilføjet", summaries);
     }
 
     [Fact]
@@ -1998,9 +2171,9 @@ public sealed class AuditInterceptorTests
             .ToListAsync();
 
         Assert.Equal(3, summaries.Count);
-        Assert.Contains("Status changed: 'Draft' → 'InReview'", summaries);
-        Assert.Contains("Tech Tim assigned", summaries);
-        Assert.Contains("Closure flag Færdigmeldt added", summaries);
+        Assert.Contains("Status ændret: 'Draft' → 'InReview'", summaries);
+        Assert.Contains("Tech Tim tilføjet", summaries);
+        Assert.Contains("Afslutning af sag Færdigmeldt tilføjet", summaries);
     }
 
 
@@ -2093,10 +2266,10 @@ public sealed class AuditInterceptorTests
             .ToListAsync();
 
         Assert.Equal(4, summaries.Count);
-        Assert.Contains("Status changed: 'Draft' → 'InReview'", summaries);
-        Assert.Contains("TaskDescription changed: '(empty)' → 'Efter review'", summaries);
-        Assert.Contains("Installation type Gasinstallation added", summaries);
-        Assert.Contains("Closure flag Færdigmeldt added", summaries);
+        Assert.Contains("Status ændret: 'Draft' → 'InReview'", summaries);
+        Assert.Contains("TaskDescription ændret: '(tom)' → 'Efter review'", summaries);
+        Assert.Contains("Installationstype Gasinstallation tilføjet", summaries);
+        Assert.Contains("Afslutning af sag Færdigmeldt tilføjet", summaries);
 
         await repository.UpdateAsync(jobId, orgId, request, CancellationToken.None);
 

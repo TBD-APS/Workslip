@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Workslip.Domain.Models;
+using static Workslip.Infrastructure.Schema.AuditEntryValueReader;
 
 namespace Workslip.Infrastructure.Schema;
 
@@ -51,10 +52,10 @@ internal sealed class JobReportAuditPolicy : IAuditEntityPolicy
         auditEntry.AfterValues.Remove(nameof(JobReportRow.WorkKindId));
 
         if (hasBefore)
-            auditEntry.BeforeValues[AuditFields.WorkKind] = context.DisplayResolver.ResolveWorkKindDisplayValue(beforeValue as Guid?, context.DbContext);
+            auditEntry.BeforeValues[AuditFields.WorkKind] = context.DisplayResolver.ResolveWorkKindDisplayValue(context, beforeValue as Guid?);
 
         if (hasAfter)
-            auditEntry.AfterValues[AuditFields.WorkKind] = context.DisplayResolver.ResolveWorkKindDisplayValue(afterValue as Guid?, context.DbContext);
+            auditEntry.AfterValues[AuditFields.WorkKind] = context.DisplayResolver.ResolveWorkKindDisplayValue(context, afterValue as Guid?);
     }
 
     private static void ReplaceCustomerIdWithDisplayValue(AuditBuildContext context, EntityEntry entry, AuditEntry auditEntry)
@@ -71,17 +72,10 @@ internal sealed class JobReportAuditPolicy : IAuditEntityPolicy
         auditEntry.AfterValues.Remove(nameof(JobReportRow.CustomerId));
 
         if (hasBefore)
-            auditEntry.BeforeValues[AuditFields.Customer] = context.DisplayResolver.ResolveCustomerDisplayValue(organizationId, beforeValue as Guid?, context.DbContext);
+            auditEntry.BeforeValues[AuditFields.Customer] = context.DisplayResolver.ResolveCustomerDisplayValue(context, organizationId, beforeValue as Guid?);
 
         if (hasAfter)
-            auditEntry.AfterValues[AuditFields.Customer] = context.DisplayResolver.ResolveCustomerDisplayValue(organizationId, afterValue as Guid?, context.DbContext);
-    }
-
-    private static Guid? GetGuid(EntityEntry entry, string propertyName, bool useOriginalValue = false)
-    {
-        var property = entry.Property(propertyName);
-        var value = useOriginalValue ? property.OriginalValue : property.CurrentValue;
-        return value is Guid id ? id : null;
+            auditEntry.AfterValues[AuditFields.Customer] = context.DisplayResolver.ResolveCustomerDisplayValue(context, organizationId, afterValue as Guid?);
     }
 }
 
@@ -91,48 +85,82 @@ internal sealed class JobAssignmentAuditPolicy : IAuditEntityPolicy
 
     public IReadOnlyList<AuditEntry> BuildEvents(AuditBuildContext context, EntityEntry entry, AuditChangeCollector collector)
     {
-        var auditEntry = collector.BuildBaseEntry(context, entry);
-        var organizationId = GetGuid(entry, nameof(JobAssignmentRow.OrganizationId)) ?? auditEntry.OrganizationId;
-        var beforeUserId = GetGuid(entry, nameof(JobAssignmentRow.UserId), useOriginalValue: true);
-        var afterUserId = GetGuid(entry, nameof(JobAssignmentRow.UserId));
-        var beforeUser = beforeUserId is null
-            ? null
-            : context.DisplayResolver.ResolveUserDisplayValue(organizationId, beforeUserId.Value, context.DbContext);
-        var afterUser = afterUserId is null
-            ? null
-            : context.DisplayResolver.ResolveUserDisplayValue(organizationId, afterUserId.Value, context.DbContext);
+        if (entry.State is not (EntityState.Added or EntityState.Deleted or EntityState.Modified))
+            return [];
 
+        var reportId = GetGuid(entry, nameof(JobAssignmentRow.ReportId), useOriginalValue: entry.State == EntityState.Deleted);
+        if (reportId is null || !context.ProcessedAssignmentReportIds.Add(reportId.Value))
+            return [];
+
+        var assignmentEntries = context.DbContext.ChangeTracker.Entries<JobAssignmentRow>()
+            .Where(e => e.State is EntityState.Added or EntityState.Deleted or EntityState.Modified)
+            .Where(e => GetGuid(e, nameof(JobAssignmentRow.ReportId), useOriginalValue: e.State == EntityState.Deleted) == reportId.Value)
+            .ToList();
+
+        if (assignmentEntries.Count == 0)
+            return [];
+
+        var auditEntry = collector.BuildBaseEntry(context, entry);
         auditEntry.BeforeValues.Clear();
         auditEntry.AfterValues.Clear();
+        auditEntry.EventType = ResolveEventType(assignmentEntries);
 
-        switch (auditEntry.EventType)
+        var useDedicatedKeys = assignmentEntries.Count > 1;
+        foreach (var assignmentEntry in assignmentEntries)
         {
-            case AuditEventTypes.Added:
-                auditEntry.AfterValues[AuditFields.AssignedUser] = afterUser;
-                auditEntry.Summary = string.Format(AuditSummaryTemplates.AssignmentAdded, afterUser);
-                break;
+            var organizationId = GetGuid(assignmentEntry, nameof(JobAssignmentRow.OrganizationId), useOriginalValue: assignmentEntry.State == EntityState.Deleted) ?? auditEntry.OrganizationId;
+            var beforeUserId = GetGuid(assignmentEntry, nameof(JobAssignmentRow.UserId), useOriginalValue: true);
+            var afterUserId = GetGuid(assignmentEntry, nameof(JobAssignmentRow.UserId));
+            var beforeUser = beforeUserId is null
+                ? null
+                : context.DisplayResolver.ResolveUserDisplayValue(context, organizationId, beforeUserId.Value);
+            var afterUser = afterUserId is null
+                ? null
+                : context.DisplayResolver.ResolveUserDisplayValue(context, organizationId, afterUserId.Value);
 
-            case AuditEventTypes.Deleted:
-                auditEntry.BeforeValues[AuditFields.AssignedUser] = beforeUser;
-                auditEntry.Summary = string.Format(AuditSummaryTemplates.AssignmentDeleted, beforeUser);
-                break;
+            var displayUser = assignmentEntry.State == EntityState.Deleted ? beforeUser : afterUser;
+            var key = useDedicatedKeys ? $"{AuditDisplayNames.Labels[AuditFields.AssignedUser]} / {displayUser}" : AuditFields.AssignedUser;
 
-            case AuditEventTypes.Modified when beforeUser != afterUser:
-                auditEntry.BeforeValues[AuditFields.AssignedUser] = beforeUser;
-                auditEntry.AfterValues[AuditFields.AssignedUser] = afterUser;
-                auditEntry.Summary = string.Format(AuditSummaryTemplates.AssignmentChanged, beforeUser, afterUser);
-                break;
+            switch (assignmentEntry.State)
+            {
+                case EntityState.Added:
+                    auditEntry.AfterValues[key] = afterUser;
+                    break;
+
+                case EntityState.Deleted:
+                    auditEntry.BeforeValues[key] = beforeUser;
+                    break;
+
+                case EntityState.Modified when beforeUser != afterUser:
+                    auditEntry.BeforeValues[key] = beforeUser;
+                    auditEntry.AfterValues[key] = afterUser;
+                    break;
+            }
         }
+
+        auditEntry.Summary = auditEntry.EventType switch
+        {
+            AuditEventTypes.Added when !useDedicatedKeys => string.Format(AuditSummaryTemplates.AssignmentAdded, auditEntry.AfterValues[AuditFields.AssignedUser]),
+            AuditEventTypes.Deleted when !useDedicatedKeys => string.Format(AuditSummaryTemplates.AssignmentDeleted, auditEntry.BeforeValues[AuditFields.AssignedUser]),
+            AuditEventTypes.Modified when !useDedicatedKeys => string.Format(AuditSummaryTemplates.AssignmentChanged, auditEntry.BeforeValues[AuditFields.AssignedUser], auditEntry.AfterValues[AuditFields.AssignedUser]),
+            AuditEventTypes.Added => AuditSummaryTemplates.AssignmentsAdded,
+            AuditEventTypes.Deleted => AuditSummaryTemplates.AssignmentsDeleted,
+            _ => AuditSummaryTemplates.AssignmentsChanged
+        };
 
         AuditChangeCollector.Finalize(auditEntry);
         return AuditChangeCollector.ShouldSkip(auditEntry) ? [] : [auditEntry];
     }
 
-    private static Guid? GetGuid(EntityEntry entry, string propertyName, bool useOriginalValue = false)
+    private static string ResolveEventType(IReadOnlyCollection<EntityEntry<JobAssignmentRow>> entries)
     {
-        var property = entry.Property(propertyName);
-        var value = useOriginalValue ? property.OriginalValue : property.CurrentValue;
-        return value is Guid id ? id : null;
+        if (entries.All(e => e.State == EntityState.Added))
+            return AuditEventTypes.Added;
+
+        if (entries.All(e => e.State == EntityState.Deleted))
+            return AuditEventTypes.Deleted;
+
+        return AuditEventTypes.Modified;
     }
 }
 
@@ -165,10 +193,10 @@ internal sealed class WorksheetAuditPolicy : IAuditEntityPolicy
         auditEntry.AfterValues.Remove(nameof(WorksheetRow.JobId));
 
         if (hasBefore && beforeValue is Guid beforeReportId)
-            auditEntry.BeforeValues[AuditFields.Report] = context.DisplayResolver.ResolveReportDisplayValue(organizationId, beforeReportId, context.DbContext);
+            auditEntry.BeforeValues[AuditFields.Report] = context.DisplayResolver.ResolveReportDisplayValue(context, organizationId, beforeReportId);
 
         if (hasAfter && afterValue is Guid afterReportId)
-            auditEntry.AfterValues[AuditFields.Report] = context.DisplayResolver.ResolveReportDisplayValue(organizationId, afterReportId, context.DbContext);
+            auditEntry.AfterValues[AuditFields.Report] = context.DisplayResolver.ResolveReportDisplayValue(context, organizationId, afterReportId);
     }
 
     private static void ReplaceUserIdWithDisplayValue(AuditBuildContext context, EntityEntry entry, AuditEntry auditEntry)
@@ -185,10 +213,10 @@ internal sealed class WorksheetAuditPolicy : IAuditEntityPolicy
         auditEntry.AfterValues.Remove(nameof(WorksheetRow.UserId));
 
         if (hasBefore && beforeValue is Guid beforeUserId)
-            auditEntry.BeforeValues[AuditFields.AssignedUser] = context.DisplayResolver.ResolveUserDisplayValue(organizationId, beforeUserId, context.DbContext);
+            auditEntry.BeforeValues[AuditFields.AssignedUser] = context.DisplayResolver.ResolveUserDisplayValue(context, organizationId, beforeUserId);
 
         if (hasAfter && afterValue is Guid afterUserId)
-            auditEntry.AfterValues[AuditFields.AssignedUser] = context.DisplayResolver.ResolveUserDisplayValue(organizationId, afterUserId, context.DbContext);
+            auditEntry.AfterValues[AuditFields.AssignedUser] = context.DisplayResolver.ResolveUserDisplayValue(context, organizationId, afterUserId);
     }
 
     private static void SetWorksheetSummary(AuditEntry auditEntry)
@@ -206,13 +234,6 @@ internal sealed class WorksheetAuditPolicy : IAuditEntityPolicy
             _ => auditEntry.Summary
         };
     }
-
-    private static Guid? GetGuid(EntityEntry entry, string propertyName, bool useOriginalValue = false)
-    {
-        var property = entry.Property(propertyName);
-        var value = useOriginalValue ? property.OriginalValue : property.CurrentValue;
-        return value is Guid id ? id : null;
-    }
 }
 
 internal sealed class JobReportClosureFlagAuditPolicy : IAuditEntityPolicy
@@ -224,46 +245,71 @@ internal sealed class JobReportClosureFlagAuditPolicy : IAuditEntityPolicy
         if (entry.State is not (EntityState.Added or EntityState.Deleted))
             return [];
 
-        var auditEntry = collector.BuildBaseEntry(context, entry);
-        var closureFlagId = GetGuid(entry, nameof(JobReportClosureFlagRow.ClosureFlagId), useOriginalValue: entry.State == EntityState.Deleted);
-        if (closureFlagId is null)
+        var reportId = GetGuid(entry, nameof(JobReportClosureFlagRow.JobReportId), useOriginalValue: entry.State == EntityState.Deleted);
+        if (reportId is null || !context.ProcessedClosureFlagReportIds.Add(reportId.Value))
             return [];
 
-        var closureFlag = context.DisplayResolver.ResolveClosureFlagDisplayValue(closureFlagId.Value, context.DbContext);
+        var closureFlagEntries = context.DbContext.ChangeTracker.Entries<JobReportClosureFlagRow>()
+            .Where(e => e.State is EntityState.Added or EntityState.Deleted)
+            .Where(e => GetGuid(e, nameof(JobReportClosureFlagRow.JobReportId), useOriginalValue: e.State == EntityState.Deleted) == reportId.Value)
+            .ToList();
+
+        if (closureFlagEntries.Count == 0)
+            return [];
+
+        var auditEntry = collector.BuildBaseEntry(context, entry);
         auditEntry.BeforeValues.Clear();
         auditEntry.AfterValues.Clear();
+        auditEntry.EventType = ResolveEventType(closureFlagEntries);
 
-        switch (auditEntry.EventType)
+        var useDedicatedKeys = closureFlagEntries.Count > 1;
+        foreach (var closureFlagEntry in closureFlagEntries)
         {
-            case AuditEventTypes.Added:
-                auditEntry.AfterValues[AuditFields.ClosureFlag] = closureFlag;
-                auditEntry.Summary = string.Format(AuditSummaryTemplates.ClosureFlagAdded, closureFlag);
-                break;
+            var closureFlagId = GetGuid(closureFlagEntry, nameof(JobReportClosureFlagRow.ClosureFlagId), useOriginalValue: closureFlagEntry.State == EntityState.Deleted);
+            if (closureFlagId is null)
+                continue;
 
-            case AuditEventTypes.Deleted:
-                auditEntry.BeforeValues[AuditFields.ClosureFlag] = closureFlag;
-                auditEntry.Summary = string.Format(AuditSummaryTemplates.ClosureFlagDeleted, closureFlag);
-                break;
+            var closureFlag = context.DisplayResolver.ResolveClosureFlagDisplayValue(context, closureFlagId.Value);
+            var key = useDedicatedKeys ? $"{AuditDisplayNames.Labels[AuditFields.ClosureFlag]} / {closureFlag}" : AuditFields.ClosureFlag;
+
+            switch (closureFlagEntry.State)
+            {
+                case EntityState.Added:
+                    auditEntry.AfterValues[key] = closureFlag;
+                    break;
+                case EntityState.Deleted:
+                    auditEntry.BeforeValues[key] = closureFlag;
+                    break;
+            }
         }
 
+        auditEntry.Summary = auditEntry.EventType switch
+        {
+            AuditEventTypes.Added when !useDedicatedKeys => string.Format(AuditSummaryTemplates.ClosureFlagAdded, auditEntry.AfterValues[AuditFields.ClosureFlag]),
+            AuditEventTypes.Deleted when !useDedicatedKeys => string.Format(AuditSummaryTemplates.ClosureFlagDeleted, auditEntry.BeforeValues[AuditFields.ClosureFlag]),
+            AuditEventTypes.Added => AuditSummaryTemplates.ClosureFlagsAdded,
+            AuditEventTypes.Deleted => AuditSummaryTemplates.ClosureFlagsDeleted,
+            _ => AuditSummaryTemplates.ClosureFlagsChanged
+        };
+
         AuditChangeCollector.Finalize(auditEntry);
-        return [auditEntry];
+        return AuditChangeCollector.ShouldSkip(auditEntry) ? [] : [auditEntry];
     }
 
-    private static Guid? GetGuid(EntityEntry entry, string propertyName, bool useOriginalValue = false)
+    private static string ResolveEventType(IReadOnlyCollection<EntityEntry<JobReportClosureFlagRow>> entries)
     {
-        var property = entry.Property(propertyName);
-        var value = useOriginalValue ? property.OriginalValue : property.CurrentValue;
-        return value is Guid id ? id : null;
+        if (entries.All(e => e.State == EntityState.Added))
+            return AuditEventTypes.Added;
+
+        if (entries.All(e => e.State == EntityState.Deleted))
+            return AuditEventTypes.Deleted;
+
+        return AuditEventTypes.Modified;
     }
 }
 
 internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
 {
-    private static readonly AsyncLocal<HashSet<Guid>?> ProcessedInstallations = new();
-
-    public static void ResetSession() => ProcessedInstallations.Value = null;
-
     public bool CanHandle(EntityEntry entry) => entry.Entity is JobReportInstallationRow
         or JobReportInstallationCategoryRow
         or JobReportInstallationControlPointRow;
@@ -281,8 +327,7 @@ internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
         if (ShouldDelegateToOldPolicy(context, entry, installationId.Value))
             return DelegateToOldPolicy(context, entry, collector);
 
-        ProcessedInstallations.Value ??= [];
-        if (!ProcessedInstallations.Value.Add(installationId.Value))
+        if (!context.ProcessedInstallationIds.Add(installationId.Value))
             return [];
 
         var consolidated = BuildConsolidatedEvent(context, entry, collector, installationId.Value);
@@ -294,10 +339,7 @@ internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
         if (entry.Entity is JobReportInstallationRow)
             return false;
 
-        var installationEntry = context.DbContext.ChangeTracker.Entries<JobReportInstallationRow>()
-            .FirstOrDefault(e => e.Entity.Id == installationId);
-
-        if (installationEntry.Entity is not null)
+        if (TryGetTrackedInstallationEntry(context.DbContext, installationId, out var installationEntry))
         {
             if (installationEntry.State is EntityState.Added or EntityState.Deleted)
                 return false;
@@ -328,11 +370,7 @@ internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
 
     private static AuditEntry? BuildConsolidatedEvent(AuditBuildContext context, EntityEntry entry, AuditChangeCollector collector, Guid installationId)
     {
-        var installationEntry = context.DbContext.ChangeTracker.Entries<JobReportInstallationRow>()
-            .FirstOrDefault(e => e.Entity.Id == installationId);
-
-        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-        var isTracked = installationEntry.Entity is not null;
+        var isTracked = TryGetTrackedInstallationEntry(context.DbContext, installationId, out var installationEntry);
 
         var eventType = isTracked
             ? installationEntry.State switch
@@ -354,12 +392,10 @@ internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
         auditEntry.BeforeValues.Clear();
         auditEntry.AfterValues.Clear();
 
-        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         var organizationId = isTracked
             ? GetGuid(installationEntry, nameof(JobReportInstallationRow.OrganizationId))
             : ResolveOrganizationFromDb(context, installationId);
 
-        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         var installationTypeId = isTracked
             ? GetGuid(installationEntry, nameof(JobReportInstallationRow.InstallationTypeDefinitionId), installationEntry.State == EntityState.Deleted)
             : ResolveInstallationTypeIdFromDb(context, installationId);
@@ -371,7 +407,7 @@ internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
         }
 
         var installationTypeName = context.DisplayResolver.ResolveInstallationTypeDisplayValue(
-            organizationId.Value, installationTypeId.Value, context.DbContext);
+            context, organizationId.Value, installationTypeId.Value);
 
         switch (eventType)
         {
@@ -410,7 +446,7 @@ internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
                 catEntry.State == EntityState.Deleted);
             if (catId is null) continue;
 
-            var catName = context.DisplayResolver.ResolveControlCategoryDisplayValue(catId.Value, context.DbContext);
+            var catName = context.DisplayResolver.ResolveControlCategoryDisplayValue(context, catId.Value);
 
             if (catEntry.State != EntityState.Unchanged)
             {
@@ -460,7 +496,7 @@ internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
                 cpEntry.State == EntityState.Deleted);
             if (cpId is null) continue;
 
-            var cpName = context.DisplayResolver.ResolveControlPointDisplayValue(cpId.Value, context.DbContext);
+            var cpName = context.DisplayResolver.ResolveControlPointDisplayValue(context, cpId.Value);
             var key = $"{catName}{AuditSuffixes.ControlPointSeparator}{cpName}";
 
             var checkedProp = cpEntry.Property(nameof(JobReportInstallationControlPointRow.IsChecked));
@@ -486,6 +522,21 @@ internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
     private static string FormatBool(object? value) =>
         value is bool b ? (b ? AuditDisplayValues.Checked : AuditDisplayValues.Unchecked) : value?.ToString() ?? AuditDisplayValues.Unchecked;
 
+    private static bool TryGetTrackedInstallationEntry(DbContext dbContext, Guid installationId, out EntityEntry<JobReportInstallationRow> entry)
+    {
+        foreach (var trackedEntry in dbContext.ChangeTracker.Entries<JobReportInstallationRow>())
+        {
+            if (trackedEntry.Entity.Id != installationId)
+                continue;
+
+            entry = trackedEntry;
+            return true;
+        }
+
+        entry = null!;
+        return false;
+    }
+
     private static Guid? ResolveInstallationId(EntityEntry entry, DbContext dbContext)
     {
         if (entry.Entity is JobReportInstallationRow inst)
@@ -509,13 +560,6 @@ internal sealed class JobReportInstallationAuditPolicy : IAuditEntityPolicy
         }
 
         return null;
-    }
-
-    private static Guid? GetGuid(EntityEntry entry, string propertyName, bool useOriginalValue = false)
-    {
-        var property = entry.Property(propertyName);
-        var value = useOriginalValue ? property.OriginalValue : property.CurrentValue;
-        return value is Guid id ? id : null;
     }
 
     private static Guid? ResolveOrganizationFromDb(AuditBuildContext context, Guid installationId) =>
@@ -555,7 +599,7 @@ internal sealed class JobReportInstallationCategoryAuditPolicy : IAuditEntityPol
         if (categoryId is null)
             return [];
 
-        var category = context.DisplayResolver.ResolveControlCategoryDisplayValue(categoryId.Value, context.DbContext);
+        var category = context.DisplayResolver.ResolveControlCategoryDisplayValue(context, categoryId.Value);
         var hasIrrelevantChange = auditEntry.BeforeValues.ContainsKey(nameof(JobReportInstallationCategoryRow.IsIrrelevant))
             || auditEntry.AfterValues.ContainsKey(nameof(JobReportInstallationCategoryRow.IsIrrelevant));
         auditEntry.BeforeValues.Clear();
@@ -627,14 +671,7 @@ internal sealed class JobReportInstallationCategoryAuditPolicy : IAuditEntityPol
         if (installation is null) return null;
 
         return context.DisplayResolver.ResolveInstallationTypeDisplayValue(
-            installation.OrganizationId, installation.InstallationTypeDefinitionId, context.DbContext);
-    }
-
-    private static Guid? GetGuid(EntityEntry entry, string propertyName, bool useOriginalValue = false)
-    {
-        var property = entry.Property(propertyName);
-        var value = useOriginalValue ? property.OriginalValue : property.CurrentValue;
-        return value is Guid id ? id : null;
+            context, installation.OrganizationId, installation.InstallationTypeDefinitionId);
     }
 }
 
@@ -672,7 +709,7 @@ internal sealed class JobReportInstallationControlPointAuditPolicy : IAuditEntit
         if (controlPointId is null)
             return [];
 
-        var controlPoint = context.DisplayResolver.ResolveControlPointDisplayValue(controlPointId.Value, context.DbContext);
+        var controlPoint = context.DisplayResolver.ResolveControlPointDisplayValue(context, controlPointId.Value);
         var hasCheckedChange = auditEntry.BeforeValues.ContainsKey(nameof(JobReportInstallationControlPointRow.IsChecked))
             || auditEntry.AfterValues.ContainsKey(nameof(JobReportInstallationControlPointRow.IsChecked));
         auditEntry.BeforeValues.Clear();
@@ -746,7 +783,7 @@ internal sealed class JobReportInstallationControlPointAuditPolicy : IAuditEntit
 
         if (category is null) return (null, null);
 
-        var categoryName = context.DisplayResolver.ResolveControlCategoryDisplayValue(category.ControlCategoryId, context.DbContext);
+        var categoryName = context.DisplayResolver.ResolveControlCategoryDisplayValue(context, category.ControlCategoryId);
 
         var installation = context.DbContext.Set<JobReportInstallationRow>().Local
             .FirstOrDefault(i => i.Id == category.JobReportInstallationId)
@@ -754,7 +791,7 @@ internal sealed class JobReportInstallationControlPointAuditPolicy : IAuditEntit
                 .FirstOrDefault(i => i.Id == category.JobReportInstallationId);
 
         var installationType = installation is not null
-            ? context.DisplayResolver.ResolveInstallationTypeDisplayValue(installation.OrganizationId, installation.InstallationTypeDefinitionId, context.DbContext)
+            ? context.DisplayResolver.ResolveInstallationTypeDisplayValue(context, installation.OrganizationId, installation.InstallationTypeDefinitionId)
             : null;
 
         return (categoryName, installationType);
@@ -775,13 +812,6 @@ internal sealed class JobReportInstallationControlPointAuditPolicy : IAuditEntit
 
     private static string FormatJaNej(object? value) =>
         value is bool b ? (b ? AuditDisplayValues.Checked : AuditDisplayValues.Unchecked) : value?.ToString() ?? AuditDisplayValues.Unchecked;
-
-    private static Guid? GetGuid(EntityEntry entry, string propertyName, bool useOriginalValue = false)
-    {
-        var property = entry.Property(propertyName);
-        var value = useOriginalValue ? property.OriginalValue : property.CurrentValue;
-        return value is Guid id ? id : null;
-    }
 }
 
 internal sealed class JobReportLinkAuditPolicy : IAuditEntityPolicy
@@ -790,55 +820,106 @@ internal sealed class JobReportLinkAuditPolicy : IAuditEntityPolicy
 
     public IReadOnlyList<AuditEntry> BuildEvents(AuditBuildContext context, EntityEntry entry, AuditChangeCollector collector)
     {
-        if (entry.Entity is not JobReportLinkRow link || entry.State is not (EntityState.Added or EntityState.Deleted))
+        if (entry.Entity is not JobReportLinkRow || entry.State is not (EntityState.Added or EntityState.Deleted))
             return [];
 
-        var sourceAuditEntry = collector.BuildBaseEntry(context, entry);
-        sourceAuditEntry.ReportId = link.SourceReportId;
-        EnrichJobLink(context, entry, sourceAuditEntry, link.SourceReportId);
-        AuditChangeCollector.Finalize(sourceAuditEntry);
+        var linkEntries = context.DbContext.ChangeTracker.Entries<JobReportLinkRow>()
+            .Where(e => e.State is EntityState.Added or EntityState.Deleted)
+            .ToList();
 
-        var targetAuditEntry = sourceAuditEntry.Clone();
-        targetAuditEntry.ReportId = link.TargetReportId;
-        EnrichJobLink(context, entry, targetAuditEntry, link.TargetReportId);
-        AuditChangeCollector.Finalize(targetAuditEntry);
+        var perspectiveReportIds = linkEntries
+            .SelectMany(GetReportIds)
+            .Distinct()
+            .Where(context.ProcessedLinkReportIds.Add)
+            .ToArray();
 
-        return [sourceAuditEntry, targetAuditEntry];
+        if (perspectiveReportIds.Length == 0)
+            return [];
+
+        var events = new List<AuditEntry>();
+        foreach (var perspectiveReportId in perspectiveReportIds)
+        {
+            var relevantEntries = linkEntries
+                .Where(linkEntry => GetReportIds(linkEntry).Contains(perspectiveReportId))
+                .ToArray();
+
+            if (relevantEntries.Length == 0)
+                continue;
+
+            var auditEntry = collector.BuildBaseEntry(context, relevantEntries[0]);
+            auditEntry.ReportId = perspectiveReportId;
+            auditEntry.EventType = ResolveEventType(relevantEntries);
+            EnrichJobLinks(context, auditEntry, relevantEntries, perspectiveReportId);
+            AuditChangeCollector.Finalize(auditEntry);
+
+            if (!AuditChangeCollector.ShouldSkip(auditEntry))
+                events.Add(auditEntry);
+        }
+
+        return events;
     }
 
-    private static void EnrichJobLink(AuditBuildContext context, EntityEntry entry, AuditEntry auditEntry, Guid perspectiveReportId)
+    private static void EnrichJobLinks(AuditBuildContext context, AuditEntry auditEntry, IReadOnlyList<EntityEntry<JobReportLinkRow>> entries, Guid perspectiveReportId)
     {
-        var sourceReportId = GetGuid(entry, nameof(JobReportLinkRow.SourceReportId), useOriginalValue: entry.State == EntityState.Deleted);
-        var targetReportId = GetGuid(entry, nameof(JobReportLinkRow.TargetReportId), useOriginalValue: entry.State == EntityState.Deleted);
-        if (sourceReportId is null || targetReportId is null)
-            return;
-
-        var linkedReportId = perspectiveReportId == sourceReportId.Value
-            ? targetReportId.Value
-            : sourceReportId.Value;
-        var linkedReport = context.DisplayResolver.ResolveReportDisplayValue(auditEntry.OrganizationId, linkedReportId, context.DbContext);
-
         auditEntry.BeforeValues.Clear();
         auditEntry.AfterValues.Clear();
 
-        switch (auditEntry.EventType)
+        var useDedicatedKeys = entries.Count > 1;
+        foreach (var entry in entries)
         {
-            case AuditEventTypes.Added:
-                auditEntry.AfterValues[AuditFields.LinkedReport] = linkedReport;
-                auditEntry.Summary = string.Format(AuditSummaryTemplates.LinkAdded, linkedReport);
-                break;
+            var sourceReportId = GetGuid(entry, nameof(JobReportLinkRow.SourceReportId), useOriginalValue: entry.State == EntityState.Deleted);
+            var targetReportId = GetGuid(entry, nameof(JobReportLinkRow.TargetReportId), useOriginalValue: entry.State == EntityState.Deleted);
+            if (sourceReportId is null || targetReportId is null)
+                continue;
 
-            case AuditEventTypes.Deleted:
-                auditEntry.BeforeValues[AuditFields.LinkedReport] = linkedReport;
-                auditEntry.Summary = string.Format(AuditSummaryTemplates.LinkDeleted, linkedReport);
-                break;
+            var linkedReportId = perspectiveReportId == sourceReportId.Value
+                ? targetReportId.Value
+                : sourceReportId.Value;
+            var linkedReport = context.DisplayResolver.ResolveReportDisplayValue(context, auditEntry.OrganizationId, linkedReportId);
+            var key = useDedicatedKeys ? $"{AuditDisplayNames.Labels[AuditFields.LinkedReport]} / {linkedReport}" : AuditFields.LinkedReport;
+
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    auditEntry.AfterValues[key] = linkedReport;
+                    break;
+
+                case EntityState.Deleted:
+                    auditEntry.BeforeValues[key] = linkedReport;
+                    break;
+            }
         }
+
+        auditEntry.Summary = auditEntry.EventType switch
+        {
+            AuditEventTypes.Added when !useDedicatedKeys => string.Format(AuditSummaryTemplates.LinkAdded, auditEntry.AfterValues[AuditFields.LinkedReport]),
+            AuditEventTypes.Deleted when !useDedicatedKeys => string.Format(AuditSummaryTemplates.LinkDeleted, auditEntry.BeforeValues[AuditFields.LinkedReport]),
+            AuditEventTypes.Added => AuditSummaryTemplates.LinksAdded,
+            AuditEventTypes.Deleted => AuditSummaryTemplates.LinksDeleted,
+            _ => AuditSummaryTemplates.LinksChanged
+        };
     }
 
-    private static Guid? GetGuid(EntityEntry entry, string propertyName, bool useOriginalValue = false)
+    private static string ResolveEventType(IReadOnlyCollection<EntityEntry<JobReportLinkRow>> entries)
     {
-        var property = entry.Property(propertyName);
-        var value = useOriginalValue ? property.OriginalValue : property.CurrentValue;
-        return value is Guid id ? id : null;
+        if (entries.All(e => e.State == EntityState.Added))
+            return AuditEventTypes.Added;
+
+        if (entries.All(e => e.State == EntityState.Deleted))
+            return AuditEventTypes.Deleted;
+
+        return AuditEventTypes.Modified;
+    }
+
+    private static IEnumerable<Guid> GetReportIds(EntityEntry<JobReportLinkRow> entry)
+    {
+        var sourceReportId = GetGuid(entry, nameof(JobReportLinkRow.SourceReportId), useOriginalValue: entry.State == EntityState.Deleted);
+        var targetReportId = GetGuid(entry, nameof(JobReportLinkRow.TargetReportId), useOriginalValue: entry.State == EntityState.Deleted);
+
+        if (sourceReportId is not null)
+            yield return sourceReportId.Value;
+
+        if (targetReportId is not null)
+            yield return targetReportId.Value;
     }
 }

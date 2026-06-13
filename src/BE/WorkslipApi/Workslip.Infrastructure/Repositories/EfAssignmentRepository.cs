@@ -226,7 +226,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             .ToArray();
     }
 
-    public async Task AddAssignedUsersAsync(
+    public Task AddAssignedUsersAsync(
         Guid organizationId, Guid reportId,
         IReadOnlyList<Guid> userIds, Guid? actorId,
         DateTimeOffset now, CancellationToken cancellationToken)
@@ -244,7 +244,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             });
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     private async Task<IReadOnlyList<AssignedUserResponse>> GetSingleAssignedUsersAsync(

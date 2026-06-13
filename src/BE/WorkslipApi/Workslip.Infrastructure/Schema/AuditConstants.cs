@@ -74,6 +74,9 @@ internal static class AuditSummaryTemplates
     public const string AssignmentAdded = "{0} tilføjet";
     public const string AssignmentDeleted = "{0} fjernet";
     public const string AssignmentChanged = "Ansvar ændret: '{0}' → '{1}'";
+    public const string AssignmentsAdded = "Tildelte medarbejdere tilføjet";
+    public const string AssignmentsDeleted = "Tildelte medarbejdere fjernet";
+    public const string AssignmentsChanged = "Tildelte medarbejdere ændret";
 
     // Worksheet
     public const string WorksheetAdded = "Arbejdsseddel for {0} tilføjet";
@@ -82,6 +85,9 @@ internal static class AuditSummaryTemplates
     // Closure flag
     public const string ClosureFlagAdded = "Afslutning af sag {0} tilføjet";
     public const string ClosureFlagDeleted = "Afslutning af {0} fjernet";
+    public const string ClosureFlagsAdded = "Afslutningsflag tilføjet";
+    public const string ClosureFlagsDeleted = "Afslutningsflag fjernet";
+    public const string ClosureFlagsChanged = "Afslutningsflag ændret";
 
     // Installation type
     public const string InstallationAdded = "Installationstype {0} tilføjet";
@@ -104,4 +110,7 @@ internal static class AuditSummaryTemplates
     // Job link
     public const string LinkAdded = "Link til {0} tilføjet";
     public const string LinkDeleted = "Link til {0} fjernet";
+    public const string LinksAdded = "Relaterede sager tilføjet";
+    public const string LinksDeleted = "Relaterede sager fjernet";
+    public const string LinksChanged = "Relaterede sager ændret";
 }

@@ -56,6 +56,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
 
             if (auditEntries.Count > 0)
             {
+                var createdAt = DateTimeOffset.UtcNow;
                 var eventRows = auditEntries.Select(ae => new JobEventRow
                 {
                     Id = Guid.NewGuid(),
@@ -66,7 +67,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
                     Summary = ae.Summary,
                     BeforeJson = ae.BeforeValues.Count > 0 ? JsonSerializer.Serialize(ae.BeforeValues, JsonOptions) : null,
                     AfterJson = ae.AfterValues.Count > 0 ? JsonSerializer.Serialize(ae.AfterValues, JsonOptions) : null,
-                    CreatedAt = DateTimeOffset.UtcNow
+                    CreatedAt = createdAt
                 });
 
                 dbContext.Set<JobEventRow>().AddRange(eventRows);
@@ -86,7 +87,6 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             return [];
 
         dbContext.ChangeTracker.DetectChanges();
-        JobReportInstallationAuditPolicy.ResetSession();
         var auditEntries = new List<AuditEntry>();
         var buildContext = new AuditBuildContext(dbContext, currentUser, displayResolver);
         var reportsWithWorkKindChange = ReportsWithWorkKindChange(dbContext);
@@ -103,7 +103,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             auditEntries.AddRange(policy
                 .BuildEvents(buildContext, entry, changeCollector)
                 .Where(auditEntry => !ShouldSuppressInstallationHierarchyChurn(auditEntry, reportsWithWorkKindChange))
-                .Where(auditEntry => ShouldCaptureAuditEntry(dbContext, auditEntry)));
+                .Where(auditEntry => ShouldCaptureAuditEntry(buildContext, auditEntry)));
         }
 
         return auditEntries;
@@ -123,12 +123,12 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             or JobReportInstallationCategoryRow
             or JobReportInstallationControlPointRow);
 
-    private static bool ShouldCaptureAuditEntry(DbContext dbContext, AuditEntry auditEntry)
+    private static bool ShouldCaptureAuditEntry(AuditBuildContext context, AuditEntry auditEntry)
     {
-        if (auditEntry.ReportId == Guid.Empty)
+        if (auditEntry.ReportId is not Guid reportId || reportId == Guid.Empty)
             return false;
 
-        var reportState = ResolveReportState(dbContext, auditEntry);
+        var reportState = ResolveReportState(context, auditEntry, reportId);
         if (reportState is null)
             return false;
 
@@ -137,19 +137,28 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         if (IsTransitionToInReview(auditEntry))
             return true;
 
-        if (dbContext.Set<JobEventRow>().Local.Any(e => e.ReportId == auditEntry.ReportId && e.OrganizationId == auditEntry.OrganizationId))
-            return true;
+        var historyKey = (auditEntry.OrganizationId, reportId);
+        if (!context.ReportHistoryExistsCache.TryGetValue(historyKey, out var hasExistingHistory))
+        {
+            hasExistingHistory = context.DbContext.Set<JobEventRow>().Local.Any(e => e.ReportId == reportId && e.OrganizationId == auditEntry.OrganizationId)
+                || context.DbContext.Set<JobEventRow>().AsNoTracking().Any(e => e.ReportId == reportId && e.OrganizationId == auditEntry.OrganizationId);
+            context.ReportHistoryExistsCache[historyKey] = hasExistingHistory;
+        }
 
-        if (dbContext.Set<JobEventRow>().AsNoTracking().Any(e => e.ReportId == auditEntry.ReportId && e.OrganizationId == auditEntry.OrganizationId))
+        if (hasExistingHistory)
             return true;
 
         return IsHistoryStatus(reportState.Value.CurrentStatus) || IsHistoryStatus(reportState.Value.OriginalStatus);
     }
 
-    private static (Guid OrganizationId, string CurrentStatus, string OriginalStatus)? ResolveReportState(DbContext dbContext, AuditEntry auditEntry)
+    private static (Guid OrganizationId, string CurrentStatus, string OriginalStatus)? ResolveReportState(AuditBuildContext context, AuditEntry auditEntry, Guid reportId)
     {
+        if (context.ReportStateCache.TryGetValue(reportId, out var cached))
+            return cached;
+
+        var dbContext = context.DbContext;
         var local = dbContext.Set<JobReportRow>().Local
-            .FirstOrDefault(r => r.Id == auditEntry.ReportId
+            .FirstOrDefault(r => r.Id == reportId
                 && (auditEntry.OrganizationId == Guid.Empty || r.OrganizationId == auditEntry.OrganizationId));
         if (local is not null)
         {
@@ -157,15 +166,21 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
             var originalStatus = entry.State is EntityState.Modified
                 ? entry.Property(r => r.Status).OriginalValue
                 : local.Status;
-            return (local.OrganizationId, local.Status, originalStatus);
+            var resolved = (local.OrganizationId, local.Status, originalStatus);
+            context.ReportStateCache[reportId] = resolved;
+            return resolved;
         }
 
         var stored = dbContext.Set<JobReportRow>().AsNoTracking()
-            .Where(r => r.Id == auditEntry.ReportId
+            .Where(r => r.Id == reportId
                 && (auditEntry.OrganizationId == Guid.Empty || r.OrganizationId == auditEntry.OrganizationId))
             .Select(r => new { r.OrganizationId, r.Status })
             .FirstOrDefault();
-        return stored is null ? null : (stored.OrganizationId, stored.Status, stored.Status);
+        (Guid OrganizationId, string CurrentStatus, string OriginalStatus)? storedState = stored is null
+            ? null
+            : (stored.OrganizationId, stored.Status, stored.Status);
+        context.ReportStateCache[reportId] = storedState;
+        return storedState;
     }
 
     private static bool IsTransitionToInReview(AuditEntry auditEntry) =>
