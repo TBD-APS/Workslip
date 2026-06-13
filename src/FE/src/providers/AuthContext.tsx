@@ -2,7 +2,8 @@ import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
-import { useGetApiAuthMe } from '../api/generated/auth/auth';
+import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
+import type { UserViewModel } from '../api/generated/models';
 import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY } from './authContextValue';
 
 
@@ -59,8 +60,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.clear();
   }, [queryClient]);
 
+  const updateUser = useCallback(
+    (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => {
+      queryClient.setQueryData(getGetApiAuthMeQueryKey(), (old: UserViewModel | undefined) => {
+        if (!old) return old;
+        return { ...old, ...partial };
+      });
+    },
+    [queryClient],
+  );
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, isLoading, login, devLogin, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, isLoading, login, devLogin, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

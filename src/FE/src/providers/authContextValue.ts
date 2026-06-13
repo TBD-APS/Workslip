@@ -11,6 +11,7 @@ export interface AuthContextType {
   login: (email: string, code: string) => Promise<boolean>;
   devLogin: (email: string) => Promise<boolean>;
   logout: () => void;
+  updateUser: (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
