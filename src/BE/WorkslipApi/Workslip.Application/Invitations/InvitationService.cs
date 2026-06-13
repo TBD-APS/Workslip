@@ -100,7 +100,7 @@ public sealed class InvitationService(
         catch (Exception ex)
         {
             await RollbackTransactionAsync(transaction, cancellationToken);
-            await DeleteRollbackUserAsync(entraUser, cancellationToken);
+            await DeleteRollbackUserAsync(entraUser, invite, cancellationToken);
             logger.LogError(ex, "Invite enrollment failed. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
             throw;
         }
@@ -118,42 +118,77 @@ public sealed class InvitationService(
         }
     }
 
-    private async Task DeleteRollbackUserAsync(CreateEntraUserResult? entraUser, CancellationToken cancellationToken)
+    private async Task DeleteRollbackUserAsync(CreateEntraUserResult? entraUser, InviteTokenRow invite, CancellationToken cancellationToken)
     {
-        if (entraUser is not { Created: true })
+        var deleteEntraUserId = GetInviteOwnedRollbackUserId(entraUser, invite);
+        if (deleteEntraUserId is null)
         {
             return;
         }
 
         try
         {
-            await entraService.DeleteUserAsync(entraUser.EntraUserId, cancellationToken);
+            await entraService.DeleteUserAsync(deleteEntraUserId, cancellationToken);
+            await MarkInviteEntraCleanedAsync(invite, cancellationToken);
         }
         catch (Exception deleteException)
         {
-            logger.LogError(deleteException, "Failed to delete newly-created Entra user after invite enrollment rollback. EntraUserId: {EntraUserId}", entraUser.EntraUserId);
+            logger.LogError(deleteException, "Failed to delete invite-owned Entra user after invite enrollment rollback. EntraUserId: {EntraUserId}", deleteEntraUserId);
         }
+    }
+
+    private static string? GetInviteOwnedRollbackUserId(CreateEntraUserResult? entraUser, InviteTokenRow invite)
+    {
+        if (entraUser is { Created: true })
+        {
+            return entraUser.EntraUserId;
+        }
+
+        if (invite is { EntraCreatedByInvite: true, EntraCleanedAt: null }
+            && !string.IsNullOrWhiteSpace(invite.EntraUserId)
+            && string.Equals(invite.EntraUserId, entraUser?.EntraUserId, StringComparison.OrdinalIgnoreCase))
+        {
+            return invite.EntraUserId;
+        }
+
+        return null;
     }
 
     private async Task<Result<AuthUserInfo>?> ValidateInviteAsync(InviteTokenRow invite, CancellationToken cancellationToken)
     {
+        var validationError = await GetInviteValidationErrorAsync(invite, cancellationToken);
+        return validationError is null
+            ? null
+            : Result<AuthUserInfo>.Conflict(validationError);
+    }
+
+    private async Task<Result?> ValidateInviteForOpenAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    {
+        var validationError = await GetInviteValidationErrorAsync(invite, cancellationToken);
+        return validationError is null
+            ? null
+            : Result.Conflict(validationError);
+    }
+
+    private async Task<string?> GetInviteValidationErrorAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    {
         if (invite.Consumed)
         {
             logger.LogWarning("Invite verification failed: already consumed. Token: {Token}", invite.Token);
-            return Result<AuthUserInfo>.Conflict("invite_consumed");
+            return "invite_consumed";
         }
 
         if (DateTimeOffset.UtcNow > invite.ExpiresAt)
         {
             logger.LogWarning("Invite verification failed: expired. Token: {Token}", invite.Token);
-            return Result<AuthUserInfo>.Conflict("invite_expired");
+            return "invite_expired";
         }
 
         var existing = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
         if (existing is not null)
         {
             logger.LogWarning("Invite verification failed: user already exists. Email: {Email}", invite.Email);
-            return Result<AuthUserInfo>.Conflict("user_already_exists");
+            return "user_already_exists";
         }
 
         return null;
@@ -222,7 +257,11 @@ public sealed class InvitationService(
                 i.ExpiresAt,
                 i.Consumed,
                 i.OpenedAt,
-                i.AcceptedAt)).ToList());
+                i.AcceptedAt,
+                i.EntraUserId,
+                i.EntraCreatedByInvite,
+                i.EntraProvisionedAt,
+                i.EntraCleanedAt)).ToList());
 
         return Result<InviteListResponse>.Success(response);
     }
@@ -230,17 +269,71 @@ public sealed class InvitationService(
     public async Task<Result> MarkOpenedAsync(string token, CancellationToken cancellationToken)
     {
         var invite = await inviteRepository.GetByTokenAsync(token, cancellationToken);
-        
+
         if (invite is null)
         {
-            logger.LogError($"Unable to mark {token} because not found in db");
+            logger.LogWarning("Unable to open invite because token was not found. Token: {Token}", token);
             return Result.NotFound();
         }
 
+        var validationError = await ValidateInviteForOpenAsync(invite, cancellationToken);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        try
+        {
+            var entraUser = await entraService.EnsureInvitedUserAsync(invite.Email, cancellationToken);
+            invite.EntraUserId = entraUser.EntraUserId;
+            invite.EntraCreatedByInvite = entraUser.Created;
+            invite.EntraProvisionedAt ??= DateTimeOffset.UtcNow;
+            invite.EntraCleanedAt = null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Invite open failed during Entra guest pre-creation. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
+            throw;
+        }
+
         await inviteRepository.MarkOpenedAsync(invite, cancellationToken);
-        logger.LogError($"Marked {token} opened in db");
+        logger.LogInformation("Invite opened and Entra guest ensured. Token: {Token}. Email: {Email}", token, invite.Email);
 
         return Result.Success();
+    }
+
+    public async Task<int> CleanupStaleEntraInvitesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken)
+    {
+        var staleInvites = await inviteRepository.GetStaleEntraProvisionedAsync(now, take, cancellationToken);
+        var cleanedCount = 0;
+
+        foreach (var invite in staleInvites)
+        {
+            var existingUser = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
+            if (existingUser is not null || string.IsNullOrWhiteSpace(invite.EntraUserId))
+            {
+                continue;
+            }
+
+            try
+            {
+                await entraService.DeleteUserAsync(invite.EntraUserId, cancellationToken);
+                await MarkInviteEntraCleanedAsync(invite, cancellationToken);
+                cleanedCount++;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to clean stale invite-owned Entra user. InviteId: {InviteId}. EntraUserId: {EntraUserId}", invite.Id, invite.EntraUserId);
+            }
+        }
+
+        return cleanedCount;
+    }
+
+    private async Task MarkInviteEntraCleanedAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    {
+        invite.EntraCleanedAt = DateTimeOffset.UtcNow;
+        await inviteRepository.UpdateAsync(invite, cancellationToken);
     }
 
     private static UserDataRow BuildUserFromInvite(InviteTokenRow invite, CreateEntraUserResult entraUser, string displayName, string? phone) =>

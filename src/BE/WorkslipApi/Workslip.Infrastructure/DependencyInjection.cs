@@ -9,6 +9,7 @@ using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
+using Workslip.Infrastructure.Invitations;
 using Workslip.Application.Worksheets;
 using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Repositories;
@@ -53,6 +54,7 @@ public static class DependencyInjection
 
         services.AddScoped<IEmailService, AcsEmailService>();
         services.AddHostedService<JobDeletionCleanupService>();
+        services.AddHostedService<InviteEntraCleanupService>();
 
         return services;
     }

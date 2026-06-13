@@ -34,6 +34,29 @@ public sealed class InvitationEnrollmentTests
     }
 
     [Fact]
+    public async Task CompleteEnrollmentAsync_WhenSqlCreateFails_DeletesInviteOwnedPrecreatedEntraUser()
+    {
+        var invite = CreateInvite();
+        invite.EntraUserId = "entra-1";
+        invite.EntraCreatedByInvite = true;
+        invite.EntraProvisionedAt = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var users = new FakeUserRepository { ThrowOnCreate = true };
+        var invites = new FakeInviteRepository(invite);
+        var entra = new FakeEntraService { CreateResult = new CreateEntraUserResult("entra-1", "jane@example.test", "Jane", Created: false) };
+        var transactionFactory = new FakeTransactionFactory();
+        var service = CreateService(users, invites, entra, transactionFactory);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CompleteEnrollmentAsync(new EntraEnrollRequest(invite.Token, "Jane", "+45"), CancellationToken.None));
+
+        Assert.Equal(1, entra.DeleteCalls);
+        Assert.Equal("entra-1", entra.DeletedUserId);
+        Assert.NotNull(invite.EntraCleanedAt);
+        Assert.Equal(1, invites.UpdateCalls);
+        Assert.Equal(0, invites.MarkConsumedCalls);
+    }
+
+    [Fact]
     public async Task CompleteEnrollmentAsync_WhenInviteExpired_ReturnsConflictAndDoesNotCreateEntraUser()
     {
         var invite = CreateInvite();
@@ -93,6 +116,80 @@ public sealed class InvitationEnrollmentTests
         Assert.Equal(1, transactionFactory.Transaction.CommitCalls);
         Assert.Equal(0, transactionFactory.Transaction.RollbackCalls);
         Assert.Equal(0, entra.DeleteCalls);
+    }
+
+    [Fact]
+    public async Task MarkOpenedAsync_WhenInviteValid_EnsuresEntraGuestBeforeMarkingOpened()
+    {
+        var invite = CreateInvite();
+        var invites = new FakeInviteRepository(invite);
+        var entra = new FakeEntraService();
+        var service = CreateService(new FakeUserRepository(), invites, entra, new FakeTransactionFactory());
+
+        var result = await service.MarkOpenedAsync(invite.Token, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(1, entra.EnsureInvitedCalls);
+        Assert.Equal(invite.Email, entra.EnsureInvitedEmail);
+        Assert.Equal(1, invites.MarkOpenedCalls);
+        Assert.Equal(0, entra.CreateCalls);
+    }
+
+    [Fact]
+    public async Task MarkOpenedAsync_WhenInviteExpired_DoesNotEnsureEntraGuestOrMarkOpened()
+    {
+        var invite = CreateInvite();
+        invite.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var invites = new FakeInviteRepository(invite);
+        var entra = new FakeEntraService();
+        var service = CreateService(new FakeUserRepository(), invites, entra, new FakeTransactionFactory());
+
+        var result = await service.MarkOpenedAsync(invite.Token, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Contains("invite_expired", result.Errors);
+        Assert.Equal(0, entra.EnsureInvitedCalls);
+        Assert.Equal(0, invites.MarkOpenedCalls);
+    }
+
+    [Fact]
+    public async Task CleanupStaleEntraInvitesAsync_WhenExpiredInviteOwnsEntraUser_DeletesAndMarksCleaned()
+    {
+        var invite = CreateInvite();
+        invite.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        invite.EntraUserId = "entra-1";
+        invite.EntraCreatedByInvite = true;
+        invite.EntraProvisionedAt = DateTimeOffset.UtcNow.AddDays(-1);
+        var invites = new FakeInviteRepository(invite);
+        var entra = new FakeEntraService();
+        var service = CreateService(new FakeUserRepository(), invites, entra, new FakeTransactionFactory());
+
+        var cleanedCount = await service.CleanupStaleEntraInvitesAsync(DateTimeOffset.UtcNow, 10, CancellationToken.None);
+
+        Assert.Equal(1, cleanedCount);
+        Assert.Equal(1, entra.DeleteCalls);
+        Assert.Equal("entra-1", entra.DeletedUserId);
+        Assert.NotNull(invite.EntraCleanedAt);
+        Assert.Equal(1, invites.UpdateCalls);
+    }
+
+    [Fact]
+    public async Task CleanupStaleEntraInvitesAsync_WhenSqlUserExists_DoesNotDeleteEntraUser()
+    {
+        var invite = CreateInvite();
+        invite.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        invite.EntraUserId = "entra-1";
+        invite.EntraCreatedByInvite = true;
+        var invites = new FakeInviteRepository(invite);
+        var users = new FakeUserRepository { ExistingUser = new UserDataRow { Id = Guid.NewGuid(), Email = invite.Email } };
+        var entra = new FakeEntraService();
+        var service = CreateService(users, invites, entra, new FakeTransactionFactory());
+
+        var cleanedCount = await service.CleanupStaleEntraInvitesAsync(DateTimeOffset.UtcNow, 10, CancellationToken.None);
+
+        Assert.Equal(0, cleanedCount);
+        Assert.Equal(0, entra.DeleteCalls);
+        Assert.Null(invite.EntraCleanedAt);
     }
 
     private static InvitationService CreateService(
@@ -155,12 +252,24 @@ public sealed class InvitationEnrollmentTests
     private sealed class FakeInviteRepository(InviteTokenRow invite) : IInviteRepository
     {
         public int MarkConsumedCalls { get; private set; }
+        public int MarkOpenedCalls { get; private set; }
+        public int UpdateCalls { get; private set; }
 
         public Task CreateAsync(InviteTokenRow invite, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task UpdateAsync(InviteTokenRow invite, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task UpdateAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+        {
+            UpdateCalls++;
+            return Task.CompletedTask;
+        }
         public Task<InviteTokenRow?> GetByTokenAsync(string token, CancellationToken cancellationToken) => Task.FromResult(token == invite.Token ? invite : null);
         public Task<InviteTokenRow> GetInviteByEmailAsync(Guid organizationId, string email, CancellationToken cancellationToken) => Task.FromResult(invite);
         public Task<List<InviteTokenRow>> GetByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken) => Task.FromResult(new List<InviteTokenRow> { invite });
+        public Task<IReadOnlyList<InviteTokenRow>> GetStaleEntraProvisionedAsync(DateTimeOffset now, int take, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<InviteTokenRow>>(invite is { Consumed: false, EntraCreatedByInvite: true, EntraCleanedAt: null }
+                && !string.IsNullOrWhiteSpace(invite.EntraUserId)
+                && invite.ExpiresAt < now
+                    ? new[] { invite }
+                    : Array.Empty<InviteTokenRow>());
 
         public Task MarkConsumedAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken)
         {
@@ -170,14 +279,21 @@ public sealed class InvitationEnrollmentTests
             return Task.CompletedTask;
         }
 
-        public Task MarkOpenedAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task MarkOpenedAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken)
+        {
+            MarkOpenedCalls++;
+            inviteTokenRow.OpenedAt = DateTimeOffset.UtcNow;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeEntraService : IUserEntraService
     {
         public int CreateCalls { get; private set; }
+        public int EnsureInvitedCalls { get; private set; }
         public int DeleteCalls { get; private set; }
         public string? DeletedUserId { get; private set; }
+        public string? EnsureInvitedEmail { get; private set; }
         public bool ThrowOnCreate { get; init; }
         public CreateEntraUserResult CreateResult { get; init; } = new("entra-1", "jane@example.test", "Jane", Created: true);
 
@@ -190,6 +306,13 @@ public sealed class InvitationEnrollmentTests
             }
 
             return Task.FromResult(CreateResult);
+        }
+
+        public Task<CreateEntraUserResult> EnsureInvitedUserAsync(string email, CancellationToken ct)
+        {
+            EnsureInvitedCalls++;
+            EnsureInvitedEmail = email;
+            return Task.FromResult(CreateResult with { Created = false });
         }
 
         public Task DeleteUserAsync(string entraUserId, CancellationToken ct)

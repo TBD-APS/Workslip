@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
+using Microsoft.Graph.Models.ODataErrors;
 
 namespace Workslip.Application.Users;
 
@@ -11,32 +12,47 @@ public sealed class UserEntraService(
     IConfiguration configuration,
     ICorrelationIdAccessor correlationIdAccessor) : IUserEntraService
 {
-     public async Task<CreateEntraUserResult> CreateUserAsync(string email, string displayName, CancellationToken ct)
+    public async Task<CreateEntraUserResult> CreateUserAsync(string email, string displayName, CancellationToken ct)
     {
-        var defaultDomain = configuration["Azure:AdOAuth:Domain"];
-        var mailNickname = BuildMailNickname(email);
-        var userPrincipalName = $"{mailNickname}@{defaultDomain}";
+        var user = await EnsureInvitedUserAsync(email, ct);
+        return user with { DisplayName = displayName };
+    }
 
-        var existingUser = await FindExistingEntraUserAsync(mailNickname, userPrincipalName, ct);
+    public async Task<CreateEntraUserResult> EnsureInvitedUserAsync(string email, CancellationToken ct)
+    {
+        var existingUser = await FindExistingEntraUserAsync(email, ct);
         if (existingUser != null)
         {
-            return new CreateEntraUserResult(existingUser.Id!, existingUser.UserPrincipalName!, displayName, Created: false);
+            await AssignAppRoleTo(existingUser.Id!, "User", ct);
+            return new CreateEntraUserResult(existingUser.Id!, ResolveEntraMail(existingUser, email), existingUser.DisplayName ?? email, Created: false);
         }
 
-        var newUser = BuildEntraUser(displayName, mailNickname, userPrincipalName);
-        var createdUser = await CreateEntraUserAsync(newUser, displayName, email, userPrincipalName, ct);
+        var redirectUrl = configuration["Azure:AdOAuth:InviteRedirectUri"]
+            ?? configuration["Azure:AdOAuth:LoginRedirectUri"]
+            ?? "https://webapp-delta-sand-62.vercel.app/login";
+        var invitation = new Invitation
+        {
+            InvitedUserEmailAddress = email,
+            InviteRedirectUrl = redirectUrl,
+            SendInvitationMessage = false,
+            InvitedUserDisplayName = email
+        };
+
+        var createdInvitation = await CreateExternalInviteAsync(invitation, email, ct);
+        var invitedUser = createdInvitation.InvitedUser
+            ?? throw new InvalidOperationException($"Graph did not return invited user for {email}.");
 
         try
         {
-            await AssignAppRoleTo(createdUser.Id!, "User", ct);
+            await AssignAppRoleTo(invitedUser.Id!, "User", ct);
         }
         catch
         {
-            await DeleteUserAsync(createdUser.Id!, ct);
+            await DeleteUserAsync(invitedUser.Id!, ct);
             throw;
         }
 
-        return new CreateEntraUserResult(createdUser.Id!, userPrincipalName, displayName, Created: true);
+        return new CreateEntraUserResult(invitedUser.Id!, ResolveEntraMail(invitedUser, email), email, Created: true);
     }
 
     public async Task DeleteUserAsync(string entraUserId, CancellationToken ct)
@@ -80,6 +96,12 @@ public sealed class UserEntraService(
                 cancellationToken: ct
             );
         }
+        catch (ODataError ex) when (IsDuplicateAppRoleAssignment(ex))
+        {
+            logger.LogInformation("Graph app role already assigned. CorrelationId={CorrelationId} UserId={UserId} Role={Role}",
+                correlationIdAccessor.CorrelationId, entraUserId, appRoleValue);
+            return;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Graph assign app role failed. CorrelationId={CorrelationId} UserId={UserId} Role={Role}",
@@ -91,21 +113,42 @@ public sealed class UserEntraService(
             correlationIdAccessor.CorrelationId, entraUserId, appRoleValue);
     }
 
-    private static string BuildMailNickname(string email) =>
-        email.Split('@')[0].Replace(".", "").Replace("-", "");
-
-    private async Task<User?> FindExistingEntraUserAsync(string mailNickname, string userPrincipalName, CancellationToken ct)
+    private async Task<User?> FindExistingEntraUserAsync(string email, CancellationToken ct)
     {
+        var defaultDomain = configuration["Azure:AdOAuth:Domain"];
+        var mailNickname = BuildMailNickname(email);
+        var userPrincipalName = $"{mailNickname}@{defaultDomain}";
+        var guestUpnPrefix = BuildGuestUserPrincipalNamePrefix(email);
+        var escapedEmail = EscapeODataString(email);
+        var escapedUserPrincipalName = EscapeODataString(userPrincipalName);
+        var escapedGuestUpnPrefix = EscapeODataString(guestUpnPrefix);
+
         var result = await graphClient.Users.GetAsync(
             request =>
             {
-                request.QueryParameters.Filter = $"mail eq '{mailNickname}' or userPrincipalName eq '{userPrincipalName}'";
-                request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail"];
+                request.QueryParameters.Filter =
+                    $"mail eq '{escapedEmail}' or otherMails/any(m:m eq '{escapedEmail}') or userPrincipalName eq '{escapedUserPrincipalName}' or startswith(userPrincipalName,'{escapedGuestUpnPrefix}')";
+                request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail", "otherMails"];
                 request.QueryParameters.Top = 1;
             }, ct);
 
         return result?.Value?.FirstOrDefault();
     }
+
+    private static string BuildMailNickname(string email) =>
+        email.Split('@')[0].Replace(".", "").Replace("-", "");
+
+    private static string BuildGuestUserPrincipalNamePrefix(string email) =>
+        email.Replace('@', '_') + "#EXT#";
+
+    private static string EscapeODataString(string value) => value.Replace("'", "''");
+
+    private static string ResolveEntraMail(User user, string fallbackEmail) =>
+        !string.IsNullOrWhiteSpace(user.Mail)
+            ? user.Mail
+            : user.OtherMails?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+              ?? user.UserPrincipalName
+              ?? fallbackEmail;
 
     private static User BuildEntraUser(string displayName, string mailNickname, string userPrincipalName) =>
         new()
@@ -120,6 +163,36 @@ public sealed class UserEntraService(
                 ForceChangePasswordNextSignIn = true
             }
         };
+
+    private async Task<Invitation> CreateExternalInviteAsync(Invitation invitation, string email, CancellationToken ct)
+    {
+        logger.LogInformation("Graph inviting external user. CorrelationId={CorrelationId} Email={Email}",
+            correlationIdAccessor.CorrelationId, email);
+
+        Invitation? createdInvitation;
+        try
+        {
+            createdInvitation = await graphClient.Invitations.PostAsync(invitation, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Graph external invite failed. CorrelationId={CorrelationId} Email={Email}",
+                correlationIdAccessor.CorrelationId, email);
+            throw;
+        }
+
+        if (createdInvitation == null)
+        {
+            logger.LogError("Graph external invite returned null. CorrelationId={CorrelationId} Email={Email}",
+                correlationIdAccessor.CorrelationId, email);
+            throw new InvalidOperationException($"User {email} could not be invited");
+        }
+
+        logger.LogInformation("Graph external user invited. CorrelationId={CorrelationId} Email={Email} EntraId={EntraId}",
+            correlationIdAccessor.CorrelationId, email, createdInvitation.InvitedUser?.Id);
+
+        return createdInvitation;
+    }
 
     private async Task<User> CreateEntraUserAsync(User newUser, string displayName, string email, string userPrincipalName, CancellationToken ct)
     {
@@ -177,6 +250,11 @@ public sealed class UserEntraService(
         return servicePrincipals?.Value?.SingleOrDefault()
             ?? throw new InvalidOperationException("API service principal not found.");
     }
+
+    private static bool IsDuplicateAppRoleAssignment(ODataError error) =>
+        error.ResponseStatusCode == 400
+        && (error.Error?.Code?.Contains("Request_BadRequest", StringComparison.OrdinalIgnoreCase) == true
+            || error.Error?.Message?.Contains("Permission being assigned already exists", StringComparison.OrdinalIgnoreCase) == true);
 
     private static AppRole FindAppRole(ServicePrincipal servicePrincipal, string appRoleValue)
     {

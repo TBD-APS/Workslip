@@ -3,6 +3,7 @@ import type { AuthTokenResponse } from '../../../api/generated/models';
 
 const ENROLLMENT_KEY = 'workslip.inviteEnrollment';
 const PKCE_KEY = 'workslip.invitePkce';
+const DEFAULT_INVITE_REDIRECT_PATH = '/invite/callback';
 
 export interface InviteEnrollmentDraft {
   token: string;
@@ -48,7 +49,7 @@ export const startEntraInviteSignIn = async (draft: InviteEnrollmentDraft) => {
   const codeVerifier = randomUrlSafe(64);
   const codeChallenge = await sha256Base64Url(codeVerifier);
   const state = randomUrlSafe(32);
-  const redirectUri = config.redirectUri || `${window.location.origin}${window.location.pathname}`;
+  const redirectUri = config.redirectUri || `${window.location.origin}${DEFAULT_INVITE_REDIRECT_PATH}`;
 
   const pkce: PkceState = { state, codeVerifier, redirectUri };
   sessionStorage.setItem(PKCE_KEY, JSON.stringify(pkce));

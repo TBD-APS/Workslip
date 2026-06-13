@@ -15,4 +15,6 @@ public interface IInvitationService
     Task<Result<InviteListResponse>> GetOrganizationInvitesAsync(CancellationToken cancellationToken);
 
     Task<Result> MarkOpenedAsync(string token, CancellationToken cancellationToken);
+
+    Task<int> CleanupStaleEntraInvitesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken);
 }

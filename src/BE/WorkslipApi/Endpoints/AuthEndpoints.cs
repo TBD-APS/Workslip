@@ -66,8 +66,8 @@ public static class AuthEndpoints
 
         group.MapPost("/invite/{token}/open", async (string token, IInvitationService service, CancellationToken cancellationToken) =>
         {
-            await service.MarkOpenedAsync(token, cancellationToken);
-            return Results.Ok();
+            var result = await service.MarkOpenedAsync(token, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
         });
 
         return app;
