@@ -33,6 +33,32 @@ public sealed class AuthService(
         return userResponse;
     }
 
+    public async Task<Result<UserResponse>> UpdateCurrentUserAsync(UpdateUserRequest request, CancellationToken cancellationToken)
+    {
+        var userId = currentUser.UserId ?? throw new UnauthorizedAccessException("User is not logged in");
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
+
+        if (user == null)
+        {
+            logger.LogError("Current user not found for update. UserId: {UserId}", userId);
+            return Result<UserResponse>.NotFound();
+        }
+
+        if (!string.IsNullOrEmpty(request.DisplayName))
+            user.DisplayName = request.DisplayName;
+
+        if (!string.IsNullOrEmpty(request.Phone))
+            user.Phone = request.Phone;
+
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await userRepository.UpdateAsync(user, cancellationToken);
+
+        logger.LogInformation("User updated own profile. UserId: {UserId}.", userId);
+
+        return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
+    }
+
     public async Task SendLoginCodeAsync(SendCodeRequest request, CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
