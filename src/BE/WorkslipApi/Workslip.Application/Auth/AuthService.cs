@@ -42,11 +42,18 @@ public sealed class AuthService(
         {
             return Result<UserResponse>.Unauthorized();
         }
+
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<UserResponse>.Unauthorized();
+        }
+
         var user = await userRepository.GetByIdAsync(userId.Value, cancellationToken);
 
         if (user == null)
         {
-            logger.LogError("Current user not found for update. UserId: {UserId}", userId);
+            logger.LogInformation("Current user not found for update. UserId: {UserId}", userId);
             return Result<UserResponse>.NotFound();
         }
 
