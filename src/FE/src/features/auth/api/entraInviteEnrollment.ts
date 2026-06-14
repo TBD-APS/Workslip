@@ -54,7 +54,7 @@ export const startEntraInviteSignIn = async (draft: InviteEnrollmentDraft) => {
   const pkce: PkceState = { state, codeVerifier, redirectUri };
   sessionStorage.setItem(PKCE_KEY, JSON.stringify(pkce));
 
-  const authorizeUrl = new URL(`https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize`);
+  const authorizeUrl = new URL(`https://login.microsoftonline.com/common/oauth2/v2.0/authorize`);
   authorizeUrl.searchParams.set('client_id', config.clientId);
   authorizeUrl.searchParams.set('response_type', 'code');
   authorizeUrl.searchParams.set('redirect_uri', redirectUri);
@@ -134,7 +134,7 @@ const exchangeCodeForToken = async (
   body.set('grant_type', 'authorization_code');
   body.set('code_verifier', pkce.codeVerifier);
 
-  const response = await fetch(`https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`, {
+  const response = await fetch(`https://login.microsoftonline.com/common/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
