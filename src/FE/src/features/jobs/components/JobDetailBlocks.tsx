@@ -1,10 +1,11 @@
+import { useMemo, useState } from 'react';
 import { Building2, FileText, Users } from 'lucide-react';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
+import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
-import { ValidatedInput } from '../../../components/forms/ValidatedInput';
-import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import { useCan } from '../../../providers/permissions';
-import type { CustomerInfo, UserViewModel } from '../../../api/generated/models';
+import { useGetApiCustomersSearch } from '../../../api/generated/customers/customers';
+import type { CustomerInfo, CustomerSearchViewModel, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
 
 type CustomerBlockProps = {
@@ -17,7 +18,7 @@ type CustomerBlockProps = {
     onAssignedUsersChange: (userIds: string[]) => void;
   };
   readOnlyAssigned?: { id: string; displayName: string }[];
-  onCustomerChange: (field: keyof CustomerInfo, value: string | null) => void;
+  onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
   onReportNumberChange: (value: string) => void;
 };
 
@@ -26,7 +27,7 @@ export function CustomerDetailsBlock({
   reportNumberReadOnly,
   assignment,
   readOnlyAssigned,
-  onCustomerChange,
+  onCustomerSelect,
   onReportNumberChange,
 }: CustomerBlockProps) {
   const canAssign = useCan('job:assign');
@@ -51,14 +52,10 @@ export function CustomerDetailsBlock({
           />
         </div>
 
-        <ValidatedInput label="Navn" value={form.customer.name} placeholder="Kundens navn" onChange={(value) => onCustomerChange('name', value)} />
-        <ValidatedInput label="Adresse" value={form.customer.address} placeholder="Kundens adresse" onChange={(value) => onCustomerChange('address', value)} />
-        <ValidatedInput label="Email" value={form.customer.email} placeholder="Email-adresse" type="email" validate={validateEmail} onChange={(value) => onCustomerChange('email', value)} />
-
-        <div className="form-row">
-          <ValidatedInput label="Telefon" value={form.customer.phone} placeholder="Telefon" type="tel" inputMode="numeric" validate={validatePhoneNumber} onChange={(value) => onCustomerChange('phone', value?.replace(/\D/g, '') || null)} />
-          <ValidatedInput label="Kontaktperson" value={form.customer.contactPerson} placeholder="Kontaktperson" onChange={(value) => onCustomerChange('contactPerson', value)} />
-        </div>
+        <CustomerSearchDropdown
+          selectedId={form.customer.customerId}
+          onSelect={onCustomerSelect}
+        />
 
         {assignment && canAssign && (
           <MultiSelectDropdown
@@ -144,5 +141,41 @@ export function TextAreaBlock({ icon, title, value, placeholder, onChange }: Tex
         />
       </div>
     </CollapsibleSection>
+  );
+}
+
+type CustomerSearchDropdownProps = {
+  selectedId: string | null;
+  onSelect: (customer: CustomerSearchViewModel) => void;
+};
+
+function CustomerSearchDropdown({ selectedId, onSelect }: CustomerSearchDropdownProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const { data: searchResults = [], isLoading } = useGetApiCustomersSearch(
+    { query: searchQuery, limit: 10 },
+    { query: { enabled: searchQuery.length >= 2 } }
+  );
+
+  const options = useMemo(() =>
+    searchResults.map((c) => ({
+      id: c.id,
+      label: c.name ?? '',
+      description: c.companyName ?? undefined,
+    })),
+    [searchResults]
+  );
+
+  return (
+    <SingleSelectDropdown
+      label="Kunde"
+      placeholder="Vælg kunde..."
+      emptyText="Ingen kunder fundet"
+      loadingText="Henter kunder..."
+      options={options}
+      selectedId={selectedId}
+      isLoading={isLoading}
+      icon={<Building2 size={16} />}
+      onSelect={onSelect}
+    />
   );
 }
