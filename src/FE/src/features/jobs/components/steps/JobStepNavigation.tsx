@@ -58,6 +58,7 @@ type StepNavigationProps = {
   disableDone?: boolean;
   nextDisabledReason?: string;
   doneDisabledReason?: string;
+  statusSlot?: ReactNode;
   hideDoneButton?: boolean;
 };
 
@@ -73,6 +74,7 @@ export function StepNavigation({
   disableDone = false,
   nextDisabledReason,
   doneDisabledReason,
+  statusSlot,
   hideDoneButton = false,
 }: StepNavigationProps) {
   const [isVisible, setIsVisible] = useState(true);
@@ -104,41 +106,44 @@ export function StepNavigation({
   }, []);
 
   return (
-    <div className={isVisible ? 'step-nav step-nav-sticky' : 'step-nav step-nav-sticky hidden'}>
-      <button
-        className="step-nav-btn step-nav-btn-back"
-        onClick={onBack}
-        aria-label="Tilbage"
-      >
-        <ChevronLeft size={18} />
-        <span>Tilbage</span>
-      </button>
-
-      <span className="step-nav-counter">Trin {currentStep + 1} / {JOB_STEPS.length}</span>
-
-      {!isLastStep ? (
+    <div className={isVisible ? 'step-nav-sticky' : 'step-nav-sticky hidden'}>
+      {statusSlot && <div className="step-nav-status-slot">{statusSlot}</div>}
+      <div className="step-nav">
         <button
-          className="step-nav-btn step-nav-btn-next"
-          onClick={onNext}
-          disabled={disableNext}
-          title={disableNext ? nextDisabledReason : undefined}
-          aria-label={disableNext ? `Næste — ${nextDisabledReason ?? 'ikke tilgængelig'}` : 'Næste'}
+          className="step-nav-btn step-nav-btn-back"
+          onClick={onBack}
+          aria-label="Tilbage"
         >
-          <span>Næste</span>
-          <ChevronRight size={18} />
+          <ChevronLeft size={18} />
+          <span>Tilbage</span>
         </button>
-      ) : !hideDoneButton ? (
-        <button
-          className="step-nav-btn step-nav-btn-next"
-          onClick={onDone}
-          disabled={disableDone}
-          title={disableDone ? doneDisabledReason : undefined}
-          aria-label={disableDone ? `${doneLabel} — ${doneDisabledReason ?? 'ikke tilgængelig'}` : doneLabel}
-        >
-          {doneIcon}
-          <span>{doneLabel}</span>
-        </button>
-      ) : null}
+
+        <span className="step-nav-counter">Trin {currentStep + 1} / {JOB_STEPS.length}</span>
+
+        {!isLastStep ? (
+          <button
+            className="step-nav-btn step-nav-btn-next"
+            onClick={onNext}
+            disabled={disableNext}
+            title={disableNext ? nextDisabledReason : undefined}
+            aria-label={disableNext ? `Næste — ${nextDisabledReason ?? 'ikke tilgængelig'}` : 'Næste'}
+          >
+            <span>Næste</span>
+            <ChevronRight size={18} />
+          </button>
+        ) : !hideDoneButton ? (
+          <button
+            className="step-nav-btn step-nav-btn-next"
+            onClick={onDone}
+            disabled={disableDone}
+            title={disableDone ? doneDisabledReason : undefined}
+            aria-label={disableDone ? `${doneLabel} — ${doneDisabledReason ?? 'ikke tilgængelig'}` : doneLabel}
+          >
+            {doneIcon}
+            <span>{doneLabel}</span>
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

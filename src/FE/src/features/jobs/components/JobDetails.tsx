@@ -142,8 +142,6 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         onDelete={canDeleteJob ? handleDelete : undefined}
         onShowHistory={() => setHistoryOpen(true)}
       />
-      <SaveStatusIndicator saveStatus={globalSaveStatus} className="save-status-floating" />
-
       <StepIndicators 
         currentStep={details.currentStep} 
         onStepChange={handleStepChange} 
@@ -221,6 +219,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         onNext={() => details.navigateToStep(details.currentStep + 1)}
         disableNext={disableNext}
         nextDisabledReason={nextDisabledReason}
+        statusSlot={<SaveStatusIndicator saveStatus={globalSaveStatus} />}
         onDone={() => {}}
         hideDoneButton
       />
@@ -291,11 +290,11 @@ function JobDetailsHeader({ title, jobNumber, onBack, onDelete, onShowHistory }:
   );
 }
 
-function SaveStatusIndicator({ saveStatus, className }: { saveStatus: SaveStatus; className?: string }) {
+function SaveStatusIndicator({ saveStatus }: { saveStatus: SaveStatus }) {
   if (saveStatus === 'idle') return null;
 
   return (
-    <div className={['save-status', className].filter(Boolean).join(' ')} aria-live="polite" aria-atomic="true">
+    <div className="save-status" aria-live="polite" aria-atomic="true">
       {saveStatus === 'saving' && (
         <span className="save-indicator saving">
           <Loader2 className="animate-spin" size={14} />

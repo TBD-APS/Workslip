@@ -81,18 +81,18 @@ export const Profile = () => {
 
       <div className="section-card">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div className="user-avatar user-avatar--large user-avatar--accent">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
+              <div className="user-avatar user-avatar--large user-avatar--accent" style={{ flexShrink: 0 }}>
                 {user.displayName.charAt(0).toUpperCase()}
               </div>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--text-primary)' }}>{user.displayName}</div>
-                <div style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>{user.email}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.displayName}</div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
               </div>
             </div>
             {!isEditing && (
-              <button className="btn btn-secondary" type="button" onClick={handleStartEdit} aria-label="Rediger profil">
+              <button className="btn-icon" type="button" onClick={handleStartEdit} aria-label="Rediger profil" style={{ flexShrink: 0 }}>
                 <Pencil size={16} />
               </button>
             )}
