@@ -131,13 +131,13 @@ public sealed class UserEntraService(
             {
                 r.QueryParameters.Top = 1;
             }, ct);
+            return result?.Value?.FirstOrDefault();
         }
         catch (Exception e)
         {
             logger.LogError(e, "Graph query failed {DirectoryRoles}, {Me}", graphClient.DirectoryRoles.ToString(), graphClient.Me);
             throw;
         }
-        return result?.Value?.FirstOrDefault();
     }
 
     private static string BuildMailNickname(string email) =>
