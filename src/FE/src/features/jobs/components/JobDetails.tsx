@@ -138,11 +138,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       <JobDetailsHeader
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
-        saveStatus={globalSaveStatus}
         onBack={handleBack}
         onDelete={canDeleteJob ? handleDelete : undefined}
         onShowHistory={() => setHistoryOpen(true)}
       />
+      <SaveStatusIndicator saveStatus={globalSaveStatus} className="save-status-floating" />
 
       <StepIndicators 
         currentStep={details.currentStep} 
@@ -261,13 +261,12 @@ function getNextDisabledReason(details: JobDetailsState): string | undefined {
 type HeaderProps = {
   title: string;
   jobNumber: string;
-  saveStatus: SaveStatus;
   onBack: () => void;
   onDelete?: () => void;
   onShowHistory: () => void;
 };
 
-function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete, onShowHistory }: HeaderProps) {
+function JobDetailsHeader({ title, jobNumber, onBack, onDelete, onShowHistory }: HeaderProps) {
   return (
     <div className="detail-header">
       <button className="btn-icon" onClick={onBack} aria-label="Tilbage">
@@ -278,7 +277,6 @@ function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete, onSh
         <h2 className="detail-title">{title}</h2>
       </div>
       <div className="detail-header-actions">
-        <SaveStatusIndicator saveStatus={saveStatus} />
         <button 
           className="btn-icon history-btn" 
           onClick={onShowHistory} 
@@ -293,11 +291,11 @@ function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete, onSh
   );
 }
 
-function SaveStatusIndicator({ saveStatus }: { saveStatus: SaveStatus }) {
+function SaveStatusIndicator({ saveStatus, className }: { saveStatus: SaveStatus; className?: string }) {
   if (saveStatus === 'idle') return null;
 
   return (
-    <div className="save-status" aria-live="polite" aria-atomic="true">
+    <div className={['save-status', className].filter(Boolean).join(' ')} aria-live="polite" aria-atomic="true">
       {saveStatus === 'saving' && (
         <span className="save-indicator saving">
           <Loader2 className="animate-spin" size={14} />

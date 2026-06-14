@@ -907,6 +907,15 @@
   align-items: center;
 }
 
+.save-status-floating {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 120;
+  pointer-events: none;
+}
+
 .save-indicator {
   display: inline-flex;
   align-items: center;
@@ -916,6 +925,8 @@
   padding: 0.25rem 0.6rem;
   border-radius: 8px;
   white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
 }
 
 .save-indicator.saving {
