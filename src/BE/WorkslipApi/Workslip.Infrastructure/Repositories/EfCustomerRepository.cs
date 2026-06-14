@@ -180,7 +180,7 @@ public sealed class EfCustomerRepository : ICustomerRepository
                 c.ContactPerson))
             .ToListAsync(cancellationToken);
 
-        return customers;
+        return customers ?? new List<CustomerSearchResponse>();
     }
 
     public async Task<IReadOnlyList<CustomerSearchResponse>> GetTopCustomersAsync(Guid organizationId, int limit, CancellationToken cancellationToken)
