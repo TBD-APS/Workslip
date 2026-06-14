@@ -32,11 +32,10 @@ import {
   sameForm,
   sameFormWithoutWork,
   toForm,
-  toNullable,
   toUpdateRequest,
 } from '../utils';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
-import type { CustomerInfo } from '../../../api/generated/models';
+import type { CustomerSearchViewModel } from '../../../api/generated/models';
 import type { JobForm } from '../types';
 
 type JobDetailsDraft = { jobId: string; form: JobForm };
@@ -282,10 +281,18 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     if (saveStatus === 'saved') setSaveStatus('idle');
   };
 
-  const updateCustomer = (field: keyof CustomerInfo, value: string | null) => {
+  const selectCustomer = (customer: CustomerSearchViewModel) => {
     updateDraft({
       ...form,
-      customer: { ...form.customer, [field]: toNullable(value) },
+      customer: {
+        ...form.customer,
+        customerId: customer.id ?? null,
+        name: customer.name ?? null,
+        address: customer.address ?? null,
+        email: customer.email ?? null,
+        phone: customer.phone ?? null,
+        contactPerson: customer.contactPerson ?? null,
+      },
     });
   };
 
@@ -589,7 +596,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     navigateToStep,
     updateAssignedUsers,
     updateLinkedJobs,
-    updateCustomer,
+    selectCustomer,
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,

@@ -13,7 +13,7 @@ import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import { emptyForm, isValidCreateForm } from '../utils';
-import type { CustomerInfo, CreateJobRequest } from '../../../api/generated/models';
+import type { CustomerSearchViewModel, CreateJobRequest } from '../../../api/generated/models';
 import type { JobForm } from '../types';
 
 export function useJobCreate(onCreated: (jobId: string) => void) {
@@ -78,10 +78,18 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     },
   });
 
-  const updateCustomer = (field: keyof CustomerInfo, value: string | null) => {
+  const selectCustomer = (customer: CustomerSearchViewModel) => {
     setForm((prev) => ({
       ...prev,
-      customer: { ...prev.customer, [field]: value },
+      customer: {
+        ...prev.customer,
+        customerId: customer.id ?? null,
+        name: customer.name ?? null,
+        address: customer.address ?? null,
+        email: customer.email ?? null,
+        phone: customer.phone ?? null,
+        contactPerson: customer.contactPerson ?? null,
+      },
     }));
   };
 
@@ -139,7 +147,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
 
     const request: CreateJobRequest = {
       customer: {
-        customerId: null,
+        customerId: form.customer.customerId,
         name: form.customer.name?.trim() || null,
         address: form.customer.address?.trim() || null,
         email: form.customer.email?.trim() || null,
@@ -181,7 +189,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     referenceData,
     isLoadingReferenceData: referenceDataQuery.isLoading,
     isLoadingUsers: usersQuery.isLoading,
-    updateCustomer,
+    selectCustomer,
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,
