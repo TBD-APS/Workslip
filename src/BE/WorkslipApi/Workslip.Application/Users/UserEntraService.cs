@@ -123,16 +123,30 @@ public sealed class UserEntraService(
         var escapedUserPrincipalName = EscapeODataString(userPrincipalName);
         var escapedGuestUpnPrefix = EscapeODataString(guestUpnPrefix);
 
-        var result = await graphClient.Users.GetAsync(
-            request =>
-            {
-                request.QueryParameters.Filter =
-                    $"mail eq '{escapedEmail}' or otherMails/any(m:m eq '{escapedEmail}') or userPrincipalName eq '{escapedUserPrincipalName}' or startswith(userPrincipalName,'{escapedGuestUpnPrefix}')";
-                request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail", "otherMails"];
-                request.QueryParameters.Top = 1;
-            }, ct);
+        logger.LogError("My graph {GraphClient}", graphClient.GetType().FullName);
 
-        return result?.Value?.FirstOrDefault();
+        try
+        {
+            var result = await graphClient.Users.GetAsync(r =>
+            {
+                r.QueryParameters.Top = 1;
+            }, ct);
+            return result?.Value?.FirstOrDefault();
+        }
+        catch (ODataError odataError)
+        {
+            // Dette vil fange den REELLE fejlbesked fra Azure Entra ID
+            logger.LogError(odataError, "Graph API returnerede en fejl: {Code} - {Message}",
+                odataError.Error?.Code,
+                odataError.Error?.Message);
+            throw;
+        }
+        catch (Exception e)
+        {
+            // Gængse netværksfejl eller uforudsete fejl
+            logger.LogError(e, "Generel fejl under kald til Graph API");
+            throw;
+        }
     }
 
     private static string BuildMailNickname(string email) =>
