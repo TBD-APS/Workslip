@@ -135,6 +135,7 @@ public sealed class UserEntraService(
                             request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail", "otherMails"];
                             request.QueryParameters.Top = 1;
                         }, ct);
+            return result?.Value.FirstOrDefault();
         }
         catch (ODataError odataError)
         {
