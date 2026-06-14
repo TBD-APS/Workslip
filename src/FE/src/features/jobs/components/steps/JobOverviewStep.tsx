@@ -28,7 +28,7 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
           : {
               readOnlyAssigned: details.job?.assignedUsers ?? [],
             })}
-        onCustomerChange={details.updateCustomer}
+        onCustomerSelect={details.selectCustomer}
         onReportNumberChange={details.updateReportNumber}
       />
       <LinkedJobsBlock

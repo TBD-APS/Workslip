@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Building2, FileText, Users } from 'lucide-react';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
@@ -7,6 +7,7 @@ import { useCan } from '../../../providers/permissions';
 import { useGetApiCustomersSearch } from '../../../api/generated/customers/customers';
 import type { CustomerInfo, CustomerSearchViewModel, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
+import { useDebounce } from '../../../hooks/useDebounce';
 
 type CustomerBlockProps = {
   form: { customer: CustomerInfo; reportNumber: string };
@@ -150,19 +151,30 @@ type CustomerSearchDropdownProps = {
 };
 
 function CustomerSearchDropdown({ selectedId, onSelect }: CustomerSearchDropdownProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [inputValue, setInputValue] = useState('');
+  const debouncedQuery = useDebounce(inputValue, 300);
   const { data: searchResults = [], isLoading } = useGetApiCustomersSearch(
-    { query: searchQuery, limit: 10 },
-    { query: { enabled: searchQuery.length >= 2 } }
+    { query: debouncedQuery, limit: 10 },
+    { query: { enabled: debouncedQuery.length >= 2 } }
   );
 
   const options = useMemo(() =>
     searchResults.map((c) => ({
-      id: c.id,
+      id: c.id ?? '',
       label: c.name ?? '',
       description: c.companyName ?? undefined,
     })),
     [searchResults]
+  );
+
+  const handleSelect = useCallback(
+    (option: { id: string }) => {
+      const customer = searchResults.find((c) => c.id === option.id);
+      if (customer) {
+        onSelect(customer);
+      }
+    },
+    [searchResults, onSelect]
   );
 
   return (
@@ -175,7 +187,8 @@ function CustomerSearchDropdown({ selectedId, onSelect }: CustomerSearchDropdown
       selectedId={selectedId}
       isLoading={isLoading}
       icon={<Building2 size={16} />}
-      onSelect={onSelect}
+      onSelect={handleSelect}
+      onSearchChange={setInputValue}
     />
   );
 }

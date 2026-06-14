@@ -17,6 +17,7 @@ type SingleSelectDropdownProps = {
   isLoading?: boolean;
   icon?: React.ReactNode;
   onSelect: (option: SingleSelectOption) => void;
+  onSearchChange?: (query: string) => void;
 };
 
 export function SingleSelectDropdown({
@@ -29,18 +30,21 @@ export function SingleSelectDropdown({
   isLoading = false,
   icon,
   onSelect,
+  onSearchChange,
 }: SingleSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const selectedOption = options.find((option) => option.id === selectedId);
-  const filteredOptions = searchQuery
-    ? options.filter((option) => {
-        const q = searchQuery.toLowerCase();
-        return option.label.toLowerCase().includes(q)
-          || (option.description && option.description.toLowerCase().includes(q));
-      })
-    : options;
+  const filteredOptions = onSearchChange
+    ? options
+    : searchQuery
+      ? options.filter((option) => {
+          const q = searchQuery.toLowerCase();
+          return option.label.toLowerCase().includes(q)
+            || (option.description && option.description.toLowerCase().includes(q));
+        })
+      : options;
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -104,7 +108,10 @@ export function SingleSelectDropdown({
                 type="text"
                 placeholder="Søg..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  onSearchChange?.(e.target.value);
+                }}
                 autoFocus
               />
             </div>
