@@ -18,7 +18,6 @@ param appConfigurationName string     = take('appcs-${companyName}-${toLower(env
 ])
 param appConfigurationCreateMode string = 'Default'
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
-param deploymentIdentityName string   = 'id-${companyName}-${toLower(environment)}-deploy'
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
@@ -39,13 +38,12 @@ var roles = {
   appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
   websiteContributor: 'de139f84-1756-47ae-9be6-808fbbe84772'
   sqlSecurityManager: '056cd41c-7e88-42e1-933e-88ba6a50c9c3'
-
-
-  UserReadWriteAll: '741f1ec0-4c47-4952-b971-50c2d3d7d31f'
-  UserInviteAll: '63dd7cd9-b489-4adf-a28c-ac38b9a0f962'
+  
+  UserReadWriteAll: '7824d5d9-17c9-47c3-b692-94906572709f'
+  UserInviteAll: '4a9f7d6d-1ee2-4bfb-8f4d-1290a5d4a4d7'
   ApplicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
   AppRoleAssignmentReadWriteAll: '06b03e2b-286b-4043-9a0b-116a43319a53'
-  UserAuthenticationMethodReadWriteAll: '48db3110-388d-4be9-b467-36e2f11ffc8f'
+  UserAuthenticationMethodReadWriteAll: '50483e42-d915-4231-9639-7fdb7fd190e5'
 }
 
 var tags = {
@@ -68,14 +66,8 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
   tags: tags
 }
 
-resource deploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: deploymentIdentityName
-  location: location
-  tags: tags
-}
-
 resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
-  parent: deploymentIdentity
+  parent: identity
   name: 'github-${toLower(environment)}'
   properties: {
     audiences: [
@@ -236,10 +228,10 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(webApi.id, deploymentIdentity.id, roles.websiteContributor)
+  name: guid(webApi.id, identity.id, roles.websiteContributor)
   scope: webApi
   properties: {
-    principalId: deploymentIdentity.properties.principalId
+    principalId: identity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.websiteContributor)
   }
@@ -460,10 +452,10 @@ resource firewallAllowAzureIPs 'Microsoft.Sql/servers/firewallRules@2023-08-01-p
 }
 
 resource sqlFirewallManagerForIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(sqlServer.id, deploymentIdentity.id, roles.sqlSecurityManager)
+  name: guid(sqlServer.id, identity.id, roles.sqlSecurityManager)
   scope: sqlServer
   properties: {
-    principalId: deploymentIdentity.properties.principalId
+    principalId: identity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.sqlSecurityManager)
   }
@@ -476,7 +468,7 @@ resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-
   tags: tags
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: { '${deploymentIdentity.id}': {} }
+    userAssignedIdentities: { '${identity.id}': {} }
   }
   properties: {
     azCliVersion: '2.61.0'
@@ -557,7 +549,7 @@ resource grantWebApiSqlAccess 'Microsoft.Resources/deploymentScripts@2023-08-01'
   tags: tags
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: { '${deploymentIdentity.id}': {} }
+    userAssignedIdentities: { '${identity.id}': {} }
   }
   properties: {
     azCliVersion: '2.61.0'
@@ -814,8 +806,6 @@ output WEB_API_URL string                      = 'https://${webApi.properties.de
 output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
-output DEPLOYMENT_IDENTITY_CLIENT_ID string    = deploymentIdentity.properties.clientId
-output DEPLOYMENT_IDENTITY_PRINCIPAL_ID string = deploymentIdentity.properties.principalId
 output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
 output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString

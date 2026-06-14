@@ -17,9 +17,9 @@ resource staticConfigValues 'Microsoft.AppConfiguration/configurationStores/keyV
 var appConfigValues = {
 
   //OAuth
-  'Azure:AdOAuth:TenantId': tenant().tenantId
+  'Azure:AdOAuth:TenantId': 'common'
   'Azure:AdOAuth:Instance': az.environment().authentication.loginEndpoint
-  'Azure:AdOAuth:Domain': 'rasmusbp15gmail.onmicrosoft.com'
+  'Azure:AdOAuth:Domain': 'common'
   
   //LocalJwt
   'Jwt:Issuer': 'WorkslipApiLocal'

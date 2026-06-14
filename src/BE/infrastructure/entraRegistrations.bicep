@@ -5,18 +5,24 @@ param globalAdminId string
 
 var uniqueSuffix = substring(uniqueString(subscription().id, resourceGroup().id, environment), 0, 5)
 
+// Fast defineret GUID til API-scopet, så det ikke ændrer sig på tværs af miljøer
+var apiScopeId = 'c2e2bf46-f94d-4c3e-86d7-ca425e4c6e2a'
+
 resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
   uniqueName: 'Oauth-server-${environment}-${uniqueSuffix}'
   displayName: 'Oauth server ${environment}'
-  signInAudience: 'AzureADMyOrg'
+  signInAudience: 'AzureADandPersonalMicrosoftAccount'
+  
   publicClient: {
     redirectUris: [
       'nativepasskeydemo://auth'
     ]
   }
-  owners: {relationships: [
-    globalAdminId
-  ]}
+  owners: {
+    relationships: [
+      globalAdminId
+    ]
+  }
 
   appRoles: [
     {
@@ -55,7 +61,7 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
     requestedAccessTokenVersion: 2
     oauth2PermissionScopes: [
       {
-        id: guid('access_as_user')
+        id: apiScopeId
         adminConsentDescription: 'Access Workslip API as the signed-in user'
         adminConsentDisplayName: 'Access Workslip API'
         userConsentDescription: 'Access Workslip API on your behalf'
@@ -91,9 +97,11 @@ resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
       enableIdTokenIssuance: true
     }
   }
-  owners: {relationships: [
-    globalAdminId
-  ]}
+  owners: {
+    relationships: [
+      globalAdminId
+    ]
+  }
 
   requiredResourceAccess: [
     {
@@ -109,7 +117,7 @@ resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
       resourceAppId: OAuthServerApp.appId // Workslip API
       resourceAccess: [
         {
-          id: guid('access_as_user') // Must match the ID defined in OAuthServerApp
+          id: apiScopeId // Matcher nu direkte den faste GUID fra serveren
           type: 'Scope'
         }
       ]
