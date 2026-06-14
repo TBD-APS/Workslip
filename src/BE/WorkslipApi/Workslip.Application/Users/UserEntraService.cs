@@ -125,11 +125,18 @@ public sealed class UserEntraService(
 
         logger.LogError("My graph {GraphClient}", graphClient.GetType().FullName);
 
-        var result = await graphClient.Users.GetAsync(r =>
+        try
         {
-            r.QueryParameters.Top = 1;
-        }, ct);
-
+            var result = await graphClient.Users.GetAsync(r =>
+            {
+                r.QueryParameters.Top = 1;
+            }, ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Graph query failed {DirectoryRoles}, {Me}", graphClient.DirectoryRoles.ToString(), graphClient.Me);
+            throw;
+        }
         return result?.Value?.FirstOrDefault();
     }
 
