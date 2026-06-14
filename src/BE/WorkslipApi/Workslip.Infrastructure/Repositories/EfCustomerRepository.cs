@@ -155,4 +155,30 @@ public sealed class EfCustomerRepository : ICustomerRepository
                     j.ContactPhone))
                 .ToArray());
     }
+
+    public async Task<IReadOnlyList<CustomerSearchResponse>> SearchAsync(Guid organizationId, string query, int limit, CancellationToken cancellationToken)
+    {
+        var trimmed = query.Trim();
+
+        var customers = await _dbContext.Customers
+            .AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId)
+            .Where(c =>
+                (c.Name != null && c.Name.Contains(trimmed)) ||
+                (c.Email != null && c.Email.Contains(trimmed)) ||
+                (c.Phone != null && c.Phone.Contains(trimmed)) ||
+                (c.Address != null && c.Address.Contains(trimmed)))
+            .OrderBy(c => c.Name != null && c.Name.StartsWith(trimmed) ? 0 : 1)
+            .ThenBy(c => c.Name)
+            .Take(limit)
+            .Select(c => new CustomerSearchResponse(
+                c.Id,
+                c.Name,
+                c.Email,
+                c.Phone,
+                c.Address))
+            .ToListAsync(cancellationToken);
+
+        return customers;
+    }
 }

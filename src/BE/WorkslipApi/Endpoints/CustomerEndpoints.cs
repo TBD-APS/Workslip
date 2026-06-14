@@ -9,6 +9,16 @@ public static class CustomerEndpoints
 {
     public static IEndpointRouteBuilder MapCustomerEndpoints(this IEndpointRouteBuilder app)
     {
+        var searchGroup = app.MapGroup("/api/customers")
+            .WithTags("customers")
+            .RequireAuthorization(AuthPolicies.RequireUser);
+
+        searchGroup.MapGet("/search", async (string? query, int? limit, ICustomerService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.SearchAsync(query, limit, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToSearch).ToArray());
+        }).Produces<List<CustomerSearchViewModel>>();
+
         var group = app.MapGroup("/api/customers")
             .WithTags("customers")
             .RequireAuthorization(AuthPolicies.RequireAdmin);

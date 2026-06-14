@@ -29,12 +29,30 @@ public static class JobReportMapper
         IReadOnlyList<ClosureFlagResponse> closureFlags,
         decimal? totalHours = null)
     {
-        var customer = row.CustomerRow;
+        var customerRow = row.CustomerRow;
         var organizationName = row.OrganizationRow?.Name ?? "-";
         var organizationCvr = row.OrganizationRow?.Cvr ?? "-";
+
+        string? customerName = row.CustomerName ?? customerRow?.Name;
+        string? customerEmail = row.CustomerEmail ?? customerRow?.Email;
+        string? customerPhone = row.CustomerPhone ?? customerRow?.Phone;
+        string? customerAddress = row.CustomerAddress ?? customerRow?.Address;
+
+        CustomerInfo? customer = null;
+        if (customerRow is not null || customerName is not null)
+        {
+            customer = new CustomerInfo(
+                customerRow?.Id ?? row.CustomerId ?? Guid.Empty,
+                customerName,
+                customerAddress,
+                customerEmail,
+                customerRow?.ContactPerson,
+                customerPhone);
+        }
+
         return new(
             row.Id, row.OrganizationId, organizationName, organizationCvr,
-            customer is not null ? new CustomerInfo(customer.Id, customer.Name, customer.Address, customer.Email, customer.ContactPerson, customer.Phone) : null,
+            customer,
             row.ReportNumber, ParseStatus(row.Status), ToDateOnly(row.ReportDate),
             row.TaskDescription, row.CustomerObservations, row.TechnicalObservations,
             installationTypes, ToWorkKindResponse(row.WorkKindRow, row.CustomWorkKind),

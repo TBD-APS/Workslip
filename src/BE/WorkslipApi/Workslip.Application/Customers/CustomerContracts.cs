@@ -26,3 +26,10 @@ public sealed record CustomerDetailResponse(
     string? Phone,
     int JobCount,
     IReadOnlyList<CustomerJobResponse> Jobs);
+
+public sealed record CustomerSearchResponse(
+    Guid Id,
+    string Name,
+    string? Email,
+    string? Phone,
+    string? Address);

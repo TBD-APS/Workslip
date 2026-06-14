@@ -29,6 +29,13 @@ public sealed record CustomerDetailViewModel(
     int JobCount,
     IReadOnlyList<CustomerJobViewModel> Jobs);
 
+public sealed record CustomerSearchViewModel(
+    Guid Id,
+    string Name,
+    string? Email,
+    string? Phone,
+    string? Address);
+
 public static class CustomerViewModelBuilder
 {
     public static CustomerListItemViewModel ToListItem(CustomerListItemResponse customer) => new(
@@ -49,6 +56,13 @@ public static class CustomerViewModelBuilder
         customer.Phone,
         customer.JobCount,
         customer.Jobs.Select(ToJob).ToArray());
+
+    public static CustomerSearchViewModel ToSearch(CustomerSearchResponse customer) => new(
+        customer.Id,
+        customer.Name,
+        customer.Email,
+        customer.Phone,
+        customer.Address);
 
     private static CustomerJobViewModel ToJob(CustomerJobResponse job) => new(
         job.Id,

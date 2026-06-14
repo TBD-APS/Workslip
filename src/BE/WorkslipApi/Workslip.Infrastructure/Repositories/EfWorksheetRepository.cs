@@ -55,14 +55,14 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
                 && w.WorkDate >= fromDate
                 && w.WorkDate <= toDate
                 && !r.IsSoftDeleted
-            orderby w.WorkDate, r.ReportNumber, c != null ? c.Name : null
+            orderby w.WorkDate, r.ReportNumber, (r.CustomerName ?? (c != null ? c.Name : null))
             select new WorksheetMapper.WorksheetMyProjection
             {
                 WorkDate = w.WorkDate,
                 JobId = w.JobId,
                 ReportNumber = r.ReportNumber,
-                CustomerName = c != null ? c.Name : "Ukendt kunde",
-                CustomerAddress = c != null ? c.Address : null,
+                CustomerName = r.CustomerName ?? (c != null ? c.Name : "Ukendt kunde"),
+                CustomerAddress = r.CustomerAddress ?? (c != null ? c.Address : null),
                 HasOutlay = w.SleptOnJob,
                 HoursWorked = w.HoursWorked
             })
