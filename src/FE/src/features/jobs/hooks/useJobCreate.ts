@@ -88,7 +88,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
         address: customer.address ?? null,
         email: customer.email ?? null,
         phone: customer.phone ?? null,
-        contactPerson: customer.contactPerson ?? null,
+        contactPerson: null,
       },
     }));
   };

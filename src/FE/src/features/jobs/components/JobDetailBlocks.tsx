@@ -4,7 +4,7 @@ import { CollapsibleSection } from '../../../components/forms/CollapsibleSection
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
 import { useCan } from '../../../providers/permissions';
-import { useGetApiCustomersSearch } from '../../../api/generated/customers/customers';
+import { useGetApiCustomersSuggest } from '../../../api/generated/customers/customers';
 import type { CustomerInfo, CustomerSearchViewModel, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -55,6 +55,7 @@ export function CustomerDetailsBlock({
 
         <CustomerSearchDropdown
           selectedId={form.customer.customerId}
+          selectedName={form.customer.name}
           onSelect={onCustomerSelect}
         />
 
@@ -147,30 +148,40 @@ export function TextAreaBlock({ icon, title, value, placeholder, onChange }: Tex
 
 type CustomerSearchDropdownProps = {
   selectedId: string | null;
-  onSelect: (customer: CustomerSearchViewModel) => void;
+  selectedName?: string | null;
+  onSelect?: (customer: CustomerSearchViewModel) => void;
 };
 
-function CustomerSearchDropdown({ selectedId, onSelect }: CustomerSearchDropdownProps) {
+function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: CustomerSearchDropdownProps) {
   const [inputValue, setInputValue] = useState('');
   const debouncedQuery = useDebounce(inputValue, 300);
-  const { data: searchResults = [], isLoading } = useGetApiCustomersSearch(
+  const { data: searchResults = [], isLoading } = useGetApiCustomersSuggest(
     { query: debouncedQuery, limit: 10 },
     { query: { enabled: debouncedQuery.length >= 2 } }
   );
 
-  const options = useMemo(() =>
-    searchResults.map((c) => ({
+  const options = useMemo(() => {
+    const list = searchResults.map((c) => ({
       id: c.id ?? '',
       label: c.name ?? '',
-      description: c.companyName ?? undefined,
-    })),
-    [searchResults]
-  );
+      description: c.address ?? undefined,
+    }));
+
+    if (selectedId && selectedName && !list.some((o) => o.id === selectedId)) {
+      list.unshift({
+        id: selectedId,
+        label: selectedName,
+        description: undefined,
+      });
+    }
+
+    return list;
+  }, [searchResults, selectedId, selectedName]);
 
   const handleSelect = useCallback(
     (option: { id: string }) => {
       const customer = searchResults.find((c) => c.id === option.id);
-      if (customer) {
+      if (customer && onSelect) {
         onSelect(customer);
       }
     },

@@ -291,7 +291,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         address: customer.address ?? null,
         email: customer.email ?? null,
         phone: customer.phone ?? null,
-        contactPerson: customer.contactPerson ?? null,
+        contactPerson: null,
       },
     });
   };
