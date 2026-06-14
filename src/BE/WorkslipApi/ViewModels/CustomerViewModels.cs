@@ -34,7 +34,8 @@ public sealed record CustomerSearchViewModel(
     string Name,
     string? Email,
     string? Phone,
-    string? Address);
+    string? Address,
+    string? ContactPerson);
 
 public static class CustomerViewModelBuilder
 {
@@ -62,7 +63,8 @@ public static class CustomerViewModelBuilder
         customer.Name,
         customer.Email,
         customer.Phone,
-        customer.Address);
+        customer.Address,
+        customer.ContactPerson);
 
     private static CustomerJobViewModel ToJob(CustomerJobResponse job) => new(
         job.Id,

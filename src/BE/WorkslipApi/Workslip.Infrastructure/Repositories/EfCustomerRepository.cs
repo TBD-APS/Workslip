@@ -176,7 +176,27 @@ public sealed class EfCustomerRepository : ICustomerRepository
                 c.Name,
                 c.Email,
                 c.Phone,
-                c.Address))
+                c.Address,
+                c.ContactPerson))
+            .ToListAsync(cancellationToken);
+
+        return customers;
+    }
+
+    public async Task<IReadOnlyList<CustomerSearchResponse>> GetTopCustomersAsync(Guid organizationId, int limit, CancellationToken cancellationToken)
+    {
+        var customers = await _dbContext.Customers
+            .AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId)
+            .OrderByDescending(c => _dbContext.JobReports.Count(r => r.CustomerId == c.Id && r.OrganizationId == organizationId && !r.IsSoftDeleted))
+            .Take(limit)
+            .Select(c => new CustomerSearchResponse(
+                c.Id,
+                c.Name,
+                c.Email,
+                c.Phone,
+                c.Address,
+                c.ContactPerson))
             .ToListAsync(cancellationToken);
 
         return customers;

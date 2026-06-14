@@ -35,7 +35,7 @@ import {
   toUpdateRequest,
 } from '../utils';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
-import type { CustomerSearchViewModel } from '../../../api/generated/models';
+import type { CustomerSearchViewModel, CustomerInfo } from '../../../api/generated/models';
 import type { JobForm } from '../types';
 
 type JobDetailsDraft = { jobId: string; form: JobForm };
@@ -291,7 +291,17 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         address: customer.address ?? null,
         email: customer.email ?? null,
         phone: customer.phone ?? null,
-        contactPerson: null,
+        contactPerson: customer.contactPerson ?? null,
+      },
+    });
+  };
+
+  const updateCustomerField = (field: keyof CustomerInfo, value: string) => {
+    updateDraft({
+      ...form,
+      customer: {
+        ...form.customer,
+        [field]: value,
       },
     });
   };
@@ -597,6 +607,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateAssignedUsers,
     updateLinkedJobs,
     selectCustomer,
+    updateCustomerField,
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,

@@ -25,6 +25,12 @@ public static class CustomerEndpoints
             return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToSearch).ToArray());
         }).Produces<List<CustomerSearchViewModel>>();
 
+        searchGroup.MapGet("/top", async (int? limit, ICustomerService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetTopAsync(limit ?? 3, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToSearch).ToArray());
+        }).Produces<List<CustomerSearchViewModel>>();
+
         var group = app.MapGroup("/api/customers")
             .WithTags("customers")
             .RequireAuthorization(AuthPolicies.RequireAdmin);

@@ -423,6 +423,7 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         }}
         readOnlyAssigned={details.job.assignedUsers}
         onCustomerSelect={details.selectCustomer}
+        onCustomerFieldChange={(_field, _value) => {}}
         onReportNumberChange={details.updateReportNumber}
       />
 

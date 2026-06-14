@@ -13,7 +13,7 @@ import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import { emptyForm, isValidCreateForm } from '../utils';
-import type { CustomerSearchViewModel, CreateJobRequest } from '../../../api/generated/models';
+import type { CustomerSearchViewModel, CreateJobRequest, CustomerInfo } from '../../../api/generated/models';
 import type { JobForm } from '../types';
 
 export function useJobCreate(onCreated: (jobId: string) => void) {
@@ -88,7 +88,17 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
         address: customer.address ?? null,
         email: customer.email ?? null,
         phone: customer.phone ?? null,
-        contactPerson: null,
+        contactPerson: customer.contactPerson ?? null,
+      },
+    }));
+  };
+
+  const updateCustomerField = (field: keyof CustomerInfo, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      customer: {
+        ...prev.customer,
+        [field]: value,
       },
     }));
   };
@@ -190,6 +200,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     isLoadingReferenceData: referenceDataQuery.isLoading,
     isLoadingUsers: usersQuery.isLoading,
     selectCustomer,
+    updateCustomerField,
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,

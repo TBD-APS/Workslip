@@ -32,4 +32,5 @@ public sealed record CustomerSearchResponse(
     string Name,
     string? Email,
     string? Phone,
-    string? Address);
+    string? Address,
+    string? ContactPerson);

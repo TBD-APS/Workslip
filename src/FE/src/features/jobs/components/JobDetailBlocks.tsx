@@ -20,6 +20,7 @@ type CustomerBlockProps = {
   };
   readOnlyAssigned?: { id: string; displayName: string }[];
   onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
+  onCustomerFieldChange: (field: keyof CustomerInfo, value: string) => void;
   onReportNumberChange: (value: string) => void;
 };
 
@@ -29,6 +30,7 @@ export function CustomerDetailsBlock({
   assignment,
   readOnlyAssigned,
   onCustomerSelect,
+  onCustomerFieldChange,
   onReportNumberChange,
 }: CustomerBlockProps) {
   const canAssign = useCan('job:assign');
@@ -58,6 +60,28 @@ export function CustomerDetailsBlock({
           selectedName={form.customer.name}
           onSelect={onCustomerSelect}
         />
+
+        <div className="form-group">
+          <label className="form-label">Kundenavn</label>
+          <input className="form-input" value={form.customer.name ?? ''} onChange={(e) => onCustomerFieldChange('name', e.target.value)} placeholder="Kundenavn" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Adresse</label>
+          <input className="form-input" value={form.customer.address ?? ''} onChange={(e) => onCustomerFieldChange('address', e.target.value)} placeholder="Adresse" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Email</label>
+          <input className="form-input" value={form.customer.email ?? ''} onChange={(e) => onCustomerFieldChange('email', e.target.value)} placeholder="Email" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Telefon</label>
+          <input className="form-input" value={form.customer.phone ?? ''} onChange={(e) => onCustomerFieldChange('phone', e.target.value)} placeholder="Telefon" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Kontaktperson</label>
+          <input className="form-input" value={form.customer.contactPerson ?? ''} onChange={(e) => onCustomerFieldChange('contactPerson', e.target.value)} placeholder="Kontaktperson" />
+        </div>
+
 
         {assignment && canAssign && (
           <MultiSelectDropdown
