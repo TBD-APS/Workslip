@@ -42,6 +42,7 @@ var roles = {
 
 
   UserReadWriteAll: '741f1ec0-4c47-4952-b971-50c2d3d7d31f'
+  UserInviteAll: '63dd7cd9-b489-4adf-a28c-ac38b9a0f962'
   ApplicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
   AppRoleAssignmentReadWriteAll: '06b03e2b-286b-4043-9a0b-116a43319a53'
   UserAuthenticationMethodReadWriteAll: '48db3110-388d-4be9-b467-36e2f11ffc8f'
@@ -83,6 +84,34 @@ resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdenti
     issuer: 'https://token.actions.githubusercontent.com'
     subject: 'repo:${githubRepository}:environment:${githubEnvironment}'
   }
+}
+
+resource microsoftGraphServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' existing = {
+  appId: '00000003-0000-0000-c000-000000000000'
+}
+
+resource graphUserReadWriteAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: roles.UserReadWriteAll
+  principalId: identity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+resource graphUserInviteAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: roles.UserInviteAll
+  principalId: identity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+resource graphApplicationReadAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: roles.ApplicationReadAll
+  principalId: identity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+resource graphAppRoleAssignmentReadWriteAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: roles.AppRoleAssignmentReadWriteAll
+  principalId: identity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
