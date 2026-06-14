@@ -1,6 +1,7 @@
 using AutoBogus;
 using Bogus;
 using Microsoft.EntityFrameworkCore;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Schema;
@@ -28,6 +29,7 @@ public static class DatabaseSeeder
         {
             return;
         }
+        var faker = new Faker();
 
         Randomizer.Seed = new Random(12345);
         var now = DateTimeOffset.UtcNow;
@@ -117,26 +119,36 @@ public static class DatabaseSeeder
         users.AddRange(adminUser);
         users.AddRange(regularUser);
 
-        var statuses = new[] { "Draft", "InReview", "Approved", "Rejected" };
+        var statuses = new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected };
 
         var jobs = new Faker<JobReportRow>()
-            .RuleFor(x => x.Id, _ => Guid.NewGuid())
-            .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.CustomerId, f => f.PickRandom(customers).Id)
-            .RuleFor(x => x.ReportNumber, f => f.Random.Replace("####"))
-            .RuleFor(x => x.Status, f => f.PickRandom(statuses))
-            .RuleFor(x => x.ReportDate, f => f.Date.Past(1).Date)
-            .RuleFor(x => x.TaskDescription, f => f.Lorem.Sentence())
-            .RuleFor(x => x.WorkKindId, f => f.PickRandom(jobWorkKinds).Id)
-            .RuleFor(x => x.CustomWorkKind, f => f.Random.Bool(0.15f) ? f.Commerce.ProductName() : null)
-            .RuleFor(x => x.IsSoftDeleted, _ => false)
-            .RuleFor(x => x.CreatedAt, f => f.Date.PastOffset(1))
-            .RuleFor(x => x.UpdatedAt, _ => now)
+            .CustomInstantiator(f =>
+            {
+                var workKind = f.PickRandom(jobWorkKinds);
+
+                return new JobReportRow
+                {
+                    Id = Guid.NewGuid(),
+                    OrganizationId = organization.Id,
+                    CustomerId = f.PickRandom(customers).Id,
+                    ReportNumber = f.Random.Replace("####"),
+                    Status = f.PickRandom(statuses).ToString(),
+                    ReportDate = f.Date.Past(1).Date,
+                    TaskDescription = f.Lorem.Sentence(),
+                    WorkKindId = workKind.Id,
+                    CustomWorkKind = workKind.RequiresCustomWorkKind
+                        ? f.Commerce.Product()
+                        : null,
+                    IsSoftDeleted = false,
+                    CreatedAt = f.Date.PastOffset(1),
+                    UpdatedAt = now
+                };
+            })
             .Generate(50);
 
         var usedPairs = new HashSet<(Guid, Guid)>();
         var assignments = new List<JobAssignmentRow>();
-        var faker = new Faker();
+      
 
         // Ensure dev test users have explicit assignments so the FE can demo the role split.
         var regularUserId = new Guid("B2B2B2B2-DA5B-4CC4-BBEB-07B40CAB806F");

@@ -73,7 +73,6 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 row.RelativeItem().AlignRight().Column(info =>
                 {
                     info.Item().Text(job.ReportNumber ?? ShortId(job.Id)).FontSize(PdfStyle.HeaderSize).Bold().FontColor(Colors.White);
-                    info.Item().Text(StatusLabel(status)).FontSize(PdfStyle.SubHeaderSize).FontColor(StatusColor(status));
                 });
             });
 
@@ -129,7 +128,6 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
                     row.RelativeItem().Column(col =>
                     {
-                        col.Item().Element(c => Field(c, "Status", StatusLabel(job.Status)));
                         col.Item().Element(c => Field(c, "Oprettet", FormatDateTime(job.CreatedAt)));
                         col.Item().Element(c => Field(c, "Senest ændret", FormatDateTime(job.UpdatedAt)));
                     });

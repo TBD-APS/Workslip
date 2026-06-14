@@ -674,8 +674,8 @@
 }
 
 .status-inreview {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
+  background: rgba(161, 161, 170, 0.12);
+  color: #a1a1aa;
 }
 
 .status-approved {

@@ -213,7 +213,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         if (jobId) {
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
-        queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey({ limit: 200 }) });
+        queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
         toast.success('Sagen er attesteret og indsendt');
       },
       onError: (error) => {

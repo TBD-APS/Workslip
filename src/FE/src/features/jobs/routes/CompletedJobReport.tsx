@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -8,7 +9,7 @@ import type {
   JobReportSummaryViewModel,
   WorksheetResponse,
 } from '../../../api/generated/models';
-import { usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
+import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { useAuth } from '../../../providers/useAuth';
@@ -46,6 +47,7 @@ type IrrelevantCategory = {
 export const CompletedJobReport = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
   const details = useJobDetailsState(id, { autoSave: false });
@@ -153,7 +155,9 @@ export const CompletedJobReport = () => {
   const handleApprove = async () => {
     if (!job) return;
     try {
-      await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Approved } });
+      const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Approved } });
+      queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), updatedJob);
+      await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
       toast.success(`Sagen ${details.form.reportNumber} er godkendt`);
       navigate(from);
     }
@@ -165,12 +169,14 @@ export const CompletedJobReport = () => {
   const handleReject = async () => {
     if (!job) return;
     try {
-    await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
-    toast.success(`Sagen ${details.form.reportNumber} er afvist`);
-    navigate(from);
-  } catch {
-    toast.error(`Kunne ikke afvise sagen ${details.form.reportNumber}. Prøv igen.`);
-  }
+      const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
+      queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), updatedJob);
+      await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
+      toast.success(`Sagen ${details.form.reportNumber} er afvist`);
+      navigate(from);
+    } catch {
+      toast.error(`Kunne ikke afvise sagen ${details.form.reportNumber}. Prøv igen.`);
+    }
   };
 
   if (details.isLoading) {

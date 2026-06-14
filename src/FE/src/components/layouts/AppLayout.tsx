@@ -28,6 +28,17 @@ export const AppLayout = () => {
             <User size={16} />
             <span>{user?.displayName ?? user?.email ?? ''}</span>
           </span>
+          <Can permission="user:manage">
+            <button
+              type="button"
+              onClick={() => navigate('/app/settings')}
+              className="user-avatar"
+              aria-label="Indstillinger"
+              title="Indstillinger"
+            >
+              <Settings size={18} />
+            </button>
+          </Can>
           <button
             type="button"
             onClick={() => navigate('/app/profil')}
@@ -71,12 +82,6 @@ export const AppLayout = () => {
           <CalendarDays size={24} />
           <span>Timer</span>
         </NavLink>
-        <Can permission="user:manage">
-          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Users size={24} />
-            <span>Folk</span>
-          </NavLink>
-        </Can>
         <div className="nav-item-fab">
           <Can permission="job:create">
             <button className="fab-button" onClick={() => navigate('/app/job/new')} aria-label="Opret sag">
@@ -85,15 +90,15 @@ export const AppLayout = () => {
           </Can>
         </div>
         <Can permission="user:manage">
+          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Users size={24} />
+            <span>Folk</span>
+          </NavLink>
+        </Can>
+                <Can permission="user:manage">
           <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Building2 size={24} />
             <span>Kunder</span>
-          </NavLink>
-        </Can>
-        <Can permission="user:manage">
-          <NavLink to="/app/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Settings size={24} />
-            <span>Indstillinger</span>
           </NavLink>
         </Can>
       </nav>

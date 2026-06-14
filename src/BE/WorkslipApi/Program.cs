@@ -9,6 +9,8 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
+    builder.ConfigureInfrastructure();
+
     var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
     builder.Services.AddCors(x =>
@@ -21,8 +23,8 @@ try
                   .AllowAnyHeader();
         });
     });
+
     builder.ConfigureAuthentication();
-    builder.ConfigureInfrastructure();
     builder.ConfigureLogging(applicationInsightsConnectionString);
     builder.ConfigureServices();
 
