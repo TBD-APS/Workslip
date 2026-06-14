@@ -133,9 +133,18 @@ public sealed class UserEntraService(
             }, ct);
             return result?.Value?.FirstOrDefault();
         }
+        catch (ODataError odataError)
+        {
+            // Dette vil fange den REELLE fejlbesked fra Azure Entra ID
+            logger.LogError(odataError, "Graph API returnerede en fejl: {Code} - {Message}",
+                odataError.Error?.Code,
+                odataError.Error?.Message);
+            throw;
+        }
         catch (Exception e)
         {
-            logger.LogError(e, "Graph query failed {DirectoryRoles}, {Me}", graphClient.DirectoryRoles.ToString(), graphClient.Me);
+            // Gængse netværksfejl eller uforudsete fejl
+            logger.LogError(e, "Generel fejl under kald til Graph API");
             throw;
         }
     }
