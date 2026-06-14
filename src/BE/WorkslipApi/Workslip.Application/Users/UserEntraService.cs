@@ -28,8 +28,8 @@ public sealed class UserEntraService(
         }
 
         var redirectUrl = configuration["Azure:AdOAuth:InviteRedirectUri"]
-            ?? configuration["Azure:AdOAuth:LoginRedirectUri"]
-            ?? "https://webapp-delta-sand-62.vercel.app/login";
+            ?? configuration["Azure:AdOAuth:LoginRedirectUri"];
+
         var invitation = new Invitation
         {
             InvitedUserEmailAddress = email,
@@ -123,15 +123,22 @@ public sealed class UserEntraService(
         var escapedUserPrincipalName = EscapeODataString(userPrincipalName);
         var escapedGuestUpnPrefix = EscapeODataString(guestUpnPrefix);
 
-        var result = await graphClient.Users.GetAsync(
-            request =>
-            {
-                request.QueryParameters.Filter =
-                    $"mail eq '{escapedEmail}' or otherMails/any(m:m eq '{escapedEmail}') or userPrincipalName eq '{escapedUserPrincipalName}' or startswith(userPrincipalName,'{escapedGuestUpnPrefix}')";
-                request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail", "otherMails"];
-                request.QueryParameters.Top = 1;
-            }, ct);
+        var result = await graphClient.Users.GetAsync(request =>
+        {
+            request.QueryParameters.Filter =
+                $"mail eq '{escapedEmail}' or userPrincipalName eq '{escapedUserPrincipalName}'";
 
+            request.QueryParameters.Select =
+            [
+                "id",
+        "displayName",
+        "userPrincipalName",
+        "mail",
+        "otherMails"
+            ];
+
+            request.QueryParameters.Top = 1;
+        }, ct);
         return result?.Value?.FirstOrDefault();
     }
 
@@ -149,20 +156,6 @@ public sealed class UserEntraService(
             : user.OtherMails?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
               ?? user.UserPrincipalName
               ?? fallbackEmail;
-
-    private static User BuildEntraUser(string displayName, string mailNickname, string userPrincipalName) =>
-        new()
-        {
-            AccountEnabled = true,
-            DisplayName = displayName,
-            MailNickname = mailNickname,
-            UserPrincipalName = userPrincipalName,
-            PasswordProfile = new PasswordProfile
-            {
-                Password = $"Tmp-{Guid.NewGuid():N}!aA1",
-                ForceChangePasswordNextSignIn = true
-            }
-        };
 
     private async Task<Invitation> CreateExternalInviteAsync(Invitation invitation, string email, CancellationToken ct)
     {
@@ -192,36 +185,6 @@ public sealed class UserEntraService(
             correlationIdAccessor.CorrelationId, email, createdInvitation.InvitedUser?.Id);
 
         return createdInvitation;
-    }
-
-    private async Task<User> CreateEntraUserAsync(User newUser, string displayName, string email, string userPrincipalName, CancellationToken ct)
-    {
-        logger.LogInformation("Graph creating user. CorrelationId={CorrelationId} Email={Email} Upn={Upn}",
-            correlationIdAccessor.CorrelationId, email, userPrincipalName);
-
-        User? user;
-        try
-        {
-            user = await graphClient.Users.PostAsync(newUser, cancellationToken: ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Graph create user failed. CorrelationId={CorrelationId} Email={Email}",
-                correlationIdAccessor.CorrelationId, email);
-            throw;
-        }
-
-        if (user == null)
-        {
-            logger.LogError("Graph create user returned null. CorrelationId={CorrelationId} Email={Email}",
-                correlationIdAccessor.CorrelationId, email);
-            throw new InvalidOperationException($"User {displayName} could not be created");
-        }
-
-        logger.LogInformation("Graph user created. CorrelationId={CorrelationId} Email={Email} EntraId={EntraId}",
-            correlationIdAccessor.CorrelationId, email, user.Id);
-
-        return user;
     }
 
     private async Task<ServicePrincipal> FetchServicePrincipalAsync(string? appId, CancellationToken ct)
