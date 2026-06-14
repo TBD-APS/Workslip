@@ -452,6 +452,15 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.AcceptedAt)
             .HasColumnType("datetimeoffset");
 
+        entity.Property(e => e.EntraUserId)
+            .HasMaxLength(80);
+
+        entity.Property(e => e.EntraProvisionedAt)
+            .HasColumnType("datetimeoffset");
+
+        entity.Property(e => e.EntraCleanedAt)
+            .HasColumnType("datetimeoffset");
+
         entity.HasOne<OrganizationRow>()
             .WithMany()
             .HasForeignKey(e => e.OrganizationId)

@@ -117,7 +117,7 @@ export const CompletedJobReport = () => {
     try {
       setPdfPreview(await createJobReportPdfPreview(job));
     } catch {
-      toast.error('Kunne ikke åbne PDF for sagen');
+        toast.error(`Kunne ikke åbne PDF for sagen ${details.form.reportNumber}`);
     } finally {
       setIsOpeningPdf(false);
     }
@@ -147,18 +147,18 @@ export const CompletedJobReport = () => {
 
     setIsEditing(false);
     document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
-    toast.success('Sagen er opdateret');
+    toast.success(`Sagen ${details.form.reportNumber} er opdateret`);
   };
 
   const handleApprove = async () => {
     if (!job) return;
     try {
       await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Approved } });
-      toast.success('Sagen er godkendt');
+      toast.success(`Sagen ${details.form.reportNumber} er godkendt`);
       navigate(from);
     }
     catch{
-       toast.error('Kunne ikke godkende sagen. Prøv igen.');
+       toast.error(`Kunne ikke godkende sagen ${details.form.reportNumber}. Prøv igen.`);
      }
   };
 
@@ -166,10 +166,10 @@ export const CompletedJobReport = () => {
     if (!job) return;
     try {
     await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
-    toast.success('Sagen er afvist');
+    toast.success(`Sagen ${details.form.reportNumber} er afvist`);
     navigate(from);
   } catch {
-    toast.error('Kunne ikke afvise sagen. Prøv igen.');
+    toast.error(`Kunne ikke afvise sagen ${details.form.reportNumber}. Prøv igen.`);
   }
   };
 

@@ -174,6 +174,22 @@ public static class JobReportMapper
     private static string BuildDanishHistorySummary(string eventType, IReadOnlyList<PropertyChange> changes)
     {
         var visibleChanges = changes.Where(change => !string.IsNullOrWhiteSpace(change.DisplayName ?? change.PropertyName)).ToArray();
+        var worksheetSummary = BuildWorksheetSummary(eventType, visibleChanges);
+        if (worksheetSummary is not null)
+            return worksheetSummary;
+
+        var assignmentSummary = BuildAssignmentSummary(visibleChanges);
+        if (assignmentSummary is not null)
+            return assignmentSummary;
+
+        var linkSummary = BuildLinkSummary(visibleChanges);
+        if (linkSummary is not null)
+            return linkSummary;
+
+        var installationSummary = BuildInstallationSummary(visibleChanges);
+        if (installationSummary is not null)
+            return installationSummary;
+
         if (visibleChanges.Length == 0)
         {
             return eventType.ToLowerInvariant() switch
@@ -208,6 +224,127 @@ public static class JobReportMapper
         };
     }
 
+    private static string? BuildWorksheetSummary(string eventType, IReadOnlyList<PropertyChange> changes)
+    {
+        var workDate = FindChange(changes, "WorkDate")?.Before ?? FindChange(changes, "WorkDate")?.After;
+        var hours = FindChange(changes, "HoursWorked")?.Before ?? FindChange(changes, "HoursWorked")?.After;
+        var hasWorksheetShape = (hours is not null || changes.Count > 1)
+            && changes.Any(change => change.PropertyName is "WorkDate" or "HoursWorked" or "SleptOnJob" or AuditFields.AssignedUser or AuditFields.Report);
+
+        if (!hasWorksheetShape)
+            return null;
+
+        var datePart = workDate is null ? string.Empty : $" d. {workDate}";
+        var hoursPart = hours is null ? string.Empty : $" med {FormatHours(hours)} timer";
+
+        return eventType.ToLowerInvariant() switch
+        {
+            AuditEventTypes.Added => $"Arbejdsseddel oprettet{datePart}{hoursPart}",
+            AuditEventTypes.Deleted => $"Arbejdsseddel fjernet{datePart}{hoursPart}",
+            AuditEventTypes.Modified => $"Arbejdsseddel ændret{datePart}: {BuildFieldListSummary(changes) ?? "felter opdateret"}",
+            _ => null
+        };
+    }
+
+    private static string? BuildInstallationSummary(IReadOnlyList<PropertyChange> changes)
+    {
+        var installationCounts = new Dictionary<string, int>();
+        foreach (var change in changes)
+        {
+            var installationName = GetInstallationName(change.DisplayName ?? change.PropertyName);
+            if (installationName is null)
+                continue;
+
+            installationCounts[installationName] = installationCounts.GetValueOrDefault(installationName) + 1;
+        }
+
+        if (installationCounts.Count == 0)
+            return null;
+
+        var summaries = installationCounts.Select(pair =>
+            $"{pair.Key}: {pair.Value} {(pair.Value == 1 ? "ændring" : "ændringer")}").ToArray();
+
+        if (summaries.Length <= 3)
+            return string.Join(", ", summaries);
+
+        return $"{string.Join(", ", summaries.Take(3))} + {summaries.Length - 3} anlægstyper mere";
+    }
+
+    private static string? BuildAssignmentSummary(IReadOnlyList<PropertyChange> changes)
+    {
+        if (changes.Count <= 1 || changes.Any(change => !IsAssignmentChange(change)))
+            return null;
+
+        var added = changes.Count(change => change.Before is null && change.After is not null);
+        var removed = changes.Count(change => change.Before is not null && change.After is null);
+
+        return (added, removed) switch
+        {
+            (> 0, > 0) => $"Tildelte medarbejdere ændret: {added} tilføjet, {removed} fjernet",
+            (> 0, 0) => $"Tildelte medarbejdere tilføjet: {added}",
+            (0, > 0) => $"Tildelte medarbejdere fjernet: {removed}",
+            _ => "Tildelte medarbejdere ændret"
+        };
+    }
+
+    private static bool IsAssignmentChange(PropertyChange change) =>
+        change.PropertyName == AuditFields.AssignedUser
+        || change.PropertyName.StartsWith($"{AuditDisplayNames.Labels[AuditFields.AssignedUser]} / ", StringComparison.Ordinal);
+
+    private static string? BuildLinkSummary(IReadOnlyList<PropertyChange> changes)
+    {
+        if (changes.Count <= 1 || changes.Any(change => !IsLinkChange(change)))
+            return null;
+
+        var added = changes.Count(change => change.Before is null && change.After is not null);
+        var removed = changes.Count(change => change.Before is not null && change.After is null);
+
+        return (added, removed) switch
+        {
+            (> 0, > 0) => $"Relaterede sager ændret: {added} tilføjet, {removed} fjernet",
+            (> 0, 0) => $"Relaterede sager tilføjet: {added}",
+            (0, > 0) => $"Relaterede sager fjernet: {removed}",
+            _ => "Relaterede sager ændret"
+        };
+    }
+
+    private static bool IsLinkChange(PropertyChange change) =>
+        change.PropertyName == AuditFields.LinkedReport
+        || change.PropertyName.StartsWith($"{AuditDisplayNames.Labels[AuditFields.LinkedReport]} / ", StringComparison.Ordinal);
+
+    private static string? BuildFieldListSummary(IReadOnlyList<PropertyChange> changes)
+    {
+        var labels = changes
+            .Select(change => change.DisplayName ?? change.PropertyName)
+            .Where(label => !string.IsNullOrWhiteSpace(label))
+            .ToArray();
+
+        if (labels.Length == 0)
+            return null;
+
+        if (labels.Length <= 3)
+            return string.Join(", ", labels);
+
+        return $"{string.Join(", ", labels.Take(3))} + {labels.Length - 3} mere";
+    }
+
+    private static string? GetInstallationName(string? label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+            return null;
+
+        var parts = label.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2)
+            return null;
+
+        return parts[0] == AuditDisplayNames.Labels[AuditFields.InstallationType] ? parts[1] : parts[0];
+    }
+
+    private static PropertyChange? FindChange(IEnumerable<PropertyChange> changes, string propertyName) =>
+        changes.FirstOrDefault(change => change.PropertyName == propertyName);
+
+    private static string FormatHours(string hours) => hours.Replace('.', ',');
+
     private static string DisplayValueForSummary(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "tom" : value;
 
@@ -219,7 +356,27 @@ public static class JobReportMapper
         if (TryFormatHistoryDate(value, out var formattedDate))
             return formattedDate;
 
+        if (TryFormatJobStatus(value, out var statusLabel))
+            return statusLabel;
+
+        if (bool.TryParse(value, out var boolValue))
+            return boolValue ? "Ja" : "Nej";
+
         return Guid.TryParse(value, out _) ? "Ikke vist" : value;
+    }
+
+    private static bool TryFormatJobStatus(string value, out string statusLabel)
+    {
+        statusLabel = value switch
+        {
+            "Draft" => "Aktiv",
+            "InReview" => "Til gennemsyn",
+            "Approved" => "Godkendt",
+            "Rejected" => "Afvist",
+            _ => string.Empty
+        };
+
+        return statusLabel.Length > 0;
     }
 
     private static bool TryFormatHistoryDate(string value, out string formattedDate)

@@ -72,24 +72,28 @@ resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
   uniqueName: 'Workslip-client-${environment}-${uniqueSuffix}'
   displayName: 'Workslip Client ${environment}'
   signInAudience: 'AzureADMyOrg'
-  publicClient: {
+  spa: {
     redirectUris: [
-      'http://localhost:5173/callback'
-      'https://workslip-v2-0.vercel.app/callback'
-      'https://oauth.pstmn.io/v1/callback'
+      'http://localhost:5173/login'
+      'http://localhost:5173/invite/callback'
+      'https://workslip-v2-0.vercel.app/login'
+      'https://workslip-v2-0.vercel.app/invite/callback'
+      'https://webapp-delta-sand-62.vercel.app/login'
+      'https://webapp-delta-sand-62.vercel.app/invite/callback'
     ]
   }
-  owners: {relationships: [
-    globalAdminId
-  ]}
-  
-  // Implicit grant for SPA
   web: {
+    redirectUris: [
+      'https://oauth.pstmn.io/v1/callback'
+    ]
     implicitGrantSettings: {
       enableAccessTokenIssuance: false
       enableIdTokenIssuance: true
     }
   }
+  owners: {relationships: [
+    globalAdminId
+  ]}
 
   requiredResourceAccess: [
     {

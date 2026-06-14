@@ -374,13 +374,10 @@ public sealed class JobService(
             }
         }
 
-        var links = new List<JobLinkResponse>(request.TargetReportIds.Count);
-        foreach (var targetId in request.TargetReportIds)
-        {
-            var link = await linkRepository.CreateLinkAsync(organizationId.Value, reportId, targetId, cancellationToken);
-            links.Add(link);
+        await linkRepository.CreateLinksAsync(organizationId.Value, reportId, request.TargetReportIds, cancellationToken);
+
+        foreach (var targetId in request.TargetReportIds.Distinct())
             await InvalidateJobCachesAsync(targetId, organizationId.Value, cancellationToken);
-        }
 
         await InvalidateJobCachesAsync(reportId, organizationId.Value, cancellationToken);
 
