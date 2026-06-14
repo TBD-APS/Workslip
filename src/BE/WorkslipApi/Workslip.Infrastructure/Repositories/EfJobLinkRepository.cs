@@ -22,36 +22,56 @@ public sealed class EfJobLinkRepository : IJobLinkRepository
     public Task<JobLinkResponse> CreateLinkAsync(Guid organizationId, Guid sourceReportId, Guid targetReportId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("links.create", token => CreateLinkAsyncCoreAsync(organizationId, sourceReportId, targetReportId, token), cancellationToken);
 
+    public Task<IReadOnlyList<JobLinkResponse>> CreateLinksAsync(Guid organizationId, Guid sourceReportId, IReadOnlyList<Guid> targetReportIds, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("links.create-batch", token => CreateLinksAsyncCoreAsync(organizationId, sourceReportId, targetReportIds, token), cancellationToken);
+
     private async Task<JobLinkResponse> CreateLinkAsyncCoreAsync(Guid organizationId, Guid sourceReportId, Guid targetReportId, CancellationToken cancellationToken)
     {
+        var links = await CreateLinksAsyncCoreAsync(organizationId, sourceReportId, [targetReportId], cancellationToken);
+        return links.Single();
+    }
+
+    private async Task<IReadOnlyList<JobLinkResponse>> CreateLinksAsyncCoreAsync(Guid organizationId, Guid sourceReportId, IReadOnlyList<Guid> targetReportIds, CancellationToken cancellationToken)
+    {
         var now = DateTimeOffset.UtcNow;
+        var normalizedTargetIds = targetReportIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
 
-        var linkedReport = await _dbContext.JobReports
+        if (normalizedTargetIds.Length == 0)
+            return [];
+
+        var linkedReports = await _dbContext.JobReports
             .AsNoTracking()
-            .Where(r => r.OrganizationId == organizationId && r.Id == targetReportId)
-            .Select(r => new { r.ReportNumber, r.Status, r.CustomerId })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Where(r => r.OrganizationId == organizationId && normalizedTargetIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.ReportNumber, r.Status, r.CustomerId })
+            .ToDictionaryAsync(r => r.Id, cancellationToken);
 
-        var link = new JobReportLinkRow
+        var links = normalizedTargetIds.Select(targetReportId => new JobReportLinkRow
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
             SourceReportId = sourceReportId,
             TargetReportId = targetReportId,
             CreatedAt = now
-        };
+        }).ToArray();
 
-        _dbContext.JobReportLinks.Add(link);
+        _dbContext.JobReportLinks.AddRange(links);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return new JobLinkResponse(
-            link.Id,
-            sourceReportId,
-            targetReportId,
-            linkedReport?.ReportNumber ?? string.Empty,
-            string.Empty,
-            linkedReport?.Status ?? string.Empty,
-            now);
+        return links.Select(link =>
+        {
+            linkedReports.TryGetValue(link.TargetReportId, out var linkedReport);
+            return new JobLinkResponse(
+                link.Id,
+                sourceReportId,
+                link.TargetReportId,
+                linkedReport?.ReportNumber ?? string.Empty,
+                string.Empty,
+                linkedReport?.Status ?? string.Empty,
+                now);
+        }).ToArray();
     }
 
     public Task<JobReportLinkRow?> GetLinkAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken) =>

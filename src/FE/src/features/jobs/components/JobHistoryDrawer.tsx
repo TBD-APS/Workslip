@@ -62,6 +62,7 @@ export function JobHistoryDrawer({ jobId, isOpen, onClose }: JobHistoryDrawerPro
 function HistoryEventItem({ event }: { event: JobHistoryResponse }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasChanges = event.changes && event.changes.length > 0;
+  const overview = event.summary;
 
   const isAdded = event.eventType.toLowerCase() === 'added';
   const Icon = getEventIcon(event.eventType);
@@ -92,9 +93,9 @@ function HistoryEventItem({ event }: { event: JobHistoryResponse }) {
         </div>
       </div>
       
-      {event.summary && (
+      {overview && (
         <div className="history-event-summary">
-          {event.summary}
+          {overview}
         </div>
       )}
 

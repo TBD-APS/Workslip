@@ -1,14 +1,23 @@
 import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, Loader2, LogIn, ArrowRight, User, Phone } from 'lucide-react';
-import { acceptInvite, verifyInviteToken } from '../api/inviteAccept';
-import { AUTH_TOKEN_KEY } from '../../../providers/authContextValue';
+import { verifyInviteToken } from '../api/inviteAccept';
+import { AUTH_TOKEN_KEY, USER_EMAIL_KEY } from '../../../providers/authContextValue';
+import {
+  clearInviteEnrollmentSession,
+  completeEntraInviteEnrollment,
+  hasEntraCallback,
+  loadInviteEnrollmentDraft,
+  startEntraInviteSignIn,
+} from '../api/entraInviteEnrollment';
 
 type InviteState =
   | { status: 'checking' }
   | { status: 'invalid'; message: string }
   | { status: 'ready' }
-  | { status: 'submitting' }
+  | { status: 'accepted' }
+  | { status: 'authenticating' }
+  | { status: 'enrolling' }
   | { status: 'error'; message: string }
   | { status: 'success' };
 
@@ -18,6 +27,9 @@ const errorMessages: Record<string, string> = {
   user_already_exists: 'Der findes allerede en bruger med denne e-mail. Prøv at log ind i stedet.',
 };
 
+const resolveInviteError = (errorCode: string | undefined, fallback: string) =>
+  errorCode ? errorMessages[errorCode] ?? fallback : fallback;
+
 export const InviteAccept = () => {
   const { token } = useParams<{ token: string }>();
   const [state, setState] = useState<InviteState>({ status: 'checking' });
@@ -26,6 +38,34 @@ export const InviteAccept = () => {
   const calledRef = useRef(false);
 
   useEffect(() => {
+    if (hasEntraCallback()) {
+      const draft = loadInviteEnrollmentDraft();
+      if (draft) {
+        setDisplayName(draft.displayName);
+        setPhone(draft.phone ?? '');
+      }
+
+      setState({ status: 'enrolling' });
+      completeEntraInviteEnrollment()
+        .then(response => {
+          sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
+          sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
+          clearInviteEnrollmentSession();
+          window.history.replaceState(null, '', window.location.pathname);
+          setState({ status: 'success' });
+          window.location.assign('/app/profil');
+        })
+        .catch((err: unknown) => {
+          window.history.replaceState(null, '', window.location.pathname);
+          const errorCode = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+          const message = errorCode
+            ? resolveInviteError(errorCode, 'Kunne ikke færdiggøre Microsoft login. Prøv igen.')
+            : (err as Error)?.message || 'Kunne ikke færdiggøre Microsoft login. Prøv igen.';
+          setState({ status: 'error', message });
+        });
+      return;
+    }
+
     if (!token) {
       setState({ status: 'invalid', message: 'Manglende invitationslink.' });
       return;
@@ -36,34 +76,33 @@ export const InviteAccept = () => {
 
     verifyInviteToken(token)
       .then(() => {
-        window.history.replaceState(null, '', '/invite');
         setState({ status: 'ready' });
       })
       .catch(() => setState({ status: 'invalid', message: 'Invitationen blev ikke fundet. Kontrollér linket eller kontakt administratoren.' }));
   }, [token]);
 
-  const handleAccept = async (e: FormEvent) => {
+  const handleAcceptInvite = () => {
+    setState({ status: 'accepted' });
+  };
+
+  const handleContinueToMicrosoft = async (e: FormEvent) => {
     e.preventDefault();
     if (!token || !displayName.trim()) return;
-    setState({ status: 'submitting' });
+    setState({ status: 'authenticating' });
 
     try {
-      const response = await acceptInvite(token, displayName.trim(), phone.trim() || undefined);
-      sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
-      setState({ status: 'success' });
+      await startEntraInviteSignIn({ token, displayName: displayName.trim(), phone: phone.trim() || undefined });
     } catch (err: unknown) {
       const errorCode = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      if (errorCode === 'invite_consumed') {
-        setState({ status: 'error', message: errorMessages.invite_consumed });
-      } else if (errorCode === 'invite_expired') {
-        setState({ status: 'error', message: errorMessages.invite_expired });
-      } else if (errorCode === 'user_already_exists') {
-        setState({ status: 'error', message: errorMessages.user_already_exists });
-      } else {
-        setState({ status: 'error', message: 'Kunne ikke acceptere invitationen. Prøv igen.' });
-      }
+      const message = errorCode
+        ? resolveInviteError(errorCode, 'Kunne ikke acceptere invitationen. Prøv igen.')
+        : (err as Error)?.message || 'Kunne ikke acceptere invitationen. Prøv igen.';
+      setState({ status: 'error', message });
     }
   };
+
+  const isWorking = state.status === 'authenticating' || state.status === 'enrolling';
+  const showDetailsForm = state.status === 'accepted' || state.status === 'error' || isWorking;
 
   return (
     <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>
@@ -113,6 +152,27 @@ export const InviteAccept = () => {
           </>
         )}
 
+        {state.status === 'ready' && (
+          <>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <CheckCircle2 size={48} style={{ color: '#22c55e' }} />
+            </div>
+            <h2 style={{ marginBottom: '0.5rem' }}>Du er inviteret til Workslip</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+              Acceptér invitationen for at oprette din konto. Derefter beder vi om dit navn og telefonnummer, før du fortsætter med Microsoft.
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleAcceptInvite}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+            >
+              Acceptér invitation
+              <ArrowRight size={18} />
+            </button>
+          </>
+        )}
+
         {state.status === 'success' ? (
           <>
             <div style={{ marginBottom: '1.5rem' }}>
@@ -133,11 +193,11 @@ export const InviteAccept = () => {
           </>
         ) : null}
 
-        {(state.status === 'ready' || state.status === 'error' || state.status === 'submitting') && (
+        {showDetailsForm && (
           <>
-            <h2 style={{ marginBottom: '0.5rem' }}>Velkommen til Workslip</h2>
+            <h2 style={{ marginBottom: '0.5rem' }}>Færdiggør din konto</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-              Du er blevet inviteret. Udfyld dine oplysninger for at oprette din konto.
+              Indtast dit fulde navn og telefonnummer. Bagefter sender vi dig til Microsoft for login og passkey-oprettelse.
             </p>
 
             {state.status === 'error' && (
@@ -159,10 +219,10 @@ export const InviteAccept = () => {
               </div>
             )}
 
-            <form onSubmit={handleAccept} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleContinueToMicrosoft} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ textAlign: 'left' }}>
                 <label htmlFor="displayName" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                  Navn
+                  Fulde navn
                 </label>
                 <div style={{ position: 'relative' }}>
                   <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
@@ -173,7 +233,7 @@ export const InviteAccept = () => {
                     onChange={e => setDisplayName(e.target.value)}
                     placeholder="Dit fulde navn"
                     required
-                    disabled={state.status === 'submitting'}
+                    disabled={isWorking}
                     style={{
                       width: '100%',
                       padding: '0.7rem 0.75rem 0.7rem 2.5rem',
@@ -191,7 +251,7 @@ export const InviteAccept = () => {
 
               <div style={{ textAlign: 'left' }}>
                 <label htmlFor="phone" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                  Telefon <span style={{ color: 'var(--text-tertiary)' }}>(valgfrit)</span>
+                  Telefonnummer <span style={{ color: 'var(--text-tertiary)' }}>(valgfrit)</span>
                 </label>
                 <div style={{ position: 'relative' }}>
                   <Phone size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
@@ -201,7 +261,7 @@ export const InviteAccept = () => {
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
                     placeholder="+45 12 34 56 78"
-                    disabled={state.status === 'submitting'}
+                    disabled={isWorking}
                     style={{
                       width: '100%',
                       padding: '0.7rem 0.75rem 0.7rem 2.5rem',
@@ -220,24 +280,24 @@ export const InviteAccept = () => {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={state.status === 'submitting' || !displayName.trim()}
+                disabled={isWorking || !displayName.trim()}
                 style={{
                   width: '100%',
                   marginTop: '0.5rem',
-                  opacity: state.status === 'submitting' || !displayName.trim() ? 0.7 : 1,
+                  opacity: isWorking || !displayName.trim() ? 0.7 : 1,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.5rem',
-                  cursor: state.status === 'submitting' ? 'wait' : 'pointer'
+                  cursor: isWorking ? 'wait' : 'pointer'
                 }}
               >
-                {state.status === 'submitting' ? (
+                {isWorking ? (
                   <Loader2 className="animate-spin" size={18} />
                 ) : (
                   <LogIn size={18} />
                 )}
-                <span>{state.status === 'submitting' ? 'Opretter konto...' : 'Opret konto'}</span>
+                <span>{state.status === 'enrolling' ? 'Opretter konto...' : state.status === 'authenticating' ? 'Sender til Microsoft...' : 'Fortsæt med Microsoft'}</span>
               </button>
             </form>
 

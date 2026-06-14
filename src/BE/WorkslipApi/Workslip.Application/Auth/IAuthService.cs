@@ -11,4 +11,5 @@ public interface IAuthService
     Task<Result<AuthUserInfo>> VerifyLoginCodeAsync(VerifyCodeRequest request, CancellationToken cancellationToken);
 
     Task<Result<UserResponse>> UpdateCurrentUserAsync(UpdateUserRequest request, CancellationToken cancellationToken);
+    Task<Result<AuthUserInfo>> CompleteEntraLoginAsync(CancellationToken cancellationToken);
 }

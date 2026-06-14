@@ -53,13 +53,13 @@ public sealed class AuditInterceptorTests
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
         Assert.Equal(actorId, audit.ActorId);
-        Assert.Equal("Tech Tim assigned", audit.Summary);
+        Assert.Equal("Tech Tim tilføjet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.Equal("Planner Pia", response.ActorName);
         var change = Assert.Single(response.Changes);
         Assert.Equal("AssignedUser", change.PropertyName);
-        Assert.Equal("Tildelt bruger", change.DisplayName);
+        Assert.Equal("Tildelt medarbejder", change.DisplayName);
         Assert.Null(change.Before);
         Assert.Equal("Tech Tim", change.After);
     }
@@ -104,13 +104,70 @@ public sealed class AuditInterceptorTests
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
         Assert.Equal(actorId, audit.ActorId);
-        Assert.Equal("Tech Tim unassigned", audit.Summary);
+        Assert.Equal("Tech Tim fjernet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
         Assert.Equal("AssignedUser", change.PropertyName);
         Assert.Equal("Tech Tim", change.Before);
         Assert.Null(change.After);
+    }
+
+    [Fact]
+    public async Task Job_assignment_add_and_remove_in_same_save_produces_one_consolidated_event()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var removedUserId = Guid.NewGuid();
+        var addedUserId = Guid.NewGuid();
+        var keptUserId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var removedAssignmentId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.Users.AddRange(
+            new UserDataRow { Id = actorId, OrganizationId = orgId, DisplayName = "Planner Pia", Email = "pia@example.test", Role = "Admin" },
+            new UserDataRow { Id = removedUserId, OrganizationId = orgId, DisplayName = "Removed Ron", Email = "ron@example.test", Role = "User" },
+            new UserDataRow { Id = addedUserId, OrganizationId = orgId, DisplayName = "Added Ada", Email = "ada@example.test", Role = "User" },
+            new UserDataRow { Id = keptUserId, OrganizationId = orgId, DisplayName = "Kept Kim", Email = "kim@example.test", Role = "User" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.JobAssignments.AddRange(
+            new JobAssignmentRow { Id = removedAssignmentId, OrganizationId = orgId, ReportId = jobId, UserId = removedUserId, AssignedByUserId = actorId, AssignedAt = DateTimeOffset.UtcNow },
+            new JobAssignmentRow { Id = Guid.NewGuid(), OrganizationId = orgId, ReportId = jobId, UserId = keptUserId, AssignedByUserId = actorId, AssignedAt = DateTimeOffset.UtcNow });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        var removedAssignment = await context.JobAssignments.SingleAsync(a => a.Id == removedAssignmentId);
+        context.JobAssignments.Remove(removedAssignment);
+        context.JobAssignments.Add(new JobAssignmentRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            ReportId = jobId,
+            UserId = addedUserId,
+            AssignedByUserId = actorId,
+            AssignedAt = DateTimeOffset.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
+        Assert.Equal("Tildelte medarbejdere ændret", audit.Summary);
+
+        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
+        Assert.Equal(2, response.Changes.Count);
+        Assert.Contains(response.Changes, c => c.PropertyName == "Tildelt medarbejder / Removed Ron" && c.Before == "Removed Ron" && c.After is null);
+        Assert.Contains(response.Changes, c => c.PropertyName == "Tildelt medarbejder / Added Ada" && c.Before is null && c.After == "Added Ada");
+        Assert.Equal("Tildelte medarbejdere ændret: 1 tilføjet, 1 fjernet", response.Summary);
     }
 
     [Fact]
@@ -153,7 +210,7 @@ public sealed class AuditInterceptorTests
         await repository.AssignAsync(jobId, orgId, [keptUserId], actorId, CancellationToken.None);
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Removed Ron unassigned", audit.Summary);
+        Assert.Equal("Removed Ron fjernet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
@@ -190,11 +247,11 @@ public sealed class AuditInterceptorTests
         Assert.Equal(2, events.Count);
 
         var sourceEvent = Assert.Single(events, e => e.ReportId == sourceReportId);
-        Assert.Equal("Link to JOB-2 removed", sourceEvent.Summary);
+        Assert.Equal("Link til JOB-2 fjernet", sourceEvent.Summary);
         Assert.Equal("JOB-2", Assert.Single(JobReportMapper.ToHistoryResponse(sourceEvent, "Planner Pia").Changes).Before);
 
         var targetEvent = Assert.Single(events, e => e.ReportId == targetReportId);
-        Assert.Equal("Link to JOB-1 removed", targetEvent.Summary);
+        Assert.Equal("Link til JOB-1 fjernet", targetEvent.Summary);
         Assert.Equal("JOB-1", Assert.Single(JobReportMapper.ToHistoryResponse(targetEvent, "Planner Pia").Changes).Before);
     }
 
@@ -221,13 +278,50 @@ public sealed class AuditInterceptorTests
         await repository.DeleteLinksAsync(orgId, [firstLinkId, secondLinkId], CancellationToken.None);
 
         var events = await context.JobEvents.AsNoTracking().ToListAsync();
-        Assert.Equal(4, events.Count);
-        Assert.Contains(events, e => e.ReportId == sourceReportId && e.Summary == "Link to JOB-2 removed");
-        Assert.Contains(events, e => e.ReportId == sourceReportId && e.Summary == "Link to JOB-3 removed");
-        Assert.Contains(events, e => e.ReportId == firstTargetReportId && e.Summary == "Link to JOB-1 removed");
-        Assert.Contains(events, e => e.ReportId == secondTargetReportId && e.Summary == "Link to JOB-1 removed");
+        Assert.Equal(3, events.Count);
+
+        var sourceEvent = Assert.Single(events, e => e.ReportId == sourceReportId);
+        Assert.Equal("Relaterede sager fjernet", sourceEvent.Summary);
+        var sourceResponse = JobReportMapper.ToHistoryResponse(sourceEvent, "Planner Pia");
+        Assert.Equal("Relaterede sager fjernet: 2", sourceResponse.Summary);
+        Assert.Contains(sourceResponse.Changes, c => c.PropertyName == "Relateret sag / JOB-2" && c.Before == "JOB-2" && c.After is null);
+        Assert.Contains(sourceResponse.Changes, c => c.PropertyName == "Relateret sag / JOB-3" && c.Before == "JOB-3" && c.After is null);
+
+        Assert.Contains(events, e => e.ReportId == firstTargetReportId && e.Summary == "Link til JOB-1 fjernet");
+        Assert.Contains(events, e => e.ReportId == secondTargetReportId && e.Summary == "Link til JOB-1 fjernet");
     }
 
+
+    [Fact]
+    public async Task Job_link_repository_can_audit_multiple_added_links_in_one_call()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var sourceReportId = Guid.NewGuid();
+        var firstTargetReportId = Guid.NewGuid();
+        var secondTargetReportId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        SeedReportsWithLinks(context, orgId,
+            [(sourceReportId, "JOB-1"), (firstTargetReportId, "JOB-2"), (secondTargetReportId, "JOB-3")],
+            []);
+
+        var repository = new EfJobLinkRepository(context, new NoRetryPolicy());
+        await repository.CreateLinksAsync(orgId, sourceReportId, [firstTargetReportId, secondTargetReportId], CancellationToken.None);
+
+        var events = await context.JobEvents.AsNoTracking().ToListAsync();
+        Assert.Equal(3, events.Count);
+
+        var sourceEvent = Assert.Single(events, e => e.ReportId == sourceReportId);
+        Assert.Equal("Relaterede sager tilføjet", sourceEvent.Summary);
+        var sourceResponse = JobReportMapper.ToHistoryResponse(sourceEvent, "Planner Pia");
+        Assert.Equal("Relaterede sager tilføjet: 2", sourceResponse.Summary);
+        Assert.Contains(sourceResponse.Changes, c => c.PropertyName == "Relateret sag / JOB-2" && c.Before is null && c.After == "JOB-2");
+        Assert.Contains(sourceResponse.Changes, c => c.PropertyName == "Relateret sag / JOB-3" && c.Before is null && c.After == "JOB-3");
+
+        Assert.Contains(events, e => e.ReportId == firstTargetReportId && e.Summary == "Link til JOB-1 tilføjet");
+        Assert.Contains(events, e => e.ReportId == secondTargetReportId && e.Summary == "Link til JOB-1 tilføjet");
+    }
 
     [Fact]
     public async Task Job_report_work_kind_audit_uses_work_kind_display_name()
@@ -262,7 +356,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("WorkKind changed: 'Service' → 'Reparation'", audit.Summary);
+        Assert.Equal("WorkKind ændret: 'Service' → 'Reparation'", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
@@ -340,7 +434,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("WorkKind changed: 'Service' → 'Reparation'", audit.Summary);
+        Assert.Equal("WorkKind ændret: 'Service' → 'Reparation'", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
@@ -471,18 +565,13 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Installation type Gasinstallation added", audit.Summary);
-
-        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
-        var change = Assert.Single(response.Changes);
-        Assert.Equal("InstallationType", change.PropertyName);
-        Assert.Equal("Anlægstype", change.DisplayName);
-        Assert.Null(change.Before);
-        Assert.Equal("Gasinstallation", change.After);
+        Assert.Equal("Installationstype Gasinstallation tilføjet", audit.Summary);
+        Assert.Null(audit.BeforeJson);
+        Assert.Null(audit.AfterJson);
     }
 
     [Fact]
-    public async Task Job_report_control_point_audit_uses_control_point_display_name_when_checked_changes()
+    public async Task Job_report_control_point_checked_change_creates_consolidated_installation_updated_event()
     {
         var orgId = Guid.NewGuid();
         var actorId = Guid.NewGuid();
@@ -538,12 +627,15 @@ public sealed class AuditInterceptorTests
         controlPoint.IsChecked = true;
         await context.SaveChangesAsync();
 
-        var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Control point Trykprøvning changed", audit.Summary);
+        var audit = Assert.Single(await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync());
+        Assert.Equal("Installationstype Gasinstallation opdateret", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
-        Assert.Contains(response.Changes, change => change.PropertyName == "ControlPoint" && change.After == "Trykprøvning");
-        Assert.Contains(response.Changes, change => change.PropertyName == "IsChecked" && change.Before == "false" && change.After == "true");
+        var change = Assert.Single(response.Changes);
+        Assert.Equal("Modtagekontrol / Trykprøvning", change.PropertyName);
+        Assert.Equal("✗", change.Before);
+        Assert.Equal("✓", change.After);
+        Assert.Equal("Modtagekontrol: 1 ændring", response.Summary);
     }
 
 
@@ -574,14 +666,15 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Status changed: 'Draft' → 'InReview'", audit.Summary);
+        Assert.Equal("Status ændret: 'Draft' → 'InReview'", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
         Assert.Equal("Status", change.PropertyName);
         Assert.Equal("Status", change.DisplayName);
-        Assert.Equal("Draft", change.Before);
-        Assert.Equal("InReview", change.After);
+        Assert.Equal("Aktiv", change.Before);
+        Assert.Equal("Til gennemsyn", change.After);
+        Assert.Equal("Status ændret: 'Aktiv' → 'Til gennemsyn'", response.Summary);
     }
 
     [Fact]
@@ -627,7 +720,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Closure flag Færdigmeldt added", audit.Summary);
+        Assert.Equal("Afslutning af sag Færdigmeldt tilføjet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
@@ -683,13 +776,87 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Closure flag Færdigmeldt removed", audit.Summary);
+        Assert.Equal("Afslutning af Færdigmeldt fjernet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         var change = Assert.Single(response.Changes);
         Assert.Equal("ClosureFlag", change.PropertyName);
         Assert.Equal("Færdigmeldt", change.Before);
         Assert.Null(change.After);
+    }
+
+
+    [Fact]
+    public async Task Closure_flag_add_and_remove_in_same_save_produces_one_consolidated_event()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var removedFlagId = Guid.NewGuid();
+        var addedFlagId = Guid.NewGuid();
+        var removedJoinId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.JobClosureFlags.AddRange(
+            new JobClosureFlagRow
+            {
+                Id = removedFlagId,
+                NormalizedLabel = "finished",
+                Label = "Færdigmeldt",
+                IsActive = true,
+                SortOrder = 1,
+                UpdatedAt = DateTimeOffset.UtcNow
+            },
+            new JobClosureFlagRow
+            {
+                Id = addedFlagId,
+                NormalizedLabel = "not-finished",
+                Label = "Ikke udført",
+                IsActive = true,
+                SortOrder = 2,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+        context.JobReportClosureFlags.Add(new JobReportClosureFlagRow
+        {
+            Id = removedJoinId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            ClosureFlagId = removedFlagId,
+            SortOrder = 1
+        });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        var removedFlag = await context.JobReportClosureFlags.SingleAsync(f => f.Id == removedJoinId);
+        context.JobReportClosureFlags.Remove(removedFlag);
+        context.JobReportClosureFlags.Add(new JobReportClosureFlagRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            ClosureFlagId = addedFlagId,
+            SortOrder = 1
+        });
+        await context.SaveChangesAsync();
+
+        var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
+        Assert.Equal("Afslutningsflag ændret", audit.Summary);
+
+        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
+        Assert.Equal(2, response.Changes.Count);
+        Assert.Contains(response.Changes, c => c.PropertyName == "Afslutningsflag / Færdigmeldt" && c.Before == "Færdigmeldt" && c.After is null);
+        Assert.Contains(response.Changes, c => c.PropertyName == "Afslutningsflag / Ikke udført" && c.Before is null && c.After == "Ikke udført");
     }
 
 
@@ -734,14 +901,15 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Worksheet for Tech Tim added", audit.Summary);
+        Assert.Equal("Arbejdsseddel for Tech Tim tilføjet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.Contains(response.Changes, change => change.PropertyName == "Report" && change.DisplayName == "Sag" && change.After == "JOB-1");
-        Assert.Contains(response.Changes, change => change.PropertyName == "AssignedUser" && change.DisplayName == "Tildelt bruger" && change.After == "Tech Tim");
+        Assert.Contains(response.Changes, change => change.PropertyName == "AssignedUser" && change.DisplayName == "Tildelt medarbejder" && change.After == "Tech Tim");
         Assert.Contains(response.Changes, change => change.PropertyName == "WorkDate" && change.DisplayName == "Arbejdsdato" && change.After == "11. juni 2026");
         Assert.Contains(response.Changes, change => change.PropertyName == "HoursWorked" && change.DisplayName == "Timer" && change.After == "7.5");
-        Assert.Contains(response.Changes, change => change.PropertyName == "SleptOnJob" && change.DisplayName == "Overnatning" && change.After == "true");
+        Assert.Contains(response.Changes, change => change.PropertyName == "SleptOnJob" && change.DisplayName == "Overnatning" && change.After == "Ja");
+        Assert.Equal("Arbejdsseddel oprettet d. 11. juni 2026 med 7,5 timer", response.Summary);
         Assert.DoesNotContain(response.Changes, change => change.PropertyName == "JobId");
         Assert.DoesNotContain(response.Changes, change => change.PropertyName == "UserId");
     }
@@ -790,10 +958,11 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Worksheet for Tech Tim removed", audit.Summary);
+        Assert.Equal("Arbejdsseddel for Tech Tim fjernet", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.Contains(response.Changes, change => change.PropertyName == "AssignedUser" && change.Before == "Tech Tim" && change.After is null);
+        Assert.Equal("Arbejdsseddel fjernet d. 11. juni 2026 med 7,5 timer", response.Summary);
         Assert.DoesNotContain(response.Changes, change => change.PropertyName == "UserId");
     }
 
@@ -845,12 +1014,13 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("HoursWorked, SleptOnJob, AssignedUser changed", audit.Summary);
+        Assert.Equal("HoursWorked, SleptOnJob, AssignedUser ændret", audit.Summary);
 
         var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
         Assert.Contains(response.Changes, change => change.PropertyName == "AssignedUser" && change.Before == "Tech Tim" && change.After == "Tech Tina");
         Assert.Contains(response.Changes, change => change.PropertyName == "HoursWorked" && change.Before == "7.5" && change.After == "8.25");
-        Assert.Contains(response.Changes, change => change.PropertyName == "SleptOnJob" && change.Before == "false" && change.After == "true");
+        Assert.Contains(response.Changes, change => change.PropertyName == "SleptOnJob" && change.Before == "Nej" && change.After == "Ja");
+        Assert.Equal("Arbejdsseddel ændret: Timer, Overnatning, Tildelt medarbejder", response.Summary);
         Assert.DoesNotContain(response.Changes, change => change.PropertyName == "UserId");
     }
 
@@ -911,9 +1081,10 @@ public sealed class AuditInterceptorTests
         });
         await context.SaveChangesAsync();
 
-        var addEvents = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
-        Assert.Contains(addEvents, e => e.Summary == "Category Modtagekontrol added");
-        Assert.Contains(addEvents, e => e.Summary == "Control point Trykprøvning added");
+        var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
+        Assert.Equal(2, events.Count);
+        Assert.Contains(events, e => e.Summary!.Contains("Kategori Modtagekontrol"));
+        Assert.Contains(events, e => e.Summary!.Contains("Trykprøvning"));
 
         context.JobEvents.RemoveRange(context.JobEvents);
         await context.SaveChangesAsync();
@@ -924,11 +1095,843 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Remove(category);
         await context.SaveChangesAsync();
 
-        var removeEvents = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
-        Assert.Contains(removeEvents, e => e.Summary == "Category Modtagekontrol removed");
-        Assert.Contains(removeEvents, e => e.Summary == "Control point Trykprøvning removed");
+        events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
+        Assert.Equal(2, events.Count);
+        Assert.Contains(events, e => e.Summary!.Contains("Kategori Modtagekontrol") && e.EventType == "deleted");
+        Assert.Contains(events, e => e.Summary!.Contains("Trykprøvning") && e.EventType == "deleted");
     }
 
+
+    [Fact]
+    public async Task Installation_add_with_category_and_control_point_consolidates_all_info_in_one_event()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var installationTypeId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var controlPointId = Guid.NewGuid();
+        var installationId = Guid.NewGuid();
+        var categoryJoinId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.Add(new InstallationTypeDefinitionRow { Id = installationTypeId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 });
+        context.ControlCategoryRow.AddRange(
+            new ControlCategoryRow { Id = categoryId, Name = "Modtagekontrol", SortOrder = 1 },
+            new ControlCategoryRow { Id = Guid.NewGuid(), Name = "Elsikkerhed", SortOrder = 2 });
+        context.ControlPointRow.Add(new ControlPointRow { Id = controlPointId, Name = "Trykprøvning", SortOrder = 1 });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = installationId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = installationTypeId,
+            SortOrder = 1
+        });
+        context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = categoryJoinId,
+            JobReportInstallationId = installationId,
+            ControlCategoryId = categoryId,
+            SortOrder = 1,
+            IsIrrelevant = false
+        });
+        context.JobReportInstallationControlPoints.Add(new JobReportInstallationControlPointRow
+        {
+            JobReportInstallationCategoryId = categoryJoinId,
+            ControlPointId = controlPointId,
+            SortOrder = 1,
+            IsRequired = true,
+            IsChecked = true
+        });
+        await context.SaveChangesAsync();
+
+        var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
+        Assert.Equal("Installationstype Gasinstallation tilføjet", audit.Summary);
+
+        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
+        Assert.DoesNotContain(response.Changes, c => c.PropertyName == "InstallationType");
+        Assert.DoesNotContain(response.Changes, c => c.PropertyName == "Modtagekontrol (irrelevant)");
+        Assert.Contains(response.Changes, c => c.PropertyName == "Modtagekontrol / Trykprøvning" && c.After == "✓");
+        Assert.Single(response.Changes);
+    }
+
+    [Fact]
+    public async Task Category_irrelevance_toggle_creates_consolidated_installation_updated_event()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var installationTypeId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var installationId = Guid.NewGuid();
+        var categoryJoinId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.Add(new InstallationTypeDefinitionRow { Id = installationTypeId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 });
+        context.ControlCategoryRow.Add(new ControlCategoryRow { Id = categoryId, Name = "Modtagekontrol", SortOrder = 1 });
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = installationId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = installationTypeId,
+            SortOrder = 1
+        });
+        context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = categoryJoinId,
+            JobReportInstallationId = installationId,
+            ControlCategoryId = categoryId,
+            SortOrder = 1,
+            IsIrrelevant = false
+        });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        var categoryRow = await context.JobReportInstallationCategories.SingleAsync(c => c.Id == categoryJoinId);
+        categoryRow.IsIrrelevant = true;
+        await context.SaveChangesAsync();
+
+        var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
+        Assert.Equal("Installationstype Gasinstallation opdateret", audit.Summary);
+
+        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
+        var change = Assert.Single(response.Changes);
+        Assert.Equal("Modtagekontrol (irrelevant)", change.PropertyName);
+        Assert.Equal("✗", change.Before);
+        Assert.Equal("✓", change.After);
+    }
+
+    [Fact]
+    public async Task Two_installation_types_added_in_one_save_produces_two_consolidated_events()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var gasInstallationTypeId = Guid.NewGuid();
+        var oilInstallationTypeId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var cpId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.AddRange(
+            new InstallationTypeDefinitionRow { Id = gasInstallationTypeId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 },
+            new InstallationTypeDefinitionRow { Id = oilInstallationTypeId, OrganizationId = orgId, Name = "Oliefyr", SortOrder = 2 });
+        context.ControlCategoryRow.Add(new ControlCategoryRow { Id = categoryId, Name = "Modtagekontrol", SortOrder = 1 });
+        context.ControlPointRow.Add(new ControlPointRow { Id = cpId, Name = "Trykprøvning", SortOrder = 1 });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = gasInstallationTypeId,
+            SortOrder = 1
+        });
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = oilInstallationTypeId,
+            SortOrder = 2
+        });
+        await context.SaveChangesAsync();
+
+        var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
+        Assert.Equal(2, events.Count);
+        Assert.Contains(events, e => e.Summary == "Installationstype Gasinstallation tilføjet");
+        Assert.Contains(events, e => e.Summary == "Installationstype Oliefyr tilføjet");
+    }
+
+    [Fact]
+    public async Task Deleting_installation_with_all_children_loaded_produces_one_consolidated_removed_event()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var installationTypeId = Guid.NewGuid();
+        var cat1Id = Guid.NewGuid();
+        var cat2Id = Guid.NewGuid();
+        var cp1Id = Guid.NewGuid();
+        var cp2Id = Guid.NewGuid();
+        var cp3Id = Guid.NewGuid();
+        var installationId = Guid.NewGuid();
+        var catJoin1Id = Guid.NewGuid();
+        var catJoin2Id = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.Add(new InstallationTypeDefinitionRow { Id = installationTypeId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 });
+        context.ControlCategoryRow.AddRange(
+            new ControlCategoryRow { Id = cat1Id, Name = "Modtagekontrol", SortOrder = 1 },
+            new ControlCategoryRow { Id = cat2Id, Name = "Elsikkerhed", SortOrder = 2 });
+        context.ControlPointRow.AddRange(
+            new ControlPointRow { Id = cp1Id, Name = "Trykprøvning", SortOrder = 1 },
+            new ControlPointRow { Id = cp2Id, Name = "Tæthedsprøvning", SortOrder = 2 },
+            new ControlPointRow { Id = cp3Id, Name = "Visuel inspektion", SortOrder = 3 });
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = installationId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = installationTypeId,
+            SortOrder = 1
+        });
+        context.JobReportInstallationCategories.AddRange(
+            new JobReportInstallationCategoryRow
+            {
+                Id = catJoin1Id,
+                JobReportInstallationId = installationId,
+                ControlCategoryId = cat1Id,
+                SortOrder = 1,
+                IsIrrelevant = false
+            },
+            new JobReportInstallationCategoryRow
+            {
+                Id = catJoin2Id,
+                JobReportInstallationId = installationId,
+                ControlCategoryId = cat2Id,
+                SortOrder = 2,
+                IsIrrelevant = false
+            });
+        context.JobReportInstallationControlPoints.AddRange(
+            new JobReportInstallationControlPointRow
+            {
+                JobReportInstallationCategoryId = catJoin1Id,
+                ControlPointId = cp1Id,
+                SortOrder = 1,
+                IsRequired = true,
+                IsChecked = true
+            },
+            new JobReportInstallationControlPointRow
+            {
+                JobReportInstallationCategoryId = catJoin1Id,
+                ControlPointId = cp2Id,
+                SortOrder = 2,
+                IsRequired = false,
+                IsChecked = false
+            },
+            new JobReportInstallationControlPointRow
+            {
+                JobReportInstallationCategoryId = catJoin2Id,
+                ControlPointId = cp3Id,
+                SortOrder = 1,
+                IsRequired = true,
+                IsChecked = true
+            });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        // Load everything into tracker
+        var installation = await context.JobReportInstallations
+            .Include(i => i.Categories)
+            .ThenInclude(c => c.ControlPoints)
+            .SingleAsync(i => i.Id == installationId);
+        context.Remove(installation);
+        await context.SaveChangesAsync();
+
+        var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
+        Assert.Single(events);
+        Assert.Equal("Installationstype Gasinstallation fjernet", events[0].Summary);
+    }
+
+    [Fact]
+    public async Task Consolidated_delete_event_includes_installation_type_in_before_values()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var installationTypeId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var installationId = Guid.NewGuid();
+        var categoryJoinId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.Add(new InstallationTypeDefinitionRow { Id = installationTypeId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 });
+        context.ControlCategoryRow.Add(new ControlCategoryRow { Id = categoryId, Name = "Modtagekontrol", SortOrder = 1 });
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = installationId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = installationTypeId,
+            SortOrder = 1
+        });
+        context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = categoryJoinId,
+            JobReportInstallationId = installationId,
+            ControlCategoryId = categoryId,
+            SortOrder = 1,
+            IsIrrelevant = false
+        });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        var installation = await context.JobReportInstallations
+            .Include(i => i.Categories)
+            .SingleAsync(i => i.Id == installationId);
+        context.Remove(installation);
+        await context.SaveChangesAsync();
+
+        var audit = Assert.Single(await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync());
+        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
+        var change = Assert.Single(response.Changes, c => c.PropertyName == "InstallationType");
+        Assert.Equal("Gasinstallation", change.Before);
+        Assert.Null(change.After);
+    }
+
+    [Fact]
+    public async Task Adding_CP_to_existing_installation_delegates_to_old_policy()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var installationTypeId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var controlPointId = Guid.NewGuid();
+        var installationId = Guid.NewGuid();
+        var categoryJoinId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.Add(new InstallationTypeDefinitionRow { Id = installationTypeId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 });
+        context.ControlCategoryRow.Add(new ControlCategoryRow { Id = categoryId, Name = "Modtagekontrol", SortOrder = 1 });
+        context.ControlPointRow.Add(new ControlPointRow { Id = controlPointId, Name = "Trykprøvning", SortOrder = 1 });
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = installationId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = installationTypeId,
+            SortOrder = 1
+        });
+        context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = categoryJoinId,
+            JobReportInstallationId = installationId,
+            ControlCategoryId = categoryId,
+            SortOrder = 1,
+            IsIrrelevant = false
+        });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        // Add CP to existing installation (tracked unchanged) — delegates to old CP policy
+        context.JobReportInstallationControlPoints.Add(new JobReportInstallationControlPointRow
+        {
+            JobReportInstallationCategoryId = categoryJoinId,
+            ControlPointId = controlPointId,
+            SortOrder = 1,
+            IsRequired = true,
+            IsChecked = true
+        });
+        await context.SaveChangesAsync();
+
+        var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
+        Assert.Single(events);
+        Assert.Contains("Trykprøvning", events[0].Summary!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Deleting_CP_from_existing_installation_delegates_to_old_policy()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var installationTypeId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var controlPointId = Guid.NewGuid();
+        var installationId = Guid.NewGuid();
+        var categoryJoinId = Guid.NewGuid();
+        var cpRowId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.Add(new InstallationTypeDefinitionRow { Id = installationTypeId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 });
+        context.ControlCategoryRow.Add(new ControlCategoryRow { Id = categoryId, Name = "Modtagekontrol", SortOrder = 1 });
+        context.ControlPointRow.Add(new ControlPointRow { Id = controlPointId, Name = "Trykprøvning", SortOrder = 1 });
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = installationId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = installationTypeId,
+            SortOrder = 1
+        });
+        context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = categoryJoinId,
+            JobReportInstallationId = installationId,
+            ControlCategoryId = categoryId,
+            SortOrder = 1,
+            IsIrrelevant = false
+        });
+        context.JobReportInstallationControlPoints.Add(new JobReportInstallationControlPointRow
+        {
+            JobReportInstallationCategoryId = categoryJoinId,
+            ControlPointId = controlPointId,
+            SortOrder = 1,
+            IsRequired = true,
+            IsChecked = true
+        });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        // Delete CP from existing installation (tracked unchanged) — delegates to old CP policy
+        var cp = context.JobReportInstallationControlPoints.Local.Single(cp =>
+            cp.JobReportInstallationCategoryId == categoryJoinId && cp.ControlPointId == controlPointId);
+        context.Remove(cp);
+        await context.SaveChangesAsync();
+
+        var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
+        Assert.Single(events);
+        Assert.Contains("Trykprøvning", events[0].Summary!, StringComparison.Ordinal);
+        Assert.Equal("deleted", events[0].EventType);
+    }
+
+    [Fact]
+    public async Task Consolidated_add_event_with_unchecked_CP_keeps_irrelevant_false()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var installationTypeId = Guid.NewGuid();
+        var categoryId = Guid.NewGuid();
+        var controlPointId = Guid.NewGuid();
+        var installationId = Guid.NewGuid();
+        var categoryJoinId = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.Add(new InstallationTypeDefinitionRow { Id = installationTypeId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 });
+        context.ControlCategoryRow.Add(new ControlCategoryRow { Id = categoryId, Name = "Modtagekontrol", SortOrder = 1 });
+        context.ControlPointRow.Add(new ControlPointRow { Id = controlPointId, Name = "Trykprøvning", SortOrder = 1 });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = installationId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = installationTypeId,
+            SortOrder = 1
+        });
+        context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = categoryJoinId,
+            JobReportInstallationId = installationId,
+            ControlCategoryId = categoryId,
+            SortOrder = 1,
+            IsIrrelevant = false
+        });
+        // Unchecked CP — should NOT suppress (irrelevant)=false
+        context.JobReportInstallationControlPoints.Add(new JobReportInstallationControlPointRow
+        {
+            JobReportInstallationCategoryId = categoryJoinId,
+            ControlPointId = controlPointId,
+            SortOrder = 1,
+            IsRequired = false,
+            IsChecked = false
+        });
+        await context.SaveChangesAsync();
+
+        var audit = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
+        Assert.Equal("Installationstype Gasinstallation tilføjet", audit.Summary);
+
+        var response = JobReportMapper.ToHistoryResponse(audit, "Planner Pia");
+        Assert.DoesNotContain(response.Changes, c => c.PropertyName == "InstallationType");
+        Assert.Contains(response.Changes, c => c.PropertyName == "Modtagekontrol (irrelevant)" && c.After == "✗");
+        Assert.Single(response.Changes);
+    }
+
+    [Fact]
+    public async Task Adding_and_removing_installation_types_in_same_save_produces_one_event_each()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var instTypeAId = Guid.NewGuid();
+        var instTypeBId = Guid.NewGuid();
+        var cat1Id = Guid.NewGuid();
+        var cat2Id = Guid.NewGuid();
+        var cp1Id = Guid.NewGuid();
+        var cp2Id = Guid.NewGuid();
+        var instAId = Guid.NewGuid();
+        var catJoinA1Id = Guid.NewGuid();
+        var catJoinA2Id = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        // Seed: job + installation type A with categories and CPs + installation type B definition
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.AddRange(
+            new InstallationTypeDefinitionRow { Id = instTypeAId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 },
+            new InstallationTypeDefinitionRow { Id = instTypeBId, OrganizationId = orgId, Name = "Oliefyr", SortOrder = 2 });
+        context.ControlCategoryRow.AddRange(
+            new ControlCategoryRow { Id = cat1Id, Name = "Modtagekontrol", SortOrder = 1 },
+            new ControlCategoryRow { Id = cat2Id, Name = "Elsikkerhed", SortOrder = 2 });
+        context.ControlPointRow.AddRange(
+            new ControlPointRow { Id = cp1Id, Name = "Trykprøvning", SortOrder = 1 },
+            new ControlPointRow { Id = cp2Id, Name = "Tæthedsprøvning", SortOrder = 2 });
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = instAId,
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = instTypeAId,
+            SortOrder = 1
+        });
+        context.JobReportInstallationCategories.AddRange(
+            new JobReportInstallationCategoryRow
+            {
+                Id = catJoinA1Id,
+                JobReportInstallationId = instAId,
+                ControlCategoryId = cat1Id,
+                SortOrder = 1,
+                IsIrrelevant = false
+            },
+            new JobReportInstallationCategoryRow
+            {
+                Id = catJoinA2Id,
+                JobReportInstallationId = instAId,
+                ControlCategoryId = cat2Id,
+                SortOrder = 2,
+                IsIrrelevant = false
+            });
+        context.JobReportInstallationControlPoints.AddRange(
+            new JobReportInstallationControlPointRow
+            {
+                JobReportInstallationCategoryId = catJoinA1Id,
+                ControlPointId = cp1Id,
+                SortOrder = 1,
+                IsRequired = true,
+                IsChecked = true
+            },
+            new JobReportInstallationControlPointRow
+            {
+                JobReportInstallationCategoryId = catJoinA1Id,
+                ControlPointId = cp2Id,
+                SortOrder = 2,
+                IsRequired = false,
+                IsChecked = false
+            });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        // Simulate ChangeTracker.Clear() + reload (as SyncSelectedInstallationsAsync does)
+        context.ChangeTracker.Clear();
+
+        // Load installation A with children (as the repository does)
+        var installationA = await context.JobReportInstallations
+            .Include(i => i.Categories)
+            .ThenInclude(c => c.ControlPoints)
+            .SingleAsync(i => i.Id == instAId);
+
+        // Remove installation A (marks all children as Deleted)
+        context.Remove(installationA);
+
+        // Add installation B with categories and CPs (as the repository does for new types)
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = instTypeBId,
+            SortOrder = 2
+        });
+        // Categories and CPs for B would be created automatically by the repository;
+        // simulate by explicitly adding them to the tracker so the audit policy must deduplicate
+        var instBId = context.JobReportInstallations.Local.Single(i => i.InstallationTypeDefinitionId == instTypeBId).Id;
+        context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = Guid.NewGuid(),
+            JobReportInstallationId = instBId,
+            ControlCategoryId = cat1Id,
+            SortOrder = 1,
+            IsIrrelevant = false
+        });
+        await context.SaveChangesAsync();
+
+        var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
+        Assert.Equal(2, events.Count);
+
+        var deleteEvent = Assert.Single(events, e => e.EventType == "deleted");
+        Assert.Equal("Installationstype Gasinstallation fjernet", deleteEvent.Summary);
+
+        var addEvent = Assert.Single(events, e => e.EventType == "added");
+        Assert.Equal("Installationstype Oliefyr tilføjet", addEvent.Summary);
+    }
+
+    [Fact]
+    public async Task Removing_two_installation_types_in_same_save_produces_two_clean_delete_events()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var instTypeAId = Guid.NewGuid();
+        var instTypeBId = Guid.NewGuid();
+        var cat1Id = Guid.NewGuid();
+        var cp1Id = Guid.NewGuid();
+        var cp2Id = Guid.NewGuid();
+        var instAId = Guid.NewGuid();
+        var instBId = Guid.NewGuid();
+        var catJoinA1Id = Guid.NewGuid();
+        var catJoinB1Id = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.AddRange(
+            new InstallationTypeDefinitionRow { Id = instTypeAId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 },
+            new InstallationTypeDefinitionRow { Id = instTypeBId, OrganizationId = orgId, Name = "Oliefyr", SortOrder = 2 });
+        context.ControlCategoryRow.Add(new ControlCategoryRow { Id = cat1Id, Name = "Modtagekontrol", SortOrder = 1 });
+        context.ControlPointRow.AddRange(
+            new ControlPointRow { Id = cp1Id, Name = "Trykprøvning", SortOrder = 1 },
+            new ControlPointRow { Id = cp2Id, Name = "Tæthedsprøvning", SortOrder = 2 });
+        context.JobReportInstallations.AddRange(
+            new JobReportInstallationRow { Id = instAId, OrganizationId = orgId, JobReportId = jobId, InstallationTypeDefinitionId = instTypeAId, SortOrder = 1 },
+            new JobReportInstallationRow { Id = instBId, OrganizationId = orgId, JobReportId = jobId, InstallationTypeDefinitionId = instTypeBId, SortOrder = 2 });
+        context.JobReportInstallationCategories.AddRange(
+            new JobReportInstallationCategoryRow { Id = catJoinA1Id, JobReportInstallationId = instAId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false },
+            new JobReportInstallationCategoryRow { Id = catJoinB1Id, JobReportInstallationId = instBId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false });
+        context.JobReportInstallationControlPoints.AddRange(
+            new JobReportInstallationControlPointRow { JobReportInstallationCategoryId = catJoinA1Id, ControlPointId = cp1Id, SortOrder = 1, IsRequired = true, IsChecked = true },
+            new JobReportInstallationControlPointRow { JobReportInstallationCategoryId = catJoinA1Id, ControlPointId = cp2Id, SortOrder = 2, IsRequired = false, IsChecked = false },
+            new JobReportInstallationControlPointRow { JobReportInstallationCategoryId = catJoinB1Id, ControlPointId = cp1Id, SortOrder = 1, IsRequired = true, IsChecked = true });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        context.ChangeTracker.Clear();
+
+        var installationA = await context.JobReportInstallations
+            .Include(i => i.Categories).ThenInclude(c => c.ControlPoints)
+            .SingleAsync(i => i.Id == instAId);
+        var installationB = await context.JobReportInstallations
+            .Include(i => i.Categories).ThenInclude(c => c.ControlPoints)
+            .SingleAsync(i => i.Id == instBId);
+
+        context.Remove(installationA);
+        context.Remove(installationB);
+        await context.SaveChangesAsync();
+
+        var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
+        Assert.Equal(2, events.Count);
+        Assert.Contains(events, e => e.Summary == "Installationstype Gasinstallation fjernet");
+        Assert.Contains(events, e => e.Summary == "Installationstype Oliefyr fjernet");
+        foreach (var e in events)
+        {
+            var response = JobReportMapper.ToHistoryResponse(e, "Planner Pia");
+            var change = Assert.Single(response.Changes);
+            Assert.Equal("InstallationType", change.PropertyName);
+        }
+    }
+
+    [Fact]
+    public async Task Adding_removing_and_modifying_installation_types_in_same_save_produces_correct_events()
+    {
+        var orgId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        var instTypeAId = Guid.NewGuid();
+        var instTypeBId = Guid.NewGuid();
+        var instTypeCId = Guid.NewGuid();
+        var cat1Id = Guid.NewGuid();
+        var cp1Id = Guid.NewGuid();
+        var instAId = Guid.NewGuid();
+        var instCId = Guid.NewGuid();
+        var catJoinA1Id = Guid.NewGuid();
+        var catJoinC1Id = Guid.NewGuid();
+        await using var context = CreateContext(orgId, actorId);
+
+        context.IsSeeding = true;
+        context.Organizations.Add(new OrganizationRow { Id = orgId, Name = "Acme", Cvr = "12345678" });
+        context.JobReports.Add(new JobReportRow
+        {
+            Id = jobId,
+            OrganizationId = orgId,
+            ReportNumber = "JOB-1",
+            Status = "InReview",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.InstallationTypeDefinitions.AddRange(
+            new InstallationTypeDefinitionRow { Id = instTypeAId, OrganizationId = orgId, Name = "Gasinstallation", SortOrder = 1 },
+            new InstallationTypeDefinitionRow { Id = instTypeCId, OrganizationId = orgId, Name = "Elfyr", SortOrder = 2 },
+            new InstallationTypeDefinitionRow { Id = instTypeBId, OrganizationId = orgId, Name = "Oliefyr", SortOrder = 3 });
+        context.ControlCategoryRow.Add(new ControlCategoryRow { Id = cat1Id, Name = "Modtagekontrol", SortOrder = 1 });
+        context.ControlPointRow.Add(new ControlPointRow { Id = cp1Id, Name = "Trykprøvning", SortOrder = 1 });
+        context.JobReportInstallations.AddRange(
+            new JobReportInstallationRow { Id = instAId, OrganizationId = orgId, JobReportId = jobId, InstallationTypeDefinitionId = instTypeAId, SortOrder = 1 },
+            new JobReportInstallationRow { Id = instCId, OrganizationId = orgId, JobReportId = jobId, InstallationTypeDefinitionId = instTypeCId, SortOrder = 2 });
+        context.JobReportInstallationCategories.AddRange(
+            new JobReportInstallationCategoryRow { Id = catJoinA1Id, JobReportInstallationId = instAId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false },
+            new JobReportInstallationCategoryRow { Id = catJoinC1Id, JobReportInstallationId = instCId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false });
+        context.JobReportInstallationControlPoints.AddRange(
+            new JobReportInstallationControlPointRow { JobReportInstallationCategoryId = catJoinA1Id, ControlPointId = cp1Id, SortOrder = 1, IsRequired = true, IsChecked = true },
+            new JobReportInstallationControlPointRow { JobReportInstallationCategoryId = catJoinC1Id, ControlPointId = cp1Id, SortOrder = 1, IsRequired = true, IsChecked = true });
+        await context.SaveChangesAsync();
+        context.IsSeeding = false;
+
+        context.ChangeTracker.Clear();
+
+        var installationA = await context.JobReportInstallations
+            .Include(i => i.Categories).ThenInclude(c => c.ControlPoints)
+            .SingleAsync(i => i.Id == instAId);
+        var installationC = await context.JobReportInstallations
+            .Include(i => i.Categories).ThenInclude(c => c.ControlPoints)
+            .SingleAsync(i => i.Id == instCId);
+
+        // Remove A
+        context.Remove(installationA);
+
+        // Add B
+        context.JobReportInstallations.Add(new JobReportInstallationRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = orgId,
+            JobReportId = jobId,
+            InstallationTypeDefinitionId = instTypeBId,
+            SortOrder = 3
+        });
+        var newInstBId = context.JobReportInstallations.Local.Single(i => i.InstallationTypeDefinitionId == instTypeBId).Id;
+        context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = Guid.NewGuid(),
+            JobReportInstallationId = newInstBId,
+            ControlCategoryId = cat1Id,
+            SortOrder = 1,
+            IsIrrelevant = false
+        });
+
+        // Edit C — toggle CP IsChecked
+        var cpOnC = context.JobReportInstallationControlPoints.Local.Single(cp => cp.JobReportInstallationCategoryId == catJoinC1Id);
+        context.Entry(cpOnC).Property(e => e.IsChecked).CurrentValue = false;
+
+        await context.SaveChangesAsync();
+
+        var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).ToListAsync();
+        Assert.Equal(3, events.Count);
+
+        var deleteEvent = Assert.Single(events, e => e.EventType == "deleted");
+        Assert.Equal("Installationstype Gasinstallation fjernet", deleteEvent.Summary);
+
+        var addEvent = Assert.Single(events, e => e.EventType == "added");
+        Assert.Equal("Installationstype Oliefyr tilføjet", addEvent.Summary);
+
+        var modifiedEvent = Assert.Single(events, e => e.EventType == "modified");
+        Assert.Contains("Elfyr", modifiedEvent.Summary);
+    }
 
     [Fact]
     public async Task Draft_job_changes_are_not_audited_before_first_in_review_transition()
@@ -986,7 +1989,7 @@ public sealed class AuditInterceptorTests
         await context.SaveChangesAsync();
 
         var transition = Assert.Single(context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId));
-        Assert.Equal("Status changed: 'Draft' → 'InReview'", transition.Summary);
+        Assert.Equal("Status ændret: 'Draft' → 'InReview'", transition.Summary);
 
         report = await context.JobReports.SingleAsync(r => r.Id == jobId);
         context.Entry(report).Property(e => e.TaskDescription).CurrentValue = "Efter review";
@@ -994,7 +1997,7 @@ public sealed class AuditInterceptorTests
 
         var events = await context.JobEvents.AsNoTracking().Where(e => e.ReportId == jobId).OrderBy(e => e.CreatedAt).ToListAsync();
         Assert.Equal(2, events.Count);
-        Assert.Contains(events, e => e.Summary == "TaskDescription changed: '(empty)' → 'Efter review'");
+        Assert.Contains(events, e => e.Summary == "TaskDescription ændret: '(tom)' → 'Efter review'");
     }
 
     [Fact]
@@ -1023,7 +2026,7 @@ public sealed class AuditInterceptorTests
             ReportId = jobId,
             ActorId = actorId,
             EventType = "modified",
-            Summary = "Status changed: 'Draft' → 'InReview'",
+            Summary = "Status ændret: 'Draft' → 'InReview'",
             CreatedAt = DateTimeOffset.UtcNow
         });
         await context.SaveChangesAsync();
@@ -1100,9 +2103,9 @@ public sealed class AuditInterceptorTests
             .ToListAsync();
 
         Assert.Equal(3, summaries.Count);
-        Assert.Contains("Status changed: 'InReview' → 'Draft'", summaries);
-        Assert.Contains("Tech Tim assigned", summaries);
-        Assert.Contains("Closure flag Færdigmeldt added", summaries);
+        Assert.Contains("Status ændret: 'InReview' → 'Draft'", summaries);
+        Assert.Contains("Tech Tim tilføjet", summaries);
+        Assert.Contains("Afslutning af sag Færdigmeldt tilføjet", summaries);
     }
 
     [Fact]
@@ -1168,9 +2171,9 @@ public sealed class AuditInterceptorTests
             .ToListAsync();
 
         Assert.Equal(3, summaries.Count);
-        Assert.Contains("Status changed: 'Draft' → 'InReview'", summaries);
-        Assert.Contains("Tech Tim assigned", summaries);
-        Assert.Contains("Closure flag Færdigmeldt added", summaries);
+        Assert.Contains("Status ændret: 'Draft' → 'InReview'", summaries);
+        Assert.Contains("Tech Tim tilføjet", summaries);
+        Assert.Contains("Afslutning af sag Færdigmeldt tilføjet", summaries);
     }
 
 
@@ -1262,18 +2265,16 @@ public sealed class AuditInterceptorTests
             .Select(e => e.Summary)
             .ToListAsync();
 
-        Assert.Equal(6, summaries.Count);
-        Assert.Contains("Status changed: 'Draft' → 'InReview'", summaries);
-        Assert.Contains("TaskDescription changed: '(empty)' → 'Efter review'", summaries);
-        Assert.Contains("Installation type Gasinstallation added", summaries);
-        Assert.Contains("Category Modtagekontrol added", summaries);
-        Assert.Contains("Control point Trykprøvning added", summaries);
-        Assert.Contains("Closure flag Færdigmeldt added", summaries);
+        Assert.Equal(4, summaries.Count);
+        Assert.Contains("Status ændret: 'Draft' → 'InReview'", summaries);
+        Assert.Contains("TaskDescription ændret: '(tom)' → 'Efter review'", summaries);
+        Assert.Contains("Installationstype Gasinstallation tilføjet", summaries);
+        Assert.Contains("Afslutning af sag Færdigmeldt tilføjet", summaries);
 
         await repository.UpdateAsync(jobId, orgId, request, CancellationToken.None);
 
         var afterNoopUpdateCount = await context.JobEvents.AsNoTracking().CountAsync(e => e.ReportId == jobId);
-        Assert.Equal(6, afterNoopUpdateCount);
+        Assert.Equal(4, afterNoopUpdateCount);
     }
 
 

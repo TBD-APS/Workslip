@@ -60,4 +60,17 @@ public sealed class EfInviteRepository : IInviteRepository
         inviteTokenRow.OpenedAt = DateTimeOffset.UtcNow;
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<InviteTokenRow>> GetStaleEntraProvisionedAsync(DateTimeOffset now, int take, CancellationToken cancellationToken)
+    {
+        return await _dbContext.InviteTokens
+            .Where(i => !i.Consumed
+                && i.EntraCreatedByInvite
+                && i.EntraCleanedAt == null
+                && i.EntraUserId != null
+                && i.ExpiresAt < now)
+            .OrderBy(i => i.ExpiresAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
 }
