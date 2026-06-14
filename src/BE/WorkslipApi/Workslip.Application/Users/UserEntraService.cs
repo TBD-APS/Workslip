@@ -123,14 +123,10 @@ public sealed class UserEntraService(
         var escapedUserPrincipalName = EscapeODataString(userPrincipalName);
         var escapedGuestUpnPrefix = EscapeODataString(guestUpnPrefix);
 
-        var result = await graphClient.Users.GetAsync(
-            request =>
-            {
-                request.QueryParameters.Filter =
-                    $"mail eq '{escapedEmail}' or otherMails/any(m:m eq '{escapedEmail}') or userPrincipalName eq '{escapedUserPrincipalName}' or startswith(userPrincipalName,'{escapedGuestUpnPrefix}')";
-                request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail", "otherMails"];
-                request.QueryParameters.Top = 1;
-            }, ct);
+        var result = await graphClient.Users.GetAsync(r =>
+        {
+            r.QueryParameters.Top = 1;
+        }, ct);
 
         return result?.Value?.FirstOrDefault();
     }
