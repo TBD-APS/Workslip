@@ -337,7 +337,6 @@ public static class DatabaseSeeder
         await db.Worksheets.AddRangeAsync(worksheets);
 
         await db.SaveChangesAsync();
-        
     }
 
     private static void AddYearlyDemoWorksheets(

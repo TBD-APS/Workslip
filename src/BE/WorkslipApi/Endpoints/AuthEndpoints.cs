@@ -18,6 +18,12 @@ public static class AuthEndpoints
             return Results.Ok(UserViewModelBuilder.ToUser(me));
         }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireUser);
 
+        group.MapPatch("/me", async (UpdateUserRequest request, IAuthService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.UpdateCurrentUserAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
+        }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireUser);
+
         group.MapPost("/send-code", async (SendCodeRequest request, IAuthService service, CancellationToken cancellationToken) =>
         {
             await service.SendLoginCodeAsync(request, cancellationToken);

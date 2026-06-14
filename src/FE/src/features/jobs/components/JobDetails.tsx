@@ -138,12 +138,10 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       <JobDetailsHeader
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
-        saveStatus={globalSaveStatus}
         onBack={handleBack}
         onDelete={canDeleteJob ? handleDelete : undefined}
         onShowHistory={() => setHistoryOpen(true)}
       />
-
       <StepIndicators 
         currentStep={details.currentStep} 
         onStepChange={handleStepChange} 
@@ -221,6 +219,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         onNext={() => details.navigateToStep(details.currentStep + 1)}
         disableNext={disableNext}
         nextDisabledReason={nextDisabledReason}
+        statusSlot={<SaveStatusIndicator saveStatus={globalSaveStatus} />}
         onDone={() => {}}
         hideDoneButton
       />
@@ -261,13 +260,12 @@ function getNextDisabledReason(details: JobDetailsState): string | undefined {
 type HeaderProps = {
   title: string;
   jobNumber: string;
-  saveStatus: SaveStatus;
   onBack: () => void;
   onDelete?: () => void;
   onShowHistory: () => void;
 };
 
-function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete, onShowHistory }: HeaderProps) {
+function JobDetailsHeader({ title, jobNumber, onBack, onDelete, onShowHistory }: HeaderProps) {
   return (
     <div className="detail-header">
       <button className="btn-icon" onClick={onBack} aria-label="Tilbage">
@@ -278,7 +276,6 @@ function JobDetailsHeader({ title, jobNumber, saveStatus, onBack, onDelete, onSh
         <h2 className="detail-title">{title}</h2>
       </div>
       <div className="detail-header-actions">
-        <SaveStatusIndicator saveStatus={saveStatus} />
         <button 
           className="btn-icon history-btn" 
           onClick={onShowHistory} 
