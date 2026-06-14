@@ -22,6 +22,7 @@ import { useGetApiUsers } from '../../../api/generated/users/users';
 import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import { useIsAdmin } from '../../../providers/permissions';
+import { useAuth } from '../../../providers/useAuth';
 import {
   emptyForm,
   getWorkValidationMessage,
@@ -50,6 +51,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const autoSave = options.autoSave ?? true;
   const queryClient = useQueryClient();
   const isAdmin = useIsAdmin();
+  const { user } = useAuth();
   const [draft, setDraft] = useState<JobDetailsDraft | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [saveStatus, setSaveStatus] = useTimedStatus();
@@ -60,13 +62,14 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const pendingLinksRef = useRef<Set<string>>(new Set());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const draftRef = useRef<JobDetailsDraft | null>(null);
+  const autoRedirectDoneRef = useRef(false);
 
   const query = useGetApiJobsId(jobId ?? '', {
     query: { enabled: Boolean(jobId) },
   });
   
   const job = query.data;
-  const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
+  const usersQuery = useGetApiUsers({ limit: 200 }, { query: { enabled: isAdmin } });
   const referenceDataQuery = useGetApiReferenceData();
   const jobsData = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 });
   const assignableUsers = usersQuery.data?.users ?? [];
@@ -117,6 +120,26 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     jobRef.current = job;
     mutateRef.current = mutation.mutate;
   }, [draft, initialForm, job, mutation.mutate]);
+
+  // Auto-redirect to worksheets step if user is assigned, has a worksheet, and all prior steps are complete
+  useEffect(() => {
+    if (!job || !referenceData || !user || autoRedirectDoneRef.current) return;
+
+    const isAssigned = job.assignedUsers.some((u) => u.id === user.id);
+    const hasWorksheet = job.worksheets.some((ws) => ws.userId === user.id);
+
+    if (!isAssigned || !hasWorksheet) return;
+
+    const form = toForm(job);
+    const jobFormValid = isValidJobForm(form, { reportNumberReadOnly: Boolean(job.reportNumber) });
+    const workValid = isValidWork(form, referenceData);
+    const controlPointsValid = validateControlPoints(form, referenceData).valid;
+
+    if (jobFormValid && workValid && controlPointsValid) {
+      autoRedirectDoneRef.current = true;
+      setCurrentStep(3);
+    }
+  }, [job, referenceData, user]);
 
   const assignmentMutation = usePostApiJobsIdAssign({
     mutation: {

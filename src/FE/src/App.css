@@ -3729,3 +3729,28 @@
   background: var(--surface-elevated);
 }
 
+/* Infinite Scroll */
+.infinite-scroll-sentinel {
+  width: 100%;
+  min-height: 1px;
+}
+
+.infinite-scroll-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.infinite-scroll-loading .spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--surface-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+

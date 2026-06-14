@@ -76,12 +76,14 @@ public sealed class EfUserRepository : IUserRepository
         };
     }
 
-    public async Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, CancellationToken cancellationToken)
     {
         return await _dbContext.Users
             .AsNoTracking()
             .Where(u => u.OrganizationId == organizationId)
             .OrderByDescending(u => u.CreatedAt)
+            .Skip(offset)
+            .Take(limit)
             .ToListAsync(cancellationToken);
     }
 

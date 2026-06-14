@@ -22,7 +22,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   const isAdmin = useIsAdmin();
   const referenceDataQuery = useGetApiReferenceData();
   const referenceData = referenceDataQuery.data ?? null;
-  const usersQuery = useGetApiUsers({ query: { enabled: isAdmin } });
+  const usersQuery = useGetApiUsers({ limit: 20 }, { query: { enabled: isAdmin } });
   const userEmail = user?.email ?? null;
   const assignableUsers = usersQuery.data?.users ?? [];
   const defaultAssignedUserIds = useMemo(() => {

@@ -61,12 +61,11 @@ public sealed class EfCustomerRepository : ICustomerRepository
         return row.Id;
     }
 
-    public async Task<IReadOnlyList<CustomerListItemResponse>> ListAsync(Guid organizationId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CustomerListItemResponse>> ListAsync(Guid organizationId, int limit, int offset, CancellationToken cancellationToken)
     {
         var customers = await _dbContext.Customers
             .AsNoTracking()
             .Where(c => c.OrganizationId == organizationId)
-            .OrderBy(c => c.Name)
             .Select(c => new
             {
                 c.Id,
@@ -80,6 +79,10 @@ public sealed class EfCustomerRepository : ICustomerRepository
                                 && r.CustomerId == c.Id
                                 && !r.IsSoftDeleted)
             })
+            .OrderByDescending(c => c.JobCount)
+            .ThenBy(c => c.Name)
+            .Skip(offset)
+            .Take(limit)
             .ToListAsync(cancellationToken);
 
         return customers

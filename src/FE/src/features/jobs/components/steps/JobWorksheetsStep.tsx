@@ -205,7 +205,7 @@ export function JobWorksheetsStep({
 }: JobWorksheetsStepProps) {
   const { user } = useAuth();
   const canPickUser = useCan('worksheet:assign');
-  const usersQuery = useGetApiUsers({ query: { enabled: canPickUser } });
+  const usersQuery = useGetApiUsers({ limit: 20 }, { query: { enabled: canPickUser } });
   const resolvedUsers = useMemo(
     () => (canPickUser
       ? (assignableUsers.length > 0 ? assignableUsers : null)

@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
-import { type JobListItemViewModel } from '../../../api/generated/models';
-import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
-import { JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
+import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { SearchBar } from '../../../components/filters/SearchBar';
+import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
+import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
+import { useInfiniteList } from '../../../hooks/useInfiniteList';
+import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
 import { useSearch } from '../../../hooks/useSearch';
+import { apiClient } from '../../../lib/axios';
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
-import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-content';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
+const PAGE_SIZE = 20;
 
 const isReadonlyState = (status: JobStatus) =>
   status === JobStatus.InReview || status === JobStatus.Approved;
@@ -46,25 +49,55 @@ export const JobList = () => {
   const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() =>
     getSavedStatusFilter('mine-jobs', [JobStatus.Draft]),
   );
-  const fetchStatuses = isAdmin
-    ? [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected]
-    : [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved];
-  const query = useGetApiJobs({ status: fetchStatuses, limit: 200 });
-  const allJobs = query.data ?? [];
+
+  const fetchStatuses = useMemo(
+    () =>
+      isAdmin
+        ? [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected]
+        : [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved],
+    [isAdmin],
+  );
+
+  const fetchJobsPage = useCallback(
+    async ({ limit, offset }: { limit: number; offset: number }) =>
+      (await apiClient.get('/api/jobs', {
+        params: {
+          status: fetchStatuses,
+          limit,
+          offset,
+        },
+      })) as JobListItemViewModel[],
+    [fetchStatuses],
+  );
+
+  const query = useInfiniteList({
+    queryKey: ['/api/jobs', { status: fetchStatuses, limit: PAGE_SIZE }],
+    fetchPage: fetchJobsPage,
+    pageSize: PAGE_SIZE,
+  });
+
+  const { sentinelRef } = useInfiniteScroll({
+    onReachEnd: () => {
+      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
+        void query.fetchNextPage();
+      }
+    },
+    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
+  });
 
   const filtered = useMemo(() => {
-    let result = allJobs;
+    let result = query.items;
 
     if (!isAdmin) {
       const currentUserId = user?.id;
       if (!currentUserId) return [];
-      result = result.filter((job) => job.assignedUsers.some((u) => u.id === currentUserId));
+      result = result.filter((job) => job.assignedUsers.some((assignedUser) => assignedUser.id === currentUserId));
     }
 
     result = result.filter((job) => selectedStatuses.includes(job.status));
 
     return result;
-  }, [allJobs, isAdmin, user?.id, selectedStatuses]);
+  }, [query.items, isAdmin, user?.id, selectedStatuses]);
 
   const jobs = useSearch(filtered, search, (job, term) =>
     [
@@ -74,8 +107,8 @@ export const JobList = () => {
       job.customer?.contactPerson,
       job.customer?.phone,
       job.reportNumber,
-      ...job.assignedUsers.map((u) => u.displayName),
-    ].some((v) => v?.toLowerCase().includes(term)),
+      ...job.assignedUsers.map((assignedUser) => assignedUser.displayName),
+    ].some((value) => value?.toLowerCase().includes(term)),
   );
 
   useEffect(() => {
@@ -97,7 +130,7 @@ export const JobList = () => {
   }, []);
 
   useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+    void queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
   }, [queryClient]);
 
   useEffect(() => {
@@ -139,7 +172,7 @@ export const JobList = () => {
         <div className="error-state">
           <AlertCircle size={32} />
           <p>Kunne ikke hente jobs. Sørg for at du er logget ind.</p>
-          <button className="btn btn-primary" onClick={() => query.refetch()}>
+          <button className="btn btn-primary" onClick={() => void query.refetch()}>
             Prøv igen
           </button>
         </div>
@@ -185,11 +218,16 @@ export const JobList = () => {
           <JobCard key={job.id} job={job} onOpen={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })} />
         ))}
 
-        {jobs.length === 0 && (
+        {jobs.length === 0 && !query.isFetchingNextPage && (
           <div className="empty-state">
             <p>{isAdmin ? 'Du har ingen opgaver endnu.' : 'Du har ingen opgaver tildelt endnu.'}</p>
           </div>
         )}
+
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          isLoading={query.isFetchingNextPage}
+        />
       </div>
     </div>
   );

@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Building2, ChevronRight, Mail, Users, MapPin, Phone } from 'lucide-react';
-import { useGetApiCustomers } from '../../../api/generated/customers/customers';
+import { type CustomerListItemViewModel } from '../../../api/generated/models';
 import { SearchBar } from '../../../components/filters/SearchBar';
+import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
+import { useInfiniteList } from '../../../hooks/useInfiniteList';
+import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
 import { useSearch } from '../../../hooks/useSearch';
+import { apiClient } from '../../../lib/axios';
+
+const PAGE_SIZE = 20;
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -18,11 +24,32 @@ const SkeletonCard = () => (
 export const CustomerList = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const query = useGetApiCustomers();
-  const data = query.data;
-  const sorted = (data ?? []).sort((a, b) => Number(b.jobCount) - Number(a.jobCount));
-  const customers = useSearch(sorted, search, (c, term) =>
-    [c.name, c.address, c.email, c.contactPerson, c.phone].some((v) => v?.toLowerCase().includes(term)),
+
+  const fetchCustomersPage = useCallback(
+    async ({ limit, offset }: { limit: number; offset: number }) =>
+      (await apiClient.get('/api/customers', {
+        params: { limit, offset },
+      })) as CustomerListItemViewModel[],
+    [],
+  );
+
+  const query = useInfiniteList({
+    queryKey: ['/api/customers', { limit: PAGE_SIZE }],
+    fetchPage: fetchCustomersPage,
+    pageSize: PAGE_SIZE,
+  });
+
+  const { sentinelRef } = useInfiniteScroll({
+    onReachEnd: () => {
+      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
+        void query.fetchNextPage();
+      }
+    },
+    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
+  });
+
+  const customers = useSearch(query.items, search, (customer, term) =>
+    [customer.name, customer.address, customer.email, customer.contactPerson, customer.phone].some((value) => value?.toLowerCase().includes(term)),
   );
 
   if (query.isLoading) {
@@ -47,7 +74,7 @@ export const CustomerList = () => {
         <div className="error-state">
           <AlertCircle size={32} />
           <p>Kunne ikke hente kunder. Prøv igen.</p>
-          <button className="btn btn-primary" onClick={() => query.refetch()}>
+          <button className="btn btn-primary" onClick={() => void query.refetch()}>
             Prøv igen
           </button>
         </div>
@@ -119,11 +146,16 @@ export const CustomerList = () => {
           </button>
         ))}
 
-        {customers.length === 0 && (
+        {customers.length === 0 && !query.isFetchingNextPage && (
           <div className="empty-state">
             <p>Ingen kunder fundet.</p>
           </div>
         )}
+
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          isLoading={query.isFetchingNextPage}
+        />
       </div>
     </div>
   );

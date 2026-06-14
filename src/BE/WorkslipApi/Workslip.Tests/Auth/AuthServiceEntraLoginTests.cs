@@ -1,4 +1,5 @@
 using Ardalis.Result;
+using FluentValidation;
 using Microsoft.Extensions.Logging.Abstractions;
 using Workslip.Application;
 using Workslip.Application.Auth;
@@ -59,7 +60,7 @@ public sealed class AuthServiceEntraLoginTests
     }
 
     private static AuthService CreateService(FakeCurrentUserContext currentUser, FakeUserRepository users) =>
-        new(currentUser, users, new FakeEmailService(), NullLogger<AuthService>.Instance);
+        new(currentUser, users, new FakeEmailService(), new InlineValidator<UpdateUserRequest>(), NullLogger<AuthService>.Instance);
 
     private sealed class FakeCurrentUserContext(Guid? userId, Guid? organizationId) : ICurrentUserContext
     {
@@ -75,7 +76,7 @@ public sealed class AuthServiceEntraLoginTests
 
         public Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) => Task.FromResult<UserDataRow?>(null);
         public Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, IReadOnlyCollection<string> emailCandidates, CancellationToken cancellationToken) => Task.FromResult<UserDataRow?>(null);
-        public Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<UserDataRow>>(Array.Empty<UserDataRow>());
+        public Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<UserDataRow>>(Array.Empty<UserDataRow>());
         public Task<int> GetCountByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken) => Task.FromResult(0);
         public Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken) => Task.FromResult(user.Id);
         public Task UpdateAsync(UserDataRow user, CancellationToken cancellationToken) => Task.CompletedTask;

@@ -9,7 +9,7 @@ public sealed class CustomerService(
     ICurrentUserContext currentUser,
     ILogger<CustomerService> logger) : ICustomerService
 {
-    public async Task<Result<IReadOnlyList<CustomerListItemResponse>>> ListAsync(CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<CustomerListItemResponse>>> ListAsync(int? limit, int? offset, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -18,7 +18,9 @@ public sealed class CustomerService(
             return Result<IReadOnlyList<CustomerListItemResponse>>.Unauthorized();
         }
 
-        var customers = await customerRepository.ListAsync(organizationId.Value, cancellationToken);
+        var normalizedLimit = Math.Clamp(limit ?? 50, 1, 200);
+        var normalizedOffset = Math.Max(offset ?? 0, 0);
+        var customers = await customerRepository.ListAsync(organizationId.Value, normalizedLimit, normalizedOffset, cancellationToken);
         return Result<IReadOnlyList<CustomerListItemResponse>>.Success(customers);
     }
 

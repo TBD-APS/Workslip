@@ -1,10 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronRight, Mail, Shield } from 'lucide-react';
-import { useGetApiUsers } from '../../../api/generated/users/users';
+import { type UserListViewModel, type UserViewModel } from '../../../api/generated/models';
 import { SearchBar } from '../../../components/filters/SearchBar';
-import { useSearch } from '../../../hooks/useSearch';
 import { announceSection } from '../../../components/filters/StatusFilter';
+import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
+import { useInfiniteList } from '../../../hooks/useInfiniteList';
+import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
+import { useSearch } from '../../../hooks/useSearch';
+import { apiClient } from '../../../lib/axios';
+
+const PAGE_SIZE = 20;
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -19,11 +25,32 @@ const SkeletonCard = () => (
 export const UserList = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const query = useGetApiUsers();
-  const data = query.data;
-  const allUsers = data?.users ?? [];
-  const users = useSearch(allUsers, search, (u, term) =>
-    [u.displayName, u.email, u.phone, u.role].some((v) => v?.toLowerCase().includes(term)),
+
+  const fetchUsersPage = useCallback(async ({ limit, offset }: { limit: number; offset: number }) => {
+    const response = (await apiClient.get('/api/users', {
+      params: { limit, offset },
+    })) as UserListViewModel;
+
+    return response.users;
+  }, []);
+
+  const query = useInfiniteList<UserViewModel>({
+    queryKey: ['/api/users', { limit: PAGE_SIZE }],
+    fetchPage: fetchUsersPage,
+    pageSize: PAGE_SIZE,
+  });
+
+  const { sentinelRef } = useInfiniteScroll({
+    onReachEnd: () => {
+      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
+        void query.fetchNextPage();
+      }
+    },
+    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
+  });
+
+  const users = useSearch(query.items, search, (user, term) =>
+    [user.displayName, user.email, user.phone, user.role].some((value) => value?.toLowerCase().includes(term)),
   );
 
   useEffect(() => {
@@ -52,7 +79,7 @@ export const UserList = () => {
         <div className="error-state">
           <AlertCircle size={32} />
           <p>Kunne ikke hente brugere. Prøv igen.</p>
-          <button className="btn btn-primary" onClick={() => query.refetch()}>
+          <button className="btn btn-primary" onClick={() => void query.refetch()}>
             Prøv igen
           </button>
         </div>
@@ -104,11 +131,16 @@ export const UserList = () => {
           </button>
         ))}
 
-        {users.length === 0 && (
+        {users.length === 0 && !query.isFetchingNextPage && (
           <div className="empty-state">
             <p>Ingen brugere fundet.</p>
           </div>
         )}
+
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          isLoading={query.isFetchingNextPage}
+        />
       </div>
     </div>
   );

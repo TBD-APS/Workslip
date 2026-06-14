@@ -13,9 +13,9 @@ public static class CustomerEndpoints
             .WithTags("customers")
             .RequireAuthorization(AuthPolicies.RequireAdmin);
 
-        group.MapGet("/", async (ICustomerService service, CancellationToken cancellationToken) =>
+        group.MapGet("/", async (int? limit, int? offset, ICustomerService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.ListAsync(cancellationToken);
+            var result = await service.ListAsync(limit, offset, cancellationToken);
             return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToListItem).ToArray());
         }).Produces<List<CustomerListItemViewModel>>();
 
