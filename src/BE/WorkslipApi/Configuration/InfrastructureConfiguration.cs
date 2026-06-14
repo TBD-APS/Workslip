@@ -12,7 +12,7 @@ public static class InfrastructureConfiguration
         var azureCredential = CreateAzureCredential(configuration);
         AddAzureAppConfiguration(configuration, azureCredential);
 
-        builder.Services.AddSingleton(azureCredential);
+        builder.Services.AddSingleton<TokenCredential>(azureCredential);
 
         QuestPDF.Settings.License = LicenseType.Community;
 
@@ -21,15 +21,12 @@ public static class InfrastructureConfiguration
 
     private static TokenCredential CreateAzureCredential(IConfiguration configuration)
     {
-        var mangedIdentity = configuration["Azure:ManagedIdentity:ClientId"];
+        var managedIdentityClientId = configuration["Azure:ManagedIdentity:ClientId"];
 
-        if (string.IsNullOrWhiteSpace(mangedIdentity))
+        if (string.IsNullOrWhiteSpace(managedIdentityClientId))
             return new DefaultAzureCredential();
 
-        return new DefaultAzureCredential(new DefaultAzureCredentialOptions
-        {
-            ManagedIdentityClientId = mangedIdentity
-        });
+        return new ManagedIdentityCredential(clientId: managedIdentityClientId);
     }
 
     private static void AddAzureAppConfiguration(ConfigurationManager configuration, TokenCredential credential)
