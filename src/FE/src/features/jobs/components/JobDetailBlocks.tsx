@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Building2, FileText, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
 import { useCan } from '../../../providers/permissions';
-import { useGetApiCustomersSuggest } from '../../../api/generated/customers/customers';
+import { useGetApiCustomersSuggest, getApiCustomersTop } from '../../../api/generated/customers/customers';
 import type { CustomerInfo, CustomerSearchViewModel, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -179,13 +180,24 @@ type CustomerSearchDropdownProps = {
 function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: CustomerSearchDropdownProps) {
   const [inputValue, setInputValue] = useState('');
   const debouncedQuery = useDebounce(inputValue, 300);
-  const { data: searchResults = [], isLoading } = useGetApiCustomersSuggest(
+  const isSearching = debouncedQuery.length >= 2;
+
+  const { data: searchResults = [], isLoading: isSearchingLoading } = useGetApiCustomersSuggest(
     { query: debouncedQuery, limit: 10 },
-    { query: { enabled: debouncedQuery.length >= 2 } }
+    { query: { enabled: isSearching } }
   );
 
+  const { data: topCustomers = [], isLoading: isTopLoading } = useQuery({
+    queryKey: ['customers', 'top'],
+    queryFn: () => getApiCustomersTop({ limit: 3 }),
+    enabled: !isSearching,
+  });
+
+  const results: CustomerSearchViewModel[] = isSearching ? searchResults : topCustomers;
+  const isLoading = isSearching ? isSearchingLoading : isTopLoading;
+
   const options = useMemo(() => {
-    const list = searchResults.map((c) => ({
+    const list = results.map((c: CustomerSearchViewModel) => ({
       id: c.id ?? '',
       label: c.name ?? '',
       description: c.address ?? undefined,
@@ -200,22 +212,22 @@ function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: Customer
     }
 
     return list;
-  }, [searchResults, selectedId, selectedName]);
+  }, [results, selectedId, selectedName]);
 
   const handleSelect = useCallback(
     (option: { id: string }) => {
-      const customer = searchResults.find((c) => c.id === option.id);
+      const customer = results.find((c: CustomerSearchViewModel) => c.id === option.id);
       if (customer && onSelect) {
         onSelect(customer);
       }
     },
-    [searchResults, onSelect]
+    [results, onSelect]
   );
 
   return (
     <SingleSelectDropdown
       label="Kunde"
-      placeholder="Vælg kunde..."
+      placeholder={isSearching ? "Søger..." : "Vælg kunde (top 3)..."}
       emptyText="Ingen kunder fundet"
       loadingText="Henter kunder..."
       options={options}
