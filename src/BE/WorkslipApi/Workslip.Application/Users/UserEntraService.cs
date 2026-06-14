@@ -123,6 +123,8 @@ public sealed class UserEntraService(
         var escapedUserPrincipalName = EscapeODataString(userPrincipalName);
         var escapedGuestUpnPrefix = EscapeODataString(guestUpnPrefix);
 
+        logger.LogError("My graph {GraphClient}", graphClient.GetType().FullName);
+
         var result = await graphClient.Users.GetAsync(r =>
         {
             r.QueryParameters.Top = 1;
