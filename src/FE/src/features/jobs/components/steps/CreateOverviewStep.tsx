@@ -16,7 +16,6 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
     <>
       <CustomerDetailsBlock
         form={create.form}
-        onCustomerSelect={create.selectCustomer}
         onReportNumberChange={create.updateReportNumber}
         assignment={{
           users: create.assignableUsers,
