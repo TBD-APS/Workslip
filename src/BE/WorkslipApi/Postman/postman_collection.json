@@ -442,6 +442,53 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "/api/auth/entra-login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/entra-login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "entra-login"
+              ]
+            },
+            "description": "Completes Microsoft login for existing users. Requires an EntraJwt (from PKCE flow) — the handler reads the authenticated user from the token and issues a local JWT."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 401 Unauthorized', function () { pm.expect([200, 401]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('returns JWT token', function () {",
+                  "    pm.expect(json.token).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.tokenType).to.eql('Bearer');",
+                  "    pm.expect(json.expiresIn).to.be.a('number');",
+                  "    pm.expect(json.token.split('.')).to.have.length(3);",
+                  "  });",
+                  "  pm.test('user info returned', function () {",
+                  "    pm.expect(json.user.email).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.userId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.organizationId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.role).to.be.a('string');",
+                  "  });",
+                  "  pm.collectionVariables.set('authToken', json.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -1110,132 +1157,6 @@
           ]
         },
         {
-          "name": "/api/auth/verify-invite/{token} (valid token)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/verify-invite/{{inviteToken}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "verify-invite",
-                "{{inviteToken}}"
-              ]
-            },
-            "description": "Verifies a valid invite token captured from invite creation. Creates the user and returns a LocalJwt on success. Token in URL path."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const token = pm.collectionVariables.get('inviteToken');",
-                  "if (!token) {",
-                  "  pm.test('skipped — no invite token captured', function () { pm.expect(true).to.eql(true); });",
-                  "} else {",
-                  "  pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "  const json = pm.response.json();",
-                  "  pm.test('returns JWT token', function () {",
-                  "    pm.expect(json.token).to.be.a('string').and.not.empty;",
-                  "    pm.expect(json.tokenType).to.eql('Bearer');",
-                  "    pm.expect(json.expiresIn).to.be.a('number');",
-                  "    pm.expect(json.token.split('.')).to.have.length(3);",
-                  "  });",
-                  "  pm.test('user info returned', function () {",
-                  "    pm.expect(json.user.email).to.be.a('string').and.not.empty;",
-                  "    pm.expect(json.user.userId).to.be.a('string').and.not.empty;",
-                  "    pm.expect(json.user.organizationId).to.be.a('string').and.not.empty;",
-                  "    pm.expect(json.user.role).to.be.a('string');",
-                  "  });",
-                  "  pm.collectionVariables.set('authToken', json.token);",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "/api/auth/verify-invite/{token} (consumed token)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/verify-invite/{{inviteToken}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "verify-invite",
-                "{{inviteToken}}"
-              ]
-            },
-            "description": "Verifies the same token again - expects 400 because it was already consumed. The user was already created on first use. Token in URL path."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const token = pm.collectionVariables.get('inviteToken');",
-                  "if (!token) {",
-                  "  pm.test('skipped — no invite token captured', function () { pm.expect(true).to.eql(true); });",
-                  "} else {",
-                  "  pm.test('400 Bad Request — invite already consumed', function () { pm.response.to.have.status(400); });",
-                  "  pm.test('error message', function () {",
-                  "    pm.expect(pm.response.json().error).to.be.a('string');",
-                  "  });",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "/api/auth/verify-invite/{token} (invalid token)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/verify-invite/invlid00000000000000000000000000",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "verify-invite",
-                "invlid00000000000000000000000000"
-              ]
-            },
-            "description": "Verifies a non-existent token - expects 400 with error. Token in URL path."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('400 Bad Request — invite not found', function () { pm.response.to.have.status(400); });",
-                  "pm.test('error message', function () {",
-                  "  pm.expect(pm.response.json().error).to.be.a('string');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "/api/auth/invites",
           "request": {
             "method": "GET",
@@ -1309,6 +1230,58 @@
                   "  pm.test('skipped — no invite token captured', function () { pm.expect(true).to.eql(true); });",
                   "} else {",
                   "  pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/auth/entra-enroll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/entra-enroll",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "entra-enroll"
+              ]
+            },
+            "description": "Complete invite enrollment after Microsoft login callback. Requires an EntraJwt (from PKCE flow) — the handler reads the authenticated user from the token. Provide display name and optional phone; the invite token identifies which invite to consume. The Entra user was already pre-provisioned during /invite/{token}/open."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 409 Conflict', function () { pm.expect([200, 409]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('returns JWT token', function () {",
+                  "    pm.expect(json.token).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.tokenType).to.eql('Bearer');",
+                  "    pm.expect(json.expiresIn).to.be.a('number');",
+                  "    pm.expect(json.token.split('.')).to.have.length(3);",
+                  "  });",
+                  "  pm.test('user info returned', function () {",
+                  "    pm.expect(json.user.email).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.userId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.organizationId).to.be.a('string').and.not.empty;",
+                  "    pm.expect(json.user.role).to.be.a('string');",
+                  "  });",
+                  "  pm.collectionVariables.set('authToken', json.token);",
                   "}"
                 ]
               }

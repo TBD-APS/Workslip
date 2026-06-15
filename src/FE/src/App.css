@@ -1524,19 +1524,18 @@
   gap: 0.6rem;
   cursor: pointer;
   padding: 0.65rem 0.85rem;
-  margin: 0.5rem 0;
+  margin: 0.5rem -1.25rem;
   font-size: 0.85rem;
   color: var(--text-secondary);
   user-select: none;
   background: var(--surface-color);
-  border: 1px solid var(--surface-border);
-  border-radius: 8px;
+  border-top: 1px solid var(--surface-border);
+  border-bottom: 1px solid var(--surface-border);
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .checkbox-row:hover {
   background: var(--surface-elevated);
-  border-color: var(--surface-border-strong);
 }
 
 .checkbox-row:has(input:checked) {

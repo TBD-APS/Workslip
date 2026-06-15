@@ -16,8 +16,11 @@ resource staticConfigValues 'Microsoft.AppConfiguration/configurationStores/keyV
 
 var appConfigValues = {
 
+  //urls
+  'Azure:Domain:BaseUrl': 'https://workslip-v2-0.vercel.app'
+
   //OAuth
-  'Azure:AdOAuth:TenantId': 'common'
+  'Azure:AdOAuth:TenantId': az.tenant().tenantId
   'Azure:AdOAuth:Instance': az.environment().authentication.loginEndpoint
   
   //LocalJwt

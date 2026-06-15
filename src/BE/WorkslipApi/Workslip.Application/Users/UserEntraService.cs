@@ -27,8 +27,7 @@ public sealed class UserEntraService(
             return new CreateEntraUserResult(existingUser.Id!, ResolveEntraMail(existingUser, email), existingUser.DisplayName ?? email, Created: false);
         }
 
-        var redirectUrl = configuration["Azure:AdOAuth:InviteRedirectUri"]
-            ?? configuration["Azure:AdOAuth:LoginRedirectUri"];
+        var redirectUrl = configuration["Azure:Domain:BaseUrl"] + "/invite";
 
         var invitation = new Invitation
         {
@@ -147,7 +146,7 @@ public sealed class UserEntraService(
         }
         catch (Exception e)
         {
-            // Gængse netværksfejl eller uforudsete fejl
+            // Gï¿½ngse netvï¿½rksfejl eller uforudsete fejl
             logger.LogError(e, "Generel fejl under kald til Graph API");
             throw;
         }

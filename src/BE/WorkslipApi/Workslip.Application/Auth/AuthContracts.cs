@@ -17,8 +17,4 @@ public sealed record AuthTokenResponse(
     int ExpiresIn,
     AuthUserInfo User);
 
-public sealed record VerifyInviteRequest(string Token, string DisplayName, string? Phone);
-
-public sealed record CompleteInviteRequest(string DisplayName, string? Phone);
-
 public sealed record EntraEnrollRequest(string Token, string DisplayName, string? Phone);

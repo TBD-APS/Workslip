@@ -107,7 +107,7 @@ export function CustomerDetailsBlock({
               onChange={(e) => onEditSnapshotChange?.(e.target.checked)}
             />
             <Pencil size={14} />
-            <span>Rediger kundeoplysninger for denne sag</span>
+            <span>Rediger kunde for sag</span>
           </label>
         )}
 
@@ -294,7 +294,7 @@ function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: Customer
       description: c.address ?? undefined,
     }));
 
-    if (selectedId && selectedName && !list.some((o) => o.id === selectedId)) {
+    if (!isSearching && selectedId && selectedName && !list.some((o) => o.id === selectedId)) {
       list.unshift({
         id: selectedId,
         label: selectedName,
@@ -303,7 +303,7 @@ function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: Customer
     }
 
     return list;
-  }, [results, selectedId, selectedName]);
+  }, [results, selectedId, selectedName, isSearching]);
 
   const handleSelect = useCallback(
     (option: { id: string }) => {

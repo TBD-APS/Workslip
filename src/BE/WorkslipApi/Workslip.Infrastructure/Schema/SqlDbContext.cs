@@ -460,6 +460,9 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.EntraUserId)
             .HasMaxLength(80);
 
+        entity.Property(e => e.EntraEmail)
+            .HasMaxLength(320);
+
         entity.Property(e => e.EntraProvisionedAt)
             .HasColumnType("datetimeoffset");
 

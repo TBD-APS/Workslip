@@ -14,30 +14,11 @@ namespace Workslip.Tests.Invitations;
 public sealed class InvitationEnrollmentTests
 {
     [Fact]
-    public async Task CompleteEnrollmentAsync_WhenSqlCreateFails_DeletesNewEntraUserAndDoesNotConsumeInvite()
-    {
-        var invite = CreateInvite();
-        var users = new FakeUserRepository { ThrowOnCreate = true };
-        var invites = new FakeInviteRepository(invite);
-        var entra = new FakeEntraService { CreateResult = new CreateEntraUserResult("entra-1", "jane@example.test", "Jane", Created: true) };
-        var transactionFactory = new FakeTransactionFactory();
-        var service = CreateService(users, invites, entra, transactionFactory);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.CompleteEnrollmentAsync(new EntraEnrollRequest(invite.Token, "Jane", "+45"), CancellationToken.None));
-
-        Assert.Equal(1, entra.DeleteCalls);
-        Assert.Equal("entra-1", entra.DeletedUserId);
-        Assert.Equal(0, invites.MarkConsumedCalls);
-        Assert.Equal(0, transactionFactory.Transaction.CommitCalls);
-        Assert.Equal(1, transactionFactory.Transaction.RollbackCalls);
-    }
-
-    [Fact]
-    public async Task CompleteEnrollmentAsync_WhenSqlCreateFails_DeletesInviteOwnedPrecreatedEntraUser()
+    public async Task CompleteEnrollmentAsync_WhenSqlCreateFails_RollsBackAndDoesNotDeletePreprovisionedEntraUser()
     {
         var invite = CreateInvite();
         invite.EntraUserId = "entra-1";
+        invite.EntraEmail = "jane@example.test";
         invite.EntraCreatedByInvite = true;
         invite.EntraProvisionedAt = DateTimeOffset.UtcNow.AddMinutes(-5);
         var users = new FakeUserRepository { ThrowOnCreate = true };
@@ -49,15 +30,14 @@ public sealed class InvitationEnrollmentTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CompleteEnrollmentAsync(new EntraEnrollRequest(invite.Token, "Jane", "+45"), CancellationToken.None));
 
-        Assert.Equal(1, entra.DeleteCalls);
-        Assert.Equal("entra-1", entra.DeletedUserId);
-        Assert.NotNull(invite.EntraCleanedAt);
-        Assert.Equal(1, invites.UpdateCalls);
+        Assert.Equal(0, entra.DeleteCalls);
         Assert.Equal(0, invites.MarkConsumedCalls);
+        Assert.Equal(0, transactionFactory.Transaction.CommitCalls);
+        Assert.Equal(1, transactionFactory.Transaction.RollbackCalls);
     }
 
     [Fact]
-    public async Task CompleteEnrollmentAsync_WhenInviteExpired_ReturnsConflictAndDoesNotCreateEntraUser()
+    public async Task CompleteEnrollmentAsync_WhenInviteExpired_ReturnsConflictAndDoesNotStartTransaction()
     {
         var invite = CreateInvite();
         invite.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
@@ -74,22 +54,21 @@ public sealed class InvitationEnrollmentTests
     }
 
     [Fact]
-    public async Task CompleteEnrollmentAsync_WhenEntraCreateFails_DoesNotCreateSqlUserOrStartTransaction()
+    public async Task CompleteEnrollmentAsync_WhenEntraUserIdMissing_ReturnsConflict()
     {
         var invite = CreateInvite();
         var users = new FakeUserRepository();
         var invites = new FakeInviteRepository(invite);
-        var entra = new FakeEntraService { ThrowOnCreate = true };
+        var entra = new FakeEntraService();
         var transactionFactory = new FakeTransactionFactory();
         var service = CreateService(users, invites, entra, transactionFactory);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.CompleteEnrollmentAsync(new EntraEnrollRequest(invite.Token, "Jane", null), CancellationToken.None));
+        var result = await service.CompleteEnrollmentAsync(new EntraEnrollRequest(invite.Token, "Jane", null), CancellationToken.None);
 
-        Assert.Equal(1, entra.CreateCalls);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Contains("entra_user_not_provisioned", result.Errors);
         Assert.Equal(0, users.CreateCalls);
         Assert.Equal(0, invites.MarkConsumedCalls);
-        Assert.Equal(0, entra.DeleteCalls);
         Assert.Equal(0, transactionFactory.BeginCalls);
     }
 
@@ -97,9 +76,11 @@ public sealed class InvitationEnrollmentTests
     public async Task CompleteEnrollmentAsync_WhenSuccess_CommitsMarksConsumedAndReturnsAuthUser()
     {
         var invite = CreateInvite();
+        invite.EntraUserId = "entra-1";
+        invite.EntraEmail = "jane@example.test";
         var users = new FakeUserRepository();
         var invites = new FakeInviteRepository(invite);
-        var entra = new FakeEntraService { CreateResult = new CreateEntraUserResult("entra-1", "jane@example.test", "Jane", Created: true) };
+        var entra = new FakeEntraService();
         var transactionFactory = new FakeTransactionFactory();
         var service = CreateService(users, invites, entra, transactionFactory);
 
@@ -111,6 +92,7 @@ public sealed class InvitationEnrollmentTests
         Assert.Equal(invite.Email, result.Value.Email);
         Assert.Equal("Jane", result.Value.DisplayName);
         Assert.Equal("User", result.Value.Role);
+        Assert.Equal(0, entra.CreateCalls);
         Assert.Equal(1, invites.MarkConsumedCalls);
         Assert.True(invite.Consumed);
         Assert.Equal(1, transactionFactory.Transaction.CommitCalls);
@@ -131,6 +113,9 @@ public sealed class InvitationEnrollmentTests
         Assert.Equal(ResultStatus.Ok, result.Status);
         Assert.Equal(1, entra.EnsureInvitedCalls);
         Assert.Equal(invite.Email, entra.EnsureInvitedEmail);
+        Assert.Equal("entra-1", invite.EntraUserId);
+        Assert.Equal("jane@example.test", invite.EntraEmail);
+        Assert.NotNull(invite.EntraProvisionedAt);
         Assert.Equal(1, invites.MarkOpenedCalls);
         Assert.Equal(0, entra.CreateCalls);
     }
