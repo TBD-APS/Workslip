@@ -1,4 +1,5 @@
 import type { CustomerInfo } from '../../api/generated/models';
+import type { CustomerSnapshotData } from './customerSnapshotData';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -39,6 +40,8 @@ export type ReferenceWorkKind = {
 
 export type JobForm = {
   customer: CustomerInfo;
+  customerSnapshot: CustomerSnapshotData | null;
+  editSnapshot: boolean;
   reportNumber: string;
   taskDescription: string;
   customerObservations: string;

@@ -15,6 +15,8 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
     <>
       <CustomerDetailsBlock
         form={details.form}
+        customerSnapshot={details.form.customerSnapshot}
+        editSnapshot={details.form.editSnapshot}
         reportNumberReadOnly={details.reportNumberReadOnly}
         {...(canAssign
           ? {
@@ -28,7 +30,10 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
           : {
               readOnlyAssigned: details.job?.assignedUsers ?? [],
             })}
-        onCustomerChange={details.updateCustomer}
+        onCustomerSelect={details.selectCustomer}
+        onCustomerFieldChange={details.updateCustomerField}
+        onSnapshotFieldChange={details.updateSnapshotField}
+        onEditSnapshotChange={details.updateEditSnapshot}
         onReportNumberChange={details.updateReportNumber}
       />
       <LinkedJobsBlock

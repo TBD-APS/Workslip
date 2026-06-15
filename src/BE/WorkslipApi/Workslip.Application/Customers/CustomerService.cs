@@ -41,4 +41,37 @@ public sealed class CustomerService(
 
         return Result<CustomerDetailResponse>.Success(customer);
     }
+
+    public async Task<Result<IReadOnlyList<CustomerSearchResponse>>> SearchAsync(string? query, int? limit, CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            logger.LogWarning("Customer search requested without OrganizationId in claims.");
+            return Result<IReadOnlyList<CustomerSearchResponse>>.Unauthorized();
+        }
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return Result<IReadOnlyList<CustomerSearchResponse>>.Success(Array.Empty<CustomerSearchResponse>());
+        }
+
+        var normalizedLimit = Math.Clamp(limit ?? 10, 1, 25);
+        var customers = await customerRepository.SearchAsync(organizationId.Value, query, normalizedLimit, cancellationToken);
+        return Result<IReadOnlyList<CustomerSearchResponse>>.Success(customers);
+    }
+
+    public async Task<Result<IReadOnlyList<CustomerSearchResponse>>> GetTopAsync(int limit, CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            logger.LogWarning("Top customers requested without OrganizationId in claims.");
+            return Result<IReadOnlyList<CustomerSearchResponse>>.Unauthorized();
+        }
+
+        var normalizedLimit = Math.Clamp(limit, 1, 25);
+        var customers = await customerRepository.GetTopCustomersAsync(organizationId.Value, normalizedLimit, cancellationToken);
+        return Result<IReadOnlyList<CustomerSearchResponse>>.Success(customers);
+    }
 }

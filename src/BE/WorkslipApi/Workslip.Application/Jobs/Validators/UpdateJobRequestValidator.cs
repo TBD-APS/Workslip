@@ -13,6 +13,10 @@ public sealed class UpdateJobRequestValidator : AbstractValidator<UpdateJobReque
             .SetValidator(new CustomerInfoValidator()!)
             .When(x => x.Customer is not null);
 
+        RuleFor(x => x.CustomerSnapshot)
+            .SetValidator(new CustomerSnapshotDataValidator()!)
+            .When(x => x.CustomerSnapshot is not null);
+
         When(x => x.Work is not null, () =>
         {
             RuleFor(x => x.Work!.InstallationTypes)

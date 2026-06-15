@@ -25,6 +25,7 @@ import { useIsAdmin } from '../../../providers/permissions';
 import { useAuth } from '../../../providers/useAuth';
 import {
   emptyForm,
+  emptySnapshot,
   getWorkValidationMessage,
   getLinkableJobs,
   isValidJobForm,
@@ -32,11 +33,11 @@ import {
   sameForm,
   sameFormWithoutWork,
   toForm,
-  toNullable,
   toUpdateRequest,
 } from '../utils';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
-import type { CustomerInfo } from '../../../api/generated/models';
+import type { CustomerSearchViewModel, CustomerInfo } from '../../../api/generated/models';
+import type { CustomerSnapshotData } from '../customerSnapshotData';
 import type { JobForm } from '../types';
 
 type JobDetailsDraft = { jobId: string; form: JobForm };
@@ -282,10 +283,48 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     if (saveStatus === 'saved') setSaveStatus('idle');
   };
 
-  const updateCustomer = (field: keyof CustomerInfo, value: string | null) => {
+  const selectCustomer = (customer: CustomerSearchViewModel) => {
     updateDraft({
       ...form,
-      customer: { ...form.customer, [field]: toNullable(value) },
+      customer: {
+        ...form.customer,
+        customerId: customer.id ?? null,
+        name: customer.name ?? null,
+        address: customer.address ?? null,
+        email: customer.email ?? null,
+        phone: customer.phone ?? null,
+        contactPerson: customer.contactPerson ?? null,
+      },
+      customerSnapshot: null,
+      editSnapshot: false,
+    });
+  };
+
+  const updateCustomerField = (field: keyof CustomerInfo, value: string) => {
+    updateDraft({
+      ...form,
+      customer: {
+        ...form.customer,
+        [field]: value,
+      },
+    });
+  };
+
+  const updateSnapshotField = (field: keyof CustomerSnapshotData, value: string) => {
+    updateDraft({
+      ...form,
+      customerSnapshot: {
+        ...(form.customerSnapshot ?? emptySnapshot),
+        [field]: value,
+      },
+    });
+  };
+
+  const updateEditSnapshot = (edit: boolean) => {
+    updateDraft({
+      ...form,
+      editSnapshot: edit,
+      customerSnapshot: edit ? form.customerSnapshot : null,
     });
   };
 
@@ -589,7 +628,10 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     navigateToStep,
     updateAssignedUsers,
     updateLinkedJobs,
-    updateCustomer,
+    selectCustomer,
+    updateCustomerField,
+    updateSnapshotField,
+    updateEditSnapshot,
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,

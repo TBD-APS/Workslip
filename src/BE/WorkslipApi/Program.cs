@@ -18,7 +18,7 @@ try
         x.AddPolicy("Frontend", policy =>
         {
             policy.WithOrigins("https://workslip-v2-0.vercel.app")
-                  .WithOrigins("http://localhost:5173")
+                  .WithOrigins("http://localhost:5270")
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         });

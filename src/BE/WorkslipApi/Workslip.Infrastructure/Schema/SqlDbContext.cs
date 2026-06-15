@@ -268,6 +268,11 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.CustomWorkKind).HasMaxLength(250);
         entity.Property(e => e.Remarks).HasColumnType("nvarchar(max)");
 
+        entity.Property(e => e.CustomerName);
+        entity.Property(e => e.CustomerEmail);
+        entity.Property(e => e.CustomerPhone);
+        entity.Property(e => e.CustomerAddress);
+
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.UpdatedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.DeletionScheduledAt).HasColumnType("datetimeoffset");
@@ -454,6 +459,9 @@ public sealed class SqlDbContext : DbContext
 
         entity.Property(e => e.EntraUserId)
             .HasMaxLength(80);
+
+        entity.Property(e => e.EntraEmail)
+            .HasMaxLength(320);
 
         entity.Property(e => e.EntraProvisionedAt)
             .HasColumnType("datetimeoffset");

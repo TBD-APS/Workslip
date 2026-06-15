@@ -145,15 +145,17 @@ public sealed record CreateJobObservationRequest(
 
 public sealed record CreateJobRequest(
     CustomerInfo? Customer,
-    string? ReportNumber,
-    CreateJobWorkRequest? Work,
-    CreateJobObservationRequest? Observations);
+    CustomerSnapshotData? CustomerSnapshot = null,
+    string? ReportNumber = default,
+    CreateJobWorkRequest? Work = null,
+    CreateJobObservationRequest? Observations = null);
 
 public sealed record UpdateJobRequest(
-    CustomerInfo? Customer,
-    string? ReportNumber,
-    CreateJobWorkRequest? Work,
-    CreateJobObservationRequest? Observations);
+    CustomerInfo? Customer = null,
+    CustomerSnapshotData? CustomerSnapshot = null,
+    string? ReportNumber = null,
+    CreateJobWorkRequest? Work = null,
+    CreateJobObservationRequest? Observations = null);
 
 public sealed record AssignJobRequest(
     IReadOnlyList<Guid> UserIds);
@@ -168,6 +170,12 @@ public sealed record CustomerInfo(
     string? Email,
     string? ContactPerson,
     string? Phone);
+
+public sealed record CustomerSnapshotData(
+    string? Name,
+    string? Email,
+    string? Phone,
+    string? Address);
 
 public sealed record JobWorkKindResponse(
     Guid Id,

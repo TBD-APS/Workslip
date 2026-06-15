@@ -414,6 +414,8 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
     <>
       <CustomerDetailsBlock
         form={details.form}
+        customerSnapshot={details.form.customerSnapshot}
+        editSnapshot={details.form.editSnapshot}
         reportNumberReadOnly={details.reportNumberReadOnly}
         assignment={{
           users: details.assignableUsers!,
@@ -422,7 +424,10 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
           onAssignedUsersChange: details.updateAssignedUsers,
         }}
         readOnlyAssigned={details.job.assignedUsers}
-        onCustomerChange={details.updateCustomer}
+        onCustomerSelect={details.selectCustomer}
+        onCustomerFieldChange={(_field, _value) => {}}
+        onSnapshotFieldChange={(_field, _value) => {}}
+        onEditSnapshotChange={(_edit) => {}}
         onReportNumberChange={details.updateReportNumber}
       />
 

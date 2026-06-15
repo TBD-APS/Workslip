@@ -16,33 +16,8 @@ public sealed class EfCustomerRepository : ICustomerRepository
         _dbContext = dbContext;
     }
 
-    public async Task<Guid> UpsertCustomerAsync(Guid organizationId, CustomerInfo customer, CancellationToken cancellationToken)
+    public async Task<Guid> CreateCustomerAsync(Guid organizationId, CustomerInfo customer, CancellationToken cancellationToken)
     {
-        CustomerRow? existing = null;
-
-        if (customer.CustomerId is not null)
-        {
-            existing = await _dbContext.Customers
-                .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == customer.CustomerId.Value, cancellationToken);
-        }
-
-        if (existing is null && customer.Email is not null)
-        {
-            existing = await _dbContext.Customers
-                .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Email == customer.Email, cancellationToken);
-        }
-
-        if (existing is not null)
-        {
-            var entry = _dbContext.Entry(existing);
-            entry.Property(e => e.Name).CurrentValue = customer.Name ?? string.Empty;
-            entry.Property(e => e.Address).CurrentValue = customer.Address;
-            entry.Property(e => e.ContactPerson).CurrentValue = customer.ContactPerson;
-            entry.Property(e => e.Phone).CurrentValue = customer.Phone;
-            entry.Property(e => e.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow;
-            return existing.Id;
-        }
-
         var row = new CustomerRow
         {
             Id = Guid.NewGuid(),
@@ -154,5 +129,51 @@ public sealed class EfCustomerRepository : ICustomerRepository
                     j.ContactPerson,
                     j.ContactPhone))
                 .ToArray());
+    }
+
+    public async Task<IReadOnlyList<CustomerSearchResponse>> SearchAsync(Guid organizationId, string query, int limit, CancellationToken cancellationToken)
+    {
+        var trimmed = query.Trim();
+
+        var customers = await _dbContext.Customers
+            .AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId)
+            .Where(c =>
+                (c.Name != null && c.Name.Contains(trimmed)) ||
+                (c.Email != null && c.Email.Contains(trimmed)) ||
+                (c.Phone != null && c.Phone.Contains(trimmed)) ||
+                (c.Address != null && c.Address.Contains(trimmed)))
+            .OrderBy(c => c.Name != null && c.Name.StartsWith(trimmed) ? 0 : 1)
+            .ThenBy(c => c.Name)
+            .Take(limit)
+            .Select(c => new CustomerSearchResponse(
+                c.Id,
+                c.Name,
+                c.Email,
+                c.Phone,
+                c.Address,
+                c.ContactPerson))
+            .ToListAsync(cancellationToken);
+
+        return customers ?? new List<CustomerSearchResponse>();
+    }
+
+    public async Task<IReadOnlyList<CustomerSearchResponse>> GetTopCustomersAsync(Guid organizationId, int limit, CancellationToken cancellationToken)
+    {
+        var customers = await _dbContext.Customers
+            .AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId)
+            .OrderByDescending(c => _dbContext.JobReports.Count(r => r.CustomerId == c.Id && r.OrganizationId == organizationId && !r.IsSoftDeleted))
+            .Take(limit)
+            .Select(c => new CustomerSearchResponse(
+                c.Id,
+                c.Name,
+                c.Email,
+                c.Phone,
+                c.Address,
+                c.ContactPerson))
+            .ToListAsync(cancellationToken);
+
+        return customers;
     }
 }

@@ -36,12 +36,6 @@ public static class AuthEndpoints
             return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
         }).Produces<AuthTokenResponse>();
 
-        group.MapPost("/verify-invite/{token}", async (string token, CompleteInviteRequest body, IInvitationService service, IConfiguration configuration, CancellationToken cancellationToken) =>
-        {
-            var result = await service.VerifyInviteAsync(new VerifyInviteRequest(token, body.DisplayName, body.Phone), cancellationToken);
-            return ResultExtensions.ToHttpResult(result, user => JwtHelper.GenerateToken(user, configuration));
-        }).Produces<AuthTokenResponse>();
-
         group.MapPost("/entra-enroll", async (EntraEnrollRequest request, IInvitationService service, IConfiguration configuration, CancellationToken cancellationToken) =>
         {
             var result = await service.CompleteEnrollmentAsync(request, cancellationToken);
@@ -58,15 +52,16 @@ public static class AuthEndpoints
         .Produces<AuthTokenResponse>()
         .RequireAuthorization(policy => policy.AddAuthenticationSchemes("EntraJwt").RequireAuthenticatedUser());
 
-        group.MapPost("/invite", async (InviteUsersRequest request, IInvitationService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.InviteUsersAsync(request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
-        }).RequireAuthorization(AuthPolicies.RequireAdmin);
-
         group.MapGet("/invites", async (IInvitationService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetOrganizationInvitesAsync(cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).RequireAuthorization(AuthPolicies.RequireAdmin);
+
+
+        group.MapPost("/invite", async (InviteUsersRequest request, IInvitationService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.InviteUsersAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 

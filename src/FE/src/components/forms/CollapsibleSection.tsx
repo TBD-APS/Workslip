@@ -6,14 +6,19 @@ type CollapsibleSectionProps = {
   title: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  open?: boolean;
+  onToggle?: (open: boolean) => void;
 };
 
-export function CollapsibleSection({ icon, title, children, defaultOpen = true }: CollapsibleSectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+export function CollapsibleSection({ icon, title, children, defaultOpen = true, open, onToggle }: CollapsibleSectionProps) {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isOpen = open ?? internalOpen;
+  const isControlled = open !== undefined;
   const contentRef = useRef<HTMLDivElement | null>(null);
   const isInitialMount = useRef(true);
 
   useEffect(() => {
+    if (isControlled) return;
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
@@ -21,14 +26,22 @@ export function CollapsibleSection({ icon, title, children, defaultOpen = true }
     if (isOpen) {
       contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [isOpen]);
+  }, [isOpen, isControlled]);
+
+  const handleToggle = () => {
+    if (isControlled) {
+      onToggle?.(!open);
+    } else {
+      setInternalOpen((prev) => !prev);
+    }
+  };
 
   return (
     <section className="detail-section collapsible-section">
       <button
         className="collapsible-section-trigger"
         type="button"
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={handleToggle}
         aria-expanded={isOpen}
       >
         <span className="section-title-row">

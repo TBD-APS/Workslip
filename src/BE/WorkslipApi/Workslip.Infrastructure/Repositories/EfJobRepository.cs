@@ -60,7 +60,52 @@ public sealed class EfJobRepository : IJobRepository
 
         Guid? customerId = null;
         if (request.Customer is not null)
-            customerId = await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
+        {
+            if (request.Customer.CustomerId.HasValue)
+            {
+                customerId = request.Customer.CustomerId;
+            }
+            else
+            {
+                customerId = await _customerRepository.CreateCustomerAsync(organizationId, request.Customer, cancellationToken);
+            }
+        }
+
+        string? snapshotName = null;
+        string? snapshotEmail = null;
+        string? snapshotPhone = null;
+        string? snapshotAddress = null;
+
+        if (request.Customer is not null)
+        {
+            snapshotName = ValueOrNull(request.Customer.Name);
+            snapshotEmail = ValueOrNull(request.Customer.Email);
+            snapshotPhone = ValueOrNull(request.Customer.Phone);
+            snapshotAddress = ValueOrNull(request.Customer.Address);
+
+            if (customerId.HasValue && snapshotName is null && snapshotEmail is null && snapshotPhone is null && snapshotAddress is null)
+            {
+                var masterCustomer = await _dbContext.Customers
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == customerId.Value && c.OrganizationId == organizationId, cancellationToken);
+
+                if (masterCustomer is not null)
+                {
+                    snapshotName ??= masterCustomer.Name;
+                    snapshotEmail ??= masterCustomer.Email;
+                    snapshotPhone ??= masterCustomer.Phone;
+                    snapshotAddress ??= masterCustomer.Address;
+                }
+            }
+        }
+
+        if (request.CustomerSnapshot is not null)
+        {
+            snapshotName = ValueOrNull(request.CustomerSnapshot.Name);
+            snapshotEmail = ValueOrNull(request.CustomerSnapshot.Email);
+            snapshotPhone = ValueOrNull(request.CustomerSnapshot.Phone);
+            snapshotAddress = ValueOrNull(request.CustomerSnapshot.Address);
+        }
 
         var workKindLabel = NormalizeOptional(request.Work?.WorkKind);
         Guid? workKindId = null;
@@ -77,6 +122,10 @@ public sealed class EfJobRepository : IJobRepository
             Id = reportId,
             OrganizationId = organizationId,
             CustomerId = customerId,
+            CustomerName = snapshotName,
+            CustomerEmail = snapshotEmail,
+            CustomerPhone = snapshotPhone,
+            CustomerAddress = snapshotAddress,
             ReportNumber = reportNumber,
             Status = JobStatus.Draft.ToString(),
             ReportDate = ToDateTime(request.Observations?.ReportDate),
@@ -129,26 +178,24 @@ public sealed class EfJobRepository : IJobRepository
 
         var projected = await (
             from r in _dbContext.JobReports.AsNoTracking()
-            join c in _dbContext.Customers.AsNoTracking() on new { Id = r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
-            from c in rjc.DefaultIfEmpty()
             where r.OrganizationId == query.OrganizationId
             where statuses.Contains(r.Status)
             where r.IsSoftDeleted == false
             where query.ReportNumber == null || (r.ReportNumber != null && r.ReportNumber.Contains(query.ReportNumber))
-            where query.CustomerName == null || (c != null && c.Name.Contains(query.CustomerName))
-            where query.CustomerEmail == null || (c != null && c.Email != null && c.Email.Contains(query.CustomerEmail))
-            where query.CustomerAddress == null || (c != null && c.Address != null && c.Address.Contains(query.CustomerAddress))
+            where query.CustomerName == null || ((r.CustomerName != null && r.CustomerName.Contains(query.CustomerName)) || (r.CustomerName == null && r.CustomerRow != null && r.CustomerRow.Name.Contains(query.CustomerName)))
+            where query.CustomerEmail == null || ((r.CustomerEmail != null && r.CustomerEmail.Contains(query.CustomerEmail)) || (r.CustomerEmail == null && r.CustomerRow != null && r.CustomerRow.Email != null && r.CustomerRow.Email.Contains(query.CustomerEmail)))
+            where query.CustomerAddress == null || ((r.CustomerAddress != null && r.CustomerAddress.Contains(query.CustomerAddress)) || (r.CustomerAddress == null && r.CustomerRow != null && r.CustomerRow.Address != null && r.CustomerRow.Address.Contains(query.CustomerAddress)))
             orderby r.UpdatedAt descending
             select new
             {
                 r.Id,
                 r.OrganizationId,
                 CustId = r.CustomerId,
-                CustName = c != null ? c.Name : null,
-                CustAddress = c != null ? c.Address : null,
-                CustEmail = c != null ? c.Email : null,
-                CustContactPerson = c != null ? c.ContactPerson : null,
-                CustPhone = c != null ? c.Phone : null,
+                CustName = r.CustomerName ?? r.CustomerRow.Name,
+                CustAddress = r.CustomerAddress ?? r.CustomerRow.Address,
+                CustEmail = r.CustomerEmail ?? r.CustomerRow.Email,
+                CustContactPerson = r.CustomerRow != null ? r.CustomerRow.ContactPerson : null,
+                CustPhone = r.CustomerPhone ?? r.CustomerRow.Phone,
                 r.ReportNumber,
                 r.Status,
                 r.ReportDate,
@@ -274,12 +321,29 @@ public sealed class EfJobRepository : IJobRepository
 
         var now = DateTimeOffset.UtcNow;
 
-        var customerId = existing.CustomerId;
-        if (request.Customer is not null)
-            customerId = await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
-
         var entry = _dbContext.Entry(existing);
-        entry.Property(e => e.CustomerId).CurrentValue = customerId;
+
+        if (request.Customer is not null)
+        {
+            if (request.Customer.CustomerId.HasValue)
+            {
+                entry.Property(e => e.CustomerId).CurrentValue = request.Customer.CustomerId;
+            }
+
+            entry.Property(e => e.CustomerName).CurrentValue = ValueOrNull(request.Customer.Name);
+            entry.Property(e => e.CustomerEmail).CurrentValue = ValueOrNull(request.Customer.Email);
+            entry.Property(e => e.CustomerPhone).CurrentValue = ValueOrNull(request.Customer.Phone);
+            entry.Property(e => e.CustomerAddress).CurrentValue = ValueOrNull(request.Customer.Address);
+        }
+
+        if (request.CustomerSnapshot is not null)
+        {
+            entry.Property(e => e.CustomerName).CurrentValue = ValueOrNull(request.CustomerSnapshot.Name);
+            entry.Property(e => e.CustomerEmail).CurrentValue = ValueOrNull(request.CustomerSnapshot.Email);
+            entry.Property(e => e.CustomerPhone).CurrentValue = ValueOrNull(request.CustomerSnapshot.Phone);
+            entry.Property(e => e.CustomerAddress).CurrentValue = ValueOrNull(request.CustomerSnapshot.Address);
+        }
+
         var reportNumber = request.ReportNumber?.Trim();
         if (reportNumber is not null)
         {
@@ -809,6 +873,9 @@ public sealed class EfJobRepository : IJobRepository
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static string? ValueOrNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static bool IsDuplicateReportNumberViolation(DbUpdateException exception)
     {

@@ -36,11 +36,6 @@ public sealed class InvitationService(
         return Result<InviteUsersResponse>.Success(new InviteUsersResponse(results));
     }
 
-    public async Task<Result<AuthUserInfo>> VerifyInviteAsync(VerifyInviteRequest request, CancellationToken cancellationToken)
-    {
-        return await CompleteInviteAsync(request.Token, request.DisplayName, request.Phone, cancellationToken);
-    }
-
     public async Task<Result<AuthUserInfo>> CompleteEnrollmentAsync(EntraEnrollRequest request, CancellationToken cancellationToken)
     {
         return await CompleteInviteAsync(request.Token, request.DisplayName, request.Phone, cancellationToken);
@@ -71,22 +66,17 @@ public sealed class InvitationService(
         if (validationError is not null) 
             return validationError;
 
-        CreateEntraUserResult entraUser;
-        try
+        if (string.IsNullOrWhiteSpace(invite.EntraUserId))
         {
-            entraUser = await entraService.CreateUserAsync(invite.Email, displayName, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Invite enrollment failed during Entra user creation. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
-            throw;
+            logger.LogWarning("Invite enrollment failed: Entra user not pre-provisioned. Token: {Token}", invite.Token);
+            return Result<AuthUserInfo>.Conflict("entra_user_not_provisioned");
         }
 
         await using var transaction = await transactionFactory.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            var user = BuildUserFromInvite(invite, entraUser, displayName, phone);
+            var user = BuildUserFromInvite(invite, displayName, phone);
             var userId = await userRepository.CreateAsync(user, cancellationToken);
             await inviteRepository.MarkConsumedAsync(invite, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -100,7 +90,6 @@ public sealed class InvitationService(
         catch (Exception ex)
         {
             await RollbackTransactionAsync(transaction, cancellationToken);
-            await DeleteRollbackUserAsync(entraUser, invite, cancellationToken);
             logger.LogError(ex, "Invite enrollment failed. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
             throw;
         }
@@ -116,42 +105,6 @@ public sealed class InvitationService(
         {
             logger.LogError(rollbackException, "SQL transaction rollback failed during invite enrollment.");
         }
-    }
-
-    private async Task DeleteRollbackUserAsync(CreateEntraUserResult? entraUser, InviteTokenRow invite, CancellationToken cancellationToken)
-    {
-        var deleteEntraUserId = GetInviteOwnedRollbackUserId(entraUser, invite);
-        if (deleteEntraUserId is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await entraService.DeleteUserAsync(deleteEntraUserId, cancellationToken);
-            await MarkInviteEntraCleanedAsync(invite, cancellationToken);
-        }
-        catch (Exception deleteException)
-        {
-            logger.LogError(deleteException, "Failed to delete invite-owned Entra user after invite enrollment rollback. EntraUserId: {EntraUserId}", deleteEntraUserId);
-        }
-    }
-
-    private static string? GetInviteOwnedRollbackUserId(CreateEntraUserResult? entraUser, InviteTokenRow invite)
-    {
-        if (entraUser is { Created: true })
-        {
-            return entraUser.EntraUserId;
-        }
-
-        if (invite is { EntraCreatedByInvite: true, EntraCleanedAt: null }
-            && !string.IsNullOrWhiteSpace(invite.EntraUserId)
-            && string.Equals(invite.EntraUserId, entraUser?.EntraUserId, StringComparison.OrdinalIgnoreCase))
-        {
-            return invite.EntraUserId;
-        }
-
-        return null;
     }
 
     private async Task<Result<AuthUserInfo>?> ValidateInviteAsync(InviteTokenRow invite, CancellationToken cancellationToken)
@@ -286,6 +239,7 @@ public sealed class InvitationService(
         {
             var entraUser = await entraService.EnsureInvitedUserAsync(invite.Email, cancellationToken);
             invite.EntraUserId = entraUser.EntraUserId;
+            invite.EntraEmail = entraUser.EntraMail; 
             invite.EntraCreatedByInvite = entraUser.Created;
             invite.EntraProvisionedAt ??= DateTimeOffset.UtcNow;
             invite.EntraCleanedAt = null;
@@ -336,7 +290,7 @@ public sealed class InvitationService(
         await inviteRepository.UpdateAsync(invite, cancellationToken);
     }
 
-    private static UserDataRow BuildUserFromInvite(InviteTokenRow invite, CreateEntraUserResult entraUser, string displayName, string? phone) =>
+    private static UserDataRow BuildUserFromInvite(InviteTokenRow invite, string displayName, string? phone) =>
         new()
         {
             Id = Guid.NewGuid(),
@@ -344,8 +298,8 @@ public sealed class InvitationService(
             Email = invite.Email,
             DisplayName = displayName,
             Phone = phone ?? string.Empty,
-            EntraEmail = entraUser.EntraMail,
-            EntraId = entraUser.EntraUserId,
+            EntraEmail = invite.EntraEmail ?? invite.Email,
+            EntraId = invite.EntraUserId ?? string.Empty,
             Role = invite.Role ?? "User",
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow

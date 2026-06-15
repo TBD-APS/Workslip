@@ -26,6 +26,10 @@ internal static class AuditDisplayNames
     public static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>
     {
         { "CustomerId", "Kunde" },
+        { "CustomerName", "Kundenavn" },
+        { "CustomerEmail", "Kunde e-mail" },
+        { "CustomerPhone", "Kundes telefon" },
+        { "CustomerAddress", "Kundeadresse" },
         { "JobId", "Sag" },
         { "ReportId", "Sag" },
         { "ReportNumber", "Sagsnummer" },

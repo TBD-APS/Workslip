@@ -70,6 +70,17 @@ public static class AuthenticationConfiguration
         configuration.GetSection("Azure:AdOAuth"),
         jwtBearerScheme: EntraJwtScheme);
 
+        builder.Services.Configure<JwtBearerOptions>(EntraJwtScheme, options =>
+        {
+            var clientId = configuration["Azure:AdOAuth:ClientId"];
+
+            // Tving middlewaren til at acceptere både det rene GUID og api:// formatet
+            options.TokenValidationParameters.ValidAudiences = new[] { clientId, $"api://{clientId}" };
+
+            // Da du kører gæstebrugere/multitenant i bunden, skal issuer-valideringen være fleksibel
+            options.TokenValidationParameters.ValidateIssuer = false;
+        });
+
         builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
         builder.Services.AddScoped<IClaimsTransformation, UserClaimsTransformation>();
 
