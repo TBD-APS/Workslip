@@ -268,10 +268,10 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.CustomWorkKind).HasMaxLength(250);
         entity.Property(e => e.Remarks).HasColumnType("nvarchar(max)");
 
-        entity.Property(e => e.CustomerName).HasMaxLength(200);
-        entity.Property(e => e.CustomerEmail).HasMaxLength(320);
-        entity.Property(e => e.CustomerPhone).HasMaxLength(50);
-        entity.Property(e => e.CustomerAddress).HasMaxLength(500);
+        entity.Property(e => e.CustomerName);
+        entity.Property(e => e.CustomerEmail);
+        entity.Property(e => e.CustomerPhone);
+        entity.Property(e => e.CustomerAddress);
 
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.UpdatedAt).HasColumnType("datetimeoffset");

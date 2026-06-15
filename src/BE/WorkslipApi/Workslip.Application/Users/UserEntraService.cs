@@ -138,7 +138,6 @@ public sealed class UserEntraService(
         }
         catch (ODataError odataError)
         {
-            // Dette vil fange den REELLE fejlbesked fra Azure Entra ID
             logger.LogError(odataError, "Graph API returnerede en fejl: {Code} - {Message}",
                 odataError.Error?.Code,
                 odataError.Error?.Message);
@@ -146,9 +145,8 @@ public sealed class UserEntraService(
         }
         catch (Exception e)
         {
-            // G�ngse netv�rksfejl eller uforudsete fejl
             logger.LogError(e, "Generel fejl under kald til Graph API");
-            throw;
+            throw e;
         }
     }
 
