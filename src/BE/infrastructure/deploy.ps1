@@ -1,6 +1,6 @@
 param(
     [Parameter(Position=0)]
-    [string]$Environment = "pre",
+    [string]$Environment = "prod",
     [string]$Location = "westeurope",
     [string]$COMPANY_NAME = "npteknik",
     [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7"
@@ -162,14 +162,14 @@ $DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -Provisi
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
 $SqlAdminGroupId = $DeploymentOutputs.SQL_ADMIN_GROUP_ID.value
-$DeploymentIdentityPrincipalId = $DeploymentOutputs.DEPLOYMENT_IDENTITY_PRINCIPAL_ID.value
+$DeploymentIdentityPrincipalId = $DeploymentOutputs.MANAGED_IDENTITY_PRINCIPAL_ID.value
 
 if ([string]::IsNullOrWhiteSpace($SqlAdminGroupId)) {
     throw "Deployment output SQL_ADMIN_GROUP_ID was empty."
 }
 
 if ([string]::IsNullOrWhiteSpace($DeploymentIdentityPrincipalId)) {
-    throw "Deployment output DEPLOYMENT_IDENTITY_PRINCIPAL_ID was empty."
+    throw "Deployment output MANAGED_IDENTITY_PRINCIPAL_ID was empty."
 }
 
 Write-Host "Ensuring SQL admin group membership…" -ForegroundColor Cyan

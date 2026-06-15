@@ -4,7 +4,6 @@ param companyName string = ''
 param environment string = ''
 param globalAdminId string = ''
 param location string = resourceGroup().location
-param secureAdminName string = 'rbjadmin'
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param logicAppName string             = 'la-${companyName}-${toLower(environment)}'
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
@@ -24,7 +23,7 @@ param communicationServiceName string = take('acs-${companyName}-${toLower(envir
 param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
 param githubRepository string         = 'rasm105k/Workslip-v2.0'
 param githubEnvironment string        = environment
-param sqlAdminGroupName string        = 'sql-${companyName}-${toLower(environment)}-admins'
+param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}admins'
 param provisionWebApiSqlAccess bool   = false
 
 // ── Role definition IDs ───────────────────────────────────────────────────────
@@ -38,13 +37,12 @@ var roles = {
   appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
   websiteContributor: 'de139f84-1756-47ae-9be6-808fbbe84772'
   sqlSecurityManager: '056cd41c-7e88-42e1-933e-88ba6a50c9c3'
-
-
-  UserReadWriteAll:                     '7824d5d9-17c9-47c3-b692-94906572709f'
-  UserInviteAll:                        '09850681-111b-4a89-9bd3-ef05f0a8e42c'
-  ApplicationReadAll:                   '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
-  AppRoleAssignmentReadWriteAll:        '1bfefb4e-e0b5-418b-a88f-73c46d2cc2e9'
-  UserAuthenticationMethodReadWriteAll: 'bb5d44cc-0062-43fa-a690-34440263f35a'
+  
+  UserReadWriteAll: '741f803b-c850-494e-b5df-cde7c675a1ca'
+  UserInviteAll: '09850681-111b-4a89-9bed-3f2cae46d706'
+  ApplicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
+  AppRoleAssignmentReadWriteAll: '06b708a9-e830-4db3-a914-8e69da51d44f'
+  UserAuthenticationMethodReadWriteAll: '50483e42-d915-4231-9639-7fdb7fd190e5'
 }
 
 var tags = {
@@ -66,7 +64,6 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
   location: location
   tags: tags
 }
-
 
 resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
   parent: identity
@@ -356,7 +353,7 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
   params: {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
-    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=adminrbj;Password=Num64bqe!; TrustServerCertificate=False;'
+    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=rbj;Password=Num64bqe!; TrustServerCertificate=False;'
   }
 }
 
@@ -395,7 +392,7 @@ module EntraAppRegistrations './entraRegistrations.bicep' = {
 resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
   uniqueName: sqlAdminGroupName
   displayName: sqlAdminGroupName
-  description: 'Azure SQL administrators for ${secureAdminName}, ${environment}, and deployment automation.'
+  description: 'Azure SQL administrators for ${environment}, and deployment automation.'
   mailEnabled: false
   mailNickname: sqlAdminGroupMailNickname
   securityEnabled: true
@@ -406,21 +403,35 @@ resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
   }
 }
 
-resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
+resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
   name: 'db-${companyName}-${environment}-server'
   location: location
   properties: {
-    administrators: {
-      administratorType: 'ActiveDirectory'
-      principalType: 'Group'
-      login: sqlAdminGroup.displayName
-      sid: sqlAdminGroup.id
-      tenantId: subscription().tenantId
-      azureADOnlyAuthentication: false // <-- DETTE DEAKTIVERER SQL PASSWORDS PERMANENT
-    }
     version: '12.0'
     publicNetworkAccess: 'Enabled'
   }
+}
+
+resource sqlAdmin 'Microsoft.Sql/servers/administrators@2021-11-01' = {
+  parent: sqlServer
+  name: 'ActiveDirectory'
+  properties: {
+    administratorType: 'ActiveDirectory'
+    login: sqlAdminGroup.displayName
+    sid: sqlAdminGroup.id
+    tenantId: subscription().tenantId
+  }
+}
+
+resource sqlAdOnlyAuth 'Microsoft.Sql/servers/azureADOnlyAuthentications@2023-08-01-preview' = {
+  parent: sqlServer
+  name: 'Default'
+  properties: {
+    azureADOnlyAuthentication: true
+  }
+  dependsOn: [
+    sqlAdmin
+  ]
 }
 
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
@@ -699,8 +710,6 @@ run_sql_with_retry
     sqlFirewallManagerForIdentity
   ]
 }
-
-
 
 // ──────────────────────────────────────────────────────────
 // Storage Account

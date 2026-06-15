@@ -45,7 +45,6 @@ public static class AuthenticationConfiguration
                     {
                         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
 
-                        // Better than Kid: route by issuer/audience if possible
                         var issuer = jwt.Issuer;
 
                         var scheme = issuer.Contains("login.microsoftonline.com", StringComparison.OrdinalIgnoreCase) ||
