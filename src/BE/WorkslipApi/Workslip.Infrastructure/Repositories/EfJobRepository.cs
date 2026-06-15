@@ -60,7 +60,16 @@ public sealed class EfJobRepository : IJobRepository
 
         Guid? customerId = null;
         if (request.Customer is not null)
-            customerId = await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
+        {
+            if (request.Customer.CustomerId.HasValue)
+            {
+                customerId = request.Customer.CustomerId;
+            }
+            else
+            {
+                customerId = await _customerRepository.CreateCustomerAsync(organizationId, request.Customer, cancellationToken);
+            }
+        }
 
         string? snapshotName = null;
         string? snapshotEmail = null;
@@ -69,12 +78,12 @@ public sealed class EfJobRepository : IJobRepository
 
         if (request.Customer is not null)
         {
-            snapshotName = !string.IsNullOrWhiteSpace(request.Customer.Name) ? request.Customer.Name.Trim() : null;
-            snapshotEmail = !string.IsNullOrWhiteSpace(request.Customer.Email) ? request.Customer.Email.Trim() : null;
-            snapshotPhone = !string.IsNullOrWhiteSpace(request.Customer.Phone) ? request.Customer.Phone.Trim() : null;
-            snapshotAddress = !string.IsNullOrWhiteSpace(request.Customer.Address) ? request.Customer.Address.Trim() : null;
+            snapshotName = ValueOrNull(request.Customer.Name);
+            snapshotEmail = ValueOrNull(request.Customer.Email);
+            snapshotPhone = ValueOrNull(request.Customer.Phone);
+            snapshotAddress = ValueOrNull(request.Customer.Address);
 
-            if (customerId.HasValue && (snapshotName is null && snapshotEmail is null && snapshotPhone is null && snapshotAddress is null))
+            if (customerId.HasValue && snapshotName is null && snapshotEmail is null && snapshotPhone is null && snapshotAddress is null)
             {
                 var masterCustomer = await _dbContext.Customers
                     .AsNoTracking()
@@ -88,6 +97,14 @@ public sealed class EfJobRepository : IJobRepository
                     snapshotAddress ??= masterCustomer.Address;
                 }
             }
+        }
+
+        if (request.CustomerSnapshot is not null)
+        {
+            snapshotName = ValueOrNull(request.CustomerSnapshot.Name);
+            snapshotEmail = ValueOrNull(request.CustomerSnapshot.Email);
+            snapshotPhone = ValueOrNull(request.CustomerSnapshot.Phone);
+            snapshotAddress = ValueOrNull(request.CustomerSnapshot.Address);
         }
 
         var workKindLabel = NormalizeOptional(request.Work?.WorkKind);
@@ -304,25 +321,27 @@ public sealed class EfJobRepository : IJobRepository
 
         var now = DateTimeOffset.UtcNow;
 
-        var customerId = existing.CustomerId;
+        var entry = _dbContext.Entry(existing);
+
         if (request.Customer is not null)
         {
-            customerId = await _customerRepository.UpsertCustomerAsync(organizationId, request.Customer, cancellationToken);
+            if (request.Customer.CustomerId.HasValue)
+            {
+                entry.Property(e => e.CustomerId).CurrentValue = request.Customer.CustomerId;
+            }
+
+            entry.Property(e => e.CustomerName).CurrentValue = ValueOrNull(request.Customer.Name);
+            entry.Property(e => e.CustomerEmail).CurrentValue = ValueOrNull(request.Customer.Email);
+            entry.Property(e => e.CustomerPhone).CurrentValue = ValueOrNull(request.Customer.Phone);
+            entry.Property(e => e.CustomerAddress).CurrentValue = ValueOrNull(request.Customer.Address);
         }
 
-        var entry = _dbContext.Entry(existing);
-        entry.Property(e => e.CustomerId).CurrentValue = customerId;
-
-        if (request.Customer is not null)
+        if (request.CustomerSnapshot is not null)
         {
-            entry.Property(e => e.CustomerName).CurrentValue =
-                !string.IsNullOrWhiteSpace(request.Customer.Name) ? request.Customer.Name.Trim() : null;
-            entry.Property(e => e.CustomerEmail).CurrentValue =
-                !string.IsNullOrWhiteSpace(request.Customer.Email) ? request.Customer.Email.Trim() : null;
-            entry.Property(e => e.CustomerPhone).CurrentValue =
-                !string.IsNullOrWhiteSpace(request.Customer.Phone) ? request.Customer.Phone.Trim() : null;
-            entry.Property(e => e.CustomerAddress).CurrentValue =
-                !string.IsNullOrWhiteSpace(request.Customer.Address) ? request.Customer.Address.Trim() : null;
+            entry.Property(e => e.CustomerName).CurrentValue = ValueOrNull(request.CustomerSnapshot.Name);
+            entry.Property(e => e.CustomerEmail).CurrentValue = ValueOrNull(request.CustomerSnapshot.Email);
+            entry.Property(e => e.CustomerPhone).CurrentValue = ValueOrNull(request.CustomerSnapshot.Phone);
+            entry.Property(e => e.CustomerAddress).CurrentValue = ValueOrNull(request.CustomerSnapshot.Address);
         }
 
         var reportNumber = request.ReportNumber?.Trim();
@@ -854,6 +873,9 @@ public sealed class EfJobRepository : IJobRepository
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static string? ValueOrNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static bool IsDuplicateReportNumberViolation(DbUpdateException exception)
     {

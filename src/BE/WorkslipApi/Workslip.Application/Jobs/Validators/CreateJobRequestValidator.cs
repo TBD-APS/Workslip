@@ -10,8 +10,9 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
             .NotEmpty().WithMessage("Report number is required.")
             .MaximumLength(80).WithMessage("Report number must not exceed 80 characters.");
 
-        RuleFor(x => x.Customer)
-            .NotNull().WithMessage("Customer is required.");
+        RuleFor(x => x)
+            .Must(x => x.Customer is not null || x.CustomerSnapshot is not null)
+            .WithMessage("Either customer or customer snapshot is required.");
 
         RuleFor(x => x.Customer)
             .SetValidator(new CustomerInfoValidator()!)
@@ -20,6 +21,10 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
         RuleFor(x => x.Customer!.Name)
             .NotEmpty().WithMessage("Customer name is required.")
             .When(x => x.Customer is not null);
+
+        RuleFor(x => x.CustomerSnapshot)
+            .SetValidator(new CustomerSnapshotDataValidator()!)
+            .When(x => x.CustomerSnapshot is not null);
 
         When(x => x.Work is not null, () =>
         {
