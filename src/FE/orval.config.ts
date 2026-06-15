@@ -1,9 +1,11 @@
 import { defineConfig } from "orval";
 
+const openApiUrl = process.env.VITE_API_BASE_URL ?? '';
+
 export default defineConfig({
   workslip: {
     input: {
-      target: "../openapi.json",
+      target: openApiUrl,
     },
     output: {
       mode: "tags-split",
