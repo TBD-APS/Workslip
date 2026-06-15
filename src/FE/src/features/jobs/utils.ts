@@ -7,6 +7,11 @@ import type {
 } from '../../api/generated/models';
 import { validateEmail, validatePhoneNumber } from '../../components/forms/validators';
 import type { JobForm, LinkableJob } from './types';
+import type { CustomerSnapshotData } from './customerSnapshotData';
+
+type UpdateJobRequestWithSnapshot = UpdateJobRequest & {
+  customerSnapshot?: CustomerSnapshotData | null;
+};
 
 type JobListItemViewModel = {
   id: string;
@@ -24,8 +29,17 @@ export const emptyCustomer: CustomerInfo = {
   phone: null,
 };
 
+export const emptySnapshot: CustomerSnapshotData = {
+  name: null,
+  email: null,
+  phone: null,
+  address: null,
+};
+
 export const emptyForm: JobForm = {
   customer: { ...emptyCustomer },
+  customerSnapshot: null,
+  editSnapshot: false,
   reportNumber: '',
   taskDescription: '',
   customerObservations: '',
@@ -83,6 +97,8 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       contactPerson: job.customer.contactPerson ?? null,
       phone: job.customer.phone ?? null,
     },
+    customerSnapshot: null,
+    editSnapshot: false,
     reportNumber: job.reportNumber ?? '',
     taskDescription: job.observations.taskDescription ?? '',
     customerObservations: job.observations.customerObservations ?? '',
@@ -104,13 +120,14 @@ export function toUpdateRequest(
   form: JobForm,
   referenceData: ReferenceDataResponse | null,
   options: { includeWork?: boolean } = {},
-): UpdateJobRequest {
+): UpdateJobRequestWithSnapshot {
   const includeWork = options.includeWork ?? true;
 
   return {
     customer: sameCustomer(initial.customer, form.customer)
       ? null
       : form.customer,
+    customerSnapshot: form.editSnapshot ? form.customerSnapshot : null,
     reportNumber: job.reportNumber
       ? null
       : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),
@@ -164,6 +181,7 @@ export function sameForm(left: JobForm, right: JobForm) {
 export function sameFormWithoutWork(left: JobForm, right: JobForm) {
   return (
     sameCustomer(left.customer, right.customer) &&
+    sameSnapshot(left.customerSnapshot, right.customerSnapshot) &&
     left.reportNumber === right.reportNumber &&
     left.taskDescription === right.taskDescription &&
     left.customerObservations === right.customerObservations &&
@@ -182,16 +200,34 @@ export function sameCustomer(left: CustomerInfo, right: CustomerInfo) {
   );
 }
 
+export function sameSnapshot(
+  left: CustomerSnapshotData | null,
+  right: CustomerSnapshotData | null,
+) {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return (
+    left.name === right.name &&
+    left.email === right.email &&
+    left.phone === right.phone &&
+    left.address === right.address
+  );
+}
+
 export function sameWork(left: JobForm, right: JobForm) {
   return JSON.stringify(left.work) === JSON.stringify(right.work);
 }
 
 export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean }) {
+  const name = form.customerSnapshot?.name ?? form.customer.name;
+  const email = form.customerSnapshot?.email ?? form.customer.email;
+  const phone = form.customerSnapshot?.phone ?? form.customer.phone;
+
   return (
     (options?.reportNumberReadOnly || form.reportNumber.trim().length > 0) &&
-    (form.customer.name?.trim().length ?? 0) > 0 &&
-    validateEmail(form.customer.email) === null &&
-    validatePhoneNumber(form.customer.phone) === null
+    (name?.trim().length ?? 0) > 0 &&
+    validateEmail(email) === null &&
+    validatePhoneNumber(phone) === null
   );
 }
 

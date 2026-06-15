@@ -16,6 +16,7 @@ type SingleSelectDropdownProps = {
   selectedId: string | null;
   isLoading?: boolean;
   icon?: React.ReactNode;
+  footer?: React.ReactNode;
   onSelect: (option: SingleSelectOption) => void;
   onSearchChange?: (query: string) => void;
 };
@@ -29,6 +30,7 @@ export function SingleSelectDropdown({
   selectedId,
   isLoading = false,
   icon,
+  footer,
   onSelect,
   onSearchChange,
 }: SingleSelectDropdownProps) {
@@ -137,6 +139,7 @@ export function SingleSelectDropdown({
                 </button>
               );
             })}
+            {footer && <div className="single-select-footer">{footer}</div>}
           </div>
         )}
       </div>

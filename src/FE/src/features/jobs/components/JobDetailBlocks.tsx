@@ -1,17 +1,21 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Building2, FileText, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Building2, FileText, Pencil, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
 import { useCan } from '../../../providers/permissions';
-import { useGetApiCustomersSuggest, getApiCustomersTop } from '../../../api/generated/customers/customers';
+import { useGetApiCustomersSuggest } from '../../../api/generated/customers/customers';
+import { getApiCustomersTop } from '../customerApi';
 import type { CustomerInfo, CustomerSearchViewModel, UserViewModel } from '../../../api/generated/models';
+import type { CustomerSnapshotData } from '../customerSnapshotData';
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
 
 type CustomerBlockProps = {
   form: { customer: CustomerInfo; reportNumber: string };
+  customerSnapshot: CustomerSnapshotData | null;
+  editSnapshot: boolean;
   reportNumberReadOnly?: boolean;
   assignment?: {
     users: UserViewModel[];
@@ -22,19 +26,52 @@ type CustomerBlockProps = {
   readOnlyAssigned?: { id: string; displayName: string }[];
   onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
   onCustomerFieldChange: (field: keyof CustomerInfo, value: string) => void;
+  onSnapshotFieldChange?: (field: keyof CustomerSnapshotData, value: string) => void;
+  onEditSnapshotChange?: (edit: boolean) => void;
   onReportNumberChange: (value: string) => void;
 };
 
 export function CustomerDetailsBlock({
   form,
+  customerSnapshot,
+  editSnapshot,
   reportNumberReadOnly,
   assignment,
   readOnlyAssigned,
   onCustomerSelect,
   onCustomerFieldChange,
+  onSnapshotFieldChange,
+  onEditSnapshotChange,
   onReportNumberChange,
 }: CustomerBlockProps) {
   const canAssign = useCan('job:assign');
+  const hasExistingCustomer = Boolean(form.customer.customerId);
+  const [customerFieldsOpen, setCustomerFieldsOpen] = useState(!hasExistingCustomer || editSnapshot);
+
+  useEffect(() => {
+    if (editSnapshot) setCustomerFieldsOpen(true);
+  }, [editSnapshot]);
+
+  function displayValue(field: keyof CustomerSnapshotData): string {
+    if (editSnapshot && hasExistingCustomer) {
+      const snapshotVal = customerSnapshot?.[field];
+      const customerVal = form.customer[field as keyof CustomerInfo];
+      return (snapshotVal ?? customerVal ?? '') as string;
+    }
+    return (form.customer[field as keyof CustomerInfo] ?? '') as string;
+  }
+
+  function handleFieldChange(field: keyof CustomerSnapshotData, value: string) {
+    if (hasExistingCustomer && editSnapshot) {
+      onSnapshotFieldChange?.(field, value);
+    } else if (!hasExistingCustomer) {
+      onCustomerFieldChange(field as keyof CustomerInfo, value);
+    }
+  }
+
+  function isFieldReadOnly(_field: keyof CustomerSnapshotData): boolean {
+    return hasExistingCustomer && !editSnapshot;
+  }
 
   return (
     <section className="detail-section customer-details-section">
@@ -62,27 +99,81 @@ export function CustomerDetailsBlock({
           onSelect={onCustomerSelect}
         />
 
-        <div className="form-group">
-          <label className="form-label">Kundenavn</label>
-          <input className="form-input" value={form.customer.name ?? ''} onChange={(e) => onCustomerFieldChange('name', e.target.value)} placeholder="Kundenavn" />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Adresse</label>
-          <input className="form-input" value={form.customer.address ?? ''} onChange={(e) => onCustomerFieldChange('address', e.target.value)} placeholder="Adresse" />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Email</label>
-          <input className="form-input" value={form.customer.email ?? ''} onChange={(e) => onCustomerFieldChange('email', e.target.value)} placeholder="Email" />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Telefon</label>
-          <input className="form-input" value={form.customer.phone ?? ''} onChange={(e) => onCustomerFieldChange('phone', e.target.value)} placeholder="Telefon" />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Kontaktperson</label>
-          <input className="form-input" value={form.customer.contactPerson ?? ''} onChange={(e) => onCustomerFieldChange('contactPerson', e.target.value)} placeholder="Kontaktperson" />
-        </div>
+        {hasExistingCustomer && (
+          <label className="checkbox-row" style={{ marginTop: '0.25rem' }}>
+            <input
+              type="checkbox"
+              checked={editSnapshot}
+              onChange={(e) => onEditSnapshotChange?.(e.target.checked)}
+            />
+            <Pencil size={14} />
+            <span>Rediger kundeoplysninger for denne sag</span>
+          </label>
+        )}
 
+        <CollapsibleSection
+          icon={<Building2 size={18} />}
+          title="Kundeoplysninger"
+          defaultOpen={!hasExistingCustomer}
+          open={customerFieldsOpen}
+          onToggle={setCustomerFieldsOpen}
+        >
+          <div className="form-group">
+            <label className="form-label">Kundenavn</label>
+            <input
+              className="form-input"
+              value={displayValue('name')}
+              onChange={(e) => handleFieldChange('name', e.target.value)}
+              placeholder="Kundenavn"
+              readOnly={isFieldReadOnly('name')}
+              style={isFieldReadOnly('name') ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Adresse</label>
+            <input
+              className="form-input"
+              value={displayValue('address')}
+              onChange={(e) => handleFieldChange('address', e.target.value)}
+              placeholder="Adresse"
+              readOnly={isFieldReadOnly('address')}
+              style={isFieldReadOnly('address') ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email</label>
+            <input
+              className="form-input"
+              value={displayValue('email')}
+              onChange={(e) => handleFieldChange('email', e.target.value)}
+              placeholder="Email"
+              readOnly={isFieldReadOnly('email')}
+              style={isFieldReadOnly('email') ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Telefon</label>
+            <input
+              className="form-input"
+              value={displayValue('phone')}
+              onChange={(e) => handleFieldChange('phone', e.target.value)}
+              placeholder="Telefon"
+              readOnly={isFieldReadOnly('phone')}
+              style={isFieldReadOnly('phone') ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Kontaktperson</label>
+            <input
+              className="form-input"
+              value={form.customer.contactPerson ?? ''}
+              onChange={(e) => onCustomerFieldChange('contactPerson', e.target.value)}
+              placeholder="Kontaktperson"
+              readOnly={hasExistingCustomer && !editSnapshot}
+              style={hasExistingCustomer && !editSnapshot ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+            />
+          </div>
+        </CollapsibleSection>
 
         {assignment && canAssign && (
           <MultiSelectDropdown
@@ -227,13 +318,14 @@ function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: Customer
   return (
     <SingleSelectDropdown
       label="Kunde"
-      placeholder={isSearching ? "Søger..." : "Vælg kunde (top 3)..."}
+      placeholder={isSearching ? "Søger..." : "Vælg kunde..."}
       emptyText="Ingen kunder fundet"
       loadingText="Henter kunder..."
       options={options}
       selectedId={selectedId}
       isLoading={isLoading}
       icon={<Building2 size={16} />}
+      footer={!isSearching && <span className="single-select-footer-text">Søg efter flere resultater...</span>}
       onSelect={handleSelect}
       onSearchChange={setInputValue}
     />

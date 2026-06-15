@@ -23,7 +23,7 @@ param communicationServiceName string = take('acs-${companyName}-${toLower(envir
 param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
 param githubRepository string         = 'rasm105k/Workslip-v2.0'
 param githubEnvironment string        = environment
-param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}admins'
+param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}group'
 param provisionWebApiSqlAccess bool   = false
 
 // ── Role definition IDs ───────────────────────────────────────────────────────
@@ -408,30 +408,17 @@ resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
   location: location
   properties: {
     version: '12.0'
+    administratorLogin: 'rbj'
+    administratorLoginPassword: 'Num64bqe!'
     publicNetworkAccess: 'Enabled'
+    administrators:{
+      administratorType: 'ActiveDirectory'
+      login: sqlAdminGroupName
+      sid: sqlAdminGroup.id
+      tenantId: subscription().tenantId
+      azureADOnlyAuthentication: false
+    }
   }
-}
-
-resource sqlAdmin 'Microsoft.Sql/servers/administrators@2021-11-01' = {
-  parent: sqlServer
-  name: 'ActiveDirectory'
-  properties: {
-    administratorType: 'ActiveDirectory'
-    login: sqlAdminGroup.displayName
-    sid: sqlAdminGroup.id
-    tenantId: subscription().tenantId
-  }
-}
-
-resource sqlAdOnlyAuth 'Microsoft.Sql/servers/azureADOnlyAuthentications@2023-08-01-preview' = {
-  parent: sqlServer
-  name: 'Default'
-  properties: {
-    azureADOnlyAuthentication: true
-  }
-  dependsOn: [
-    sqlAdmin
-  ]
 }
 
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
@@ -454,10 +441,20 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   }
 }
 
-var developerIp = '83.93.49.174'
 resource firewallAllowAzureIPs 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
   parent: sqlServer
   name: 'AllowAzureServices'
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '0.0.0.0'
+  }
+}
+
+var developerIp = '83.93.49.174'
+// 2. Tillad din egen IP-adresse, så du kan tilgå databasen fra SSMS / VS Code
+resource firewallAllowDeveloperIP 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
+  parent: sqlServer
+  name: 'AllowDeveloperIP'
   properties: {
     startIpAddress: developerIp
     endIpAddress: developerIp

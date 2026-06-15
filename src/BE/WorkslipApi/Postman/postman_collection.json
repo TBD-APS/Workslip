@@ -907,6 +907,142 @@
               }
             }
           ]
+        },
+        {
+          "name": "/api/customers/search",
+          "request": {
+            "description": "Searches customers across the entire organization by name, email, phone, address, or contact person.",
+            "method": "GET",
+            "url": {
+              "path": [
+                "api",
+                "customers",
+                "search"
+              ],
+              "query": [
+                {
+                  "description": "Search term (name, email, phone, address, contactPerson)",
+                  "value": "",
+                  "key": "query"
+                },
+                {
+                  "description": "Max results (default 10)",
+                  "value": "10",
+                  "key": "limit"
+                }
+              ],
+              "raw": "{{baseUrl}}/api/customers/search?query=&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ]
+            },
+            "header": []
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('returns an array', function () { pm.expect(json).to.be.an('array'); });",
+                  "if (json.length > 0) {",
+                  "  pm.test('search result has expected fields', function () {",
+                  "    pm.expect(json[0]).to.have.all.keys('id', 'name', 'email', 'phone', 'address', 'contactPerson');",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/customers/suggest",
+          "request": {
+            "description": "Returns customer suggestions for autocomplete - same shape as /search but intended for on-the-fly dropdown queries.",
+            "method": "GET",
+            "url": {
+              "path": [
+                "api",
+                "customers",
+                "suggest"
+              ],
+              "query": [
+                {
+                  "description": "Optional prefix search term",
+                  "value": "",
+                  "key": "query"
+                },
+                {
+                  "description": "Max suggestions (default 5)",
+                  "value": "5",
+                  "key": "limit"
+                }
+              ],
+              "raw": "{{baseUrl}}/api/customers/suggest?query=&limit=5",
+              "host": [
+                "{{baseUrl}}"
+              ]
+            },
+            "header": []
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('returns an array', function () { pm.expect(json).to.be.an('array'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/customers/top",
+          "request": {
+            "description": "Returns the top N customers (by job count) for the organization. Used to pre-populate the autosuggestion dropdown with defaults.",
+            "method": "GET",
+            "url": {
+              "path": [
+                "api",
+                "customers",
+                "top"
+              ],
+              "query": [
+                {
+                  "description": "Number of top customers (default 3)",
+                  "value": "3",
+                  "key": "limit"
+                }
+              ],
+              "raw": "{{baseUrl}}/api/customers/top?limit=3",
+              "host": [
+                "{{baseUrl}}"
+              ]
+            },
+            "header": []
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('returns an array', function () { pm.expect(json).to.be.an('array'); });",
+                  "pm.test('returns at most limit items', function () { pm.expect(json.length).to.be.at.most(3); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     },
@@ -1207,7 +1343,7 @@
             "description": "Creates draft job. Installation, category, and control point selections are sent by reference ID from /api/reference-data. Saves jobId.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Demo Kunde\",\n    \"address\": \"Demo Vej 1, 1000 København\",\n    \"email\": \"{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"work\": {\n    \"installationTypes\": [\n      {\n        \"id\": \"{{vandInstallationId}}\",\n        \"categories\": [\n          {\n            \"id\": \"{{vandCategoryId}}\",\n            \"controlPoints\": [\n              { \"id\": \"{{vandControlPointId}}\" }\n            ]\n          }\n        ]\n      }\n    ],\n    \"workKind\": \"NewInstallation\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"observations\": {\n    \"reportDate\": \"2026-10-01\",\n    \"taskDescription\": \"Installer og kontroller anlæg.\",\n    \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n    \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n  }\n}",
+              "raw": "{\n  \"customerSnapshot\": null,\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Demo Kunde\",\n    \"address\": \"Demo Vej 1, 1000 København\",\n    \"email\": \"{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"work\": {\n    \"installationTypes\": [\n      {\n        \"id\": \"{{vandInstallationId}}\",\n        \"categories\": [\n          {\n            \"id\": \"{{vandCategoryId}}\",\n            \"controlPoints\": [\n              { \"id\": \"{{vandControlPointId}}\" }\n            ]\n          }\n        ]\n      }\n    ],\n    \"workKind\": \"NewInstallation\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"observations\": {\n    \"reportDate\": \"2026-10-01\",\n    \"taskDescription\": \"Installer og kontroller anlæg.\",\n    \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n    \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1619,7 +1755,7 @@
             "description": "Updates job fields. Replaces installation selections when work.installationTypes is supplied. Omitting a nested block leaves it unchanged.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer\": {\n    \"email\": \"opdateret-kunde@example.com\"\n  },\n  \"work\": {\n    \"remarks\": \"Opdateret fra Postman.\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"observations\": {\n    \"technicalObservations\": \"Opdateret teknisk observation.\"\n  }\n}",
+              "raw": "{\n  \"customer\": {\n    \"email\": \"opdateret-kunde@example.com\"\n  },\n  \"work\": {\n    \"remarks\": \"Opdateret fra Postman.\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"customerSnapshot\": {\n    \"name\": \"Opdateret Kunde Navn\",\n    \"email\": \"opdateret@example.com\",\n    \"phone\": \"+4512345678\",\n    \"address\": \"Opdateret Vej 1, 1000 København\"\n  },\n  \"observations\": {\n    \"technicalObservations\": \"Opdateret teknisk observation.\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"

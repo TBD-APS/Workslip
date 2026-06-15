@@ -19,7 +19,6 @@ var appConfigValues = {
   //OAuth
   'Azure:AdOAuth:TenantId': 'common'
   'Azure:AdOAuth:Instance': az.environment().authentication.loginEndpoint
-  'Azure:AdOAuth:Domain': 'common'
   
   //LocalJwt
   'Jwt:Issuer': 'WorkslipApiLocal'

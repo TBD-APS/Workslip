@@ -56,7 +56,7 @@ resource configAdOAuthAudience 'Microsoft.AppConfiguration/configurationStores/k
   parent: appConfiguration
   name: 'Azure:AdOAuth:Audience'
   properties: {
-    value: azureAdOAuthClientId
+    value: 'api://${oauthServerAppId}'
   }
 }
 

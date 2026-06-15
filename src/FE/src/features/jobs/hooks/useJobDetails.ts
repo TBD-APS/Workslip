@@ -25,6 +25,7 @@ import { useIsAdmin } from '../../../providers/permissions';
 import { useAuth } from '../../../providers/useAuth';
 import {
   emptyForm,
+  emptySnapshot,
   getWorkValidationMessage,
   getLinkableJobs,
   isValidJobForm,
@@ -36,6 +37,7 @@ import {
 } from '../utils';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import type { CustomerSearchViewModel, CustomerInfo } from '../../../api/generated/models';
+import type { CustomerSnapshotData } from '../customerSnapshotData';
 import type { JobForm } from '../types';
 
 type JobDetailsDraft = { jobId: string; form: JobForm };
@@ -293,6 +295,8 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         phone: customer.phone ?? null,
         contactPerson: customer.contactPerson ?? null,
       },
+      customerSnapshot: null,
+      editSnapshot: false,
     });
   };
 
@@ -303,6 +307,24 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         ...form.customer,
         [field]: value,
       },
+    });
+  };
+
+  const updateSnapshotField = (field: keyof CustomerSnapshotData, value: string) => {
+    updateDraft({
+      ...form,
+      customerSnapshot: {
+        ...(form.customerSnapshot ?? emptySnapshot),
+        [field]: value,
+      },
+    });
+  };
+
+  const updateEditSnapshot = (edit: boolean) => {
+    updateDraft({
+      ...form,
+      editSnapshot: edit,
+      customerSnapshot: edit ? form.customerSnapshot : null,
     });
   };
 
@@ -608,6 +630,8 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateLinkedJobs,
     selectCustomer,
     updateCustomerField,
+    updateSnapshotField,
+    updateEditSnapshot,
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,
