@@ -39,10 +39,10 @@ var roles = {
   websiteContributor: 'de139f84-1756-47ae-9be6-808fbbe84772'
   sqlSecurityManager: '056cd41c-7e88-42e1-933e-88ba6a50c9c3'
   
-  UserReadWriteAll: '7824d5d9-17c9-47c3-b692-94906572709f'
-  UserInviteAll: '4a9f7d6d-1ee2-4bfb-8f4d-1290a5d4a4d7'
+  UserReadWriteAll: '741f803b-c850-494e-b5df-cde7c675a1ca'
+  UserInviteAll: '09850681-111b-4a89-9bed-3f2cae46d706'
   ApplicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
-  AppRoleAssignmentReadWriteAll: '06b03e2b-286b-4043-9a0b-116a43319a53'
+  AppRoleAssignmentReadWriteAll: '06b708a9-e830-4db3-a914-8e69da51d44f'
   UserAuthenticationMethodReadWriteAll: '50483e42-d915-4231-9639-7fdb7fd190e5'
 }
 
@@ -354,7 +354,7 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
   params: {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
-    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=adminrbj;Password=Num64bqe!; TrustServerCertificate=False;'
+    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=rbj;Password=Num64bqe!; TrustServerCertificate=False;'
   }
 }
 
@@ -411,14 +411,16 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
     administrators: {
       administratorType: 'ActiveDirectory'
       principalType: 'Group'
-      login: sqlAdminGroup.displayName
+      login: sqlAdminGroupName
       sid: sqlAdminGroup.id
       tenantId: subscription().tenantId
-      azureADOnlyAuthentication: false // <-- DETTE DEAKTIVERER SQL PASSWORDS PERMANENT
     }
     version: '12.0'
     publicNetworkAccess: 'Enabled'
   }
+  dependsOn: [
+    sqlAdminGroup
+  ]
 }
 
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {

@@ -77,7 +77,10 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
 resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
   uniqueName: 'Workslip-client-${environment}-${uniqueSuffix}'
   displayName: 'Workslip Client ${environment}'
-  signInAudience: 'AzureADMyOrg'
+  signInAudience: 'AzureADandPersonalMicrosoftAccount'
+  api:{
+    requestedAccessTokenVersion: 2
+  }
   spa: {
     redirectUris: [
       'http://localhost:5173/login'
@@ -108,7 +111,7 @@ resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
       resourceAppId: '00000003-0000-0000-c000-000000000000' // Microsoft Graph
       resourceAccess: [
         {
-          id: 'e1fe6dd8-ba31-4d61-89e7-886398468305' // User.Read
+          id: 'e1fe6dd8-ba31-4d61-89e7-88639da4683d' // User.Read
           type: 'Scope'
         }
       ]
@@ -117,11 +120,14 @@ resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
       resourceAppId: OAuthServerApp.appId // Workslip API
       resourceAccess: [
         {
-          id: apiScopeId // Matcher nu direkte den faste GUID fra serveren
+          id: apiScopeId
           type: 'Scope'
         }
       ]
     }
+  ]
+  dependsOn: [
+    OAuthServerApp
   ]
 }
 
