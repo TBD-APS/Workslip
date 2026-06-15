@@ -126,9 +126,6 @@ resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
       ]
     }
   ]
-  dependsOn: [
-    OAuthServerApp
-  ]
 }
 
 resource OAuthServerServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' = {

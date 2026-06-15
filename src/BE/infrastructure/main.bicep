@@ -4,7 +4,6 @@ param companyName string = ''
 param environment string = ''
 param globalAdminId string = ''
 param location string = resourceGroup().location
-param secureAdminName string = 'rbjadmin'
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
 param logicAppName string             = 'la-${companyName}-${toLower(environment)}'
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
@@ -24,7 +23,7 @@ param communicationServiceName string = take('acs-${companyName}-${toLower(envir
 param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
 param githubRepository string         = 'rasm105k/Workslip-v2.0'
 param githubEnvironment string        = environment
-param sqlAdminGroupName string        = 'sql-${companyName}-${toLower(environment)}-admins'
+param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}admins'
 param provisionWebApiSqlAccess bool   = false
 
 // ── Role definition IDs ───────────────────────────────────────────────────────
@@ -393,7 +392,7 @@ module EntraAppRegistrations './entraRegistrations.bicep' = {
 resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
   uniqueName: sqlAdminGroupName
   displayName: sqlAdminGroupName
-  description: 'Azure SQL administrators for ${secureAdminName}, ${environment}, and deployment automation.'
+  description: 'Azure SQL administrators for ${environment}, and deployment automation.'
   mailEnabled: false
   mailNickname: sqlAdminGroupMailNickname
   securityEnabled: true
@@ -404,20 +403,35 @@ resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
   }
 }
 
-resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
+resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
   name: 'db-${companyName}-${environment}-server'
   location: location
   properties: {
-    administrators: {
-      administratorType: 'ActiveDirectory'
-      principalType: 'Group'
-      login: sqlAdminGroup.displayName
-      sid: sqlAdminGroup.id
-      tenantId: subscription().tenantId
-    }
     version: '12.0'
     publicNetworkAccess: 'Enabled'
   }
+}
+
+resource sqlAdmin 'Microsoft.Sql/servers/administrators@2021-11-01' = {
+  parent: sqlServer
+  name: 'ActiveDirectory'
+  properties: {
+    administratorType: 'ActiveDirectory'
+    login: sqlAdminGroup.displayName
+    sid: sqlAdminGroup.id
+    tenantId: subscription().tenantId
+  }
+}
+
+resource sqlAdOnlyAuth 'Microsoft.Sql/servers/azureADOnlyAuthentications@2023-08-01-preview' = {
+  parent: sqlServer
+  name: 'Default'
+  properties: {
+    azureADOnlyAuthentication: true
+  }
+  dependsOn: [
+    sqlAdmin
+  ]
 }
 
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
