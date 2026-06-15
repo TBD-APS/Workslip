@@ -14,7 +14,7 @@ import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import { emptyForm, emptySnapshot, isValidCreateForm } from '../utils';
 import type { CustomerSearchViewModel, CreateJobRequest, CustomerInfo } from '../../../api/generated/models';
-import type { CustomerSnapshotData } from '../customerSnapshotData';
+import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobForm } from '../types';
 
 type CreateJobRequestWithSnapshot = CreateJobRequest & {

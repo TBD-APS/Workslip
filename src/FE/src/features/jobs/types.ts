@@ -1,5 +1,5 @@
 import type { CustomerInfo } from '../../api/generated/models';
-import type { CustomerSnapshotData } from './customerSnapshotData';
+import type { CustomerSnapshotData } from '../../api/generated/models/customerSnapshotData';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 

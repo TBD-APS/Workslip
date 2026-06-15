@@ -37,7 +37,7 @@ import {
 } from '../utils';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import type { CustomerSearchViewModel, CustomerInfo } from '../../../api/generated/models';
-import type { CustomerSnapshotData } from '../customerSnapshotData';
+import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobForm } from '../types';
 
 type JobDetailsDraft = { jobId: string; form: JobForm };

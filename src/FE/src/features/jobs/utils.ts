@@ -7,7 +7,7 @@ import type {
 } from '../../api/generated/models';
 import { validateEmail, validatePhoneNumber } from '../../components/forms/validators';
 import type { JobForm, LinkableJob } from './types';
-import type { CustomerSnapshotData } from './customerSnapshotData';
+import type { CustomerSnapshotData } from '../../api/generated/models/customerSnapshotData';
 
 type UpdateJobRequestWithSnapshot = UpdateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;

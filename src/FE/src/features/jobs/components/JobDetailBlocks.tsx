@@ -7,8 +7,7 @@ import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdo
 import { useCan } from '../../../providers/permissions';
 import { useGetApiCustomersSuggest } from '../../../api/generated/customers/customers';
 import { getApiCustomersTop } from '../customerApi';
-import type { CustomerInfo, CustomerSearchViewModel, UserViewModel } from '../../../api/generated/models';
-import type { CustomerSnapshotData } from '../customerSnapshotData';
+import type { CustomerInfo, CustomerSearchViewModel, CustomerSnapshotData, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
 
