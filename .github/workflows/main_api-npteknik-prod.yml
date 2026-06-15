@@ -6,16 +6,16 @@ on:
       app_name:
         description: 'Azure Web App name'
         required: false
-        default: 'api-npteknik-pre'
+        default: 'api-npteknik-prod'
       environment:
         description: 'GitHub environment name'
         required: false
-        default: 'pre'
+        default: 'prod'
   push:
     branches: [main]
     paths:
       - 'src/BE/WorkslipApi/**'
-      - '.github/workflows/main_api-npteknik-pre.yml'
+      - '.github/workflows/main_api-npteknik-prod.yml'
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: azure-api-${{ github.event.inputs.environment || 'pre' }}
+  group: azure-api-${{ github.event.inputs.environment || 'prod' }}
   cancel-in-progress: false
 
 jobs:

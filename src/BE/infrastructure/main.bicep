@@ -411,16 +411,13 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
     administrators: {
       administratorType: 'ActiveDirectory'
       principalType: 'Group'
-      login: sqlAdminGroupName
+      login: sqlAdminGroup.displayName
       sid: sqlAdminGroup.id
       tenantId: subscription().tenantId
     }
     version: '12.0'
     publicNetworkAccess: 'Enabled'
   }
-  dependsOn: [
-    sqlAdminGroup
-  ]
 }
 
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
