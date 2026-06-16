@@ -90,7 +90,7 @@ export const CompletedJobReport = () => {
     if (!job || initialLoadDone.current) return;
     initialLoadDone.current = true;
 
-    const el = document.querySelector<HTMLElement>('.app-content');
+    const el = document.querySelector<HTMLElement>('.app-shell');
     if (!el) return;
 
     el.scrollTo(0, 0);
@@ -101,7 +101,7 @@ export const CompletedJobReport = () => {
     if (!isEditing || editScrollDone.current) return;
     editScrollDone.current = true;
 
-    const el = document.querySelector<HTMLElement>('.app-content');
+    const el = document.querySelector<HTMLElement>('.app-shell');
     if (!el) return;
 
     el.scrollTo(0, 0);
@@ -128,13 +128,13 @@ export const CompletedJobReport = () => {
   const handleStartEdit = () => {
     details.discardChanges();
     setIsEditing(true);
-    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
+    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
   };
 
   const handleCancelEdit = () => {
     details.discardChanges();
     setIsEditing(false);
-    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
+    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
   };
 
   const handleSaveEdit = async () => {
@@ -148,7 +148,7 @@ export const CompletedJobReport = () => {
     if (!saved) return;
 
     setIsEditing(false);
-    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
+    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
     toast.success(`Sagen ${details.form.reportNumber} er opdateret`);
   };
 

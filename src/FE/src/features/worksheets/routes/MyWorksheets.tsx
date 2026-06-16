@@ -352,7 +352,7 @@ function isValidMonthCursor(value: unknown): value is MonthCursor {
 }
 
 function getAppScrollElement() {
-  return document.querySelector<HTMLElement>('.app-content');
+  return document.querySelector<HTMLElement>('.app-shell');
 }
 
 function getAppScrollTop() {

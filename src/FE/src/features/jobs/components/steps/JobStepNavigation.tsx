@@ -18,7 +18,11 @@ export function StepIndicators({ currentStep, onStepChange, completedSteps }: St
     if (!activeDot) return;
 
     const targetLeft = activeDot.offsetLeft - (container.clientWidth - activeDot.clientWidth) / 2;
-    container.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    
+    const isScrolling = document.body.classList.contains('scrolling');
+    if (!isScrolling) {
+      container.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    }
   }, [currentStep]);
 
   return (
@@ -80,7 +84,7 @@ export function StepNavigation({
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    const scrollContainer = document.querySelector('.app-content');
+    const scrollContainer = document.querySelector('.app-shell');
     const getScrollTop = () => scrollContainer?.scrollTop ?? window.scrollY;
     const getScrollBottom = () => {
       if (scrollContainer) {
@@ -97,6 +101,13 @@ export function StepNavigation({
       const isAtBottom = getScrollBottom() <= 24;
       const scrollingDown = currentScrollTop > lastScrollTop && currentScrollTop > 80;
       setIsVisible(isAtBottom || !scrollingDown);
+      
+      document.body.classList.add('scrolling');
+      clearTimeout(window.scrollTimeout);
+      window.scrollTimeout = setTimeout(() => {
+        document.body.classList.remove('scrolling');
+      }, 150);
+      
       lastScrollTop = currentScrollTop;
     };
 

@@ -15,7 +15,7 @@ export const JobDetail = () => {
     if (!details.job || initialLoadDone.current) return;
     initialLoadDone.current = true;
 
-    const el = document.querySelector<HTMLElement>('.app-content');
+    const el = document.querySelector<HTMLElement>('.app-shell');
     if (!el) return;
 
     el.scrollTo(0, 0);

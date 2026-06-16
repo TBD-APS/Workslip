@@ -9,11 +9,23 @@
   --surface-card: rgba(255, 255, 255, 0.045);
   --surface-input: rgba(0, 0, 0, 0.28);
   --surface-elevated: rgba(255, 255, 255, 0.06);
-  --surface-selected: rgba(37, 99, 235, 0.14);
-  --surface-selected-strong: rgba(37, 99, 235, 0.22);
+  --surface-selected: rgba(255, 255, 255, 0.06);
+  --surface-selected-strong: rgba(255, 255, 255, 0.1);
   --surface-border: rgba(255, 255, 255, 0.08);
   --surface-border-strong: rgba(255, 255, 255, 0.14);
   --success-color: #10b981;
+  --surface-card-dark: rgba(17, 24, 39, 0.6);
+  --surface-overlay: rgba(0, 0, 0, 0.25);
+  --surface-overlay-strong: rgba(0, 0, 0, 0.28);
+  --badge-bg: rgba(255, 255, 255, 0.05);
+  --badge-border: rgba(255, 255, 255, 0.08);
+  --focus-ring: rgba(255, 255, 255, 0.2);
+  --hover-bg: rgba(255, 255, 255, 0.04);
+  --hover-bg-strong: rgba(255, 255, 255, 0.07);
+  --surface-actions-menu: #111827;
+  --surface-modal: #111827;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
   --font-main: 'Inter', sans-serif;
   --font-heading: 'Outfit', sans-serif;
 }
@@ -35,6 +47,7 @@ body {
   line-height: 1.6;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  touch-action: pan-x pan-y;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -176,13 +189,13 @@ a:hover {
 }
 
 .btn-primary {
-  background: #2563eb;
+  background: var(--color-primary);
   color: white;
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
 }
 
 .btn-primary:hover {
-  background: #1d4ed8;
+  background: var(--color-primary-hover);
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(37, 99, 235, 0.38);
 }
@@ -473,6 +486,16 @@ footer {
   }
 }
 
+@media (max-width: 640px) {
+  .app-container > div[style*="max-width: 400px"] {
+    max-width: 100% !important;
+    border-radius: 16px !important;
+    padding: 1.5rem !important;
+    margin: 1rem;
+    width: calc(100% - 2rem);
+  }
+}
+
 @media (max-width: 768px) {
   .hero h1 {
     font-size: 2.5rem;
@@ -480,6 +503,16 @@ footer {
   
   .nav-links {
     display: none; /* simple mobile menu for now */
+  }
+  
+  .nav-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .nav-actions .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
   }
   
   .hero-visuals {

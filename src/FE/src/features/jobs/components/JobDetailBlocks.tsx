@@ -45,7 +45,7 @@ export function CustomerDetailsBlock({
 }: CustomerBlockProps) {
   const canAssign = useCan('job:assign');
   const hasExistingCustomer = Boolean(form.customer.customerId);
-  const [customerFieldsOpen, setCustomerFieldsOpen] = useState(!hasExistingCustomer || editSnapshot);
+  const [customerFieldsOpen, setCustomerFieldsOpen] = useState(true);
 
   useEffect(() => {
     if (editSnapshot) setCustomerFieldsOpen(true);

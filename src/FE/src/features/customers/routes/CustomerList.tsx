@@ -100,13 +100,11 @@ export const CustomerList = () => {
             onClick={() => navigate(`/app/customers/${customer.id}`)}
             type="button"
           >
-            <div className="job-card-top">
-              <div>
-                <Building2 size={20} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
-                <h3 className="job-customer" style={{ display: 'inline' }}>{customer.name}</h3>
-              </div>
-              <span className="meta-item">
-                <span>{customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}</span>
+            <div className="job-card-top" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Building2 size={20} style={{ flexShrink: 0 }} />
+              <h3 className="job-customer" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, display: 'inline' }}>{customer.name}</h3>
+              <span className="meta-item" style={{ flexShrink: 0 }}>
+                 {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
               </span>
             </div>
 
