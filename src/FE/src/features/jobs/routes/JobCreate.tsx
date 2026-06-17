@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -18,6 +18,10 @@ export const JobCreate = () => {
   const linkableJobs = getLinkableJobs(jobsData, undefined);
 
   const create = useJobCreate((jobId) => setCreatedJobId(jobId));
+
+  useEffect(() => {
+    document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   const handleCreateAnother = () => {
     create.reset();

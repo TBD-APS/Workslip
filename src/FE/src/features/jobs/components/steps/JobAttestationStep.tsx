@@ -155,7 +155,7 @@ export function JobAttestationStep({
         </section>
       )}
 
-      <section className="detail-section attestation-timesheet-section">
+      <section className="detail-section worksheet-list-section">
         <div className="section-header-row attestation-compact-header">
           <FileCheck2 size={18} />
           <h3>Timesedler</h3>
@@ -164,21 +164,24 @@ export function JobAttestationStep({
         {sortedWorksheets.length === 0 ? (
           <p className="empty-state-text">Ingen timesedler registreret.</p>
         ) : (
-          <ul className="attestation-timesheet-list">
+          <ul className="worksheet-list">
             {sortedWorksheets.map((worksheet) => {
               const hours = parseNullableNumber(worksheet.hoursWorked);
+              const userName = getUserName(worksheet.userId, details);
               return (
-                <li key={worksheet.id}>
-                  <div className="attestation-timesheet-main">
-                    <span className="attestation-timesheet-user" title={getUserName(worksheet.userId, details)}>{getUserName(worksheet.userId, details)}</span>
-                    <span className="attestation-timesheet-date">{formatDate(worksheet.workDate)}</span>
+                <li key={worksheet.id} className="worksheet-list-item">
+                  <div className="worksheet-list-item-main">
+                    <span className="worksheet-list-item-title" title={userName}>{userName}</span>
+                    <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
                   </div>
 
-                  <div className="attestation-timesheet-hours">
-                    <span className="attestation-timesheet-hours-value">{formatNumber(hours)}</span>
-                    <span className="attestation-timesheet-hours-unit">{formatUnit(hours, 'time', 'timer')}</span>
+                  <div className="worksheet-list-item-metrics">
+                    <div className="worksheet-list-item-badge">
+                      <strong>{formatNumber(hours)}</strong>
+                      <span>{formatUnit(hours, 'time', 'timer')}</span>
+                    </div>
+                    {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
                   </div>
-                  {worksheet.sleptOnJob && <span className="attestation-timesheet-badge">Udlæg</span>}
                 </li>
               );
             })}
@@ -186,7 +189,7 @@ export function JobAttestationStep({
         )}
 
         {(totalHoursLabel || totalOutlayLabel) && (
-          <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
+          <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
             {totalHoursLabel}
             {totalOutlayLabel}
           </div>

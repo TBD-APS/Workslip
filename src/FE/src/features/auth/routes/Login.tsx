@@ -32,9 +32,14 @@ export const Login = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showOtcLogin, setShowOtcLogin] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
+  
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(EmailSchema),
+    defaultValues: {
+      email: new URLSearchParams(window.location.search).get('email') || '',
+    }
   });
+
   const codeForm = useForm<CodeFormValues>({
     resolver: zodResolver(CodeSchema),
   });

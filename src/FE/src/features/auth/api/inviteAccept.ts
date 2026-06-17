@@ -1,5 +1,10 @@
 import { apiClient } from '../../../lib/axios';
 
-export const verifyInviteToken = (token: string): Promise<void> => {
+export interface InviteOpenResponse {
+  email: string;
+  userExists: boolean;
+}
+
+export const verifyInviteToken = (token: string): Promise<InviteOpenResponse> => {
   return apiClient.post(`/api/auth/invite/${token}/open`);
 };
