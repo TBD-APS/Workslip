@@ -429,9 +429,9 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         reportNumberReadOnly={details.reportNumberReadOnly}
         readOnlyAssigned={details.job.assignedUsers}
         onCustomerSelect={details.selectCustomer}
-        onCustomerFieldChange={(_field, _value) => {}}
-        onSnapshotFieldChange={(_field, _value) => {}}
-        onEditSnapshotChange={(_edit) => {}}
+        onCustomerFieldChange={() => {}}
+        onSnapshotFieldChange={() => {}}
+        onEditSnapshotChange={() => {}}
         onReportNumberChange={details.updateReportNumber}
       />
 
@@ -624,9 +624,10 @@ function Worksheets({ worksheets }: { worksheets: WorksheetResponse[] }) {
         return (
           <li key={worksheet.id}>
             <div className="attestation-timesheet-main">
+              <span className="attestation-timesheet-user" title={worksheet.userDisplayName || worksheet.userId}>{worksheet.userDisplayName || worksheet.userId}</span>
               <span className="attestation-timesheet-date">{formatDate(worksheet.workDate)}</span>
-              <span className="attestation-timesheet-user">{worksheet.userDisplayName}</span>
             </div>
+
             <div className="attestation-timesheet-hours">
               <span className="attestation-timesheet-hours-value">{formatNumber(hours)}</span>
               <span className="attestation-timesheet-hours-unit">{formatUnit(hours, 'time', 'timer')}</span>

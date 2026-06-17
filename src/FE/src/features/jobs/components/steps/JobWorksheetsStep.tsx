@@ -663,9 +663,10 @@ function WorksheetList({
           <li key={worksheet.id} className={isEditing ? 'worksheet-list-item editing' : 'worksheet-list-item'}>
             <div className="worksheet-list-item-row">
               <div className="worksheet-list-item-info">
+                <span className="worksheet-list-item-meta" title={assigneeName}>{assigneeName}</span>
                 <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
-                <span className="worksheet-list-item-meta">{assigneeName}</span>
               </div>
+
               <div className="worksheet-list-item-metrics">
                 <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
                   <span className="worksheet-list-item-hours-value">{formatNumber(parseHours(worksheet.hoursWorked))}</span>

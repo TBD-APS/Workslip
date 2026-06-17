@@ -170,9 +170,10 @@ export function JobAttestationStep({
               return (
                 <li key={worksheet.id}>
                   <div className="attestation-timesheet-main">
+                    <span className="attestation-timesheet-user" title={getUserName(worksheet.userId, details)}>{getUserName(worksheet.userId, details)}</span>
                     <span className="attestation-timesheet-date">{formatDate(worksheet.workDate)}</span>
-                    <span className="attestation-timesheet-user">{getUserName(worksheet.userId, details)}</span>
                   </div>
+
                   <div className="attestation-timesheet-hours">
                     <span className="attestation-timesheet-hours-value">{formatNumber(hours)}</span>
                     <span className="attestation-timesheet-hours-unit">{formatUnit(hours, 'time', 'timer')}</span>

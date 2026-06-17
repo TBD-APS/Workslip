@@ -191,6 +191,10 @@
   z-index: 100;
 }
 
+.bottom-nav.keyboard-visible {
+  display: none;
+}
+
 .nav-item {
   display: flex;
   flex-direction: column;
@@ -1916,7 +1920,7 @@
 .control-point-category-label {
   font-size: var(--fs-xs);
   font-weight: 400;
-  color: var(--text-muted);
+  color: var(--text);
   letter-spacing: 0.05em;
   transition: color 0.2s;
 }
@@ -2065,7 +2069,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .worksheet-list-item-hours {
@@ -2190,26 +2194,30 @@
 
 .worksheet-list-item-info {
   display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.4rem;
   flex: 1;
   min-width: 0;
 }
 
 .worksheet-list-item-date {
   font-weight: 400;
-  color: var(--text);
-  font-size: var(--fs-body);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
   line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .worksheet-list-item-meta {
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+  font-size: var(--fs-body);
+  color: var(--text);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-shrink: 1;
 }
 
 .worksheet-form {
@@ -2506,22 +2514,26 @@
 .attestation-timesheet-main {
   display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: 0.15rem;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.4rem;
 }
 
 .attestation-timesheet-date {
-  color: var(--text);
-  font-size: var(--fs-body);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
   font-weight: 400;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .attestation-timesheet-user {
   overflow: hidden;
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
+  color: var(--text);
+  font-size: var(--fs-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
 }
 
 .attestation-timesheet-hours {
@@ -2533,12 +2545,12 @@
   padding: 0.35rem 0.6rem;
   border-radius: var(--radius-sm);
   background: var(--surface);
-  color: var(--text-muted);
+  color: var(--text);
 }
 
 .attestation-timesheet-hours-value {
   color: var(--text);
-  font-size: var(--fs-body);
+  font-size: var(--fs-xs);
   font-weight: 400;
 }
 
@@ -2546,7 +2558,7 @@
 .attestation-timesheet-badge {
   font-size: var(--fs-xs);
   font-weight: 400;
-  color: var(--text-muted);
+  color: var(--text);
 }
 
 .attestation-timesheet-badge {
@@ -2945,11 +2957,11 @@
   }
 
   .attestation-timesheet-list li {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .attestation-timesheet-badge {
-    grid-column: 1 / -1;
+    grid-column: auto;
     width: fit-content;
   }
 
