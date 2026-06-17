@@ -30,13 +30,13 @@ export function StepIndicators({ currentStep, onStepChange, completedSteps }: St
         const StepIcon = step.icon;
         const isActive = index === currentStep;
         const isCompleted = index < currentStep;
-        const isDisabled = index === 3 && !completedSteps[2];
+        const isDisabled = (index === 3 && !completedSteps[2]) || (index === 5 && !completedSteps[4]);
         return (
           <button
             key={step.label}
             className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-            onClick={() => !isDisabled && onStepChange(index)}
-            disabled={isDisabled}
+            onClick={() => onStepChange(index)}
+            aria-disabled={isDisabled || undefined}
             aria-label={isActive ? `${step.label} - aktuelt trin` : step.label}
             aria-current={isActive ? 'step' : undefined}
           >

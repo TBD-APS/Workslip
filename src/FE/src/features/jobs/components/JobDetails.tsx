@@ -123,8 +123,20 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     isValidWork(details.form, details.referenceData!),
     validateControlPoints(details.form, details.referenceData!).valid,
     details.worksheets.length > 0,
+    (details.form.work.closureFlags?.length ?? 0) > 0,
   ];
   const handleStepChange = (nextStep: number) => {
+    if (nextStep === 3 && !completedSteps[2]) {
+      const validation = validateControlPoints(details.form, details.referenceData!);
+      toast.error(validation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter');
+      return;
+    }
+
+    if (nextStep === 5 && !completedSteps[4]) {
+      toast.error('Vælg venligst mindst én afslutningsstatus');
+      return;
+    }
+
     if (nextStep > 3 && details.worksheets.length === 0) {
       toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
       return;
@@ -246,6 +258,9 @@ function canAdvanceCurrentStep(details: JobDetailsState): boolean {
   if (details.currentStep === 3) {
     return details.worksheets.length > 0;
   }
+  if (details.currentStep === 4) {
+    return (details.form.work.closureFlags?.length ?? 0) > 0;
+  }
   return true;
 }
 
@@ -254,6 +269,7 @@ function getNextDisabledReason(details: JobDetailsState): string | undefined {
   if (details.currentStep === 1) return 'Vælg venligst anlægstype';
   if (details.currentStep === 2) return 'Udfyld venligst alle påkrævede kontrolpunkter';
   if (details.currentStep === 3) return 'Tilføj venligst mindst én timeseddel';
+  if (details.currentStep === 4) return 'Vælg venligst mindst én afslutningsstatus';
   return undefined;
 }
 

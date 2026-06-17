@@ -433,9 +433,9 @@
 }
 
 .report-overview-link-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.3rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
   width: 100%;
   padding: 0.85rem 1rem;
   border: none;
@@ -453,17 +453,31 @@
 }
 }
 
-.report-overview-link-card .job-number {
-  grid-column: 1 / -1;
-  margin-bottom: 0;
+.report-overview-link-card .report-overview-top-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
-.report-overview-link-title {
+.report-overview-link-card .job-number {
+  flex-shrink: 0;
+}
+
+.report-overview-link-card .report-overview-customer {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);
   font-size: var(--fs-body);
+}
+
+.report-overview-link-card .report-overview-address {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
 }
 
 .report-overview-timesheet-list {
@@ -1667,6 +1681,11 @@
   background: var(--surface-selected-strong);
   color: var(--text);
   border: none;
+}
+
+.step-dot[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 

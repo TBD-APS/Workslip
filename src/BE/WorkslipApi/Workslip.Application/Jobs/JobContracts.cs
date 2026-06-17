@@ -237,6 +237,7 @@ public sealed record JobLinkInfoResponse(
     Guid LinkedReportId,
     string LinkedReportNumber,
     string LinkedCustomerName,
+    string LinkedAddress,
     string LinkedStatus);
 
 public sealed record JobLinkResponse(

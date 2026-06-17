@@ -597,9 +597,11 @@ function LinkedJobs({ links, onOpen }: { links: JobLinkInfoResponse[]; onOpen: (
     <div className="report-overview-link-list">
       {links.map((link) => (
         <button key={link.id} type="button" className="report-overview-link-card" onClick={() => onOpen(link.linkedReportId)}>
-          <span className="job-number">SAG-{link.linkedReportNumber || link.linkedReportId.slice(0, 4).toUpperCase()}</span>
-          <span className="report-overview-link-title">{link.linkedCustomerName || 'Ukendt kunde'}</span>
-          <span className={`status-badge status-${link.linkedStatus.toLowerCase()}`}>{formatJobStatus(link.linkedStatus)}</span>
+          <div className="report-overview-top-row">
+            <span className="report-overview-customer">{link.linkedCustomerName || 'Ukendt kunde'}</span>
+            <span className="job-number">SAG-{link.linkedReportNumber}</span>
+          </div>
+          <span className="report-overview-address">{link.linkedAddress || 'Ukendt adresse'}</span>
         </button>
       ))}
     </div>
