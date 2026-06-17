@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, Timer, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   InstallationTypeResponse,
@@ -275,6 +275,14 @@ export const CompletedJobReport = () => {
         <CompletedJobEditForm details={details} onCancel={handleCancelEdit} onSave={handleSaveEdit} />
       ) : (
         <>
+
+          <section className="detail-section report-overview-hero">
+            <div className="section-header-row attestation-compact-header">
+              <FileCheck2 size={18} />
+              <h3>Sag</h3>
+            </div>
+            <DetailGrid items={summaryPairs} />
+          </section>
           <section className="detail-section">
             <div className="section-header-row attestation-compact-header">
               <User size={18} />
@@ -289,14 +297,6 @@ export const CompletedJobReport = () => {
               <h3>Medarbejdere</h3>
             </div>
             <AssignedUsers users={job.assignedUsers} />
-          </section>
-
-          <section className="detail-section report-overview-hero">
-            <div className="section-header-row attestation-compact-header">
-              <FileCheck2 size={18} />
-              <h3>Sag</h3>
-            </div>
-            <DetailGrid items={summaryPairs} />
           </section>
 
           {observationPairs.length > 0 && (
@@ -368,6 +368,10 @@ export const CompletedJobReport = () => {
 
           {job.status === JobStatus.InReview && isAdmin && (
             <section className="detail-section">
+              <div className="section-header-row">
+                <ShieldCheck size={18} />
+                <h3>Godkendelse</h3>
+              </div>
               <div className="edit-form-bottom-actions">
                 <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
                   <X size={18} />
@@ -425,9 +429,9 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         reportNumberReadOnly={details.reportNumberReadOnly}
         readOnlyAssigned={details.job.assignedUsers}
         onCustomerSelect={details.selectCustomer}
-        onCustomerFieldChange={(_field, _value) => {}}
-        onSnapshotFieldChange={(_field, _value) => {}}
-        onEditSnapshotChange={(_edit) => {}}
+        onCustomerFieldChange={() => {}}
+        onSnapshotFieldChange={() => {}}
+        onEditSnapshotChange={() => {}}
         onReportNumberChange={details.updateReportNumber}
       />
 
@@ -620,9 +624,10 @@ function Worksheets({ worksheets }: { worksheets: WorksheetResponse[] }) {
         return (
           <li key={worksheet.id}>
             <div className="attestation-timesheet-main">
+              <span className="attestation-timesheet-user" title={worksheet.userDisplayName || worksheet.userId}>{worksheet.userDisplayName || worksheet.userId}</span>
               <span className="attestation-timesheet-date">{formatDate(worksheet.workDate)}</span>
-              <span className="attestation-timesheet-user">{worksheet.userDisplayName}</span>
             </div>
+
             <div className="attestation-timesheet-hours">
               <span className="attestation-timesheet-hours-value">{formatNumber(hours)}</span>
               <span className="attestation-timesheet-hours-unit">{formatUnit(hours, 'time', 'timer')}</span>
@@ -652,7 +657,6 @@ function ControlPointOverview({
         <ul className="attestation-control-list compact">
           {selectedControlPoints.map((controlPoint) => (
             <li key={controlPoint.id}>
-              <span className="attestation-control-accent" aria-hidden="true" />
               <span>{controlPoint.name}</span>
               <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
             </li>
@@ -664,10 +668,9 @@ function ControlPointOverview({
         <div className="attestation-irrelevant-block">
           <span className="attestation-irrelevant-label">Markeret irrelevant</span>
           <ul className="attestation-control-list compact">
-            {irrelevantCategories.map((item) => (
-              <li key={item.id} className="attestation-control-list-item-muted">
-                <span className="attestation-control-accent muted" aria-hidden="true" />
-                <span>{item.installationType} · {capitalize(item.category)}</span>
+            {irrelevantCategories.map((controlPoint) => (
+              <li key={controlPoint.id} className="attestation-control-list-item-muted">
+              <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
               </li>
             ))}
           </ul>

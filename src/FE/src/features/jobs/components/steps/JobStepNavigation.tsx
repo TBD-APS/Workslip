@@ -186,7 +186,12 @@ export function StepNavigation({
           {doneIcon}
           <span>{doneLabel}</span>
         </button>
-      ) : null}
+      ) : (
+        <div className="step-nav-btn" style={{ visibility: 'hidden', pointerEvents: 'none' }}>
+          <ChevronLeft size={18} />
+          <span>Tilbage</span>
+        </div>
+      )}
     </div>
   );
 

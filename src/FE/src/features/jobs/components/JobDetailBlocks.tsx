@@ -87,7 +87,6 @@ export function CustomerDetailsBlock({
               onChange={(e) => handleFieldChange('name', e.target.value)}
               placeholder="Kundenavn"
               readOnly={isFieldReadOnly('name')}
-              style={isFieldReadOnly('name') ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
             />
           </div>
           <div className="form-group">
@@ -98,7 +97,6 @@ export function CustomerDetailsBlock({
               onChange={(e) => handleFieldChange('address', e.target.value)}
               placeholder="Adresse"
               readOnly={isFieldReadOnly('address')}
-              style={isFieldReadOnly('address') ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
             />
           </div>
           <div className="form-group">
@@ -109,7 +107,6 @@ export function CustomerDetailsBlock({
               onChange={(e) => handleFieldChange('email', e.target.value)}
               placeholder="Email"
               readOnly={isFieldReadOnly('email')}
-              style={isFieldReadOnly('email') ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
             />
           </div>
           <div className="form-group">
@@ -120,7 +117,6 @@ export function CustomerDetailsBlock({
               onChange={(e) => handleFieldChange('phone', e.target.value)}
               placeholder="Telefon"
               readOnly={isFieldReadOnly('phone')}
-              style={isFieldReadOnly('phone') ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
             />
           </div>
           <div className="form-group">
@@ -131,7 +127,6 @@ export function CustomerDetailsBlock({
               onChange={(e) => onCustomerFieldChange('contactPerson', e.target.value)}
               placeholder="Kontaktperson"
               readOnly={hasExistingCustomer && !editSnapshot}
-              style={hasExistingCustomer && !editSnapshot ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
             />
           </div>
 

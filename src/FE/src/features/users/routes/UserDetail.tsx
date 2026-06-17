@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useGetApiUsersId, getGetApiUsersIdQueryKey } from '../../../api/generated/users/users';
 import { useGetApiJobs, usePostApiJobsIdAssign } from '../../../api/generated/jobs/jobs';
-import { formatDate } from '../../../lib/formatDate';
+import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
 import { announceSection } from '../../../components/filters/StatusFilter';
 
@@ -201,10 +201,10 @@ export const UserDetail = () => {
                 </span>
               )}
             </div>
-            <div className="job-card-footer">
-              <span className="meta-item">
+            <div className="job-card-meta">
+              <span className="meta-item meta-item--muted">
                 <Clock size={14} />
-                <span>Sidst opdateret: {formatDate(job.updatedAt)}</span>
+                <span>Sidst opdateret: {formatDateLong(job.updatedAt)}</span>
               </span>
             </div>
           </button>

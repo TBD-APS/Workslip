@@ -205,8 +205,7 @@ function WeekCard({
     <article className={`time-week-card ${isExpanded ? 'is-expanded' : ''}`}>
       <div className="time-week-header">
         <div>
-          <span className="job-number">Uge {getIsoWeek(week.weekStart)}</span>
-          <h3>{formatWeekRange(week.weekStart, week.weekEnd)}</h3>
+          <span className="job-number">{formatWeekRange(week.weekStart, week.weekEnd)} | Uge {getIsoWeek(week.weekStart)} </span>
         </div>
         <div className="time-week-totals">
           <span><Timer size={14} /> {formatNumber(week.totalHours)} t</span>
@@ -254,7 +253,7 @@ function DayCell({
     <div className={`time-day-cell ${isOutsideMonth ? 'muted' : ''} ${day.entries.length > 0 ? 'has-entries' : ''}`}>
       <div className="time-day-head">
         <span>{DAY_FORMATTER.format(parseDate(day.date))}</span>
-        {day.totalHours !== 0 && <strong>{formatNumber(day.totalHours)} t</strong>}
+        {day.totalHours !== 0 && <p>{formatNumber(day.totalHours)} total</p>}
       </div>
 
       <div className="time-entry-list">

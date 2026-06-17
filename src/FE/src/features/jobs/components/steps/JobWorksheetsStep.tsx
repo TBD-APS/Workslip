@@ -61,6 +61,7 @@ type JobWorksheetsStepProps = {
   isDeleting: boolean;
   onUpsert: (params: { id?: string; jobId: string; userId: string; userDisplayName: string; workDate: string; hoursWorked: number; sleptOnJob: boolean }) => Promise<unknown>;
   onDelete: (params: { worksheetId: string; jobId: string }) => void;
+  variant?: 'section' | 'list';
 };
 
 function todayIso(): string {
@@ -202,6 +203,7 @@ export function JobWorksheetsStep({
   isDeleting,
   onUpsert,
   onDelete,
+  variant = 'section',
 }: JobWorksheetsStepProps) {
   const { user } = useAuth();
   const canPickUser = useCan('worksheet:assign');
@@ -360,31 +362,57 @@ export function JobWorksheetsStep({
 
   return (
     <>
-      <WorksheetsSection
-        sortedWorksheets={sortedWorksheets}
-        displayNameFor={displayNameFor}
-        userOptions={userOptions}
-        canPickUser={canPickUser}
-        currentUserName={currentUserName}
-        addDraft={addDraft}
-        editDraft={editDraft}
-        editingWorksheetId={editingWorksheetId}
-        openActionMenu={openActionMenu}
-        isAddOpen={isAddOpen}
-        isLoadingUsers={isLoadingUsers}
-        isSaving={isSaving}
-        formError={formError}
-        totalHoursValue={totalHoursValue}
-        totalOutlayValue={totalOutlayValue}
-        onToggleActionMenu={toggleActionMenu}
-        onEditDraftChange={(draft) => dispatch({ type: 'setEditDraft', draft })}
-        onSaveEdit={(draft, worksheetId) => saveDraft(draft, worksheetId)}
-        onCancelEdit={() => dispatch({ type: 'cancelEdit' })}
-        onOpenAddForm={() => dispatch({ type: 'openAdd', defaultUserId })}
-        onAddDraftChange={(draft) => dispatch({ type: 'setAddDraft', draft })}
-        onSaveAdd={(draft) => saveDraft(draft)}
-        onCancelAdd={() => dispatch({ type: 'cancelAdd', defaultUserId })}
-      />
+      {variant === 'section' ? (
+        <WorksheetsSection
+          sortedWorksheets={sortedWorksheets}
+          displayNameFor={displayNameFor}
+          userOptions={userOptions}
+          canPickUser={canPickUser}
+          currentUserName={currentUserName}
+          addDraft={addDraft}
+          editDraft={editDraft}
+          editingWorksheetId={editingWorksheetId}
+          openActionMenu={openActionMenu}
+          isAddOpen={isAddOpen}
+          isLoadingUsers={isLoadingUsers}
+          isSaving={isSaving}
+          formError={formError}
+          totalHoursValue={totalHoursValue}
+          totalOutlayValue={totalOutlayValue}
+          onToggleActionMenu={toggleActionMenu}
+          onEditDraftChange={(draft) => dispatch({ type: 'setEditDraft', draft })}
+          onSaveEdit={(draft, worksheetId) => saveDraft(draft, worksheetId)}
+          onCancelEdit={() => dispatch({ type: 'cancelEdit' })}
+          onOpenAddForm={() => dispatch({ type: 'openAdd', defaultUserId })}
+          onAddDraftChange={(draft) => dispatch({ type: 'setAddDraft', draft })}
+          onSaveAdd={(draft) => saveDraft(draft)}
+          onCancelAdd={() => dispatch({ type: 'cancelAdd', defaultUserId })}
+        />
+      ) : (
+        <WorksheetContent
+          sortedWorksheets={sortedWorksheets}
+          displayNameFor={displayNameFor}
+          userOptions={userOptions}
+          canPickUser={canPickUser}
+          currentUserName={currentUserName}
+          addDraft={addDraft}
+          editDraft={editDraft}
+          editingWorksheetId={editingWorksheetId}
+          openActionMenu={openActionMenu}
+          isAddOpen={isAddOpen}
+          isLoadingUsers={isLoadingUsers}
+          isSaving={isSaving}
+          formError={formError}
+          onToggleActionMenu={toggleActionMenu}
+          onEditDraftChange={(draft) => dispatch({ type: 'setEditDraft', draft })}
+          onSaveEdit={(draft, worksheetId) => saveDraft(draft, worksheetId)}
+          onCancelEdit={() => dispatch({ type: 'cancelEdit' })}
+          onOpenAddForm={() => dispatch({ type: 'openAdd', defaultUserId })}
+          onAddDraftChange={(draft) => dispatch({ type: 'setAddDraft', draft })}
+          onSaveAdd={(draft) => saveDraft(draft)}
+          onCancelAdd={() => dispatch({ type: 'cancelAdd', defaultUserId })}
+        />
+      )}
 
       <WorksheetActionMenuPortal
         openActionMenu={openActionMenu}
@@ -395,6 +423,106 @@ export function JobWorksheetsStep({
         onDelete={handleDelete}
       />
     </>
+  );
+}
+
+type WorksheetContentProps = {
+  sortedWorksheets: WorksheetResponse[];
+  displayNameFor: (userId: string) => string;
+  userOptions: UserOption[];
+  canPickUser: boolean;
+  currentUserName: string;
+  addDraft: WorksheetDraft;
+  editDraft: WorksheetDraft | null;
+  editingWorksheetId: string | null;
+  openActionMenu: ActionMenuState | null;
+  isAddOpen: boolean;
+  isLoadingUsers: boolean;
+  isSaving: boolean;
+  formError: string | null;
+  onToggleActionMenu: (event: MouseEvent<HTMLButtonElement>, worksheetId: string) => void;
+  onEditDraftChange: (draft: WorksheetDraft) => void;
+  onSaveEdit: (draft: WorksheetDraft, worksheetId: string) => void;
+  onCancelEdit: () => void;
+  onOpenAddForm: () => void;
+  onAddDraftChange: (draft: WorksheetDraft) => void;
+  onSaveAdd: (draft: WorksheetDraft) => void;
+  onCancelAdd: () => void;
+};
+
+function WorksheetContent({
+  sortedWorksheets,
+  displayNameFor,
+  userOptions,
+  canPickUser,
+  currentUserName,
+  addDraft,
+  editDraft,
+  editingWorksheetId,
+  openActionMenu,
+  isAddOpen,
+  isLoadingUsers,
+  isSaving,
+  formError,
+  onToggleActionMenu,
+  onEditDraftChange,
+  onSaveEdit,
+  onCancelEdit,
+  onOpenAddForm,
+  onAddDraftChange,
+  onSaveAdd,
+  onCancelAdd,
+}: WorksheetContentProps) {
+  return (
+    <section className="detail-section">
+
+      <span>Registrerede timesedler</span>
+      {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
+        <button
+          type="button"
+          className={'btn btn-secondary worksheet-add-trigger worksheet-add-trigger-cta'}
+          onClick={onOpenAddForm}
+        >
+          <Plus size={16} />
+          <span>Tilføj timeseddel</span>
+        </button>
+      )}
+
+      {!editingWorksheetId && isAddOpen && (
+        <WorksheetDraftForm
+          title="Ny timeseddel"
+          draft={addDraft}
+          userOptions={userOptions}
+          canPickUser={canPickUser}
+          currentUserName={currentUserName}
+          isLoadingUsers={isLoadingUsers}
+          isSaving={isSaving}
+          submitLabel="Tilføj"
+          error={formError}
+          onDraftChange={onAddDraftChange}
+          onSubmit={() => onSaveAdd(addDraft)}
+          onCancel={onCancelAdd}
+        />
+      )}
+
+      <WorksheetList
+        sortedWorksheets={sortedWorksheets}
+        displayNameFor={displayNameFor}
+        userOptions={userOptions}
+        canPickUser={canPickUser}
+        currentUserName={currentUserName}
+        editDraft={editDraft}
+        editingWorksheetId={editingWorksheetId}
+        openActionMenu={openActionMenu}
+        isLoadingUsers={isLoadingUsers}
+        isSaving={isSaving}
+        formError={formError}
+        onToggleActionMenu={onToggleActionMenu}
+        onEditDraftChange={onEditDraftChange}
+        onSaveEdit={onSaveEdit}
+        onCancelEdit={onCancelEdit}
+      />
+    </section>
   );
 }
 
@@ -461,19 +589,19 @@ function WorksheetsSection({
         <span className="worksheet-section-header-totals" aria-label="Timeseddel totaler">{totalsLabel}</span>
       </div>
 
-      {sortedWorksheets.length > 0 && (
-        <span className="worksheet-list-label">Registrerede timesedler</span>
-      )}
+        <span className="section-row-header">Registrerede timesedler</span>
 
-      <WorksheetList
+      <WorksheetContent
         sortedWorksheets={sortedWorksheets}
         displayNameFor={displayNameFor}
         userOptions={userOptions}
         canPickUser={canPickUser}
         currentUserName={currentUserName}
+        addDraft={addDraft}
         editDraft={editDraft}
         editingWorksheetId={editingWorksheetId}
         openActionMenu={openActionMenu}
+        isAddOpen={isAddOpen}
         isLoadingUsers={isLoadingUsers}
         isSaving={isSaving}
         formError={formError}
@@ -481,35 +609,11 @@ function WorksheetsSection({
         onEditDraftChange={onEditDraftChange}
         onSaveEdit={onSaveEdit}
         onCancelEdit={onCancelEdit}
+        onOpenAddForm={onOpenAddForm}
+        onAddDraftChange={onAddDraftChange}
+        onSaveAdd={onSaveAdd}
+        onCancelAdd={onCancelAdd}
       />
-
-      {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
-        <button
-          type="button"
-          className={sortedWorksheets.length === 0 ? 'btn btn-secondary worksheet-add-trigger worksheet-add-trigger-cta' : 'btn btn-secondary worksheet-add-trigger'}
-          onClick={onOpenAddForm}
-        >
-          <Plus size={16} />
-          <span>Tilføj timeseddel</span>
-        </button>
-      )}
-
-      {!editingWorksheetId && isAddOpen && (
-        <WorksheetDraftForm
-          title="Ny timeseddel"
-          draft={addDraft}
-          userOptions={userOptions}
-          canPickUser={canPickUser}
-          currentUserName={currentUserName}
-          isLoadingUsers={isLoadingUsers}
-          isSaving={isSaving}
-          submitLabel="Tilføj"
-          error={formError}
-          onDraftChange={onAddDraftChange}
-          onSubmit={() => onSaveAdd(addDraft)}
-          onCancel={onCancelAdd}
-        />
-      )}
     </section>
   );
 }
@@ -549,10 +653,6 @@ function WorksheetList({
   onSaveEdit,
   onCancelEdit,
 }: WorksheetListProps) {
-  if (sortedWorksheets.length === 0) {
-    return <p className="empty-state-text worksheet-empty-state">Ingen registrerede timesedler</p>;
-  }
-
   return (
     <ul className={editingWorksheetId ? 'worksheet-list expanded' : 'worksheet-list'}>
       {sortedWorksheets.map((worksheet) => {
@@ -563,9 +663,10 @@ function WorksheetList({
           <li key={worksheet.id} className={isEditing ? 'worksheet-list-item editing' : 'worksheet-list-item'}>
             <div className="worksheet-list-item-row">
               <div className="worksheet-list-item-info">
+                <span className="worksheet-list-item-meta" title={assigneeName}>{assigneeName}</span>
                 <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
-                <span className="worksheet-list-item-meta">{assigneeName}</span>
               </div>
+
               <div className="worksheet-list-item-metrics">
                 <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
                   <span className="worksheet-list-item-hours-value">{formatNumber(parseHours(worksheet.hoursWorked))}</span>

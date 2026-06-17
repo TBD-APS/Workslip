@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Mail, MapPin, Phone, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Clock, Mail, MapPin, Phone, Users } from 'lucide-react';
 import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
-import { formatDate } from '../../../lib/formatDate';
+import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
 
 function formatJobNumber(reportNumber: string | null | undefined, id: string) {
@@ -52,38 +52,39 @@ export const CustomerDetail = () => {
         </div>
       </div>
 
-
-      <div className="customer-detail-info">
-        {customer.address && (
-          <div className="detail-row">
-            <MapPin size={16} />
-            <span>{customer.address}</span>
+      <section className="detail-section">
+          <div className="customer-detail-info">
+            {customer.address && (
+              <div className="detail-row">
+                <MapPin size={16} />
+                <span>{customer.address}</span>
+              </div>
+            )}
+            {customer.email && (
+              <div className="detail-row">
+                <Mail size={16} />
+                <span>{customer.email}</span>
+              </div>
+            )}
+            {customer.contactPerson && (
+              <div className="detail-row">
+                <Users size={16} />
+                <span>{customer.contactPerson}</span>
+              </div>
+            )}
+            {customer.phone && (
+              <div className="detail-row">
+                <Phone size={16} />
+                <span>{customer.phone}</span>
+              </div>
+            )}
           </div>
-        )}
-        {customer.email && (
-          <div className="detail-row">
-            <Mail size={16} />
-            <span>{customer.email}</span>
-          </div>
-        )}
-        {customer.contactPerson && (
-          <div className="detail-row">
-            <Users size={16} />
-            <span>{customer.contactPerson}</span>
-          </div>
-        )}
-        {customer.phone && (
-          <div className="detail-row">
-            <Phone size={16} />
-            <span>{customer.phone}</span>
-          </div>
-        )}
-      </div>
+        </section>
 
       <div className="job-list">
         {customer.jobs.map((job) => (
           <button
-            key={job.id}
+          key={job.id}
             className="job-card"
             onClick={() => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } })}
             type="button"
@@ -112,10 +113,10 @@ export const CustomerDetail = () => {
                 </span>
               )}
             </div>
-            <div className="job-card-footer">
+            <div className="job-card-meta">
               <span className="meta-item">
-                <Phone size={14} />
-                <span>Sidst opdateret: {formatDate(job.updatedAt)}</span>
+                <Clock size={14} />
+                <span className='meta-item'>Sidst opdateret: {formatDateLong(job.updatedAt)}</span>
               </span>
             </div>
           </button>

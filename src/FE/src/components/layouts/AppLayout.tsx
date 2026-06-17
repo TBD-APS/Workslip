@@ -2,14 +2,35 @@ import { useNavigate, NavLink, Outlet } from 'react-router-dom';
 import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, User, Users } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
+import { useEffect, useState } from 'react';
 
 export const AppLayout = () => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const handleLogout = () => {
     logout();
   };
+
+  useEffect(() => {
+    const handleFocusChange = () => {
+      const activeElement = document.activeElement;
+      const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
+      setIsKeyboardVisible(isInput);
+    };
+
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('focusout', () => {
+      // Small timeout to allow next element to focus before hiding
+      setTimeout(handleFocusChange, 50);
+    });
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusChange);
+      document.removeEventListener('focusout', handleFocusChange);
+    };
+  }, []);
 
   return (
     <div className="app-shell">
@@ -73,7 +94,7 @@ export const AppLayout = () => {
       </main>
 
       {/* Bottom Navigation (Mobile First) */}
-      <nav className="bottom-nav">
+      <nav className={`bottom-nav ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
         <NavLink to="/app" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <ClipboardList size={24} />
           <span>Mine Jobs</span>

@@ -194,6 +194,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
             isDeleting={details.isDeletingWorksheet}
             onUpsert={details.upsertWorksheet}
             onDelete={details.deleteWorksheet}
+            variant='list'
           />
         )}
         {details.currentStep === 4 && (
