@@ -330,27 +330,27 @@ export const CompletedJobReport = () => {
               title={`Timesedler (${sortedWorksheets.length})`}
               defaultOpen={false}
             >
-              <div className="attestation-timesheet-section">
+              <div className="worksheet-list-section">
                 <Worksheets worksheets={sortedWorksheets} />
-                <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
-                  <span>{formatNumber(job.totalHours)} {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
+                <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
+                  <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
                   {parseNullableNumber(job.totalOutlay) > 0 && (
-                    <span>{formatNumber(job.totalOutlay)} {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
+                    <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
                   )}
                 </div>
               </div>
             </CollapsibleSection>
           ) : (
-            <section className="detail-section attestation-timesheet-section">
+            <section className="detail-section worksheet-list-section">
               <div className="section-header-row attestation-compact-header">
                 <Timer size={18} />
                 <h3>Timesedler</h3>
               </div>
               <Worksheets worksheets={sortedWorksheets} />
-              <div className="attestation-timesheet-totals" aria-label="Timeseddel totaler">
-                <span>{formatNumber(job.totalHours)} {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
+              <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
+                <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
                 {parseNullableNumber(job.totalOutlay) > 0 && (
-                  <span>{formatNumber(job.totalOutlay)} {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
+                  <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
                 )}
               </div>
             </section>
@@ -618,21 +618,24 @@ function Worksheets({ worksheets }: { worksheets: WorksheetResponse[] }) {
   }
 
   return (
-    <ul className="attestation-timesheet-list report-overview-timesheet-list">
+    <ul className="worksheet-list report-overview-timesheet-list">
       {worksheets.map((worksheet) => {
         const hours = parseNullableNumber(worksheet.hoursWorked);
+        const userName = worksheet.userDisplayName || worksheet.userId;
         return (
-          <li key={worksheet.id}>
-            <div className="attestation-timesheet-main">
-              <span className="attestation-timesheet-user" title={worksheet.userDisplayName || worksheet.userId}>{worksheet.userDisplayName || worksheet.userId}</span>
-              <span className="attestation-timesheet-date">{formatDate(worksheet.workDate)}</span>
+          <li key={worksheet.id} className="worksheet-list-item">
+            <div className="worksheet-list-item-main">
+              <span className="worksheet-list-item-title" title={userName}>{userName}</span>
+              <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
             </div>
 
-            <div className="attestation-timesheet-hours">
-              <span className="attestation-timesheet-hours-value">{formatNumber(hours)}</span>
-              <span className="attestation-timesheet-hours-unit">{formatUnit(hours, 'time', 'timer')}</span>
+            <div className="worksheet-list-item-metrics">
+              <div className="worksheet-list-item-badge">
+                <strong>{formatNumber(hours)}</strong>
+                <span>{formatUnit(hours, 'time', 'timer')}</span>
+              </div>
+              {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
             </div>
-            {worksheet.sleptOnJob && <span className="attestation-timesheet-badge">Udlæg</span>}
           </li>
         );
       })}

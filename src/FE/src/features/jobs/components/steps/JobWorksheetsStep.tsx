@@ -654,26 +654,24 @@ function WorksheetList({
   onCancelEdit,
 }: WorksheetListProps) {
   return (
-    <ul className={editingWorksheetId ? 'worksheet-list expanded' : 'worksheet-list'}>
+    <ul className={`worksheet-list worksheet-list--scrollable ${editingWorksheetId ? 'expanded' : ''}`}>
       {sortedWorksheets.map((worksheet) => {
         const assigneeName = displayNameFor(worksheet.userId);
         const isEditing = editingWorksheetId === worksheet.id && editDraft;
 
         return (
-          <li key={worksheet.id} className={isEditing ? 'worksheet-list-item editing' : 'worksheet-list-item'}>
-            <div className="worksheet-list-item-row">
-              <div className="worksheet-list-item-info">
-                <span className="worksheet-list-item-meta" title={assigneeName}>{assigneeName}</span>
-                <span className="worksheet-list-item-date">{formatDate(worksheet.workDate)}</span>
-              </div>
+          <li key={worksheet.id} className={`worksheet-list-item ${isEditing ? 'is-selected' : ''}`}>
+            <div className="worksheet-list-item-main">
+              <span className="worksheet-list-item-title" title={assigneeName}>{assigneeName}</span>
+              <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
+            </div>
 
-              <div className="worksheet-list-item-metrics">
-                <div className="worksheet-list-item-hours" aria-label={`${formatNumber(parseHours(worksheet.hoursWorked))} timer`}>
-                  <span className="worksheet-list-item-hours-value">{formatNumber(parseHours(worksheet.hoursWorked))}</span>
-                  <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
-                </div>
-                {worksheet.sleptOnJob && <span className="worksheet-list-item-outlay">Udlæg</span>}
+            <div className="worksheet-list-item-metrics">
+              <div className="worksheet-list-item-badge">
+                <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
+                <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
               </div>
+              {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
               <div className="worksheet-list-item-actions">
                 <div className="worksheet-actions-menu-root">
                   <button
