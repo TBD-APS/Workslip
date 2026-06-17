@@ -201,7 +201,6 @@ export function MultiSelectDropdown({
               aria-label={`Fjern ${option.label}`}
             >
               <span>{option.label}</span>
-              <span className="multi-select-chip-remove" aria-hidden="true">x</span>
             </button>
           ))
         ) : (

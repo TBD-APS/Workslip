@@ -105,24 +105,14 @@ export const InviteAccept = () => {
   const showDetailsForm = state.status === 'accepted' || state.status === 'error' || isWorking;
 
   return (
-    <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>
+    <div className="app-container invite-container">
       <div className="bg-glow-wrapper">
         <div className="bg-glow bg-glow-1" />
         <div className="bg-glow bg-glow-2" />
       </div>
 
-      <div style={{
-        width: '100%',
-        maxWidth: '420px',
-        padding: '2.5rem',
-        background: 'var(--surface-color)',
-        border: '1px solid var(--surface-border)',
-        borderRadius: '24px',
-        backdropFilter: 'blur(20px)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        textAlign: 'center',
-      }}>
-        <div className="logo" style={{ justifyContent: 'center', marginBottom: '1.5rem' }}>
+      <div className="invite-card">
+        <div className="logo invite-logo-wrapper">
           <svg className="logo-icon" width="40" height="40" viewBox="0 0 24 24" fill="none">
             <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -132,21 +122,21 @@ export const InviteAccept = () => {
 
         {state.status === 'checking' && (
           <>
-            <Loader2 className="animate-spin" size={32} style={{ marginBottom: '1rem' }} />
-            <p style={{ color: 'var(--text-secondary)' }}>Kontrollerer invitation...</p>
+            <Loader2 className="animate-spin invite-status-icon" size={32} />
+            <p className="invite-text">Kontrollerer invitation...</p>
           </>
         )}
 
         {state.status === 'invalid' && (
           <>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <AlertTriangle size={48} style={{ color: '#ef4444' }} />
+            <div className="invite-status-icon">
+              <AlertTriangle size={48} className="invite-status-icon--danger" />
             </div>
-            <h2 style={{ marginBottom: '0.5rem' }}>Ugyldig invitation</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+            <h2 className="invite-title">Ugyldig invitation</h2>
+            <p className="invite-text">
               {state.message}
             </p>
-            <Link to="/login" className="btn btn-primary" style={{ textDecoration: 'none', display: 'inline-block' }}>
+            <Link to="/login" className="btn btn-primary">
               Gå til login
             </Link>
           </>
@@ -154,18 +144,17 @@ export const InviteAccept = () => {
 
         {state.status === 'ready' && (
           <>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <CheckCircle2 size={48} style={{ color: '#22c55e' }} />
+            <div className="invite-status-icon">
+              <CheckCircle2 size={48} className="invite-status-icon--success" />
             </div>
-            <h2 style={{ marginBottom: '0.5rem' }}>Du er inviteret til Workslip</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+            <h2 className="invite-title">Du er inviteret til Workslip</h2>
+            <p className="invite-text invite-text--long">
               Acceptér invitationen for at oprette din konto. Derefter beder vi om dit navn og telefonnummer, før du fortsætter med Microsoft.
             </p>
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary invite-btn invite-btn-accept"
               onClick={handleAcceptInvite}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
             >
               Acceptér invitation
               <ArrowRight size={18} />
@@ -175,17 +164,16 @@ export const InviteAccept = () => {
 
         {state.status === 'success' ? (
           <>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <CheckCircle2 size={48} style={{ color: '#22c55e' }} />
+            <div className="invite-status-icon">
+              <CheckCircle2 size={48} className="invite-status-icon--success" />
             </div>
-            <h2 style={{ marginBottom: '0.5rem' }}>Velkommen til Workslip</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+            <h2 className="invite-title">Velkommen til Workslip</h2>
+            <p className="invite-text invite-text--long">
               Din konto er blevet oprettet.
             </p>
             <a
               href="/app/profil"
-              className="btn btn-primary"
-              style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+              className="btn btn-primary invite-btn"
             >
               Gå til profil
               <ArrowRight size={18} />
@@ -195,100 +183,62 @@ export const InviteAccept = () => {
 
         {showDetailsForm && (
           <>
-            <h2 style={{ marginBottom: '0.5rem' }}>Færdiggør din konto</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+            <h2 className="invite-title">Færdiggør din konto</h2>
+            <p className="invite-text invite-text--long">
               Indtast dit fulde navn og telefonnummer. Bagefter sender vi dig til Microsoft for login og passkey-oprettelse.
             </p>
 
             {state.status === 'error' && (
-              <div style={{
-                padding: '0.75rem 1rem',
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
-                borderRadius: '12px',
-                marginBottom: '1.5rem',
-                color: '#ef4444',
-                fontSize: '0.9rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                textAlign: 'left'
-              }}>
-                <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              <div className="invite-error-badge">
+                <AlertTriangle size={16} />
                 <span>{state.message}</span>
               </div>
             )}
 
-            <form onSubmit={handleContinueToMicrosoft} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ textAlign: 'left' }}>
-                <label htmlFor="displayName" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+            <form onSubmit={handleContinueToMicrosoft} className="invite-form">
+              <div className="invite-field">
+                <label htmlFor="displayName" className="invite-label">
                   Fulde navn
                 </label>
-                <div style={{ position: 'relative' }}>
-                  <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+                <div className="invite-input-wrapper">
+                  <User size={16} className="invite-input-icon" />
                   <input
                     id="displayName"
                     type="text"
+                    className="invite-input"
                     value={displayName}
                     onChange={e => setDisplayName(e.target.value)}
                     placeholder="Dit fulde navn"
                     required
                     disabled={isWorking}
-                    style={{
-                      width: '100%',
-                      padding: '0.7rem 0.75rem 0.7rem 2.5rem',
-                      background: 'var(--input-bg)',
-                      border: '1px solid var(--input-border)',
-                      borderRadius: '12px',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.95rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
                   />
                 </div>
               </div>
 
-              <div style={{ textAlign: 'left' }}>
-                <label htmlFor="phone" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                  Telefonnummer <span style={{ color: 'var(--text-tertiary)' }}>(valgfrit)</span>
+              <div className="invite-field">
+                <label htmlFor="phone" className="invite-label">
+                  Telefonnummer <span className="text-dim">(valgfrit)</span>
                 </label>
-                <div style={{ position: 'relative' }}>
-                  <Phone size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+                <div className="invite-input-wrapper">
+                  <Phone size={16} className="invite-input-icon" />
                   <input
                     id="phone"
                     type="tel"
+                    className="invite-input"
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
                     placeholder="+45 12 34 56 78"
                     disabled={isWorking}
-                    style={{
-                      width: '100%',
-                      padding: '0.7rem 0.75rem 0.7rem 2.5rem',
-                      background: 'var(--input-bg)',
-                      border: '1px solid var(--input-border)',
-                      borderRadius: '12px',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.95rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="btn btn-primary"
+                className="btn btn-primary invite-btn invite-btn-submit"
                 disabled={isWorking || !displayName.trim()}
                 style={{
-                  width: '100%',
-                  marginTop: '0.5rem',
                   opacity: isWorking || !displayName.trim() ? 0.7 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
                   cursor: isWorking ? 'wait' : 'pointer'
                 }}
               >
@@ -301,8 +251,8 @@ export const InviteAccept = () => {
               </button>
             </form>
 
-            <div style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>
-              <Link to="/login" style={{ color: 'var(--text-secondary)' }}>
+            <div className="invite-footer">
+              <Link to="/login" style={{ color: 'var(--text-muted)' }}>
                 Har du allerede en konto? Log ind her
               </Link>
             </div>
