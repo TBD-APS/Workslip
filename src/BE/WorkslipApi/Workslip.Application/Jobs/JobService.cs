@@ -540,7 +540,7 @@ public sealed class JobService(
             ? await referenceDataRepository.GetAsync(organizationId.Value, cancellationToken)
             : null;
         var worksheets = await worksheetRepository.ListByJobAsync(report.Id, cancellationToken);
-        return Result<JobReportSummaryResponse>.Success(ToSummary(report, referenceData!, worksheets));
+        return Result<JobReportSummaryResponse>.Success(ToSummary(report, referenceData!, worksheets, currentUser));
     }
 
     private static JobReportSummaryResponse ToSummary(
@@ -549,6 +549,10 @@ public sealed class JobService(
         IReadOnlyList<WorksheetResponse> worksheets,
         ICurrentUserContext? user = null)
     {
+        var isRegularUser = user != null && user.Role == "User";
+        var filteredWorksheets = isRegularUser
+            ? worksheets.Where(w => w.UserId == user!.UserId).ToList()
+            : worksheets;
 
         var closureFlags = report.ClosureFlags
             .Select(cf => {
@@ -565,18 +569,8 @@ public sealed class JobService(
                 return closureFlag;
                 }).Where(x => x != null).ToList();
 
-        var totalHours = 0M;
-        var totalOverLay = 0;
-        if (user != null && user.Role == "User")
-        {
-            totalHours = worksheets.Where(w => w.UserId == user.UserId).Sum(w => w.HoursWorked);
-            totalOverLay = worksheets.Count(w => w.UserId == user.UserId && w.SleptOnJob);
-        }
-        else
-        {
-            totalHours = worksheets.Sum(w => w.HoursWorked);
-            totalOverLay = worksheets.Count(w => w.SleptOnJob);
-        }
+        var totalHours = filteredWorksheets.Sum(w => w.HoursWorked);
+        var totalOverLay = filteredWorksheets.Count(w => w.SleptOnJob);
 
         return new(
             report.Id,
@@ -601,7 +595,7 @@ public sealed class JobService(
             report.CreatedAt,
             report.UpdatedAt,
             report.AssignedUsers,
-            worksheets,
+            filteredWorksheets,
             totalHours,
             totalOverLay,
             report.SoftDeleted);

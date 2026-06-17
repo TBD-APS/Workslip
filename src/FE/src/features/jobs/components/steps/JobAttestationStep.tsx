@@ -139,6 +139,22 @@ export function JobAttestationStep({
         </section>
       )}
 
+            {selectedClosureFlags.length > 0 && (
+        <section className="detail-section attestation-control-section compact">
+          <div className="section-header-row attestation-compact-header">
+            <CheckCircle2 size={18} />
+            <h3>Afslutning</h3>
+          </div>
+          <ul className="attestation-control-list compact">
+            {selectedClosureFlags.map((flag) => (
+              <li key={flag.id}>
+                <span>{flag.label}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="detail-section attestation-timesheet-section">
         <div className="section-header-row attestation-compact-header">
           <FileCheck2 size={18} />
@@ -176,23 +192,6 @@ export function JobAttestationStep({
         )}
       </section>
 
-      {selectedClosureFlags.length > 0 && (
-        <section className="detail-section attestation-control-section compact">
-          <div className="section-header-row attestation-compact-header">
-            <CheckCircle2 size={18} />
-            <h3>Afslutning</h3>
-          </div>
-          <ul className="attestation-control-list compact">
-            {selectedClosureFlags.map((flag) => (
-              <li key={flag.id}>
-                <span className="attestation-control-accent" aria-hidden="true" />
-                <span>{flag.label}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       {(selectedControlPoints.length > 0 || irrelevantCategories.length > 0) && (
         <section className="detail-section attestation-control-section compact">
           <div className="section-header-row attestation-compact-header">
@@ -204,9 +203,7 @@ export function JobAttestationStep({
             <ul className="attestation-control-list compact">
               {selectedControlPoints.map((controlPoint) => (
                 <li key={controlPoint.id}>
-                  <span className="attestation-control-accent" aria-hidden="true" />
-                  <span>{controlPoint.name}</span>
-                  <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
+                  <span>{controlPoint.installationType} · {capitalize(controlPoint.category)} · {controlPoint.name}</span>
                 </li>
               ))}
             </ul>
@@ -217,8 +214,7 @@ export function JobAttestationStep({
               <span className="attestation-irrelevant-label">Markeret irrelevant</span>
               <ul className="attestation-control-list compact">
                 {irrelevantCategories.map((item) => (
-                  <li key={item.id} className="attestation-control-list-item-muted">
-                    <span className="attestation-control-accent muted" aria-hidden="true" />
+                  <li key={item.id}>
                     <span>{item.installationType} · {capitalize(item.category)}</span>
                   </li>
                 ))}
@@ -242,17 +238,6 @@ export function JobAttestationStep({
             </div>
           </div>
         )}
-
-        <div className="attestation-confirm-card">
-          <div className="attestation-confirm-card-header">
-            <ShieldCheck size={20} className="attestation-confirm-card-icon" aria-hidden="true" />
-            <div className="attestation-confirm-card-heading">
-              <h3 className="attestation-confirm-card-title">Bekræft og indsend</h3>
-              <p className="attestation-confirm-card-subtitle">
-                Når du attesterer, registreres sagen som indsendt hos kontoret med den aktuelle bruger.
-              </p>
-            </div>
-          </div>
 
           <label className={`attestation-confirm-row${confirmed || isInReview ? ' confirmed' : ''}${confirmationDisabled ? ' disabled' : ''}`}>
             <span className="attestation-confirm-copy">
@@ -306,7 +291,6 @@ export function JobAttestationStep({
               </button>
             </div>
           )}
-        </div>
       </section>
     </>
   );

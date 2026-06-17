@@ -9,7 +9,7 @@ public static class LinkMapper
         Guid Id,
         string ReportNumber,
         string Status,
-        string CustomerAddress,
+        string? CustomerAddress,
         string? CustomerName);
 
     public static JobLinkInfoResponse ToResponse(

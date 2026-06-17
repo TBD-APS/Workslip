@@ -15,24 +15,15 @@ export default function Login() {
   };
 
   return (
-    <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>
+    <div className="app-container app-container-center">
       <div className="bg-glow-wrapper">
         <div className="bg-glow bg-glow-1"></div>
         <div className="bg-glow bg-glow-2"></div>
       </div>
 
-      <div style={{
-        width: '100%',
-        maxWidth: '400px',
-        padding: '2rem',
-        background: 'var(--surface-color)',
-        border: '1px solid var(--surface-border)',
-        borderRadius: '24px',
-        backdropFilter: 'blur(20px)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div className="logo" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
+      <div className="login-card">
+        <div className="login-card-header">
+          <div className="logo logo-center">
             <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -40,12 +31,11 @@ export default function Login() {
             </svg>
           </div>
           <h2>Log ind på Workslip</h2>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Velkommen tilbage</p>
         </div>
 
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <form onSubmit={handleLogin} className="login-form">
           <div className="form-group">
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 400 }}>Email</label>
+            <label>Email</label>
             <input 
               type="email" 
               value={email}
@@ -56,7 +46,7 @@ export default function Login() {
             />
           </div>
           <div className="form-group">
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 400 }}>Adgangskode</label>
+            <label>Adgangskode</label>
             <input 
               type="password" 
               value={password}
@@ -67,14 +57,14 @@ export default function Login() {
             />
           </div>
           
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem' }}>
-            <LogIn size={18} style={{ marginRight: '0.5rem' }} />
+          <button type="submit" className="btn btn-primary">
+            <LogIn size={18} />
             Log ind
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.9rem' }}>
-          <Link to="/" style={{ color: 'var(--text-secondary)' }}>← Tilbage til forsiden</Link>
+        <div className="login-footer">
+          <Link to="/">← Tilbage til forsiden - rbwegwej</Link>
         </div>
       </div>
     </div>

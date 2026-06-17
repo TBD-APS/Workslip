@@ -20,9 +20,13 @@
   box-shadow: 0 0 0 1px var(--focus-ring);
 }
 
-.form-input.is-readonly {
+.form-input.is-readonly,
+.form-input[readonly] {
   color: var(--text-muted);
   cursor: default;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.6;
 }
 
 .form-input::placeholder {
@@ -1058,9 +1062,9 @@
 }
 
 .section-title-row h3 {
-  font-size: var(--fs-xs);
-  font-weight: 400;
-  color: var(--text-muted);
+  font-size: var(--fs-body);
+  
+  color: var(--text);
   letter-spacing: 0.03em;
   margin: 0;
 }
@@ -1702,7 +1706,7 @@
   min-height: 46px;
   padding: 0.6rem 0.9rem;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--text-muted);
+  border: none;
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
@@ -2029,6 +2033,14 @@
   padding: 0.35rem;
   border: none;
   border-radius: var(--radius-lg);
+}
+
+.worksheet-list-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-bottom: 0.75rem;
+  height: auto;
 }
 
 
@@ -2361,7 +2373,7 @@
   width: fit-content;
   min-height: 36px;
   padding: 0.4rem 0.9rem;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-lg);
   font-weight: 500;
 }
 
@@ -2442,7 +2454,7 @@
   gap: 1rem 1.5rem;
   margin-top: 0.85rem;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--surface-selected);
+  border-top: 1px solid var(--surface-elevated);
   color: var(--text-muted);
   font-size: var(--fs-sm);
 }
@@ -2642,10 +2654,6 @@
   border-radius: var(--radius-pill);
   background: var(--text-muted);
   opacity: 0.3;
-}
-
-.attestation-control-accent.muted {
-  background: var(--warning);
 }
 
 .attestation-control-list-item-muted {
@@ -3452,7 +3460,7 @@
   padding: 0.22rem 0.55rem;
   border-radius: var(--radius-pill);
   background: var(--surface-raised);
-  border: 1px solid var(--surface-selected);
+  border: 1px solid var(--border);
 }
 
 .time-summary-card > div {
@@ -3539,6 +3547,7 @@
   padding: 0.25rem 0.55rem;
   border-radius: var(--radius-pill);
   background: var(--surface);
+  color: var(--text-muted);
 }
 
 .time-week-toggle {
@@ -3572,7 +3581,7 @@
 .time-day-cell {
   min-height: 132px;
   padding: 0.65rem;
-  border: 1px solid var(--surface-selected);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
@@ -3627,7 +3636,7 @@
 .time-entry-card:hover,
 .time-entry-card:focus-visible {
   border-color: var(--surface-elevated);
-  background: var(--surface-selected);
+  background: var(--surface-elevated);
   outline: none;
 }
 
@@ -4070,5 +4079,71 @@
 .invite-footer {
   margin-top: 1.5rem;
   font-size: var(--fs-sm);
+}
+
+/* ------------------------------------------------------------
+   Login page
+   ------------------------------------------------------------ */
+.app-container-center {
+  justify-content: center;
+  align-items: center;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.login-card-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-subtitle {
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.login-form .btn-primary {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.login-form .btn-primary svg:first-child {
+  margin-right: 0.5rem;
+}
+
+.login-footer {
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.9rem;
+}
+
+.login-footer a {
+  color: var(--text-secondary);
+}
+
+.logo-center {
+  justify-content: center;
+  margin-bottom: 1rem;
 }
 
