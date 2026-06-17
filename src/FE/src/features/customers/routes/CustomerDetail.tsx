@@ -113,10 +113,10 @@ export const CustomerDetail = () => {
                 </span>
               )}
             </div>
-            <div className="job-card-footer">
+            <div className="job-card-meta">
               <span className="meta-item">
                 <Clock size={14} />
-                <span>Sidst opdateret: {formatDateLong(job.updatedAt)}</span>
+                <span className='meta-item'>Sidst opdateret: {formatDateLong(job.updatedAt)}</span>
               </span>
             </div>
           </button>

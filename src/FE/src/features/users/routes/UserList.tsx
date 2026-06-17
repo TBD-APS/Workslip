@@ -51,7 +51,7 @@ export const UserList = () => {
 
   const users = useSearch(query.items, search, (user, term) =>
     [user.displayName, user.email, user.phone, user.role].some((value) => value?.toLowerCase().includes(term)),
-  );
+  ) ?? [];
 
   useEffect(() => {
     announceSection('users');

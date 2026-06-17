@@ -201,7 +201,7 @@ export const UserDetail = () => {
                 </span>
               )}
             </div>
-            <div className="job-card-footer">
+            <div className="job-card-meta">
               <span className="meta-item meta-item--muted">
                 <Clock size={14} />
                 <span>Sidst opdateret: {formatDateLong(job.updatedAt)}</span>

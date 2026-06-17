@@ -200,7 +200,7 @@
   flex-direction: column;
   align-items: center;
   gap: 0.25rem;
-  color: var(--text-muted);
+  color: var(--text);
   font-size: var(--fs-xs);
   font-weight: 400;
   flex: 1;
@@ -2031,37 +2031,71 @@
   text-transform: uppercase;
 }
 
+/* ------------------------------------------------------------
+   Unified Worksheet List Component
+   ------------------------------------------------------------ */
 .worksheet-list {
-  list-style: none;
-  margin: 0 0 0.75rem 0;
-  padding: 0.35rem;
-  border: none;
-  border-radius: var(--radius-lg);
-}
-
-.worksheet-list-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  padding-bottom: 0.75rem;
-  height: auto;
-}
-
-
-.worksheet-empty-state {
-  margin-bottom: 0.75rem;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
 }
 
 .worksheet-list-item {
-  padding: 0.45rem 0.6rem;
-  border-radius: var(--radius-sm);
-}
-
-.worksheet-list-item-row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  min-height: 36px;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem 0.65rem 1rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  min-height: 48px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.worksheet-list-item::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: transparent;
+}
+
+.worksheet-list-item.is-selected::before {
+  background: var(--primary);
+}
+
+.worksheet-list-item-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.worksheet-list-item-title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+
+.worksheet-list-item-subtitle {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .worksheet-list-item-metrics {
@@ -2069,155 +2103,58 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
-  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
-.worksheet-list-item-hours {
+.worksheet-list-item-badge {
   display: inline-flex;
   align-items: baseline;
-  justify-content: center;
-  gap: 0.2rem;
-  min-width: 4.25rem;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid var(--border);
+  gap: 0.25rem;
+  padding: 0.3rem 0.65rem;
   border-radius: var(--radius-pill);
-  background: var(--surface);
+  background: var(--surface-raised);
   color: var(--text-muted);
+  font-size: var(--fs-xs);
   white-space: nowrap;
+  border: 1px solid var(--border);
 }
 
-.worksheet-list-item-hours-value {
+.worksheet-list-item-badge strong {
   color: var(--text);
-  font-family: var(--font-heading);
   font-size: var(--fs-body);
   font-weight: 400;
 }
 
-.worksheet-list-item-hours span:not(.worksheet-list-item-hours-value),
-.worksheet-list-item-outlay {
-  font-size: var(--fs-xs);
-  font-weight: 400;
-  letter-spacing: 0.02em;
-}
-
-.worksheet-list-item-outlay {
-  padding: 0.2rem 0.5rem;
+.worksheet-list-item-tag {
+  padding: 0.3rem 0.6rem;
   border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text-muted);
+  background: var(--status-amber-bg);
+  color: var(--warning);
+  font-size: var(--fs-xs);
+  font-weight: 500;
   white-space: nowrap;
-}
-
-.worksheet-list-item.editing {
-  background: var(--surface-raised);
-}
-
-.worksheet-list-item.editing .worksheet-form {
-  margin-top: 0.75rem;
-  width: 100%;
-  background: var(--surface-raised);
-}
-
-.worksheet-list-item + .worksheet-list-item {
-  margin-top: 0.15rem;
-}
-
-@media (hover: hover) {
-.worksheet-list-item:hover {
-  background: var(--surface-raised);
-}
 }
 
 .worksheet-list-item-actions {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-}
-
-.worksheet-actions-menu-root {
-  position: relative;
-}
-
-.worksheet-actions-menu-root .btn-icon {
-  min-width: 40px;
-  min-height: 40px;
-  border: 1px solid transparent;
-}
-
-.worksheet-actions-menu-root .btn-icon:hover,
-.worksheet-actions-menu-root .btn-icon[aria-expanded="true"] {
-  border-color: var(--surface-selected-strong);
-  background: var(--surface-elevated);
-  color: var(--text);
-}
-
-.worksheet-actions-menu {
-  position: fixed;
-  z-index: 1000;
-  min-width: 8.5rem;
-  padding: 0.25rem;
-  background: var(--surface-actions-menu);
-  border: 1px solid var(--surface-elevated);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg-alt);
-}
-
-.worksheet-actions-menu button {
-  width: 100%;
-  min-height: 2.25rem;
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.45rem 0.65rem;
-  color: var(--text);
-  font: inherit;
-  font-size: var(--fs-sm);
-  text-align: left;
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.worksheet-actions-menu button:hover:not(:disabled) {
-  background: var(--surface-elevated);
-}
-
-.worksheet-actions-menu button.danger {
-  color: var(--status-red-text);
-}
-
-.worksheet-actions-menu button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.worksheet-list-item-info {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 0.4rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.worksheet-list-item-date {
-  font-weight: 400;
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-  line-height: 1.2;
-  white-space: nowrap;
+  justify-content: center;
   flex-shrink: 0;
 }
 
-.worksheet-list-item-meta {
-  font-size: var(--fs-body);
-  color: var(--text);
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
+@media (max-width: 640px) {
+  .worksheet-list-item {
+    gap: 0.5rem;
+    padding: 0.5rem 0.65rem 0.5rem 0.85rem;
+  }
+  
+  .worksheet-list-item-main {
+    gap: 0.4rem;
+  }
+
+  .worksheet-list-item-badge {
+    padding: 0.25rem 0.55rem;
+  }
 }
 
 .worksheet-form {
@@ -3570,7 +3507,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--surface-raised);
-  color: var(--text-muted);
+  color: var(--text);
   font: inherit;
   font-size: var(--fs-xs);
   cursor: pointer;
@@ -3615,7 +3552,6 @@
   margin-bottom: 0.55rem;
   color: var(--text-muted);
   font-size: var(--fs-xs);
-  text-transform: capitalize;
 }
 
 .time-day-head strong {
@@ -3689,8 +3625,7 @@
 .time-entry-outlay {
   padding: 0.12rem 0.4rem;
   border-radius: var(--radius-pill);
-  color: var(--warning);
-  background: var(--status-amber-bg);
+  color: var(--text-muted);
   font-size: var(--fs-xs);
 }
 
