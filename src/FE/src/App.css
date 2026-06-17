@@ -2038,7 +2038,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  padding: 0;
+  padding: 1rem;
   margin: 0;
   list-style: none;
 }
@@ -2112,24 +2112,16 @@
   gap: 0.25rem;
   padding: 0.3rem 0.65rem;
   border-radius: var(--radius-pill);
-  background: var(--surface-raised);
-  color: var(--text-muted);
+  color: var(--text);
   font-size: var(--fs-xs);
   white-space: nowrap;
   border: 1px solid var(--border);
 }
 
-.worksheet-list-item-badge strong {
-  color: var(--text);
-  font-size: var(--fs-body);
-  font-weight: 400;
-}
-
 .worksheet-list-item-tag {
   padding: 0.3rem 0.6rem;
   border-radius: var(--radius-pill);
-  background: var(--status-amber-bg);
-  color: var(--warning);
+  border: 1px solid var(--border);
   font-size: var(--fs-xs);
   font-weight: 500;
   white-space: nowrap;
