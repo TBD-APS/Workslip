@@ -206,8 +206,7 @@ export function StepNavigation({
             }
           : {
               position: 'relative',
-              width: '100%',
-              marginTop: '1rem',
+              width: '100%'
             }
       }
     >
