@@ -76,16 +76,40 @@ public sealed class InvitationService(
 
         try
         {
-            var user = BuildUserFromInvite(invite, displayName, phone);
-            var userId = await userRepository.CreateAsync(user, cancellationToken);
+            var existingUser = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
+            Guid userId;
+            Guid organizationId;
+            string userRole;
+            string userDisplayName;
+
+            if (existingUser is not null)
+            {
+                userId = existingUser.Id;
+                organizationId = existingUser.OrganizationId;
+                userRole = existingUser.Role;
+                userDisplayName = existingUser.DisplayName;
+
+                // Optionally update existing user with provided info if they haven't set it?
+                // For now, just proceed with existing user.
+                logger.LogInformation("Invite accepted for existing user. UserId: {UserId}. Email: {Email}. Token: {Token}", userId, invite.Email, invite.Token);
+            }
+            else
+            {
+                var user = BuildUserFromInvite(invite, displayName, phone);
+                userId = await userRepository.CreateAsync(user, cancellationToken);
+                organizationId = user.OrganizationId;
+                userRole = user.Role;
+                userDisplayName = user.DisplayName;
+            }
+
             await inviteRepository.MarkConsumedAsync(invite, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            var org = await organizationRepository.GetByIdAsync(invite.OrganizationId, cancellationToken);
-            logger.LogInformation("Invite accepted. UserId: {UserId}. Organization: {Org}. Email: {Email}. Role: {Role}.",
-                userId, org?.Name ?? invite.OrganizationId.ToString(), invite.Email, user.Role);
+            var org = await organizationRepository.GetByIdAsync(organizationId, cancellationToken);
+            logger.LogInformation("Invite enrollment complete. UserId: {UserId}. Organization: {Org}. Email: {Email}. Role: {Role}.",
+                userId, org?.Name ?? organizationId.ToString(), invite.Email, userRole);
 
-            return Result<AuthUserInfo>.Success(new AuthUserInfo(userId, invite.OrganizationId, invite.Email, user.DisplayName, user.Role));
+            return Result<AuthUserInfo>.Success(new AuthUserInfo(userId, organizationId, invite.Email, userDisplayName, userRole));
         }
         catch (Exception ex)
         {
@@ -135,13 +159,6 @@ public sealed class InvitationService(
         {
             logger.LogWarning("Invite verification failed: expired. Token: {Token}", invite.Token);
             return "invite_expired";
-        }
-
-        var existing = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
-        if (existing is not null)
-        {
-            logger.LogWarning("Invite verification failed: user already exists. Email: {Email}", invite.Email);
-            return "user_already_exists";
         }
 
         return null;
@@ -219,20 +236,20 @@ public sealed class InvitationService(
         return Result<InviteListResponse>.Success(response);
     }
 
-    public async Task<Result> MarkOpenedAsync(string token, CancellationToken cancellationToken)
+    public async Task<Result<InviteOpenResponse>> MarkOpenedAsync(string token, CancellationToken cancellationToken)
     {
         var invite = await inviteRepository.GetByTokenAsync(token, cancellationToken);
 
         if (invite is null)
         {
             logger.LogWarning("Unable to open invite because token was not found. Token: {Token}", token);
-            return Result.NotFound();
+            return Result<InviteOpenResponse>.NotFound();
         }
 
         var validationError = await ValidateInviteForOpenAsync(invite, cancellationToken);
         if (validationError is not null)
         {
-            return validationError;
+            return Result<InviteOpenResponse>.Conflict(validationError.Errors.FirstOrDefault() ?? "validation_failed");
         }
 
         try
@@ -253,7 +270,9 @@ public sealed class InvitationService(
         await inviteRepository.MarkOpenedAsync(invite, cancellationToken);
         logger.LogInformation("Invite opened and Entra guest ensured. Token: {Token}. Email: {Email}", token, invite.Email);
 
-        return Result.Success();
+        var existingUser = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
+
+        return Result<InviteOpenResponse>.Success(new InviteOpenResponse(invite.Email, existingUser is not null));
     }
 
     public async Task<int> CleanupStaleEntraInvitesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken)

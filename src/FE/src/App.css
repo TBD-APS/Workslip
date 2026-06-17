@@ -2481,7 +2481,6 @@
   gap: 0.65rem;
   padding: 0;
   margin: 0;
-  list-style: none;
 }
 
 .attestation-control-list.compact {
@@ -2496,7 +2495,6 @@
   gap: 0.75rem;
   padding: 0.85rem;
   border-radius: var(--radius);
-  background: var(--surface);
 }
 
 .attestation-control-list.compact li {
@@ -2507,12 +2505,13 @@
   align-items: start;
   padding: 0.5rem 0.65rem;
   border-radius: var(--radius-sm);
+  color: var(--text);
 }
 
-.attestation-control-list.compact small {
+.attestation-control-list.compact span {
   grid-column: 2;
   overflow: hidden;
-  color: var(--text-muted);
+  color: var(--text);
   font-size: var(--fs-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2529,10 +2528,6 @@
 
 .attestation-control-list-item-muted {
   opacity: 0.85;
-}
-
-.attestation-control-list-item-muted span {
-  color: var(--text-muted);
 }
 
 .attestation-control-list div {

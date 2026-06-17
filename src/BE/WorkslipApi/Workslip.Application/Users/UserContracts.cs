@@ -73,3 +73,7 @@ public sealed record InviteTokenResponse(
 public sealed record InviteListResponse(
     IReadOnlyList<InviteTokenResponse> Invites);
 
+public sealed record InviteOpenResponse(
+    string Email,
+    bool UserExists);
+

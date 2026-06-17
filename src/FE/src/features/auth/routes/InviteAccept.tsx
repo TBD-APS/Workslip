@@ -24,7 +24,6 @@ type InviteState =
 const errorMessages: Record<string, string> = {
   invite_consumed: 'Denne invitation er allerede blevet brugt.',
   invite_expired: 'Denne invitation er udløbet. Kontakt administratoren for en ny.',
-  user_already_exists: 'Der findes allerede en bruger med denne e-mail. Prøv at log ind i stedet.',
 };
 
 const resolveInviteError = (errorCode: string | undefined, fallback: string) =>
@@ -75,7 +74,12 @@ export const InviteAccept = () => {
     calledRef.current = true;
 
     verifyInviteToken(token)
-      .then(() => {
+      .then((res) => {
+        if (res.userExists) {
+          // If user already exists, skip the enrollment form and go straight to login
+          window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
+          return;
+        }
         setState({ status: 'ready' });
       })
       .catch(() => setState({ status: 'invalid', message: 'Invitationen blev ikke fundet. Kontrollér linket eller kontakt administratoren.' }));
