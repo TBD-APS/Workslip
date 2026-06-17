@@ -14,7 +14,7 @@ import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
 
-const SCROLL_CONTAINER_SELECTOR = '.app-content';
+const SCROLL_CONTAINER_SELECTOR = '.app-shell';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
 const PAGE_SIZE = 20;
 

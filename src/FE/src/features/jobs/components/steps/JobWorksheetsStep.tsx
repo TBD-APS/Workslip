@@ -261,7 +261,7 @@ export function JobWorksheetsStep({
     if (!openActionMenu) return;
 
     const closeMenu = () => dispatch({ type: 'closeActionMenu' });
-    const scrollContainer = document.querySelector('.app-content');
+    const scrollContainer = document.querySelector('.app-shell');
     scrollContainer?.addEventListener('scroll', closeMenu, { passive: true });
     window.addEventListener('resize', closeMenu);
 
@@ -486,7 +486,7 @@ function WorksheetsSection({
       {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
         <button
           type="button"
-          className={sortedWorksheets.length === 0 ? 'btn btn-primary worksheet-add-trigger worksheet-add-trigger-cta' : 'btn btn-secondary worksheet-add-trigger'}
+          className={sortedWorksheets.length === 0 ? 'btn btn-secondary worksheet-add-trigger worksheet-add-trigger-cta' : 'btn btn-secondary worksheet-add-trigger'}
           onClick={onOpenAddForm}
         >
           <Plus size={16} />

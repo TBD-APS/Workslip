@@ -14,10 +14,10 @@ const PAGE_SIZE = 20;
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
     <div className="job-card-header">
-      <div className="skeleton skeleton-name" style={{ width: '60%' }} />
+      <div className="skeleton skeleton-name skeleton-w-60" />
     </div>
-    <div className="skeleton skeleton-address" style={{ width: '40%' }} />
-    <div className="skeleton skeleton-tag" style={{ width: '30%' }} />
+    <div className="skeleton skeleton-address skeleton-w-40" />
+    <div className="skeleton skeleton-tag skeleton-w-30" />
   </div>
 );
 
@@ -100,13 +100,11 @@ export const CustomerList = () => {
             onClick={() => navigate(`/app/customers/${customer.id}`)}
             type="button"
           >
-            <div className="job-card-top">
-              <div>
-                <Building2 size={20} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
-                <h3 className="job-customer" style={{ display: 'inline' }}>{customer.name}</h3>
-              </div>
-              <span className="meta-item">
-                <span>{customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}</span>
+            <div className="job-card-top job-card-top-center">
+              <Building2 size={20} className="customer-icon" />
+              <h3 className="customer-name">{customer.name}</h3>
+              <span className="meta-item customer-job-count">
+                 {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
               </span>
             </div>
 

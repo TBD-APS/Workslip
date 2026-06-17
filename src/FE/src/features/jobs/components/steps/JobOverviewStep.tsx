@@ -1,6 +1,6 @@
-import { FileText, MessageSquare, Wrench } from 'lucide-react';
+import { FileText, MessageSquare, Wrench, } from 'lucide-react';
 import type { useJobDetails } from '../../hooks/useJobDetails';
-import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../JobDetailBlocks';
+import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock } from '../JobDetailBlocks';
 import { useCan } from '../../../../providers/permissions';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
@@ -18,6 +18,14 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         customerSnapshot={details.form.customerSnapshot}
         editSnapshot={details.form.editSnapshot}
         reportNumberReadOnly={details.reportNumberReadOnly}
+        onCustomerSelect={details.selectCustomer}
+        onCustomerFieldChange={details.updateCustomerField}
+        onSnapshotFieldChange={details.updateSnapshotField}
+        onEditSnapshotChange={details.updateEditSnapshot}
+        onReportNumberChange={details.updateReportNumber}
+      />
+
+      <AssignmentBlock
         {...(canAssign
           ? {
               assignment: {
@@ -30,12 +38,8 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
           : {
               readOnlyAssigned: details.job?.assignedUsers ?? [],
             })}
-        onCustomerSelect={details.selectCustomer}
-        onCustomerFieldChange={details.updateCustomerField}
-        onSnapshotFieldChange={details.updateSnapshotField}
-        onEditSnapshotChange={details.updateEditSnapshot}
-        onReportNumberChange={details.updateReportNumber}
       />
+
       <LinkedJobsBlock
         jobs={details.linkableJobs}
         linkedJobIds={details.linkedJobIds}

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Building2, FileText, Pencil, Users } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { Building2, FileText, Link2, Pencil, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
@@ -10,6 +10,7 @@ import { getApiCustomersTop } from '../customerApi';
 import type { CustomerInfo, CustomerSearchViewModel, CustomerSnapshotData, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
+
 
 type CustomerBlockProps = {
   form: { customer: CustomerInfo; reportNumber: string };
@@ -34,22 +35,12 @@ export function CustomerDetailsBlock({
   form,
   customerSnapshot,
   editSnapshot,
-  reportNumberReadOnly,
-  assignment,
-  readOnlyAssigned,
   onCustomerSelect,
   onCustomerFieldChange,
   onSnapshotFieldChange,
   onEditSnapshotChange,
-  onReportNumberChange,
 }: CustomerBlockProps) {
-  const canAssign = useCan('job:assign');
   const hasExistingCustomer = Boolean(form.customer.customerId);
-  const [customerFieldsOpen, setCustomerFieldsOpen] = useState(!hasExistingCustomer || editSnapshot);
-
-  useEffect(() => {
-    if (editSnapshot) setCustomerFieldsOpen(true);
-  }, [editSnapshot]);
 
   function displayValue(field: keyof CustomerSnapshotData): string {
     if (editSnapshot && hasExistingCustomer) {
@@ -73,24 +64,14 @@ export function CustomerDetailsBlock({
   }
 
   return (
-    <section className="detail-section customer-details-section">
-      <div className="section-header-row">
-        <Building2 size={18} />
-        <h3>Kundeoplysninger</h3>
-      </div>
 
+    <section className="detail-section">
       <div className="detail-form">
-        <div className="form-group">
-          <label className="form-label">{reportNumberReadOnly ? 'Sagsnummer (skrivebeskyttet)' : 'Sagsnummer'}</label>
-          <input
-            className="form-input"
-            value={form.reportNumber}
-            onChange={(event) => onReportNumberChange(event.target.value)}
-            placeholder="F.eks. 2024-001"
-            readOnly={reportNumberReadOnly}
-            style={reportNumberReadOnly ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
-          />
-        </div>
+
+    <div className="section-header-row">
+        <Building2 size={18} />
+        <h3>Kunde</h3>
+      </div>
 
         <CustomerSearchDropdown
           selectedId={form.customer.customerId}
@@ -98,25 +79,6 @@ export function CustomerDetailsBlock({
           onSelect={onCustomerSelect}
         />
 
-        {hasExistingCustomer && (
-          <label className="checkbox-row" style={{ marginTop: '0.25rem' }}>
-            <input
-              type="checkbox"
-              checked={editSnapshot}
-              onChange={(e) => onEditSnapshotChange?.(e.target.checked)}
-            />
-            <Pencil size={14} />
-            <span>Rediger kunde for sag</span>
-          </label>
-        )}
-
-        <CollapsibleSection
-          icon={<Building2 size={18} />}
-          title="Kundeoplysninger"
-          defaultOpen={!hasExistingCustomer}
-          open={customerFieldsOpen}
-          onToggle={setCustomerFieldsOpen}
-        >
           <div className="form-group">
             <label className="form-label">Kundenavn</label>
             <input
@@ -172,12 +134,51 @@ export function CustomerDetailsBlock({
               style={hasExistingCustomer && !editSnapshot ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
             />
           </div>
-        </CollapsibleSection>
 
-        {assignment && canAssign && (
+         {hasExistingCustomer && (
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={editSnapshot}
+                onChange={(e) => onEditSnapshotChange?.(e.target.checked)}
+              />
+              <Pencil size={14} />
+              <span>Rediger kunde for sag</span>
+            </label>
+          )}
+      </div>
+    </section>
+  );
+}
+
+type AssignmentBlockProps = {
+  assignment?: {
+    users: UserViewModel[];
+    assignedUserIds: string[];
+    isLoadingUsers: boolean;
+    onAssignedUsersChange: (userIds: string[]) => void;
+  };
+  readOnlyAssigned?: { id: string; displayName: string }[];
+  isEditing?: boolean;
+};
+
+export function AssignmentBlock({ assignment, readOnlyAssigned, isEditing = true }: AssignmentBlockProps) {
+  const canAssign = useCan('job:assign');
+  
+  if (!assignment && !readOnlyAssigned) return null;
+
+  return (
+    <section className="detail-section">
+      <div className="section-header-row">
+        <Users size={18} />
+        <h3>Tildelte medarbejdere</h3>
+      </div>
+      
+      <div className="detail-form">
+        {isEditing && assignment && canAssign ? (
           <MultiSelectDropdown
-            label="Tildelte medarbejdere"
-            placeholder="Vælg medarbejdere"
+            label="Vælg medarbejdere"
+            placeholder="Søg efter medarbejdere..."
             emptyText="Ingen medarbejdere fundet"
             loadingText="Henter medarbejdere..."
             options={assignment.users.map((user) => ({ id: user.id, label: user.displayName, description: user.email }))}
@@ -187,11 +188,8 @@ export function CustomerDetailsBlock({
             commitOnClose
             onChange={assignment.onAssignedUsersChange}
           />
-        )}
-
-        {assignment && !canAssign && (
+        ) : (
           <div className="form-group">
-            <label className="form-label">Tildelte medarbejdere</label>
             <div className="form-readonly-list" aria-readonly="true">
               {(readOnlyAssigned && readOnlyAssigned.length > 0) ? (
                 readOnlyAssigned.map((u) => (
@@ -221,6 +219,10 @@ type LinkedJobsBlockProps = {
 export function LinkedJobsBlock({ jobs, linkedJobIds, isLoading, onChange }: LinkedJobsBlockProps) {
   return (
     <section className="detail-section">
+      <div className="section-header-row">
+        <Link2 size={18}/>
+        <h3>Tilføj sager</h3>
+      </div>
       <MultiSelectDropdown
         label="Tilknyttede sager"
         placeholder="Vælg sager"
@@ -316,14 +318,13 @@ function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: Customer
 
   return (
     <SingleSelectDropdown
-      label="Kunde"
+      label=''
       placeholder={isSearching ? "Søger..." : "Vælg kunde..."}
       emptyText="Ingen kunder fundet"
       loadingText="Henter kunder..."
       options={options}
       selectedId={selectedId}
       isLoading={isLoading}
-      icon={<Building2 size={16} />}
       footer={!isSearching && <span className="single-select-footer-text">Søg efter flere resultater...</span>}
       onSelect={handleSelect}
       onSearchChange={setInputValue}

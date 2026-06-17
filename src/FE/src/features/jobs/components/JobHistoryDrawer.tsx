@@ -73,7 +73,7 @@ function HistoryEventItem({ event }: { event: JobHistoryResponse }) {
         <div className="history-event-meta">
           <div className="history-event-user">
             <User size={14} />
-            <span>{event.actorName || 'System'}</span>
+            <span>{event.actorName ? `Bruger: ${event.actorName}` : 'System'}</span>
           </div>
           <div className="history-event-time">
             <Clock size={14} />

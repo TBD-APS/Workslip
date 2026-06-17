@@ -9,6 +9,7 @@ public static class LinkMapper
         Guid Id,
         string ReportNumber,
         string Status,
+        string CustomerAddress,
         string? CustomerName);
 
     public static JobLinkInfoResponse ToResponse(
@@ -20,8 +21,9 @@ public static class LinkMapper
         return new JobLinkInfoResponse(
             link.Id,
             linkedId,
-            linkedReport?.ReportNumber ?? "",
-            linkedReport?.CustomerName ?? "",
-            linkedReport?.Status ?? "");
+            linkedReport?.ReportNumber ?? string.Empty,
+            linkedReport?.CustomerName ?? string.Empty,
+            linkedReport?.CustomerAddress ?? string.Empty,
+            linkedReport?.Status ?? string.Empty);
     }
 }

@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { JOB_STEPS } from './jobSteps';
 
+const HIDE_DELAY_MS = 200;
+const SCROLL_THRESHOLD = 30;
+
 type StepIndicatorsProps = {
   currentStep: number;
   onStepChange: (step: number) => void;
@@ -27,13 +30,13 @@ export function StepIndicators({ currentStep, onStepChange, completedSteps }: St
         const StepIcon = step.icon;
         const isActive = index === currentStep;
         const isCompleted = index < currentStep;
-        const isDisabled = index === 3 && !completedSteps[2]; // Disable Worksheets if ControlPoints not valid
+        const isDisabled = (index === 3 && !completedSteps[2]) || (index === 5 && !completedSteps[4]);
         return (
           <button
             key={step.label}
             className={`step-dot ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-            onClick={() => !isDisabled && onStepChange(index)}
-            disabled={isDisabled}
+            onClick={() => onStepChange(index)}
+            aria-disabled={isDisabled || undefined}
             aria-label={isActive ? `${step.label} - aktuelt trin` : step.label}
             aria-current={isActive ? 'step' : undefined}
           >
@@ -77,73 +80,138 @@ export function StepNavigation({
   statusSlot,
   hideDoneButton = false,
 }: StepNavigationProps) {
-  const [isVisible, setIsVisible] = useState(true);
+  const [scrollState, setScrollState] = useState<'visible' | 'hidden' | 'docked'>('visible');
+  const stateRef = useRef(scrollState);
+  const lastScrollY = useRef(0);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const rafId = useRef(0);
 
   useEffect(() => {
-    const scrollContainer = document.querySelector('.app-content');
-    const getScrollTop = () => scrollContainer?.scrollTop ?? window.scrollY;
+    const container = document.querySelector('.app-shell');
+    const target = container ?? window;
+
+    const getScrollTop = () =>
+      container ? (container as HTMLElement).scrollTop : window.scrollY;
+
     const getScrollBottom = () => {
-      if (scrollContainer) {
-        return scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
+      if (container) {
+        const el = container as HTMLElement;
+        return el.scrollHeight - el.scrollTop - el.clientHeight;
+      }
+      return document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
+    };
+
+    const go = (next: 'visible' | 'hidden' | 'docked') => {
+      if (next !== stateRef.current) {
+        stateRef.current = next;
+        setScrollState(next);
+      }
+    };
+
+    const update = () => {
+      const scrollTop = getScrollTop();
+      const scrollBottom = getScrollBottom();
+      const atBottom = scrollBottom <= 24;
+
+      if (atBottom) {
+        clearTimeout(hideTimer.current);
+        go('docked');
+      } else {
+        const d = scrollTop - lastScrollY.current;
+        const scrollingDown = scrollTop > SCROLL_THRESHOLD && d > 0;
+
+        if (scrollingDown && stateRef.current === 'visible') {
+          clearTimeout(hideTimer.current);
+          hideTimer.current = setTimeout(() => go('hidden'), HIDE_DELAY_MS);
+        }
+
+        if (d < 0 && stateRef.current !== 'visible') {
+          clearTimeout(hideTimer.current);
+          go('visible');
+        }
       }
 
-      const documentElement = document.documentElement;
-      return documentElement.scrollHeight - window.scrollY - window.innerHeight;
-    };
-    let lastScrollTop = getScrollTop();
-
-    const handleScroll = () => {
-      const currentScrollTop = getScrollTop();
-      const isAtBottom = getScrollBottom() <= 24;
-      const scrollingDown = currentScrollTop > lastScrollTop && currentScrollTop > 80;
-      setIsVisible(isAtBottom || !scrollingDown);
-      lastScrollTop = currentScrollTop;
+      lastScrollY.current = scrollTop;
     };
 
-    const target = scrollContainer ?? window;
-    target.addEventListener('scroll', handleScroll, { passive: true });
-    return () => target.removeEventListener('scroll', handleScroll);
+    const onScroll = () => {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = requestAnimationFrame(update);
+    };
+
+    target.addEventListener('scroll', onScroll, { passive: true });
+    update();
+
+    return () => {
+      target.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(rafId.current);
+      clearTimeout(hideTimer.current);
+    };
   }, []);
 
-  return (
-    <div className={isVisible ? 'step-nav-sticky' : 'step-nav-sticky hidden'}>
-      {statusSlot && <div className="step-nav-status-slot">{statusSlot}</div>}
-      <div className="step-nav">
+  const isFixed = scrollState !== 'docked';
+
+  const bar = (
+    <div className="step-nav">
+      <button
+        className="step-nav-btn step-nav-btn-back"
+        onClick={onBack}
+        aria-label="Tilbage"
+      >
+        <ChevronLeft size={18} />
+        <span>Tilbage</span>
+      </button>
+
+      <span className="step-nav-counter">Trin {currentStep + 1} / {JOB_STEPS.length}</span>
+
+      {!isLastStep ? (
         <button
-          className="step-nav-btn step-nav-btn-back"
-          onClick={onBack}
-          aria-label="Tilbage"
+          className="step-nav-btn step-nav-btn-next"
+          onClick={onNext}
+          disabled={disableNext}
+          title={disableNext ? nextDisabledReason : undefined}
+          aria-label={disableNext ? `Næste — ${nextDisabledReason ?? 'ikke tilgængelig'}` : 'Næste'}
         >
-          <ChevronLeft size={18} />
-          <span>Tilbage</span>
+          <span>Næste</span>
+          <ChevronRight size={18} />
         </button>
+      ) : !hideDoneButton ? (
+        <button
+          className="step-nav-btn step-nav-btn-next"
+          onClick={onDone}
+          disabled={disableDone}
+          title={disableDone ? doneDisabledReason : undefined}
+          aria-label={disableDone ? `${doneLabel} — ${doneDisabledReason ?? 'ikke tilgængelig'}` : doneLabel}
+        >
+          {doneIcon}
+          <span>{doneLabel}</span>
+        </button>
+      ) : null}
+    </div>
+  );
 
-        <span className="step-nav-counter">Trin {currentStep + 1} / {JOB_STEPS.length}</span>
-
-        {!isLastStep ? (
-          <button
-            className="step-nav-btn step-nav-btn-next"
-            onClick={onNext}
-            disabled={disableNext}
-            title={disableNext ? nextDisabledReason : undefined}
-            aria-label={disableNext ? `Næste — ${nextDisabledReason ?? 'ikke tilgængelig'}` : 'Næste'}
-          >
-            <span>Næste</span>
-            <ChevronRight size={18} />
-          </button>
-        ) : !hideDoneButton ? (
-          <button
-            className="step-nav-btn step-nav-btn-next"
-            onClick={onDone}
-            disabled={disableDone}
-            title={disableDone ? doneDisabledReason : undefined}
-            aria-label={disableDone ? `${doneLabel} — ${doneDisabledReason ?? 'ikke tilgængelig'}` : doneLabel}
-          >
-            {doneIcon}
-            <span>{doneLabel}</span>
-          </button>
-        ) : null}
-      </div>
+  return (
+    <div
+      style={
+        isFixed
+          ? {
+              position: 'fixed',
+              bottom: 'calc(80px + 1rem)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 150,
+              opacity: scrollState === 'hidden' ? 0 : 1,
+              pointerEvents: scrollState === 'hidden' ? 'none' : 'auto',
+              transition: 'opacity 0.2s ease',
+            }
+          : {
+              position: 'relative',
+              width: '100%'
+            }
+      }
+    >
+      {statusSlot && <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>{statusSlot}</div>}
+      {bar}
     </div>
   );
 }

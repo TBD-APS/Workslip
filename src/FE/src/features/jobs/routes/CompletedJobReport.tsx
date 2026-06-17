@@ -13,7 +13,7 @@ import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus 
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { useAuth } from '../../../providers/useAuth';
-import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
+import { AssignmentBlock, CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
 import { ControlPointsStep } from '../components/steps/ControlPointsStep';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
@@ -90,7 +90,7 @@ export const CompletedJobReport = () => {
     if (!job || initialLoadDone.current) return;
     initialLoadDone.current = true;
 
-    const el = document.querySelector<HTMLElement>('.app-content');
+    const el = document.querySelector<HTMLElement>('.app-shell');
     if (!el) return;
 
     el.scrollTo(0, 0);
@@ -101,7 +101,7 @@ export const CompletedJobReport = () => {
     if (!isEditing || editScrollDone.current) return;
     editScrollDone.current = true;
 
-    const el = document.querySelector<HTMLElement>('.app-content');
+    const el = document.querySelector<HTMLElement>('.app-shell');
     if (!el) return;
 
     el.scrollTo(0, 0);
@@ -128,13 +128,13 @@ export const CompletedJobReport = () => {
   const handleStartEdit = () => {
     details.discardChanges();
     setIsEditing(true);
-    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
+    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
   };
 
   const handleCancelEdit = () => {
     details.discardChanges();
     setIsEditing(false);
-    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
+    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
   };
 
   const handleSaveEdit = async () => {
@@ -148,7 +148,7 @@ export const CompletedJobReport = () => {
     if (!saved) return;
 
     setIsEditing(false);
-    document.querySelector<HTMLElement>('.app-content')?.scrollTo(0, 0);
+    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
     toast.success(`Sagen ${details.form.reportNumber} er opdateret`);
   };
 
@@ -233,8 +233,8 @@ export const CompletedJobReport = () => {
           <ArrowLeft size={22} />
         </button>
         <div>
-          <span className="job-number">{formatReportNumber(job)}</span>
-          <h2 className="detail-title">Komplet sagsoverblik</h2>
+          <span className="job-number">{formatReportNumber(job)} - {formatJobStatus(job.status).toLowerCase()}</span>
+          <h2 className="detail-title">Sagsoverblik</h2>
         </div>
         <div className="report-overview-actions" aria-label="Rapport handlinger">
           {isEditing ? (
@@ -278,9 +278,16 @@ export const CompletedJobReport = () => {
           <section className="detail-section">
             <div className="section-header-row attestation-compact-header">
               <User size={18} />
-              <h3>Kunde og bemanding</h3>
+              <h3>Kunde</h3>
             </div>
             <DetailGrid items={customerPairs} />
+          </section>
+
+          <section className="detail-section">
+            <div className="section-header-row">
+              <User size={18} />
+              <h3>Medarbejdere</h3>
+            </div>
             <AssignedUsers users={job.assignedUsers} />
           </section>
 
@@ -289,7 +296,6 @@ export const CompletedJobReport = () => {
               <FileCheck2 size={18} />
               <h3>Sag</h3>
             </div>
-            <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>{formatJobStatus(job.status)}</span>
             <DetailGrid items={summaryPairs} />
           </section>
 
@@ -417,12 +423,6 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         customerSnapshot={details.form.customerSnapshot}
         editSnapshot={details.form.editSnapshot}
         reportNumberReadOnly={details.reportNumberReadOnly}
-        assignment={{
-          users: details.assignableUsers!,
-          assignedUserIds: details.assignedUserIds,
-          isLoadingUsers: details.isLoadingUsers,
-          onAssignedUsersChange: details.updateAssignedUsers,
-        }}
         readOnlyAssigned={details.job.assignedUsers}
         onCustomerSelect={details.selectCustomer}
         onCustomerFieldChange={(_field, _value) => {}}
@@ -430,6 +430,13 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         onEditSnapshotChange={(_edit) => {}}
         onReportNumberChange={details.updateReportNumber}
       />
+
+      <AssignmentBlock assignment={{
+          users: details.assignableUsers!,
+          assignedUserIds: details.assignedUserIds,
+          isLoadingUsers: details.isLoadingUsers,
+          onAssignedUsersChange: details.updateAssignedUsers,
+        }} />
 
       <LinkedJobsBlock
         jobs={details.linkableJobs}
@@ -590,9 +597,11 @@ function LinkedJobs({ links, onOpen }: { links: JobLinkInfoResponse[]; onOpen: (
     <div className="report-overview-link-list">
       {links.map((link) => (
         <button key={link.id} type="button" className="report-overview-link-card" onClick={() => onOpen(link.linkedReportId)}>
-          <span className="job-number">SAG-{link.linkedReportNumber || link.linkedReportId.slice(0, 4).toUpperCase()}</span>
-          <span className="report-overview-link-title">{link.linkedCustomerName || 'Ukendt kunde'}</span>
-          <span className={`status-badge status-${link.linkedStatus.toLowerCase()}`}>{formatJobStatus(link.linkedStatus)}</span>
+          <div className="report-overview-top-row">
+            <span className="report-overview-customer">{link.linkedCustomerName || 'Ukendt kunde'}</span>
+            <span className="job-number">SAG-{link.linkedReportNumber}</span>
+          </div>
+          <span className="report-overview-address">{link.linkedAddress || 'Ukendt adresse'}</span>
         </button>
       ))}
     </div>

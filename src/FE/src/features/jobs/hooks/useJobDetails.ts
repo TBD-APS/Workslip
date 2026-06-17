@@ -596,6 +596,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     }
 
     saveCurrentStepAndSetCurrentStep(nextStep);
+    document.querySelector('.app-shell')?.scrollTo(0, 0);
   };
 
   return {
