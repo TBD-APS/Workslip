@@ -589,6 +589,27 @@
   min-width: 0;
 }
 
+.job-card-top-center {
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.job-card-top .customer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-card-top .customer-icon {
+  flex-shrink: 0;
+}
+
+.job-card-top .customer-job-count {
+  flex-shrink: 0;
+}
+
 .job-number {
   display: inline-block;
   font-family: var(--font-main);
@@ -875,6 +896,16 @@
 .skeleton-tag {
   width: 80px;
   height: 18px;
+}
+
+.skeleton-w-60 {
+  width: 60% !important;
+}
+.skeleton-w-40 {
+  width: 40% !important;
+}
+.skeleton-w-30 {
+  width: 30% !important;
 }
 
 .skeleton-chevron {
