@@ -567,11 +567,24 @@
   font-size: var(--fs-sm);
 }
 
+.pdf-preview-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.pdf-preview-action {
+  text-decoration: none;
+}
+
 .pdf-preview-frame {
   flex: 1;
   width: 100%;
   border: 0;
   background: var(--bg);
+  display: block;
+  touch-action: pinch-zoom;
 }
 
 .spin {
@@ -1297,6 +1310,7 @@
   color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
+  font-size: var(--fs-body);
 }
 
 .work-kind-option:hover {
@@ -1389,7 +1403,8 @@
   top: calc(100% + 0.4rem);
   left: 0;
   right: 0;
-  max-height: 300px;
+  max-height: 500px;
+  max-height: min(500px, calc(100vh - 180px));
   overflow-y: auto;
   padding: 0.35rem;
   background: var(--surface-actions-menu);
@@ -2046,7 +2061,7 @@
 .worksheet-list-item {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 0.65rem 0.85rem 0.65rem 1rem;
   border-radius: var(--radius);
@@ -2102,8 +2117,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.5rem;
   flex-shrink: 0;
+  max-width: 100%;
 }
 
 .worksheet-list-item-badge {
@@ -2134,35 +2151,176 @@
   flex-shrink: 0;
 }
 
+.worksheet-list--detail {
+  gap: 0.5rem;
+}
+
+.worksheet-list-item--detail {
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.worksheet-list-item-main--detail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 0.12rem;
+  flex: 1 1 auto;
+}
+
+.worksheet-list-item-main--detail .worksheet-list-item-title {
+  font-size: var(--fs-sm);
+  line-height: 1.2;
+}
+
+.worksheet-list-item--detail .worksheet-list-item-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.worksheet-list-item-subtitle--detail {
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 0 auto;
+}
+
+.worksheet-list-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  min-width: 0;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.worksheet-list-item-actions--detail {
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+
+.worksheet-list-item--editing {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.worksheet-list-item-edit {
+  flex: 1 0 100%;
+  width: 100%;
+}
+
+.worksheet-list-item--editing .worksheet-form {
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.worksheet-actions-menu {
+  position: fixed;
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  min-width: 10rem;
+  padding: 0.35rem;
+  background: var(--surface-actions-menu);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(16px);
+}
+
+.worksheet-actions-menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.worksheet-actions-menu button:hover {
+  background: var(--surface-raised);
+}
+
+.worksheet-actions-menu button.danger {
+  color: var(--status-red-text);
+}
+
+.worksheet-actions-menu button.danger:hover {
+  background: var(--status-red-bg);
+}
+
 @media (max-width: 640px) {
   .worksheet-list-item {
     gap: 0.5rem;
     padding: 0.5rem 0.65rem 0.5rem 0.85rem;
+    flex-wrap: wrap;
   }
-  
+
+  .worksheet-list-item--detail {
+    flex-wrap: nowrap;
+  }
+
   .worksheet-list-item-main {
     gap: 0.4rem;
+    width: 100%;
+  }
+
+  .worksheet-list-item-main--detail {
+    gap: 0.12rem;
+    width: auto;
+  }
+
+  .worksheet-list-item-metrics {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .worksheet-list-item-meta {
+    width: auto;
   }
 
   .worksheet-list-item-badge {
     padding: 0.25rem 0.55rem;
+  }
+
+  .worksheet-list-item-edit {
+    min-width: 0;
   }
 }
 
 .worksheet-form {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.85rem;
+  gap: 0.45rem;
+  padding: 0.65rem;
   background: var(--surface-overlay);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   position: relative;
 }
 
+.worksheet-form--compact {
+  box-shadow: none;
+}
+
 .worksheet-form h4 {
   margin: 0 0 0.1rem 0;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text);
   letter-spacing: 0.01em;
@@ -2171,17 +2329,17 @@
 .worksheet-form-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
 .worksheet-form .form-input,
 .worksheet-form .multi-select-trigger {
-  min-height: 40px;
+  min-height: 38px;
 }
 
 .worksheet-form .form-label {
   font-size: var(--fs-xs);
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.15rem;
 }
 
 .worksheet-form-grid .multi-select-field {
@@ -2189,7 +2347,7 @@
 }
 
 .worksheet-form-grid-main .multi-select-chips {
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
 }
 
 .worksheet-form-grid-hours {
@@ -2200,7 +2358,8 @@
 
 .worksheet-overnight-wrapper {
   align-self: end;
-  min-width: 8rem;
+  min-width: 7rem;
+  display: flex;
 }
 
 @media (min-width: 640px) {
@@ -2277,33 +2436,39 @@
 }
 
 .worksheet-overnight-wrapper .multi-select-option {
-  min-height: 40px;
+  min-height: 38px;
   width: 100%;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
 }
 
 .worksheet-form-actions {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   margin-top: 0;
   width: 100%;
 }
 
 .worksheet-form-actions .btn {
   white-space: nowrap;
-  min-height: 38px;
-  padding: 0.4rem 0.85rem;
+  min-height: 36px;
+  padding: 0.35rem 0.8rem;
   font-size: var(--fs-sm);
 }
 
 .worksheet-form-actions .btn-primary {
   flex: 2 1 0;
-  min-height: 38px;
+  min-height: 36px;
 }
 
 .worksheet-form-actions .btn-secondary {
   flex: 1 1 0;
+}
+
+.worksheet-form-actions--compact {
+  gap: 0.35rem;
 }
 
 .worksheet-add-trigger {
@@ -2636,7 +2801,6 @@
   padding: 0.9rem 1rem;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--surface-selected-strong);
   border-radius: var(--radius);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
@@ -2830,8 +2994,8 @@
   width: 80px;
   height: 80px;
   border-radius: var(--radius-pill);
-  background: var(--surface-selected-strong);
-  color: var(--text-muted);
+  background: var(--primary);
+  color: var(--text);
   margin-bottom: 0.5rem;
 }
 

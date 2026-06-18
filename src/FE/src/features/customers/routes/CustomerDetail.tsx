@@ -18,7 +18,7 @@ export const CustomerDetail = () => {
   if (query.isLoading) {
     return (
       <div className="page-container">
-        <div className="page-header">
+        <div className="detail-header">
           <div className="skeleton skeleton-title" />
           <div className="skeleton skeleton-subtitle" />
         </div>
@@ -42,7 +42,7 @@ export const CustomerDetail = () => {
 
   return (
     <div className="page-container">
-      <div className="page-header">
+      <div className="detail-header">
         <button className="btn-icon-back" onClick={() => navigate('/app/customers')} aria-label="Tilbage">
           <ArrowLeft size={20} />
         </button>

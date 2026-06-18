@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, CheckCircle2, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Download, Eye, ExternalLink, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   InstallationTypeResponse,
@@ -64,7 +64,14 @@ export const CompletedJobReport = () => {
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const sortedWorksheets = useMemo(
     () => {
-      const allWorksheets = [...(job?.worksheets ?? [])].sort((left, right) => right.userId.localeCompare(left.userId));
+      const allWorksheets = [...(job?.worksheets ?? [])].sort((left, right) => {
+        const leftName = left.userDisplayName || left.userId;
+        const rightName = right.userDisplayName || right.userId;
+        const byName = leftName.localeCompare(rightName, 'da-DK', { sensitivity: 'base' });
+        if (byName !== 0) return byName;
+
+        return right.workDate.localeCompare(left.workDate);
+      });
       
       if (!isAdmin) {
         return allWorksheets?.filter((ws) => ws.userId === user?.id) ?? [];
@@ -399,6 +406,8 @@ export const CompletedJobReport = () => {
 };
 
 function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; onClose: () => void }) {
+  const previewUrl = `${preview.url}#toolbar=1&navpanes=0&scrollbar=1`;
+
   return (
     <div className="pdf-preview-overlay" role="dialog" aria-modal="true" aria-label="PDF rapport">
       <div className="pdf-preview-panel">
@@ -407,11 +416,21 @@ function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; 
             <span className="job-number">PDF rapport</span>
             <h3>{preview.fileName}</h3>
           </div>
-          <button className="btn-icon" type="button" onClick={onClose} aria-label="Luk PDF">
-            <X size={22} />
-          </button>
+          <div className="pdf-preview-header-actions">
+            <a className="btn-icon pdf-preview-action" href={preview.url} target="_blank" rel="noreferrer" aria-label="Åbn PDF i ny fane" title="Åbn i ny fane">
+              <ExternalLink size={18} />
+            </a>
+            <a className="btn-icon pdf-preview-action" href={preview.url} download={preview.fileName} aria-label="Download PDF" title="Download PDF">
+              <Download size={18} />
+            </a>
+            <button className="btn-icon" type="button" onClick={onClose} aria-label="Luk PDF">
+              <X size={22} />
+            </button>
+          </div>
         </div>
-        <iframe className="pdf-preview-frame" src={`${preview.url}#toolbar=1&navpanes=0`} title={preview.fileName} scrolling="yes" />
+        <object className="pdf-preview-frame" data={previewUrl} type="application/pdf" aria-label={preview.fileName}>
+          <iframe className="pdf-preview-frame" src={previewUrl} title={preview.fileName} />
+        </object>
       </div>
     </div>
   );
@@ -426,15 +445,12 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         form={details.form}
         customerSnapshot={details.form.customerSnapshot}
         editSnapshot={details.form.editSnapshot}
-        reportNumberReadOnly={details.reportNumberReadOnly}
-        readOnlyAssigned={details.job.assignedUsers}
         onCustomerSelect={details.selectCustomer}
-        onCustomerFieldChange={() => {}}
-        onSnapshotFieldChange={() => {}}
-        onEditSnapshotChange={() => {}}
-        onReportNumberChange={details.updateReportNumber}
+        onCustomerFieldChange={details.updateCustomerField}
+        onSnapshotFieldChange={details.updateSnapshotField}
+        onEditSnapshotChange={details.updateEditSnapshot}
+        showEditCheckbox={true}
       />
-
       <AssignmentBlock assignment={{
           users: details.assignableUsers!,
           assignedUserIds: details.assignedUserIds,
@@ -528,6 +544,7 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         isDeleting={details.isDeletingWorksheet}
         onUpsert={details.upsertWorksheet}
         onDelete={details.deleteWorksheet}
+        variant="list"
       />
 
       <JobCompletionStep
@@ -618,18 +635,18 @@ function Worksheets({ worksheets }: { worksheets: WorksheetResponse[] }) {
   }
 
   return (
-    <ul className="worksheet-list report-overview-timesheet-list">
+    <ul className="worksheet-list worksheet-list--detail report-overview-timesheet-list">
       {worksheets.map((worksheet) => {
         const hours = parseNullableNumber(worksheet.hoursWorked);
         const userName = worksheet.userDisplayName || worksheet.userId;
         return (
-          <li key={worksheet.id} className="worksheet-list-item">
-            <div className="worksheet-list-item-main">
+          <li key={worksheet.id} className="worksheet-list-item worksheet-list-item--detail">
+            <div className="worksheet-list-item-main worksheet-list-item-main--detail">
               <span className="worksheet-list-item-title" title={userName}>{userName}</span>
-              <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
+              <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDate(worksheet.workDate)}</span>
             </div>
 
-            <div className="worksheet-list-item-metrics">
+            <div className="worksheet-list-item-meta">
               <div className="worksheet-list-item-badge">
                 <strong>{formatNumber(hours)}</strong>
                 <span>{formatUnit(hours, 'time', 'timer')}</span>

@@ -164,18 +164,18 @@ export function JobAttestationStep({
         {sortedWorksheets.length === 0 ? (
           <p className="empty-state-text">Ingen timesedler registreret.</p>
         ) : (
-          <ul className="worksheet-list">
+          <ul className="worksheet-list worksheet-list--detail">
             {sortedWorksheets.map((worksheet) => {
               const hours = parseNullableNumber(worksheet.hoursWorked);
               const userName = getUserName(worksheet.userId, details);
               return (
-                <li key={worksheet.id} className="worksheet-list-item">
-                  <div className="worksheet-list-item-main">
+                <li key={worksheet.id} className="worksheet-list-item worksheet-list-item--detail">
+                  <div className="worksheet-list-item-main worksheet-list-item-main--detail">
                     <span className="worksheet-list-item-title" title={userName}>{userName}</span>
-                    <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
+                    <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDate(worksheet.workDate)}</span>
                   </div>
 
-                  <div className="worksheet-list-item-metrics">
+                  <div className="worksheet-list-item-meta">
                     <div className="worksheet-list-item-badge">
                       <strong>{formatNumber(hours)}</strong>
                       <span>{formatUnit(hours, 'time', 'timer')}</span>

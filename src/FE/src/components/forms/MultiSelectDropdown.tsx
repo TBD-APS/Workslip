@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { useDropdownContext } from '../../providers/DropdownContext';
 
 const COMMIT_DELAY_MS = 1000;
 
@@ -39,6 +40,7 @@ export function MultiSelectDropdown({
   const [draftSelectedIds, setDraftSelectedIds] = useState<string[] | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const commitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const { registerOpen, registerClose } = useDropdownContext();
   const activeSelectedIds = commitOnClose && (isOpen || draftSelectedIds) ? draftSelectedIds ?? selectedIds : selectedIds;
   const selectedOptions = options.filter((option) => activeSelectedIds.includes(option.id));
   const filteredOptions = searchQuery
@@ -81,19 +83,26 @@ export function MultiSelectDropdown({
         setSearchQuery('');
         (document.activeElement as HTMLElement)?.blur();
         setIsOpen(false);
+        registerClose();
       }
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [isOpen]);
+  }, [isOpen, registerClose]);
 
   useEffect(() => () => clearTimeout(commitTimerRef.current), []);
 
   const toggleDropdown = () => {
     if (!commitOnClose) {
-      if (isOpen) setSearchQuery('');
-      setIsOpen((open) => !open);
+      if (isOpen) {
+        setSearchQuery('');
+        setIsOpen(false);
+        registerClose();
+      } else {
+        setIsOpen(true);
+        registerOpen();
+      }
       return;
     }
 
@@ -101,6 +110,7 @@ export function MultiSelectDropdown({
       commitDraftSelection();
       setSearchQuery('');
       setIsOpen(false);
+      registerClose();
       return;
     }
 
@@ -108,6 +118,7 @@ export function MultiSelectDropdown({
     commitTimerRef.current = undefined;
     setDraftSelectedIds(draftSelectedIds ?? selectedIds);
     setIsOpen(true);
+    registerOpen();
   };
 
   const toggleOption = (optionId: string) => {

@@ -324,7 +324,14 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateDraft({
       ...form,
       editSnapshot: edit,
-      customerSnapshot: edit ? form.customerSnapshot : null,
+      customerSnapshot: edit
+        ? form.customerSnapshot ?? {
+            name: form.customer.name,
+            email: form.customer.email,
+            phone: form.customer.phone,
+            address: form.customer.address,
+          }
+        : null,
     });
   };
 

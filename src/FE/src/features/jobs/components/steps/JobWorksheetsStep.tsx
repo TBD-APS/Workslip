@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Timer, Trash2, Users } from 'lucide-react';
 import { useAuth } from '../../../../providers/useAuth';
 import { useCan } from '../../../../providers/permissions';
 import { Checkbox } from '../../../../components/forms/Checkbox';
@@ -230,15 +230,26 @@ export function JobWorksheetsStep({
   const [uiState, dispatch] = useReducer(worksheetUiReducer, defaultUserId, initialWorksheetUiState);
   const { addDraft, editDraft, editingWorksheetId, openActionMenu, isAddOpen, formError } = uiState;
 
+  const isDetailList = variant === 'list';
   const sortedWorksheets = useMemo(
-    () => [...worksheets].sort((a, b) => b.workDate.localeCompare(a.workDate)),
-    [worksheets],
+    () => [...worksheets].sort((a, b) => {
+      if (isDetailList) {
+        const leftName = displayNameFor(a.userId);
+        const rightName = displayNameFor(b.userId);
+        const byName = leftName.localeCompare(rightName, 'da-DK', { sensitivity: 'base' });
+        if (byName !== 0) return byName;
+      }
+
+      return b.workDate.localeCompare(a.workDate);
+    }),
+    [worksheets, isDetailList, displayNameFor],
   );
   const totalHoursValue = parseNullableNumber(totalHours);
   const totalOutlayValue = parseNullableNumber(totalOutlay);
   const openActionWorksheet = openActionMenu
     ? sortedWorksheets.find((worksheet) => worksheet.id === openActionMenu.worksheetId) ?? null
     : null;
+  const isScrollableList = variant === 'section';
 
   useEffect(() => {
     if (!editingWorksheetId) return;
@@ -362,57 +373,33 @@ export function JobWorksheetsStep({
 
   return (
     <>
-      {variant === 'section' ? (
-        <WorksheetsSection
-          sortedWorksheets={sortedWorksheets}
-          displayNameFor={displayNameFor}
-          userOptions={userOptions}
-          canPickUser={canPickUser}
-          currentUserName={currentUserName}
-          addDraft={addDraft}
-          editDraft={editDraft}
-          editingWorksheetId={editingWorksheetId}
-          openActionMenu={openActionMenu}
-          isAddOpen={isAddOpen}
-          isLoadingUsers={isLoadingUsers}
-          isSaving={isSaving}
-          formError={formError}
-          totalHoursValue={totalHoursValue}
-          totalOutlayValue={totalOutlayValue}
-          onToggleActionMenu={toggleActionMenu}
-          onEditDraftChange={(draft) => dispatch({ type: 'setEditDraft', draft })}
-          onSaveEdit={(draft, worksheetId) => saveDraft(draft, worksheetId)}
-          onCancelEdit={() => dispatch({ type: 'cancelEdit' })}
-          onOpenAddForm={() => dispatch({ type: 'openAdd', defaultUserId })}
-          onAddDraftChange={(draft) => dispatch({ type: 'setAddDraft', draft })}
-          onSaveAdd={(draft) => saveDraft(draft)}
-          onCancelAdd={() => dispatch({ type: 'cancelAdd', defaultUserId })}
-        />
-      ) : (
-        <WorksheetContent
-          sortedWorksheets={sortedWorksheets}
-          displayNameFor={displayNameFor}
-          userOptions={userOptions}
-          canPickUser={canPickUser}
-          currentUserName={currentUserName}
-          addDraft={addDraft}
-          editDraft={editDraft}
-          editingWorksheetId={editingWorksheetId}
-          openActionMenu={openActionMenu}
-          isAddOpen={isAddOpen}
-          isLoadingUsers={isLoadingUsers}
-          isSaving={isSaving}
-          formError={formError}
-          onToggleActionMenu={toggleActionMenu}
-          onEditDraftChange={(draft) => dispatch({ type: 'setEditDraft', draft })}
-          onSaveEdit={(draft, worksheetId) => saveDraft(draft, worksheetId)}
-          onCancelEdit={() => dispatch({ type: 'cancelEdit' })}
-          onOpenAddForm={() => dispatch({ type: 'openAdd', defaultUserId })}
-          onAddDraftChange={(draft) => dispatch({ type: 'setAddDraft', draft })}
-          onSaveAdd={(draft) => saveDraft(draft)}
-          onCancelAdd={() => dispatch({ type: 'cancelAdd', defaultUserId })}
-        />
-      )}
+      <WorksheetsSection
+        sortedWorksheets={sortedWorksheets}
+        displayNameFor={displayNameFor}
+        userOptions={userOptions}
+        canPickUser={canPickUser}
+        currentUserName={currentUserName}
+        addDraft={addDraft}
+        editDraft={editDraft}
+        editingWorksheetId={editingWorksheetId}
+        openActionMenu={openActionMenu}
+        isAddOpen={isAddOpen}
+        isLoadingUsers={isLoadingUsers}
+        isSaving={isSaving}
+        formError={formError}
+        totalHoursValue={totalHoursValue}
+        totalOutlayValue={totalOutlayValue}
+        isScrollableList={isScrollableList}
+        isDetailList={isDetailList}
+        onToggleActionMenu={toggleActionMenu}
+        onEditDraftChange={(draft) => dispatch({ type: 'setEditDraft', draft })}
+        onSaveEdit={(draft, worksheetId) => saveDraft(draft, worksheetId)}
+        onCancelEdit={() => dispatch({ type: 'cancelEdit' })}
+        onOpenAddForm={() => dispatch({ type: 'openAdd', defaultUserId })}
+        onAddDraftChange={(draft) => dispatch({ type: 'setAddDraft', draft })}
+        onSaveAdd={(draft) => saveDraft(draft)}
+        onCancelAdd={() => dispatch({ type: 'cancelAdd', defaultUserId })}
+      />
 
       <WorksheetActionMenuPortal
         openActionMenu={openActionMenu}
@@ -426,7 +413,7 @@ export function JobWorksheetsStep({
   );
 }
 
-type WorksheetContentProps = {
+type WorksheetsSectionProps = {
   sortedWorksheets: WorksheetResponse[];
   displayNameFor: (userId: string) => string;
   userOptions: UserOption[];
@@ -440,6 +427,10 @@ type WorksheetContentProps = {
   isLoadingUsers: boolean;
   isSaving: boolean;
   formError: string | null;
+  totalHoursValue: number;
+  totalOutlayValue: number;
+  isScrollableList: boolean;
+  isDetailList: boolean;
   onToggleActionMenu: (event: MouseEvent<HTMLButtonElement>, worksheetId: string) => void;
   onEditDraftChange: (draft: WorksheetDraft) => void;
   onSaveEdit: (draft: WorksheetDraft, worksheetId: string) => void;
@@ -450,7 +441,7 @@ type WorksheetContentProps = {
   onCancelAdd: () => void;
 };
 
-function WorksheetContent({
+function WorksheetsSection({
   sortedWorksheets,
   displayNameFor,
   userOptions,
@@ -464,6 +455,10 @@ function WorksheetContent({
   isLoadingUsers,
   isSaving,
   formError,
+  totalHoursValue,
+  totalOutlayValue,
+  isScrollableList,
+  isDetailList,
   onToggleActionMenu,
   onEditDraftChange,
   onSaveEdit,
@@ -472,11 +467,14 @@ function WorksheetContent({
   onAddDraftChange,
   onSaveAdd,
   onCancelAdd,
-}: WorksheetContentProps) {
+}: WorksheetsSectionProps) {
   return (
-    <section className="detail-section">
+    <section className="detail-section worksheet-list-section">
+      <div className="section-header-row attestation-compact-header">
+        <Timer size={18} />
+        <h3>Timesedler</h3>
+      </div>
 
-      <span>Registrerede timesedler</span>
       {(!editingWorksheetId || sortedWorksheets.length === 0) && !isAddOpen && (
         <button
           type="button"
@@ -505,115 +503,36 @@ function WorksheetContent({
         />
       )}
 
-      <WorksheetList
-        sortedWorksheets={sortedWorksheets}
-        displayNameFor={displayNameFor}
-        userOptions={userOptions}
-        canPickUser={canPickUser}
-        currentUserName={currentUserName}
-        editDraft={editDraft}
-        editingWorksheetId={editingWorksheetId}
-        openActionMenu={openActionMenu}
-        isLoadingUsers={isLoadingUsers}
-        isSaving={isSaving}
-        formError={formError}
-        onToggleActionMenu={onToggleActionMenu}
-        onEditDraftChange={onEditDraftChange}
-        onSaveEdit={onSaveEdit}
-        onCancelEdit={onCancelEdit}
-      />
-    </section>
-  );
-}
+      {sortedWorksheets.length === 0 ? (
+        <p className="empty-state-text">Ingen timesedler registreret.</p>
+      ) : (
+        <WorksheetList
+          sortedWorksheets={sortedWorksheets}
+          displayNameFor={displayNameFor}
+          userOptions={userOptions}
+          canPickUser={canPickUser}
+          currentUserName={currentUserName}
+          editDraft={editDraft}
+          editingWorksheetId={editingWorksheetId}
+          openActionMenu={openActionMenu}
+          isLoadingUsers={isLoadingUsers}
+          isSaving={isSaving}
+          formError={formError}
+          isScrollableList={isScrollableList}
+          isDetailList={isDetailList}
+          onToggleActionMenu={onToggleActionMenu}
+          onEditDraftChange={onEditDraftChange}
+          onSaveEdit={onSaveEdit}
+          onCancelEdit={onCancelEdit}
+        />
+      )}
 
-type WorksheetsSectionProps = {
-  sortedWorksheets: WorksheetResponse[];
-  displayNameFor: (userId: string) => string;
-  userOptions: UserOption[];
-  canPickUser: boolean;
-  currentUserName: string;
-  addDraft: WorksheetDraft;
-  editDraft: WorksheetDraft | null;
-  editingWorksheetId: string | null;
-  openActionMenu: ActionMenuState | null;
-  isAddOpen: boolean;
-  isLoadingUsers: boolean;
-  isSaving: boolean;
-  formError: string | null;
-  totalHoursValue: number;
-  totalOutlayValue: number;
-  onToggleActionMenu: (event: MouseEvent<HTMLButtonElement>, worksheetId: string) => void;
-  onEditDraftChange: (draft: WorksheetDraft) => void;
-  onSaveEdit: (draft: WorksheetDraft, worksheetId: string) => void;
-  onCancelEdit: () => void;
-  onOpenAddForm: () => void;
-  onAddDraftChange: (draft: WorksheetDraft) => void;
-  onSaveAdd: (draft: WorksheetDraft) => void;
-  onCancelAdd: () => void;
-};
-
-function WorksheetsSection({
-  sortedWorksheets,
-  displayNameFor,
-  userOptions,
-  canPickUser,
-  currentUserName,
-  addDraft,
-  editDraft,
-  editingWorksheetId,
-  openActionMenu,
-  isAddOpen,
-  isLoadingUsers,
-  isSaving,
-  formError,
-  totalHoursValue,
-  totalOutlayValue,
-  onToggleActionMenu,
-  onEditDraftChange,
-  onSaveEdit,
-  onCancelEdit,
-  onOpenAddForm,
-  onAddDraftChange,
-  onSaveAdd,
-  onCancelAdd,
-}: WorksheetsSectionProps) {
-  const totalsLabel = `${formatNumber(totalHoursValue)} ${formatUnit(totalHoursValue, 'time', 'timer')}${
-    totalOutlayValue > 0 ? ` · ${formatNumber(totalOutlayValue)} ${formatUnit(totalOutlayValue, 'dag', 'dage')}` : ''
-  }`;
-
-  return (
-    <section className="detail-section worksheet-section">
-      <div className="section-header-row worksheet-section-header">
-        <FileSpreadsheet size={18} />
-        <h3>Timesedler</h3>
-        <span className="worksheet-section-header-totals" aria-label="Timeseddel totaler">{totalsLabel}</span>
+      <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
+        <span><strong>{formatNumber(totalHoursValue)}</strong> {formatUnit(totalHoursValue, 'time', 'timer')}</span>
+        {totalOutlayValue > 0 && (
+          <span><strong>{formatNumber(totalOutlayValue)}</strong> {formatUnit(totalOutlayValue, 'dag', 'dage')}</span>
+        )}
       </div>
-
-        <span className="section-row-header">Registrerede timesedler</span>
-
-      <WorksheetContent
-        sortedWorksheets={sortedWorksheets}
-        displayNameFor={displayNameFor}
-        userOptions={userOptions}
-        canPickUser={canPickUser}
-        currentUserName={currentUserName}
-        addDraft={addDraft}
-        editDraft={editDraft}
-        editingWorksheetId={editingWorksheetId}
-        openActionMenu={openActionMenu}
-        isAddOpen={isAddOpen}
-        isLoadingUsers={isLoadingUsers}
-        isSaving={isSaving}
-        formError={formError}
-        onToggleActionMenu={onToggleActionMenu}
-        onEditDraftChange={onEditDraftChange}
-        onSaveEdit={onSaveEdit}
-        onCancelEdit={onCancelEdit}
-        onOpenAddForm={onOpenAddForm}
-        onAddDraftChange={onAddDraftChange}
-        onSaveAdd={onSaveAdd}
-        onCancelAdd={onCancelAdd}
-      />
     </section>
   );
 }
@@ -630,6 +549,8 @@ type WorksheetListProps = {
   isLoadingUsers: boolean;
   isSaving: boolean;
   formError: string | null;
+  isScrollableList: boolean;
+  isDetailList: boolean;
   onToggleActionMenu: (event: MouseEvent<HTMLButtonElement>, worksheetId: string) => void;
   onEditDraftChange: (draft: WorksheetDraft) => void;
   onSaveEdit: (draft: WorksheetDraft, worksheetId: string) => void;
@@ -648,61 +569,101 @@ function WorksheetList({
   isLoadingUsers,
   isSaving,
   formError,
+  isScrollableList,
+  isDetailList,
   onToggleActionMenu,
   onEditDraftChange,
   onSaveEdit,
   onCancelEdit,
 }: WorksheetListProps) {
   return (
-    <ul className={`worksheet-list worksheet-list--scrollable ${editingWorksheetId ? 'expanded' : ''}`}>
+    <ul className={`worksheet-list ${isScrollableList ? 'worksheet-list--scrollable' : ''} ${isDetailList ? 'worksheet-list--detail' : ''} ${editingWorksheetId ? 'expanded' : ''}`}>
       {sortedWorksheets.map((worksheet) => {
         const assigneeName = displayNameFor(worksheet.userId);
         const isEditing = editingWorksheetId === worksheet.id && editDraft;
 
         return (
-          <li key={worksheet.id} className={`worksheet-list-item ${isEditing ? 'is-selected' : ''}`}>
-            <div className="worksheet-list-item-main">
-              <span className="worksheet-list-item-title" title={assigneeName}>{assigneeName}</span>
-              <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
-            </div>
+          <li key={worksheet.id} className={`worksheet-list-item ${isDetailList ? 'worksheet-list-item--detail' : ''} ${isEditing ? 'worksheet-list-item--editing is-selected' : ''}`}>
+            {!isEditing && (
+              isDetailList ? (
+                <>
+                  <div className="worksheet-list-item-main worksheet-list-item-main--detail">
+                    <span className="worksheet-list-item-title" title={assigneeName}>{assigneeName}</span>
+                    <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDate(worksheet.workDate)}</span>
+                  </div>
 
-            <div className="worksheet-list-item-metrics">
-              <div className="worksheet-list-item-badge">
-                <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
-                <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
-              </div>
-              {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
-              <div className="worksheet-list-item-actions">
-                <div className="worksheet-actions-menu-root">
-                  <button
-                    type="button"
-                    className="btn-icon"
-                    onClick={(event) => onToggleActionMenu(event, worksheet.id)}
-                    aria-label="Åbn handlinger for timeseddel"
-                    aria-expanded={openActionMenu?.worksheetId === worksheet.id}
-                    title="Handlinger"
-                  >
-                    <MoreHorizontal size={18} />
-                  </button>
-                </div>
-              </div>
-            </div>
+                  <div className="worksheet-list-item-meta">
+                    <div className="worksheet-list-item-badge">
+                      <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
+                      <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+                    </div>
+                    {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
+                  </div>
+
+                  <div className="worksheet-list-item-actions worksheet-list-item-actions--detail">
+                    <div className="worksheet-actions-menu-root">
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        onClick={(event) => onToggleActionMenu(event, worksheet.id)}
+                        aria-label="Åbn handlinger for timeseddel"
+                        aria-expanded={openActionMenu?.worksheetId === worksheet.id}
+                        title="Handlinger"
+                      >
+                        <MoreHorizontal size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="worksheet-list-item-main">
+                    <span className="worksheet-list-item-title" title={assigneeName}>{assigneeName}</span>
+                    <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
+                  </div>
+
+                  <div className="worksheet-list-item-metrics">
+                    <div className="worksheet-list-item-badge">
+                      <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
+                      <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+                    </div>
+                    {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
+                    <div className="worksheet-list-item-actions">
+                      <div className="worksheet-actions-menu-root">
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          onClick={(event) => onToggleActionMenu(event, worksheet.id)}
+                          aria-label="Åbn handlinger for timeseddel"
+                          aria-expanded={openActionMenu?.worksheetId === worksheet.id}
+                          title="Handlinger"
+                        >
+                          <MoreHorizontal size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )
+            )}
 
             {isEditing && (
-              <WorksheetDraftForm
-                title="Rediger timeseddel"
-                draft={editDraft}
-                userOptions={userOptions}
-                canPickUser={canPickUser}
-                currentUserName={currentUserName}
-                isLoadingUsers={isLoadingUsers}
-                isSaving={isSaving}
-                submitLabel="Gem"
-                error={formError}
-                onDraftChange={onEditDraftChange}
-                onSubmit={() => onSaveEdit(editDraft, worksheet.id)}
-                onCancel={onCancelEdit}
-              />
+              <div className="worksheet-list-item-edit">
+                <WorksheetDraftForm
+                  title="Rediger timeseddel"
+                  draft={editDraft}
+                  userOptions={userOptions}
+                  canPickUser={canPickUser}
+                  currentUserName={currentUserName}
+                  isLoadingUsers={isLoadingUsers}
+                  isSaving={isSaving}
+                  submitLabel="Gem"
+                  error={formError}
+                  onDraftChange={onEditDraftChange}
+                  onSubmit={() => onSaveEdit(editDraft, worksheet.id)}
+                  onCancel={onCancelEdit}
+                />
+              </div>
             )}
           </li>
         );
@@ -789,7 +750,7 @@ function WorksheetDraftForm({
   const updateDraft = (patch: Partial<WorksheetDraft>) => onDraftChange({ ...draft, ...patch });
 
   return (
-    <div className="worksheet-form">
+    <div className="worksheet-form worksheet-form--compact">
       <h4>{title}</h4>
       <div className="worksheet-form-grid worksheet-form-grid-main">
         <CalendarPicker value={draft.workDate} onChange={(workDate) => updateDraft({ workDate })} />
@@ -842,7 +803,7 @@ function WorksheetDraftForm({
 
       {error && <p className="form-error-text">{error}</p>}
 
-      <div className="worksheet-form-actions">
+      <div className="worksheet-form-actions worksheet-form-actions--compact">
         <button
           type="button"
           className="btn btn-primary"

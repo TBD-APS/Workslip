@@ -124,7 +124,14 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     setForm((prev) => ({
       ...prev,
       editSnapshot: edit,
-      customerSnapshot: edit ? prev.customerSnapshot : null,
+      customerSnapshot: edit
+        ? prev.customerSnapshot ?? {
+            name: prev.customer.name,
+            email: prev.customer.email,
+            phone: prev.customer.phone,
+            address: prev.customer.address,
+          }
+        : null,
     }));
   };
 
