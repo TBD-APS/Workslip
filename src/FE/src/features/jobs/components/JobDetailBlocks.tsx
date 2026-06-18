@@ -16,20 +16,65 @@ type CustomerBlockProps = {
   form: { customer: CustomerInfo; reportNumber: string };
   customerSnapshot: CustomerSnapshotData | null;
   editSnapshot: boolean;
-  reportNumberReadOnly?: boolean;
-  assignment?: {
-    users: UserViewModel[];
-    assignedUserIds: string[];
-    isLoadingUsers: boolean;
-    onAssignedUsersChange: (userIds: string[]) => void;
-  };
-  readOnlyAssigned?: { id: string; displayName: string }[];
   onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
   onCustomerFieldChange: (field: keyof CustomerInfo, value: string) => void;
   onSnapshotFieldChange?: (field: keyof CustomerSnapshotData, value: string) => void;
   onEditSnapshotChange?: (edit: boolean) => void;
-  onReportNumberChange: (value: string) => void;
 };
+
+type ReportNumberBlockProps = {
+  value: string;
+  onChange: (value: string) => void;
+  readOnly?: boolean;
+};
+
+export function ReportNumberBlock({ value, onChange, readOnly = false }: ReportNumberBlockProps) {
+  return (
+    <section className="detail-section">
+      <div className="detail-form">
+        <div className="section-header-row">
+          <FileText size={18} />
+          <h3>Sagsnummer</h3>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Sagsnummer</label>
+          <input
+            className="form-input"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Sagsnummer (valgfrit)"
+            readOnly={readOnly}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+type EditCustomerCheckboxProps = {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+};
+
+function EditCustomerCheckbox({ checked, onChange, disabled }: EditCustomerCheckboxProps) {
+  return (
+    <label className={`attestation-confirm-row${disabled ? ' disabled' : ''}`}>
+      <span className="attestation-confirm-copy">
+        <span className="attestation-confirm-label">Rediger kunde for sag</span>
+        <span className="attestation-confirm-description">
+          Lås op for at redigere kundeoplysninger
+        </span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+    </label>
+  );
+}
 
 export function CustomerDetailsBlock({
   form,
@@ -39,6 +84,7 @@ export function CustomerDetailsBlock({
   onCustomerFieldChange,
   onSnapshotFieldChange,
   onEditSnapshotChange,
+  showEditCheckbox = true,
 }: CustomerBlockProps) {
   const hasExistingCustomer = Boolean(form.customer.customerId);
 
@@ -130,16 +176,11 @@ export function CustomerDetailsBlock({
             />
           </div>
 
-         {hasExistingCustomer && (
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={editSnapshot}
-                onChange={(e) => onEditSnapshotChange?.(e.target.checked)}
-              />
-              <Pencil size={14} />
-              <span>Rediger kunde for sag</span>
-            </label>
+         {hasExistingCustomer && showEditCheckbox && (
+            <EditCustomerCheckbox
+              checked={editSnapshot}
+              onChange={onEditSnapshotChange ?? (() => {})}
+            />
           )}
       </div>
     </section>
