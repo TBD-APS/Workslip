@@ -21,6 +21,7 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         onCustomerFieldChange={details.updateCustomerField}
         onSnapshotFieldChange={details.updateSnapshotField}
         onEditSnapshotChange={details.updateEditSnapshot}
+        showEditCheckbox={false}
       />
 
       <ReportNumberBlock

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Building2, FileText, Link2, Pencil, Users } from 'lucide-react';
+import { Building2, FileText, Link2, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
@@ -16,11 +16,11 @@ type CustomerBlockProps = {
   form: { customer: CustomerInfo; reportNumber: string };
   customerSnapshot: CustomerSnapshotData | null;
   editSnapshot: boolean;
-  showEditCheckbox: boolean;
   onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
   onCustomerFieldChange: (field: keyof CustomerInfo, value: string) => void;
   onSnapshotFieldChange?: (field: keyof CustomerSnapshotData, value: string) => void;
   onEditSnapshotChange?: (edit: boolean) => void;
+  showEditCheckbox: boolean;
 };
 
 type ReportNumberBlockProps = {
