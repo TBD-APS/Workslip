@@ -584,7 +584,7 @@
   border: 0;
   background: var(--bg);
   display: block;
-  touch-action: pinch-zoom;
+  touch-action: pinch-zoom pan-x pan-y;
 }
 
 .spin {

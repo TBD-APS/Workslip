@@ -428,9 +428,12 @@ function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; 
             </button>
           </div>
         </div>
-        <object className="pdf-preview-frame" data={previewUrl} type="application/pdf" aria-label={preview.fileName}>
-          <iframe className="pdf-preview-frame" src={previewUrl} title={preview.fileName} />
-        </object>
+        <iframe 
+          className="pdf-preview-frame" 
+          src={previewUrl} 
+          title={preview.fileName}
+          allow="fullscreen"
+        />
       </div>
     </div>
   );
