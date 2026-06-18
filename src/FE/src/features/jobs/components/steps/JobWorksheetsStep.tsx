@@ -746,7 +746,7 @@ function WorksheetDraftForm({
   const updateDraft = (patch: Partial<WorksheetDraft>) => onDraftChange({ ...draft, ...patch });
 
   return (
-    <div className="worksheet-form">
+    <div className="worksheet-form worksheet-form--compact">
       <h4>{title}</h4>
       <div className="worksheet-form-grid worksheet-form-grid-main">
         <CalendarPicker value={draft.workDate} onChange={(workDate) => updateDraft({ workDate })} />
@@ -799,7 +799,7 @@ function WorksheetDraftForm({
 
       {error && <p className="form-error-text">{error}</p>}
 
-      <div className="worksheet-form-actions">
+      <div className="worksheet-form-actions worksheet-form-actions--compact">
         <button
           type="button"
           className="btn btn-primary"

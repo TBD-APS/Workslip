@@ -3,6 +3,7 @@ import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, U
 import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
 import { useEffect, useState } from 'react';
+import { DropdownProvider } from '../../providers/DropdownContext';
 
 export const AppLayout = () => {
   const navigate = useNavigate();
@@ -33,8 +34,9 @@ export const AppLayout = () => {
   }, []);
 
   return (
-    <div className="app-shell">
-      {/* Top Header for Mobile */}
+    <DropdownProvider>
+      <div className="app-shell">
+        {/* Top Header for Mobile */}
       <header className="app-header">
         <button className="logo" style={{ fontSize: '1.25rem' }} onClick={() => navigate('/app')}>
           <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -124,5 +126,6 @@ export const AppLayout = () => {
         </Can>
       </nav>
     </div>
+    </DropdownProvider>
   );
 };

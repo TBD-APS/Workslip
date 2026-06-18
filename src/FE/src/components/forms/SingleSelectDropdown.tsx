@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { useDropdownContext } from '../../providers/DropdownContext';
 
 export type SingleSelectOption = {
   id: string;
@@ -38,6 +39,7 @@ export function SingleSelectDropdown({
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const selectedOption = options.find((option) => option.id === selectedId);
+  const { registerOpen, registerClose } = useDropdownContext();
   const filteredOptions = onSearchChange
     ? options
     : searchQuery
@@ -56,20 +58,23 @@ export function SingleSelectDropdown({
         setSearchQuery('');
         (document.activeElement as HTMLElement)?.blur();
         setIsOpen(false);
+        registerClose();
       }
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [isOpen]);
+  }, [isOpen, registerClose]);
 
   const toggleDropdown = () => {
     if (isOpen) {
       setSearchQuery('');
       setIsOpen(false);
+      registerClose();
       return;
     }
     setIsOpen(true);
+    registerOpen();
   };
 
   const handleSelect = useCallback(
@@ -77,8 +82,9 @@ export function SingleSelectDropdown({
       onSelect(option);
       setSearchQuery('');
       setIsOpen(false);
+      registerClose();
     },
-    [onSelect]
+    [onSelect, registerClose]
   );
 
   return (

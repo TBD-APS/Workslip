@@ -16,6 +16,7 @@ type CustomerBlockProps = {
   form: { customer: CustomerInfo; reportNumber: string };
   customerSnapshot: CustomerSnapshotData | null;
   editSnapshot: boolean;
+  showEditCheckbox: boolean;
   onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
   onCustomerFieldChange: (field: keyof CustomerInfo, value: string) => void;
   onSnapshotFieldChange?: (field: keyof CustomerSnapshotData, value: string) => void;

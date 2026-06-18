@@ -64,7 +64,14 @@ export const CompletedJobReport = () => {
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const sortedWorksheets = useMemo(
     () => {
-      const allWorksheets = [...(job?.worksheets ?? [])].sort((left, right) => right.userId.localeCompare(left.userId));
+      const allWorksheets = [...(job?.worksheets ?? [])].sort((left, right) => {
+        const leftName = left.userDisplayName || left.userId;
+        const rightName = right.userDisplayName || right.userId;
+        const byName = leftName.localeCompare(rightName, 'da-DK', { sensitivity: 'base' });
+        if (byName !== 0) return byName;
+
+        return right.workDate.localeCompare(left.workDate);
+      });
       
       if (!isAdmin) {
         return allWorksheets?.filter((ws) => ws.userId === user?.id) ?? [];
@@ -537,6 +544,7 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         isDeleting={details.isDeletingWorksheet}
         onUpsert={details.upsertWorksheet}
         onDelete={details.deleteWorksheet}
+        variant="list"
       />
 
       <JobCompletionStep
@@ -627,18 +635,18 @@ function Worksheets({ worksheets }: { worksheets: WorksheetResponse[] }) {
   }
 
   return (
-    <ul className="worksheet-list report-overview-timesheet-list">
+    <ul className="worksheet-list worksheet-list--detail report-overview-timesheet-list">
       {worksheets.map((worksheet) => {
         const hours = parseNullableNumber(worksheet.hoursWorked);
         const userName = worksheet.userDisplayName || worksheet.userId;
         return (
-          <li key={worksheet.id} className="worksheet-list-item">
-            <div className="worksheet-list-item-main">
+          <li key={worksheet.id} className="worksheet-list-item worksheet-list-item--detail">
+            <div className="worksheet-list-item-main worksheet-list-item-main--detail">
               <span className="worksheet-list-item-title" title={userName}>{userName}</span>
-              <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
+              <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDate(worksheet.workDate)}</span>
             </div>
 
-            <div className="worksheet-list-item-metrics">
+            <div className="worksheet-list-item-meta">
               <div className="worksheet-list-item-badge">
                 <strong>{formatNumber(hours)}</strong>
                 <span>{formatUnit(hours, 'time', 'timer')}</span>

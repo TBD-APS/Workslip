@@ -35,7 +35,7 @@ export const UserList = () => {
   }, []);
 
   const query = useInfiniteList<UserViewModel>({
-    queryKey: ['/api/users', { limit: PAGE_SIZE }],
+    queryKey: ['/api/users', 'list', { limit: PAGE_SIZE }],
     fetchPage: fetchUsersPage,
     pageSize: PAGE_SIZE,
   });

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { JOB_STEPS } from './jobSteps';
+import { useDropdownContext } from '../../../../providers/DropdownContext';
 
 const HIDE_DELAY_MS = 200;
 const SCROLL_THRESHOLD = 30;
@@ -81,6 +82,7 @@ export function StepNavigation({
   hideDoneButton = false,
 }: StepNavigationProps) {
   const [scrollState, setScrollState] = useState<'visible' | 'hidden' | 'docked'>('visible');
+  const { openDropdowns } = useDropdownContext();
   const stateRef = useRef(scrollState);
   const lastScrollY = useRef(0);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -195,6 +197,8 @@ export function StepNavigation({
     </div>
   );
 
+  const isDropdownOpen = openDropdowns > 0;
+
   return (
     <div
       style={
@@ -205,13 +209,16 @@ export function StepNavigation({
               left: '50%',
               transform: 'translateX(-50%)',
               zIndex: 150,
-              opacity: scrollState === 'hidden' ? 0 : 1,
-              pointerEvents: scrollState === 'hidden' ? 'none' : 'auto',
+              opacity: scrollState === 'hidden' || isDropdownOpen ? 0 : 1,
+              pointerEvents: scrollState === 'hidden' || isDropdownOpen ? 'none' : 'auto',
               transition: 'opacity 0.2s ease',
             }
           : {
               position: 'relative',
-              width: '100%'
+              width: '100%',
+              opacity: isDropdownOpen ? 0 : 1,
+              pointerEvents: isDropdownOpen ? 'none' : 'auto',
+              transition: 'opacity 0.2s ease',
             }
       }
     >
