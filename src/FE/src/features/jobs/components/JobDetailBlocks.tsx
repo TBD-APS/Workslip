@@ -38,12 +38,11 @@ export function ReportNumberBlock({ value, onChange, readOnly = false }: ReportN
           <h3>Sagsnummer</h3>
         </div>
         <div className="form-group">
-          <label className="form-label">Sagsnummer</label>
           <input
             className="form-input"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Sagsnummer (valgfrit)"
+            placeholder="Indsæt sagsnummer..."
             readOnly={readOnly}
           />
         </div>
