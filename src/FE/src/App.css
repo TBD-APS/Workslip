@@ -530,7 +530,6 @@
   z-index: 2000;
   display: flex;
   background: var(--overlay-heavy);
-  overscroll-behavior: contain;
 }
 
 .pdf-preview-panel {
@@ -541,7 +540,6 @@
   overflow: hidden;
   background: var(--bg);
   height: 100%;
-  overscroll-behavior: contain;
 }
 
 .pdf-preview-header {
@@ -586,6 +584,7 @@
   border: 0;
   background: var(--bg);
   display: block;
+  touch-action: pinch-zoom;
 }
 
 .spin {

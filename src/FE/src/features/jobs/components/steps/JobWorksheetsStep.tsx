@@ -583,51 +583,24 @@ function WorksheetList({
         const isEditing = editingWorksheetId === worksheet.id && editDraft;
 
         return (
-          <li key={worksheet.id} className={`worksheet-list-item ${isDetailList ? 'worksheet-list-item--detail' : ''} ${isEditing ? 'is-selected' : ''}`}>
-            {isDetailList ? (
-              <>
-                <div className="worksheet-list-item-main worksheet-list-item-main--detail">
-                  <span className="worksheet-list-item-title" title={assigneeName}>{assigneeName}</span>
-                  <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDate(worksheet.workDate)}</span>
-                </div>
-
-                <div className="worksheet-list-item-meta">
-                  <div className="worksheet-list-item-badge">
-                    <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
-                    <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+          <li key={worksheet.id} className={`worksheet-list-item ${isDetailList ? 'worksheet-list-item--detail' : ''} ${isEditing ? 'worksheet-list-item--editing is-selected' : ''}`}>
+            {!isEditing && (
+              isDetailList ? (
+                <>
+                  <div className="worksheet-list-item-main worksheet-list-item-main--detail">
+                    <span className="worksheet-list-item-title" title={assigneeName}>{assigneeName}</span>
+                    <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDate(worksheet.workDate)}</span>
                   </div>
-                  {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
-                </div>
 
-                <div className="worksheet-list-item-actions worksheet-list-item-actions--detail">
-                  <div className="worksheet-actions-menu-root">
-                    <button
-                      type="button"
-                      className="btn-icon"
-                      onClick={(event) => onToggleActionMenu(event, worksheet.id)}
-                      aria-label="Åbn handlinger for timeseddel"
-                      aria-expanded={openActionMenu?.worksheetId === worksheet.id}
-                      title="Handlinger"
-                    >
-                      <MoreHorizontal size={18} />
-                    </button>
+                  <div className="worksheet-list-item-meta">
+                    <div className="worksheet-list-item-badge">
+                      <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
+                      <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+                    </div>
+                    {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
                   </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="worksheet-list-item-main">
-                  <span className="worksheet-list-item-title" title={assigneeName}>{assigneeName}</span>
-                  <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
-                </div>
 
-                <div className="worksheet-list-item-metrics">
-                  <div className="worksheet-list-item-badge">
-                    <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
-                    <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
-                  </div>
-                  {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
-                  <div className="worksheet-list-item-actions">
+                  <div className="worksheet-list-item-actions worksheet-list-item-actions--detail">
                     <div className="worksheet-actions-menu-root">
                       <button
                         type="button"
@@ -641,25 +614,56 @@ function WorksheetList({
                       </button>
                     </div>
                   </div>
-                </div>
-              </>
+                </>
+              ) : (
+                <>
+                  <div className="worksheet-list-item-main">
+                    <span className="worksheet-list-item-title" title={assigneeName}>{assigneeName}</span>
+                    <span className="worksheet-list-item-subtitle">{formatDate(worksheet.workDate)}</span>
+                  </div>
+
+                  <div className="worksheet-list-item-metrics">
+                    <div className="worksheet-list-item-badge">
+                      <strong>{formatNumber(parseHours(worksheet.hoursWorked))}</strong>
+                      <span>{formatUnit(parseHours(worksheet.hoursWorked), 'time', 'timer')}</span>
+                    </div>
+                    {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
+                    <div className="worksheet-list-item-actions">
+                      <div className="worksheet-actions-menu-root">
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          onClick={(event) => onToggleActionMenu(event, worksheet.id)}
+                          aria-label="Åbn handlinger for timeseddel"
+                          aria-expanded={openActionMenu?.worksheetId === worksheet.id}
+                          title="Handlinger"
+                        >
+                          <MoreHorizontal size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )
             )}
 
             {isEditing && (
-              <WorksheetDraftForm
-                title="Rediger timeseddel"
-                draft={editDraft}
-                userOptions={userOptions}
-                canPickUser={canPickUser}
-                currentUserName={currentUserName}
-                isLoadingUsers={isLoadingUsers}
-                isSaving={isSaving}
-                submitLabel="Gem"
-                error={formError}
-                onDraftChange={onEditDraftChange}
-                onSubmit={() => onSaveEdit(editDraft, worksheet.id)}
-                onCancel={onCancelEdit}
-              />
+              <div className="worksheet-list-item-edit">
+                <WorksheetDraftForm
+                  title="Rediger timeseddel"
+                  draft={editDraft}
+                  userOptions={userOptions}
+                  canPickUser={canPickUser}
+                  currentUserName={currentUserName}
+                  isLoadingUsers={isLoadingUsers}
+                  isSaving={isSaving}
+                  submitLabel="Gem"
+                  error={formError}
+                  onDraftChange={onEditDraftChange}
+                  onSubmit={() => onSaveEdit(editDraft, worksheet.id)}
+                  onCancel={onCancelEdit}
+                />
+              </div>
             )}
           </li>
         );
