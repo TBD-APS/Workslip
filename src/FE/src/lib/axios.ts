@@ -70,7 +70,13 @@ apiClient.interceptors.response.use(
         if (!isReauthInFlight()) {
           setReauthInFlight();
           const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          toast.message('Fornyer login...');
+          // Dismiss any leftover toasts before the page navigation — Sonner
+          // toasts otherwise persist across navigations and can show stale
+          // errors from the previous page once the user returns from Microsoft.
+          toast.dismiss();
+          // No toast: the Login page already shows its own "Genindlæser login..."
+          // spinner, and adding "Fornyer login..." here would leak into the
+          // user's view after they return from Microsoft.
           window.location.assign(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
         }
       }

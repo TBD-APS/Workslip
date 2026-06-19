@@ -37,9 +37,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return () => clearTimeout(timer);
   }, [meQuery?.isError, meQuery?.isPending, meQuery, retryUsed]);
 
-  const isWaitingForRetry = Boolean(meQuery?.isError) && !retryUsed;
-
-  if (isLoading || isWaitingForRetry) {
+  // Only show the "Tjekker login status..." spinner on the very first auth
+  // check (no token yet, fetching /api/auth/me). If the user already has a
+  // token and meQuery fails transiently, keep rendering the protected page
+  // while the retry fires in the background — otherwise the user sees a
+  // jarring flash of "logging in" text during a normal reauth flow.
+  if (isLoading) {
     return <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Tjekker login status...</div>;
   }
 

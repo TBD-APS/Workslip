@@ -44,7 +44,19 @@ export const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showOtcLogin, setShowOtcLogin] = useState(false);
+  // True when we arrived via the silent-reauth redirect (axios interceptor
+  // sent us here because the JWT expired). While true we hide the login form
+  // entirely and show only a spinner, so the user never sees the Microsoft
+  // / passkey buttons flash before being sent to Microsoft.
+  const [isReauth, setIsReauth] = useState(
+    () => new URLSearchParams(window.location.search).get('reauth') === '1',
+  );
   const codeInputRef = useRef<HTMLInputElement>(null);
+  // Guards against React.StrictMode's double-mount in dev (and against any
+  // edge case where this effect runs twice). The first call navigates the
+  // browser to Microsoft; the second must be a no-op to avoid generating
+  // a second PKCE state that overwrites the first.
+  const reauthStartedRef = useRef(false);
 
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(EmailSchema),
@@ -65,10 +77,12 @@ export const Login = () => {
   // (`hasEntraLoginCallback() || params.get('reauth') !== '1'`) is implicit and
   // easy to break. Keeping them in one effect makes the branches explicit.
   useEffect(() => {
+    if (reauthStartedRef.current) return;
     const params = new URLSearchParams(window.location.search);
     const isCallback = hasEntraLoginCallback();
     const isReauth = params.get('reauth') === '1';
     if (!isCallback && !isReauth) return;
+    reauthStartedRef.current = true;
 
     const returnTo = sanitizeReturnTo(params.get('returnTo'));
 
@@ -90,7 +104,7 @@ export const Login = () => {
             clearReauthInFlight();
             clearEntraLoginSession();
             window.history.replaceState(null, '', '/login');
-            startEntraLogin({ returnTo, prompt: 'login' }).catch(() => {
+            startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
               setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
               setIsSubmitting(false);
             });
@@ -105,6 +119,7 @@ export const Login = () => {
             window.history.replaceState(null, '', '/login');
             setErrorMsg('Login afbrudt. Klik på knappen for at prøve igen.');
             setIsSubmitting(false);
+            setIsReauth(false);
             return;
           }
           window.history.replaceState(null, '', '/login');
@@ -122,7 +137,7 @@ export const Login = () => {
     startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
       if (err instanceof InteractiveLoginRequiredError) {
         clearReauthInFlight();
-        startEntraLogin({ returnTo, prompt: 'login' }).catch(() => {
+        startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
           setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
           setIsSubmitting(false);
         });
@@ -130,6 +145,7 @@ export const Login = () => {
       }
       setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
       setIsSubmitting(false);
+      setIsReauth(false);
     });
   }, []);
 
@@ -197,6 +213,50 @@ export const Login = () => {
         <div className="bg-glow bg-glow-2" />
       </div>
 
+      {isReauth && (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '1rem',
+          padding: '2rem',
+          background: 'var(--surface-color)',
+          border: '1px solid var(--surface-border)',
+          borderRadius: '24px',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          maxWidth: '400px',
+          width: '100%',
+        }}>
+          <Loader2 className="animate-spin" size={32} style={{ color: 'var(--text-secondary)' }} />
+          <p style={{ color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
+            Genindlæser login...
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              clearReauthInFlight();
+              clearEntraLoginSession();
+              window.history.replaceState(null, '', '/login');
+              setIsReauth(false);
+              setIsSubmitting(false);
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--text-secondary)',
+              fontSize: '0.9rem',
+              padding: '0.5rem',
+              textDecoration: 'underline',
+            }}
+          >
+            Annuller
+          </button>
+        </div>
+      )}
+
+      {!isReauth && (
       <div style={{
         width: '100%',
         maxWidth: '400px',
@@ -446,6 +506,7 @@ export const Login = () => {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };
