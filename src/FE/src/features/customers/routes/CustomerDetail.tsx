@@ -4,10 +4,6 @@ import { useGetApiCustomersId } from '../../../api/generated/customers/customers
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
 
-function formatJobNumber(reportNumber: string | null | undefined, id: string) {
-  const prefix = reportNumber ?? id.slice(0, 4);
-  return `SAG-${prefix.toUpperCase()}`;
-}
 
 export const CustomerDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -92,7 +88,7 @@ export const CustomerDetail = () => {
             <div className="job-card-top">
               <div>
                 <span className="job-number">
-                  {formatJobNumber(job.reportNumber, job.id)}
+                  job.reportNumber
                 </span>
               </div>
               <span className={`status-badge status-${job.status.toLowerCase()}`}>

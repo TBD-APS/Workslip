@@ -9,6 +9,7 @@ type JobOverviewStepProps = {
   details: JobDetailsState;
 };
 
+
 export function JobOverviewStep({ details }: JobOverviewStepProps) {
   const canAssign = useCan('job:assign');
   return (
@@ -18,10 +19,9 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         customerSnapshot={details.form.customerSnapshot}
         editSnapshot={details.form.editSnapshot}
         onCustomerSelect={details.selectCustomer}
-        onCustomerFieldChange={details.updateCustomerField}
         onSnapshotFieldChange={details.updateSnapshotField}
         onEditSnapshotChange={details.updateEditSnapshot}
-        showEditCheckbox={false}
+        showEditCheckbox={true}
       />
 
       <ReportNumberBlock

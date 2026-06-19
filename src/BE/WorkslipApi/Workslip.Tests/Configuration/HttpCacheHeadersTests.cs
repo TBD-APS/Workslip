@@ -15,7 +15,7 @@ public sealed class HttpCacheHeadersTests
         {
             Links =
             [
-                new JobLinkInfoResponse(Guid.NewGuid(), Guid.NewGuid(), "2026-001", "ACME", JobStatus.Draft.ToString())
+                new JobLinkInfoResponse(Guid.NewGuid(), Guid.NewGuid(), "2026-001", "ACME", "", JobStatus.Draft.ToString())
             ]
         };
 
@@ -45,7 +45,8 @@ public sealed class HttpCacheHeadersTests
             "12345678",
             "2026-000",
             JobStatus.Draft,
-            new CustomerInfo(null, null, null, null, null, null),
+            null,
+            new CustomerSnapshotResponse(null, null, null, null, null),
             new JobReportSummaryWorkResponse(null, [], [], null),
             new JobReportSummaryObservationResponse(null, null, null, null),
             [],

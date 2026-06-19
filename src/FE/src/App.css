@@ -378,9 +378,91 @@
   min-width: 0;
 }
 
+.report-overview-pdf-group {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  border-radius: var(--radius-sm);
+  isolation: isolate;
+}
+
+.report-overview-pdf-group .report-overview-pdf {
+  border-radius: 0;
+  margin-left: -1px;
+  position: relative;
+}
+
+.report-overview-pdf-group .report-overview-pdf:first-child {
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.report-overview-pdf-group .report-overview-pdf:last-child {
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.report-overview-pdf-group .report-overview-pdf:focus-visible {
+  z-index: 1;
+}
+
 .report-overview-pdf {
   min-height: 2.5rem;
   margin-left: 0;
+}
+
+.report-overview-actions--left {
+  margin-left: auto;
+}
+
+.report-overview-actions--right {
+  margin-left: 0;
+}
+
+.report-overview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.report-pdf-menu {
+  position: fixed;
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.35rem;
+  background: var(--surface-actions-menu);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(16px);
+}
+
+.report-pdf-menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.report-pdf-menu button:hover:not(:disabled) {
+  background: var(--surface-raised);
+}
+
+.report-pdf-menu button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .report-overview-actions {
@@ -493,16 +575,24 @@
 }
 
 @media (max-width: 640px) {
-  .report-overview-header {
-    flex-wrap: wrap;
+  .report-overview-toolbar {
+    width: 100%;
   }
 
   .report-overview-actions {
-    width: 100%;
+    width: auto;
     margin-left: 0;
   }
 
+  .report-overview-actions--left {
+    margin-left: auto;
+  }
+
   .report-overview-pdf {
+    flex: 1 1 auto;
+  }
+
+  .report-overview-pdf-group {
     flex: 1 1 auto;
   }
 

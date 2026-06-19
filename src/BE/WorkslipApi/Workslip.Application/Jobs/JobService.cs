@@ -127,9 +127,10 @@ public sealed class JobService(
         var query = BuildJobQuery(organizationId.Value, statuses, reportNumber, customerName, customerEmail, customerAddress, limit, offset);
 
         var cacheKey = BuildJobListCacheKey(query);
+        var jobList = await _jobRepository.ListAsync(query, cancellationToken);
         var jobs = await cache.GetOrCreateAsync(
             cacheKey,
-            async token => (await _jobRepository.ListAsync(query, token)).ToArray(),
+            async token => (jobList),
             JobListCacheOptions,
             tags: ["jobs", JobListTag(query.OrganizationId)],
             cancellationToken: cancellationToken);
@@ -572,6 +573,13 @@ public sealed class JobService(
         var totalHours = filteredWorksheets.Sum(w => w.HoursWorked);
         var totalOverLay = filteredWorksheets.Count(w => w.SleptOnJob);
 
+        var customerSnapshot = new CustomerSnapshotResponse(
+            report.Customer?.Name,
+            report.Customer?.Email,
+            report.Customer?.Phone,
+            report.Customer?.Address,
+            report.Customer?.ContactPerson);
+
         return new(
             report.Id,
             report.OrganizationId,
@@ -579,7 +587,8 @@ public sealed class JobService(
             report.OrganizationCvr,
             report.ReportNumber,
             report.Status,
-            report.Customer ?? new CustomerInfo(null, null, null, null, null, null),
+            report.Customer?.CustomerId,
+            customerSnapshot,
             new JobReportSummaryWorkResponse(
                 report.WorkKind,
                 report.InstallationTypes,

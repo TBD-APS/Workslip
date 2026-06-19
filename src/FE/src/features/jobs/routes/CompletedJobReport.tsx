@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, CheckCircle2, Download, Eye, ExternalLink, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Download, Eye, ExternalLink, FileCheck2, History, Link2, Loader2, MoreHorizontal, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   InstallationTypeResponse,
@@ -22,7 +24,7 @@ import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
 import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
 import { useJobDetailsState } from '../hooks/useJobDetails';
 import { formatJobStatus } from '../statusLabels';
-import { createJobReportPdfPreview, type JobReportPdfPreview } from '../utils/downloadJobReportPdf';
+import { createJobReportPdfPreview, downloadJobReportPdf, triggerBrowserDownload, type JobReportPdfPreview } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -55,9 +57,11 @@ export const CompletedJobReport = () => {
   const { user } = useAuth();
   const statusMutation = usePostApiJobsIdStatus();
   const [isOpeningPdf, setIsOpeningPdf] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<JobReportPdfPreview | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [pdfMenu, setPdfMenu] = useState<{ top: number; right: number } | null>(null);
   const job = details.job;
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
@@ -131,6 +135,56 @@ export const CompletedJobReport = () => {
       setIsOpeningPdf(false);
     }
   };
+
+  const handleDownloadPdf = async () => {
+    if (!job) return;
+    setIsDownloadingPdf(true);
+
+    try {
+      await downloadJobReportPdf(job);
+    } catch {
+      toast.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const togglePdfMenu = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (pdfMenu) {
+      setPdfMenu(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setPdfMenu({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+  };
+
+  const closePdfMenu = () => setPdfMenu(null);
+
+  useEffect(() => {
+    if (!pdfMenu) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.report-pdf-menu-root, .report-pdf-menu')) return;
+      setPdfMenu(null);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [pdfMenu]);
+
+  useEffect(() => {
+    if (!pdfMenu) return;
+
+    const closeMenu = () => setPdfMenu(null);
+    const scrollContainer = document.querySelector('.app-shell');
+    scrollContainer?.addEventListener('scroll', closeMenu, { passive: true });
+    window.addEventListener('resize', closeMenu);
+
+    return () => {
+      scrollContainer?.removeEventListener('scroll', closeMenu);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, [pdfMenu]);
 
   const handleStartEdit = () => {
     details.discardChanges();
@@ -220,11 +274,11 @@ export const CompletedJobReport = () => {
     { label: 'Afslutning', value: formatClosureFlags(job) },
   ]);
   const customerPairs = compactPairs([
-    { label: 'Kunde', value: job.customer.name },
-    { label: 'Adresse', value: job.customer.address },
-    { label: 'Kontaktperson', value: job.customer.contactPerson },
-    { label: 'Telefon', value: job.customer.phone },
-    { label: 'Email', value: job.customer.email },
+    { label: 'Kunde', value: job.customerSnapshot.name },
+    { label: 'Adresse', value: job.customerSnapshot.address },
+    { label: 'Kontaktperson', value: job.customerSnapshot.contactPerson },
+    { label: 'Telefon', value: job.customerSnapshot.phone },
+    { label: 'Email', value: job.customerSnapshot.email },
   ]);
   const observationPairs = compactPairs([
     { label: 'Opgave', value: job.observations.taskDescription },
@@ -240,10 +294,12 @@ export const CompletedJobReport = () => {
           <ArrowLeft size={22} />
         </button>
         <div>
-          <span className="job-number">{formatReportNumber(job)} - {formatJobStatus(job.status).toLowerCase()}</span>
+          <span className="job-number">{formatReportNumber(job)} - {formatJobStatus(job.status)}</span>
           <h2 className="detail-title">Sagsoverblik</h2>
         </div>
-        <div className="report-overview-actions" aria-label="Rapport handlinger">
+      </div>
+      <div className="report-overview-toolbar" aria-label="Rapport handlinger">
+        <div className="report-overview-actions report-overview-actions--left">
           {isEditing ? (
             <>
               <button className="btn btn-secondary report-overview-icon-action edit-form-cancel-btn" type="button" onClick={handleCancelEdit} aria-label="Annuller redigering" disabled={details.saveStatus === 'saving'}>
@@ -261,20 +317,32 @@ export const CompletedJobReport = () => {
               </button>
             )
           )}
-          <button 
-            className={`btn btn-secondary report-overview-icon-action`} 
-            type="button" 
-            onClick={() => setHistoryOpen(true)} 
+          <button
+            className={`btn btn-secondary report-overview-icon-action`}
+            type="button"
+            onClick={() => setHistoryOpen(true)}
             disabled={isEditing}
-            aria-label="Historik" 
+            aria-label="Historik"
             title="Vis sagshistorik"
           >
             <History size={16} />
           </button>
-          <button className={`btn btn-secondary ${isEditing ? 'report-overview-icon-action' : 'pdf-download-button report-overview-pdf'} ${isEditing ? 'edit-form-aux-btn' : ''}`} type="button" onClick={handleOpenPdf} disabled={isOpeningPdf || isEditing}>
-            {isOpeningPdf ? <Loader2 size={16} className="spin" /> : <Eye size={16} />}
-            {!isEditing && <span>{isOpeningPdf ? 'Åbner...' : 'Vis PDF'}</span>}
-          </button>
+        </div>
+        <div className="report-overview-actions report-overview-actions--right">
+          <div className="report-pdf-menu-root">
+            <button
+              className="btn btn-secondary report-overview-icon-action"
+              type="button"
+              onClick={togglePdfMenu}
+              disabled={isEditing}
+              aria-label="PDF handlinger"
+              aria-expanded={pdfMenu !== null}
+              aria-haspopup="menu"
+              title="PDF handlinger"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -394,6 +462,21 @@ export const CompletedJobReport = () => {
         </>
       )}
 
+      {pdfMenu && (
+        <PdfActionMenuPortal
+          position={pdfMenu}
+          isOpeningPdf={isOpeningPdf}
+          isDownloadingPdf={isDownloadingPdf}
+          onOpen={async () => {
+            closePdfMenu();
+            await handleOpenPdf();
+          }}
+          onDownload={async () => {
+            closePdfMenu();
+            await handleDownloadPdf();
+          }}
+        />
+      )}
       {pdfPreview && <PdfPreviewDialog preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
       
       <JobHistoryDrawer 
@@ -404,6 +487,34 @@ export const CompletedJobReport = () => {
     </div>
   );
 };
+
+type PdfActionMenuPortalProps = {
+  position: { top: number; right: number };
+  isOpeningPdf: boolean;
+  isDownloadingPdf: boolean;
+  onOpen: () => void | Promise<void>;
+  onDownload: () => void | Promise<void>;
+};
+
+function PdfActionMenuPortal({ position, isOpeningPdf, isDownloadingPdf, onOpen, onDownload }: PdfActionMenuPortalProps) {
+  return createPortal(
+    <div
+      className="report-pdf-menu"
+      role="menu"
+      style={{ top: position.top, right: position.right }}
+    >
+      <button type="button" role="menuitem" onClick={() => void onOpen()} disabled={isOpeningPdf || isDownloadingPdf}>
+        {isOpeningPdf ? <Loader2 size={15} className="spin" /> : <Eye size={15} />}
+        <span>{isOpeningPdf ? 'Åbner...' : 'Vis PDF'}</span>
+      </button>
+      <button type="button" role="menuitem" onClick={() => void onDownload()} disabled={isOpeningPdf || isDownloadingPdf}>
+        {isDownloadingPdf ? <Loader2 size={15} className="spin" /> : <Download size={15} />}
+        <span>{isDownloadingPdf ? 'Henter...' : 'Download PDF'}</span>
+      </button>
+    </div>,
+    document.body,
+  );
+}
 
 function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; onClose: () => void }) {
   const previewUrl = `${preview.url}#toolbar=1&navpanes=0&scrollbar=1`;
@@ -420,9 +531,15 @@ function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; 
             <a className="btn-icon pdf-preview-action" href={preview.url} target="_blank" rel="noreferrer" aria-label="Åbn PDF i ny fane" title="Åbn i ny fane">
               <ExternalLink size={18} />
             </a>
-            <a className="btn-icon pdf-preview-action" href={preview.url} download={preview.fileName} aria-label="Download PDF" title="Download PDF">
+            <button
+              className="btn-icon pdf-preview-action"
+              type="button"
+              onClick={() => triggerBrowserDownload(preview.blob, preview.fileName)}
+              aria-label="Download PDF"
+              title="Download PDF"
+            >
               <Download size={18} />
-            </a>
+            </button>
             <button className="btn-icon" type="button" onClick={onClose} aria-label="Luk PDF">
               <X size={22} />
             </button>
@@ -446,7 +563,6 @@ function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFor
         customerSnapshot={details.form.customerSnapshot}
         editSnapshot={details.form.editSnapshot}
         onCustomerSelect={details.selectCustomer}
-        onCustomerFieldChange={details.updateCustomerField}
         onSnapshotFieldChange={details.updateSnapshotField}
         onEditSnapshotChange={details.updateEditSnapshot}
         showEditCheckbox={true}

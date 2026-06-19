@@ -1,9 +1,10 @@
 import type {
   CreateJobWorkRequest,
-  CustomerInfo,
   JobReportSummaryViewModel,
   ReferenceDataResponse,
   UpdateJobRequest,
+  JobListItemViewModel as GeneratedJobListItemViewModel,
+ 
 } from '../../api/generated/models';
 import { validateEmail, validatePhoneNumber } from '../../components/forms/validators';
 import type { JobForm, LinkableJob } from './types';
@@ -13,32 +14,17 @@ type UpdateJobRequestWithSnapshot = UpdateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
 };
 
-type JobListItemViewModel = {
-  id: string;
-  reportNumber: string | null;
-  customer: CustomerInfo | null;
-  status: string;
-};
-
-export const emptyCustomer: CustomerInfo = {
-  customerId: null,
-  name: null,
-  address: null,
-  email: null,
-  contactPerson: null,
-  phone: null,
-};
-
 export const emptySnapshot: CustomerSnapshotData = {
   name: null,
   email: null,
   phone: null,
   address: null,
+  contactPerson: null
 };
 
 export const emptyForm: JobForm = {
-  customer: { ...emptyCustomer },
-  customerSnapshot: null,
+  customerId: null,
+  customerSnapshot: { ...emptySnapshot },
   editSnapshot: false,
   reportNumber: '',
   taskDescription: '',
@@ -55,11 +41,11 @@ export const emptyForm: JobForm = {
 };
 
 export function getLinkableJobs(
-  value: JobListItemViewModel[] | undefined,
+  value: GeneratedJobListItemViewModel[] | undefined,
   currentJobId: string | undefined,
 ): LinkableJob[] {
 
-  if(value === null || value === undefined)
+  if (value === null || value === undefined)
     return [];
 
   const jobs = value;
@@ -89,15 +75,14 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
   }
 
   return {
-    customer: {
-      customerId: job.customer.customerId ?? null,
-      name: job.customer.name ?? null,
-      address: job.customer.address ?? null,
-      email: job.customer.email ?? null,
-      contactPerson: job.customer.contactPerson ?? null,
-      phone: job.customer.phone ?? null,
+    customerId: job.customerId ?? null,
+    customerSnapshot: {
+      name: job.customerSnapshot.name ?? null,
+      address: job.customerSnapshot.address ?? null,
+      email: job.customerSnapshot.email ?? null,
+      contactPerson: job.customerSnapshot.contactPerson ?? null,
+      phone: job.customerSnapshot.phone ?? null,
     },
-    customerSnapshot: null,
     editSnapshot: false,
     reportNumber: job.reportNumber ?? '',
     taskDescription: job.observations.taskDescription ?? '',
@@ -123,11 +108,16 @@ export function toUpdateRequest(
 ): UpdateJobRequestWithSnapshot {
   const includeWork = options.includeWork ?? true;
 
+  const snapshot = form.editSnapshot ? form.customerSnapshot : null;
+
   return {
-    customer: sameCustomer(initial.customer, form.customer)
-      ? null
-      : form.customer,
-    customerSnapshot: form.editSnapshot ? form.customerSnapshot : null,
+    customerSnapshot: snapshot ? {
+      name: snapshot.name ?? null,
+      address: snapshot.address ?? null,
+      email: snapshot.email ?? null,
+      contactPerson: snapshot.contactPerson ?? null,
+      phone: snapshot.phone ?? null,
+    } : null,
     reportNumber: job.reportNumber
       ? null
       : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),
@@ -180,7 +170,7 @@ export function sameForm(left: JobForm, right: JobForm) {
 
 export function sameFormWithoutWork(left: JobForm, right: JobForm) {
   return (
-    sameCustomer(left.customer, right.customer) &&
+    left.customerId === right.customerId &&
     sameSnapshot(left.customerSnapshot, right.customerSnapshot) &&
     left.reportNumber === right.reportNumber &&
     left.taskDescription === right.taskDescription &&
@@ -189,15 +179,8 @@ export function sameFormWithoutWork(left: JobForm, right: JobForm) {
   );
 }
 
-export function sameCustomer(left: CustomerInfo, right: CustomerInfo) {
-  return (
-    left.customerId === right.customerId &&
-    left.name === right.name &&
-    left.address === right.address &&
-    left.email === right.email &&
-    left.contactPerson === right.contactPerson &&
-    left.phone === right.phone
-  );
+export function sameCustomer(left: JobForm, right: JobForm) {
+  return left.customerId === right.customerId;
 }
 
 export function sameSnapshot(
@@ -210,7 +193,8 @@ export function sameSnapshot(
     left.name === right.name &&
     left.email === right.email &&
     left.phone === right.phone &&
-    left.address === right.address
+    left.address === right.address &&
+    left.contactPerson === right.contactPerson
   );
 }
 
@@ -219,9 +203,9 @@ export function sameWork(left: JobForm, right: JobForm) {
 }
 
 export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean }) {
-  const name = form.customerSnapshot?.name ?? form.customer.name;
-  const email = form.customerSnapshot?.email ?? form.customer.email;
-  const phone = form.customerSnapshot?.phone ?? form.customer.phone;
+  const name = form.customerSnapshot?.name ?? null;
+  const email = form.customerSnapshot?.email ?? null;
+  const phone = form.customerSnapshot?.phone ?? null;
 
   return (
     (options?.reportNumberReadOnly || form.reportNumber.trim().length > 0) &&

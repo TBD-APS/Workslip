@@ -26,6 +26,7 @@ var appConfigValues = {
   //LocalJwt
   'Jwt:Issuer': 'WorkslipApiLocal'
   'Jwt:Audience': 'WorkslipClientLocal'
+  'Jwt:ExpiryMinutes': '60'
   // Authorization policies
   'Authorization:Policies:RequireSuperadmin': 'SuperAdmin'
   'Authorization:Policies:RequireAdmin': 'Admin'

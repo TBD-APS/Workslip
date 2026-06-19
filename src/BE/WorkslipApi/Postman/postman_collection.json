@@ -1316,7 +1316,7 @@
             "description": "Creates draft job. Installation, category, and control point selections are sent by reference ID from /api/reference-data. Saves jobId.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customerSnapshot\": null,\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Demo Kunde\",\n    \"address\": \"Demo Vej 1, 1000 København\",\n    \"email\": \"{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"work\": {\n    \"installationTypes\": [\n      {\n        \"id\": \"{{vandInstallationId}}\",\n        \"categories\": [\n          {\n            \"id\": \"{{vandCategoryId}}\",\n            \"controlPoints\": [\n              { \"id\": \"{{vandControlPointId}}\" }\n            ]\n          }\n        ]\n      }\n    ],\n    \"workKind\": \"NewInstallation\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"observations\": {\n    \"reportDate\": \"2026-10-01\",\n    \"taskDescription\": \"Installer og kontroller anlæg.\",\n    \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n    \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n  }\n}",
+              "raw": "{\n  \"customerId\": null,\n  \"customerSnapshot\": {\n    \"name\": \"Demo Kunde\",\n    \"address\": \"Demo Vej 1, 1000 København\",\n    \"email\": \"{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"work\": {\n    \"installationTypes\": [\n      {\n        \"id\": \"{{vandInstallationId}}\",\n        \"categories\": [\n          {\n            \"id\": \"{{vandCategoryId}}\",\n            \"controlPoints\": [\n              { \"id\": \"{{vandControlPointId}}\" }\n            ]\n          }\n        ]\n      }\n    ],\n    \"workKind\": \"NewInstallation\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"observations\": {\n    \"reportDate\": \"2026-10-01\",\n    \"taskDescription\": \"Installer og kontroller anlæg.\",\n    \"customerObservations\": \"Kunde ønsker hurtig afslutning.\",\n    \"technicalObservations\": \"Teknisk observation fra tekniker.\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1417,7 +1417,7 @@
             "description": "Attempts to create another job with the same report number in the same organization. Expects a conflict response.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer\": {\n    \"customerId\": null,\n    \"name\": \"Duplicate Demo Kunde\",\n    \"address\": \"Demo Vej 2, 1000 København\",\n    \"email\": \"duplicate-{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"work\": null,\n  \"observations\": null\n}",
+              "raw": "{\n  \"customerId\": null,\n  \"customerSnapshot\": {\n    \"name\": \"Duplicate Demo Kunde\",\n    \"address\": \"Demo Vej 2, 1000 København\",\n    \"email\": \"duplicate-{{customerEmail}}\",\n    \"contactPerson\": \"Kunde Kontakt\",\n    \"phone\": \"+459****9999\"\n  },\n  \"reportNumber\": \"{{reportNumber}}\",\n  \"work\": null,\n  \"observations\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1728,7 +1728,7 @@
             "description": "Updates job fields. Replaces installation selections when work.installationTypes is supplied. Omitting a nested block leaves it unchanged.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer\": {\n    \"email\": \"opdateret-kunde@example.com\"\n  },\n  \"work\": {\n    \"remarks\": \"Opdateret fra Postman.\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"customerSnapshot\": {\n    \"name\": \"Opdateret Kunde Navn\",\n    \"email\": \"opdateret@example.com\",\n    \"phone\": \"+4512345678\",\n    \"address\": \"Opdateret Vej 1, 1000 København\"\n  },\n  \"observations\": {\n    \"technicalObservations\": \"Opdateret teknisk observation.\"\n  }\n}",
+              "raw": "{\n  \"customerId\": null,\n  \"customerSnapshot\": {\n    \"name\": \"Opdateret Kunde Navn\",\n    \"email\": \"opdateret@example.com\",\n    \"phone\": \"+4512345678\",\n    \"address\": \"Opdateret Vej 1, 1000 København\",\n    \"contactPerson\": \"Opdateret Kontakt\"\n  },\n  \"work\": {\n    \"remarks\": \"Opdateret fra Postman.\",\n    \"closureFlags\": [\n      \"Completed\"\n    ]\n  },\n  \"observations\": {\n    \"technicalObservations\": \"Opdateret teknisk observation.\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"

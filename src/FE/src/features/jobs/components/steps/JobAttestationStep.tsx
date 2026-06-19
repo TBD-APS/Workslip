@@ -56,9 +56,9 @@ export function JobAttestationStep({
     .filter(hasText);
   const summaryItems = compactSummaryItems([
     { label: 'Sag', value: job.reportNumber },
-    { label: 'Kunde', value: job.customer.name },
-    { label: 'Adresse', value: job.customer.address },
-    { label: 'Kontakt', value: formatContact(job.customer.contactPerson, job.customer.phone, job.customer.email) },
+    { label: 'Kunde', value: job.customerSnapshot.name },
+    { label: 'Adresse', value: job.customerSnapshot.address },
+    { label: 'Kontakt', value: formatContact(job.customerSnapshot.contactPerson, job.customerSnapshot.phone, job.customerSnapshot.email) },
     { label: 'Opgavetype', value: formatWorkKind(job.work.workKind) },
     { label: 'Anlægstyper', value: selectedInstallationTypeNames.join(', ') },
   ]);

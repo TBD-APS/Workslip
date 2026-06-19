@@ -78,7 +78,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
             col.Item().Border(1).BorderColor(PdfStyle.BorderColor).BorderTop(0).Padding(8).Row(row =>
             {
-                row.RelativeItem().Element(c => Field(c, "Kunde", Value(job.Customer.Name)));
+                row.RelativeItem().Element(c => Field(c, "Kunde", Value(job.CustomerSnapshot.Name)));
                 row.RelativeItem().Element(c => Field(c, "Rapportdato", FormatDate(job.Observations.ReportDate)));
                 row.RelativeItem().Element(c => Field(c, "Total timer", FormatDecimal(job.TotalHours)));
                 row.RelativeItem().Element(c => Field(c, "Overnatninger", FormatOvernightStays(job.TotalOutlay)));
@@ -144,17 +144,17 @@ public sealed class JobReportPdfService : IJobReportPdfService
             {
                 row.RelativeItem().Column(col =>
                 {
-                    col.Item().Element(c => Field(c, "Navn", Value(job.Customer.Name)));
-                    col.Item().Element(c => Field(c, "Adresse", Value(job.Customer.Address)));
-                    col.Item().Element(c => Field(c, "Email", Value(job.Customer.Email)));
+                    col.Item().Element(c => Field(c, "Navn", Value(job.CustomerSnapshot.Name)));
+                    col.Item().Element(c => Field(c, "Adresse", Value(job.CustomerSnapshot.Address)));
+                    col.Item().Element(c => Field(c, "Email", Value(job.CustomerSnapshot.Email)));
                 });
 
                 row.ConstantItem(18);
 
                 row.RelativeItem().Column(col =>
                 {
-                    col.Item().Element(c => Field(c, "Kontaktperson", Value(job.Customer.ContactPerson)));
-                    col.Item().Element(c => Field(c, "Telefon", Value(job.Customer.Phone)));
+                    col.Item().Element(c => Field(c, "Kontaktperson", Value(job.CustomerSnapshot.ContactPerson)));
+                    col.Item().Element(c => Field(c, "Telefon", Value(job.CustomerSnapshot.Phone)));
                 });
             });
         });
