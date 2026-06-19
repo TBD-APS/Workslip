@@ -176,4 +176,38 @@ public sealed class EfCustomerRepository : ICustomerRepository
 
         return customers;
     }
+
+    public async Task UpdateAsync(Guid organizationId, Guid id, CustomerInfo customer, CancellationToken cancellationToken)
+    {
+        var row = await _dbContext.Customers
+            .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, cancellationToken);
+
+        if (row is null)
+        {
+            return;
+        }
+
+        row.Name = customer.Name ?? string.Empty;
+        row.Address = customer.Address;
+        row.Email = customer.Email;
+        row.ContactPerson = customer.ContactPerson;
+        row.Phone = customer.Phone;
+        row.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(Guid organizationId, Guid id, CancellationToken cancellationToken)
+    {
+        var row = await _dbContext.Customers
+            .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, cancellationToken);
+
+        if (row is null)
+        {
+            return;
+        }
+
+        _dbContext.Customers.Remove(row);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
 }
