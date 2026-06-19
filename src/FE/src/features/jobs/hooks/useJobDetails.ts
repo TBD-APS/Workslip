@@ -36,7 +36,7 @@ import {
   toUpdateRequest,
 } from '../utils';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
-import type { CustomerSearchViewModel, CustomerInfo } from '../../../api/generated/models';
+import type { CustomerSearchViewModel } from '../../../api/generated/models';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobForm } from '../types';
 
@@ -286,30 +286,18 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const selectCustomer = (customer: CustomerSearchViewModel) => {
     updateDraft({
       ...form,
-      customer: {
-        ...form.customer,
-        customerId: customer.id ?? null,
+      customerId: customer.id ?? null,
+      customerSnapshot: {
         name: customer.name ?? null,
         address: customer.address ?? null,
         email: customer.email ?? null,
         phone: customer.phone ?? null,
         contactPerson: customer.contactPerson ?? null,
       },
-      customerSnapshot: null,
       editSnapshot: false,
     });
   };
-
-  const updateCustomerField = (field: keyof CustomerInfo, value: string) => {
-    updateDraft({
-      ...form,
-      customer: {
-        ...form.customer,
-        [field]: value,
-      },
-    });
-  };
-
+  
   const updateSnapshotField = (field: keyof CustomerSnapshotData, value: string) => {
     updateDraft({
       ...form,
@@ -325,11 +313,12 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
       ...form,
       editSnapshot: edit,
       customerSnapshot: edit
-        ? form.customerSnapshot ?? {
-            name: form.customer.name,
-            email: form.customer.email,
-            phone: form.customer.phone,
-            address: form.customer.address,
+        ? {
+            name: form.customerSnapshot?.name ?? '',
+            email: form.customerSnapshot?.email ?? '',
+            phone: form.customerSnapshot?.phone ?? '',
+            address: form.customerSnapshot?.address ?? '',
+            contactPerson: form.customerSnapshot?.contactPerson ?? ''
           }
         : null,
     });
@@ -637,7 +626,6 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateAssignedUsers,
     updateLinkedJobs,
     selectCustomer,
-    updateCustomerField,
     updateSnapshotField,
     updateEditSnapshot,
     updateReportNumber,

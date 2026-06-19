@@ -13,7 +13,7 @@ import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import { emptyForm, emptySnapshot, isValidCreateForm } from '../utils';
-import type { CustomerSearchViewModel, CreateJobRequest, CustomerInfo } from '../../../api/generated/models';
+import type { CustomerSearchViewModel, CreateJobRequest } from '../../../api/generated/models';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobForm } from '../types';
 
@@ -86,27 +86,15 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   const selectCustomer = (customer: CustomerSearchViewModel) => {
     setForm((prev) => ({
       ...prev,
-      customer: {
-        ...prev.customer,
-        customerId: customer.id ?? null,
+      customerId: customer.id ?? null,
+      customerSnapshot: {
         name: customer.name ?? null,
         address: customer.address ?? null,
         email: customer.email ?? null,
         phone: customer.phone ?? null,
         contactPerson: customer.contactPerson ?? null,
       },
-      customerSnapshot: null,
       editSnapshot: false,
-    }));
-  };
-
-  const updateCustomerField = (field: keyof CustomerInfo, value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      customer: {
-        ...prev.customer,
-        [field]: value,
-      },
     }));
   };
 
@@ -125,11 +113,12 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
       ...prev,
       editSnapshot: edit,
       customerSnapshot: edit
-        ? prev.customerSnapshot ?? {
-            name: prev.customer.name,
-            email: prev.customer.email,
-            phone: prev.customer.phone,
-            address: prev.customer.address,
+        ? {
+            name: prev.customerSnapshot?.name ?? '',
+            email: prev.customerSnapshot?.email ?? '',
+            phone: prev.customerSnapshot?.phone ?? '',
+            address: prev.customerSnapshot?.address ?? '',
+            contactPerson: prev.customerSnapshot?.contactPerson ?? ''
           }
         : null,
     }));
@@ -188,15 +177,14 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     if (!canSave) return;
 
     const request: CreateJobRequestWithSnapshot = {
-      customer: {
-        customerId: form.customer.customerId,
-        name: form.customer.name?.trim() || null,
-        address: form.customer.address?.trim() || null,
-        email: form.customer.email?.trim() || null,
-        contactPerson: form.customer.contactPerson?.trim() || null,
-        phone: form.customer.phone?.trim() || null,
-      },
-      customerSnapshot: form.editSnapshot ? form.customerSnapshot : null,
+      customerId: form.customerId,
+      customerSnapshot: form.editSnapshot ? {
+        name: form.customerSnapshot?.name?.trim() || null,
+        address: form.customerSnapshot?.address?.trim() || null,
+        email: form.customerSnapshot?.email?.trim() || null,
+        contactPerson: form.customerSnapshot?.contactPerson?.trim() || null,
+        phone: form.customerSnapshot?.phone?.trim() || null,
+      } : null,
       reportNumber: form.reportNumber.trim() || null,
       work: null,
       observations: {
@@ -233,7 +221,6 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     isLoadingReferenceData: referenceDataQuery.isLoading,
     isLoadingUsers: usersQuery.isLoading,
     selectCustomer,
-    updateCustomerField,
     updateSnapshotField,
     updateEditSnapshot,
     updateReportNumber,

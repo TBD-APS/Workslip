@@ -12,6 +12,7 @@ public sealed class JobReportRow : IJobRelated
     public string? CustomerEmail { get; init; }
     public string? CustomerPhone { get; init; }
     public string? CustomerAddress { get; init; }
+    public string? CustomerContactPerson { get; set; }
     public string? ReportNumber { get; init; }
     public string Status { get; init; } = "";
     public DateTime? ReportDate { get; init; }

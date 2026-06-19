@@ -7,17 +7,16 @@ import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdo
 import { useCan } from '../../../providers/permissions';
 import { useGetApiCustomersSuggest } from '../../../api/generated/customers/customers';
 import { getApiCustomersTop } from '../customerApi';
-import type { CustomerInfo, CustomerSearchViewModel, CustomerSnapshotData, UserViewModel } from '../../../api/generated/models';
+import type { CustomerSearchViewModel, CustomerSnapshotData, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
 
 
 type CustomerBlockProps = {
-  form: { customer: CustomerInfo; reportNumber: string };
+  form: { customerId: string | null; customerSnapshot: CustomerSnapshotData | null; reportNumber: string };
   customerSnapshot: CustomerSnapshotData | null;
   editSnapshot: boolean;
   onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
-  onCustomerFieldChange: (field: keyof CustomerInfo, value: string) => void;
   onSnapshotFieldChange?: (field: keyof CustomerSnapshotData, value: string) => void;
   onEditSnapshotChange?: (edit: boolean) => void;
   showEditCheckbox: boolean;
@@ -81,31 +80,27 @@ export function CustomerDetailsBlock({
   customerSnapshot,
   editSnapshot,
   onCustomerSelect,
-  onCustomerFieldChange,
   onSnapshotFieldChange,
   onEditSnapshotChange,
   showEditCheckbox = true,
 }: CustomerBlockProps) {
-  const hasExistingCustomer = Boolean(form.customer.customerId);
+  const hasExistingCustomer = Boolean(form.customerId);
 
   function displayValue(field: keyof CustomerSnapshotData): string {
-    if (editSnapshot && hasExistingCustomer) {
+    if (hasExistingCustomer) {
       const snapshotVal = customerSnapshot?.[field];
-      const customerVal = form.customer[field as keyof CustomerInfo];
-      return (snapshotVal ?? customerVal ?? '') as string;
+      return (snapshotVal ?? '') as string;
     }
-    return (form.customer[field as keyof CustomerInfo] ?? '') as string;
+    return '';
   }
 
   function handleFieldChange(field: keyof CustomerSnapshotData, value: string) {
     if (hasExistingCustomer && editSnapshot) {
       onSnapshotFieldChange?.(field, value);
-    } else if (!hasExistingCustomer) {
-      onCustomerFieldChange(field as keyof CustomerInfo, value);
     }
   }
 
-  function isFieldReadOnly(_field: keyof CustomerSnapshotData): boolean {
+  function isFieldReadOnly(): boolean {
     return hasExistingCustomer && !editSnapshot;
   }
 
@@ -120,8 +115,8 @@ export function CustomerDetailsBlock({
       </div>
 
         <CustomerSearchDropdown
-          selectedId={form.customer.customerId}
-          selectedName={form.customer.name}
+          selectedId={form.customerId}
+          selectedName={form.customerSnapshot?.name ?? ''}
           onSelect={onCustomerSelect}
         />
 
@@ -132,7 +127,7 @@ export function CustomerDetailsBlock({
               value={displayValue('name')}
               onChange={(e) => handleFieldChange('name', e.target.value)}
               placeholder="Kundenavn"
-              readOnly={isFieldReadOnly('name')}
+              readOnly={isFieldReadOnly()}
             />
           </div>
           <div className="form-group">
@@ -142,7 +137,7 @@ export function CustomerDetailsBlock({
               value={displayValue('address')}
               onChange={(e) => handleFieldChange('address', e.target.value)}
               placeholder="Adresse"
-              readOnly={isFieldReadOnly('address')}
+              readOnly={isFieldReadOnly()}
             />
           </div>
           <div className="form-group">
@@ -152,7 +147,7 @@ export function CustomerDetailsBlock({
               value={displayValue('email')}
               onChange={(e) => handleFieldChange('email', e.target.value)}
               placeholder="Email"
-              readOnly={isFieldReadOnly('email')}
+              readOnly={isFieldReadOnly()}
             />
           </div>
           <div className="form-group">
@@ -162,17 +157,17 @@ export function CustomerDetailsBlock({
               value={displayValue('phone')}
               onChange={(e) => handleFieldChange('phone', e.target.value)}
               placeholder="Telefon"
-              readOnly={isFieldReadOnly('phone')}
+              readOnly={isFieldReadOnly()}
             />
           </div>
           <div className="form-group">
             <label className="form-label">Kontaktperson</label>
             <input
               className="form-input"
-              value={form.customer.contactPerson ?? ''}
-              onChange={(e) => onCustomerFieldChange('contactPerson', e.target.value)}
+              value={displayValue('contactPerson')}
+              onChange={(e) => handleFieldChange('contactPerson', e.target.value)}
               placeholder="Kontaktperson"
-              readOnly={hasExistingCustomer && !editSnapshot}
+              readOnly={isFieldReadOnly()}
             />
           </div>
 
@@ -317,7 +312,7 @@ function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: Customer
 
   const { data: topCustomers = [], isLoading: isTopLoading } = useQuery({
     queryKey: ['customers', 'top'],
-    queryFn: () => getApiCustomersTop({ limit: 3 }),
+    queryFn: () => getApiCustomersTop({ limit: 10 }),
     enabled: !isSearching,
   });
 
