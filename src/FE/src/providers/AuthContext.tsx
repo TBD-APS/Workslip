@@ -1,14 +1,14 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
 import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
 import type { UserViewModel } from '../api/generated/models';
-import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY } from './authContextValue';
+import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY, AuthStorage, clearReauthInFlight } from './authContextValue';
 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authToken, setAuthToken] = useState<string | null>(() => sessionStorage.getItem(AUTH_TOKEN_KEY));
+  const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
   const queryClient = useQueryClient();
 
   const meQuery = useGetApiAuthMe({
@@ -27,9 +27,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, code: string): Promise<boolean> => {
       try {
         const response = await verifyAuthCode(email, code);
-        sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
         setAuthToken(response.token);
+        // Successful login clears any in-flight reauth redirect so the next expiry can re-trigger.
+        clearReauthInFlight();
         return true;
       } catch {
         return false;
@@ -42,9 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string): Promise<boolean> => {
       try {
         const response = await getDevToken(email);
-        sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
         setAuthToken(response.token);
+        clearReauthInFlight();
         return true;
       } catch {
         return false;
@@ -54,8 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem(AUTH_TOKEN_KEY);
-    sessionStorage.removeItem(USER_EMAIL_KEY);
+    AuthStorage.removeItem(AUTH_TOKEN_KEY);
+    AuthStorage.removeItem(USER_EMAIL_KEY);
+    clearReauthInFlight();
     setAuthToken(null);
     queryClient.clear();
   }, [queryClient]);
@@ -70,8 +74,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
+  // Expose a stable, narrow shape of meQuery so ProtectedRoute can do one short
+  // retry before declaring the user signed out (handles transient failures
+  // after PWA service-worker swaps).
+  const publicMeQuery = useMemo(
+    () => ({
+      isPending: meQuery.isPending,
+      isError: meQuery.isError,
+      refetch: meQuery.refetch,
+      data: meQuery.data ?? null,
+    }),
+    [meQuery.isPending, meQuery.isError, meQuery.refetch, meQuery.data],
+  );
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, isLoading, login, devLogin, logout, updateUser }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        user,
+        isLoading,
+        login,
+        devLogin,
+        logout,
+        updateUser,
+        meQuery: publicMeQuery,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

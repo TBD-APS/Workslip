@@ -7,8 +7,21 @@ import { Mail, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../providers/useAuth';
 import { sendAuthCode } from '../api/devToken';
 import { toast } from 'sonner';
-import { AUTH_TOKEN_KEY, USER_EMAIL_KEY } from '../../../providers/authContextValue';
-import { clearEntraLoginSession, completeEntraLogin, hasEntraLoginCallback, sanitizeReturnTo, startEntraLogin } from '../api/entraLogin';
+import {
+  AUTH_TOKEN_KEY,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+} from '../../../providers/authContextValue';
+import {
+  clearEntraLoginSession,
+  completeEntraLogin,
+  hasEntraLoginCallback,
+  InteractiveLoginRequiredError,
+  LoginCancelledError,
+  sanitizeReturnTo,
+  startEntraLogin,
+} from '../api/entraLogin';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
@@ -32,7 +45,7 @@ export const Login = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showOtcLogin, setShowOtcLogin] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
-  
+
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(EmailSchema),
     defaultValues: {
@@ -45,37 +58,78 @@ export const Login = () => {
   });
   const { ref: codeFieldRef, ...codeField } = codeForm.register('code');
 
-  useEffect(() => {
-    if (!hasEntraLoginCallback()) return;
-
-    setIsSubmitting(true);
-    completeEntraLogin()
-      .then(result => {
-        sessionStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
-        sessionStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
-        clearEntraLoginSession();
-        window.history.replaceState(null, '', '/login');
-        window.location.assign(result.returnTo);
-      })
-      .catch((err: unknown) => {
-        window.history.replaceState(null, '', '/login');
-        clearEntraLoginSession();
-        const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
-        setErrorMsg(message);
-        toast.error(message);
-      })
-      .finally(() => setIsSubmitting(false));
-  }, []);
-
+  // Combined callback + reauth effect.
+  //
+  // Splitting these into two effects races when Microsoft redirects back with
+  // BOTH `?reauth=1` and `?code=` — the second effect's guard
+  // (`hasEntraLoginCallback() || params.get('reauth') !== '1'`) is implicit and
+  // easy to break. Keeping them in one effect makes the branches explicit.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (hasEntraLoginCallback() || params.get('reauth') !== '1') return;
+    const isCallback = hasEntraLoginCallback();
+    const isReauth = params.get('reauth') === '1';
+    if (!isCallback && !isReauth) return;
 
     const returnTo = sanitizeReturnTo(params.get('returnTo'));
+
+    if (isCallback) {
+      setIsSubmitting(true);
+      completeEntraLogin()
+        .then(result => {
+          AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
+          AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
+          clearReauthInFlight();
+          clearEntraLoginSession();
+          window.history.replaceState(null, '', '/login');
+          window.location.assign(result.returnTo);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof InteractiveLoginRequiredError) {
+            // Microsoft blocked the silent flow even after we already
+            // auto-escalated from prompt=none. Force interactive login.
+            clearReauthInFlight();
+            clearEntraLoginSession();
+            window.history.replaceState(null, '', '/login');
+            startEntraLogin({ returnTo, prompt: 'login' }).catch(() => {
+              setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+              setIsSubmitting(false);
+            });
+            return;
+          }
+          if (err instanceof LoginCancelledError) {
+            // User clicked "Cancel" / "Tilbage" in the Microsoft dialog.
+            // Clean up state and let them try again on their own terms —
+            // do NOT auto-escalate, since the choice to cancel was deliberate.
+            clearReauthInFlight();
+            clearEntraLoginSession();
+            window.history.replaceState(null, '', '/login');
+            setErrorMsg('Login afbrudt. Klik på knappen for at prøve igen.');
+            setIsSubmitting(false);
+            return;
+          }
+          window.history.replaceState(null, '', '/login');
+          clearEntraLoginSession();
+          const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
+          setErrorMsg(message);
+          toast.error(message);
+          setIsSubmitting(false);
+        });
+      return;
+    }
+
+    // Fresh reauth: try silent first, escalate on InteractiveLoginRequiredError.
     setIsSubmitting(true);
-    startEntraLogin({ returnTo, prompt: 'none' }).catch(() => {
-      setIsSubmitting(false);
+    startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
+      if (err instanceof InteractiveLoginRequiredError) {
+        clearReauthInFlight();
+        startEntraLogin({ returnTo, prompt: 'login' }).catch(() => {
+          setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+          setIsSubmitting(false);
+        });
+        return;
+      }
       setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+      setIsSubmitting(false);
     });
   }, []);
 
@@ -122,6 +176,7 @@ export const Login = () => {
     try {
       const success = await login(email, data.code);
       if (success) {
+        clearReauthInFlight();
         navigate('/app');
       } else {
         setErrorMsg('Ugyldig kode. Prøv igen.');
@@ -233,9 +288,9 @@ export const Login = () => {
           <form onSubmit={emailForm.handleSubmit(handleSendCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="form-group">
               <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 400 }}>Email</label>
-              <input 
+              <input
                 {...emailForm.register('email')}
-                type="email" 
+                type="email"
                 placeholder="din@email.dk"
                 className="form-input"
                 autoComplete="email"
@@ -247,13 +302,13 @@ export const Login = () => {
                 </span>
               )}
             </div>
-            
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
-              disabled={isSubmitting} 
-              style={{ 
-                width: '100%', 
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSubmitting}
+              style={{
+                width: '100%',
                 opacity: isSubmitting ? 0.7 : 1,
                 display: 'flex',
                 alignItems: 'center',
@@ -287,13 +342,13 @@ export const Login = () => {
           <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="form-group">
               <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 400 }}>Engangskode</label>
-              <input 
+              <input
                 {...codeField}
                 ref={(element) => {
                   codeFieldRef(element);
                   codeInputRef.current = element;
                 }}
-                type="text" 
+                type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 placeholder="123456"
@@ -308,13 +363,13 @@ export const Login = () => {
                 </span>
               )}
             </div>
-            
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
-              disabled={isSubmitting} 
-              style={{ 
-                width: '100%', 
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSubmitting}
+              style={{
+                width: '100%',
                 opacity: isSubmitting ? 0.7 : 1,
                 display: 'flex',
                 alignItems: 'center',
@@ -326,15 +381,15 @@ export const Login = () => {
               <span>Log ind</span>
             </button>
 
-            <button 
+            <button
               type="button"
               onClick={() => {
                 setErrorMsg(null);
                 codeForm.reset();
                 setStep('email');
               }}
-              style={{ 
-                width: '100%', 
+              style={{
+                width: '100%',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
