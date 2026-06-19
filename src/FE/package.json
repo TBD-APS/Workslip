@@ -49,7 +49,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
-    "orval": "^8.16.0",
+    "orval": "^8.18.0",
     "react-doctor": "^0.4.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
