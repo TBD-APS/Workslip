@@ -116,7 +116,6 @@ export function CustomerDetailsBlock({
 
         <CustomerSearchDropdown
           selectedId={form.customerId}
-          selectedName={form.customerSnapshot?.name ?? ''}
           onSelect={onCustomerSelect}
         />
 
@@ -296,11 +295,10 @@ export function TextAreaBlock({ icon, title, value, placeholder, onChange }: Tex
 
 type CustomerSearchDropdownProps = {
   selectedId: string | null;
-  selectedName?: string | null;
   onSelect?: (customer: CustomerSearchViewModel) => void;
 };
 
-function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: CustomerSearchDropdownProps) {
+function CustomerSearchDropdown({ selectedId, onSelect }: CustomerSearchDropdownProps) {
   const [inputValue, setInputValue] = useState('');
   const debouncedQuery = useDebounce(inputValue, 300);
   const isSearching = debouncedQuery.length >= 2;
@@ -326,16 +324,8 @@ function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: Customer
       description: c.address ?? undefined,
     }));
 
-    if (!isSearching && selectedId && selectedName && !list.some((o) => o.id === selectedId)) {
-      list.unshift({
-        id: selectedId,
-        label: selectedName,
-        description: undefined,
-      });
-    }
-
     return list;
-  }, [results, selectedId, selectedName, isSearching]);
+  }, [results, selectedId,  isSearching]);
 
   const handleSelect = useCallback(
     (option: { id: string }) => {
@@ -349,8 +339,8 @@ function CustomerSearchDropdown({ selectedId, selectedName, onSelect }: Customer
 
   return (
     <SingleSelectDropdown
-      label=''
-      placeholder={isSearching ? "Søger..." : "Vælg kunde..."}
+      label='Søg efter kunde'
+      placeholder={"Vælg kunde..."}
       emptyText="Ingen kunder fundet"
       loadingText="Henter kunder..."
       options={options}
