@@ -43,7 +43,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   // while the retry fires in the background — otherwise the user sees a
   // jarring flash of "logging in" text during a normal reauth flow.
   if (isLoading) {
-    return <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Tjekker login status...</div>;
+    return <div className="protected-route-loading">Tjekker login status...</div>;
   }
 
   if (!isAuthenticated) {

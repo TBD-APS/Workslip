@@ -241,10 +241,6 @@ export const InviteAccept = () => {
                 type="submit"
                 className="btn btn-primary invite-btn invite-btn-submit"
                 disabled={isWorking || !displayName.trim()}
-                style={{
-                  opacity: isWorking || !displayName.trim() ? 0.7 : 1,
-                  cursor: isWorking ? 'wait' : 'pointer'
-                }}
               >
                 {isWorking ? (
                   <Loader2 className="animate-spin" size={18} />
@@ -256,7 +252,7 @@ export const InviteAccept = () => {
             </form>
 
             <div className="invite-footer">
-              <Link to="/login" style={{ color: 'var(--text-muted)' }}>
+              <Link to="/login" className="invite-footer-link">
                 Har du allerede en konto? Log ind her
               </Link>
             </div>
