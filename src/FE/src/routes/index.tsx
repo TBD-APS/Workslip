@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useRoutes, Navigate } from 'react-router-dom';
 import { useAuth } from '../providers/useAuth';
 import { RoleGuard } from '../providers/permissions';
@@ -17,11 +18,32 @@ import { Settings } from '../features/settings/routes/Settings';
 import { Profile } from '../features/settings/routes/Profile';
 import { MyWorksheets } from '../features/worksheets/routes/MyWorksheets';
 
+/**
+ * Wraps every authenticated route. Waits through one short retry on a
+ * transient `meQuery` failure (e.g. service-worker swap right after a deploy,
+ * brief network blip) before declaring the user signed out. Without this, a
+ * single failed `/api/auth/me` call logs the user out.
+ */
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, meQuery } = useAuth();
+  const [retryUsed, setRetryUsed] = useState(false);
 
+  useEffect(() => {
+    if (retryUsed || !meQuery?.isError || meQuery.isPending) return undefined;
+    const timer = setTimeout(() => {
+      setRetryUsed(true);
+      void meQuery.refetch();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [meQuery?.isError, meQuery?.isPending, meQuery, retryUsed]);
+
+  // Only show the "Tjekker login status..." spinner on the very first auth
+  // check (no token yet, fetching /api/auth/me). If the user already has a
+  // token and meQuery fails transiently, keep rendering the protected page
+  // while the retry fires in the background — otherwise the user sees a
+  // jarring flash of "logging in" text during a normal reauth flow.
   if (isLoading) {
-    return <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Tjekker login status...</div>;
+    return <div className="protected-route-loading">Tjekker login status...</div>;
   }
 
   if (!isAuthenticated) {

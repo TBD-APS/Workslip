@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, Loader2, LogIn, ArrowRight, User, Phone } from 'lucide-react';
 import { verifyInviteToken } from '../api/inviteAccept';
-import { AUTH_TOKEN_KEY, USER_EMAIL_KEY } from '../../../providers/authContextValue';
+import { AUTH_TOKEN_KEY, USER_EMAIL_KEY, AuthStorage } from '../../../providers/authContextValue';
 import {
   clearInviteEnrollmentSession,
   completeEntraInviteEnrollment,
@@ -47,8 +47,8 @@ export const InviteAccept = () => {
       setState({ status: 'enrolling' });
       completeEntraInviteEnrollment()
         .then(response => {
-          sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
-          sessionStorage.setItem(USER_EMAIL_KEY, response.user.email);
+          AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+          AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
           clearInviteEnrollmentSession();
           window.history.replaceState(null, '', window.location.pathname);
           setState({ status: 'success' });
@@ -241,10 +241,6 @@ export const InviteAccept = () => {
                 type="submit"
                 className="btn btn-primary invite-btn invite-btn-submit"
                 disabled={isWorking || !displayName.trim()}
-                style={{
-                  opacity: isWorking || !displayName.trim() ? 0.7 : 1,
-                  cursor: isWorking ? 'wait' : 'pointer'
-                }}
               >
                 {isWorking ? (
                   <Loader2 className="animate-spin" size={18} />
@@ -256,7 +252,7 @@ export const InviteAccept = () => {
             </form>
 
             <div className="invite-footer">
-              <Link to="/login" style={{ color: 'var(--text-muted)' }}>
+              <Link to="/login" className="invite-footer-link">
                 Har du allerede en konto? Log ind her
               </Link>
             </div>

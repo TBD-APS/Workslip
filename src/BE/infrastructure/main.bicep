@@ -26,6 +26,15 @@ param githubEnvironment string        = environment
 param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}group'
 param provisionWebApiSqlAccess bool   = false
 
+// ── SQL admin password ────────────────────────────────────────────────────────
+// SECURITY: was previously hardcoded as 'Num64bqe!' in this file. Moved to
+// a @secure() parameter so it does not get baked into compiled main.json or
+// show up in deployment history. The legacy password is still in git history
+// from prior commits — rotate it manually in the Azure portal before reusing
+// this template on a real environment.
+@secure()
+param sqlAdminPassword string
+
 // ── Role definition IDs ───────────────────────────────────────────────────────
 // Centralised here so they're easy to audit and update.
 var roles = {
@@ -353,7 +362,7 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
   params: {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
-    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=rbj;Password=Num64bqe!; TrustServerCertificate=False;'
+    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=rbj;Password=${sqlAdminPassword}; TrustServerCertificate=False;'
   }
 }
 
@@ -409,8 +418,8 @@ resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
   properties: {
     version: '12.0'
     administratorLogin: 'rbj'
-    administratorLoginPassword: 'Num64bqe!'
-    publicNetworkAccess: 'Enabled'
+    administratorLoginPassword: sqlAdminPassword
+    publicNetworkAccess: 'Enabled'  // TODO: tighten via private endpoint + AAD-only auth for production
     administrators:{
       administratorType: 'ActiveDirectory'
       login: sqlAdminGroupName

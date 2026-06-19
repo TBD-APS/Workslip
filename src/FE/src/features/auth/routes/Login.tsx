@@ -7,8 +7,21 @@ import { Mail, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../providers/useAuth';
 import { sendAuthCode } from '../api/devToken';
 import { toast } from 'sonner';
-import { AUTH_TOKEN_KEY, USER_EMAIL_KEY } from '../../../providers/authContextValue';
-import { clearEntraLoginSession, completeEntraLogin, hasEntraLoginCallback, sanitizeReturnTo, startEntraLogin } from '../api/entraLogin';
+import {
+  AUTH_TOKEN_KEY,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+} from '../../../providers/authContextValue';
+import {
+  clearEntraLoginSession,
+  completeEntraLogin,
+  hasEntraLoginCallback,
+  InteractiveLoginRequiredError,
+  LoginCancelledError,
+  sanitizeReturnTo,
+  startEntraLogin,
+} from '../api/entraLogin';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
@@ -31,8 +44,20 @@ export const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showOtcLogin, setShowOtcLogin] = useState(false);
+  // True when we arrived via the silent-reauth redirect (axios interceptor
+  // sent us here because the JWT expired). While true we hide the login form
+  // entirely and show only a spinner, so the user never sees the Microsoft
+  // / passkey buttons flash before being sent to Microsoft.
+  const [isReauth, setIsReauth] = useState(
+    () => new URLSearchParams(window.location.search).get('reauth') === '1',
+  );
   const codeInputRef = useRef<HTMLInputElement>(null);
-  
+  // Guards against React.StrictMode's double-mount in dev (and against any
+  // edge case where this effect runs twice). The first call navigates the
+  // browser to Microsoft; the second must be a no-op to avoid generating
+  // a second PKCE state that overwrites the first.
+  const reauthStartedRef = useRef(false);
+
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(EmailSchema),
     defaultValues: {
@@ -45,37 +70,82 @@ export const Login = () => {
   });
   const { ref: codeFieldRef, ...codeField } = codeForm.register('code');
 
+  // Combined callback + reauth effect.
+  //
+  // Splitting these into two effects races when Microsoft redirects back with
+  // BOTH `?reauth=1` and `?code=` — the second effect's guard
+  // (`hasEntraLoginCallback() || params.get('reauth') !== '1'`) is implicit and
+  // easy to break. Keeping them in one effect makes the branches explicit.
   useEffect(() => {
-    if (!hasEntraLoginCallback()) return;
-
-    setIsSubmitting(true);
-    completeEntraLogin()
-      .then(result => {
-        sessionStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
-        sessionStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
-        clearEntraLoginSession();
-        window.history.replaceState(null, '', '/login');
-        window.location.assign(result.returnTo);
-      })
-      .catch((err: unknown) => {
-        window.history.replaceState(null, '', '/login');
-        clearEntraLoginSession();
-        const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
-        setErrorMsg(message);
-        toast.error(message);
-      })
-      .finally(() => setIsSubmitting(false));
-  }, []);
-
-  useEffect(() => {
+    if (reauthStartedRef.current) return;
     const params = new URLSearchParams(window.location.search);
-    if (hasEntraLoginCallback() || params.get('reauth') !== '1') return;
+    const isCallback = hasEntraLoginCallback();
+    const isReauth = params.get('reauth') === '1';
+    if (!isCallback && !isReauth) return;
+    reauthStartedRef.current = true;
 
     const returnTo = sanitizeReturnTo(params.get('returnTo'));
+
+    if (isCallback) {
+      setIsSubmitting(true);
+      completeEntraLogin()
+        .then(result => {
+          AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
+          AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
+          clearReauthInFlight();
+          clearEntraLoginSession();
+          window.history.replaceState(null, '', '/login');
+          window.location.assign(result.returnTo);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof InteractiveLoginRequiredError) {
+            // Microsoft blocked the silent flow even after we already
+            // auto-escalated from prompt=none. Force interactive login.
+            clearReauthInFlight();
+            clearEntraLoginSession();
+            window.history.replaceState(null, '', '/login');
+            startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
+              setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+              setIsSubmitting(false);
+            });
+            return;
+          }
+          if (err instanceof LoginCancelledError) {
+            // User clicked "Cancel" / "Tilbage" in the Microsoft dialog.
+            // Clean up state and let them try again on their own terms —
+            // do NOT auto-escalate, since the choice to cancel was deliberate.
+            clearReauthInFlight();
+            clearEntraLoginSession();
+            window.history.replaceState(null, '', '/login');
+            setErrorMsg('Login afbrudt. Klik på knappen for at prøve igen.');
+            setIsSubmitting(false);
+            setIsReauth(false);
+            return;
+          }
+          window.history.replaceState(null, '', '/login');
+          clearEntraLoginSession();
+          const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
+          setErrorMsg(message);
+          toast.error(message);
+          setIsSubmitting(false);
+        });
+      return;
+    }
+
+    // Fresh reauth: try silent first, escalate on InteractiveLoginRequiredError.
     setIsSubmitting(true);
-    startEntraLogin({ returnTo, prompt: 'none' }).catch(() => {
-      setIsSubmitting(false);
+    startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
+      if (err instanceof InteractiveLoginRequiredError) {
+        clearReauthInFlight();
+        startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
+          setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+          setIsSubmitting(false);
+        });
+        return;
+      }
       setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+      setIsSubmitting(false);
+      setIsReauth(false);
     });
   }, []);
 
@@ -122,6 +192,7 @@ export const Login = () => {
     try {
       const success = await login(email, data.code);
       if (success) {
+        clearReauthInFlight();
         navigate('/app');
       } else {
         setErrorMsg('Ugyldig kode. Prøv igen.');
@@ -136,76 +207,70 @@ export const Login = () => {
   };
 
   return (
-    <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>
+    <div className="app-container app-container-center">
       <div className="bg-glow-wrapper">
         <div className="bg-glow bg-glow-1" />
         <div className="bg-glow bg-glow-2" />
       </div>
 
-      <div style={{
-        width: '100%',
-        maxWidth: '400px',
-        padding: '2rem',
-        background: 'var(--surface-color)',
-        border: '1px solid var(--surface-border)',
-        borderRadius: '24px',
-        backdropFilter: 'blur(20px)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div className="logo" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
+      {isReauth && (
+        <div className="reauth-card">
+          <Loader2 className="animate-spin" size={32} />
+          <p>
+            Genindlæser login...
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              clearReauthInFlight();
+              clearEntraLoginSession();
+              window.history.replaceState(null, '', '/login');
+              setIsReauth(false);
+              setIsSubmitting(false);
+            }}
+            className="reauth-cancel-btn"
+          >
+            Annuller
+          </button>
+        </div>
+      )}
+
+      {!isReauth && (
+      <div className="login-card">
+        <div className="login-card-header">
+          <div className="logo logo-center">
             <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <h2 style={{ marginBottom: '0.5rem' }}>Log ind på Workslip</h2>
+          <h2>Log ind på Workslip</h2>
           {step === 'email' && (
-            <p style={{ color: 'var(--text-secondary)' }}>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
+            <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
           )}
           {step === 'code' && (
             <div>
-              <p style={{ color: 'var(--text-secondary)' }}>En kode er sendt til</p>
-              <p style={{ fontWeight: 400, fontSize: '1.1rem', marginTop: '0.25rem' }}>{email}</p>
+              <p>En kode er sendt til</p>
+              <p className="login-email-info">{email}</p>
             </div>
           )}
         </div>
 
         {errorMsg && (
-          <div style={{
-            padding: '0.75rem 1rem',
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            borderRadius: '12px',
-            marginBottom: '1.5rem',
-            color: '#ef4444',
-            fontSize: '0.9rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
+          <div className="login-error-banner">
             <Loader2 size={16} />
             {errorMsg}
           </div>
         )}
 
         {step === 'email' && !showOtcLogin && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="login-email-step">
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary login-submit-btn"
               onClick={handleMicrosoftLogin}
               disabled={isSubmitting}
-              style={{
-                width: '100%',
-                opacity: isSubmitting ? 0.7 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                cursor: isSubmitting ? 'wait' : 'pointer'
-              }}
             >
               {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
               <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
@@ -214,15 +279,7 @@ export const Login = () => {
             <button
               type="button"
               onClick={() => setShowOtcLogin(true)}
-              style={{
-                width: '100%',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                fontSize: '0.9rem',
-                padding: '0.75rem'
-              }}
+              className="login-otc-btn"
             >
               Passkey virker ikke / ny telefon? Brug engangskode
             </button>
@@ -230,50 +287,30 @@ export const Login = () => {
         )}
 
         {step === 'email' && showOtcLogin && (
-          <form onSubmit={emailForm.handleSubmit(handleSendCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <form onSubmit={emailForm.handleSubmit(handleSendCode)} className="login-form">
             <div className="form-group">
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 400 }}>Email</label>
-              <input 
+              <label>Email</label>
+              <input
                 {...emailForm.register('email')}
-                type="email" 
+                type="email"
                 placeholder="din@email.dk"
-                className="form-input"
+                className={`form-input${emailForm.formState.errors.email ? ' form-input-invalid' : ''}`}
                 autoComplete="email"
-                style={emailForm.formState.errors.email ? { borderColor: '#ef4444' } : {}}
               />
               {emailForm.formState.errors.email && (
-                <span style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>
+                <span className="form-error-text">
                   {emailForm.formState.errors.email.message}
                 </span>
               )}
             </div>
-            
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
-              disabled={isSubmitting} 
-              style={{ 
-                width: '100%', 
-                opacity: isSubmitting ? 0.7 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                position: 'relative',
-                overflow: 'hidden',
-                cursor: isSubmitting ? 'wait' : 'pointer'
-              }}
+
+            <button
+              type="submit"
+              className="btn btn-primary login-submit-btn"
+              disabled={isSubmitting}
             >
               {isSubmitting && (
-                <span style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'inherit',
-                  backdropFilter: 'blur(2px)'
-                }}>
+                <span className="login-submit-btn-overlay">
                   <Loader2 className="animate-spin" size={18} />
                 </span>
               )}
@@ -284,68 +321,47 @@ export const Login = () => {
         )}
 
         {step === 'code' && (
-          <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} className="login-form">
             <div className="form-group">
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 400 }}>Engangskode</label>
-              <input 
+              <label>Engangskode</label>
+              <input
                 {...codeField}
                 ref={(element) => {
                   codeFieldRef(element);
                   codeInputRef.current = element;
                 }}
-                type="text" 
+                type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 placeholder="123456"
-                className="form-input"
+                className={`form-input${codeForm.formState.errors.code ? ' form-input-invalid' : ''}`}
                 maxLength={6}
                 autoComplete="one-time-code"
-                style={codeForm.formState.errors.code ? { borderColor: '#ef4444' } : {}}
               />
               {codeForm.formState.errors.code && (
-                <span style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>
+                <span className="form-error-text">
                   {codeForm.formState.errors.code.message}
                 </span>
               )}
             </div>
-            
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
-              disabled={isSubmitting} 
-              style={{ 
-                width: '100%', 
-                opacity: isSubmitting ? 0.7 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem'
-              }}
+
+            <button
+              type="submit"
+              className="btn btn-primary login-submit-btn"
+              disabled={isSubmitting}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
               <span>Log ind</span>
             </button>
 
-            <button 
+            <button
               type="button"
               onClick={() => {
                 setErrorMsg(null);
                 codeForm.reset();
                 setStep('email');
               }}
-              style={{ 
-                width: '100%', 
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                color: 'var(--text-secondary)',
-                fontSize: '0.9rem',
-                padding: '0.75rem'
-              }}
+              className="login-back-btn"
             >
               <ArrowLeft size={16} />
               Tilbage
@@ -353,13 +369,13 @@ export const Login = () => {
           </form>
         )}
 
-        <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.9rem' }}>
-          <Link to="/" style={{ color: 'var(--text-secondary)' }}>← Tilbage til forsiden</Link>
+        <div className="login-frontpage-footer">
+          <Link to="/">← Tilbage til forsiden</Link>
         </div>
 
         {apiBaseUrl && (
-          <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--surface-border)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="login-dev-section">
+            <div className="login-dev-buttons">
               {[
                 { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net' },
                 { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net' },
@@ -381,8 +397,7 @@ export const Login = () => {
                     }
                   }}
                   disabled={isSubmitting}
-                  className="btn btn-secondary"
-                  style={{ width: '100%', fontSize: '0.85rem' }}
+                  className="btn btn-secondary login-dev-btn"
                 >
                   {entry.label}
                 </button>
@@ -391,6 +406,7 @@ export const Login = () => {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

@@ -6,6 +6,47 @@ param(
     [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7"
 )
 
+# ── SQL admin password ────────────────────────────────────────────────────────
+# Source of truth for the SQL admin password is the Key Vault secret
+# 'Azure--Sql--AdminPassword'. The first deployment creates the secret with a
+# randomly generated strong password; subsequent deployments read it back so
+# the password never changes after first set.
+#
+# Override with $env:WORKSLIP_SQL_ADMIN_PASSWORD if you need a deterministic
+# password (e.g. for an existing Azure SQL Server you are re-deploying into
+# without access to the Key Vault).
+$SQL_ADMIN_PWD_SECRET='Azure-...word'
+
+function New-RandomSqlPassword {
+    $rand = New-Object System.Random
+    $alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#%&()*+,-./:;<=>?@[]^_{|}~'
+    $chars = @()
+    for ($i = 0; $i -lt 24; $i++) {
+        $chars += $alphabet[$rand.Next(0, $alphabet.Length)]
+    }
+    return -join $chars
+}
+
+if ($env:WORKSLIP_SQL_ADMIN_PASSWORD) {
+    $SqlAdminPassword = $env:WORKSLIP_SQL_ADMIN_PASSWORD
+} else {
+    # Try to read existing secret from Key Vault. The vault is created as part
+    # of the main deployment below, so the first run will fail this lookup and
+    # fall through to generating a new password.
+    $keyVaultName = "kv-${COMPANY_NAME}${Environment.ToLowerInvariant()}"
+    $existingPwd = az keyvault secret show --name $SQL_ADMIN_PWD_SECRET --vault-name $keyVaultName --query "value" -o tsv 2>$null
+    if ($existingPwd) {
+        $SqlAdminPassword = $existingPwd
+        Write-Host "Reusing existing SQL admin password from Key Vault secret '$SQL_ADMIN_PWD_SECRET'." -ForegroundColor DarkGray
+    } else {
+        $SqlAdminPassword = New-RandomSqlPassword
+        Write-Host "Generated new SQL admin password (24 chars)." -ForegroundColor DarkGray
+        # Flag for post-deploy block to persist the password once the main
+        # deployment has created the Key Vault.
+        $script:STORE_SQL_PWD_AFTER_DEPLOY = $true
+    }
+}
+
 $ErrorActionPreference = "Stop"
 
 $RESOURCE_GROUP = "rg-$COMPANY_NAME-$Environment"
@@ -72,7 +113,8 @@ if ($exists -eq "false") {
 function Invoke-BicepDeployment {
     param(
         [Parameter(Mandatory=$true)] [string]$DeploymentName,
-        [Parameter(Mandatory=$true)] [bool]$ProvisionWebApiSqlAccess
+        [Parameter(Mandatory=$true)] [bool]$ProvisionWebApiSqlAccess,
+        [Parameter(Mandatory=$true)] [string]$SqlAdminPassword
     )
 
     $ProvisionWebApiSqlAccessValue = $ProvisionWebApiSqlAccess.ToString().ToLowerInvariant()
@@ -88,6 +130,7 @@ function Invoke-BicepDeployment {
        --parameters environment=$Environment `
        --parameters globalAdminId=$GlobalAdminId `
        --parameters provisionWebApiSqlAccess=$ProvisionWebApiSqlAccessValue `
+       --parameters sqlAdminPassword="$SqlAdminPassword" `
        -o json
 
     if ($LASTEXITCODE -ne 0 -or -not $DeploymentJson) {
@@ -158,7 +201,7 @@ function Add-GraphGroupMember {
     throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
 }
 
-$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false
+$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false -SqlAdminPassword $SqlAdminPassword
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
 $SqlAdminGroupId = $DeploymentOutputs.SQL_ADMIN_GROUP_ID.value
@@ -177,10 +220,29 @@ Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $GlobalAdminId -Descrip
 Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $DeploymentIdentityPrincipalId -Description "deployment managed identity"
 
 $SqlAccessDeploymentName = "$DEPLOY_NAME-sql"
-$DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true
+$DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true -SqlAdminPassword $SqlAdminPassword
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
 Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
+
+# If we generated a new password this run (no existing Key Vault secret),
+# store it now so subsequent deploys reuse it instead of generating a new one
+# that would break the existing SQL Server login.
+if ($script:STORE_SQL_PWD_AFTER_DEPLOY) {
+    Write-Host "Storing SQL admin password in Key Vault secret '$SQL_ADMIN_PWD_SECRET' for future deploys..." -ForegroundColor Cyan
+    az keyvault secret set `
+        --vault-name $keyVaultName `
+        --name $SQL_ADMIN_PWD_SECRET `
+        --value $SqlAdminPassword `
+        -o none
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to store SQL admin password in Key Vault. Next deployment will generate a new password and may break the existing SQL Server login. Store it manually with: az keyvault secret set --vault-name $keyVaultName --name $SQL_ADMIN_PWD_SECRET --value '<current-password>'"
+    } else {
+        Write-Host "   Stored." -ForegroundColor Green
+    }
+    # Wipe from in-memory so it doesn't linger past the script (defence in depth).
+    $SqlAdminPassword = $null
+}
 
 
 # ─── Add Graph roles to Managed Identity ───────────────────────────────────────────

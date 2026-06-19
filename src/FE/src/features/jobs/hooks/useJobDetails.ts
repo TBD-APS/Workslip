@@ -320,7 +320,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
             address: form.customerSnapshot?.address ?? '',
             contactPerson: form.customerSnapshot?.contactPerson ?? ''
           }
-        : null,
+           : form.customerSnapshot,
     });
   };
 

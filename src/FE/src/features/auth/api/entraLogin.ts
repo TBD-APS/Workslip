@@ -12,13 +12,86 @@ interface PkceState {
 
 interface StartEntraLoginOptions {
   returnTo?: string;
-  prompt?: 'none' | 'select_account';
+  prompt?: 'none' | 'select_account' | 'login';
 }
 
 export interface CompleteEntraLoginResult {
   auth: AuthTokenResponse;
   returnTo: string;
 }
+
+/**
+ * Thrown when Microsoft silently refuses a reauth (`prompt=none`) because the
+ * user has no SSO cookie, needs to consent, or must re-enter credentials. The
+ * Login page catches this and auto-escalates to `prompt=login` so the user
+ * does not have to click anything.
+ */
+export class InteractiveLoginRequiredError extends Error {
+  public readonly code: string;
+  constructor(code: string) {
+    super(code);
+    this.name = 'InteractiveLoginRequiredError';
+    this.code = code;
+  }
+}
+
+/**
+ * Thrown when the user actively cancelled the Microsoft login flow (clicked
+ * "Cancel" or "Tilbage" in the Microsoft dialog, denied consent, etc.). This
+ * is NOT a silent-block scenario — the user made a deliberate choice — so the
+ * Login page must NOT auto-escalate. It should clear the in-flight reauth
+ * flag, clear the PKCE state, and show a friendly message letting the user
+ * try again when ready.
+ */
+export class LoginCancelledError extends Error {
+  constructor() {
+    super('Brugeren afbrød Microsoft login.');
+    this.name = 'LoginCancelledError';
+  }
+}
+
+const SILENT_REAUTH_REQUIRED_ERRORS = new Set([
+  'interaction_required',
+  'login_required',
+  'consent_required',
+  'account_selection_required',
+]);
+
+const isSilentBlockedError = (code: string | null | undefined): code is string =>
+  !!code && SILENT_REAUTH_REQUIRED_ERRORS.has(code);
+
+/**
+ * OAuth-standard error codes that mean the user actively cancelled the
+ * Microsoft flow rather than the flow failing silently. `access_denied` is
+ * returned when the user clicks "Cancel" / browser-back from the Microsoft
+ * sign-in page; `consent_denied` is returned when they decline a consent
+ * prompt. Neither should trigger auto-escalation.
+ */
+const USER_CANCELLED_ERRORS = new Set(['access_denied', 'consent_denied']);
+
+const isUserCancelledError = (code: string | null | undefined): code is string =>
+  !!code && USER_CANCELLED_ERRORS.has(code);
+
+/**
+ * Microsoft often surfaces "can't do this silently" failures as a free-form
+ * `error_description` that starts with `AADSTS<NNNN>:` instead of as an OAuth
+ * `error` code (e.g. AADSTS16000 "either multiple user identities or selected
+ * account is not supported"). These all mean the same thing for our reauth
+ * flow: the browser cannot complete a silent PKCE exchange, so the Login
+ * page must auto-escalate to `prompt=login`.
+ *
+ * Family `16xxx` = user/account selection issues (16000, 16001, 16002, ...).
+ * Family `50xxx` = user-interaction required (50020, 50079, 50097, ...).
+ * Family `65xxx` = MFA / conditional access.
+ *
+ * Microsoft never returns `AADSTS*` codes for fatal client-config errors
+ * (those come back as standard OAuth `invalid_client`/`invalid_grant` codes
+ * with a separate description), so a blanket match is safe here.
+ */
+const INTERACTIVE_AADSTS_PATTERN = /^AADSTS(1[6-9]\d{3}|5\d{4}|6[5-9]\d{3}):/i;
+
+const isInteractiveAadstsError = (description: string | null | undefined): boolean =>
+  !!description && INTERACTIVE_AADSTS_PATTERN.test(description);
 
 export const hasEntraLoginCallback = () => {
   const params = new URLSearchParams(window.location.search);
@@ -55,7 +128,26 @@ export const completeEntraLogin = async (): Promise<CompleteEntraLoginResult> =>
   const params = new URLSearchParams(window.location.search);
   const error = params.get('error');
   if (error) {
-    throw new Error(params.get('error_description') || error);
+    // Microsoft may redirect back with `error=interaction_required` even from
+    // `prompt=none` — that means the user has no SSO cookie. Throw a typed
+    // error so Login.tsx can auto-escalate to `prompt=login`.
+    if (isSilentBlockedError(error)) {
+      throw new InteractiveLoginRequiredError(error);
+    }
+    // Some failures (e.g. AADSTS16000 "multiple user identities") come back as
+    // a free-form `error_description` rather than an OAuth-standard `error`
+    // code. Treat those the same way: auto-escalate to interactive login.
+    const errorDescription = params.get('error_description');
+    if (isInteractiveAadstsError(errorDescription)) {
+      throw new InteractiveLoginRequiredError(errorDescription ?? error);
+    }
+    // User actively cancelled (clicked "Cancel" / "Tilbage" in Microsoft, or
+    // denied consent). Do NOT auto-escalate — Login.tsx will show a friendly
+    // message and let the user retry on their own terms.
+    if (isUserCancelledError(error)) {
+      throw new LoginCancelledError();
+    }
+    throw new Error(errorDescription || error);
   }
 
   const code = params.get('code');
@@ -131,8 +223,18 @@ const exchangeCodeForToken = async (
     body,
   });
 
-  const payload = await response.json();
+  const payload = await response.json().catch(() => ({} as Record<string, string>));
   if (!response.ok || !payload.access_token) {
+    // Silent token-exchange block (e.g. interaction_required surfaced only at /token)
+    // also auto-escalates to interactive login.
+    if (isSilentBlockedError(payload.error)) {
+      throw new InteractiveLoginRequiredError(payload.error);
+    }
+    // Same escalation for AADSTS-coded failures (e.g. AADSTS16000) that come
+    // back via the /token endpoint with no OAuth `error` code.
+    if (isInteractiveAadstsError(payload.error_description)) {
+      throw new InteractiveLoginRequiredError(payload.error_description ?? 'aadsts');
+    }
     throw new Error(payload.error_description || 'Kunne ikke hente Microsoft token.');
   }
 

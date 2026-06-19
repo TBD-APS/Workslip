@@ -21,7 +21,7 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
         onCustomerSelect={create.selectCustomer}
         onSnapshotFieldChange={create.updateSnapshotField}
         onEditSnapshotChange={create.updateEditSnapshot}
-        showEditCheckbox={false}
+        showEditCheckbox={true}
       />
 
       <ReportNumberBlock

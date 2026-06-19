@@ -12,6 +12,11 @@ export const AppLayout = () => {
 
   const handleLogout = () => {
     logout();
+    // Navigate immediately rather than waiting for ProtectedRoute to render
+    // a <Navigate to="/login"> — avoids a single frame of protected content
+    // still being visible after the user clicked logout, and prevents a
+    // browser-back race where the protected URL is briefly visible again.
+    navigate('/login', { replace: true });
   };
 
   useEffect(() => {
@@ -38,7 +43,7 @@ export const AppLayout = () => {
       <div className="app-shell">
         {/* Top Header for Mobile */}
       <header className="app-header">
-        <button className="logo" style={{ fontSize: '1.25rem' }} onClick={() => navigate('/app')}>
+        <button className="logo logo-header" onClick={() => navigate('/app')}>
           <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -70,7 +75,7 @@ export const AppLayout = () => {
             title="Profil"
           >
             {user?.displayName ? (
-              <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>
+              <span className="user-avatar-initial">
                 {user.displayName.charAt(0).toUpperCase()}
               </span>
             ) : (
