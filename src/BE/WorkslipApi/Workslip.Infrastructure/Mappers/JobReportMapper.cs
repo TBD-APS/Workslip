@@ -37,6 +37,7 @@ public static class JobReportMapper
         string? customerEmail = row.CustomerEmail ?? customerRow?.Email;
         string? customerPhone = row.CustomerPhone ?? customerRow?.Phone;
         string? customerAddress = row.CustomerAddress ?? customerRow?.Address;
+        string? customerContactPerson = row.CustomerContactPerson ?? customerRow?.ContactPerson;
 
         CustomerInfo? customer = null;
         if (customerRow is not null || customerName is not null)
@@ -46,7 +47,7 @@ public static class JobReportMapper
                 customerName,
                 customerAddress,
                 customerEmail,
-                customerRow?.ContactPerson,
+                customerContactPerson,
                 customerPhone);
         }
 

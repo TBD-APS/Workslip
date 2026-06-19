@@ -8,11 +8,13 @@ namespace Workslip.Api;
 
 public static class JwtHelper
 {
+    public const int DefaultExpiryMinutes = 60;
+
     public static AuthTokenResponse GenerateToken(AuthUserInfo user, IConfiguration configuration)
     {
 
         var tokenSection = GetTokenSection(configuration);
-        var expiryMinutes = 60;
+        var expiryMinutes = ResolveExpiryMinutes(configuration);
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenSection.SigningKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -42,6 +44,16 @@ public static class JwtHelper
             "Bearer",
             expiryMinutes * 60,
             user);
+    }
+
+    private static int ResolveExpiryMinutes(IConfiguration configuration)
+    {
+        var raw = configuration["Jwt:ExpiryMinutes"];
+        if (int.TryParse(raw, out var minutes) && minutes > 0)
+        {
+            return minutes;
+        }
+        return DefaultExpiryMinutes;
     }
 
     public static TokenValidationParameters GetTokenValidationParameters(IConfiguration configuration)

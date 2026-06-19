@@ -35,7 +35,7 @@ type SearchResult = {
 
 function formatJobNumber(reportNumber: string | null, id: string) {
   const prefix = reportNumber || id.slice(0, 4);
-  return `SAG-${prefix.toUpperCase()}`;
+  return `Sag-${prefix}`;
 }
 
 export const UserDetail = () => {

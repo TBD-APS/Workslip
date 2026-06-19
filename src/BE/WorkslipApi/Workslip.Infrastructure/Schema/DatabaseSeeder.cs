@@ -126,11 +126,17 @@ public static class DatabaseSeeder
             {
                 var workKind = f.PickRandom(jobWorkKinds);
 
+                var customer = f.PickRandom(customers);
                 return new JobReportRow
                 {
                     Id = Guid.NewGuid(),
                     OrganizationId = organization.Id,
-                    CustomerId = f.PickRandom(customers).Id,
+                    CustomerId = customer.Id,
+                    CustomerEmail = customer.Email,
+                    CustomerAddress = customer.Address,
+                    CustomerContactPerson = customer.ContactPerson,
+                    CustomerName = customer.Name,
+                    CustomerPhone = customer.Phone,
                     ReportNumber = f.Random.Replace("####"),
                     Status = f.PickRandom(statuses).ToString(),
                     ReportDate = f.Date.Past(1).Date,

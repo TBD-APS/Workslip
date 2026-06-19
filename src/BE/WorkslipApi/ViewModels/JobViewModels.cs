@@ -12,6 +12,13 @@ public sealed record CustomerViewModel(
     string? ContactPerson,
     string? Phone);
 
+public sealed record CustomerSnapshotResponse(
+    string? Name,
+    string? Email,
+    string? Phone,
+    string? Address,
+    string? ContactPerson);
+
 public sealed record JobListItemViewModel(
     Guid Id,
     Guid OrganizationId,
@@ -28,7 +35,8 @@ public sealed record JobReportSummaryViewModel(
     Guid OrganizationId,
     string? ReportNumber,
     JobStatus Status,
-    CustomerInfo Customer,
+    Guid? CustomerId,
+    CustomerSnapshotResponse CustomerSnapshot,
     JobReportSummaryWorkResponse Work,
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<JobLinkInfoResponse> Links,
@@ -64,7 +72,13 @@ public static class JobViewModelBuilder
         summary.OrganizationId,
         summary.ReportNumber,
         summary.Status,
-        summary.Customer,
+        summary.CustomerId,
+        new CustomerSnapshotResponse(
+            summary.CustomerSnapshot.Name,
+            summary.CustomerSnapshot.Email,
+            summary.CustomerSnapshot.Phone,
+            summary.CustomerSnapshot.Address,
+            summary.CustomerSnapshot.ContactPerson),
         summary.Work,
         summary.Observations,
         summary.Links,

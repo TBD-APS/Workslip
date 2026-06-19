@@ -144,14 +144,13 @@ public sealed record CreateJobObservationRequest(
     string? TechnicalObservations);
 
 public sealed record CreateJobRequest(
-    CustomerInfo? Customer,
+    Guid? CustomerId = null,
     CustomerSnapshotData? CustomerSnapshot = null,
     string? ReportNumber = default,
     CreateJobWorkRequest? Work = null,
     CreateJobObservationRequest? Observations = null);
 
 public sealed record UpdateJobRequest(
-    CustomerInfo? Customer = null,
     CustomerSnapshotData? CustomerSnapshot = null,
     string? ReportNumber = null,
     CreateJobWorkRequest? Work = null,
@@ -175,7 +174,8 @@ public sealed record CustomerSnapshotData(
     string? Name,
     string? Email,
     string? Phone,
-    string? Address);
+    string? Address,
+    string? ContactPerson);
 
 public sealed record JobWorkKindResponse(
     Guid Id,
@@ -262,6 +262,13 @@ public sealed record AssignedUserResponse(
     Guid Id,
     string DisplayName);
 
+public sealed record CustomerSnapshotResponse(
+    string? Name,
+    string? Email,
+    string? Phone,
+    string? Address,
+    string? ContactPerson);
+
 public sealed record JobReportSummaryResponse(
     Guid Id,
     Guid OrganizationId,
@@ -269,7 +276,8 @@ public sealed record JobReportSummaryResponse(
     string OrganizationCvr,
     string? ReportNumber,
     JobStatus Status,
-    CustomerInfo Customer,
+    Guid? CustomerId,
+    CustomerSnapshotResponse CustomerSnapshot,
     JobReportSummaryWorkResponse Work,
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<ControlInstallationTypeResponse> ControlInstallationTypes,
