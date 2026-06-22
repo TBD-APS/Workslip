@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
 
 export default function Login() {
@@ -62,10 +62,6 @@ export default function Login() {
             Log ind
           </button>
         </form>
-
-        <div className="login-footer">
-          <Link to="/">← Tilbage til forsiden - rbwegwej</Link>
-        </div>
       </div>
     </div>
   );

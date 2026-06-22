@@ -45,7 +45,7 @@ public sealed class EfInviteRepository : IInviteRepository
             .Where(i => i.OrganizationId == organizationId)
             .OrderByDescending(i => !i.Consumed).ToListAsync();
 
-        return invites.DistinctBy(x => x.Consumed).ToList();
+        return invites.DistinctBy(x => x.EntraEmail).ToList();
     }
 
     public async Task MarkConsumedAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken)

@@ -9,6 +9,7 @@ import type {
 import { validateEmail, validatePhoneNumber } from '../../components/forms/validators';
 import type { JobForm, LinkableJob } from './types';
 import type { CustomerSnapshotData } from '../../api/generated/models/customerSnapshotData';
+import { hasSnapshotData } from './hooks/useCustomerSnapshot';
 
 type UpdateJobRequestWithSnapshot = UpdateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
@@ -108,16 +109,24 @@ export function toUpdateRequest(
 ): UpdateJobRequestWithSnapshot {
   const includeWork = options.includeWork ?? true;
 
-  const snapshot = form.editSnapshot ? form.customerSnapshot : null;
+  // Send `customerSnapshot` whenever it carries data — gated by
+  // data presence, NOT by `editSnapshot`. Picking an existing customer
+  // populates the snapshot from the pick; toggling the edit checkbox
+  // just lets the user mutate those values. Either way the snapshot
+  // is the wire shape the repository dereferences to write customer
+  // fields onto the job row, so dropping it caused NREs.
+  const snapshot = hasSnapshotData(form.customerSnapshot)
+    ? {
+        name: form.customerSnapshot?.name?.trim() || null,
+        address: form.customerSnapshot?.address?.trim() || null,
+        email: form.customerSnapshot?.email?.trim() || null,
+        contactPerson: form.customerSnapshot?.contactPerson?.trim() || null,
+        phone: form.customerSnapshot?.phone?.trim() || null,
+      }
+    : null;
 
   return {
-    customerSnapshot: snapshot ? {
-      name: snapshot.name ?? null,
-      address: snapshot.address ?? null,
-      email: snapshot.email ?? null,
-      contactPerson: snapshot.contactPerson ?? null,
-      phone: snapshot.phone ?? null,
-    } : null,
+    customerSnapshot: snapshot,
     reportNumber: job.reportNumber
       ? null
       : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),
@@ -240,3 +249,4 @@ export function getWorkValidationMessage(form: JobForm, referenceData: Reference
 export function toNullable(value: string | null) {
   return value && value.length > 0 ? value : null;
 }
+

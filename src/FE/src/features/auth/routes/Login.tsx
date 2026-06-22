@@ -281,7 +281,7 @@ export const Login = () => {
               onClick={() => setShowOtcLogin(true)}
               className="login-otc-btn"
             >
-              Passkey virker ikke / ny telefon? Brug engangskode
+              Mistet dit login? Modtag engangskode
             </button>
           </div>
         )}
@@ -316,6 +316,15 @@ export const Login = () => {
               )}
               <Mail size={18} />
               <span>{isSubmitting ? 'Sender kode...' : 'Send kode'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowOtcLogin(false)}
+              className="login-back-btn"
+            >
+              <ArrowLeft size={16} />
+              Tilbage til passkey login
             </button>
           </form>
         )}
@@ -360,20 +369,23 @@ export const Login = () => {
                 setErrorMsg(null);
                 codeForm.reset();
                 setStep('email');
+                setShowOtcLogin(false);
               }}
               className="login-back-btn"
             >
               <ArrowLeft size={16} />
-              Tilbage
+              Tilbage til login
             </button>
           </form>
         )}
 
-        <div className="login-frontpage-footer">
-          <Link to="/">← Tilbage til forsiden</Link>
-        </div>
+        {(!showOtcLogin && step === 'email') && (
+          <div className="login-frontpage-footer">
+            <Link to="/">← Tilbage til forsiden</Link>
+          </div>
+        )}
 
-        {apiBaseUrl && (
+        {(!showOtcLogin && step === 'email') && apiBaseUrl && (
           <div className="login-dev-section">
             <div className="login-dev-buttons">
               {[
@@ -410,3 +422,4 @@ export const Login = () => {
     </div>
   );
 };
+;

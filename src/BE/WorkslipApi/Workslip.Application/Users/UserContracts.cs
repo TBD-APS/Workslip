@@ -75,5 +75,6 @@ public sealed record InviteListResponse(
 
 public sealed record InviteOpenResponse(
     string Email,
-    bool UserExists);
+    bool UserExists,
+    bool Consumed);
 

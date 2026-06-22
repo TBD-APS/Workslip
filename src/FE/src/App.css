@@ -114,7 +114,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
+  color: var(--text);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
@@ -251,12 +251,14 @@
 
 
 .page-header {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 .page-header h2 {
-  font-size: var(--fs-lg);
-  margin-bottom: 0.25rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0 0 0.2rem;
+  letter-spacing: -0.01em;
 }
 
 .subtitle {
@@ -272,7 +274,7 @@
 .job-list {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.5rem;
 }
 
 .status-filter {
@@ -614,69 +616,6 @@
   transform: none;
 }
 
-.pdf-preview-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: flex;
-  background: var(--overlay-heavy);
-}
-
-.pdf-preview-panel {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-  background: var(--bg);
-  height: 100%;
-}
-
-.pdf-preview-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--surface-raised);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.pdf-preview-header h3 {
-  margin: 0.1rem 0 0;
-  color: var(--text);
-  font-size: var(--fs-body);
-  font-weight: 400;
-  word-break: break-word;
-}
-
-.pdf-preview-header p {
-  margin: 0.35rem 0 0;
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-}
-
-.pdf-preview-header-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.pdf-preview-action {
-  text-decoration: none;
-}
-
-.pdf-preview-frame {
-  flex: 1;
-  width: 100%;
-  border: 0;
-  background: var(--bg);
-  display: block;
-  touch-action: pinch-zoom pan-x pan-y;
-}
-
 .spin {
   animation: spin 0.8s linear infinite;
 }
@@ -728,7 +667,6 @@
   font-weight: 400;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  text-transform: uppercase;
   margin-bottom: 0.3rem;
 }
 
@@ -917,7 +855,8 @@
   gap: 0.3rem;
   font-size: var(--fs-xs);
   color: var(--text);
-  background: var(--surface);
+  background: var(--surface-selected);
+  border: 1px solid var(--surface-elevated);
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm);
 }
@@ -1517,7 +1456,7 @@
 }
 
 .form-help-error {
-  color: var(--status-red-text);
+  color: var(--text);
   font-size: var(--fs-xs);
 }
 
@@ -1573,6 +1512,12 @@
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
+}
+
+.multi-select-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .multi-select-chevron {
@@ -1683,7 +1628,7 @@
   flex-shrink: 0;
   margin-left: auto;
   padding: 0.16rem 0.45rem;
-  color: var(--text-muted);
+  color: var(--text);
   font-size: var(--fs-xs);
   font-weight: 400;
   letter-spacing: 0.03em;
@@ -1735,8 +1680,8 @@
 .multi-select-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.22rem 0.5rem 0.20rem 0.5rem;
+  gap: 0.3rem;
+  padding: 0.22rem 0 0.20rem 0.5rem;
   color: var(--text);
   font: inherit;
   background: var(--surface-selected);
@@ -1744,20 +1689,27 @@
   border-radius: var(--radius-sm);
   font-size: var(--fs-xs);
   font-weight: 400;
-  cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
 }
 
-@media (hover: hover) {
-.multi-select-chip:hover {
-  background: var(--surface-selected-strong);
-  border-color: var(--focus-ring);
-}
+.multi-select-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
 }
 
-
 @media (hover: hover) {
-.multi-select-chip:hover .multi-select-chip-remove {
+.multi-select-chip-remove:hover {
   color: var(--text);
   background: var(--border);
 }
@@ -1812,12 +1764,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.2rem 0.5rem;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
+  padding: 0.22rem 0.55rem;
+  background: var(--surface-selected);
+  border: 1px solid var(--surface-elevated);
   border-radius: var(--radius-sm);
-  color: var(--text-muted);
+  color: var(--text);
   font-size: var(--fs-xs);
+  font-weight: 400;
 }
 
 .form-readonly-empty {
@@ -1924,8 +1877,8 @@
 }
 
 .step-dot.active {
-  color: var(--bg);
-  background: var(--text);
+  color: var(--text);
+  background: var(--primary);
   border: none;
 }
 
@@ -2148,7 +2101,6 @@
 .irrelevant-text {
   font-size: var(--fs-xs);
   font-weight: 400;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
   white-space: nowrap;
@@ -2231,7 +2183,6 @@
   font-size: var(--fs-xs);
   font-weight: 500;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 /* ------------------------------------------------------------
@@ -3234,11 +3185,11 @@
 }
 
 .section-title {
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  color: var(--text-muted);
-  margin: 1rem 0 0.5rem;
-  letter-spacing: 0.02em;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: #fff;
+  margin: 1.5rem 0 0.75rem;
+  letter-spacing: -0.01em;
 }
 
 .user-detail-info {
@@ -3268,6 +3219,7 @@
   position: relative;
   display: flex;
   align-items: center;
+  margin-bottom: 0.75rem;
 }
 
 .search-input {
@@ -3345,10 +3297,6 @@
   color: var(--text-muted);
 }
 
-.meta-item--action {
-  color: var(--text);
-  font-weight: 500;
-}
 
 @keyframes spin {
   to {
@@ -3490,26 +3438,6 @@
   font-size: var(--fs-xs);
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.invite-status-badge.status-sent {
-  background: var(--status-blue-bg);
-  color: var(--status-blue-text);
-}
-
-.invite-status-badge.status-opened {
-  background: var(--status-amber-bg);
-  color: var(--warning);
-}
-
-.invite-status-badge.status-accepted {
-  background: var(--status-green-bg);
-  color: var(--status-green-text);
-}
-
-.invite-status-badge.status-expired {
-  background: var(--status-red-bg);
-  color: var(--status-red-text);
 }
 
 .invite-status-date {

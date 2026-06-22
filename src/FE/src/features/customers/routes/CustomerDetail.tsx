@@ -117,7 +117,7 @@ export const CustomerDetail = () => {
             <div className="job-card-top">
               <div>
                 <span className="job-number">
-                  job.reportNumber
+                  Sag-{job.reportNumber}
                 </span>
               </div>
               <span className={`status-badge status-${job.status.toLowerCase()}`}>

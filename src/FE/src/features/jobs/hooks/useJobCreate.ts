@@ -12,10 +12,11 @@ import { useGetApiReferenceData } from '../../../api/generated/reference-data/re
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
-import { emptyForm, emptySnapshot, isValidCreateForm } from '../utils';
-import type { CustomerSearchViewModel, CreateJobRequest } from '../../../api/generated/models';
+import { emptyForm, isValidCreateForm } from '../utils';
+import type { CreateJobRequest } from '../../../api/generated/models';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobForm } from '../types';
+import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustomerSnapshot';
 
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
@@ -83,46 +84,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     },
   });
 
-  const selectCustomer = (customer: CustomerSearchViewModel) => {
-    setForm((prev) => ({
-      ...prev,
-      customerId: customer.id ?? null,
-      customerSnapshot: {
-        name: customer.name ?? null,
-        address: customer.address ?? null,
-        email: customer.email ?? null,
-        phone: customer.phone ?? null,
-        contactPerson: customer.contactPerson ?? null,
-      },
-      editSnapshot: false,
-    }));
-  };
-
-  const updateSnapshotField = (field: keyof CustomerSnapshotData, value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      customerSnapshot: {
-        ...(prev.customerSnapshot ?? emptySnapshot),
-        [field]: value,
-      },
-    }));
-  };
-
-  const updateEditSnapshot = (edit: boolean) => {
-    setForm((prev) => ({
-      ...prev,
-      editSnapshot: edit,
-      customerSnapshot: edit
-        ? {
-            name: prev.customerSnapshot?.name ?? '',
-            email: prev.customerSnapshot?.email ?? '',
-            phone: prev.customerSnapshot?.phone ?? '',
-            address: prev.customerSnapshot?.address ?? '',
-            contactPerson: prev.customerSnapshot?.contactPerson ?? ''
-          }
-        : null,
-    }));
-  };
+  const { selectCustomer, updateSnapshotField, updateEditSnapshot } = useCustomerSnapshot(setForm);
 
   const updateReportNumber = (value: string) => {
     setForm((prev) => ({ ...prev, reportNumber: value }));
@@ -178,13 +140,18 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
 
     const request: CreateJobRequestWithSnapshot = {
       customerId: form.customerId,
-      customerSnapshot: form.editSnapshot ? {
-        name: form.customerSnapshot?.name?.trim() || null,
-        address: form.customerSnapshot?.address?.trim() || null,
-        email: form.customerSnapshot?.email?.trim() || null,
-        contactPerson: form.customerSnapshot?.contactPerson?.trim() || null,
-        phone: form.customerSnapshot?.phone?.trim() || null,
-      } : null,
+      // Send `customerSnapshot` whenever it carries any data —
+      // selected-existing-customer, edited-existing-customer, and the
+      // brand-new-customer-via-snapshot flow all rely on the snapshot
+      // reaching the backend. Sending null only when the snapshot is
+      // genuinely empty (and `isValidCreateForm` blocks that anyway).
+      // Earlier this gated on `form.editSnapshot`, which dropped the
+      // snapshot when the user picked an existing customer and saved
+      // without toggling the edit checkbox — the repository then NRE'd
+      // at `CustomerName = customerSnapshot.Name`.
+      customerSnapshot: hasSnapshotData(form.customerSnapshot)
+        ? trimSnapshot(form.customerSnapshot)
+        : null,
       reportNumber: form.reportNumber.trim() || null,
       work: null,
       observations: {

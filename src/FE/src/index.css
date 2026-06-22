@@ -223,6 +223,7 @@ a:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   padding: 0.75rem 1.5rem;
   border-radius: 9999px;
   font-size: 0.95rem;
@@ -231,6 +232,12 @@ a:hover {
   transition: all 0.15s ease;
   border: none;
   font-family: var(--font-main);
+}
+
+.btn-sm {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  border-radius: var(--radius-sm);
 }
 
 .btn:active {

@@ -493,8 +493,8 @@ resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-
     azCliVersion: '2.61.0'
     cleanupPreference: 'OnSuccess'
     retentionInterval: 'P1D'
-    timeout: 'PT10M'
-    forceUpdateTag: webApi.properties.outboundIpAddresses
+    timeout: 'PT30M'
+    forceUpdateTag: identity.id
     environmentVariables: [
       {
         name: 'RESOURCE_GROUP'
@@ -512,9 +512,13 @@ resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-
     scriptContent: '''
 set -euo pipefail
 
+# Cap the time we spend in any single az call so a stuck control-plane
+# response can't eat the whole deployment-script timeout.
+export AZ_HTTP_TIMEOUT=60
+
 az_with_retry() {
   local attempt=1
-  local max_attempts=12
+  local max_attempts=4
 
   while true; do
     if az "$@"; then
@@ -525,16 +529,63 @@ az_with_retry() {
       return 1
     fi
 
-    sleep $((attempt * 10))
+    sleep $((attempt * 5))
     attempt=$((attempt + 1))
   done
 }
 
-# Keep only the firewall rules managed by this script in sync with App Service outbound IPs.
-existing_rules=$(az_with_retry sql server firewall-rule list --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --query "[?starts_with(name, 'AllowWebApiOutbound')].name" --output tsv)
-for rule in $existing_rules; do
-  az_with_retry sql server firewall-rule delete --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --name "$rule" --yes --output none
-done
+# List existing rules managed by this script. Treat the output as
+# untrusted: anything that doesn't start with the expected prefix is
+# ignored, so a malformed / error response from `az` can't be passed
+# back into a subsequent command as a fake rule name.
+delete_existing() {
+  local raw
+  raw=$(az_with_retry sql server firewall-rule list \
+    --resource-group "$RESOURCE_GROUP" \
+    --server "$SQL_SERVER_NAME" \
+    --query "[?starts_with(name, 'AllowWebApiOutbound')].name" \
+    --output tsv 2>/dev/null) || raw=""
+
+  if [ -z "$raw" ]; then
+    return 0
+  fi
+
+  local rule
+  while IFS= read -r rule; do
+    case "$rule" in
+      AllowWebApiOutbound*)
+        az_with_retry sql server firewall-rule delete \
+          --resource-group "$RESOURCE_GROUP" \
+          --server "$SQL_SERVER_NAME" \
+          --name "$rule" --yes --output none ;;
+      *)
+        echo "skipping unexpected firewall-rule value: $rule" >&2 ;;
+    esac
+  done <<< "$raw"
+}
+
+create_rule() {
+  local index="$1"
+  local ip="$2"
+
+  if ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "skipping non-IPv4 value: $ip" >&2
+    return 0
+  fi
+
+  az_with_retry sql server firewall-rule create \
+    --resource-group "$RESOURCE_GROUP" \
+    --server "$SQL_SERVER_NAME" \
+    --name "AllowWebApiOutbound${index}" \
+    --start-ip-address "$ip" \
+    --end-ip-address "$ip" \
+    --output none
+}
+
+export -f create_rule
+export RESOURCE_GROUP SQL_SERVER_NAME
+
+delete_existing
 
 IFS=',' read -ra ips <<< "$OUTBOUND_IPS"
 index=0
@@ -544,16 +595,16 @@ for ip in "${ips[@]}"; do
     continue
   fi
 
-  az_with_retry sql server firewall-rule create \
-    --resource-group "$RESOURCE_GROUP" \
-    --server "$SQL_SERVER_NAME" \
-    --name "AllowWebApiOutbound${index}" \
-    --start-ip-address "$trimmed_ip" \
-    --end-ip-address "$trimmed_ip" \
-    --output none
-
+  create_rule "$index" "$trimmed_ip" &
   index=$((index + 1))
+
+  # Cap concurrency so we don't hammer the SQL control plane with
+  # dozens of simultaneous writes.
+  if (( index % 8 == 0 )); then
+    wait
+  fi
 done
+wait
 '''
   }
   dependsOn: [

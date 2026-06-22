@@ -192,8 +192,9 @@ public sealed class EfJobRepository : IJobRepository
 
         return projected.Select(x =>
         {
-            var customerInfo = x.CustId is not null
-                ? new CustomerInfo(x.CustId.Value, x.CustName ?? "", x.CustAddress, x.CustEmail, x.CustContactPerson, x.CustPhone)
+            var hasCustomerData = x.CustId is not null || !string.IsNullOrWhiteSpace(x.CustName);
+            var customerInfo = hasCustomerData
+                ? new CustomerInfo(x.CustId, x.CustName ?? "", x.CustAddress, x.CustEmail, x.CustContactPerson, x.CustPhone)
                 : null;
 
             return new JobListItemResponse(
