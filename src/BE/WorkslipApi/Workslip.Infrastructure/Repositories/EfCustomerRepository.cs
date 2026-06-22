@@ -187,12 +187,12 @@ public sealed class EfCustomerRepository : ICustomerRepository
             return;
         }
 
-        row.Name = customer.Name ?? string.Empty;
-        row.Address = customer.Address;
-        row.Email = customer.Email;
-        row.ContactPerson = customer.ContactPerson;
-        row.Phone = customer.Phone;
-        row.UpdatedAt = DateTimeOffset.UtcNow;
+        _dbContext.Entry(row).Property(x => x.Name).CurrentValue = customer.Name ?? string.Empty;
+        _dbContext.Entry(row).Property(x => x.Address).CurrentValue = customer.Address;
+        _dbContext.Entry(row).Property(x => x.Email).CurrentValue = customer.Email;
+        _dbContext.Entry(row).Property(x => x.ContactPerson).CurrentValue = customer.ContactPerson;
+        _dbContext.Entry(row).Property(x => x.Phone).CurrentValue = customer.Phone;
+        _dbContext.Entry(row).Property(x => x.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }

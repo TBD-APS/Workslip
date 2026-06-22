@@ -276,6 +276,23 @@ a:hover {
 }
 }
 
+.btn-danger {
+  background: var(--danger);
+  color: white;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.28);
+}
+
+.btn-danger:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) {
+.btn-danger:hover {
+  background: var(--danger-hover, #b91c1c);
+  transform: translateY(-1px);
+}
+}
+
 /* Hero Section */
 .hero {
   display: flex;

@@ -1,12 +1,15 @@
 using Ardalis.Result;
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
+using Workslip.Application.Jobs;
 
 namespace Workslip.Application.Customers;
 
 public sealed class CustomerService(
     ICustomerRepository customerRepository,
     ICurrentUserContext currentUser,
+    IValidator<UpdateCustomerRequest> updateValidator,
     ILogger<CustomerService> logger) : ICustomerService
 {
     public async Task<Result<IReadOnlyList<CustomerListItemResponse>>> ListAsync(int? limit, int? offset, CancellationToken cancellationToken)
@@ -84,9 +87,13 @@ public sealed class CustomerService(
             return Result<CustomerDetailResponse>.Unauthorized();
         }
 
-        if (string.IsNullOrWhiteSpace(request.Name?.Trim()))
+        var validationResult = await updateValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
         {
-            return Result<CustomerDetailResponse>.Conflict("Customer name is required.");
+            var errors = validationResult.Errors
+                .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
+                .ToList();
+            return Result<CustomerDetailResponse>.Invalid(errors);
         }
 
         var existing = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
@@ -95,12 +102,8 @@ public sealed class CustomerService(
             return Result<CustomerDetailResponse>.NotFound();
         }
 
-        if (existing.JobCount > 0)
-        {
-            logger.LogInformation("Updating customer {CustomerId} which has {JobCount} jobs — update allowed for masterdata", id, existing.JobCount);
-        }
-
         var updatedCustomer = new CustomerInfo(
+            id,
             request.Name!.Trim(),
             request.Address?.Trim(),
             request.Email?.Trim(),
@@ -136,6 +139,6 @@ public sealed class CustomerService(
 
         await customerRepository.DeleteAsync(organizationId.Value, id, cancellationToken);
         logger.LogInformation("Customer {CustomerId} deleted successfully", id);
-        return Result.Ok();
+        return Result.Success();
     }
 }

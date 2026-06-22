@@ -57,7 +57,7 @@ public static class CustomerEndpoints
         {
             var result = await service.DeleteAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
-        }).Produces<Result>();
+        });
 
         return app;
     }

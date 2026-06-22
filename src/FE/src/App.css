@@ -4394,3 +4394,39 @@
   color: var(--text-muted);
 }
 
+/* ------------------------------------------------------------
+   Customer actions — context menu anchor + edit form
+   ------------------------------------------------------------ */
+.job-card-wrapper {
+  position: relative;
+  overflow: visible;
+}
+
+.job-card-wrapper .job-card {
+  width: 100%;
+}
+
+.customer-actions-anchor {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 10;
+}
+
+.customer-actions-anchor .customer-actions-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.job-card-wrapper:hover .customer-actions-anchor .customer-actions-btn,
+.customer-actions-anchor .customer-actions-btn[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.customer-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
