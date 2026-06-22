@@ -207,6 +207,15 @@ public sealed class EfCustomerRepository : ICustomerRepository
             return;
         }
 
+        var linkedJobs = await _dbContext.JobReports
+            .Where(j => j.OrganizationId == organizationId && j.CustomerId == id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var job in linkedJobs)
+        {
+            _dbContext.Entry(job).Property(e => e.CustomerId).CurrentValue = null;
+        }
+
         _dbContext.Customers.Remove(row);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }

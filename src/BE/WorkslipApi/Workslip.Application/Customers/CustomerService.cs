@@ -131,12 +131,6 @@ public sealed class CustomerService(
             return Result.NotFound();
         }
 
-        if (existing.JobCount > 0)
-        {
-            logger.LogWarning("Attempted to delete customer {CustomerId} which has {JobCount} jobs — blocked", id, existing.JobCount);
-            return Result.Conflict("Cannot delete customer with associated jobs.");
-        }
-
         await customerRepository.DeleteAsync(organizationId.Value, id, cancellationToken);
         logger.LogInformation("Customer {CustomerId} deleted successfully", id);
         return Result.Success();

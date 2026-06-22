@@ -59,7 +59,10 @@ export const CustomerList = () => {
     ActionMenuPortal,
     EditDialog,
     DeleteDialog,
-  } = useCustomerActions({ customers });
+  } = useCustomerActions({
+    customers,
+    onEditCustomer: (customer) => navigate(`/app/customers/${customer.id}/edit`),
+  });
 
   if (query.isLoading) {
     return (
@@ -112,12 +115,12 @@ export const CustomerList = () => {
               <div className="job-card-top job-card-top-center">
                 <Building2 size={20} className="customer-icon" />
                 <h3 className="customer-name">{customer.name}</h3>
-                <span className="meta-item customer-job-count">
-                   {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
-                </span>
               </div>
 
               <div className="job-card-body">
+                <span className="meta-item customer-job-count">
+                   {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
+                </span>
                 {customer.address && (
                   <span className="meta-item">
                     <MapPin size={14} />
@@ -167,6 +170,8 @@ export const CustomerList = () => {
                 <MoreHorizontal size={18} />
               </button>
             </div>
+
+
           </div>
         ))}
 

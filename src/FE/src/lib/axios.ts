@@ -22,6 +22,22 @@ export const apiClient = axios.create({
   },
 });
 
+const mutatingMethods = new Set(['post', 'put', 'patch', 'delete']);
+const inFlightKeys = new Set<string>();
+
+function requestKey(config: InternalAxiosRequestConfig): string {
+  return `${(config.method ?? 'get').toUpperCase()} ${config.url}`;
+}
+
+function releaseKey(config: InternalAxiosRequestConfig): void {
+  const method = config.method ?? 'get';
+  if (mutatingMethods.has(method)) {
+    inFlightKeys.delete(requestKey(config));
+  }
+}
+
+const DUPLICATE_REQUEST_ERROR = '__DUPLICATE_REQUEST__';
+
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // Attach auth token from AuthStorage (localStorage; survives PWA eviction).
   const token = AuthStorage.getItem(AUTH_TOKEN_KEY);
@@ -29,17 +45,34 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   config.headers.Accept = 'application/json';
+
+  // Deduplicate in-flight mutating requests (POST, PUT, PATCH, DELETE) by
+  // method + URL. If the same request is already in-flight, reject the
+  // duplicate silently. This prevents 404s from rapid double-clicks on
+  // delete/update buttons before React can re-render with disabled state.
+  const method = config.method ?? 'get';
+  if (mutatingMethods.has(method)) {
+    const key = requestKey(config);
+    if (inFlightKeys.has(key)) {
+      return Promise.reject(new Error(DUPLICATE_REQUEST_ERROR));
+    }
+    inFlightKeys.add(key);
+  }
+
   return config;
 });
 
 apiClient.interceptors.response.use(
   (response) => {
+    releaseKey(response.config);
     if (response.config.responseType === 'blob') {
       return response;
     }
     return response.data;
   },
   (error) => {
+    if (error.config) releaseKey(error.config);
+
     const isCanceled =
       axios.isCancel(error) ||
       error?.name === 'CanceledError' ||
@@ -48,6 +81,11 @@ apiClient.interceptors.response.use(
 
     // Silent fail for cancellations - this is normal behavior for React Query & unmounting
     if (isCanceled) {
+      return Promise.reject(error);
+    }
+
+    // Silent fail for deduplicated mutating requests (rapid double-clicks)
+    if (error?.message === DUPLICATE_REQUEST_ERROR) {
       return Promise.reject(error);
     }
 

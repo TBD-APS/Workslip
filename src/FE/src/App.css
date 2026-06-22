@@ -4414,12 +4414,6 @@
 }
 
 .customer-actions-anchor .customer-actions-btn {
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.job-card-wrapper:hover .customer-actions-anchor .customer-actions-btn,
-.customer-actions-anchor .customer-actions-btn[aria-expanded="true"] {
   opacity: 1;
 }
 

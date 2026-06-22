@@ -36,7 +36,6 @@ function toDraft(customer: CustomerListItemViewModel | CustomerDetailViewModel):
 type CustomerActionMenuPortalProps = {
   openActionMenu: ActionMenuState | null;
   openCustomer: CustomerListItemViewModel | null;
-  canDelete: boolean;
   isDeleting: boolean;
   onStartEdit: (customer: CustomerListItemViewModel) => void;
   onDelete: (customer: CustomerListItemViewModel) => void;
@@ -45,7 +44,6 @@ type CustomerActionMenuPortalProps = {
 function CustomerActionMenuPortal({
   openActionMenu,
   openCustomer,
-  canDelete,
   isDeleting,
   onStartEdit,
   onDelete,
@@ -62,18 +60,16 @@ function CustomerActionMenuPortal({
         <Pencil size={15} />
         <span>Rediger</span>
       </button>
-      {canDelete && (
-        <button
-          type="button"
-          className="danger"
-          role="menuitem"
-          onClick={() => onDelete(openCustomer)}
-          disabled={isDeleting}
-        >
-          <Trash2 size={15} />
-          <span>Slet</span>
-        </button>
-      )}
+      <button
+        type="button"
+        className="danger"
+        role="menuitem"
+        onClick={() => onDelete(openCustomer)}
+        disabled={isDeleting}
+      >
+        <Trash2 size={15} />
+        <span>Slet</span>
+      </button>
     </div>,
     document.body,
   );
@@ -242,10 +238,12 @@ function EditCustomerDialog({ customer, onClose }: EditCustomerDialogProps) {
 type DeleteCustomerDialogProps = {
   customer: CustomerListItemViewModel | null;
   onClose: () => void;
+  onDeleted?: (customer: CustomerListItemViewModel) => void;
 };
 
-function DeleteCustomerDialog({ customer, onClose }: DeleteCustomerDialogProps) {
+function DeleteCustomerDialog({ customer, onClose, onDeleted }: DeleteCustomerDialogProps) {
   const queryClient = useQueryClient();
+  const deleteLockRef = useRef(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
@@ -260,15 +258,19 @@ function DeleteCustomerDialog({ customer, onClose }: DeleteCustomerDialogProps) 
   if (!customer) return null;
 
   const handleDelete = async () => {
+    if (deleteLockRef.current) return;
+    deleteLockRef.current = true;
     setIsDeleting(true);
     try {
       await apiClient.delete(`/api/customers/${customer.id}`);
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: getGetApiCustomersIdQueryKey(customer.id) });
       toast.success('Kunden er slettet.');
+      onDeleted?.(customer);
       onClose();
     } catch {
       toast.error('Kunne ikke slette kunden. Prøv igen.');
-    } finally {
+      deleteLockRef.current = false;
       setIsDeleting(false);
     }
   };
@@ -284,30 +286,25 @@ function DeleteCustomerDialog({ customer, onClose }: DeleteCustomerDialogProps) 
         <h3>Slet kunde</h3>
         <p>
           Er du sikker på, du vil slette <strong>{customer.name}</strong>?
-          {Number(customer.jobCount) > 0 && (
-            <> Denne kunde har tilknyttede sager og kan ikke slettes.</>
-          )}
         </p>
 
         <div className="modal-actions">
-          {customer.jobCount === 0 && (
-            <button
-              type="button"
-              className="btn btn-danger"
-              onClick={() => void handleDelete()}
-              disabled={isDeleting}
-            >
-              {isDeleting && <Loader2 className="animate-spin" size={16} />}
-              <span>{isDeleting ? 'Sletter...' : 'Slet'}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={() => void handleDelete()}
+            disabled={isDeleting}
+          >
+            {isDeleting && <Loader2 className="animate-spin" size={16} />}
+            <span>{isDeleting ? 'Sletter...' : 'Slet'}</span>
+          </button>
           <button
             type="button"
             className="btn btn-secondary"
             onClick={onClose}
             disabled={isDeleting}
           >
-            {Number(customer.jobCount) > 0 ? 'Luk' : 'Annuller'}
+            Annuller
           </button>
         </div>
       </div>
@@ -320,9 +317,11 @@ function DeleteCustomerDialog({ customer, onClose }: DeleteCustomerDialogProps) 
 
 type CustomerActionsProps = {
   customers: CustomerListItemViewModel[];
+  onEditCustomer?: (customer: CustomerListItemViewModel) => void;
+  onDeletedCustomer?: (customer: CustomerListItemViewModel) => void;
 };
 
-export function useCustomerActions({ customers }: CustomerActionsProps) {
+export function useCustomerActions({ customers, onEditCustomer, onDeletedCustomer }: CustomerActionsProps) {
   const [openActionMenu, setOpenActionMenu] = useState<ActionMenuState | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<CustomerDetailViewModel | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<CustomerListItemViewModel | null>(null);
@@ -364,15 +363,10 @@ export function useCustomerActions({ customers }: CustomerActionsProps) {
     );
   }, []);
 
-  const handleStartEdit = useCallback(async (customer: CustomerListItemViewModel) => {
+  const handleStartEdit = useCallback((customer: CustomerListItemViewModel) => {
     setOpenActionMenu(null);
-    try {
-      const detail = await apiClient.get(`/api/customers/${customer.id}`);
-      setEditingCustomer(detail.data as CustomerDetailViewModel);
-    } catch {
-      toast.error('Kunne ikke hente kundedetaljer.');
-    }
-  }, []);
+    onEditCustomer?.(customer);
+  }, [onEditCustomer]);
 
   const handleDelete = useCallback((customer: CustomerListItemViewModel) => {
     setOpenActionMenu(null);
@@ -386,7 +380,6 @@ export function useCustomerActions({ customers }: CustomerActionsProps) {
       <CustomerActionMenuPortal
         openActionMenu={openActionMenu}
         openCustomer={openCustomer}
-        canDelete={openCustomer ? openCustomer.jobCount === 0 : false}
         isDeleting={false}
         onStartEdit={handleStartEdit}
         onDelete={handleDelete}
@@ -402,6 +395,7 @@ export function useCustomerActions({ customers }: CustomerActionsProps) {
       <DeleteCustomerDialog
         customer={deletingCustomer}
         onClose={() => setDeletingCustomer(null)}
+        onDeleted={onDeletedCustomer}
       />
     ),
   };
