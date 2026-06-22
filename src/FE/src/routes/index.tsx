@@ -9,6 +9,7 @@ import { JobList } from '../features/jobs/routes/JobList';
 import { JobDetail } from '../features/jobs/routes/JobDetail';
 import { JobCreate } from '../features/jobs/routes/JobCreate';
 import { CompletedJobReport } from '../features/jobs/routes/CompletedJobReport';
+import { Create } from '../features/create/routes/Create';
 import { UserList } from '../features/users/routes/UserList';
 import { UserDetail } from '../features/users/routes/UserDetail';
 import { CustomerList } from '../features/customers/routes/CustomerList';
@@ -77,6 +78,7 @@ export const AppRoutes = () => {
       children: [
         { index: true, element: <JobList /> },
         { path: 'timer', element: <MyWorksheets /> },
+        { path: 'create', element: <RoleGuard permission="job:create"><Create /></RoleGuard> },
         { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
         { path: 'job/:id', element: <JobDetail /> },
         { path: 'completed/:id', element: <CompletedJobReport /> },
