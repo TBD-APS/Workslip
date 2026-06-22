@@ -667,7 +667,6 @@
   font-weight: 400;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  text-transform: uppercase;
   margin-bottom: 0.3rem;
 }
 
@@ -1457,7 +1456,7 @@
 }
 
 .form-help-error {
-  color: var(--status-red-text);
+  color: var(--text);
   font-size: var(--fs-xs);
 }
 
@@ -1878,7 +1877,7 @@
 }
 
 .step-dot.active {
-  color: var(--bg);
+  color: var(--text);
   background: var(--primary);
   border: none;
 }
@@ -2102,7 +2101,6 @@
 .irrelevant-text {
   font-size: var(--fs-xs);
   font-weight: 400;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
   white-space: nowrap;
@@ -2185,7 +2183,6 @@
   font-size: var(--fs-xs);
   font-weight: 500;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 /* ------------------------------------------------------------

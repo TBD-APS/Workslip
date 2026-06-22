@@ -81,7 +81,7 @@ export function StepNavigation({
   statusSlot,
   hideDoneButton = false,
 }: StepNavigationProps) {
-  const [scrollState, setScrollState] = useState<'visible' | 'hidden' | 'docked'>('visible');
+  const [scrollState, setScrollState] = useState<'visible' | 'hidden'>('visible');
   const { openDropdowns } = useDropdownContext();
   const stateRef = useRef(scrollState);
   const lastScrollY = useRef(0);
@@ -103,7 +103,7 @@ export function StepNavigation({
       return document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
     };
 
-    const go = (next: 'visible' | 'hidden' | 'docked') => {
+    const go = (next: 'visible' | 'hidden') => {
       if (next !== stateRef.current) {
         stateRef.current = next;
         setScrollState(next);
@@ -114,12 +114,12 @@ export function StepNavigation({
       const scrollTop = getScrollTop();
       const scrollBottom = getScrollBottom();
       const atBottom = scrollBottom <= 24;
+      const d = scrollTop - lastScrollY.current;
 
       if (atBottom) {
         clearTimeout(hideTimer.current);
-        go('docked');
+        go('visible');
       } else {
-        const d = scrollTop - lastScrollY.current;
         const scrollingDown = scrollTop > SCROLL_THRESHOLD && d > 0;
 
         if (scrollingDown && stateRef.current === 'visible') {
@@ -150,8 +150,6 @@ export function StepNavigation({
       clearTimeout(hideTimer.current);
     };
   }, []);
-
-  const isFixed = scrollState !== 'docked';
 
   const bar = (
     <div className="step-nav">
@@ -201,26 +199,17 @@ export function StepNavigation({
 
   return (
     <div
-      style={
-        isFixed
-          ? {
-              position: 'fixed',
-              bottom: 'calc(80px + 1rem)',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 150,
-              opacity: scrollState === 'hidden' || isDropdownOpen ? 0 : 1,
-              pointerEvents: scrollState === 'hidden' || isDropdownOpen ? 'none' : 'auto',
-              transition: 'opacity 0.2s ease',
-            }
-          : {
-              position: 'relative',
-              width: '100%',
-              opacity: isDropdownOpen ? 0 : 1,
-              pointerEvents: isDropdownOpen ? 'none' : 'auto',
-              transition: 'opacity 0.2s ease',
-            }
-      }
+      style={{
+        position: 'sticky',
+        bottom: 'calc(80px + 1rem)',
+        zIndex: 150,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        opacity: scrollState === 'hidden' || isDropdownOpen ? 0 : 1,
+        pointerEvents: scrollState === 'hidden' || isDropdownOpen ? 'none' : 'auto',
+        transition: 'opacity 0.2s ease',
+      }}
     >
       {statusSlot && <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>{statusSlot}</div>}
       {bar}
