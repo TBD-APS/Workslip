@@ -217,6 +217,7 @@ public sealed class EfCustomerRepository : ICustomerRepository
         }
 
         _dbContext.Customers.Remove(row);
+
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

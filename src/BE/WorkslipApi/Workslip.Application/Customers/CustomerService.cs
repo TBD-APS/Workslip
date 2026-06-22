@@ -110,6 +110,8 @@ public sealed class CustomerService(
             request.ContactPerson?.Trim(),
             request.Phone?.Trim());
 
+        logger.LogInformation("Updating customer {CustomerId} with new values: {@UpdatedCustomer} in org {OrgId}", id, updatedCustomer, organizationId);
+
         await customerRepository.UpdateAsync(organizationId.Value, id, updatedCustomer, cancellationToken);
 
         var updated = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
@@ -131,8 +133,9 @@ public sealed class CustomerService(
             return Result.NotFound();
         }
 
+        logger.LogInformation("Customer {CustomerId} is about to be deleted in org {OrgId}", id, organizationId);
         await customerRepository.DeleteAsync(organizationId.Value, id, cancellationToken);
-        logger.LogInformation("Customer {CustomerId} deleted successfully", id);
+        logger.LogInformation("Customer {CustomerId} deleted successfully in org {OrgId}", id, organizationId);
         return Result.Success();
     }
 }
