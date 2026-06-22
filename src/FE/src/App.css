@@ -114,7 +114,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
+  color: var(--text);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
@@ -3441,26 +3441,6 @@
   font-size: var(--fs-xs);
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.invite-status-badge.status-sent {
-  background: var(--status-blue-bg);
-  color: var(--status-blue-text);
-}
-
-.invite-status-badge.status-opened {
-  background: var(--status-amber-bg);
-  color: var(--warning);
-}
-
-.invite-status-badge.status-accepted {
-  background: var(--status-green-bg);
-  color: var(--status-green-text);
-}
-
-.invite-status-badge.status-expired {
-  background: var(--status-red-bg);
-  color: var(--status-red-text);
 }
 
 .invite-status-date {
