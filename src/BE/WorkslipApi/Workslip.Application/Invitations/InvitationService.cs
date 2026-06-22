@@ -139,31 +139,6 @@ public sealed class InvitationService(
             : Result<AuthUserInfo>.Conflict(validationError);
     }
 
-    private async Task<Result?> ValidateInviteForOpenAsync(InviteTokenRow invite, CancellationToken cancellationToken)
-    {
-        var validationError = await GetInviteValidationErrorAsync(invite, cancellationToken);
-        return validationError is null
-            ? null
-            : Result.Conflict(validationError);
-    }
-
-    private async Task<string?> GetInviteValidationErrorAsync(InviteTokenRow invite, CancellationToken cancellationToken)
-    {
-        if (invite.Consumed)
-        {
-            logger.LogWarning("Invite verification failed: already consumed. Token: {Token}", invite.Token);
-            return "invite_consumed";
-        }
-
-        if (DateTimeOffset.UtcNow > invite.ExpiresAt)
-        {
-            logger.LogWarning("Invite verification failed: expired. Token: {Token}", invite.Token);
-            return "invite_expired";
-        }
-
-        return null;
-    }
-
     private async Task<InviteUserResult> ProcessInviteEmailAsync(string email, Guid organizationId, string? role, string inviteBaseUrl, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(email))
@@ -246,20 +221,12 @@ public sealed class InvitationService(
             return Result<InviteOpenResponse>.NotFound();
         }
 
-        // Already-consumed short-circuit: the user has completed this
-        // invite before. We must NOT re-validate it as expired / invalid,
-        // and we must NOT re-provision an Entra guest. Just report the
-        // email + whether the user record still exists so the FE can
-        // route them appropriately. (`userExists=false` here means the
-        // user was created via this invite and later removed by an
-        // admin; the FE surfaces that as a "contact your manager"
-        // screen.)
         if (invite.Consumed)
         {
             var consumedUser = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
             logger.LogInformation("Invite re-opened after consumption. Token: {Token}. Email: {Email}. UserExists: {UserExists}",
                 token, invite.Email, consumedUser is not null);
-            return Result<InviteOpenResponse>.Success(new InviteOpenResponse(invite.Email, consumedUser is not null));
+            return Result<InviteOpenResponse>.Success(new InviteOpenResponse(invite.Email, consumedUser is not null, Consumed: true));
         }
 
         var validationError = await ValidateInviteForOpenAsync(invite, cancellationToken);
@@ -268,18 +235,6 @@ public sealed class InvitationService(
             return Result<InviteOpenResponse>.Conflict(validationError.Errors.FirstOrDefault() ?? "validation_failed");
         }
 
-        // Idempotency guard: once an invite has been provisioned with an
-        // EntraUserId, do NOT re-call EnsureInvitedUserAsync. Every link
-        // re-open would otherwise either (a) hit Graph again to find the
-        // same user or (b) race against the find-existing filter and
-        // create a duplicate guest. The cached EntraUserId is the source
-        // of truth for this invite until cleanup runs.
-        //
-        // CleanupStaleEntraInvitesAsync is the only thing that nulls it
-        // out (via MarkInviteEntraCleanedAsync), and that only runs for
-        // expired invites. Expired invites are rejected by
-        // ValidateInviteForOpenAsync above, so a non-null EntraUserId
-        // here means: this invite owns exactly one Entra guest.
         if (string.IsNullOrWhiteSpace(invite.EntraUserId))
         {
             try
@@ -305,10 +260,37 @@ public sealed class InvitationService(
         await inviteRepository.MarkOpenedAsync(invite, cancellationToken);
         logger.LogInformation("Invite opened and Entra guest ensured. Token: {Token}. Email: {Email}", token, invite.Email);
 
-        var existingUser = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
+        var user = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
+        var userExists = user is not null;
 
-        return Result<InviteOpenResponse>.Success(new InviteOpenResponse(invite.Email, existingUser is not null));
+        return Result<InviteOpenResponse>.Success(new InviteOpenResponse(invite.Email, userExists, Consumed: invite.Consumed));
     }
+
+    private async Task<Result?> ValidateInviteForOpenAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    {
+        var validationError = await GetInviteValidationErrorAsync(invite, cancellationToken);
+        return validationError is null
+            ? null
+            : Result.Conflict(validationError);
+    }
+
+    private async Task<string?> GetInviteValidationErrorAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    {
+        if (invite.Consumed)
+        {
+            logger.LogWarning("Invite verification failed: already consumed. Token: {Token}", invite.Token);
+            return "invite_consumed";
+        }
+
+        if (DateTimeOffset.UtcNow > invite.ExpiresAt)
+        {
+            logger.LogWarning("Invite verification failed: expired. Token: {Token}", invite.Token);
+            return "invite_expired";
+        }
+
+        return null;
+    }
+
 
     public async Task<int> CleanupStaleEntraInvitesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken)
     {

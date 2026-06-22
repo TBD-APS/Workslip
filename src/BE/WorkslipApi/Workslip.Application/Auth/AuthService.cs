@@ -107,7 +107,7 @@ public sealed class AuthService(
     {
         var email = request.Email.Trim().ToLowerInvariant();
 
-        if (!_otcStore.TryRemove(email, out var entry))
+        if (!_otcStore.TryGetValue(email, out var entry))
         {
             logger.LogWarning("Login code verification failed: no code requested for {Email}", email);
             return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
@@ -115,6 +115,7 @@ public sealed class AuthService(
 
         if (DateTimeOffset.UtcNow > entry.ExpiresAt)
         {
+            _otcStore.TryRemove(email, out _);
             logger.LogWarning("Login code verification failed: code expired for {Email}", email);
             return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
@@ -122,10 +123,21 @@ public sealed class AuthService(
         var inputHash = HashCode(request.Code.Trim());
         if (!CryptographicOperations.FixedTimeEquals(entry.CodeHash, inputHash))
         {
-            logger.LogWarning("Login code verification failed: invalid code for {Email}", email);
+            var newAttempts = entry.Attempts + 1;
+            if (newAttempts >= 3)
+            {
+                _otcStore.TryRemove(email, out _);
+                logger.LogWarning("Login code verification failed: too many attempts for {Email}", email);
+            }
+            else
+            {
+                _otcStore[email] = entry with { Attempts = newAttempts };
+                logger.LogWarning("Login code verification failed: invalid code for {Email}. Attempt {Attempt}/3", email, newAttempts);
+            }
             return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
 
+        _otcStore.TryRemove(email, out _);
         return ResolveUserAsync(email, cancellationToken);
     }
 
@@ -182,5 +194,5 @@ public sealed class AuthService(
     private static byte[] HashCode(string code) =>
         SHA256.HashData(Encoding.UTF8.GetBytes(code));
 
-    private sealed record OtcEntry(byte[] CodeHash, DateTimeOffset ExpiresAt);
+    private sealed record OtcEntry(byte[] CodeHash, DateTimeOffset ExpiresAt, int Attempts = 0);
 }

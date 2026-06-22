@@ -249,3 +249,4 @@ export function getWorkValidationMessage(form: JobForm, referenceData: Reference
 export function toNullable(value: string | null) {
   return value && value.length > 0 ? value : null;
 }
+

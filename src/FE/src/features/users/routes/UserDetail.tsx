@@ -13,8 +13,8 @@ import {
   MapPin,
   Search,
   Shield,
-  Sparkles,
   Timer,
+  UserPlus,
 } from 'lucide-react';
 import { useGetApiUsersId, getGetApiUsersIdQueryKey } from '../../../api/generated/users/users';
 import { useGetApiJobs, usePostApiJobsIdAssign } from '../../../api/generated/jobs/jobs';
@@ -379,12 +379,6 @@ export const UserDetail = () => {
           )}
         </div>
         <div className="job-card-footer">
-          {!isSearching && !alreadyAssigned && !job.softDeleted && (
-            <span className="meta-item meta-item--suggestion" aria-hidden="true">
-              <Sparkles size={14} />
-              <span>Forslag</span>
-            </span>
-          )}
           {alreadyAssigned ? (
             <span className="meta-item meta-item--success">
               <Check size={14} />
@@ -400,7 +394,8 @@ export const UserDetail = () => {
               <span>Slettet</span>
             </span>
           ) : (
-            <span className="meta-item meta-item--action">
+            <span className="btn btn-sm btn-primary">
+              <UserPlus size={14} />
               <span>Tildel</span>
             </span>
           )}

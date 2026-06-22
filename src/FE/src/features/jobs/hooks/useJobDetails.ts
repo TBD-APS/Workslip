@@ -36,6 +36,7 @@ import {
 } from '../utils';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import type { JobForm } from '../types';
+import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import { useCustomerSnapshot } from './useCustomerSnapshot';
 
 type JobDetailsDraft = { jobId: string; form: JobForm };

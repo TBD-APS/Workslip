@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, X } from 'lucide-react';
 import { useDropdownContext } from '../../providers/DropdownContext';
 
 const COMMIT_DELAY_MS = 1000;
@@ -160,7 +160,11 @@ export function MultiSelectDropdown({
         >
           <span className="multi-select-trigger-content">
             {icon}
-            {selectedOptions.length > 0 ? `${selectedOptions.length} valgt` : placeholder}
+            <span className="multi-select-trigger-label">
+              {selectedOptions.length > 0
+                ? selectedOptions.slice(0, 2).map((o) => o.label).join(', ') + (selectedOptions.length > 2 ? ` +${selectedOptions.length - 2}` : '')
+                : placeholder}
+            </span>
           </span>
           <ChevronRight className={isOpen ? 'multi-select-chevron open' : 'multi-select-chevron'} size={16} />
         </button>
@@ -194,6 +198,7 @@ export function MultiSelectDropdown({
                     <span>{option.label}</span>
                     {option.description && <small>{option.description}</small>}
                   </span>
+                  {isSelected && <span className="selection-pill">Valgt</span>}
                 </button>
               );
             })}
@@ -204,15 +209,17 @@ export function MultiSelectDropdown({
       <div className="multi-select-chips">
         {selectedOptions.length > 0 ? (
           selectedOptions.map((option) => (
-            <button
-              key={option.id}
-              className="multi-select-chip"
-              type="button"
-              onClick={() => toggleOption(option.id)}
-              aria-label={`Fjern ${option.label}`}
-            >
+            <span key={option.id} className="multi-select-chip">
               <span>{option.label}</span>
-            </button>
+              <button
+                className="multi-select-chip-remove"
+                type="button"
+                onClick={() => toggleOption(option.id)}
+                aria-label={`Fjern ${option.label}`}
+              >
+                <X size={12} />
+              </button>
+            </span>
           ))
         ) : (
           <span className="multi-select-empty">Ingen valgt</span>

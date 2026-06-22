@@ -33,7 +33,7 @@ const resolveInviteError = (errorCode: string | undefined, fallback: string) =>
 
 export const InviteAccept = () => {
   const { token } = useParams<{ token: string }>();
-  const { meQuery, logout } = useAuth();
+  const { meQuery, logout, isLoading } = useAuth();
   const [state, setState] = useState<InviteState>({ status: 'checking' });
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
@@ -77,7 +77,7 @@ export const InviteAccept = () => {
     // session before we make any decisions. /api/auth/me runs on
     // AppProvider mount; until it resolves we don't know whether the
     // user is already logged in.
-    if (meQuery.isPending) return;
+    if (isLoading) return;
 
     if (calledRef.current) return;
     calledRef.current = true;
@@ -105,11 +105,13 @@ export const InviteAccept = () => {
           logout();
           if (res.userExists) {
             window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
-          } else if (!res.userExists) {
-            setState({ status: 'consumed_no_user' });
-          } else {
-            setState({ status: 'ready' });
+            return;
           }
+          if (!res.consumed) {
+            setState({ status: 'ready' });
+            return;
+          }
+          setState({ status: 'consumed_no_user' });
           return;
         }
 
@@ -120,13 +122,18 @@ export const InviteAccept = () => {
           return;
         }
 
-        // Backend said the invite was consumed but the user record is
-        // gone — admin removed them after acceptance. They can't enroll
-        // again with the same invite. Surface a clear message.
+        if (!res.consumed) {
+          // Fresh invite, new user — show enrollment form.
+          setState({ status: 'ready' });
+          return;
+        }
+
+        // Consumed invite but the user record is gone (admin removed
+        // them after acceptance). Can't enroll again with this link.
         setState({ status: 'consumed_no_user' });
       })
       .catch(() => setState({ status: 'invalid', message: 'Invitationen blev ikke fundet. Kontrollér linket eller kontakt administratoren.' }));
-  }, [token, meQuery.isPending, meQuery.data, logout]);
+  }, [token, isLoading, meQuery.data, logout]);
 
   const handleAcceptInvite = () => {
     setState({ status: 'accepted' });
