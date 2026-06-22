@@ -176,4 +176,48 @@ public sealed class EfCustomerRepository : ICustomerRepository
 
         return customers;
     }
+
+    public async Task UpdateAsync(Guid organizationId, Guid id, CustomerInfo customer, CancellationToken cancellationToken)
+    {
+        var row = await _dbContext.Customers
+            .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, cancellationToken);
+
+        if (row is null)
+        {
+            return;
+        }
+
+        _dbContext.Entry(row).Property(x => x.Name).CurrentValue = customer.Name ?? string.Empty;
+        _dbContext.Entry(row).Property(x => x.Address).CurrentValue = customer.Address;
+        _dbContext.Entry(row).Property(x => x.Email).CurrentValue = customer.Email;
+        _dbContext.Entry(row).Property(x => x.ContactPerson).CurrentValue = customer.ContactPerson;
+        _dbContext.Entry(row).Property(x => x.Phone).CurrentValue = customer.Phone;
+        _dbContext.Entry(row).Property(x => x.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(Guid organizationId, Guid id, CancellationToken cancellationToken)
+    {
+        var row = await _dbContext.Customers
+            .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, cancellationToken);
+
+        if (row is null)
+        {
+            return;
+        }
+
+        var linkedJobs = await _dbContext.JobReports
+            .Where(j => j.OrganizationId == organizationId && j.CustomerId == id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var job in linkedJobs)
+        {
+            _dbContext.Entry(job).Property(e => e.CustomerId).CurrentValue = null;
+        }
+
+        _dbContext.Customers.Remove(row);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

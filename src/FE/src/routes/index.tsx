@@ -13,11 +13,12 @@ import { Create } from '../features/create/routes/Create';
 import { UserList } from '../features/users/routes/UserList';
 import { UserDetail } from '../features/users/routes/UserDetail';
 import { CustomerList } from '../features/customers/routes/CustomerList';
-import { CustomerDetail } from '../features/customers/routes/CustomerDetail';
+import { EditCustomerPage } from '../features/customers/routes/EditCustomerPage';
 import { AppLayout } from '../components/layouts/AppLayout';
+import { MyWorksheets } from '../features/worksheets/routes/MyWorksheets';
+import { CustomerDetail } from '../features/customers/routes/CustomerDetail';
 import { Settings } from '../features/settings/routes/Settings';
 import { Profile } from '../features/settings/routes/Profile';
-import { MyWorksheets } from '../features/worksheets/routes/MyWorksheets';
 
 /**
  * Wraps every authenticated route. Waits through one short retry on a
@@ -86,6 +87,7 @@ export const AppRoutes = () => {
         { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
         { path: 'customers', element: <RoleGuard permission="user:manage"><CustomerList /></RoleGuard> },
         { path: 'customers/:id', element: <RoleGuard permission="user:manage"><CustomerDetail /></RoleGuard> },
+        { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
         { path: 'profil', element: <Profile /> },
         { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
       ],

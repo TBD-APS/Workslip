@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Building2, ChevronRight, Mail, Users, MapPin, Phone } from 'lucide-react';
+import { AlertCircle, Building2, ChevronRight, Mail, Users, MapPin, MoreHorizontal, Phone } from 'lucide-react';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
@@ -8,6 +8,7 @@ import { useInfiniteList } from '../../../hooks/useInfiniteList';
 import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
 import { useSearch } from '../../../hooks/useSearch';
 import { apiClient } from '../../../lib/axios';
+import { useCustomerActions } from '../components/CustomerActions';
 
 const PAGE_SIZE = 20;
 
@@ -52,6 +53,17 @@ export const CustomerList = () => {
     [customer.name, customer.address, customer.email, customer.contactPerson, customer.phone].some((value) => value?.toLowerCase().includes(term)),
   );
 
+  const {
+    toggleActionMenu,
+    openActionMenu,
+    ActionMenuPortal,
+    EditDialog,
+    DeleteDialog,
+  } = useCustomerActions({
+    customers,
+    onEditCustomer: (customer) => navigate(`/app/customers/${customer.id}/edit`),
+  });
+
   if (query.isLoading) {
     return (
       <div className="page-container">
@@ -94,54 +106,73 @@ export const CustomerList = () => {
 
       <div className="job-list">
         {customers.map((customer) => (
-          <button
-            key={customer.id}
-            className="job-card"
-            onClick={() => navigate(`/app/customers/${customer.id}`)}
-            type="button"
-          >
-            <div className="job-card-top job-card-top-center">
-              <Building2 size={20} className="customer-icon" />
-              <h3 className="customer-name">{customer.name}</h3>
-              <span className="meta-item customer-job-count">
-                 {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
-              </span>
+          <div key={customer.id} className="job-card-wrapper">
+            <button
+              className="job-card"
+              onClick={() => navigate(`/app/customers/${customer.id}`)}
+              type="button"
+            >
+              <div className="job-card-top job-card-top-center">
+                <Building2 size={20} className="customer-icon" />
+                <h3 className="customer-name">{customer.name}</h3>
+              </div>
+
+              <div className="job-card-body">
+                <span className="meta-item customer-job-count">
+                   {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
+                </span>
+                {customer.address && (
+                  <span className="meta-item">
+                    <MapPin size={14} />
+                    <span>{customer.address}</span>
+                  </span>
+                )}
+                {customer.email && (
+                  <span className="meta-item">
+                    <Mail size={14} />
+                    <span>{customer.email}</span>
+                  </span>
+                )}
+                {customer.contactPerson && (
+                  <span className="meta-item">
+                    <Users size={14} />
+                    <span>{customer.contactPerson}</span>
+                  </span>
+                )}
+                {customer.phone && (
+                  <span className="meta-item">
+                    <Phone size={14} />
+                    <span>{customer.phone}</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="job-card-footer">
+                <span />
+                <span className="btn-icon" aria-label="Se kunde">
+                  <ChevronRight size={20} />
+                </span>
+              </div>
+            </button>
+
+            <div className="worksheet-actions-menu-root customer-actions-anchor">
+              <button
+                type="button"
+                className="btn-icon customer-actions-btn"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleActionMenu(event, customer.id);
+                }}
+                aria-label="Åbn handlinger for kunde"
+                aria-expanded={openActionMenu?.customerId === customer.id}
+                title="Handlinger"
+              >
+                <MoreHorizontal size={18} />
+              </button>
             </div>
 
-            <div className="job-card-body">
-              {customer.address && (
-                <span className="meta-item">
-                  <MapPin size={14} />
-                  <span>{customer.address}</span>
-                </span>
-              )}
-              {customer.email && (
-                <span className="meta-item">
-                  <Mail size={14} />
-                  <span>{customer.email}</span>
-                </span>
-              )}
-              {customer.contactPerson && (
-                <span className="meta-item">
-                  <Users size={14} />
-                  <span>{customer.contactPerson}</span>
-                </span>
-              )}
-              {customer.phone && (
-                <span className="meta-item">
-                  <Phone size={14} />
-                  <span>{customer.phone}</span>
-                </span>
-              )}
-            </div>
 
-            <div className="job-card-footer">
-              <span />
-              <span className="btn-icon" aria-label="Se kunde">
-                <ChevronRight size={20} />
-              </span>
-            </div>
-          </button>
+          </div>
         ))}
 
         {customers.length === 0 && !query.isFetchingNextPage && (
@@ -155,6 +186,10 @@ export const CustomerList = () => {
           isLoading={query.isFetchingNextPage}
         />
       </div>
+
+      {ActionMenuPortal}
+      {EditDialog}
+      {DeleteDialog}
     </div>
   );
 };

@@ -1,8 +1,10 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Clock, Mail, MapPin, Phone, Users } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { AlertCircle, ArrowLeft, Clock, Mail, MapPin, MoreHorizontal, Phone, Users } from 'lucide-react';
 import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
+import { useCustomerActions } from '../components/CustomerActions';
+import type { CustomerListItemViewModel } from '../../../api/generated/models';
 
 
 export const CustomerDetail = () => {
@@ -10,6 +12,21 @@ export const CustomerDetail = () => {
   const navigate = useNavigate();
   const query = useGetApiCustomersId(id!);
   const customer = query.data;
+
+  const listItems: CustomerListItemViewModel[] = customer
+    ? [{ id: customer.id, name: customer.name, address: customer.address, email: customer.email, contactPerson: customer.contactPerson, phone: customer.phone, jobCount: customer.jobCount }]
+    : [];
+
+  const {
+    toggleActionMenu,
+    openActionMenu,
+    ActionMenuPortal,
+    DeleteDialog,
+  } = useCustomerActions({
+    customers: listItems,
+    onEditCustomer: (customer) => navigate(`/app/customers/${customer.id}/edit`),
+    onDeletedCustomer: () => navigate('/app/customers'),
+  });
 
   if (query.isLoading) {
     return (
@@ -42,9 +59,21 @@ export const CustomerDetail = () => {
         <button className="btn-icon-back" onClick={() => navigate('/app/customers')} aria-label="Tilbage">
           <ArrowLeft size={20} />
         </button>
-        <div>
+        <div style={{ flex: 1 }}>
           <h2>{customer.name}</h2>
           <p className="subtitle">{customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}</p>
+        </div>
+        <div className="worksheet-actions-menu-root">
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={(event) => toggleActionMenu(event, customer.id)}
+            aria-label="More options for customer"
+            aria-expanded={openActionMenu?.customerId === customer.id}
+            title="Handlinger"
+          >
+            <MoreHorizontal size={18} />
+          </button>
         </div>
       </div>
 
@@ -124,6 +153,9 @@ export const CustomerDetail = () => {
           </div>
         )}
       </div>
+
+      {ActionMenuPortal}
+      {DeleteDialog}
     </div>
   );
 };

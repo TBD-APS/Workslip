@@ -47,6 +47,18 @@ public static class CustomerEndpoints
             return ResultExtensions.ToHttpResult(result, customer => CustomerViewModelBuilder.ToDetail(customer));
         }).Produces<CustomerDetailViewModel>();
 
+        group.MapPut("/{id:guid}", async (Guid id, UpdateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.UpdateAsync(id, request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, customer => CustomerViewModelBuilder.ToDetail(customer));
+        }).Produces<CustomerDetailViewModel>();
+
+        group.MapDelete("/{id:guid}", async (Guid id, ICustomerService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.DeleteAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
+
         return app;
     }
 }
