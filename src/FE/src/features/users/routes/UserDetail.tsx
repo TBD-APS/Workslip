@@ -13,10 +13,12 @@ import {
   MapPin,
   Search,
   Shield,
+  Sparkles,
   Timer,
 } from 'lucide-react';
 import { useGetApiUsersId, getGetApiUsersIdQueryKey } from '../../../api/generated/users/users';
 import { useGetApiJobs, usePostApiJobsIdAssign } from '../../../api/generated/jobs/jobs';
+import { JobStatus } from '../../../api/generated/models';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
 import { announceSection } from '../../../components/filters/StatusFilter';
@@ -30,8 +32,19 @@ type SearchResult = {
   customer: {
     name: string | null;
   } | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerAddress?: string | null;
   assignedUsers: { id: string }[];
+  updatedAt?: string;
 };
+
+// Statuses we surface for assignment. Completed / rejected / approved
+// jobs can be re-opened but it's not a normal "tildel" flow — keep the
+// suggestion pool focused on work that's still active.
+const ASSIGNABLE_STATUSES = [JobStatus.Draft, JobStatus.InReview] as const;
+const SUGGESTION_LIMIT = 5;
+const SEARCH_LIMIT = 30;
 
 function formatJobNumber(reportNumber: string | null, id: string) {
   const prefix = reportNumber || id.slice(0, 4);
@@ -58,9 +71,23 @@ export const UserDetail = () => {
     return () => clearTimeout(timer);
   }, [searchValue]);
 
+  // Two parallel searches when the user types: one by report number,
+  // one by customer name. We merge + de-dupe by id. Both endpoints
+  // already exist on /api/jobs — no backend changes.
   const searchQuery = useGetApiJobs(
     debouncedSearch.length >= 2
-      ? { reportNumber: debouncedSearch, limit: 30 }
+      ? { reportNumber: debouncedSearch, status: [...ASSIGNABLE_STATUSES], limit: SEARCH_LIMIT }
+      : undefined,
+    {
+      query: {
+        enabled: debouncedSearch.length >= 2,
+      },
+    },
+  );
+
+  const customerSearchQuery = useGetApiJobs(
+    debouncedSearch.length >= 2
+      ? { customerName: debouncedSearch, status: [...ASSIGNABLE_STATUSES], limit: SEARCH_LIMIT }
       : undefined,
     {
       query: {
@@ -70,9 +97,38 @@ export const UserDetail = () => {
   );
 
   const searchResults: SearchResult[] = useMemo(() => {
-    const responseData = (searchQuery.data);
-    return Array.isArray(responseData) ? responseData as SearchResult[] : [];
-  }, [searchQuery.data]);
+    const a = (searchQuery.data) as unknown;
+    const b = (customerSearchQuery.data) as unknown;
+    const arrA = Array.isArray(a) ? (a as SearchResult[]) : [];
+    const arrB = Array.isArray(b) ? (b as SearchResult[]) : [];
+    const seen = new Set<string>();
+    const merged: SearchResult[] = [];
+    for (const job of [...arrA, ...arrB]) {
+      if (seen.has(job.id)) continue;
+      seen.add(job.id);
+      merged.push(job);
+    }
+    return merged;
+  }, [searchQuery.data, customerSearchQuery.data]);
+
+  const isSearching = debouncedSearch.length >= 2;
+
+  // Suggestions: a small pool of recently updated open jobs, surfaced
+  // when the search box is empty so the user doesn't have to remember
+  // a job number just to assign work.
+  const suggestionsQuery = useGetApiJobs(
+    { status: [...ASSIGNABLE_STATUSES], limit: SUGGESTION_LIMIT },
+    {
+      query: {
+        enabled: !isSearching,
+      },
+    },
+  );
+
+  const suggestionResults: SearchResult[] = useMemo(() => {
+    const raw = (suggestionsQuery.data) as unknown;
+    return Array.isArray(raw) ? (raw as SearchResult[]) : [];
+  }, [suggestionsQuery.data]);
 
   const assignMutation = usePostApiJobsIdAssign({
     mutation: {
@@ -224,90 +280,132 @@ export const UserDetail = () => {
         <input
           type="text"
           className="search-input"
-          placeholder="Søg på sagsnummer..."
+          placeholder="Søg på sagsnummer eller kundenavn..."
           value={searchValue}
           onChange={(e) => setSearchValue(e.target.value)}
         />
       </div>
 
-      {debouncedSearch.length >= 2 && (
+      {isSearching && (
         <div className="job-list">
-          {searchQuery.isLoading && (
+          {(searchQuery.isLoading || customerSearchQuery.isLoading) && (
             <div className="empty-state">
               <p>Søger...</p>
             </div>
           )}
 
-          {searchQuery.isError && (
+          {(searchQuery.isError || customerSearchQuery.isError) && (
             <div className="error-state">
               <AlertCircle size={32} />
               <p>Kunne ikke søge efter sager.</p>
             </div>
           )}
 
-          {!searchQuery.isLoading && !searchQuery.isError && searchResults.length === 0 && (
+          {!searchQuery.isLoading && !customerSearchQuery.isLoading &&
+            !searchQuery.isError && !customerSearchQuery.isError &&
+            searchResults.length === 0 && (
             <div className="empty-state">
               <p>Ingen sager fundet.</p>
             </div>
           )}
 
-          {searchResults.map((job) => {
-            const alreadyAssigned = job.assignedUsers.some((u) => u.id === id);
-            const isAssigning = assigningJobId === job.id;
-            const isDisabled = isAssigning || job.softDeleted;
+          {searchResults.map((job) => renderAssignableJobCard(job))}
+        </div>
+      )}
 
-            return (
-              <button
-                key={job.id}
-                className={`job-card${isDisabled ? ' job-card--disabled' : ''}`}
-                onClick={() => handleAssign(job)}
-                disabled={isDisabled}
-                type="button"
-              >
-                <div className="job-card-top">
-                  <div>
-                    <span className="job-number">
-                      {formatJobNumber(job.reportNumber, job.id)}
-                    </span>
-                  </div>
-                  <span className={`status-badge status-${job.status.toLowerCase()}`}>
-                    {formatJobStatus(job.status)}
-                  </span>
-                </div>
-                <div className="job-card-body">
-                  {job.customer?.name && (
-                    <span className="meta-item">
-                      <Building2 size={14} />
-                      <span>{job.customer.name}</span>
-                    </span>
-                  )}
-                </div>
-                <div className="job-card-footer">
-                  {alreadyAssigned ? (
-                    <span className="meta-item meta-item--success">
-                      <Check size={14} />
-                      <span>Allerede tildelt</span>
-                    </span>
-                  ) : isAssigning ? (
-                    <span className="meta-item">
-                      <Loader2 size={14} className="animate-spin" />
-                      <span>Tildeler...</span>
-                    </span>
-                  ) : job.softDeleted ? (
-                    <span className="meta-item meta-item--muted">
-                      <span>Slettet</span>
-                    </span>
-                  ) : (
-                    <span className="meta-item meta-item--action">
-                      <span>Tildel</span>
-                    </span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+      {!isSearching && (
+        <div className="job-list">
+          {suggestionsQuery.isLoading && (
+            <div className="empty-state">
+              <p>Henter forslag...</p>
+            </div>
+          )}
+
+          {suggestionsQuery.isError && (
+            <div className="error-state">
+              <AlertCircle size={32} />
+              <p>Kunne ikke hente forslag.</p>
+            </div>
+          )}
+
+          {!suggestionsQuery.isLoading && !suggestionsQuery.isError && suggestionResults.length === 0 && (
+            <div className="empty-state">
+              <p>Ingen åbne sager at foreslå.</p>
+            </div>
+          )}
+
+          {suggestionResults.map((job) => renderAssignableJobCard(job))}
         </div>
       )}
     </div>
   );
+
+  function renderAssignableJobCard(job: SearchResult) {
+    const alreadyAssigned = job.assignedUsers.some((u) => u.id === id);
+    const isAssigning = assigningJobId === job.id;
+    const isDisabled = isAssigning || job.softDeleted;
+    const customerLabel = job.customerName ?? job.customer?.name ?? null;
+
+    return (
+      <button
+        key={job.id}
+        className={`job-card${isDisabled ? ' job-card--disabled' : ''}`}
+        onClick={() => handleAssign(job)}
+        disabled={isDisabled}
+        type="button"
+      >
+        <div className="job-card-top">
+          <div>
+            <span className="job-number">
+              {formatJobNumber(job.reportNumber, job.id)}
+            </span>
+          </div>
+          <span className={`status-badge status-${job.status.toLowerCase()}`}>
+            {formatJobStatus(job.status)}
+          </span>
+        </div>
+        <div className="job-card-body">
+          {customerLabel && (
+            <span className="meta-item">
+              <Building2 size={14} />
+              <span>{customerLabel}</span>
+            </span>
+          )}
+          {job.customerAddress && (
+            <span className="meta-item">
+              <MapPin size={14} />
+              <span>{job.customerAddress}</span>
+            </span>
+          )}
+        </div>
+        <div className="job-card-footer">
+          {!isSearching && !alreadyAssigned && !job.softDeleted && (
+            <span className="meta-item meta-item--suggestion" aria-hidden="true">
+              <Sparkles size={14} />
+              <span>Forslag</span>
+            </span>
+          )}
+          {alreadyAssigned ? (
+            <span className="meta-item meta-item--success">
+              <Check size={14} />
+              <span>Allerede tildelt</span>
+            </span>
+          ) : isAssigning ? (
+            <span className="meta-item">
+              <Loader2 size={14} className="animate-spin" />
+              <span>Tildeler...</span>
+            </span>
+          ) : job.softDeleted ? (
+            <span className="meta-item meta-item--muted">
+              <span>Slettet</span>
+            </span>
+          ) : (
+            <span className="meta-item meta-item--action">
+              <span>Tildel</span>
+            </span>
+          )}
+        </div>
+      </button>
+    );
+  }
 };

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, Loader2, LogIn, ArrowRight, User, Phone } from 'lucide-react';
 import { verifyInviteToken } from '../api/inviteAccept';
+import { useAuth } from '../../../providers/useAuth';
 import { AUTH_TOKEN_KEY, USER_EMAIL_KEY, AuthStorage } from '../../../providers/authContextValue';
 import {
   clearInviteEnrollmentSession,
@@ -19,7 +20,8 @@ type InviteState =
   | { status: 'authenticating' }
   | { status: 'enrolling' }
   | { status: 'error'; message: string }
-  | { status: 'success' };
+  | { status: 'success' }
+  | { status: 'consumed_no_user' };
 
 const errorMessages: Record<string, string> = {
   invite_consumed: 'Denne invitation er allerede blevet brugt.',
@@ -31,6 +33,7 @@ const resolveInviteError = (errorCode: string | undefined, fallback: string) =>
 
 export const InviteAccept = () => {
   const { token } = useParams<{ token: string }>();
+  const { meQuery, logout } = useAuth();
   const [state, setState] = useState<InviteState>({ status: 'checking' });
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
@@ -70,20 +73,60 @@ export const InviteAccept = () => {
       return;
     }
 
+    // Wait for the auth context to finish resolving the existing
+    // session before we make any decisions. /api/auth/me runs on
+    // AppProvider mount; until it resolves we don't know whether the
+    // user is already logged in.
+    if (meQuery.isPending) return;
+
     if (calledRef.current) return;
     calledRef.current = true;
 
     verifyInviteToken(token)
       .then((res) => {
+        const currentUser = meQuery.data;
+
+        // Already logged in?
+        if (currentUser) {
+          const sameEmail = currentUser.email.toLowerCase() === res.email.toLowerCase();
+
+          if (sameEmail) {
+            // Already accepted — the invitation points to the user
+            // we're already authenticated as. Skip the enrollment
+            // form, drop straight into the app.
+            window.location.assign('/app');
+            return;
+          }
+
+          // Logged in as a different identity. Drop the existing
+          // session and fall through to the un-authenticated flow so
+          // the new invite can be completed. Otherwise the next page
+          // (Login) would land as the wrong user.
+          logout();
+          if (res.userExists) {
+            window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
+          } else if (!res.userExists) {
+            setState({ status: 'consumed_no_user' });
+          } else {
+            setState({ status: 'ready' });
+          }
+          return;
+        }
+
+        // Not logged in.
         if (res.userExists) {
-          // If user already exists, skip the enrollment form and go straight to login
+          // Already an account — go straight to login.
           window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
           return;
         }
-        setState({ status: 'ready' });
+
+        // Backend said the invite was consumed but the user record is
+        // gone — admin removed them after acceptance. They can't enroll
+        // again with the same invite. Surface a clear message.
+        setState({ status: 'consumed_no_user' });
       })
       .catch(() => setState({ status: 'invalid', message: 'Invitationen blev ikke fundet. Kontrollér linket eller kontakt administratoren.' }));
-  }, [token]);
+  }, [token, meQuery.isPending, meQuery.data, logout]);
 
   const handleAcceptInvite = () => {
     setState({ status: 'accepted' });
@@ -184,6 +227,21 @@ export const InviteAccept = () => {
             </a>
           </>
         ) : null}
+
+        {state.status === 'consumed_no_user' && (
+          <>
+            <div className="invite-status-icon">
+              <AlertTriangle size={48} className="invite-status-icon--danger" />
+            </div>
+            <h2 className="invite-title">Konto ikke længere aktiv</h2>
+            <p className="invite-text invite-text--long">
+              Denne invitation er allerede blevet brugt, men din konto er ikke længere tilgængelig. Kontakt din chef for at få et nyt login.
+            </p>
+            <Link to="/login" className="btn btn-secondary invite-btn">
+              Gå til login
+            </Link>
+          </>
+        )}
 
         {showDetailsForm && (
           <>

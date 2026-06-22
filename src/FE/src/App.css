@@ -614,69 +614,6 @@
   transform: none;
 }
 
-.pdf-preview-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: flex;
-  background: var(--overlay-heavy);
-}
-
-.pdf-preview-panel {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-  background: var(--bg);
-  height: 100%;
-}
-
-.pdf-preview-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--surface-raised);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.pdf-preview-header h3 {
-  margin: 0.1rem 0 0;
-  color: var(--text);
-  font-size: var(--fs-body);
-  font-weight: 400;
-  word-break: break-word;
-}
-
-.pdf-preview-header p {
-  margin: 0.35rem 0 0;
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-}
-
-.pdf-preview-header-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.pdf-preview-action {
-  text-decoration: none;
-}
-
-.pdf-preview-frame {
-  flex: 1;
-  width: 100%;
-  border: 0;
-  background: var(--bg);
-  display: block;
-  touch-action: pinch-zoom pan-x pan-y;
-}
-
 .spin {
   animation: spin 0.8s linear infinite;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { toast } from 'sonner';
@@ -25,7 +25,6 @@ import { useIsAdmin } from '../../../providers/permissions';
 import { useAuth } from '../../../providers/useAuth';
 import {
   emptyForm,
-  emptySnapshot,
   getWorkValidationMessage,
   getLinkableJobs,
   isValidJobForm,
@@ -36,9 +35,8 @@ import {
   toUpdateRequest,
 } from '../utils';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
-import type { CustomerSearchViewModel } from '../../../api/generated/models';
-import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobForm } from '../types';
+import { useCustomerSnapshot } from './useCustomerSnapshot';
 
 type JobDetailsDraft = { jobId: string; form: JobForm };
 type AssignmentDraft = { jobId: string; userIds: string[] };
@@ -277,52 +275,24 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     return () => clearTimeout(debounceTimerRef.current);
   }, [autoSave, draft, jobId, referenceData, setSaveStatus]);
 
-  const updateDraft = (nextForm: JobForm) => {
+  const updateDraft = useCallback((nextForm: JobForm) => {
     if (!jobId) return;
     setDraft({ jobId, form: nextForm });
     if (saveStatus === 'saved') setSaveStatus('idle');
-  };
+  }, [jobId, saveStatus, setDraft, setSaveStatus]);
 
-  const selectCustomer = (customer: CustomerSearchViewModel) => {
-    updateDraft({
-      ...form,
-      customerId: customer.id ?? null,
-      customerSnapshot: {
-        name: customer.name ?? null,
-        address: customer.address ?? null,
-        email: customer.email ?? null,
-        phone: customer.phone ?? null,
-        contactPerson: customer.contactPerson ?? null,
-      },
-      editSnapshot: false,
-    });
-  };
-  
-  const updateSnapshotField = (field: keyof CustomerSnapshotData, value: string) => {
-    updateDraft({
-      ...form,
-      customerSnapshot: {
-        ...(form.customerSnapshot ?? emptySnapshot),
-        [field]: value,
-      },
-    });
-  };
+  // Adapter: useCustomerSnapshot expects a setter that takes an
+  // updater fn and returns the next slice. useJobDetails's `updateDraft`
+  // takes a fully-formed form. Bridge them so the snapshot logic
+  // stays shared with useJobCreate.
+  const setCustomerForm = useCallback(
+    <S extends { customerId: string | null; customerSnapshot: CustomerSnapshotData | null; editSnapshot: boolean }>(
+      updater: (prev: S) => S,
+    ) => updateDraft(updater(form as unknown as S) as unknown as JobForm),
+    [form, updateDraft],
+  );
 
-  const updateEditSnapshot = (edit: boolean) => {
-    updateDraft({
-      ...form,
-      editSnapshot: edit,
-      customerSnapshot: edit
-        ? {
-            name: form.customerSnapshot?.name ?? '',
-            email: form.customerSnapshot?.email ?? '',
-            phone: form.customerSnapshot?.phone ?? '',
-            address: form.customerSnapshot?.address ?? '',
-            contactPerson: form.customerSnapshot?.contactPerson ?? ''
-          }
-           : form.customerSnapshot,
-    });
-  };
+  const { selectCustomer, updateSnapshotField, updateEditSnapshot } = useCustomerSnapshot(setCustomerForm);
 
   const updateReportNumber = (value: string) => {
     updateDraft({ ...form, reportNumber: value });

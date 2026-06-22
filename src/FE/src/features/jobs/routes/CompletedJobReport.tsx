@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, CheckCircle2, Download, Eye, ExternalLink, FileCheck2, History, Link2, Loader2, MoreHorizontal, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Download, ExternalLink, FileCheck2, History, Link2, Loader2, MoreHorizontal, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   InstallationTypeResponse,
@@ -24,7 +24,7 @@ import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
 import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
 import { useJobDetailsState } from '../hooks/useJobDetails';
 import { formatJobStatus } from '../statusLabels';
-import { createJobReportPdfPreview, downloadJobReportPdf, triggerBrowserDownload, type JobReportPdfPreview } from '../utils/downloadJobReportPdf';
+import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -59,7 +59,6 @@ export const CompletedJobReport = () => {
   const [isOpeningPdf, setIsOpeningPdf] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [pdfPreview, setPdfPreview] = useState<JobReportPdfPreview | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [pdfMenu, setPdfMenu] = useState<{ top: number; right: number } | null>(null);
   const job = details.job;
@@ -85,14 +84,6 @@ export const CompletedJobReport = () => {
     },
     [job?.worksheets, isAdmin, user?.id],
   );
-
-  useEffect(() => {
-    return () => {
-      if (pdfPreview) {
-        window.URL.revokeObjectURL(pdfPreview.url);
-      }
-    };
-  }, [pdfPreview]);
 
   const initialLoadDone = useRef(false);
   const editScrollDone = useRef(false);
@@ -128,7 +119,21 @@ export const CompletedJobReport = () => {
     setIsOpeningPdf(true);
 
     try {
-      setPdfPreview(await createJobReportPdfPreview(job));
+      // Open the PDF in a new browser tab instead of an inline iframe.
+      // Reasons:
+      //  - The app viewport is locked at maximum-scale=1 (no pinch-zoom
+      //    anywhere) so an embedded browser-PDF-viewer inside an iframe
+      //    can't be zoomed on touch devices.
+      //  - Native browser PDF viewers give users scroll + zoom + find
+      //    + print out of the box, including on mobile.
+      // We still fetch the PDF as a Blob (same auth context, same
+      // headers) and just point window.open at the object URL.
+      const preview = await createJobReportPdfPreview(job);
+      window.open(preview.url, '_blank', 'noopener,noreferrer');
+      // The new tab owns the URL now; defer the revoke so the new tab
+      // has a moment to load it. (The blob URL stays valid until we
+      // explicitly revoke it.)
+      window.setTimeout(() => window.URL.revokeObjectURL(preview.url), 60_000);
     } catch {
         toast.error(`Kunne ikke åbne PDF for sagen ${details.form.reportNumber}`);
     } finally {
@@ -477,9 +482,8 @@ export const CompletedJobReport = () => {
           }}
         />
       )}
-      {pdfPreview && <PdfPreviewDialog preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
-      
-      <JobHistoryDrawer 
+
+      <JobHistoryDrawer
         jobId={job.id} 
         isOpen={historyOpen} 
         onClose={() => setHistoryOpen(false)} 
@@ -504,8 +508,8 @@ function PdfActionMenuPortal({ position, isOpeningPdf, isDownloadingPdf, onOpen,
       style={{ top: position.top, right: position.right }}
     >
       <button type="button" role="menuitem" onClick={() => void onOpen()} disabled={isOpeningPdf || isDownloadingPdf}>
-        {isOpeningPdf ? <Loader2 size={15} className="spin" /> : <Eye size={15} />}
-        <span>{isOpeningPdf ? 'Åbner...' : 'Vis PDF'}</span>
+        {isOpeningPdf ? <Loader2 size={15} className="spin" /> : <ExternalLink size={15} />}
+        <span>{isOpeningPdf ? 'Åbner...' : 'Åbn PDF i ny fane'}</span>
       </button>
       <button type="button" role="menuitem" onClick={() => void onDownload()} disabled={isOpeningPdf || isDownloadingPdf}>
         {isDownloadingPdf ? <Loader2 size={15} className="spin" /> : <Download size={15} />}
@@ -513,46 +517,6 @@ function PdfActionMenuPortal({ position, isOpeningPdf, isDownloadingPdf, onOpen,
       </button>
     </div>,
     document.body,
-  );
-}
-
-function PdfPreviewDialog({ preview, onClose }: { preview: JobReportPdfPreview; onClose: () => void }) {
-  const previewUrl = `${preview.url}#toolbar=1&navpanes=0&scrollbar=1`;
-
-  return (
-    <div className="pdf-preview-overlay" role="dialog" aria-modal="true" aria-label="PDF rapport">
-      <div className="pdf-preview-panel">
-        <div className="pdf-preview-header">
-          <div>
-            <span className="job-number">PDF rapport</span>
-            <h3>{preview.fileName}</h3>
-          </div>
-          <div className="pdf-preview-header-actions">
-            <a className="btn-icon pdf-preview-action" href={preview.url} target="_blank" rel="noreferrer" aria-label="Åbn PDF i ny fane" title="Åbn i ny fane">
-              <ExternalLink size={18} />
-            </a>
-            <button
-              className="btn-icon pdf-preview-action"
-              type="button"
-              onClick={() => triggerBrowserDownload(preview.blob, preview.fileName)}
-              aria-label="Download PDF"
-              title="Download PDF"
-            >
-              <Download size={18} />
-            </button>
-            <button className="btn-icon" type="button" onClick={onClose} aria-label="Luk PDF">
-              <X size={22} />
-            </button>
-          </div>
-        </div>
-        <iframe 
-          className="pdf-preview-frame" 
-          src={previewUrl} 
-          title={preview.fileName}
-          allow="fullscreen"
-        />
-      </div>
-    </div>
   );
 }
 

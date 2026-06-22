@@ -246,25 +246,60 @@ public sealed class InvitationService(
             return Result<InviteOpenResponse>.NotFound();
         }
 
+        // Already-consumed short-circuit: the user has completed this
+        // invite before. We must NOT re-validate it as expired / invalid,
+        // and we must NOT re-provision an Entra guest. Just report the
+        // email + whether the user record still exists so the FE can
+        // route them appropriately. (`userExists=false` here means the
+        // user was created via this invite and later removed by an
+        // admin; the FE surfaces that as a "contact your manager"
+        // screen.)
+        if (invite.Consumed)
+        {
+            var consumedUser = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
+            logger.LogInformation("Invite re-opened after consumption. Token: {Token}. Email: {Email}. UserExists: {UserExists}",
+                token, invite.Email, consumedUser is not null);
+            return Result<InviteOpenResponse>.Success(new InviteOpenResponse(invite.Email, consumedUser is not null));
+        }
+
         var validationError = await ValidateInviteForOpenAsync(invite, cancellationToken);
         if (validationError is not null)
         {
             return Result<InviteOpenResponse>.Conflict(validationError.Errors.FirstOrDefault() ?? "validation_failed");
         }
 
-        try
+        // Idempotency guard: once an invite has been provisioned with an
+        // EntraUserId, do NOT re-call EnsureInvitedUserAsync. Every link
+        // re-open would otherwise either (a) hit Graph again to find the
+        // same user or (b) race against the find-existing filter and
+        // create a duplicate guest. The cached EntraUserId is the source
+        // of truth for this invite until cleanup runs.
+        //
+        // CleanupStaleEntraInvitesAsync is the only thing that nulls it
+        // out (via MarkInviteEntraCleanedAsync), and that only runs for
+        // expired invites. Expired invites are rejected by
+        // ValidateInviteForOpenAsync above, so a non-null EntraUserId
+        // here means: this invite owns exactly one Entra guest.
+        if (string.IsNullOrWhiteSpace(invite.EntraUserId))
         {
-            var entraUser = await entraService.EnsureInvitedUserAsync(invite.Email, cancellationToken);
-            invite.EntraUserId = entraUser.EntraUserId;
-            invite.EntraEmail = entraUser.EntraMail; 
-            invite.EntraCreatedByInvite = entraUser.Created;
-            invite.EntraProvisionedAt ??= DateTimeOffset.UtcNow;
-            invite.EntraCleanedAt = null;
+            try
+            {
+                var entraUser = await entraService.EnsureInvitedUserAsync(invite.Email, cancellationToken);
+                invite.EntraUserId = entraUser.EntraUserId;
+                invite.EntraEmail = entraUser.EntraMail;
+                invite.EntraCreatedByInvite = entraUser.Created;
+                invite.EntraProvisionedAt ??= DateTimeOffset.UtcNow;
+                invite.EntraCleanedAt = null;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Invite open failed during Entra guest pre-creation. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
+                throw;
+            }
         }
-        catch (Exception ex)
+        else
         {
-            logger.LogError(ex, "Invite open failed during Entra guest pre-creation. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
-            throw;
+            logger.LogError("Invite open reusing cached EntraUserId. Email: {Email}. Token: {Token}. EntraUserId: {EntraUserId}", invite.Email, invite.Token, invite.EntraUserId);
         }
 
         await inviteRepository.MarkOpenedAsync(invite, cancellationToken);

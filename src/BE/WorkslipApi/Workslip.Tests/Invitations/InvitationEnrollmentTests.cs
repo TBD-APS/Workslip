@@ -121,6 +121,29 @@ public sealed class InvitationEnrollmentTests
     }
 
     [Fact]
+    public async Task MarkOpenedAsync_WhenEntraUserIdAlreadySet_DoesNotCallEnsureInvited()
+    {
+        // A second open of the same invite must NOT hit Graph again.
+        // The cached EntraUserId is the source of truth and we never
+        // want to risk creating a duplicate Entra guest on re-open.
+        var invite = CreateInvite();
+        invite.EntraUserId = "entra-1";
+        invite.EntraEmail = "jane@example.test";
+        invite.EntraProvisionedAt = DateTimeOffset.UtcNow.AddMinutes(-5);
+
+        var invites = new FakeInviteRepository(invite);
+        var entra = new FakeEntraService();
+        var service = CreateService(new FakeUserRepository(), invites, entra, new FakeTransactionFactory());
+
+        var result = await service.MarkOpenedAsync(invite.Token, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(0, entra.EnsureInvitedCalls);
+        Assert.Equal("entra-1", invite.EntraUserId);
+        Assert.Equal(1, invites.MarkOpenedCalls);
+    }
+
+    [Fact]
     public async Task MarkOpenedAsync_WhenInviteExpired_DoesNotEnsureEntraGuestOrMarkOpened()
     {
         var invite = CreateInvite();
@@ -133,6 +156,62 @@ public sealed class InvitationEnrollmentTests
 
         Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.Contains("invite_expired", result.Errors);
+        Assert.Equal(0, entra.EnsureInvitedCalls);
+        Assert.Equal(0, invites.MarkOpenedCalls);
+    }
+
+    [Fact]
+    public async Task MarkOpenedAsync_WhenInviteAlreadyConsumedAndUserExists_ReturnsSuccessWithUserExistsTrue()
+    {
+        // Re-opening an already-consumed invite must NOT treat it as
+        // expired / invalid — the user completed it before. The FE
+        // uses userExists=true to route them straight to login.
+        var invite = CreateInvite();
+        invite.Consumed = true;
+        var existingUser = new UserDataRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = invite.OrganizationId,
+            Email = invite.Email,
+            DisplayName = "Jane",
+            Role = "User"
+        };
+        var invites = new FakeInviteRepository(invite);
+        var entra = new FakeEntraService();
+        var service = CreateService(
+            new FakeUserRepository { ExistingUser = existingUser },
+            invites, entra, new FakeTransactionFactory());
+
+        var result = await service.MarkOpenedAsync(invite.Token, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        var response = result.Value!;
+        Assert.Equal(invite.Email, response.Email);
+        Assert.True(response.UserExists);
+        // No Graph call, no MarkOpened rewrite — short-circuit returns
+        // before any of that.
+        Assert.Equal(0, entra.EnsureInvitedCalls);
+        Assert.Equal(0, invites.MarkOpenedCalls);
+    }
+
+    [Fact]
+    public async Task MarkOpenedAsync_WhenInviteAlreadyConsumedButUserDeleted_ReturnsSuccessWithUserExistsFalse()
+    {
+        // Admin removed the user after they accepted the invite.
+        // Re-opening the link should NOT 409 as "invite_consumed" —
+        // the FE needs to surface "contact your manager" instead.
+        var invite = CreateInvite();
+        invite.Consumed = true;
+        var invites = new FakeInviteRepository(invite);
+        var entra = new FakeEntraService();
+        var service = CreateService(new FakeUserRepository(), invites, entra, new FakeTransactionFactory());
+
+        var result = await service.MarkOpenedAsync(invite.Token, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        var response = result.Value!;
+        Assert.Equal(invite.Email, response.Email);
+        Assert.False(response.UserExists);
         Assert.Equal(0, entra.EnsureInvitedCalls);
         Assert.Equal(0, invites.MarkOpenedCalls);
     }

@@ -1,5 +1,7 @@
 import { BrowserRouter } from 'react-router-dom';
+import { ErrorBoundary } from 'react-error-boundary';
 import { AppProvider } from './providers/AppProvider';
+import { ErrorFallback } from './providers/ErrorFallback';
 import { AppRoutes } from './routes';
 
 import './index.css';
@@ -9,7 +11,12 @@ function App() {
   return (
     <AppProvider>
       <BrowserRouter>
-        <AppRoutes />
+        {/* ErrorBoundary lives INSIDE the router so the fallback can
+            use useNavigate. AppProvider still wraps everything so
+            react-query / auth state survive a fallback render. */}
+        <ErrorBoundary FallbackComponent={ErrorFallback}>
+          <AppRoutes />
+        </ErrorBoundary>
       </BrowserRouter>
     </AppProvider>
   );
