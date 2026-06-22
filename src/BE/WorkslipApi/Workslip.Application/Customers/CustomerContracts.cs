@@ -34,3 +34,12 @@ public sealed record CustomerSearchResponse(
     string? Phone,
     string? Address,
     string? ContactPerson);
+
+public sealed record UpdateCustomerRequest(
+    string Name,
+    string? Address,
+    string? Email,
+    string? ContactPerson,
+    string? Phone);
+
+public sealed record DeleteCustomerResponse(bool success);

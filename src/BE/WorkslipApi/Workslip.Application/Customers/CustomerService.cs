@@ -1,12 +1,15 @@
 using Ardalis.Result;
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
+using Workslip.Application.Jobs;
 
 namespace Workslip.Application.Customers;
 
 public sealed class CustomerService(
     ICustomerRepository customerRepository,
     ICurrentUserContext currentUser,
+    IValidator<UpdateCustomerRequest> updateValidator,
     ILogger<CustomerService> logger) : ICustomerService
 {
     public async Task<Result<IReadOnlyList<CustomerListItemResponse>>> ListAsync(int? limit, int? offset, CancellationToken cancellationToken)
@@ -73,5 +76,66 @@ public sealed class CustomerService(
         var normalizedLimit = Math.Clamp(limit, 1, 25);
         var customers = await customerRepository.GetTopCustomersAsync(organizationId.Value, normalizedLimit, cancellationToken);
         return Result<IReadOnlyList<CustomerSearchResponse>>.Success(customers);
+    }
+
+    public async Task<Result<CustomerDetailResponse>> UpdateAsync(Guid id, UpdateCustomerRequest request, CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            logger.LogWarning("Customer update requested without OrganizationId in claims.");
+            return Result<CustomerDetailResponse>.Unauthorized();
+        }
+
+        var validationResult = await updateValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
+                .ToList();
+            return Result<CustomerDetailResponse>.Invalid(errors);
+        }
+
+        var existing = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
+        if (existing is null)
+        {
+            return Result<CustomerDetailResponse>.NotFound();
+        }
+
+        var updatedCustomer = new CustomerInfo(
+            id,
+            request.Name!.Trim(),
+            request.Address?.Trim(),
+            request.Email?.Trim(),
+            request.ContactPerson?.Trim(),
+            request.Phone?.Trim());
+
+        logger.LogInformation("Updating customer {CustomerId} with new values: {@UpdatedCustomer} in org {OrgId}", id, updatedCustomer, organizationId);
+
+        await customerRepository.UpdateAsync(organizationId.Value, id, updatedCustomer, cancellationToken);
+
+        var updated = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
+        return Result<CustomerDetailResponse>.Success(updated!);
+    }
+
+    public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            logger.LogWarning("Customer delete requested without OrganizationId in claims.");
+            return Result.Unauthorized();
+        }
+
+        var existing = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
+        if (existing is null)
+        {
+            return Result.NotFound();
+        }
+
+        logger.LogInformation("Customer {CustomerId} is about to be deleted in org {OrgId}", id, organizationId);
+        await customerRepository.DeleteAsync(organizationId.Value, id, cancellationToken);
+        logger.LogInformation("Customer {CustomerId} deleted successfully in org {OrgId}", id, organizationId);
+        return Result.Success();
     }
 }
