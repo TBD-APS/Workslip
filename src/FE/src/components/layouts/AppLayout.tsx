@@ -112,7 +112,7 @@ export const AppLayout = () => {
         </NavLink>
         <div className="nav-item-fab">
           <Can permission="job:create">
-            <button className="fab-button" onClick={() => navigate('/app/job/new')} aria-label="Opret sag">
+            <button className="fab-button" onClick={() => navigate('/app/create')} aria-label="Opret">
               <PlusCircle size={28} />
             </button>
           </Can>
