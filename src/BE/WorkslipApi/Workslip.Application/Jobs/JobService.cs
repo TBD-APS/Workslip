@@ -603,6 +603,7 @@ public sealed class JobService(
             report.Links,
             report.CreatedAt,
             report.UpdatedAt,
+            report.SubmittedAt,
             report.AssignedUsers,
             filteredWorksheets,
             totalHours,
@@ -676,11 +677,13 @@ public sealed class JobService(
                 }
             }
 
-            var hasExclusiveFlag = normalizedClosureFlags.Any(flagId =>
-                closureFlagsByLabel.TryGetValue(flagId, out var flag) && flag.IsExclusive);
-            if (hasExclusiveFlag && normalizedClosureFlags.Length > 1)
+            var isNotCompletedSelected = normalizedClosureFlags.Any(f => f.Equals(ClosureFlagLabels.NotCompleted, StringComparison.OrdinalIgnoreCase));
+            var hasIncompatibleWithNotCompleted = normalizedClosureFlags.Any(f =>
+                f.Equals(ClosureFlagLabels.Completed, StringComparison.OrdinalIgnoreCase) ||
+                f.Equals(ClosureFlagLabels.ReadyForInvoice, StringComparison.OrdinalIgnoreCase));
+            if (isNotCompletedSelected && hasIncompatibleWithNotCompleted)
             {
-                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.ClosureFlags), ErrorMessage = "Exclusive closure flags cannot be combined with other closure flags." });
+                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.ClosureFlags), ErrorMessage = "Ikke færdig kan ikke kombineres med Færdig eller Klar til faktura." });
             }
         }
 

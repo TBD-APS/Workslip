@@ -54,6 +54,8 @@ internal static class AuditDisplayNames
         { AuditFields.Report, "Sag" },
         { "IsChecked", "Afkrydset" },
         { "IsIrrelevant", "Ikke relevant" },
+        { "CustomerContactPerson", "Kundens kontaktperson" },
+        { "SubmittedAt", "Attesteret" },
         { "IsSoftDeleted", "Slettet" },
         { "DeletionScheduledAt", "Sletning planlagt" }
     };

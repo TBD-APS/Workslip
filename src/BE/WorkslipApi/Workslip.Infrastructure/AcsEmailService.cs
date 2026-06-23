@@ -37,7 +37,7 @@ public sealed class AcsEmailService(
     {
         var emailClient = new EmailClient(_acsEndpoint);
 
-        var trimmedUrl = _acsInviteBaseUrlLink.TrimEnd('/');
+        var trimmedUrl = "http://localhost:5270/invite"; //_acsInviteBaseUrlLink.TrimEnd('/');
         var callBackUrl = $"{trimmedUrl}/{token}";
 
         var emailContent = new EmailContent(_senderPlaínHeaderText)

@@ -14,7 +14,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const meQuery = useGetApiAuthMe({
     query: {
       enabled: Boolean(authToken),
-      retry: false,
+      retry: 1,
       staleTime: 5 * 60 * 1000,
     },
   });

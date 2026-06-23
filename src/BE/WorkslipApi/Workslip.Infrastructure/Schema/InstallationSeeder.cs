@@ -84,20 +84,21 @@ namespace Workslip.Infrastructure.Schema
                             JobReportInstallationId = selectedInstallation.Id,
                             ControlCategoryId = categoryGroup.Key,
                             SortOrder = categorySortOrder++,
-                            IsIrrelevant = random.Random.Bool(0.1f)
+                            IsIrrelevant = random.Random.Bool(0.8f)
                         };
 
                         selectedCategories.Add(selectedCategory);
 
                         foreach (var mapping in categoryGroup.OrderBy(x => x.SortOrder))
                         {
+                            var isRelevant = !selectedCategory.IsIrrelevant;
                             selectedControlPoints.Add(new JobReportInstallationControlPointRow
                             {
                                 JobReportInstallationCategoryId = selectedCategory.Id,
                                 ControlPointId = mapping.ControlPointId,
                                 SortOrder = mapping.SortOrder,
                                 IsRequired = mapping.IsRequired,
-                                IsChecked = random.Random.Bool(0.25f)
+                                IsChecked = isRelevant && random.Random.Bool(0.25f)
                             });
                         }
                     }

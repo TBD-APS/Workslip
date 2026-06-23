@@ -275,6 +275,7 @@ public sealed class SqlDbContext : DbContext
 
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.UpdatedAt).HasColumnType("datetimeoffset");
+        entity.Property(e => e.SubmittedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.DeletionScheduledAt).HasColumnType("datetimeoffset");
 
         entity.HasOne(x => x.OrganizationRow)

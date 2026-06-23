@@ -178,7 +178,6 @@ export function MultiSelectDropdown({
                 placeholder="Søg..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
               />
             </div>
             {isLoading && <p className="multi-select-menu-empty">{loadingText}</p>}

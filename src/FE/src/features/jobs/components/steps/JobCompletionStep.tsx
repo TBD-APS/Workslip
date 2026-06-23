@@ -1,6 +1,7 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { JobForm } from '../../types';
 import type { ReferenceDataResponse } from '../../../../api/generated/models';
+import { ClosureFlagLabels } from '../../closureFlagLabels';
 
 type JobCompletionStepProps = {
   form: JobForm;
@@ -24,20 +25,20 @@ export function JobCompletionStep({
     const currentFlags = form.work.closureFlags || [];
     let nextFlags: string[];
 
-    if (flagLabel === 'NotCompleted') {
-      if (currentFlags.includes('NotCompleted')) {
-        nextFlags = currentFlags.filter((f) => f !== 'NotCompleted');
+    if (flagLabel === ClosureFlagLabels.NotCompleted) {
+      if (currentFlags.includes(ClosureFlagLabels.NotCompleted)) {
+        nextFlags = currentFlags.filter((f) => f !== ClosureFlagLabels.NotCompleted);
       } else {
         nextFlags = [
-          ...currentFlags.filter((f) => f !== 'Completed' && f !== 'ReadyForInvoice'),
-          'NotCompleted',
+          ...currentFlags.filter((f) => f !== ClosureFlagLabels.Completed && f !== ClosureFlagLabels.ReadyForInvoice),
+          ClosureFlagLabels.NotCompleted,
         ];
       }
-    } else if (flagLabel === 'Completed' || flagLabel === 'ReadyForInvoice') {
+    } else if (flagLabel === ClosureFlagLabels.Completed || flagLabel === ClosureFlagLabels.ReadyForInvoice) {
       if (currentFlags.includes(flagLabel)) {
         nextFlags = currentFlags.filter((f) => f !== flagLabel);
       } else {
-        nextFlags = [...currentFlags.filter((f) => f !== 'NotCompleted'), flagLabel];
+        nextFlags = [...currentFlags.filter((f) => f !== ClosureFlagLabels.NotCompleted), flagLabel];
       }
     } else {
       if (currentFlags.includes(flagLabel)) {

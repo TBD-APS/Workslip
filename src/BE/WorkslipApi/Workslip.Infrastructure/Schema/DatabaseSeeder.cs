@@ -318,13 +318,18 @@ public static class DatabaseSeeder
             maxEntriesPerMonth: 18);
 
         var jobClosureFlagJoins = new List<JobReportClosureFlagRow>();
-        var exclusiveClosureFlags = jobClosureFlags.Where(flag => flag.IsExclusive).ToArray();
-        var combinableClosureFlags = jobClosureFlags.Where(flag => !flag.IsExclusive).ToArray();
         foreach (var job in jobs)
         {
-            var selectedFlags = exclusiveClosureFlags.Length > 0 && faker.Random.Bool(0.25f)
-                ? [faker.PickRandom(exclusiveClosureFlags)]
-                : faker.PickRandom(combinableClosureFlags, faker.Random.Int(1, combinableClosureFlags.Length)).ToArray();
+            var selectedFlags = faker.PickRandom(jobClosureFlags, faker.Random.Int(1, jobClosureFlags.Count)).ToList();
+
+            var notCompleted = selectedFlags.FirstOrDefault(f => f.NormalizedLabel == ClosureFlagLabels.NotCompleted);
+            if (notCompleted is not null)
+            {
+                selectedFlags.RemoveAll(f =>
+                    f.NormalizedLabel == ClosureFlagLabels.Completed || f.NormalizedLabel == ClosureFlagLabels.ReadyForInvoice);
+                if (selectedFlags.Count == 0)
+                    selectedFlags.Add(notCompleted);
+            }
 
             var sortOrder = 0;
             foreach (var flag in selectedFlags)
@@ -442,19 +447,17 @@ public static class DatabaseSeeder
             .Select(group =>
             {
                 var selections = group.ToArray();
-                var exclusiveSelections = selections
-                    .Where(selection => selection.ClosureFlag.IsExclusive)
-                    .OrderBy(selection => selection.SortOrder)
-                    .ThenBy(selection => selection.ClosureFlag.SortOrder)
-                    .ToArray();
+                var notCompleted = selections.FirstOrDefault(s =>
+                    s.ClosureFlag.NormalizedLabel == ClosureFlagLabels.NotCompleted);
 
-                if (exclusiveSelections.Length == 0 || selections.Length == 1)
-                {
+                if (notCompleted == null)
                     return [];
-                }
 
-                var keepSelectionId = exclusiveSelections[0].Id;
-                return selections.Where(selection => selection.Id != keepSelectionId).ToArray();
+                return selections.Where(s =>
+                    s.Id != notCompleted.Id &&
+                    (s.ClosureFlag.NormalizedLabel == ClosureFlagLabels.Completed ||
+                     s.ClosureFlag.NormalizedLabel == ClosureFlagLabels.ReadyForInvoice))
+                    .ToArray();
             })
             .SelectMany(selections => selections)
             .ToArray();

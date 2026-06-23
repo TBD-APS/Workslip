@@ -377,6 +377,12 @@ public sealed class EfJobRepository : IJobRepository
         var entry = _dbContext.Entry(existing);
         entry.Property(e => e.Status).CurrentValue = nextStatus.ToString();
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
+
+        if (nextStatus == JobStatus.InReview && existing.SubmittedAt is null)
+        {
+            entry.Property(e => e.SubmittedAt).CurrentValue = now;
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await tx.CommitAsync(cancellationToken);
