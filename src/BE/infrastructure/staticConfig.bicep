@@ -24,8 +24,8 @@ var appConfigValues = {
   'Azure:AdOAuth:Instance': az.environment().authentication.loginEndpoint
   
   //LocalJwt
-  'Jwt:Issuer': 'WorkslipApiLocal'
-  'Jwt:Audience': 'WorkslipClientLocal'
+  'Jwt:Issuer': 'WorkslipApi'
+  'Jwt:Audience': 'WorkslipClient'
   'Jwt:ExpiryMinutes': '60'
   // Authorization policies
   'Authorization:Policies:RequireSuperadmin': 'SuperAdmin'

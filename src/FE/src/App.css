@@ -3047,9 +3047,9 @@
 }
 
 .attestation-confirm-row input:checked {
-  background: var(--primary);
-  border-color: var(--status-blue-text);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+  background: var(--surface-selected);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--surface-elevated);
 }
 
 .attestation-confirm-row input:checked::after {

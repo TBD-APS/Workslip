@@ -554,10 +554,10 @@ delete_existing() {
   while IFS= read -r rule; do
     case "$rule" in
       AllowWebApiOutbound*)
-        az_with_retry sql server firewall-rule delete \
-          --resource-group "$RESOURCE_GROUP" \
-          --server "$SQL_SERVER_NAME" \
-          --name "$rule" --yes --output none ;;
+az_with_retry sql server firewall-rule delete \
+  --resource-group "$RESOURCE_GROUP" \
+  --server "$SQL_SERVER_NAME" \
+  --name "$rule" --output none ;;
       *)
         echo "skipping unexpected firewall-rule value: $rule" >&2 ;;
     esac
@@ -709,7 +709,7 @@ az_with_retry sql server firewall-rule create \
   --output none
 
 cleanup() {
-  az sql server firewall-rule delete --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --name "AllowSqlProvisioningScript" --yes --output none || true
+  az sql server firewall-rule delete --resource-group "$RESOURCE_GROUP" --server "$SQL_SERVER_NAME" --name "AllowSqlProvisioningScript" --output none || true
   rm -f /tmp/sqltoken /tmp/grant-web-api-access.sql
 }
 trap cleanup EXIT

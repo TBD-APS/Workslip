@@ -19,7 +19,7 @@ $SQL_ADMIN_PWD_SECRET='Azure-...word'
 
 function New-RandomSqlPassword {
     $rand = New-Object System.Random
-    $alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#%&()*+,-./:;<=>?@[]^_{|}~'
+    $alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     $chars = @()
     for ($i = 0; $i -lt 24; $i++) {
         $chars += $alphabet[$rand.Next(0, $alphabet.Length)]

@@ -18,7 +18,7 @@
   --surface-raised: rgba(255, 255, 255, 0.08);
   --surface-input: rgba(0, 0, 0, 0.2);
   --surface-elevated: rgba(255, 255, 255, 0.12);
-  --surface-selected: var(--primary);
+  --surface-selected: rgba(44, 84, 172, 0.2);
   --surface-selected-strong: rgba(255, 255, 255, 0.2);
 
   /* Solid Floating Surfaces (For Dropdowns, Modals, etc.) */
