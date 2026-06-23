@@ -73,15 +73,27 @@ public sealed class JobReportPdfService : IJobReportPdfService
                 row.RelativeItem().AlignRight().Column(info =>
                 {
                     info.Item().Text(job.ReportNumber ?? ShortId(job.Id)).FontSize(PdfStyle.HeaderSize).Bold().FontColor(Colors.White);
+                    info.Item().PaddingTop(4).Border(1).BorderColor(StatusColor(status)).Background(StatusColor(status)).PaddingHorizontal(8).PaddingVertical(2).AlignCenter().Text(StatusLabel(status)).FontSize(PdfStyle.SmallTextSize).Bold().FontColor(PdfStyle.TextDark);
                 });
             });
 
-            col.Item().Border(1).BorderColor(PdfStyle.BorderColor).BorderTop(0).Padding(8).Row(row =>
+            col.Item().Border(1).BorderColor(PdfStyle.BorderColor).BorderTop(0).Padding(8).Column(details =>
             {
-                row.RelativeItem().Element(c => Field(c, "Kunde", Value(job.CustomerSnapshot.Name)));
-                row.RelativeItem().Element(c => Field(c, "Rapportdato", FormatDate(job.Observations.ReportDate)));
-                row.RelativeItem().Element(c => Field(c, "Total timer", FormatDecimal(job.TotalHours)));
-                row.RelativeItem().Element(c => Field(c, "Overnatninger", FormatOvernightStays(job.TotalOutlay)));
+                details.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(c => Field(c, "Kunde", Value(job.CustomerSnapshot.Name)));
+                    row.RelativeItem().Element(c => Field(c, "Rapportdato", FormatDate(job.Observations.ReportDate)));
+                    row.RelativeItem().Element(c => Field(c, "Total timer", FormatDecimal(job.TotalHours)));
+                    row.RelativeItem().Element(c => Field(c, "Overnatninger", FormatOvernightStays(job.TotalOutlay)));
+                });
+
+                if (job.SubmittedAt.HasValue)
+                {
+                    details.Item().PaddingTop(4).Row(row =>
+                    {
+                        row.RelativeItem().Element(c => Field(c, "Attesteret", FormatDateTime(job.SubmittedAt.Value)));
+                    });
+                }
             });
         });
     }
@@ -387,7 +399,7 @@ public sealed class JobReportPdfService : IJobReportPdfService
         linkContainer.Border(1).BorderColor(Color.FromHex("#E2E8F0")).Padding(6).Text(text =>
         {
             text.Span($"{link.LinkedReportNumber} · {link.LinkedCustomerName}").FontSize(11).FontColor(PdfStyle.Accent).Underline();
-            text.Span($" ({link.LinkedStatus})").FontSize(10).FontColor(PdfStyle.TextMedium);
+            text.Span($" ({ParseStatusLabel(link.LinkedStatus)})").FontSize(10).FontColor(PdfStyle.TextMedium);
         });
     }
 
@@ -497,6 +509,15 @@ public sealed class JobReportPdfService : IJobReportPdfService
         JobStatus.Approved => "Godkendt",
         JobStatus.Rejected => "Returneret",
         _ => status.ToString()
+    };
+
+    private static string ParseStatusLabel(string status) => status switch
+    {
+        "Draft" => "Aktiv",
+        "InReview" => "Til gennemsyn",
+        "Approved" => "Godkendt",
+        "Rejected" => "Returneret",
+        _ => status
     };
 
     private static Color StatusColor(JobStatus status) => status switch

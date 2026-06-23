@@ -30,4 +30,5 @@ public sealed class JobReportRow : IJobRelated
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
     public DateTimeOffset? DeletionScheduledAt { get; init; }
+    public DateTimeOffset? SubmittedAt { get; set; }
 }

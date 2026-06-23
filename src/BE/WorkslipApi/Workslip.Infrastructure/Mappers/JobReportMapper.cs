@@ -58,7 +58,7 @@ public static class JobReportMapper
             row.TaskDescription, row.CustomerObservations, row.TechnicalObservations,
             installationTypes, ToWorkKindResponse(row.WorkKindRow, row.CustomWorkKind),
             row.Remarks, closureFlags, links,
-            row.CreatedAt, row.UpdatedAt,
+            row.CreatedAt, row.UpdatedAt, row.SubmittedAt,
             assignedUsers, worksheetEntries,
             row.IsSoftDeleted, row.DeletionScheduledAt, totalHours);
     }

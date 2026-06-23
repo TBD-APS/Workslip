@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, CheckCircle2, Download, ExternalLink, FileCheck2, History, Link2, Loader2, MoreHorizontal, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Download, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   InstallationTypeResponse,
@@ -24,7 +23,7 @@ import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
 import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
 import { useJobDetailsState } from '../hooks/useJobDetails';
 import { formatJobStatus } from '../statusLabels';
-import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
+import { downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -56,11 +55,10 @@ export const CompletedJobReport = () => {
   const isAdmin = useIsAdmin();
   const { user } = useAuth();
   const statusMutation = usePostApiJobsIdStatus();
-  const [isOpeningPdf, setIsOpeningPdf] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [pdfMenu, setPdfMenu] = useState<{ top: number; right: number } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | null>(null);
   const job = details.job;
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
@@ -114,33 +112,6 @@ export const CompletedJobReport = () => {
     if (!isEditing) editScrollDone.current = false;
   }, [isEditing]);
 
-  const handleOpenPdf = async () => {
-    if (!job) return;
-    setIsOpeningPdf(true);
-
-    try {
-      // Open the PDF in a new browser tab instead of an inline iframe.
-      // Reasons:
-      //  - The app viewport is locked at maximum-scale=1 (no pinch-zoom
-      //    anywhere) so an embedded browser-PDF-viewer inside an iframe
-      //    can't be zoomed on touch devices.
-      //  - Native browser PDF viewers give users scroll + zoom + find
-      //    + print out of the box, including on mobile.
-      // We still fetch the PDF as a Blob (same auth context, same
-      // headers) and just point window.open at the object URL.
-      const preview = await createJobReportPdfPreview(job);
-      window.open(preview.url, '_blank', 'noopener,noreferrer');
-      // The new tab owns the URL now; defer the revoke so the new tab
-      // has a moment to load it. (The blob URL stays valid until we
-      // explicitly revoke it.)
-      window.setTimeout(() => window.URL.revokeObjectURL(preview.url), 60_000);
-    } catch {
-        toast.error(`Kunne ikke åbne PDF for sagen ${details.form.reportNumber}`);
-    } finally {
-      setIsOpeningPdf(false);
-    }
-  };
-
   const handleDownloadPdf = async () => {
     if (!job) return;
     setIsDownloadingPdf(true);
@@ -153,43 +124,6 @@ export const CompletedJobReport = () => {
       setIsDownloadingPdf(false);
     }
   };
-
-  const togglePdfMenu = (event: ReactMouseEvent<HTMLButtonElement>) => {
-    if (pdfMenu) {
-      setPdfMenu(null);
-      return;
-    }
-    const rect = event.currentTarget.getBoundingClientRect();
-    setPdfMenu({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
-  };
-
-  const closePdfMenu = () => setPdfMenu(null);
-
-  useEffect(() => {
-    if (!pdfMenu) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Element && event.target.closest('.report-pdf-menu-root, .report-pdf-menu')) return;
-      setPdfMenu(null);
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [pdfMenu]);
-
-  useEffect(() => {
-    if (!pdfMenu) return;
-
-    const closeMenu = () => setPdfMenu(null);
-    const scrollContainer = document.querySelector('.app-shell');
-    scrollContainer?.addEventListener('scroll', closeMenu, { passive: true });
-    window.addEventListener('resize', closeMenu);
-
-    return () => {
-      scrollContainer?.removeEventListener('scroll', closeMenu);
-      window.removeEventListener('resize', closeMenu);
-    };
-  }, [pdfMenu]);
 
   const handleStartEdit = () => {
     details.discardChanges();
@@ -218,30 +152,33 @@ export const CompletedJobReport = () => {
     toast.success(`Sagen ${details.form.reportNumber} er opdateret`);
   };
 
-  const handleApprove = async () => {
-    if (!job) return;
-    try {
-      const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Approved } });
-      queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), updatedJob);
-      await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-      toast.success(`Sagen ${details.form.reportNumber} er godkendt`);
-      navigate(from);
-    }
-    catch{
-       toast.error(`Kunne ikke godkende sagen ${details.form.reportNumber}. Prøv igen.`);
-     }
+  const handleApprove = () => {
+    setConfirmAction('approve');
   };
 
-  const handleReject = async () => {
-    if (!job) return;
+  const handleReject = () => {
+    setConfirmAction('reject');
+  };
+
+  const executeConfirmAction = async () => {
+    if (!job || !confirmAction) return;
+    const targetStatus = confirmAction === 'approve' ? JobStatus.Approved : JobStatus.Rejected;
     try {
-      const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: JobStatus.Rejected } });
+      const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: targetStatus } });
       queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), updatedJob);
       await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-      toast.success(`Sagen ${details.form.reportNumber} er afvist`);
+      const message = confirmAction === 'approve'
+        ? `Sagen ${details.form.reportNumber} er godkendt`
+        : `Sagen ${details.form.reportNumber} er afvist`;
+      toast.success(message);
+      setConfirmAction(null);
       navigate(from);
     } catch {
-      toast.error(`Kunne ikke afvise sagen ${details.form.reportNumber}. Prøv igen.`);
+      const message = confirmAction === 'approve'
+        ? `Kunne ikke godkende sagen ${details.form.reportNumber}. Prøv igen.`
+        : `Kunne ikke afvise sagen ${details.form.reportNumber}. Prøv igen.`;
+      toast.error(message);
+      setConfirmAction(null);
     }
   };
 
@@ -332,22 +269,16 @@ export const CompletedJobReport = () => {
           >
             <History size={16} />
           </button>
-        </div>
-        <div className="report-overview-actions report-overview-actions--right">
-          <div className="report-pdf-menu-root">
-            <button
-              className="btn btn-secondary report-overview-icon-action"
-              type="button"
-              onClick={togglePdfMenu}
-              disabled={isEditing}
-              aria-label="PDF handlinger"
-              aria-expanded={pdfMenu !== null}
-              aria-haspopup="menu"
-              title="PDF handlinger"
-            >
-              <MoreHorizontal size={18} />
-            </button>
-          </div>
+          <button
+            className="btn btn-secondary report-overview-icon-action"
+            type="button"
+            onClick={() => void handleDownloadPdf()}
+            disabled={isDownloadingPdf || isEditing}
+            aria-label="Download PDF"
+            title="Download PDF"
+          >
+            {isDownloadingPdf ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
+          </button>
         </div>
       </div>
 
@@ -467,54 +398,77 @@ export const CompletedJobReport = () => {
         </>
       )}
 
-      {pdfMenu && (
-        <PdfActionMenuPortal
-          position={pdfMenu}
-          isOpeningPdf={isOpeningPdf}
-          isDownloadingPdf={isDownloadingPdf}
-          onOpen={async () => {
-            closePdfMenu();
-            await handleOpenPdf();
-          }}
-          onDownload={async () => {
-            closePdfMenu();
-            await handleDownloadPdf();
-          }}
-        />
-      )}
-
       <JobHistoryDrawer
         jobId={job.id} 
         isOpen={historyOpen} 
         onClose={() => setHistoryOpen(false)} 
       />
+
+      {confirmAction && (
+        <ConfirmActionDialog
+          action={confirmAction}
+          reportNumber={details.form.reportNumber}
+          isPending={statusMutation.isPending}
+          onConfirm={() => void executeConfirmAction()}
+          onClose={() => setConfirmAction(null)}
+        />
+      )}
     </div>
   );
 };
 
-type PdfActionMenuPortalProps = {
-  position: { top: number; right: number };
-  isOpeningPdf: boolean;
-  isDownloadingPdf: boolean;
-  onOpen: () => void | Promise<void>;
-  onDownload: () => void | Promise<void>;
+type ConfirmActionDialogProps = {
+  action: 'approve' | 'reject';
+  reportNumber: string;
+  isPending: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
 };
 
-function PdfActionMenuPortal({ position, isOpeningPdf, isDownloadingPdf, onOpen, onDownload }: PdfActionMenuPortalProps) {
+function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm, onClose }: ConfirmActionDialogProps) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const isApprove = action === 'approve';
+
   return createPortal(
-    <div
-      className="report-pdf-menu"
-      role="menu"
-      style={{ top: position.top, right: position.right }}
-    >
-      <button type="button" role="menuitem" onClick={() => void onOpen()} disabled={isOpeningPdf || isDownloadingPdf}>
-        {isOpeningPdf ? <Loader2 size={15} className="spin" /> : <ExternalLink size={15} />}
-        <span>{isOpeningPdf ? 'Åbner...' : 'Åbn PDF i ny fane'}</span>
-      </button>
-      <button type="button" role="menuitem" onClick={() => void onDownload()} disabled={isOpeningPdf || isDownloadingPdf}>
-        {isDownloadingPdf ? <Loader2 size={15} className="spin" /> : <Download size={15} />}
-        <span>{isDownloadingPdf ? 'Henter...' : 'Download PDF'}</span>
-      </button>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal-card"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label={isApprove ? 'Godkend sag' : 'Afvis sag'}
+      >
+        <h3>{isApprove ? 'Godkend sag' : 'Afvis sag'}</h3>
+        <p>
+          Er du sikker på, du vil {isApprove ? 'godkende' : 'afvise'} sagen <strong>{reportNumber}</strong>?
+        </p>
+
+        <div className="modal-actions" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <button
+            type="button"
+            className={isApprove ? 'btn btn-primary' : 'btn btn-danger'}
+            onClick={onConfirm}
+            disabled={isPending}
+          >
+            {isPending && <Loader2 className="animate-spin" size={16} />}
+            <span>{isPending ? (isApprove ? 'Godkender...' : 'Afviser...') : (isApprove ? 'Godkend' : 'Afvis')}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onClose}
+            disabled={isPending}
+          >
+            Annuller
+          </button>
+        </div>
+      </div>
     </div>,
     document.body,
   );
@@ -705,7 +659,12 @@ function LinkedJobs({ links, onOpen }: { links: JobLinkInfoResponse[]; onOpen: (
             <span className="report-overview-customer">{link.linkedCustomerName || 'Ukendt kunde'}</span>
             <span className="job-number">SAG-{link.linkedReportNumber}</span>
           </div>
-          <span className="report-overview-address">{link.linkedAddress || 'Ukendt adresse'}</span>
+          <div className="report-overview-link-card-footer">
+            <span className="report-overview-address">{link.linkedAddress || 'Ukendt adresse'}</span>
+            <span className="btn-icon" aria-label="Åbn tilknyttet sag">
+              <ChevronRight size={20} />
+            </span>
+          </div>
         </button>
       ))}
     </div>
@@ -754,18 +713,35 @@ function ControlPointOverview({
     return <p className="empty-state-text">Ingen kontrolpunkter markeret.</p>;
   }
 
+  const grouped = useMemo(() => {
+    const map = new Map<string, { key: string; installationType: string; category: string; items: SelectedControlPoint[] }>();
+    for (const cp of selectedControlPoints) {
+      const key = `${cp.installationType}|${cp.category}`;
+      let group = map.get(key);
+      if (!group) {
+        group = { key, installationType: cp.installationType, category: cp.category, items: [] };
+        map.set(key, group);
+      }
+      group.items.push(cp);
+    }
+    return [...map.values()];
+  }, [selectedControlPoints]);
+
   return (
     <>
-      {selectedControlPoints.length > 0 && (
-        <ul className="attestation-control-list compact">
-          {selectedControlPoints.map((controlPoint) => (
-            <li key={controlPoint.id}>
-              <span>{controlPoint.name}</span>
-              <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
-            </li>
-          ))}
-        </ul>
-      )}
+      {grouped.map((group, index) => (
+        <div key={group.key}>
+          {index > 0 && <hr className="attestation-group-divider" />}
+          <span className="attestation-group-label">{group.installationType} · {capitalize(group.category)}</span>
+          <ul className="attestation-control-list compact">
+            {group.items.map((controlPoint) => (
+              <li key={controlPoint.id}>
+                <span>{controlPoint.name}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
 
       {irrelevantCategories.length > 0 && (
         <div className="attestation-irrelevant-block">

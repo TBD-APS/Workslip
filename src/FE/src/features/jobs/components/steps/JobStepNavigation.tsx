@@ -3,8 +3,8 @@ import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { JOB_STEPS } from './jobSteps';
 import { useDropdownContext } from '../../../../providers/DropdownContext';
 
-const HIDE_DELAY_MS = 200;
-const SCROLL_THRESHOLD = 30;
+const HIDE_DELAY_MS = 10;
+const SCROLL_THRESHOLD = 5;
 
 type StepIndicatorsProps = {
   currentStep: number;
@@ -208,7 +208,7 @@ export function StepNavigation({
         alignItems: 'center',
         opacity: scrollState === 'hidden' || isDropdownOpen ? 0 : 1,
         pointerEvents: scrollState === 'hidden' || isDropdownOpen ? 'none' : 'auto',
-        transition: 'opacity 0.2s ease',
+        transition: 'opacity 0.1s ease',
       }}
     >
       {statusSlot && <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>{statusSlot}</div>}

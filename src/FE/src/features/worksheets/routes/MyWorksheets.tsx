@@ -130,7 +130,7 @@ export function MyWorksheets() {
             onClick={() => selectMonth(getCurrentMonthCursor())}
             disabled={isCurrentMonth}
           >
-            Nuværende måned
+            Til nuværende måned
           </button>
           {data && (
             <section className="time-summary-grid" aria-label="Månedsopsummering">

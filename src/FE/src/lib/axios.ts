@@ -120,8 +120,15 @@ apiClient.interceptors.response.use(
       }
 
       // Always purge stale token + email so the next render knows we are unauthenticated.
-      AuthStorage.removeItem(AUTH_TOKEN_KEY);
-      AuthStorage.removeItem(USER_EMAIL_KEY);
+      // However, skip purging for /api/auth/me – a transient 401 here (e.g. clock
+      // skew, delayed JWT propagation) should not destroy a valid token. The meQuery
+      // will retry automatically, and if it still fails the user will be redirected to
+      // login by ProtectedRoute.
+      const isMeEndpoint = requestUrl.endsWith('/api/auth/me') || requestUrl.endsWith('/api/auth/me/');
+      if (!isMeEndpoint) {
+        AuthStorage.removeItem(AUTH_TOKEN_KEY);
+        AuthStorage.removeItem(USER_EMAIL_KEY);
+      }
     } else if (error.response?.status === 403) {
       toast.error('Du har ikke adgang til denne handling');
     } else if (error.response?.status === 400 && error.response?.data?.errors) {
