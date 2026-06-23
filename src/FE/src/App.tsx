@@ -1,5 +1,7 @@
 import { BrowserRouter } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
+import { SpeedInsights } from '@vercel/speed-insights/react';
+import { Analytics } from '@vercel/analytics/react';
 import { AppProvider } from './providers/AppProvider';
 import { ErrorFallback } from './providers/ErrorFallback';
 import { AppRoutes } from './routes';
@@ -16,6 +18,8 @@ function App() {
             react-query / auth state survive a fallback render. */}
         <ErrorBoundary FallbackComponent={ErrorFallback}>
           <AppRoutes />
+          <SpeedInsights />
+          <Analytics />
         </ErrorBoundary>
       </BrowserRouter>
     </AppProvider>
