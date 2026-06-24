@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Building2, ChevronRight, Mail, Users, MapPin, MoreHorizontal, Phone } from 'lucide-react';
+import { AlertCircle, Building2, ChevronRight, Mail, Plus, Users, MapPin, MoreHorizontal, Phone } from 'lucide-react';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
@@ -97,8 +97,16 @@ export const CustomerList = () => {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2>Kunder</h2>
-        <p className="subtitle">{customers.length} {customers.length === 1 ? 'kunde' : 'kunder'}</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+          <div>
+            <h2>Kunder</h2>
+            <p className="subtitle">{customers.length} {customers.length === 1 ? 'kunde' : 'kunder'}</p>
+          </div>
+          <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
+            <Plus size={18} />
+            <span>Ny kunde</span>
+          </button>
+        </div>
       </div>
 
       <SearchBar value={search} onChange={setSearch} placeholder="Søg kunder..." />

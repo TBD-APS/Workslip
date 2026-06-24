@@ -42,4 +42,11 @@ public sealed record UpdateCustomerRequest(
     string? ContactPerson,
     string? Phone);
 
+public sealed record CreateCustomerRequest(
+    string Name,
+    string? Address,
+    string? Email,
+    string? ContactPerson,
+    string? Phone);
+
 public sealed record DeleteCustomerResponse(bool success);

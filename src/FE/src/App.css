@@ -3700,6 +3700,24 @@
   border-color: var(--surface-selected-strong);
 }
 
+.time-day-cell--empty {
+  opacity: 0.5;
+}
+
+.time-day-cell--empty .time-day-head p {
+  display: none;
+}
+
+.time-day-cell--weekend {
+  background: var(--surface-raised);
+  border-color: var(--surface-elevated);
+}
+
+.time-day-cell--weekend.muted {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
 .time-day-head {
   display: flex;
   align-items: center;

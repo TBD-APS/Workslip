@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { ClipboardList, FileText, Wrench } from 'lucide-react';
+import { Building2, ClipboardList, FileText, Wrench } from 'lucide-react';
 
 
 export type DocumentTypeStatus = 'available' | 'coming_soon';
@@ -15,6 +15,15 @@ export interface DocumentType {
 }
 
 export const DOCUMENT_TYPES: readonly DocumentType[] = [
+  {
+    id: 'customer',
+    label: 'Kunde',
+    description: 'Opret en ny kunde.',
+    icon: Building2,
+    path: '/app/customers/new',
+    permission: 'user:manage',
+    status: 'available',
+  },
   {
     id: 'job',
     label: 'Job',

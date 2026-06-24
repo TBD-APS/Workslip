@@ -7,11 +7,10 @@ namespace Workslip.Api.Configuration
     {
         public static WebApplication ConfigureDevEnvironment(this WebApplication app)
         {
-            app.MapOpenApi();
-            app.MapScalarApiReference();
-
             if (app.Environment.IsDevelopment())
             {
+                app.MapOpenApi();
+                app.MapScalarApiReference();
                 app.MapDevEndpoints();
                 app.UseDeveloperExceptionPage();            
             }

@@ -47,6 +47,12 @@ public static class CustomerEndpoints
             return ResultExtensions.ToHttpResult(result, customer => CustomerViewModelBuilder.ToDetail(customer));
         }).Produces<CustomerDetailViewModel>();
 
+        group.MapPost("/", async (CreateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.CreateAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, CustomerViewModelBuilder.ToDetail);
+        }).Produces<CustomerDetailViewModel>();
+
         group.MapPut("/{id:guid}", async (Guid id, UpdateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>
         {
             var result = await service.UpdateAsync(id, request, cancellationToken);
