@@ -62,7 +62,7 @@ export const AppRoutes = () => {
     },
     {
       path: '/login',
-      element: <Navigate to="/" />,
+      element: <Login />,
     },
     {
       path: '/invite/callback',
