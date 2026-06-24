@@ -37,7 +37,9 @@ try
         await db.Database.EnsureCreatedAsync();
         await db.Database.MigrateAsync();
         await db.Database.CanConnectAsync();
-        await DatabaseSeeder.Seed(db);
+
+        if(app.Environment.IsDevelopment())
+            await DatabaseSeeder.Seed(db);
     }
 
     app.ConfigurePipeline();

@@ -1,6 +1,6 @@
 import { FileText, MessageSquare, Wrench, } from 'lucide-react';
 import type { useJobDetails } from '../../hooks/useJobDetails';
-import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock, ReportNumberBlock } from '../JobDetailBlocks';
+import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock } from '../JobDetailBlocks';
 import { useCan } from '../../../../providers/permissions';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
@@ -22,12 +22,6 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         onSnapshotFieldChange={details.updateSnapshotField}
         onEditSnapshotChange={details.updateEditSnapshot}
         showEditCheckbox={true}
-      />
-
-      <ReportNumberBlock
-        value={details.form.reportNumber ?? ''}
-        onChange={details.updateReportNumber}
-        readOnly={details.reportNumberReadOnly}
       />
 
       <AssignmentBlock

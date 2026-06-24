@@ -160,13 +160,6 @@ public static class HttpCacheHeaders
         return ToWeakEtag(builder.ToString());
     }
 
-    public static void SetPublicLongCache(HttpContext context, string etag)
-    {
-        context.Response.Headers.CacheControl = "public, max-age=86400";
-        context.Response.Headers.ETag = etag;
-        context.Response.Headers.Vary = "Accept-Encoding";
-    }
-
     public static string ReferenceDataEtag(ReferenceDataResponse data)
     {
         var sb = new StringBuilder("reference-data:");

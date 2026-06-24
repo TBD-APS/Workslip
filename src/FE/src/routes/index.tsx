@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useRoutes, Navigate } from 'react-router-dom';
 import { useAuth } from '../providers/useAuth';
 import { RoleGuard } from '../providers/permissions';
-import { LandingPage } from '../features/landing/routes/LandingPage';
 import { Login } from '../features/auth/routes/Login';
 import { InviteAccept } from '../features/auth/routes/InviteAccept';
 import { JobList } from '../features/jobs/routes/JobList';
@@ -59,11 +58,11 @@ export const AppRoutes = () => {
   const routes = useRoutes([
     {
       path: '/',
-      element: <LandingPage />,
+      element: <Login />,
     },
     {
       path: '/login',
-      element: <Login />,
+      element: <Navigate to="/" />,
     },
     {
       path: '/invite/callback',

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { User, Mail, Shield, PartyPopper, Pencil, Save, X, Loader2 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '../../../providers/useAuth';
-import { usePatchApiAuthMe } from '../../../api/generated/auth/auth';
+import { usePatchApiAuthMe, getGetApiAuthMeQueryKey } from '../../../api/generated/auth/auth';
 
 const roleLabels: Record<string, string> = {
   Admin: 'Administrator',
@@ -13,6 +14,7 @@ const roleLabels: Record<string, string> = {
 export const Profile = () => {
   const { user, updateUser } = useAuth();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const fromInvite = (location.state as { fromInvite?: boolean })?.fromInvite;
 
   const [isEditing, setIsEditing] = useState(false);
@@ -44,6 +46,7 @@ export const Profile = () => {
       });
 
       updateUser({ displayName: displayName.trim(), phone: phone.trim() || undefined });
+      queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
 
       setIsEditing(false);
       toast.success('Profil opdateret');

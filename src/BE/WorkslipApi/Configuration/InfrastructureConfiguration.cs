@@ -26,7 +26,10 @@ public static class InfrastructureConfiguration
         if (string.IsNullOrWhiteSpace(managedIdentityClientId))
             return new DefaultAzureCredential();
 
-        return new ManagedIdentityCredential(clientId: managedIdentityClientId);
+        return new DefaultAzureCredential(new DefaultAzureCredentialOptions
+        {
+            ManagedIdentityClientId = managedIdentityClientId
+        });
     }
 
     private static void AddAzureAppConfiguration(ConfigurationManager configuration, TokenCredential credential)

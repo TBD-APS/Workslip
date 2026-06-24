@@ -1,7 +1,5 @@
 ﻿using Scalar.AspNetCore;
 using Workslip.Api.Endpoints;
-using Workslip.Infrastructure;
-using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Api.Configuration
 {
@@ -11,8 +9,12 @@ namespace Workslip.Api.Configuration
         {
             app.MapOpenApi();
             app.MapScalarApiReference();
-            app.MapDevEndpoints();
-            app.UseDeveloperExceptionPage();
+
+            if (app.Environment.IsDevelopment())
+            {
+                app.MapDevEndpoints();
+                app.UseDeveloperExceptionPage();            
+            }
 
             return app;
         }

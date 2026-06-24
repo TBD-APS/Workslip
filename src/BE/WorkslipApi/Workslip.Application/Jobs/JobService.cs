@@ -24,17 +24,16 @@ public sealed class JobService(
     IValidator<UpdateJobRequest> updateJobValidator,
     IValidator<ChangeJobStatusRequest> changeJobStatusValidator,
     ICurrentUserContext currentUser,
-    ILogger<JobService> logger) : IJobService
+    ILogger<JobService> logger,
+    JobValidationService jobValidationService) : IJobService
 {
     private static readonly HybridCacheEntryOptions JobReportCacheOptions = new()
     {
-        Expiration = TimeSpan.FromMinutes(5),
         LocalCacheExpiration = TimeSpan.FromMinutes(1)
     };
 
     private static readonly HybridCacheEntryOptions JobListCacheOptions = new()
     {
-        Expiration = TimeSpan.FromMinutes(1),
         LocalCacheExpiration = TimeSpan.FromSeconds(15)
     };
 
@@ -313,7 +312,7 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.NotFound();
         }
 
-        var isValidResponse = new JobValidationService(logger).ValidateSubmitReady(job, referenceData);
+        var isValidResponse = jobValidationService.ValidateSubmitReady(job, referenceData);
 
         if (!isValidResponse.IsSuccess)
         {
@@ -786,6 +785,11 @@ public sealed class JobService(
         logger.LogInformation(
             "Job updated. JobId: {JobId}. OrganizationId: {OrganizationId}. Status: {Status}. ReportNumber: {ReportNumber}. WorkKindId: {WorkKindId}. InstallationTypeCount: {InstallationTypeCount}.",
             job.Id, job.OrganizationId, job.Status, job.ReportNumber, job.WorkKind?.Id, job.InstallationTypes.Count);
+
+    public async Task InvalidateJobDetailCacheAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
+    {
+        await InvalidateJobCachesAsync(id, organizationId, cancellationToken);
+    }
 
     private async Task InvalidateJobCachesAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {

@@ -13,6 +13,7 @@ import { apiClient } from '../../../lib/axios';
 import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatJobStatus } from '../statusLabels';
+import { getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-shell';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
@@ -130,7 +131,7 @@ export const JobList = () => {
   }, []);
 
   useEffect(() => {
-    void queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+    void queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
   }, [queryClient]);
 
   useEffect(() => {

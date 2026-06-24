@@ -5,9 +5,9 @@ namespace Workslip.Application.Jobs
 {
     public class JobValidationService
     {
-        private readonly ILogger _logger;
+        private readonly ILogger<JobValidationService> _logger;
 
-        public JobValidationService(ILogger logger)
+        public JobValidationService(ILogger<JobValidationService> logger)
         {
             _logger = logger;
         }

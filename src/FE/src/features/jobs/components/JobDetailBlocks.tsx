@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
-import { useCan } from '../../../providers/permissions';
+import { useCan, useIsAdmin } from '../../../providers/permissions';
 import { useGetApiCustomersSuggest } from '../../../api/generated/customers/customers';
 import { getApiCustomersTop } from '../customerApi';
 import type { CustomerSearchViewModel, CustomerSnapshotData, UserViewModel } from '../../../api/generated/models';
@@ -85,6 +85,7 @@ export function CustomerDetailsBlock({
   showEditCheckbox = true,
 }: CustomerBlockProps) {
   const hasExistingCustomer = Boolean(form.customerId);
+  const isAdmin = useIsAdmin();
 
   function displayValue(field: keyof CustomerSnapshotData): string {
     if (hasExistingCustomer) {
@@ -114,10 +115,12 @@ export function CustomerDetailsBlock({
         <h3>Kunde</h3>
       </div>
 
-        <CustomerSearchDropdown
-          selectedId={form.customerId}
-          onSelect={onCustomerSelect}
-        />
+        {isAdmin && (
+          <CustomerSearchDropdown
+            selectedId={form.customerId}
+            onSelect={onCustomerSelect}
+          />
+        )}
 
           <div className="form-group">
             <label className="form-label">Kundenavn</label>
