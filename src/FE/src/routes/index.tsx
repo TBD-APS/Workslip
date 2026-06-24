@@ -48,6 +48,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <div className="protected-route-loading">Tjekker login status...</div>;
   }
 
+  // Prevent redirecting while a retry is pending
+  const isRetrying = meQuery?.isError && !retryUsed;
+  if (isRetrying) {
+    return <div className="protected-route-loading">Genforbinder til serveren...</div>;
+  }
+
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
