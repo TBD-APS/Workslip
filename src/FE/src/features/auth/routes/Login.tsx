@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -23,8 +23,6 @@ import {
   startEntraLogin,
 } from '../api/entraLogin';
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-
 const EmailSchema = z.object({
   email: z.string().email({ message: 'Ugyldig email adresse' }),
 });
@@ -38,7 +36,7 @@ type CodeFormValues = z.infer<typeof CodeSchema>;
 
 export const Login = () => {
   const navigate = useNavigate();
-  const { login, devLogin } = useAuth();
+  const { isAuthenticated, login, devLogin } = useAuth();
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,6 +55,10 @@ export const Login = () => {
   // browser to Microsoft; the second must be a no-op to avoid generating
   // a second PKCE state that overwrites the first.
   const reauthStartedRef = useRef(false);
+
+  if (isAuthenticated) {
+    return <Navigate to="/app" />;
+  }
 
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(EmailSchema),
@@ -380,12 +382,10 @@ export const Login = () => {
         )}
 
         {(!showOtcLogin && step === 'email') && (
-          <div className="login-frontpage-footer">
-            <Link to="/">← Tilbage til forsiden</Link>
-          </div>
+          <div className="login-frontpage-footer" />
         )}
 
-        {(!showOtcLogin && step === 'email') && apiBaseUrl && (
+        {(!showOtcLogin && step === 'email') && import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
           <div className="login-dev-section">
             <div className="login-dev-buttons">
               {[

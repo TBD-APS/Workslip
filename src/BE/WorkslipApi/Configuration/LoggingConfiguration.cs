@@ -26,8 +26,12 @@ public static class LoggingConfiguration
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Application", "Workslip.Api")
                 .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
-                .WriteTo.Seq("http://localhost:5341")
                 .WriteTo.Console();
+
+            if (context.HostingEnvironment.IsDevelopment())
+            {
+                configuration.WriteTo.Seq("http://localhost:5341");
+            }
 
             if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
             {

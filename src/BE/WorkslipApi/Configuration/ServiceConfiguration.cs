@@ -1,11 +1,8 @@
 using System.Text.Json.Serialization;
 using Azure.Core;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.Graph;
-using Workslip.Api.Helpers;
 using Workslip.Api.Services;
 using Workslip.Application;
-using Workslip.Application.Auth;
 using Workslip.Infrastructure;
 
 namespace Workslip.Api.Configuration;

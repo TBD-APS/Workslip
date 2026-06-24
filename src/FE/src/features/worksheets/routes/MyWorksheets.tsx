@@ -249,10 +249,22 @@ function DayCell({
   isOutsideMonth: boolean;
   onOpenJob: (jobId: string) => void;
 }) {
+  const date = parseDate(day.date);
+  const dayOfWeek = date.getDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const isEmpty = day.entries.length === 0;
+
+  const classNames = [
+    'time-day-cell',
+    isOutsideMonth ? 'muted' : '',
+    isWeekend ? 'time-day-cell--weekend' : '',
+    isEmpty ? 'time-day-cell--empty' : 'has-entries',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={`time-day-cell ${isOutsideMonth ? 'muted' : ''} ${day.entries.length > 0 ? 'has-entries' : ''}`}>
+    <div className={classNames}>
       <div className="time-day-head">
-        <span>{DAY_FORMATTER.format(parseDate(day.date))}</span>
+        <span>{DAY_FORMATTER.format(date)}</span>
         {day.totalHours !== 0 && <p>{formatNumber(day.totalHours)} total</p>}
       </div>
 

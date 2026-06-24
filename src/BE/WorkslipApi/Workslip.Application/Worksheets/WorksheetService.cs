@@ -86,14 +86,17 @@ public class WorksheetService : IWorksheetService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Worksheet upsert failed due to business rule violation");
+            _logger.LogWarning(ex, "Worksheet upsert failed due to business rule violation. JobId: {JobId}", request.JobId);
             return Result<JobReportSummaryResponse>.Conflict(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during worksheet upsert");
+            _logger.LogError(ex, "Unexpected error during worksheet upsert. JobId: {JobId}", request.JobId);
             return Result<JobReportSummaryResponse>.Error(ex.Message);
         }
+
+        if (organizationId.HasValue)
+            await _jobService.InvalidateJobDetailCacheAsync(request.JobId, organizationId.Value, cancellationToken);
 
         return await _jobService.GetSingleJobAsync(request.JobId, cancellationToken);
     }
@@ -112,9 +115,12 @@ public class WorksheetService : IWorksheetService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during worksheet deletion");
+            _logger.LogError(ex, "Unexpected error during worksheet deletion. WorksheetId: {WorksheetId}, JobId: {JobId}", worksheetId, jobId);
             return Result<JobReportSummaryResponse>.Error(ex.Message);
         }
+
+        if (_currentUserContext.OrganizationId.HasValue)
+            await _jobService.InvalidateJobDetailCacheAsync(jobId, _currentUserContext.OrganizationId.Value, cancellationToken);
 
         return await _jobService.GetSingleJobAsync(jobId, cancellationToken);
     }

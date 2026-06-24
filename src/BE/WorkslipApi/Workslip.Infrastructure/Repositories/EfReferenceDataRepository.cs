@@ -14,7 +14,6 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
 
     private static readonly HybridCacheEntryOptions CacheOptions = new()
     {
-        Expiration = TimeSpan.FromHours(1),
         LocalCacheExpiration = TimeSpan.FromMinutes(10)
     };
 

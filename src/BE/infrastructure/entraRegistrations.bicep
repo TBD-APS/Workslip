@@ -76,19 +76,17 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
 
 resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
   uniqueName: 'Workslip-client-${environment}-${uniqueSuffix}'
-  displayName: 'Workslip Client ${environment}'
+  displayName: 'Workslip App'
   signInAudience: 'AzureADandPersonalMicrosoftAccount'
   api:{
     requestedAccessTokenVersion: 2
   }
   spa: {
     redirectUris: [
-      'http://localhost:5173/login'
-      'http://localhost:5173/invite/callback'
+      'http://localhost:5270/login'
+      'http://localhost:5270/invite/callback'
       'https://workslip-v2-0.vercel.app/login'
       'https://workslip-v2-0.vercel.app/invite/callback'
-      'https://webapp-delta-sand-62.vercel.app/login'
-      'https://webapp-delta-sand-62.vercel.app/invite/callback'
     ]
   }
   web: {

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useRoutes, Navigate } from 'react-router-dom';
 import { useAuth } from '../providers/useAuth';
 import { RoleGuard } from '../providers/permissions';
-import { LandingPage } from '../features/landing/routes/LandingPage';
 import { Login } from '../features/auth/routes/Login';
 import { InviteAccept } from '../features/auth/routes/InviteAccept';
 import { JobList } from '../features/jobs/routes/JobList';
@@ -13,6 +12,7 @@ import { Create } from '../features/create/routes/Create';
 import { UserList } from '../features/users/routes/UserList';
 import { UserDetail } from '../features/users/routes/UserDetail';
 import { CustomerList } from '../features/customers/routes/CustomerList';
+import { CreateCustomerPage } from '../features/customers/routes/CreateCustomerPage';
 import { EditCustomerPage } from '../features/customers/routes/EditCustomerPage';
 import { AppLayout } from '../components/layouts/AppLayout';
 import { MyWorksheets } from '../features/worksheets/routes/MyWorksheets';
@@ -59,7 +59,7 @@ export const AppRoutes = () => {
   const routes = useRoutes([
     {
       path: '/',
-      element: <LandingPage />,
+      element: <Login />,
     },
     {
       path: '/login',
@@ -86,6 +86,7 @@ export const AppRoutes = () => {
         { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
         { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
         { path: 'customers', element: <RoleGuard permission="user:manage"><CustomerList /></RoleGuard> },
+        { path: 'customers/new', element: <RoleGuard permission="user:manage"><CreateCustomerPage /></RoleGuard> },
         { path: 'customers/:id', element: <RoleGuard permission="user:manage"><CustomerDetail /></RoleGuard> },
         { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
         { path: 'profil', element: <Profile /> },

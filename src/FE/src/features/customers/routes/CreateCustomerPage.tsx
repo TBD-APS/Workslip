@@ -1,19 +1,16 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
-import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { apiClient } from '../../../lib/axios';
 import { useQueryClient } from '@tanstack/react-query';
-import { getGetApiCustomersQueryKey, getGetApiCustomersIdQueryKey } from '../../../api/generated/customers/customers';
-import { toast } from 'sonner';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
+import type { CustomerDetailViewModel } from '../../../api/generated/models';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
 
-export const EditCustomerPage = () => {
-  const { id } = useParams<{ id: string }>();
+export const CreateCustomerPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const query = useGetApiCustomersId(id!);
-  const customer = query.data;
 
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
@@ -22,6 +19,7 @@ export const EditCustomerPage = () => {
   const [phone, setPhone] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<CustomerFieldErrors>({});
+  const [createdId, setCreatedId] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
@@ -41,42 +39,6 @@ export const EditCustomerPage = () => {
     });
   }, []);
 
-  useEffect(() => {
-    if (customer) {
-      setName(customer.name);
-      setAddress(customer.address ?? '');
-      setEmail(customer.email ?? '');
-      setContactPerson(customer.contactPerson ?? '');
-      setPhone(customer.phone ?? '');
-      setTimeout(() => nameRef.current?.focus(), 50);
-    }
-  }, [customer]);
-
-  if (query.isLoading) {
-    return (
-      <div className="page-container">
-        <div className="page-header">
-          <div className="skeleton skeleton-title" />
-          <div className="skeleton skeleton-subtitle" />
-        </div>
-      </div>
-    );
-  }
-
-  if (query.isError || !customer) {
-    return (
-      <div className="page-container">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente kundeoplysninger.</p>
-          <button className="btn btn-primary" onClick={() => navigate('/app/customers')}>
-            Tilbage til kunder
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const handleSave = async () => {
     const errors = validateCustomer({ name, email, phone });
     setFieldErrors(errors);
@@ -90,23 +52,32 @@ export const EditCustomerPage = () => {
     setIsSaving(true);
 
     try {
-      await apiClient.put(`/api/customers/${customer.id}`, {
+      const created = await apiClient.post('/api/customers', {
         name: name.trim(),
         address: address.trim() || null,
         email: email.trim() || null,
         contactPerson: contactPerson.trim() || null,
         phone: phone.trim() || null,
-      });
+      }) as CustomerDetailViewModel;
 
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
-      await queryClient.invalidateQueries({ queryKey: getGetApiCustomersIdQueryKey(customer.id) });
-      toast.success('Kunden er opdateret.');
-      navigate(`/app/customers/${customer.id}`);
+      setCreatedId(created.id);
     } catch {
-      toast.error('Kunne ikke opdatere kunden. Prøv igen.');
+      // toast handled by axios interceptor
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleCreateAnother = () => {
+    setName('');
+    setAddress('');
+    setEmail('');
+    setContactPerson('');
+    setPhone('');
+    setFieldErrors({});
+    setCreatedId(null);
+    nameRef.current?.focus();
   };
 
   return (
@@ -116,17 +87,17 @@ export const EditCustomerPage = () => {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h2>Rediger kunde</h2>
-          <p className="subtitle">Opdater kundeoplysninger</p>
+          <h2>Opret kunde</h2>
+          <p className="subtitle">Opret en ny kunde</p>
         </div>
       </div>
 
       <div className="customer-edit-form">
         <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-name">Kundenavn *</label>
+          <label className="form-label" htmlFor="create-customer-name">Kundenavn *</label>
           <input
             ref={nameRef}
-            id="edit-customer-name"
+            id="create-customer-name"
             className={`form-input${fieldErrors.name ? ' form-input-invalid' : ''}`}
             type="text"
             value={name}
@@ -137,9 +108,9 @@ export const EditCustomerPage = () => {
           {fieldErrors.name && <p className="form-error-text">{fieldErrors.name}</p>}
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-address">Adresse</label>
+          <label className="form-label" htmlFor="create-customer-address">Adresse</label>
           <input
-            id="edit-customer-address"
+            id="create-customer-address"
             className="form-input"
             type="text"
             value={address}
@@ -149,10 +120,10 @@ export const EditCustomerPage = () => {
           />
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-email">E-mail</label>
+          <label className="form-label" htmlFor="create-customer-email">E-mail</label>
           <input
             ref={emailRef}
-            id="edit-customer-email"
+            id="create-customer-email"
             className={`form-input${fieldErrors.email ? ' form-input-invalid' : ''}`}
             type="email"
             value={email}
@@ -162,9 +133,9 @@ export const EditCustomerPage = () => {
           {fieldErrors.email && <p className="form-error-text">{fieldErrors.email}</p>}
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-contact">Kontaktperson</label>
+          <label className="form-label" htmlFor="create-customer-contact">Kontaktperson</label>
           <input
-            id="edit-customer-contact"
+            id="create-customer-contact"
             className="form-input"
             type="text"
             value={contactPerson}
@@ -174,10 +145,10 @@ export const EditCustomerPage = () => {
           />
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-phone">Telefon</label>
+          <label className="form-label" htmlFor="create-customer-phone">Telefon</label>
           <input
             ref={phoneRef}
-            id="edit-customer-phone"
+            id="create-customer-phone"
             className={`form-input${fieldErrors.phone ? ' form-input-invalid' : ''}`}
             type="tel"
             value={phone}
@@ -196,18 +167,58 @@ export const EditCustomerPage = () => {
           onClick={() => void handleSave()}
           disabled={isSaving}
         >
-          {isSaving && <div className="animate-spin" style={{ width: 16, height: 16, border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', marginRight: 8 }} />}
-          <span>{isSaving ? 'Gemmer...' : 'Gem'}</span>
+          {isSaving && <Loader2 className="animate-spin" size={16} />}
+          <span>{isSaving ? 'Opretter...' : 'Opret'}</span>
         </button>
         <button
           type="button"
           className="btn btn-secondary"
-          onClick={() => navigate(`/app/customers/${customer.id}`)}
+          onClick={() => navigate('/app/customers')}
           disabled={isSaving}
         >
           Annuller
         </button>
       </div>
+
+      {createdId && (
+        <CreateCustomerSuccessDialog
+          onCreateAnother={handleCreateAnother}
+          onGoToCustomerList={() => navigate('/app/customers')}
+        />
+      )}
     </div>
   );
 };
+
+function CreateCustomerSuccessDialog({
+  onCreateAnother,
+  onGoToCustomerList,
+}: {
+  onCreateAnother: () => void;
+  onGoToCustomerList: () => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') onGoToCustomerList();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onGoToCustomerList]);
+
+  return createPortal(
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-customer-success-title">
+      <div className="modal-card">
+        <h3 id="create-customer-success-title">Kunden er oprettet</h3>
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onCreateAnother}>
+            Opret en mere
+          </button>
+          <button className="btn btn-primary" onClick={onGoToCustomerList}>
+            Til kundelisten
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

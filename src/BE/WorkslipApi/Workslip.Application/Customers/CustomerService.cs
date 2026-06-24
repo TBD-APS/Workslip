@@ -9,6 +9,7 @@ namespace Workslip.Application.Customers;
 public sealed class CustomerService(
     ICustomerRepository customerRepository,
     ICurrentUserContext currentUser,
+    IValidator<CreateCustomerRequest> createValidator,
     IValidator<UpdateCustomerRequest> updateValidator,
     ILogger<CustomerService> logger) : ICustomerService
 {
@@ -76,6 +77,40 @@ public sealed class CustomerService(
         var normalizedLimit = Math.Clamp(limit, 1, 25);
         var customers = await customerRepository.GetTopCustomersAsync(organizationId.Value, normalizedLimit, cancellationToken);
         return Result<IReadOnlyList<CustomerSearchResponse>>.Success(customers);
+    }
+
+    public async Task<Result<CustomerDetailResponse>> CreateAsync(CreateCustomerRequest request, CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            logger.LogWarning("Customer create requested without OrganizationId in claims.");
+            return Result<CustomerDetailResponse>.Unauthorized();
+        }
+
+        var validationResult = await createValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
+                .ToList();
+            return Result<CustomerDetailResponse>.Invalid(errors);
+        }
+
+        var customerInfo = new CustomerInfo(
+            Guid.Empty,
+            request.Name!.Trim(),
+            request.Address?.Trim(),
+            request.Email?.Trim(),
+            request.ContactPerson?.Trim(),
+            request.Phone?.Trim());
+
+        logger.LogInformation("Creating customer {CustomerName} in org {OrgId}", customerInfo.Name, organizationId);
+
+        var id = await customerRepository.CreateCustomerAsync(organizationId.Value, customerInfo, cancellationToken);
+
+        var created = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
+        return Result<CustomerDetailResponse>.Success(created!);
     }
 
     public async Task<Result<CustomerDetailResponse>> UpdateAsync(Guid id, UpdateCustomerRequest request, CancellationToken cancellationToken)

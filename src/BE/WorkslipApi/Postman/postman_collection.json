@@ -77,7 +77,7 @@
     },
     {
       "key": "inviteBaseUrl",
-      "value": "http://localhost:5173/invite",
+      "value": "{{baseUrl}}/invite",
       "type": "string"
     },
     {
@@ -2300,7 +2300,7 @@
           "  pm.collectionVariables.set('adminDisplayName', `Integration Admin ${runId}`);",
           "  pm.collectionVariables.set('adminPhone', '+4512345678');",
           "  pm.collectionVariables.set('userDisplayName', `Integration User ${runId}`);",
-          "  pm.collectionVariables.set('inviteBaseUrl', 'http://localhost:5173/invite');",
+          "  pm.collectionVariables.set('inviteBaseUrl', '{{baseUrl}}/invite');",
           "  pm.collectionVariables.set('userPhone', '+4512345678');",
           "  pm.collectionVariables.set('reportNumber', `WS-IT-${runId}`);",
           "  pm.collectionVariables.set('customerEmail', `integration-customer+${runId}@example.com`);",

@@ -6,6 +6,7 @@ import {
   usePostApiJobs,
   usePostApiJobsIdAssign,
   usePostApiJobsIdLinks,
+  getGetApiJobsQueryKey,
 } from '../../../api/generated/jobs/jobs';
 import { useGetApiUsers } from '../../../api/generated/users/users';
 import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
@@ -59,7 +60,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
         }
 
         Promise.all(promises).then(() => {
-          queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+          queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
           setIsSaving(false);
           toast.success('Sagen er oprettet');
           onCreated(jobId);

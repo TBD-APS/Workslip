@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
-import { useDeleteApiJobsId } from '../../../api/generated/jobs/jobs';
+import { useDeleteApiJobsId, getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
 import { DeleteButton } from '../../../components/common/DeleteButton';
 import { useCan } from '../../../providers/permissions';
 import { isValidJobForm, isValidWork } from '../utils';
@@ -44,7 +44,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   const deleteMutation = useDeleteApiJobsId({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+        queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
         toast.success('Sagen er slettet');
         onDone();
       },

@@ -115,7 +115,7 @@ export function toUpdateRequest(
   // just lets the user mutate those values. Either way the snapshot
   // is the wire shape the repository dereferences to write customer
   // fields onto the job row, so dropping it caused NREs.
-  const snapshot = hasSnapshotData(form.customerSnapshot)
+  const snapshot = hasSnapshotData(form.customerSnapshot) && !sameSnapshot(initial.customerSnapshot, form.customerSnapshot)
     ? {
         name: form.customerSnapshot?.name?.trim() || null,
         address: form.customerSnapshot?.address?.trim() || null,

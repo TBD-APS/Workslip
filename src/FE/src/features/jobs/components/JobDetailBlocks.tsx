@@ -4,12 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
-import { useCan } from '../../../providers/permissions';
+import { useCan, useIsAdmin } from '../../../providers/permissions';
 import { useGetApiCustomersSuggest } from '../../../api/generated/customers/customers';
 import { getApiCustomersTop } from '../customerApi';
 import type { CustomerSearchViewModel, CustomerSnapshotData, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
+import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 
 
 type CustomerBlockProps = {
@@ -85,6 +86,9 @@ export function CustomerDetailsBlock({
   showEditCheckbox = true,
 }: CustomerBlockProps) {
   const hasExistingCustomer = Boolean(form.customerId);
+  const isAdmin = useIsAdmin();
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   function displayValue(field: keyof CustomerSnapshotData): string {
     if (hasExistingCustomer) {
@@ -114,10 +118,12 @@ export function CustomerDetailsBlock({
         <h3>Kunde</h3>
       </div>
 
-        <CustomerSearchDropdown
-          selectedId={form.customerId}
-          onSelect={onCustomerSelect}
-        />
+        {isAdmin && (
+          <CustomerSearchDropdown
+            selectedId={form.customerId}
+            onSelect={onCustomerSelect}
+          />
+        )}
 
           <div className="form-group">
             <label className="form-label">Kundenavn</label>
@@ -142,22 +148,26 @@ export function CustomerDetailsBlock({
           <div className="form-group">
             <label className="form-label">Email</label>
             <input
-              className="form-input"
+              className={`form-input${emailError ? ' form-input-invalid' : ''}`}
               value={displayValue('email')}
-              onChange={(e) => handleFieldChange('email', e.target.value)}
+              onChange={(e) => { handleFieldChange('email', e.target.value); setEmailError(null); }}
+              onBlur={() => setEmailError(validateEmail(displayValue('email')))}
               placeholder="Email"
               readOnly={isFieldReadOnly()}
             />
+            {emailError && <p className="form-error-text">{emailError}</p>}
           </div>
           <div className="form-group">
             <label className="form-label">Telefon</label>
             <input
-              className="form-input"
+              className={`form-input${phoneError ? ' form-input-invalid' : ''}`}
               value={displayValue('phone')}
-              onChange={(e) => handleFieldChange('phone', e.target.value)}
+              onChange={(e) => { handleFieldChange('phone', e.target.value); setPhoneError(null); }}
+              onBlur={() => setPhoneError(validatePhoneNumber(displayValue('phone')))}
               placeholder="Telefon"
               readOnly={isFieldReadOnly()}
             />
+            {phoneError && <p className="form-error-text">{phoneError}</p>}
           </div>
           <div className="form-group">
             <label className="form-label">Kontaktperson</label>
