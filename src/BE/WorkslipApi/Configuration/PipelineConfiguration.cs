@@ -9,6 +9,13 @@ public static class PipelineConfiguration
     {
         app.UseSecurityHeaders();
 
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseHsts();
+            app.UseHttpsRedirection();
+        }
+
+
         app.UseMiddleware<CorrelationIdMiddleware>();
 
         app.UseSerilogRequestLogging(options =>

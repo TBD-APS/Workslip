@@ -9,6 +9,7 @@
     "generate:api:local": "dotenv -e .env.local -- orval --config orval.config.ts",
     "generate:api:dev": "dotenv -e .env.dev -- orval --config orval.config.ts",
     "generate:api:prod": "dotenv -e .env.production -- orval --config orval.config.ts",
+    "build": "tsc -b && vite build",
     "build:dev": "npm run generate:api:dev && tsc -b && vite build",
     "build:local": "npm run generate:api:local && tsc -b && vite build",
     "lint": "eslint .",
