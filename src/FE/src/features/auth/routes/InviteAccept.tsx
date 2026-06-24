@@ -296,7 +296,7 @@ export const InviteAccept = () => {
                     className="invite-input"
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
-                    placeholder="+45 12 34 56 78"
+                    placeholder="12 34 56 78"
                     disabled={isWorking}
                   />
                 </div>

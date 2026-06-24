@@ -17,8 +17,10 @@ try
     {
         x.AddPolicy("Frontend", policy =>
         {
-            policy.WithOrigins("https://workslip-v2-0.vercel.app")
-                  .WithOrigins("http://localhost:5270")
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                                 ?? new[] { "https://workslip-v2-0.vercel.app", "http://localhost:5270" };
+
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         });
