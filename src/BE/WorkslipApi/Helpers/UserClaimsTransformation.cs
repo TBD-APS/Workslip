@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Memory;
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
+using Workslip.Domain;
 
 namespace Workslip.Api.Helpers;
 
@@ -170,9 +171,10 @@ public sealed class UserClaimsTransformation(
         var normalized = NormalizeValue(role, lowercase: false);
         return normalized?.ToLowerInvariant() switch
         {
-            "superadmin" => "Superadmin",
-            "admin" => "Admin",
-            "user" => "User",
+            "superadmin" => Roles.Superadmin,
+            "admin" => Roles.Admin,
+            "user" => Roles.User,
+            "auditor" => Roles.Auditor,
             _ => normalized ?? role
         };
     }

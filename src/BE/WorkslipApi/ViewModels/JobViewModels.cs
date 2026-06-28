@@ -28,7 +28,10 @@ public sealed record JobListItemViewModel(
     IReadOnlyList<string> InstallationTypes,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
-    decimal? TotalHours);
+    decimal? TotalHours,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    DateOnly? ReportDate);
 
 public sealed record JobReportSummaryViewModel(
     Guid Id,
@@ -65,7 +68,10 @@ public static class JobViewModelBuilder
         job.InstallationTypes,
         job.AssignedUsers,
         job.SoftDeleted,
-        job.TotalHours);
+        job.TotalHours,
+        job.CreatedAt,
+        job.UpdatedAt,
+        job.ReportDate);
 
     public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
         summary.Id,

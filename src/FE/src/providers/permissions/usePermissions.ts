@@ -29,6 +29,11 @@ export function useIsAdmin(): boolean {
   return isRoleAtLeast(user?.role, ROLES.Admin);
 }
 
+export function useIsAuditor(): boolean {
+  const { user } = useAuth();
+  return isRoleAtLeast(user?.role, ROLES.Auditor);
+}
+
 export function useIsSuperAdmin(): boolean {
   const { user } = useAuth();
   return hasRole(user?.role, ROLES.Superadmin);

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertCircle, ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
+import { ErrorState } from '../../../components/ErrorState';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
@@ -86,13 +87,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   if (details.isError || !details.job) {
     return (
       <div className="page-container">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente sagen.</p>
+        <ErrorState message="Kunne ikke hente sagen.">
           <button className="btn btn-secondary" onClick={onBack}>
             Tilbage til oversigten
           </button>
-        </div>
+        </ErrorState>
       </div>
     );
   }

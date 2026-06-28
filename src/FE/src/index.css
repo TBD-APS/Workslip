@@ -48,6 +48,13 @@
   --status-neutral-bg: rgba(161, 161, 170, 0.12);
   --status-neutral-text: #a1a1aa;
 
+  /* Section Layout */
+  --section-header-margin: 0.75rem;
+  --section-content-margin: 0.75rem;
+  --section-gap: 1.5rem;
+  --card-padding: 1.25rem;
+  --section-header-gap: 0.5rem;
+
   /* Typography */
   --fs-xs: 0.78rem;
   --fs-sm: 0.85rem;

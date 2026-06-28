@@ -9,9 +9,7 @@ public static class UserEndpoints
 {
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users")
-            .WithTags("users")
-            .RequireAuthorization(AuthPolicies.RequireAdmin);
+        var group = app.MapAdminGroup("/api/users", "users");
 
         group.MapPost("/", async (CreateUserRequest request, IUserService service, CancellationToken cancellationToken) =>
         {

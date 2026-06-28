@@ -2,31 +2,44 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, MapPin, Timer, User } from 'lucide-react';
-import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
+import type { JobListItemViewModel } from '../../../api/generated/models';
+import { JobStatus } from '../../../api/generated/models/jobStatus';
+import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
-import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
+import { StatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
+import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
 import { PaginationControls } from '../../../components/pagination/PaginationControls';
 import { useInfiniteList } from '../../../hooks/useInfiniteList';
-import { useMediaQuery } from '../../../hooks/useMediaQuery';
+import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
 import { useColumnResize } from '../../../hooks/useColumnResize';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { useSearch } from '../../../hooks/useSearch';
 import { apiClient } from '../../../lib/axios';
-import { useAuth } from '../../../providers/useAuth';
-import { ErrorState } from '../../../components/ErrorState';
-import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatDateLong } from '../../../lib/formatDate';
-import { formatJobStatus } from '../statusLabels';
-import { getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
+import { formatJobStatus } from '../../jobs/statusLabels';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-shell';
-const SCROLL_STORAGE_KEY = 'jobListScrollTop';
+const SCROLL_STORAGE_KEY = 'auditorReportListScrollTop';
 const PAGE_SIZE = 20;
-
-const isReadonlyState = (status: JobStatus) =>
-  status === JobStatus.InReview || status === JobStatus.Approved;
+const COMPLETED_STATUSES = [JobStatus.Approved] as const;
 
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector(SCROLL_CONTAINER_SELECTOR);
+}
+
+function getSavedAuditorStatusFilter(): JobStatus[] {
+  try {
+    const saved = sessionStorage.getItem('statusFilter:auditor-reports');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed as JobStatus[];
+      }
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return [JobStatus.Approved];
 }
 
 const SkeletonCard = () => (
@@ -44,15 +57,11 @@ const SkeletonCard = () => (
   </div>
 );
 
-export const JobList = () => {
+export const AuditorReportList = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const isAdmin = useIsAdmin();
   const [search, setSearch] = useState('');
-  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() =>
-    getSavedStatusFilter('mine-jobs', [JobStatus.Draft]),
-  );
+  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() => getSavedAuditorStatusFilter());
   const [sortBy, setSortBy] = useState('');
   const [sortDirection, setSortDirection] = useState('asc');
   const [viewPage, setViewPage] = useState(1);
@@ -68,37 +77,42 @@ export const JobList = () => {
     }
   };
 
+  const fetchStatuses = useMemo(() => [...COMPLETED_STATUSES], []);
+
   const fetchJobsPage = useCallback(
     async ({ limit, offset }: { limit: number; offset: number }) => {
       const data = await apiClient.get('/api/jobs', {
         params: {
-          status: selectedStatuses,
+          status: fetchStatuses,
           limit,
           offset,
         },
       }) as { items: JobListItemViewModel[]; totalCount: number };
       return data;
     },
-    [selectedStatuses],
+    [fetchStatuses],
   );
 
   const query = useInfiniteList({
-    queryKey: ['/api/jobs', { status: selectedStatuses, limit: PAGE_SIZE }],
+    queryKey: ['/api/jobs', { status: fetchStatuses, limit: PAGE_SIZE }],
     fetchPage: fetchJobsPage,
     pageSize: PAGE_SIZE,
   });
 
+  const { sentinelRef } = useInfiniteScroll({
+    onReachEnd: () => {
+      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
+        void query.fetchNextPage();
+      }
+    },
+    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
+  });
+
   const filtered = useMemo(() => {
     let result = query.items;
-
-    if (!isAdmin) {
-      const currentUserId = user?.id;
-      if (!currentUserId) return [];
-      result = result.filter((job) => job.assignedUsers.some((assignedUser) => assignedUser.id === currentUserId));
-    }
-
+    result = result.filter((job) => selectedStatuses.includes(job.status));
     return result;
-  }, [query.items, isAdmin, user?.id]);
+  }, [query.items, selectedStatuses]);
 
   const searched = useSearch(filtered, search, (job, term) =>
     [
@@ -108,7 +122,7 @@ export const JobList = () => {
       job.customer?.contactPerson,
       job.customer?.phone,
       job.reportNumber,
-      ...job.assignedUsers.map((assignedUser) => assignedUser.displayName),
+      ...job.assignedUsers.map((u) => u.displayName),
     ].some((value) => value?.toLowerCase().includes(term)),
   );
 
@@ -140,49 +154,24 @@ export const JobList = () => {
     });
   }, [searched, sortBy, sortDirection]);
 
-  const totalPages = Math.max(1, Math.ceil(query.totalCount / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE));
   const safeViewPage = Math.min(viewPage, totalPages);
   const pageStart = (safeViewPage - 1) * PAGE_SIZE;
   const pageEnd = pageStart + PAGE_SIZE;
   const displayedJobs = isDesktop ? jobs.slice(pageStart, pageEnd) : jobs;
 
-  useEffect(() => {
-    saveStatusFilter('mine-jobs', selectedStatuses);
-    setViewPage(1);
-  }, [selectedStatuses]);
-
-  useEffect(() => {
-    announceSection('mine-jobs');
-  }, []);
-
-  useEffect(() => {
-    const handler = (e: PageTransitionEvent) => {
-      if (e.persisted) {
-        setSelectedStatuses(getSavedStatusFilter('mine-jobs', [JobStatus.Draft]));
-      }
-    };
-    window.addEventListener('pageshow', handler);
-    return () => window.removeEventListener('pageshow', handler);
-  }, []);
-
-  useEffect(() => {
-    void queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-  }, [queryClient]);
-
+  useEffect(() => { saveStatusFilter('auditor-reports', selectedStatuses); }, [selectedStatuses]);
+  useEffect(() => { announceSection('auditor-reports'); }, []);
+  useEffect(() => { void queryClient.invalidateQueries({ queryKey: ['/api/jobs'] }); }, [queryClient]);
   useEffect(() => {
     if (query.isLoading) return;
     const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY);
-    if (saved) {
-      getScrollContainer()?.scrollTo({ top: Number(saved) });
-    }
+    if (saved) getScrollContainer()?.scrollTo({ top: Number(saved) });
   }, [query.isLoading]);
-
   useEffect(() => {
     return () => {
       const top = getScrollContainer()?.scrollTop;
-      if (top != null) {
-        sessionStorage.setItem(SCROLL_STORAGE_KEY, String(top));
-      }
+      if (top != null) sessionStorage.setItem(SCROLL_STORAGE_KEY, String(top));
     };
   }, []);
 
@@ -205,42 +194,23 @@ export const JobList = () => {
   if (query.isError) {
     return (
       <div className="page-container">
-        <ErrorState message="Kunne ikke hente jobs. Sørg for at du er logget ind." onRetry={() => void query.refetch()} />
+        <ErrorState message="Kunne ikke hente rapporter. Sørg for at du er logget ind." onRetry={() => void query.refetch()} />
       </div>
     );
   }
 
+  const statusOptions = [
+    { value: JobStatus.Approved, label: 'Godkendt' },
+  ];
+
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2>Opgaver</h2>
-        {isAdmin ? (
-          <p className="subtitle">{jobs.length} registrerede opgaver</p>
-        ) : (
-          <p className="subtitle">Viser kun sager tildelt dig · {jobs.length} {jobs.length === 1 ? 'sag' : 'sager'}</p>
-        )}
+        <h1>Rapporter</h1>
       </div>
-
-      <StatusFilter
-        options={
-          isAdmin
-            ? [
-                { value: JobStatus.Draft, label: 'Aktiv' },
-                { value: JobStatus.InReview, label: 'Til gennemsyn' },
-                { value: JobStatus.Approved, label: 'Godkendt' },
-                { value: JobStatus.Rejected, label: 'Afvist' },
-              ]
-            : [
-                { value: JobStatus.Draft, label: 'Aktiv' },
-                { value: JobStatus.InReview, label: 'Til gennemsyn' },
-                { value: JobStatus.Approved, label: 'Godkendt' },
-              ]
-        }
-        selected={selectedStatuses}
-        onChange={setSelectedStatuses}
-      />
+      <StatusFilter options={statusOptions} selected={selectedStatuses} onChange={setSelectedStatuses} />
       <div className="search-row">
-        <SearchBar value={search} onChange={setSearch} placeholder="Søg opgaver..." />
+        <SearchBar value={search} onChange={setSearch} placeholder="Søg rapporter..." />
       </div>
 
       {isDesktop ? (
@@ -294,7 +264,7 @@ export const JobList = () => {
               <tr
                 key={job.id}
                 className="clickable"
-                onClick={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })}
+                onClick={() => navigate(`/app/completed/${job.id}`, { state: { from: '/app/auditor', readOnly: true } })}
               >
                 <td><span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span></td>
                 <td>{job.customer?.name || 'Ukendt kunde'}</td>
@@ -304,12 +274,10 @@ export const JobList = () => {
                     {formatJobStatus(job.status)}
                   </span>
                 </td>
-                <td>
-                  <InstallationTypeTags types={job.installationTypes} />
-                </td>
+                <td><InstallationTypeTags types={job.installationTypes} /></td>
                 <td className="cell-number">{job.totalHours != null ? `${job.totalHours}` : '—'}</td>
                 <td>
-                  <TableAssignedUsers users={job.assignedUsers} />
+                  <AuditorTableAssignedUsers users={job.assignedUsers} />
                 </td>
                 <td className="cell-date">{formatDateLong(job.reportDate) ?? '—'}</td>
                 <td className="cell-date">{formatDateLong(job.updatedAt) ?? '—'}</td>
@@ -322,67 +290,39 @@ export const JobList = () => {
         </table>
         <PaginationControls
           page={safeViewPage}
-          totalCount={query.totalCount}
+          totalCount={jobs.length}
           pageSize={PAGE_SIZE}
+          hasNextPage={query.hasNextPage ?? false}
+          isFetchingNextPage={query.isFetchingNextPage}
           onPrev={() => setViewPage((p) => p - 1)}
-          onNext={() => {
-            const nextPage = safeViewPage + 1;
-            if (nextPage > totalPages) return;
-            const itemsStart = safeViewPage * PAGE_SIZE;
-            if (itemsStart >= query.items.length) {
-              void query.fetchNextPage();
-            }
-            setViewPage(nextPage);
-          }}
+          onNext={() => setViewPage((p) => p + 1)}
+          onLoadMore={() => { void query.fetchNextPage(); }}
         />
         </>
       ) : (
-        <div className="job-sort-controls">
-          <span className="sort-label">Sorter:</span>
-          <button
-            type="button"
-            className={`sort-btn${sortBy === 'reportNumber' ? ' active' : ''}`}
-            onClick={() => handleSort('reportNumber')}
-          >
-            Sagsnr.{sortBy === 'reportNumber' && (sortDirection === 'asc' ? <>&nbsp;↑</> : <>&nbsp;↓</>)}
-          </button>
-          <button
-            type="button"
-            className={`sort-btn${sortBy === 'name' ? ' active' : ''}`}
-            onClick={() => handleSort('name')}
-          >
-            Kundenavn{sortBy === 'name' && (sortDirection === 'asc' ? <>&nbsp;↑</> : <>&nbsp;↓</>)}
-          </button>
-          <button
-            type="button"
-            className={`sort-btn${sortBy === 'address' ? ' active' : ''}`}
-            onClick={() => handleSort('address')}
-          >
-            Adresse{sortBy === 'address' && (sortDirection === 'asc' ? <>&nbsp;↑</> : <>&nbsp;↓</>)}
-          </button>
+        <div className="job-list">
+          {jobs.map((job) => (
+            <ReportCard
+              key={job.id}
+              job={job}
+              onOpen={() => navigate(`/app/completed/${job.id}`, { state: { from: '/app/auditor', readOnly: true } })}
+            />
+          ))}
+          {jobs.length === 0 && !query.isFetchingNextPage && (
+            <div className="empty-state">
+              <p>Ingen afsluttede rapporter</p>
+            </div>
+          )}
+          {!isDesktop && (
+            <InfiniteScrollSentinel sentinelRef={sentinelRef} isLoading={query.isFetchingNextPage} />
+          )}
         </div>
       )}
-
-      <div className="job-list">
-        {!isDesktop && jobs.map((job) => (
-          <JobCard key={job.id} job={job} onOpen={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })} />
-        ))}
-
-        {jobs.length === 0 && !query.isFetchingNextPage && (
-          <div className="empty-state">
-            <p>{isAdmin ? 'Du har ingen opgaver endnu.' : 'Du har ingen opgaver tildelt endnu.'}</p>
-          </div>
-        )}
-
-        {!isDesktop && query.isFetchingNextPage && (
-          <div className="loading-more">Henter flere...</div>
-        )}
-      </div>
     </div>
   );
 };
 
-function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => void }) {
+function ReportCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => void }) {
   return (
     <button className="job-card" onClick={onOpen} type="button">
       <div className="job-card-top">
@@ -394,24 +334,21 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
           {formatJobStatus(job.status)}
         </span>
       </div>
-
       <p className="job-address-row">
         <MapPin size={14} />
         <span className="job-address">{job.customer?.address || 'Ingen adresse angivet'}</span>
       </p>
-
       <div className="job-card-meta">
         <span className="meta-item"><InstallationTypeTags types={job.installationTypes} /></span>
         {job.totalHours != null && (
           <span className="meta-item meta-hours">
-            <Timer size={14} /> {job.totalHours} 
+            <Timer size={14} /> {job.totalHours} timer
           </span>
         )}
       </div>
-
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="Åbn sag">
+        <span className="btn-icon" aria-label="Åbn rapport">
           <ChevronRight size={20} />
         </span>
       </div>
@@ -419,7 +356,7 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
   );
 }
 
-function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
+function AssignedUsers({ users }: { users: JobListItemViewModel['assignedUsers'] }) {
   if (users.length === 0) {
     return (
       <span className="unassigned">
@@ -428,7 +365,6 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
       </span>
     );
   }
-
   return (
     <div className="job-assigned">
       {users.slice(0, 2).map((user) => (
@@ -442,7 +378,18 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
   );
 }
 
-function TableAssignedUsers({ users }: { users: AssignedUserResponse[] }) {
+function InstallationTypeTags({ types }: { types: string[] }) {
+  if (types.length === 0) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+  return (
+    <span className="cell-comma-list">
+      {types.map((type) => (
+        <span key={type} className="cell-comma-list-item">{type}</span>
+      ))}
+    </span>
+  );
+}
+
+function AuditorTableAssignedUsers({ users }: { users: JobListItemViewModel['assignedUsers'] }) {
   if (users.length === 0) {
     return <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-xs)' }}>—</span>;
   }
@@ -451,17 +398,6 @@ function TableAssignedUsers({ users }: { users: AssignedUserResponse[] }) {
     <span className="cell-comma-list">
       {users.map((user) => (
         <span key={user.id} className="cell-comma-list-item">{user.displayName}</span>
-      ))}
-    </span>
-  );
-}
-
-function InstallationTypeTags({ types }: { types: string[] }) {
-  if (types.length === 0) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-  return (
-    <span className="cell-comma-list">
-      {types.map((type) => (
-        <span key={type} className="cell-comma-list-item">{type}</span>
       ))}
     </span>
   );

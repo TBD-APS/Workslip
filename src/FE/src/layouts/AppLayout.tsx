@@ -28,7 +28,7 @@ export default function AppLayout() {
       <nav className="bottom-nav">
         <NavLink to="/app" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <ClipboardList size={24} />
-          <span>Mine Jobs</span>
+          <span>Sager</span>
         </NavLink>
         <div className="nav-item-fab">
           <button className="fab-button">

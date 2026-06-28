@@ -1,5 +1,6 @@
 using FluentValidation;
 using Workslip.Application.Users;
+using Workslip.Domain;
 
 namespace Workslip.Application.Users.Validators;
 
@@ -22,8 +23,8 @@ public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserReq
 
         RuleFor(x => x.Role)
             .NotEmpty().WithMessage("Role is required")
-            .Must(r => r is "Superadmin" or "Admin" or "User")
-            .WithMessage("Role must be Superadmin, Admin, or User");
+            .Must(r => r is Roles.Superadmin or Roles.Admin or Roles.Auditor or Roles.User)
+            .WithMessage("Role must be Superadmin, Admin, Auditor, or User");
     }
 }
 
@@ -40,8 +41,8 @@ public sealed class UpdateUserRequestValidator : AbstractValidator<UpdateUserReq
             .When(x => !string.IsNullOrEmpty(x.Phone));
 
         RuleFor(x => x.Role)
-            .Must(r => r is "Superadmin" or "Admin" or "User")
-            .WithMessage("Role must be Superadmin, Admin, or User")
+            .Must(r => r is Roles.Superadmin or Roles.Admin or Roles.Auditor or Roles.User)
+            .WithMessage("Role must be Superadmin, Admin, Auditor, or User")
             .When(x => !string.IsNullOrEmpty(x.Role));
     }
 }

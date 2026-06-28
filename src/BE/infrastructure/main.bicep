@@ -435,17 +435,10 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   name: 'db-${companyName}-${environment}'
   location: location
   sku: {
-    name: 'GP_S_Gen5_1' // General Purpose, Serverless, Gen5 (Kræves for Free Offer)
-    tier: 'GeneralPurpose'
-    family: 'Gen5'
-    capacity: 1 // 1 vCore
+    name: 'Basic'
+    tier: 'Basic'
   }
-
   properties: {
-    collation: 'SQL_Latin1_General_CP1_CI_AS'
-    maxSizeBytes: 34359738368 // 32 GB (Det maksimale tilladte for den gratis aftale)
-
-    // Vi vælger Serverless, så den pauser automatisk når du ikke bruger den (sparer på de gratis sekunder)
     requestedBackupStorageRedundancy: 'Local'
   }
 }

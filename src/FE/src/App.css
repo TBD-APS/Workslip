@@ -425,7 +425,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--section-gap);
 }
 
 .report-pdf-menu {
@@ -501,11 +501,11 @@
 }
 
 .report-overview-data-list {
-  margin-top: 0.75rem;
+  margin-top: var(--section-content-margin);
 }
 
 .report-overview-block-gap {
-  margin-top: 1rem;
+  margin-top: var(--section-content-margin);
 }
 
 .report-overview-chip-list {
@@ -679,6 +679,7 @@
   letter-spacing: 0.08em;
   color: var(--text-muted);
   margin-bottom: 0.3rem;
+  white-space: nowrap;
 }
 
 .job-customer {
@@ -1011,6 +1012,13 @@
   max-width: 280px;
 }
 
+.error-state-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 /* ------------------------------------------------------------
    Job Detail Page
    ------------------------------------------------------------ */
@@ -1018,7 +1026,7 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--section-gap);
 }
 
 .detail-header .btn-icon {
@@ -1193,15 +1201,23 @@
   background: var(--surface);
   border: none;
   border-radius: var(--radius-lg);
-  padding: 1.25rem;
-  margin-bottom: 1.5rem;
+  padding: var(--card-padding);
+  margin-bottom: var(--section-gap);
+}
+
+.report-overview-colpair {
+  margin-bottom: var(--section-gap);
+}
+
+.report-overview-colpair > .detail-section {
+  margin-bottom: 0;
 }
 
 .section-header-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
+  gap: var(--section-header-gap);
+  margin-bottom: var(--section-header-margin);
   color: var(--text);
 }
 
@@ -1213,7 +1229,7 @@
 .section-title-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--section-header-gap);
 }
 
 .section-title-row h3 {
@@ -1233,20 +1249,18 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.25rem;
+  padding: var(--card-padding);
   color: var(--text);
   font: inherit;
   text-align: left;
-  background: transparent;
+  background: var(--surface);
   border: 0;
   cursor: pointer;
 }
 
 @media (hover: hover) {
 .collapsible-section-trigger:hover {
-  background: var(--surface);
+  background: var(--surface-raised);
 }
 }
 
@@ -1264,7 +1278,7 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: 0 1.25rem 1.25rem;
+  padding: 0 var(--card-padding) var(--card-padding);
 }
 
 .detail-form {
@@ -2139,16 +2153,414 @@
 }
 
 @media (min-width: 768px) {
-  .app-shell {
-    flex-direction: row;
-  }
-  
   .bottom-nav {
-    display: none;
+    position: static;
+    height: auto;
+    padding: 0.5rem 1.5rem;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+    order: 1;
   }
-  
+
   .app-content {
     padding-bottom: 1.5rem;
+    order: 2;
+  }
+
+  .app-header {
+    order: 0;
+  }
+
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .page-container {
+    max-width: none;
+  }
+
+  .nav-item {
+    flex-direction: row;
+    gap: 0.5rem;
+    flex: none;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .nav-item-fab {
+    display: none;
+  }
+
+  .fab-button {
+    display: none;
+  }
+
+  .search-row {
+    max-width: 420px;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1.5rem 0;
+  }
+
+  .pagination-info {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    min-width: 120px;
+    text-align: center;
+  }
+
+  .pagination-controls .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .job-list-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--fs-sm);
+  }
+
+  .data-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-family: var(--font-heading);
+    font-weight: 500;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    user-select: none;
+    cursor: default;
+  }
+
+  .data-table thead th.sortable {
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+
+  .data-table thead th.sortable:hover {
+    color: var(--text);
+  }
+
+  .data-table thead th.sortable.sorted {
+    color: #fff;
+  }
+
+  .data-table thead th .sort-icon {
+    display: inline-block;
+    margin-left: 0.3rem;
+    font-size: 0.65rem;
+    opacity: 0.4;
+  }
+
+  .data-table thead th.sortable.sorted .sort-icon {
+    opacity: 1;
+  }
+
+  .data-table thead th .col-resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 1;
+  }
+
+  .data-table thead th .col-resize-handle::after {
+    content: '';
+    position: absolute;
+    right: 2px;
+    top: 20%;
+    bottom: 20%;
+    width: 1px;
+    background: var(--border);
+    transition: background 0.15s;
+  }
+
+  .data-table thead th:hover .col-resize-handle::after {
+    background: var(--primary);
+  }
+
+  .data-table thead th .col-resize-handle:active::after,
+  .data-table thead th .col-resize-handle--active::after {
+    background: var(--primary);
+    width: 2px;
+  }
+
+  .data-table tbody tr {
+    transition: background 0.12s;
+  }
+
+  .data-table tbody tr.clickable {
+    cursor: pointer;
+  }
+
+  .data-table tbody tr.clickable:hover {
+    background: var(--surface);
+  }
+
+  .data-table tbody td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  .data-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .data-table .col-status {
+    width: 110px;
+  }
+
+  .data-table .col-hours {
+    width: 70px;
+    text-align: right;
+  }
+
+  .data-table .col-users {
+    min-width: 120px;
+  }
+
+  .data-table .col-actions {
+    width: 40px;
+    text-align: right;
+  }
+
+  .data-table .cell-comma-list {
+    font-size: var(--fs-xs);
+  }
+
+  .data-table .cell-comma-list-item {
+    display: inline;
+    white-space: nowrap;
+  }
+
+  .data-table .cell-comma-list-item + .cell-comma-list-item::before {
+    content: ", ";
+    white-space: normal;
+  }
+
+  .data-table .status-badge-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-pill);
+    font-size: var(--fs-xs);
+    white-space: nowrap;
+  }
+
+  .data-table .status-badge-cell.cell-status-0 {
+    background: var(--status-blue-bg);
+    color: var(--status-blue-text);
+  }
+
+  .data-table .status-badge-cell.cell-status-1 {
+    background: var(--status-amber-bg);
+    color: var(--status-amber-text);
+  }
+
+  .data-table .status-badge-cell.cell-status-2 {
+    background: var(--status-green-bg);
+    color: var(--status-green-text);
+  }
+
+  .data-table .status-badge-cell.cell-status-3 {
+    background: var(--status-red-bg);
+    color: var(--status-red-text);
+  }
+
+  .data-table .cell-number {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .data-table .cell-date {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+  }
+
+  .data-table .row-link-icon {
+    opacity: 0;
+    transition: opacity 0.12s;
+    color: var(--text-muted);
+  }
+
+  .data-table tbody tr:hover .row-link-icon {
+    opacity: 1;
+  }
+
+  .app-content {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+
+  /* Report detail: header + toolbar in one row, content below */
+  .report-overview-page {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    max-width: none;
+  }
+
+  .report-overview-page > .detail-header {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .report-overview-page > .report-overview-toolbar {
+    margin-left: auto;
+    margin-bottom: 0;
+  }
+
+  .report-overview-page > .report-overview-grid,
+  .report-overview-page > .kontrolpunkter-section,
+  .report-overview-page > .detail-loading,
+  .report-overview-page > .error-state {
+    flex: 0 0 100%;
+  }
+
+  .report-overview-page > .report-overview-grid {
+    margin-top: var(--section-gap);
+  }
+
+  .report-overview-page > .kontrolpunkter-section {
+    margin-top: var(--section-gap);
+  }
+
+  /* 2-column grid for main sections */
+  .report-overview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem var(--section-gap);
+    align-items: start;
+    align-content: start;
+  }
+
+  .report-overview-grid > .detail-section,
+  .report-overview-grid > .collapsible-section {
+    margin-bottom: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0 0 var(--section-gap) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .report-overview-grid > .report-overview-toolbar {
+    margin-bottom: 0;
+  }
+
+  .report-overview-grid > .report-overview-colpair {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 var(--section-gap);
+    margin-bottom: 0;
+    padding: 0 0 var(--section-gap) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .report-overview-grid > .report-overview-colpair > .detail-section {
+    margin-bottom: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    border-bottom: none;
+  }
+
+  .report-overview-grid > .detail-section:last-child,
+  .report-overview-grid > .collapsible-section:last-child,
+  .report-overview-grid > .report-overview-colpair:last-child {
+    border-bottom: none;
+  }
+
+  /* Kontrolpunkter: full-width section below the grid */
+  .report-overview-page > .kontrolpunkter-section {
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin-top: var(--section-gap);
+  }
+
+  .report-overview-page > .kontrolpunkter-section .collapsible-section-trigger {
+    cursor: pointer;
+    padding: var(--card-padding);
+    margin-bottom: var(--section-header-margin);
+    border-radius: var(--radius-lg);
+  }
+
+  .report-overview-page > .kontrolpunkter-section .collapsible-section-content {
+    display: block;
+  }
+
+  /* Collapsible sections inside grid: show toggle arrow */
+  .report-overview-grid .collapsible-section-trigger {
+    cursor: pointer;
+    padding: var(--card-padding);
+    margin-bottom: var(--section-header-margin);
+    border-radius: var(--radius-lg);
+  }
+
+  .report-overview-grid .collapsible-section-content {
+    display: block;
+  }
+
+  /* Section headers: consistent */
+  .report-overview-grid .section-header-row,
+  .report-overview-grid .attestation-compact-header {
+    margin-bottom: var(--section-header-margin);
+  }
+
+  .report-overview-grid .report-overview-hero .section-header-row {
+    margin-bottom: var(--section-header-margin);
+  }
+
+  /* Content spacing: consistent (flat layout, no gap) */
+  .report-overview-grid .attestation-data-list,
+  .report-overview-grid .report-overview-chip-list,
+  .report-overview-grid .report-overview-link-list,
+  .report-overview-grid .worksheet-list-section {
+    margin-top: 0;
+  }
+
+  .report-overview-grid .attestation-observations-list {
+    margin: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  /* Section headers: cleaner */
+  .report-overview-grid .section-header-row {
+    margin-bottom: 0.75rem;
   }
 }
 
@@ -2691,7 +3103,7 @@
 }
 
 .attestation-compact-header {
-  margin-bottom: 0.65rem;
+  margin-bottom: var(--section-header-margin);
 }
 
 .worksheet-list-section {
@@ -2723,8 +3135,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 1rem 1.5rem;
-  margin-top: 0.85rem;
-  padding-top: 0.75rem;
+  margin-top: var(--section-content-margin);
+  padding-top: var(--section-content-margin);
   border-top: 1px solid var(--border);
   color: var(--text-muted);
   font-size: var(--fs-sm);
@@ -2773,8 +3185,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  margin: 0.85rem 0 0;
-  padding-top: 0.75rem;
+  margin: var(--section-content-margin) 0 0;
+  padding-top: var(--section-content-margin);
   border-top: 1px solid var(--surface-elevated);
 }
 
@@ -2804,6 +3216,65 @@
   gap: 0.4rem;
 }
 
+/* Control point grid: installation types side by side */
+.attestation-control-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.attestation-installation-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.attestation-installation-title {
+  font-size: var(--fs-body);
+  font-weight: 500;
+  margin: 0;
+  color: var(--text);
+}
+
+/* Categories within installation type, flowing horizontally */
+.attestation-category-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: start;
+}
+
+.attestation-category-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 12rem;
+  flex: 1;
+}
+
+.attestation-category-label {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.attestation-category-block--muted {
+  opacity: 0.55;
+}
+
+.attestation-irrelevant-section {
+  margin-top: 1.5rem;
+}
+
+.attestation-irrelevant-section-title {
+  font-size: var(--fs-body);
+  font-weight: 500;
+  margin: 0 0 0.75rem;
+  color: var(--text-muted);
+}
+
 .attestation-control-list li {
   display: flex;
   align-items: flex-start;
@@ -2816,9 +3287,23 @@
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: var(--radius-sm);
+  padding: 0;
+  border-radius: 0;
   color: var(--text);
+}
+
+.attestation-control-list.compact .attestation-control-point-name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  white-space: normal;
+}
+
+.attestation-control-point-check {
+  color: var(--success);
+  font-size: var(--fs-xs);
 }
 
 .attestation-control-list.compact span,
@@ -2869,8 +3354,8 @@
 }
 
 .attestation-irrelevant-block {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
+  margin-top: var(--section-content-margin);
+  padding-top: var(--section-content-margin);
   border-top: 1px solid var(--border);
 }
 
@@ -3312,6 +3797,43 @@
   margin-bottom: 1rem;
 }
 
+.job-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.sort-label {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sort-btn {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8125rem;
+  color: #000;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.sort-btn:hover {
+  background: #f5f5f5;
+  border-color: #999;
+  color: #000;
+}
+
+.sort-btn.active {
+  border-color: var(--primary);
+  color: #000;
+  font-weight: 500;
+}
+
 .search-input-icon {
   position: absolute;
   left: 0.65rem;
@@ -3394,7 +3916,7 @@
 .section-card {
   background: var(--surface);
   border-radius: var(--radius-lg);
-  padding: 1.25rem;
+  padding: var(--card-padding);
 }
 
 .section-card-title {

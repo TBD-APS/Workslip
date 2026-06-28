@@ -9,7 +9,7 @@ namespace Workslip.Api.Endpoints
     {
         public static IEndpointRouteBuilder MapJobLinkEndpoints(this IEndpointRouteBuilder app)
         {
-            var group = app.MapGroup("/api/jobs").WithTags("jobs").RequireAuthorization(AuthPolicies.RequireUser);
+            var group = app.MapUserGroup("/api/jobs", "jobs");
 
             group.MapPost("/{id:guid}/links", async (Guid id, [FromBody] CreateJobLinkRequest request, IJobService service, CancellationToken cancellationToken) =>
             {

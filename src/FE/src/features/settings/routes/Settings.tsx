@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  AlertCircle,
   Check,
   CheckCircle2,
   Clock,
@@ -13,6 +12,7 @@ import {
   Send,
   X,
 } from 'lucide-react';
+import { ErrorState } from '../../../components/ErrorState';
 import { usePostApiAuthInvite } from '../../../api/generated/auth/auth';
 import { useGetApiAuthInvites } from '../api';
 
@@ -161,10 +161,7 @@ export const Settings = () => {
         )}
 
         {invitesQuery.isError && (
-          <div className="error-state">
-            <AlertCircle size={24} />
-            <p>Kunne ikke hente invitationer</p>
-          </div>
+          <ErrorState message="Kunne ikke hente invitationer" />
         )}
 
         {invitesQuery.data && invitesQuery.data.invites.length === 0 && (

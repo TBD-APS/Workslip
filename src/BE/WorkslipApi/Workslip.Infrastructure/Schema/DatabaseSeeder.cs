@@ -77,7 +77,7 @@ public static class DatabaseSeeder
             .RuleFor(x => x.DisplayName, f => f.Name.FullName())
             .RuleFor(x => x.Email, f => f.Internet.Email())
             .RuleFor(x => x.Phone, f => f.Phone.PhoneNumber("########"))
-            .RuleFor(x => x.Role, _ => "User")
+            .RuleFor(x => x.Role, _ => Roles.User)
             .RuleFor(x => x.CreatedAt, _ => now)
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate(50);
@@ -88,7 +88,7 @@ public static class DatabaseSeeder
             .RuleFor(x => x.DisplayName, f => "Rasmus Bak Jakobsen")
             .RuleFor(x => x.Email, f => "rbj@17v3ygzs.mailosaur.net")
             .RuleFor(x => x.Phone, f => "28929173")
-            .RuleFor(x => x.Role, _ => "SuperAdmin")
+            .RuleFor(x => x.Role, _ => Roles.Superadmin)
             .RuleFor(x => x.CreatedAt, _ => now)
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate(1);
@@ -99,7 +99,7 @@ public static class DatabaseSeeder
             .RuleFor(x => x.DisplayName, _ => "Admin Test")
             .RuleFor(x => x.Email, _ => "admin@17v3ygzs.mailosaur.net")
             .RuleFor(x => x.Phone, _ => "10000001")
-            .RuleFor(x => x.Role, _ => "Admin")
+            .RuleFor(x => x.Role, _ => Roles.Admin)
             .RuleFor(x => x.CreatedAt, _ => now)
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate(1);
@@ -110,7 +110,18 @@ public static class DatabaseSeeder
             .RuleFor(x => x.DisplayName, _ => "User Test")
             .RuleFor(x => x.Email, _ => "user@17v3ygzs.mailosaur.net")
             .RuleFor(x => x.Phone, _ => "10000002")
-            .RuleFor(x => x.Role, _ => "User")
+            .RuleFor(x => x.Role, _ => Roles.User)
+            .RuleFor(x => x.CreatedAt, _ => now)
+            .RuleFor(x => x.UpdatedAt, _ => now)
+            .Generate(1);
+
+        var auditorUser = new Faker<UserDataRow>()
+            .RuleFor(x => x.Id, _ => new Guid("C3C3C3C3-DA5B-4CC4-BBEB-07B40CAB806F"))
+            .RuleFor(x => x.OrganizationId, _ => organization.Id)
+            .RuleFor(x => x.DisplayName, _ => "Auditor Test")
+            .RuleFor(x => x.Email, _ => "auditor@17v3ygzs.mailosaur.net")
+            .RuleFor(x => x.Phone, _ => "10000003")
+            .RuleFor(x => x.Role, _ => Roles.Auditor)
             .RuleFor(x => x.CreatedAt, _ => now)
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate(1);
@@ -118,6 +129,7 @@ public static class DatabaseSeeder
         users.AddRange(rbjUser);
         users.AddRange(adminUser);
         users.AddRange(regularUser);
+        users.AddRange(auditorUser);
 
         var statuses = new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected };
 

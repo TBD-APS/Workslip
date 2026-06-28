@@ -5,12 +5,13 @@ type CollapsibleSectionProps = {
   icon: React.ReactNode;
   title: string;
   children: React.ReactNode;
+  className?: string;
   defaultOpen?: boolean;
   open?: boolean;
   onToggle?: (open: boolean) => void;
 };
 
-export function CollapsibleSection({ icon, title, children, defaultOpen = true, open, onToggle }: CollapsibleSectionProps) {
+export function CollapsibleSection({ icon, title, children, className, defaultOpen = true, open, onToggle }: CollapsibleSectionProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const isOpen = open ?? internalOpen;
   const isControlled = open !== undefined;
@@ -37,7 +38,7 @@ export function CollapsibleSection({ icon, title, children, defaultOpen = true, 
   };
 
   return (
-    <section className="detail-section collapsible-section">
+    <section className={`detail-section collapsible-section${className ? ` ${className}` : ''}`}>
       <button
         className="collapsible-section-trigger"
         type="button"
@@ -47,8 +48,8 @@ export function CollapsibleSection({ icon, title, children, defaultOpen = true, 
         <span className="section-title-row">
           {icon}
           <h3>{title}</h3>
+          <ChevronRight className={isOpen ? 'collapsible-chevron open' : 'collapsible-chevron'} size={18} />
         </span>
-        <ChevronRight className={isOpen ? 'collapsible-chevron open' : 'collapsible-chevron'} size={18} />
       </button>
 
       {isOpen && <div ref={contentRef} className="collapsible-section-content">{children}</div>}

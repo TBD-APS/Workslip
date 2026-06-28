@@ -85,10 +85,10 @@ public sealed class EfJobRepository : IJobRepository
             Id = reportId,
             OrganizationId = organizationId,
             CustomerId = customerId,
-            CustomerName = customerSnapshot.Name,
-            CustomerEmail = customerSnapshot.Email,
-            CustomerPhone = customerSnapshot.Phone,
-            CustomerAddress = customerSnapshot.Address,
+            CustomerName = customerSnapshot?.Name,
+            CustomerEmail = customerSnapshot?.Email,
+            CustomerPhone = customerSnapshot?.Phone,
+            CustomerAddress = customerSnapshot?.Address,
             ReportNumber = reportNumber,
             Status = JobStatus.Draft.ToString(),
             ReportDate = ToDateTime(request.Observations?.ReportDate),
@@ -127,19 +127,19 @@ public sealed class EfJobRepository : IJobRepository
         await tx.CommitAsync(cancellationToken);
 
         var job = await GetSingleJobAsync(reportId, organizationId, cancellationToken);
-        return job;
+        return job!;
     }
 
-    public Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
+    public Task<JobListResponse> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("jobs.list", token => ListAsyncCoreAsync(query, token), cancellationToken);
 
-    private async Task<IReadOnlyList<JobListItemResponse>> ListAsyncCoreAsync(JobQuery query, CancellationToken cancellationToken)
+    private async Task<JobListResponse> ListAsyncCoreAsync(JobQuery query, CancellationToken cancellationToken)
     {
         _dbContext.ChangeTracker.Clear();
 
         var statuses = query.Statuses?.Select(x => x.ToString()).Distinct() ?? [];       
 
-        var projected = await (
+        var baseQuery =
             from job in _dbContext.JobReports.AsNoTracking()
             where job.OrganizationId == query.OrganizationId
             where statuses.Contains(job.Status)
@@ -148,17 +148,16 @@ public sealed class EfJobRepository : IJobRepository
             where query.CustomerName == null || ((job.CustomerName != null && job.CustomerName.Contains(query.CustomerName)))
             where query.CustomerEmail == null || (job.CustomerEmail != null && job.CustomerEmail.Contains(query.CustomerEmail))
             where query.CustomerAddress == null || ((job.CustomerAddress != null && job.CustomerAddress.Contains(query.CustomerAddress)))
-            orderby job.UpdatedAt descending
             select new
             {
                 job.Id,
                 job.OrganizationId,
                 CustId = job.CustomerId,
-                CustName = job.CustomerName ?? job.CustomerRow.Name,
-                CustAddress = job.CustomerAddress ?? job.CustomerRow.Address,
-                CustEmail = job.CustomerEmail ?? job.CustomerRow.Email,
-                CustContactPerson = job.CustomerContactPerson ?? job.CustomerRow.ContactPerson,
-                CustPhone = job.CustomerPhone ?? job.CustomerRow.Phone,
+                CustName = job.CustomerName ?? job.CustomerRow!.Name,
+                CustAddress = job.CustomerAddress ?? job.CustomerRow!.Address,
+                CustEmail = job.CustomerEmail ?? job.CustomerRow!.Email,
+                CustContactPerson = job.CustomerContactPerson ?? job.CustomerRow!.ContactPerson,
+                CustPhone = job.CustomerPhone ?? job.CustomerRow!.Phone,
                 job.ReportNumber,
                 job.Status,
                 job.ReportDate,
@@ -173,8 +172,32 @@ public sealed class EfJobRepository : IJobRepository
                 job.UpdatedAt,
                 job.IsSoftDeleted,
                 job.DeletionScheduledAt
-            }
-        ).Skip(query.Offset).Take(query.Limit).AsNoTracking().ToListAsync(cancellationToken);
+            };
+
+        var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+        var ordered = (query.SortBy, query.SortDirection) switch
+        {
+            ("name", "asc") => baseQuery.OrderBy(j => j.CustName),
+            ("name", _) => baseQuery.OrderByDescending(j => j.CustName),
+            ("address", "asc") => baseQuery.OrderBy(j => j.CustAddress),
+            ("address", _) => baseQuery.OrderByDescending(j => j.CustAddress),
+            ("reportNumber", "asc") => baseQuery.OrderBy(j => j.ReportNumber),
+            ("reportNumber", _) => baseQuery.OrderByDescending(j => j.ReportNumber),
+            ("createdAt", "asc") => baseQuery.OrderBy(j => j.CreatedAt),
+            ("createdAt", _) => baseQuery.OrderByDescending(j => j.CreatedAt),
+            ("updatedAt", "asc") => baseQuery.OrderBy(j => j.UpdatedAt),
+            ("updatedAt", _) => baseQuery.OrderByDescending(j => j.UpdatedAt),
+            ("reportDate", "asc") => baseQuery.OrderBy(j => j.ReportDate),
+            ("reportDate", _) => baseQuery.OrderByDescending(j => j.ReportDate),
+            _ => baseQuery.OrderByDescending(j => j.UpdatedAt),
+        };
+
+        var projected = await ordered
+            .Skip(query.Offset)
+            .Take(query.Limit)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
 
         var reportIds = projected.Select(x => x.Id).ToArray();
         var assignedUsersByReport = await _assignmentRepo.GetAssignedUsersByReportAsync(query.OrganizationId, reportIds, cancellationToken);
@@ -190,7 +213,7 @@ public sealed class EfJobRepository : IJobRepository
                 g => g.OrderBy(it => it.SortOrder).Select(it => it.InstallationTypeDefinition.Name).ToArray() as IReadOnlyList<string>,
                 cancellationToken);
 
-        return projected.Select(x =>
+        var items = projected.Select(x =>
         {
             var hasCustomerData = x.CustId is not null || !string.IsNullOrWhiteSpace(x.CustName);
             var customerInfo = hasCustomerData
@@ -207,6 +230,8 @@ public sealed class EfJobRepository : IJobRepository
                 x.IsSoftDeleted, x.DeletionScheduledAt,
                 totalHoursByJob.GetValueOrDefault(x.Id));
         }).ToArray();
+
+        return new JobListResponse(items, totalCount);
     }
 
     public Task<JobReportResponse?> GetSingleJobAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>

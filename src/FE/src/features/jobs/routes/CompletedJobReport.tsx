@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Download, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronRight, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   InstallationTypeResponse,
@@ -10,6 +10,7 @@ import type {
   JobReportSummaryViewModel,
   WorksheetResponse,
 } from '../../../api/generated/models';
+import { ErrorState } from '../../../components/ErrorState';
 import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
@@ -22,11 +23,11 @@ import { JobCompletionStep } from '../components/steps/JobCompletionStep';
 import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
 import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
 import { useJobDetailsState } from '../hooks/useJobDetails';
+import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
-import { downloadJobReportPdf } from '../utils/downloadJobReportPdf';
+import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
 
-const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
 const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
 
 type DetailPair = { label: string; value: string | null | undefined };
@@ -45,20 +46,31 @@ type IrrelevantCategory = {
   category: string;
 };
 
+function useIsDesktop() {
+  const [isDesktop] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+  );
+  return isDesktop;
+}
+
 export const CompletedJobReport = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
   const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
+  const readOnly = Boolean((location.state as { readOnly?: boolean } | undefined)?.readOnly);
   const details = useJobDetailsState(id, { autoSave: false });
   const isAdmin = useIsAdmin();
   const { user } = useAuth();
+  const isDesktop = useIsDesktop();
   const statusMutation = usePostApiJobsIdStatus();
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const previewUrlRef = useRef<string | null>(null);
   const job = details.job;
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
@@ -122,6 +134,30 @@ export const CompletedJobReport = () => {
       toast.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
     } finally {
       setIsDownloadingPdf(false);
+    }
+  };
+
+  const handlePreviewPdf = async () => {
+    if (!job) return;
+    setIsLoadingPreview(true);
+
+    try {
+      const { url } = await createJobReportPdfPreview(job);
+      if (previewUrlRef.current) {
+        window.URL.revokeObjectURL(previewUrlRef.current);
+      }
+      previewUrlRef.current = url;
+      window.open(url, '_blank');
+      setTimeout(() => {
+        if (previewUrlRef.current === url) {
+          window.URL.revokeObjectURL(url);
+          previewUrlRef.current = null;
+        }
+      }, 60000);
+    } catch {
+      toast.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
+    } finally {
+      setIsLoadingPreview(false);
     }
   };
 
@@ -196,13 +232,7 @@ export const CompletedJobReport = () => {
   if (details.isError || !job) {
     return (
       <div className="page-container report-overview-page">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente sagsrapporten.</p>
-          <button className="btn btn-primary" onClick={() => details.refetch()}>
-            Prøv igen
-          </button>
-        </div>
+        <ErrorState message="Kunne ikke hente sagsrapporten." onRetry={() => details.refetch()} />
       </div>
     );
   }
@@ -210,7 +240,7 @@ export const CompletedJobReport = () => {
   const summaryPairs = compactPairs([
     { label: 'Sagsnummer', value: formatReportNumber(job) },
     { label: 'Status', value: formatJobStatus(job.status)},
-    { label: 'Rapportdato', value: formatDate(job.observations.reportDate) },
+    { label: 'Rapportdato', value: formatDateLong(job.observations.reportDate) },
     { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
     { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Afslutning', value: formatClosureFlags(job) },
@@ -253,7 +283,7 @@ export const CompletedJobReport = () => {
               </button>
             </>
           ) : (
-            isAdmin && (
+            isAdmin && !readOnly && (
               <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} aria-label="Rediger sag">
                 <Pencil size={16} />
               </button>
@@ -269,6 +299,18 @@ export const CompletedJobReport = () => {
           >
             <History size={16} />
           </button>
+          {isDesktop && (
+            <button
+              className="btn btn-secondary report-overview-icon-action"
+              type="button"
+              onClick={() => void handlePreviewPdf()}
+              disabled={isLoadingPreview || isEditing}
+              aria-label="Forhåndsvis PDF"
+              title="Forhåndsvis PDF"
+            >
+              {isLoadingPreview ? <Loader2 size={16} className="spin" /> : <Eye size={16} />}
+            </button>
+          )}
           <button
             className="btn btn-secondary report-overview-icon-action"
             type="button"
@@ -286,62 +328,79 @@ export const CompletedJobReport = () => {
         <CompletedJobEditForm details={details} onCancel={handleCancelEdit} onSave={handleSaveEdit} />
       ) : (
         <>
-
-          <section className="detail-section report-overview-hero">
-            <div className="section-header-row attestation-compact-header">
-              <FileCheck2 size={18} />
-              <h3>Sag</h3>
+          <div className="report-overview-grid">
+            <div className="report-overview-colpair">
+              <section className="detail-section report-overview-hero">
+                <div className="section-header-row attestation-compact-header">
+                  <FileCheck2 size={18} />
+                  <h3>Sag</h3>
+                </div>
+                <DetailGrid items={summaryPairs} />
+              </section>
+              <section className="detail-section">
+                <div className="section-header-row attestation-compact-header">
+                  <User size={18} />
+                  <h3>Kunde</h3>
+                </div>
+                <DetailGrid items={customerPairs} />
+              </section>
             </div>
-            <DetailGrid items={summaryPairs} />
-          </section>
-          <section className="detail-section">
-            <div className="section-header-row attestation-compact-header">
-              <User size={18} />
-              <h3>Kunde</h3>
-            </div>
-            <DetailGrid items={customerPairs} />
-          </section>
 
-          <section className="detail-section">
-            <div className="section-header-row">
-              <User size={18} />
-              <h3>Medarbejdere</h3>
-            </div>
-            <AssignedUsers users={job.assignedUsers} />
-          </section>
-
-          {observationPairs.length > 0 && (
-            <section className="detail-section attestation-summary-section">
-              <div className="section-header-row attestation-compact-header">
-                <FileCheck2 size={18} />
-                <h3>Observationer og noter</h3>
+            <section className="detail-section">
+              <div className="section-header-row">
+                <User size={18} />
+                <h3>Medarbejdere</h3>
               </div>
-              <div className="attestation-observations-list">
-                {observationPairs.map((item) => (
-                  <div key={item.label} className="attestation-data-pair observation">
-                    <dt>{item.label}</dt>
-                    <dd>{item.value}</dd>
-                  </div>
-                ))}
-              </div>
+              <AssignedUsers users={job.assignedUsers} />
             </section>
-          )}
 
-          <section className="detail-section">
-            <div className="section-header-row attestation-compact-header">
-              <Link2 size={18} />
-              <h3>Tilknyttede sager</h3>
-            </div>
-            <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
-          </section>
+            {observationPairs.length > 0 && (
+              <section className="detail-section attestation-summary-section">
+                <div className="section-header-row attestation-compact-header">
+                  <FileCheck2 size={18} />
+                  <h3>Observationer og noter</h3>
+                </div>
+                <div className="attestation-observations-list">
+                  {observationPairs.map((item) => (
+                    <div key={item.label} className="attestation-data-pair observation">
+                      <dt>{item.label}</dt>
+                      <dd>{item.value}</dd>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {sortedWorksheets.length > 3 ? (
+            <section className="detail-section">
+              <div className="section-header-row attestation-compact-header">
+                <Link2 size={18} />
+                <h3>Tilknyttede sager</h3>
+              </div>
+              <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
+            </section>
+
+            {sortedWorksheets.length > 3 ? (
             <CollapsibleSection
               icon={<Timer size={18} />}
               title={`Timesedler (${sortedWorksheets.length})`}
               defaultOpen={false}
             >
-              <div className="worksheet-list-section">
+                <div className="worksheet-list-section">
+                  <Worksheets worksheets={sortedWorksheets} />
+                  <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
+                    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
+                    {parseNullableNumber(job.totalOutlay) > 0 && (
+                      <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
+                    )}
+                  </div>
+                </div>
+              </CollapsibleSection>
+            ) : (
+              <section className="detail-section worksheet-list-section">
+                <div className="section-header-row attestation-compact-header">
+                  <Timer size={18} />
+                  <h3>Timesedler</h3>
+                </div>
                 <Worksheets worksheets={sortedWorksheets} />
                 <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
                   <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
@@ -349,52 +408,39 @@ export const CompletedJobReport = () => {
                     <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
                   )}
                 </div>
-              </div>
-            </CollapsibleSection>
-          ) : (
-            <section className="detail-section worksheet-list-section">
-              <div className="section-header-row attestation-compact-header">
-                <Timer size={18} />
-                <h3>Timesedler</h3>
-              </div>
-              <Worksheets worksheets={sortedWorksheets} />
-              <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
-                <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
-                {parseNullableNumber(job.totalOutlay) > 0 && (
-                  <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
-                )}
-              </div>
-            </section>
-          )}
+              </section>
+            )}
+
+            {job.status === JobStatus.InReview && isAdmin && !readOnly && (
+              <section className="detail-section">
+                <div className="section-header-row">
+                  <ShieldCheck size={18} />
+                  <h3>Godkendelse</h3>
+                </div>
+                <div className="edit-form-bottom-actions">
+                  <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
+                    <X size={18} />
+                    Afvis
+                  </button>
+                  <button className="btn btn-primary edit-form-bottom-btn" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
+                    {statusMutation.isPending ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
+                    {statusMutation.isPending ? 'Godkender...' : 'Godkend'}
+                  </button>
+                </div>
+              </section>
+            )}
+          </div>
 
           <CollapsibleSection
             icon={<CheckCircle2 size={18} />}
             title="Kontrolpunkter"
-            defaultOpen={false}
+            defaultOpen={isDesktop}
+            className="kontrolpunkter-section"
           >
             <div className="attestation-control-section compact">
               <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
             </div>
           </CollapsibleSection>
-
-          {job.status === JobStatus.InReview && isAdmin && (
-            <section className="detail-section">
-              <div className="section-header-row">
-                <ShieldCheck size={18} />
-                <h3>Godkendelse</h3>
-              </div>
-              <div className="edit-form-bottom-actions">
-                <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
-                  <X size={18} />
-                  Afvis
-                </button>
-                <button className="btn btn-primary edit-form-bottom-btn" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
-                  {statusMutation.isPending ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
-                  {statusMutation.isPending ? 'Godkender...' : 'Godkend'}
-                </button>
-              </div>
-            </section>
-          )}
         </>
       )}
 
@@ -685,7 +731,7 @@ function Worksheets({ worksheets }: { worksheets: WorksheetResponse[] }) {
           <li key={worksheet.id} className="worksheet-list-item worksheet-list-item--detail">
             <div className="worksheet-list-item-main worksheet-list-item-main--detail">
               <span className="worksheet-list-item-title" title={userName}>{userName}</span>
-              <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDate(worksheet.workDate)}</span>
+              <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDateLong(worksheet.workDate)}</span>
             </div>
 
             <div className="worksheet-list-item-meta">
@@ -713,46 +759,84 @@ function ControlPointOverview({
     return <p className="empty-state-text">Ingen kontrolpunkter markeret.</p>;
   }
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, { key: string; installationType: string; category: string; items: SelectedControlPoint[] }>();
+  const groupedByInstallation = useMemo(() => {
+    const installMap = new Map<string, { name: string; categories: Map<string, SelectedControlPoint[]> }>();
     for (const cp of selectedControlPoints) {
-      const key = `${cp.installationType}|${cp.category}`;
-      let group = map.get(key);
-      if (!group) {
-        group = { key, installationType: cp.installationType, category: cp.category, items: [] };
-        map.set(key, group);
+      let installGroup = installMap.get(cp.installationType);
+      if (!installGroup) {
+        installGroup = { name: cp.installationType, categories: new Map() };
+        installMap.set(cp.installationType, installGroup);
       }
-      group.items.push(cp);
+      let catItems = installGroup.categories.get(cp.category);
+      if (!catItems) {
+        catItems = [];
+        installGroup.categories.set(cp.category, catItems);
+      }
+      catItems.push(cp);
+    }
+    return [...installMap.values()];
+  }, [selectedControlPoints]);
+
+  const irrelevantByInstallation = useMemo(() => {
+    const map = new Map<string, { name: string; categories: string[] }>();
+    for (const ic of irrelevantCategories) {
+      let group = map.get(ic.installationType);
+      if (!group) {
+        group = { name: ic.installationType, categories: [] };
+        map.set(ic.installationType, group);
+      }
+      group.categories.push(ic.category);
     }
     return [...map.values()];
-  }, [selectedControlPoints]);
+  }, [irrelevantCategories]);
 
   return (
     <>
-      {grouped.map((group, index) => (
-        <div key={group.key}>
-          {index > 0 && <hr className="attestation-group-divider" />}
-          <span className="attestation-group-label">{group.installationType} · {capitalize(group.category)}</span>
-          <ul className="attestation-control-list compact">
-            {group.items.map((controlPoint) => (
-              <li key={controlPoint.id}>
-                <span>{controlPoint.name}</span>
-              </li>
-            ))}
-          </ul>
+      {groupedByInstallation.length > 0 && (
+        <div className="attestation-control-grid">
+          {groupedByInstallation.map((install) => (
+            <div key={install.name} className="attestation-installation-block">
+              <h4 className="attestation-installation-title">{install.name}</h4>
+              <div className="attestation-category-grid">
+                {[...install.categories.entries()].map(([category, items]) => (
+                  <div key={category} className="attestation-category-block">
+                    <span className="attestation-category-label">{capitalize(category)}</span>
+                    <ul className="attestation-control-list compact">
+                      {items.map((cp) => (
+                        <li key={cp.id}>
+                          <span className="attestation-control-point-name">
+                            <span className="attestation-control-point-bullet">•</span>
+                            <span>{cp.name}</span>
+                            <span className="attestation-control-point-check">✓</span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
 
       {irrelevantCategories.length > 0 && (
-        <div className="attestation-irrelevant-block">
-          <span className="attestation-irrelevant-label">Markeret irrelevant</span>
-          <ul className="attestation-control-list compact">
-            {irrelevantCategories.map((controlPoint) => (
-              <li key={controlPoint.id} className="attestation-control-list-item-muted">
-              <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
-              </li>
+        <div className="attestation-irrelevant-section">
+          <h4 className="attestation-irrelevant-section-title">Markeret irrelevant</h4>
+          <div className="attestation-control-grid">
+            {irrelevantByInstallation.map((install) => (
+              <div key={install.name} className="attestation-installation-block">
+                <h4 className="attestation-installation-title">{install.name}</h4>
+                <div className="attestation-category-grid">
+                  {install.categories.map((category) => (
+                    <div key={category} className="attestation-category-block attestation-category-block--muted">
+                      <span className="attestation-category-label">{capitalize(category)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </>
@@ -813,13 +897,6 @@ function formatInstallationTypeNames(installationTypes: InstallationTypeResponse
 function formatClosureFlags(job: JobReportSummaryViewModel) {
   const labels = job.work.closureFlags.map((flag) => flag.label).filter(hasText);
   return labels.length > 0 ? labels.join(', ') : null;
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return DATE_FORMATTER.format(date);
 }
 
 function parseNullableNumber(value: number | string | null) {
