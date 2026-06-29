@@ -195,7 +195,7 @@ export const JobList = () => {
         onChange={handleStatusChange}
       />
       <div className="search-row">
-        <SearchBar value={search} onChange={handleSearchChange} placeholder="S\u00f8g opgaver..." />
+        <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg opgaver..." />
       </div>
 
       {isDesktop ? (
@@ -226,7 +226,7 @@ export const JobList = () => {
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
               </th>
               <th className="col-installation">
-                Anl\u00e6g
+                Anlæg
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
               </th>
               <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>

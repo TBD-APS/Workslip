@@ -96,7 +96,7 @@ export const UserList = () => {
         <p className="subtitle">{totalCount} {totalCount === 1 ? 'bruger' : 'brugere'}</p>
       </div>
 
-      <SearchBar value={search} onChange={handleSearchChange} placeholder="S\u00f8g brugere..." />
+      <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg brugere..." />
       <div className="search-bar-spacer" />
 
       {isDesktop ? (
