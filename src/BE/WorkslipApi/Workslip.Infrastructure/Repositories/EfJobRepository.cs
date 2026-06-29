@@ -54,16 +54,13 @@ public sealed class EfJobRepository : IJobRepository
 
         var customerSnapshot = request.CustomerSnapshot;
 
-        //Customer snapshot without customer ID implies creating a new customer based on the snapshot data,
-        //so we handle that before creating the job report to ensure we have the new customer ID available for the report.
-        //If both CustomerId and CustomerSnapshot are provided, we assume the snapshot is just additional data for the existing customer and do not create a new one.
         Guid? customerId = null;
         if (request.CustomerId is null && customerSnapshot is not null)
         {
             var customerInfo = new CustomerInfo(Guid.NewGuid(),
-                                                customerSnapshot.Name, 
+                                                customerSnapshot.Name,
                                                 customerSnapshot.Address,
-                                                customerSnapshot.Email, 
+                                                customerSnapshot.Email,
                                                 customerSnapshot.ContactPerson,
                                                 customerSnapshot.Phone);
 
@@ -145,9 +142,15 @@ public sealed class EfJobRepository : IJobRepository
             where statuses.Contains(job.Status)
             where job.IsSoftDeleted == false
             where query.ReportNumber == null || (job.ReportNumber != null && job.ReportNumber.Contains(query.ReportNumber))
-            where query.CustomerName == null || ((job.CustomerName != null && job.CustomerName.Contains(query.CustomerName)))
+            where query.CustomerName == null || (job.CustomerName != null && job.CustomerName.Contains(query.CustomerName))
             where query.CustomerEmail == null || (job.CustomerEmail != null && job.CustomerEmail.Contains(query.CustomerEmail))
-            where query.CustomerAddress == null || ((job.CustomerAddress != null && job.CustomerAddress.Contains(query.CustomerAddress)))
+            where query.CustomerAddress == null || (job.CustomerAddress != null && job.CustomerAddress.Contains(query.CustomerAddress))
+            where query.Search == null || (
+                (job.ReportNumber != null && job.ReportNumber.Contains(query.Search)) ||
+                (job.CustomerName != null && job.CustomerName.Contains(query.Search)) ||
+                (job.CustomerAddress != null && job.CustomerAddress.Contains(query.Search)) ||
+                (job.CustomerEmail != null && job.CustomerEmail.Contains(query.Search))
+            )
             select new
             {
                 job.Id,
@@ -333,12 +336,12 @@ public sealed class EfJobRepository : IJobRepository
 
             entry.Property(e => e.ReportNumber).CurrentValue = reportNumber;
         }
-        
+
         if (request.Observations is not null)
         {
-            if (request.Observations.ReportDate is not null) 
+            if (request.Observations.ReportDate is not null)
                 entry.Property(e => e.ReportDate).CurrentValue = ToDateTime(request.Observations.ReportDate);
-            
+
             entry.Property(e => e.TaskDescription).CurrentValue = request.Observations.TaskDescription;
             entry.Property(e => e.CustomerObservations).CurrentValue = request.Observations.CustomerObservations;
             entry.Property(e => e.TechnicalObservations).CurrentValue = request.Observations.TechnicalObservations;

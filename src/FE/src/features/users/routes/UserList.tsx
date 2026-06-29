@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Mail, Shield } from 'lucide-react';
 import { type UserListViewModel, type UserViewModel } from '../../../api/generated/models';
@@ -7,10 +7,8 @@ import { SearchBar } from '../../../components/filters/SearchBar';
 import { announceSection } from '../../../components/filters/StatusFilter';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
 import { PaginationControls } from '../../../components/pagination/PaginationControls';
-import { useInfiniteList } from '../../../hooks/useInfiniteList';
-import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
-import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import { useSearch } from '../../../hooks/useSearch';
+import { usePaginatedList } from '../../../hooks/usePaginatedList';
+import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 
 const PAGE_SIZE = 20;
@@ -27,78 +25,47 @@ const SkeletonCard = () => (
 
 export const UserList = () => {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [viewPage, setViewPage] = useState(1);
-  const isDesktop = useMediaQuery('(min-width: 768px)');
 
-  const handleSort = (field: string) => {
-    if (sortBy === field) {
-      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortBy(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const fetchUsersPage = useCallback(async ({ limit, offset }: { limit: number; offset: number }) => {
+  const fetchUsersPage = useCallback(async ({ limit, offset, search, sortBy, sortDirection }: { limit: number; offset: number; search?: string; sortBy?: string; sortDirection?: string }) => {
     const response = (await apiClient.get('/api/users', {
-      params: { limit, offset },
+      params: { limit, offset, search, sortBy, sortDirection },
     })) as UserListViewModel;
 
     return { items: response.users, totalCount: Number(response.total) };
   }, []);
 
-  const query = useInfiniteList<UserViewModel>({
-    queryKey: ['/api/users', 'list', { limit: PAGE_SIZE }],
+  const {
+    items: users,
+    totalCount,
+    isLoading,
+    isError,
+    isFetchingNextPage,
+    refetch,
+    search,
+    handleSearchChange,
+    sortBy,
+    sortDirection,
+    handleSort,
+    setViewPage,
+    totalPages,
+    safeViewPage,
+    pageItems,
+    sentinelRef,
+    isDesktop,
+  } = usePaginatedList<UserViewModel>({
+    queryKey: ['/api/users', 'list'],
     fetchPage: fetchUsersPage,
     pageSize: PAGE_SIZE,
+    storageKey: 'users',
   });
-
-  const { sentinelRef } = useInfiniteScroll({
-    onReachEnd: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
-        void query.fetchNextPage();
-      }
-    },
-    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
-  });
-
-  const searched = useSearch(query.items, search, (user, term) =>
-    [user.displayName, user.email, user.phone, user.role].some((value) => value?.toLowerCase().includes(term)),
-  ) ?? [];
-
-  const users = useMemo(() => {
-    if (!sortBy) return searched;
-    return [...searched].sort((a, b) => {
-      let cmp = 0;
-      switch (sortBy) {
-        case 'displayName':
-          cmp = (a.displayName || '').localeCompare(b.displayName || '', 'da-DK', { sensitivity: 'base' });
-          break;
-        case 'email':
-          cmp = (a.email || '').localeCompare(b.email || '', 'da-DK', { sensitivity: 'base' });
-          break;
-        case 'role':
-          cmp = (a.role || '').localeCompare(b.role || '', 'da-DK', { sensitivity: 'base' });
-          break;
-      }
-      return sortDirection === 'asc' ? cmp : -cmp;
-    });
-  }, [searched, sortBy, sortDirection]);
-
-  const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
-  const safeViewPage = Math.min(viewPage, totalPages);
-  const pageStart = (safeViewPage - 1) * PAGE_SIZE;
-  const pageEnd = pageStart + PAGE_SIZE;
-  const displayedUsers = isDesktop ? users.slice(pageStart, pageEnd) : users;
 
   useEffect(() => {
     announceSection('users');
   }, []);
 
-  if (query.isLoading) {
+  const { handleMouseDown } = useColumnResize();
+
+  if (isLoading) {
     return (
       <div className="page-container">
         <div className="page-header">
@@ -114,10 +81,10 @@ export const UserList = () => {
     );
   }
 
-  if (query.isError) {
+  if (isError) {
     return (
       <div className="page-container">
-        <ErrorState message="Kunne ikke hente brugere. Prøv igen." onRetry={() => void query.refetch()} />
+        <ErrorState message="Kunne ikke hente brugere. Pr\u00f8v igen." onRetry={() => void refetch()} />
       </div>
     );
   }
@@ -126,10 +93,10 @@ export const UserList = () => {
     <div className="page-container">
       <div className="page-header">
         <h2>Folk</h2>
-        <p className="subtitle">{users.length} {users.length === 1 ? 'bruger' : 'brugere'}</p>
+        <p className="subtitle">{totalCount} {totalCount === 1 ? 'bruger' : 'brugere'}</p>
       </div>
 
-      <SearchBar value={search} onChange={setSearch} placeholder="Søg brugere..." />
+      <SearchBar value={search} onChange={handleSearchChange} placeholder="S\u00f8g brugere..." />
       <div className="search-bar-spacer" />
 
       {isDesktop ? (
@@ -137,20 +104,31 @@ export const UserList = () => {
         <table className="data-table">
           <thead>
             <tr>
-              <th className={`sortable${sortBy === 'displayName' ? ' sorted' : ''}`} onClick={() => handleSort('displayName')}>
-                Navn<span className="sort-icon">{sortBy === 'displayName' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+              <th className={`col-name sortable${sortBy === 'displayName' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('displayName')}>
+                  Navn<span className="sort-icon">{sortBy === 'displayName' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
-              <th className={`sortable${sortBy === 'email' ? ' sorted' : ''}`} onClick={() => handleSort('email')}>
-                Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+              <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('email')}>
+                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
-              <th className={`sortable${sortBy === 'role' ? ' sorted' : ''}`} onClick={() => handleSort('role')}>
-                Rolle<span className="sort-icon">{sortBy === 'role' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+              <th className={`col-role sortable${sortBy === 'role' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('role')}>
+                  Rolle<span className="sort-icon">{sortBy === 'role' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
-              <th className="col-actions"></th>
+              <th className="col-actions">
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
+              </th>
             </tr>
           </thead>
           <tbody>
-            {displayedUsers.map((user) => (
+            {pageItems.map((user) => (
               <tr
                 key={user.id}
                 className="clickable"
@@ -178,18 +156,19 @@ export const UserList = () => {
         </table>
         <PaginationControls
           page={safeViewPage}
-          totalCount={users.length}
+          totalCount={totalCount}
           pageSize={PAGE_SIZE}
-          hasNextPage={query.hasNextPage ?? false}
-          isFetchingNextPage={query.isFetchingNextPage}
-          onPrev={() => setViewPage((p) => p - 1)}
-          onNext={() => setViewPage((p) => p + 1)}
-          onLoadMore={() => { void query.fetchNextPage(); }}
+          onPrev={() => setViewPage((p) => Math.max(1, p - 1))}
+          onNext={() => {
+            const nextPage = safeViewPage + 1;
+            if (nextPage > totalPages) return;
+            setViewPage(nextPage);
+          }}
         />
         </>
       ) : (
         <div className="job-list">
-          {users.map((user) => (
+          {pageItems.map((user) => (
             <button
               key={user.id}
               className="job-card"
@@ -222,7 +201,7 @@ export const UserList = () => {
             </button>
           ))}
 
-          {users.length === 0 && !query.isFetchingNextPage && (
+          {users.length === 0 && !isFetchingNextPage && (
             <div className="empty-state">
               <p>Ingen brugere fundet.</p>
             </div>
@@ -231,7 +210,7 @@ export const UserList = () => {
           {!isDesktop && (
             <InfiniteScrollSentinel
               sentinelRef={sentinelRef}
-              isLoading={query.isFetchingNextPage}
+              isLoading={isFetchingNextPage}
             />
           )}
         </div>

@@ -11,23 +11,39 @@ export function useColumnResize() {
     element: HTMLElement;
   } | null>(null);
 
+  function setColWidth(el: HTMLElement, w: number) {
+    const px = `${w}px`;
+    el.style.setProperty('min-width', px, 'important');
+    el.style.setProperty('width', px, 'important');
+    el.style.setProperty('max-width', px, 'important');
+  }
+
   const handleMouseDown = useCallback((index: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const th = (e.currentTarget as HTMLElement).closest('th');
     if (!th) return;
 
-    const startWidth = th.offsetWidth;
+    const el = e.currentTarget as HTMLElement;
+
+    const preventClick = (ce: MouseEvent) => {
+      ce.stopPropagation();
+    };
+    el.addEventListener('click', preventClick, true);
+
+    const startWidth = th.getBoundingClientRect().width;
+    setColWidth(th, startWidth);
     resizing.current = { index, startX: e.clientX, startWidth, element: th };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!resizing.current) return;
       const { startX, startWidth, element } = resizing.current;
       const newWidth = Math.max(MIN_WIDTH, startWidth + (e.clientX - startX));
-      element.style.width = `${newWidth}px`;
+      setColWidth(element, newWidth);
     };
 
     const handleMouseUp = () => {
+      el.removeEventListener('click', preventClick, true);
       if (resizing.current) {
         columnWidths.current[resizing.current.index] = resizing.current.element.offsetWidth;
       }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, ChevronRight, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
@@ -6,10 +6,8 @@ import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
 import { PaginationControls } from '../../../components/pagination/PaginationControls';
-import { useInfiniteList } from '../../../hooks/useInfiniteList';
-import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
-import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import { useSearch } from '../../../hooks/useSearch';
+import { usePaginatedList } from '../../../hooks/usePaginatedList';
+import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useCustomerActions } from '../components/CustomerActions';
 
@@ -27,80 +25,41 @@ const SkeletonCard = () => (
 
 export const CustomerList = () => {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [viewPage, setViewPage] = useState(1);
-  const isDesktop = useMediaQuery('(min-width: 768px)');
-
-  const handleSort = (field: string) => {
-    if (sortBy === field) {
-      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortBy(field);
-      setSortDirection('asc');
-    }
-  };
 
   const fetchCustomersPage = useCallback(
-    async ({ limit, offset }: { limit: number; offset: number }) => {
+    async ({ limit, offset, search, sortBy, sortDirection }: { limit: number; offset: number; search?: string; sortBy?: string; sortDirection?: string }) => {
       const data = await apiClient.get('/api/customers', {
-        params: { limit, offset },
-      }) as CustomerListItemViewModel[];
-      return { items: data, totalCount: data.length };
+        params: { limit, offset, search, sortBy, sortDirection },
+      }) as { items: CustomerListItemViewModel[]; totalCount: number };
+      return data;
     },
     [],
   );
 
-  const query = useInfiniteList({
-    queryKey: ['/api/customers', { limit: PAGE_SIZE }],
+  const {
+    items: customers,
+    totalCount,
+    isLoading,
+    isError,
+    isFetchingNextPage,
+    refetch,
+    search,
+    handleSearchChange,
+    sortBy,
+    sortDirection,
+    handleSort,
+    setViewPage,
+    totalPages,
+    safeViewPage,
+    pageItems,
+    sentinelRef,
+    isDesktop,
+  } = usePaginatedList<CustomerListItemViewModel>({
+    queryKey: ['/api/customers'],
     fetchPage: fetchCustomersPage,
     pageSize: PAGE_SIZE,
+    storageKey: 'customers',
   });
-
-  const { sentinelRef } = useInfiniteScroll({
-    onReachEnd: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
-        void query.fetchNextPage();
-      }
-    },
-    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
-  });
-
-  const searched = useSearch(query.items, search, (customer, term) =>
-    [customer.name, customer.address, customer.email, customer.contactPerson, customer.phone].some((value) => value?.toLowerCase().includes(term)),
-  );
-
-  const customers = useMemo(() => {
-    if (!sortBy) return searched;
-    return [...searched].sort((a, b) => {
-      let cmp = 0;
-      switch (sortBy) {
-        case 'name':
-          cmp = (a.name || '').localeCompare(b.name || '', 'da-DK', { sensitivity: 'base' });
-          break;
-        case 'address':
-          cmp = (a.address || '').localeCompare(b.address || '', 'da-DK', { sensitivity: 'base' });
-          break;
-        case 'email':
-          cmp = (a.email || '').localeCompare(b.email || '', 'da-DK', { sensitivity: 'base' });
-          break;
-        case 'contactPerson':
-          cmp = (a.contactPerson || '').localeCompare(b.contactPerson || '', 'da-DK', { sensitivity: 'base' });
-          break;
-        case 'jobCount':
-          cmp = Number(a.jobCount ?? 0) - Number(b.jobCount ?? 0);
-          break;
-      }
-      return sortDirection === 'asc' ? cmp : -cmp;
-    });
-  }, [searched, sortBy, sortDirection]);
-
-  const totalPages = Math.max(1, Math.ceil(customers.length / PAGE_SIZE));
-  const safeViewPage = Math.min(viewPage, totalPages);
-  const pageStart = (safeViewPage - 1) * PAGE_SIZE;
-  const pageEnd = pageStart + PAGE_SIZE;
-  const displayedCustomers = isDesktop ? customers.slice(pageStart, pageEnd) : customers;
 
   const {
     toggleActionMenu,
@@ -113,7 +72,9 @@ export const CustomerList = () => {
     onEditCustomer: (customer) => navigate(`/app/customers/${customer.id}/edit`),
   });
 
-  if (query.isLoading) {
+  const { handleMouseDown } = useColumnResize();
+
+  if (isLoading) {
     return (
       <div className="page-container">
         <div className="page-header">
@@ -129,10 +90,10 @@ export const CustomerList = () => {
     );
   }
 
-  if (query.isError) {
+  if (isError) {
     return (
       <div className="page-container">
-        <ErrorState message="Kunne ikke hente kunder. Prøv igen." onRetry={() => void query.refetch()} />
+        <ErrorState message="Kunne ikke hente kunder. Prøv igen." onRetry={() => void refetch()} />
       </div>
     );
   }
@@ -143,7 +104,7 @@ export const CustomerList = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
           <div>
             <h2>Kunder</h2>
-            <p className="subtitle">{customers.length} {customers.length === 1 ? 'kunde' : 'kunder'}</p>
+            <p className="subtitle">{totalCount} {totalCount === 1 ? 'kunde' : 'kunder'}</p>
           </div>
           <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
             <Plus size={18} />
@@ -152,7 +113,7 @@ export const CustomerList = () => {
         </div>
       </div>
 
-      <SearchBar value={search} onChange={setSearch} placeholder="Søg kunder..." />
+      <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg kunder..." />
       <div className="search-bar-spacer" />
 
       {isDesktop ? (
@@ -160,26 +121,43 @@ export const CustomerList = () => {
         <table className="data-table">
           <thead>
             <tr>
-              <th className={`sortable${sortBy === 'name' ? ' sorted' : ''}`} onClick={() => handleSort('name')}>
-                Navn<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+              <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('name')}>
+                  Navn<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
-              <th className={`sortable${sortBy === 'address' ? ' sorted' : ''}`} onClick={() => handleSort('address')}>
-                Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+              <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('address')}>
+                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
-              <th className={`sortable${sortBy === 'email' ? ' sorted' : ''}`} onClick={() => handleSort('email')}>
-                Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+              <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('email')}>
+                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
-              <th className={`sortable${sortBy === 'contactPerson' ? ' sorted' : ''}`} onClick={() => handleSort('contactPerson')}>
-                Kontakt<span className="sort-icon">{sortBy === 'contactPerson' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+              <th className={`col-contact sortable${sortBy === 'contactPerson' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('contactPerson')}>
+                  Kontakt<span className="sort-icon">{sortBy === 'contactPerson' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
               </th>
-              <th className={`sortable${sortBy === 'jobCount' ? ' sorted' : ''} col-hours`} onClick={() => handleSort('jobCount')}>
-                Sager<span className="sort-icon">{sortBy === 'jobCount' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+              <th className={`col-hours sortable${sortBy === 'jobCount' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('jobCount')}>
+                  Sager<span className="sort-icon">{sortBy === 'jobCount' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
               </th>
-              <th className="col-actions"></th>
+              <th className="col-actions">
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
+              </th>
             </tr>
           </thead>
           <tbody>
-            {displayedCustomers.map((customer) => (
+            {pageItems.map((customer) => (
               <tr
                 key={customer.id}
                 className="clickable"
@@ -191,9 +169,9 @@ export const CustomerList = () => {
                     <span>{customer.name}</span>
                   </div>
                 </td>
-                <td>{customer.address || '—'}</td>
-                <td>{customer.email || '—'}</td>
-                <td>{customer.contactPerson || '—'}</td>
+                <td>{customer.address || '\u2014'}</td>
+                <td>{customer.email || '\u2014'}</td>
+                <td>{customer.contactPerson || '\u2014'}</td>
                 <td className="cell-number">{customer.jobCount}</td>
                 <td className="col-actions">
                   <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
@@ -219,18 +197,19 @@ export const CustomerList = () => {
         </table>
         <PaginationControls
           page={safeViewPage}
-          totalCount={customers.length}
+          totalCount={totalCount}
           pageSize={PAGE_SIZE}
-          hasNextPage={query.hasNextPage ?? false}
-          isFetchingNextPage={query.isFetchingNextPage}
-          onPrev={() => setViewPage((p) => p - 1)}
-          onNext={() => setViewPage((p) => p + 1)}
-          onLoadMore={() => { void query.fetchNextPage(); }}
+          onPrev={() => setViewPage((p) => Math.max(1, p - 1))}
+          onNext={() => {
+            const nextPage = safeViewPage + 1;
+            if (nextPage > totalPages) return;
+            setViewPage(nextPage);
+          }}
         />
         </>
       ) : (
         <div className="job-list">
-          {customers.map((customer) => (
+          {pageItems.map((customer) => (
             <div key={customer.id} className="job-card-wrapper">
               <button
                 className="job-card"
@@ -288,7 +267,7 @@ export const CustomerList = () => {
                     event.stopPropagation();
                     toggleActionMenu(event, customer.id);
                   }}
-                  aria-label="Åbn handlinger for kunde"
+                  aria-label="\u00c5bn handlinger for kunde"
                   aria-expanded={openActionMenu?.customerId === customer.id}
                   title="Handlinger"
                 >
@@ -298,7 +277,7 @@ export const CustomerList = () => {
             </div>
           ))}
 
-          {customers.length === 0 && !query.isFetchingNextPage && (
+          {customers.length === 0 && !isFetchingNextPage && (
             <div className="empty-state">
               <p>Ingen kunder fundet.</p>
             </div>
@@ -307,7 +286,7 @@ export const CustomerList = () => {
           {!isDesktop && (
             <InfiniteScrollSentinel
               sentinelRef={sentinelRef}
-              isLoading={query.isFetchingNextPage}
+              isLoading={isFetchingNextPage}
             />
           )}
         </div>

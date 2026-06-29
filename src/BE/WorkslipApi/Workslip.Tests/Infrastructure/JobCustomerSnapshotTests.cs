@@ -334,7 +334,7 @@ public sealed class JobCustomerSnapshotTests
         return new EfJobRepository(
             context,
             retryPolicy,
-            new EfCustomerRepository(context),
+            new EfCustomerRepository(context, retryPolicy),
             assignmentRepository,
             linkRepository,
             worksheetRepository);

@@ -99,6 +99,9 @@ public sealed class UserService(
     public async Task<Result<UserListResponse>> GetByOrganizationAsync(
         int? limit,
         int? offset,
+        string? search,
+        string? sortBy,
+        string? sortDirection,
         CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
@@ -109,7 +112,7 @@ public sealed class UserService(
 
         var normalizedLimit = Math.Clamp(limit ?? 50, 1, 200);
         var normalizedOffset = Math.Max(offset ?? 0, 0);
-        var users = await repository.GetByOrganizationIdAsync(organizationId.Value, normalizedLimit, normalizedOffset, cancellationToken);
+        var users = await repository.GetByOrganizationIdAsync(organizationId.Value, normalizedLimit, normalizedOffset, search, sortBy, sortDirection, cancellationToken);
         var count = await repository.GetCountByOrganizationIdAsync(organizationId.Value, cancellationToken);
 
         var responses = users.Select(UserResponseBuilder.MapToResponse).ToList();

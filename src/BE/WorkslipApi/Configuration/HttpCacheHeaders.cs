@@ -81,6 +81,7 @@ public static class HttpCacheHeaders
         string? customerName,
         string? customerEmail,
         string? customerAddress,
+        string? search,
         string? sortBy,
         string? sortDirection,
         int? limit,
@@ -99,6 +100,8 @@ public static class HttpCacheHeaders
             .Append(customerEmail?.ToLowerInvariant() ?? "none")
             .Append(':')
             .Append(customerAddress?.ToLowerInvariant() ?? "none")
+            .Append(':')
+            .Append(search?.ToLowerInvariant() ?? "none")
             .Append(':')
             .Append(sortBy?.ToLowerInvariant() ?? "default")
             .Append(':')

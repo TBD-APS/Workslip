@@ -885,7 +885,7 @@
 .btn-icon {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2232,6 +2232,7 @@
 
   .data-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
     font-size: var(--fs-sm);
@@ -2255,17 +2256,17 @@
     cursor: default;
   }
 
-  .data-table thead th.sortable {
+  .data-table thead th.sortable.sorted {
+    color: #fff;
+  }
+
+  .data-table .sort-trigger {
     cursor: pointer;
     transition: color 0.15s;
   }
 
-  .data-table thead th.sortable:hover {
+  .data-table .sort-trigger:hover {
     color: var(--text);
-  }
-
-  .data-table thead th.sortable.sorted {
-    color: #fff;
   }
 
   .data-table thead th .sort-icon {
@@ -2284,7 +2285,7 @@
     right: 0;
     top: 0;
     bottom: 0;
-    width: 5px;
+    width: 14px;
     cursor: col-resize;
     user-select: none;
     z-index: 1;
@@ -2343,12 +2344,44 @@
   }
 
   .data-table .col-users {
-    min-width: 120px;
+    width: 150px;
   }
 
   .data-table .col-actions {
     width: 40px;
     text-align: right;
+  }
+
+  .data-table .col-name {
+    width: 22%;
+  }
+
+  .data-table .col-address {
+    width: 18%;
+  }
+
+  .data-table .col-email {
+    width: 20%;
+  }
+
+  .data-table .col-contact {
+    width: 16%;
+  }
+
+  .data-table .col-number {
+    width: 100px;
+  }
+
+  .data-table .col-installation {
+    width: 140px;
+  }
+
+  .data-table .col-role {
+    width: 150px;
+  }
+
+  .data-table .col-date {
+    width: 120px;
   }
 
   .data-table .cell-comma-list {

@@ -26,13 +26,13 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
 
   appRoles: [
     {
-      id: guid('SuperAdmin', environment)
+      id: guid('Superadmin', environment)
       allowedMemberTypes: [
         'User'
       ]
-      displayName: 'SuperAdmin'
+      displayName: 'Superadmin'
       description: 'Super administrator'
-      value: 'SuperAdmin'
+      value: 'Superadmin'
       isEnabled: true
     }
     {
@@ -53,6 +53,16 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
       displayName: 'User'
       description: 'Standard user'
       value: 'User'
+      isEnabled: true
+    }
+    {
+      id: guid('Auditor', environment)
+      allowedMemberTypes: [
+        'Auditor'
+      ]
+      displayName: 'Auditor'
+      description: 'External temporary user'
+      value: 'Auditor'
       isEnabled: true
     }
   ]

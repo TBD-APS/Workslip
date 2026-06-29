@@ -10,6 +10,7 @@ public sealed record JobQuery(Guid OrganizationId, List<JobStatus>? Statuses, in
     string? CustomerName = null, 
     string? CustomerEmail = null,
     string? CustomerAddress = null,
+    string? Search = null,
     string? SortBy = null,
     string? SortDirection = null);
 

@@ -1,21 +1,3 @@
-/**
- * Canonical role identifiers and hierarchy helpers.
- *
- * Roles are sourced from the BE (`Workslip.Infrastructure/.../UserRequestValidator`).
- * Roles may arrive as "Superadmin" (validator output) or "SuperAdmin" (direct seed)
- * — comparisons are case-insensitive and use the canonical strings below.
- *
- * Hierarchy (low → high):
- *   User        — standard user, restricted actions
- *   Auditor     — read-only access to completed reports
- *   Admin       — full app functionality (current default)
- *   Superadmin  — system admin (reserved for future use)
- *
- * Extend by adding a new entry to ROLES, ROLE_RANK, and any new helpers
- * (e.g. role-specific overrides). Permission checks live in `permissions.ts`,
- * not here.
- */
-
 export const ROLES = {
   User: 'User',
   Auditor: 'Auditor',

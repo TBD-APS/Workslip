@@ -290,6 +290,11 @@ a:hover {
 }
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-danger {
   background: var(--danger);
   color: white;

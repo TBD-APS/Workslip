@@ -28,7 +28,7 @@ var appConfigValues = {
   'Jwt:Audience': 'WorkslipClient'
   'Jwt:ExpiryMinutes': '60'
   // Authorization policies
-  'Authorization:Policies:RequireSuperAdmin': 'Superadmin'
+  'Authorization:Policies:RequireSuperadmin': 'Superadmin'
   'Authorization:Policies:RequireAdmin': 'Admin'
   'Authorization:Policies:RequireAuditor': 'Auditor'
   'Authorization:Policies:RequireReadAccess': 'User|Auditor'

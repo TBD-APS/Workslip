@@ -2368,7 +2368,7 @@ public sealed class AuditInterceptorTests
         return new EfJobRepository(
             context,
             retryPolicy,
-            new EfCustomerRepository(context),
+            new EfCustomerRepository(context, retryPolicy),
             assignmentRepository,
             linkRepository,
             worksheetRepository);

@@ -21,6 +21,7 @@ public static class JobEndpoints
             [FromQuery] string? customerName,
             [FromQuery] string? customerEmail,
             [FromQuery] string? customerAddress,
+            [FromQuery] string? search,
             [FromQuery] string? sortBy,
             [FromQuery] string? sortDirection,
             [FromQuery] int? limit,
@@ -31,9 +32,9 @@ public static class JobEndpoints
             CancellationToken cancellationToken) =>
         {
             var statusList = statuses?.ToList();
-            var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, sortBy, sortDirection, limit, offset, cancellationToken);
+            var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, cancellationToken);
             return CachedOk(result, httpContext,
-                response => HttpCacheHeaders.JobListEtag(response, currentUser.OrganizationId!.Value, statusList, reportNumber, customerName, customerEmail, customerAddress, sortBy, sortDirection, limit, offset),
+                response => HttpCacheHeaders.JobListEtag(response, currentUser.OrganizationId!.Value, statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset),
                 response => new {
                     items = response.Items.Select(JobViewModelBuilder.ToListItem).ToArray(),
                     totalCount = response.TotalCount
