@@ -683,7 +683,7 @@ function AssignedUsers({ users }: { users: JobReportSummaryViewModel['assignedUs
   return (
     <div className="report-overview-chip-list report-overview-block-gap">
       {users.map((user) => (
-        <span key={user.id} className="assigned-user report-overview-chip">
+        <span key={user.id} className="report-overview-chip">
           <User size={12} />
           <span>{user.displayName}</span>
         </span>
