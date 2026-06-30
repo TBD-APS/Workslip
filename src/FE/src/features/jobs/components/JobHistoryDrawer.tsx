@@ -1,9 +1,8 @@
 import { History, X, User, Clock, ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useGetApiJobsIdHistory } from '../../../api/generated/jobs/jobs';
-import { format } from 'date-fns';
-import { da } from 'date-fns/locale';
 import type { JobHistoryResponse } from '../../../api/generated/models';
+import { formatDateLong } from '../../../lib/formatDate';
 
 type JobHistoryDrawerProps = {
   jobId: string;
@@ -77,7 +76,7 @@ function HistoryEventItem({ event }: { event: JobHistoryResponse }) {
           </div>
           <div className="history-event-time">
             <Clock size={14} />
-            <span>{format(new Date(event.createdAt), 'd. MMM yyyy, HH:mm', { locale: da })}</span>
+            <span>{formatDateLong(event.createdAt)}</span>
           </div>
         </div>
         <div className="history-event-type-container">

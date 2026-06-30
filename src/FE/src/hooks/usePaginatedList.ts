@@ -21,6 +21,7 @@ interface UsePaginatedListReturn<TItem> {
   items: TItem[];
   totalCount: number;
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
   isFetchingNextPage: boolean;
   hasNextPage: boolean;
@@ -62,26 +63,28 @@ export function usePaginatedList<TItem>({
   storageKey,
 }: UsePaginatedListOptions<TItem>): UsePaginatedListReturn<TItem> {
   const [search, setSearch] = useState(() => getInitialState(storageKey).search);
-  const [sort, setSort] = useState(() => getInitialState(storageKey).sort);
+  const [querySearch, setQuerySearch] = useState(() => getInitialState(storageKey).search);
+  const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' }>(() => getInitialState(storageKey).sort);
   const [viewPage, setViewPage] = useState(() => getInitialState(storageKey).viewPage);
   const isDesktop = useMediaQuery('(min-width: 768px)');
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const fetchWrapped = useCallback(
     async ({ limit, offset }: { limit: number; offset: number }) => {
       const data = await fetchPage({
         limit,
         offset,
-        search: search || undefined,
+        search: querySearch || undefined,
         sortBy: sort.field || undefined,
         sortDirection: sort.direction || undefined,
       });
       return data;
     },
-    [fetchPage, search, sort],
+    [fetchPage, querySearch, sort],
   );
 
   const query = useInfiniteList<TItem>({
-    queryKey: [...queryKey, { search, sort, limit: pageSize }],
+    queryKey: [...queryKey, { search: querySearch || undefined, sort, limit: pageSize }],
     fetchPage: fetchWrapped,
     pageSize,
     enabled,
@@ -114,6 +117,16 @@ export function usePaginatedList<TItem>({
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
     setViewPage(1);
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+
+    if (value.length === 0) {
+      setQuerySearch('');
+    } else if (value.length >= 3) {
+      debounceTimerRef.current = setTimeout(() => {
+        setQuerySearch(value);
+      }, 300);
+    }
   }, []);
 
   const handleSort = useCallback(
@@ -157,6 +170,7 @@ export function usePaginatedList<TItem>({
     items,
     totalCount,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
     isError: query.isError,
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage,

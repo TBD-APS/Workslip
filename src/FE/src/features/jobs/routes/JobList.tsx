@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, MapPin, Timer, User } from 'lucide-react';
+import { ChevronRight, MapPin, Plus, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
@@ -76,6 +76,7 @@ export const JobList = () => {
     items,
     totalCount,
     isLoading,
+    isFetching,
     isError,
     isFetchingNextPage,
     refetch,
@@ -109,6 +110,8 @@ export const JobList = () => {
   }, [items, isAdmin, user?.id]);
 
   const desktopPageItems = isDesktop ? displayedJobs.slice(pageStart, pageEnd) : displayedJobs;
+  const isPageDataLoaded = items.length >= pageEnd;
+  const showPageLoading = isDesktop && isFetchingNextPage && !isPageDataLoaded;
 
   useEffect(() => {
     announceSection('mine-jobs');
@@ -141,38 +144,36 @@ export const JobList = () => {
     };
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="page-container">
-        <div className="page-header">
-          <div className="skeleton skeleton-title" />
-          <div className="skeleton skeleton-subtitle" />
-        </div>
-        <div className="job-list">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      </div>
-    );
-  }
+  const showLoadingSkeleton = isLoading && items.length === 0;
 
-  if (isError) {
-    return (
-      <div className="page-container">
-        <ErrorState message="Kunne ikke hente jobs. S\u00f8rg for at du er logget ind." onRetry={() => void refetch()} />
-      </div>
-    );
-  }
+  const isErrored = isError && items.length === 0;
 
   return (
     <div className="page-container">
+      {isFetching && <div className="data-table-loading-bar" />}
       <div className="page-header">
-        <h2>Opgaver</h2>
-        {isAdmin ? (
-          <p className="subtitle">{totalCount} registrerede opgaver</p>
+        {showLoadingSkeleton ? (
+          <>
+            <div className="skeleton skeleton-title" />
+            <div className="skeleton skeleton-subtitle" />
+          </>
         ) : (
-          <p className="subtitle">Viser kun sager tildelt dig &middot; {displayedJobs.length} {displayedJobs.length === 1 ? 'sag' : 'sager'}</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div>
+              <h2>Opgaver</h2>
+              {isAdmin ? (
+                <p className="subtitle">{totalCount} registrerede opgaver</p>
+              ) : (
+                <p className="subtitle">Viser kun sager tildelt dig &middot; {displayedJobs.length} {displayedJobs.length === 1 ? 'sag' : 'sager'}</p>
+              )}
+            </div>
+            {isDesktop && (
+              <button className="btn btn-primary" onClick={() => navigate('/app/create')} type="button">
+                <Plus size={18} />
+                <span>Ny opgave</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -194,10 +195,48 @@ export const JobList = () => {
         selected={selectedStatuses}
         onChange={handleStatusChange}
       />
-      <div className="search-row">
-        <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg opgaver..." />
-      </div>
+      <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg opgaver..." />
 
+      {isErrored ? (
+        <ErrorState message="Kunne ikke hente jobs. Sørg for at du er logget ind." onRetry={() => void refetch()} />
+      ) : showLoadingSkeleton ? (
+        isDesktop ? (
+          <>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="col-number">Sagsnr.</th>
+                <th className="col-name">Kunde</th>
+                <th className="col-address">Adresse</th>
+                <th className="col-status">Status</th>
+                <th className="col-installation">Anlæg</th>
+                <th className="col-hours">Timer</th>
+                <th className="col-users">Medarbejdere</th>
+                <th className="col-date">Rapp. dato</th>
+                <th className="col-date">Opdateret</th>
+                <th className="col-actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 10 }).map((_, j) => (
+                    <td key={j}><div className="skeleton" style={{ height: '1em', width: j === 9 ? '1.5rem' : '80%' }} /></td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </>
+        ) : (
+          <div className="job-list">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        )
+      ) : (
+        <>
       {isDesktop ? (
         <>
         <table className="data-table">
@@ -257,7 +296,16 @@ export const JobList = () => {
             </tr>
           </thead>
           <tbody>
-            {desktopPageItems.map((job) => (
+            {showPageLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={`skeleton-${i}`}>
+                  {Array.from({ length: 10 }).map((_, j) => (
+                    <td key={j}><div className="skeleton" style={{ height: '1em', width: j === 9 ? '1.5rem' : '80%' }} /></td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              desktopPageItems.map((job) => (
               <tr
                 key={job.id}
                 className="clickable"
@@ -284,7 +332,7 @@ export const JobList = () => {
                   <ChevronRight size={16} className="row-link-icon" />
                 </td>
               </tr>
-            ))}
+            )))}
           </tbody>
         </table>
         <PaginationControls
@@ -344,6 +392,8 @@ export const JobList = () => {
           />
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };
@@ -396,15 +446,11 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
   }
 
   return (
-    <div className="job-assigned">
-      {users.slice(0, 2).map((user) => (
-        <span key={user.id} className="assigned-user">
-          <User size={12} />
-          <span>{user.displayName}</span>
-        </span>
+    <span className="cell-comma-list">
+      {users.map((user) => (
+        <span key={user.id} className="cell-comma-list-item">{user.displayName}</span>
       ))}
-      {users.length > 2 && <span className="assigned-user">+{users.length - 2}</span>}
-    </div>
+    </span>
   );
 }
 

@@ -23,6 +23,7 @@ export function useInfiniteList<TItem>({
     queryKey,
     queryFn: ({ pageParam }) => fetchPage({ limit: pageSize, offset: pageParam }),
     initialPageParam: 0,
+    placeholderData: (previousData) => previousData,
     getNextPageParam: (lastPage, allPages) => {
       const loadedCount = allPages.reduce((sum, page) => sum + page.items.length, 0);
       if (loadedCount >= lastPage.totalCount) {
@@ -41,5 +42,6 @@ export function useInfiniteList<TItem>({
     items,
     totalCount,
     isLoadingMore: query.isFetchingNextPage,
+    isFetching: query.isFetching,
   };
 }

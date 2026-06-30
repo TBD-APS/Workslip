@@ -40,6 +40,7 @@ export const CustomerList = () => {
     items: customers,
     totalCount,
     isLoading,
+    isFetching,
     isError,
     isFetchingNextPage,
     refetch,
@@ -74,51 +75,79 @@ export const CustomerList = () => {
 
   const { handleMouseDown } = useColumnResize();
 
-  if (isLoading) {
-    return (
-      <div className="page-container">
-        <div className="page-header">
-          <div className="skeleton skeleton-title" />
-          <div className="skeleton skeleton-subtitle" />
-        </div>
-        <div className="job-list">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="page-container">
-        <ErrorState message="Kunne ikke hente kunder. Prøv igen." onRetry={() => void refetch()} />
-      </div>
-    );
-  }
+  const showLoadingSkeleton = isLoading && customers.length === 0;
+  const isErrored = isError && customers.length === 0;
+  const showPageLoading = isDesktop && isFetching && !showLoadingSkeleton && customers.length < safeViewPage * PAGE_SIZE;
 
   return (
     <div className="page-container">
+      {isFetching && <div className="data-table-loading-bar" />}
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-          <div>
-            <h2>Kunder</h2>
-            <p className="subtitle">{totalCount} {totalCount === 1 ? 'kunde' : 'kunder'}</p>
+        {showLoadingSkeleton ? (
+          <>
+            <div className="skeleton skeleton-title" />
+            <div className="skeleton skeleton-subtitle" />
+          </>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div>
+              <h2>Kunder</h2>
+              <p className="subtitle">{totalCount} {totalCount === 1 ? 'kunde' : 'kunder'}</p>
+            </div>
+            {isDesktop && (
+              <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
+                <Plus size={18} />
+                <span>Ny kunde</span>
+              </button>
+            )}
           </div>
-          <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
-            <Plus size={18} />
-            <span>Ny kunde</span>
-          </button>
-        </div>
+        )}
       </div>
 
       <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg kunder..." />
-      <div className="search-bar-spacer" />
 
-      {isDesktop ? (
+      {isErrored ? (
+        <ErrorState message="Kunne ikke hente kunder. Prøv igen." onRetry={() => void refetch()} />
+      ) : showLoadingSkeleton || showPageLoading ? (
+        isDesktop ? (
+          <>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="col-name">Navn</th>
+                <th className="col-address">Adresse</th>
+                <th className="col-email">Email</th>
+                <th className="col-contact">Kontakt</th>
+                <th className="col-hours">Sager</th>
+                <th className="col-actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  <td><div className="skeleton" style={{ height: '1em', width: '70%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '60%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '50%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '40%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '2rem' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '1.5rem' }} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </>
+        ) : (
+          <div className="job-list">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        )
+      ) : (
         <>
-        <table className="data-table">
+        {isDesktop ? (
+          <>
+          <table className="data-table">
           <thead>
             <tr>
               <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
@@ -291,6 +320,7 @@ export const CustomerList = () => {
           )}
         </div>
       )}
+      </>)}
 
       {ActionMenuPortal}
       {EditDialog}

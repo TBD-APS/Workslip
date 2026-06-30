@@ -1,11 +1,10 @@
 import { AlertCircle, CheckCircle2, Clock, FileCheck2, Loader2, ShieldCheck } from 'lucide-react';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
+import { formatNumber, formatUnit, parseNullableNumber, capitalize } from '../../../../lib/formatUtils';
+import { formatDateLong } from '../../../../lib/formatDate';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
-
-const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
-const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 type JobAttestationStepProps = {
   details: JobDetailsState;
@@ -172,7 +171,7 @@ export function JobAttestationStep({
                 <li key={worksheet.id} className="worksheet-list-item worksheet-list-item--detail">
                   <div className="worksheet-list-item-main worksheet-list-item-main--detail">
                     <span className="worksheet-list-item-title" title={userName}>{userName}</span>
-                    <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDate(worksheet.workDate)}</span>
+                    <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDateLong(worksheet.workDate) ?? ''}</span>
                   </div>
 
                   <div className="worksheet-list-item-meta">
@@ -326,32 +325,7 @@ function formatContact(
   return [contactPerson, phone, email].filter(hasText).join(' · ');
 }
 
-function formatNumber(value: number | string | null) {
-  const numberValue = parseNullableNumber(value);
-  return NUMBER_FORMATTER.format(numberValue);
-}
-
-function parseNullableNumber(value: number | string | null) {
-  if (value === null) return 0;
-  const numberValue = typeof value === 'number' ? value : Number(value.replace(',', '.'));
-  return Number.isFinite(numberValue) ? numberValue : 0;
-}
-
-function formatUnit(value: number, singular: string, plural: string) {
-  return Math.abs(value) === 1 ? singular : plural;
-}
-
-function formatDate(value: string) {
-  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
-  return DATE_FORMATTER.format(new Date(year, month - 1, day));
-}
-
 function formatWorkKind(workKind: { label?: string | null; customWorkKind?: string | null } | null) {
   if (!workKind) return '';
   return workKind.customWorkKind || workKind.label || '';
-}
-
-function capitalize(value: string) {
-  if (!value) return value;
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 }

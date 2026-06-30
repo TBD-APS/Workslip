@@ -49,7 +49,7 @@ type TimerOverviewState = {
 
 const TIMER_OVERVIEW_STATE_KEY = 'workslip.timerOverviewState';
 
-const MONTH_FORMATTER = new Intl.DateTimeFormat('da-DK', { month: 'long', year: 'numeric' });
+const MONTH_FORMATTER = new Intl.DateTimeFormat('da-DK', { month: 'short', year: 'numeric' });
 const DAY_FORMATTER = new Intl.DateTimeFormat('da-DK', { weekday: 'short', day: 'numeric' });
 const WEEK_RANGE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short' });
 

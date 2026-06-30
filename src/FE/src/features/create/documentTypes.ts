@@ -16,21 +16,21 @@ export interface DocumentType {
 
 export const DOCUMENT_TYPES: readonly DocumentType[] = [
   {
-    id: 'customer',
-    label: 'Kunde',
-    description: 'Opret en ny kunde.',
-    icon: Building2,
-    path: '/app/customers/new',
-    permission: 'user:manage',
-    status: 'available',
-  },
-  {
     id: 'job',
     label: 'Job',
     description: 'Opret en ny sag til en kunde.',
     icon: ClipboardList,
     path: '/app/job/new',
     permission: 'job:create',
+    status: 'available',
+  },
+  {
+    id: 'customer',
+    label: 'Kunde',
+    description: 'Opret en ny kunde.',
+    icon: Building2,
+    path: '/app/customers/new',
+    permission: 'user:manage',
     status: 'available',
   },
   {

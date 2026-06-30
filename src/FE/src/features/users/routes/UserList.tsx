@@ -38,6 +38,7 @@ export const UserList = () => {
     items: users,
     totalCount,
     isLoading,
+    isFetching,
     isError,
     isFetchingNextPage,
     refetch,
@@ -65,42 +66,66 @@ export const UserList = () => {
 
   const { handleMouseDown } = useColumnResize();
 
-  if (isLoading) {
-    return (
-      <div className="page-container">
-        <div className="page-header">
-          <div className="skeleton skeleton-title" />
-          <div className="skeleton skeleton-subtitle" />
-        </div>
-        <div className="job-list">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="page-container">
-        <ErrorState message="Kunne ikke hente brugere. Pr\u00f8v igen." onRetry={() => void refetch()} />
-      </div>
-    );
-  }
+  const showLoadingSkeleton = isLoading && users.length === 0;
+  const isErrored = isError && users.length === 0;
+  const showPageLoading = isDesktop && isFetching && !showLoadingSkeleton && users.length < safeViewPage * PAGE_SIZE;
 
   return (
     <div className="page-container">
+      {isFetching && <div className="data-table-loading-bar" />}
       <div className="page-header">
-        <h2>Folk</h2>
-        <p className="subtitle">{totalCount} {totalCount === 1 ? 'bruger' : 'brugere'}</p>
+        {showLoadingSkeleton ? (
+          <>
+            <div className="skeleton skeleton-title" />
+            <div className="skeleton skeleton-subtitle" />
+          </>
+        ) : (
+          <>
+            <h2>Folk</h2>
+            <p className="subtitle">{totalCount} {totalCount === 1 ? 'bruger' : 'brugere'}</p>
+          </>
+        )}
       </div>
 
       <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg brugere..." />
-      <div className="search-bar-spacer" />
 
-      {isDesktop ? (
+      {isErrored ? (
+        <ErrorState message="Kunne ikke hente brugere. Prøv igen." onRetry={() => void refetch()} />
+      ) : showLoadingSkeleton || showPageLoading ? (
+        isDesktop ? (
+          <>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="col-name">Navn</th>
+                <th className="col-email">Email</th>
+                <th className="col-role">Rolle</th>
+                <th className="col-actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  <td><div className="skeleton" style={{ height: '1em', width: '60%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '70%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '40%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '1.5rem' }} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </>
+        ) : (
+          <div className="job-list">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        )
+      ) : (
         <>
+        {isDesktop ? (
+          <>
         <table className="data-table">
           <thead>
             <tr>
@@ -215,6 +240,7 @@ export const UserList = () => {
           )}
         </div>
       )}
+      </>)}
     </div>
   );
 };
