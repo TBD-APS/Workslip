@@ -6,7 +6,8 @@ public interface ICustomerRepository
 {
     Task<Guid> CreateCustomerAsync(Guid organizationId, CustomerInfo customer, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<CustomerListItemResponse>> ListAsync(Guid organizationId, int limit, int offset, CancellationToken cancellationToken);
+    Task<IReadOnlyList<CustomerListItemResponse>> ListAsync(Guid organizationId, int limit, int offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken);
+    Task<int> GetCustomerCountAsync(Guid organizationId, string? search, CancellationToken cancellationToken);
 
     Task<CustomerDetailResponse?> GetByIdAsync(Guid organizationId, Guid id, CancellationToken cancellationToken);
 

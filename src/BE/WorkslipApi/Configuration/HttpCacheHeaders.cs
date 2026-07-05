@@ -74,13 +74,16 @@ public static class HttpCacheHeaders
     }
 
     public static string JobListEtag(
-        IEnumerable<JobListItemResponse> jobs,
+        JobListResponse response,
         Guid organizationId,
         List<JobStatus>? status,
         string? reportNumber,
         string? customerName,
         string? customerEmail,
         string? customerAddress,
+        string? search,
+        string? sortBy,
+        string? sortDirection,
         int? limit,
         int? offset)
     {
@@ -98,11 +101,19 @@ public static class HttpCacheHeaders
             .Append(':')
             .Append(customerAddress?.ToLowerInvariant() ?? "none")
             .Append(':')
+            .Append(search?.ToLowerInvariant() ?? "none")
+            .Append(':')
+            .Append(sortBy?.ToLowerInvariant() ?? "default")
+            .Append(':')
+            .Append(sortDirection?.ToLowerInvariant() ?? "default")
+            .Append(':')
             .Append(limit?.ToString() ?? "default")
             .Append(':')
-            .Append(offset?.ToString() ?? "default");
+            .Append(offset?.ToString() ?? "default")
+            .Append(':')
+            .Append(response.TotalCount);
 
-        foreach (var job in jobs.OrderBy(job => job.Id))
+        foreach (var job in response.Items.OrderBy(job => job.Id))
         {
             builder
                 .Append('|')

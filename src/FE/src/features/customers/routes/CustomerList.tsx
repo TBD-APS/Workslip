@@ -1,12 +1,13 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Building2, ChevronRight, Mail, Plus, Users, MapPin, MoreHorizontal, Phone } from 'lucide-react';
+import { Building2, ChevronRight, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
+import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
-import { useInfiniteList } from '../../../hooks/useInfiniteList';
-import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
-import { useSearch } from '../../../hooks/useSearch';
+import { PaginationControls } from '../../../components/pagination/PaginationControls';
+import { usePaginatedList } from '../../../hooks/usePaginatedList';
+import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useCustomerActions } from '../components/CustomerActions';
 
@@ -24,34 +25,42 @@ const SkeletonCard = () => (
 
 export const CustomerList = () => {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
 
   const fetchCustomersPage = useCallback(
-    async ({ limit, offset }: { limit: number; offset: number }) =>
-      (await apiClient.get('/api/customers', {
-        params: { limit, offset },
-      })) as CustomerListItemViewModel[],
+    async ({ limit, offset, search, sortBy, sortDirection }: { limit: number; offset: number; search?: string; sortBy?: string; sortDirection?: string }) => {
+      const data = await apiClient.get('/api/customers', {
+        params: { limit, offset, search, sortBy, sortDirection },
+      }) as { items: CustomerListItemViewModel[]; totalCount: number };
+      return data;
+    },
     [],
   );
 
-  const query = useInfiniteList({
-    queryKey: ['/api/customers', { limit: PAGE_SIZE }],
+  const {
+    items: customers,
+    totalCount,
+    isLoading,
+    isFetching,
+    isError,
+    isFetchingNextPage,
+    refetch,
+    search,
+    handleSearchChange,
+    sortBy,
+    sortDirection,
+    handleSort,
+    setViewPage,
+    totalPages,
+    safeViewPage,
+    pageItems,
+    sentinelRef,
+    isDesktop,
+  } = usePaginatedList<CustomerListItemViewModel>({
+    queryKey: ['/api/customers'],
     fetchPage: fetchCustomersPage,
     pageSize: PAGE_SIZE,
+    storageKey: 'customers',
   });
-
-  const { sentinelRef } = useInfiniteScroll({
-    onReachEnd: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
-        void query.fetchNextPage();
-      }
-    },
-    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
-  });
-
-  const customers = useSearch(query.items, search, (customer, term) =>
-    [customer.name, customer.address, customer.email, customer.contactPerson, customer.phone].some((value) => value?.toLowerCase().includes(term)),
-  );
 
   const {
     toggleActionMenu,
@@ -64,136 +73,254 @@ export const CustomerList = () => {
     onEditCustomer: (customer) => navigate(`/app/customers/${customer.id}/edit`),
   });
 
-  if (query.isLoading) {
-    return (
-      <div className="page-container">
-        <div className="page-header">
-          <div className="skeleton skeleton-title" />
-          <div className="skeleton skeleton-subtitle" />
-        </div>
-        <div className="job-list">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      </div>
-    );
-  }
+  const { handleMouseDown } = useColumnResize();
 
-  if (query.isError) {
-    return (
-      <div className="page-container">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente kunder. Prøv igen.</p>
-          <button className="btn btn-primary" onClick={() => void query.refetch()}>
-            Prøv igen
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const showLoadingSkeleton = isLoading && customers.length === 0;
+  const isErrored = isError && customers.length === 0;
+  const showPageLoading = isDesktop && isFetching && !showLoadingSkeleton && customers.length < safeViewPage * PAGE_SIZE;
 
   return (
     <div className="page-container">
+      {isFetching && <div className="data-table-loading-bar" />}
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-          <div>
-            <h2>Kunder</h2>
-            <p className="subtitle">{customers.length} {customers.length === 1 ? 'kunde' : 'kunder'}</p>
-          </div>
-          <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
-            <Plus size={18} />
-            <span>Ny kunde</span>
-          </button>
-        </div>
-      </div>
-
-      <SearchBar value={search} onChange={setSearch} placeholder="Søg kunder..." />
-      <div className="search-bar-spacer" />
-
-      <div className="job-list">
-        {customers.map((customer) => (
-          <div key={customer.id} className="job-card-wrapper">
-            <button
-              className="job-card"
-              onClick={() => navigate(`/app/customers/${customer.id}`)}
-              type="button"
-            >
-              <div className="job-card-top job-card-top-center">
-                <Building2 size={20} className="customer-icon" />
-                <h3 className="customer-name">{customer.name}</h3>
-              </div>
-
-              <div className="job-card-body">
-                <span className="meta-item customer-job-count">
-                   {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
-                </span>
-                {customer.address && (
-                  <span className="meta-item">
-                    <MapPin size={14} />
-                    <span>{customer.address}</span>
-                  </span>
-                )}
-                {customer.email && (
-                  <span className="meta-item">
-                    <Mail size={14} />
-                    <span>{customer.email}</span>
-                  </span>
-                )}
-                {customer.contactPerson && (
-                  <span className="meta-item">
-                    <Users size={14} />
-                    <span>{customer.contactPerson}</span>
-                  </span>
-                )}
-                {customer.phone && (
-                  <span className="meta-item">
-                    <Phone size={14} />
-                    <span>{customer.phone}</span>
-                  </span>
-                )}
-              </div>
-
-              <div className="job-card-footer">
-                <span />
-                <span className="btn-icon" aria-label="Se kunde">
-                  <ChevronRight size={20} />
-                </span>
-              </div>
-            </button>
-
-            <div className="worksheet-actions-menu-root customer-actions-anchor">
-              <button
-                type="button"
-                className="btn-icon customer-actions-btn"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggleActionMenu(event, customer.id);
-                }}
-                aria-label="Åbn handlinger for kunde"
-                aria-expanded={openActionMenu?.customerId === customer.id}
-                title="Handlinger"
-              >
-                <MoreHorizontal size={18} />
-              </button>
+        {showLoadingSkeleton ? (
+          <>
+            <div className="skeleton skeleton-title" />
+            <div className="skeleton skeleton-subtitle" />
+          </>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div>
+              <h2>Kunder</h2>
+              <p className="subtitle">{totalCount} {totalCount === 1 ? 'kunde' : 'kunder'}</p>
             </div>
-
-
-          </div>
-        ))}
-
-        {customers.length === 0 && !query.isFetchingNextPage && (
-          <div className="empty-state">
-            <p>Ingen kunder fundet.</p>
+            {isDesktop && (
+              <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
+                <Plus size={18} />
+                <span>Ny kunde</span>
+              </button>
+            )}
           </div>
         )}
-
-        <InfiniteScrollSentinel
-          sentinelRef={sentinelRef}
-          isLoading={query.isFetchingNextPage}
-        />
       </div>
+
+      <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg kunder..." />
+
+      {isErrored ? (
+        <ErrorState message="Kunne ikke hente kunder. Prøv igen." onRetry={() => void refetch()} />
+      ) : showLoadingSkeleton || showPageLoading ? (
+        isDesktop ? (
+          <>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="col-name">Navn</th>
+                <th className="col-address">Adresse</th>
+                <th className="col-email">Email</th>
+                <th className="col-contact">Kontakt</th>
+                <th className="col-hours">Sager</th>
+                <th className="col-actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  <td><div className="skeleton" style={{ height: '1em', width: '70%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '60%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '50%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '40%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '2rem' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '1.5rem' }} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </>
+        ) : (
+          <div className="job-list">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        )
+      ) : (
+        <>
+        {isDesktop ? (
+          <>
+          <table className="data-table">
+          <thead>
+            <tr>
+              <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('name')}>
+                  Navn<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
+              </th>
+              <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('address')}>
+                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
+              </th>
+              <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('email')}>
+                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
+              </th>
+              <th className={`col-contact sortable${sortBy === 'contactPerson' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('contactPerson')}>
+                  Kontakt<span className="sort-icon">{sortBy === 'contactPerson' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
+              </th>
+              <th className={`col-hours sortable${sortBy === 'jobCount' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('jobCount')}>
+                  Sager<span className="sort-icon">{sortBy === 'jobCount' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
+              </th>
+              <th className="col-actions">
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageItems.map((customer) => (
+              <tr
+                key={customer.id}
+                className="clickable"
+                onClick={() => navigate(`/app/customers/${customer.id}`)}
+              >
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Building2 size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    <span>{customer.name}</span>
+                  </div>
+                </td>
+                <td>{customer.address || '\u2014'}</td>
+                <td>{customer.email || '\u2014'}</td>
+                <td>{customer.contactPerson || '\u2014'}</td>
+                <td className="cell-number">{customer.jobCount}</td>
+                <td className="col-actions">
+                  <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      style={{ opacity: 0.5 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleActionMenu(e, customer.id);
+                      }}
+                      aria-label="Handlinger"
+                      title="Handlinger"
+                    >
+                      <MoreHorizontal size={16} />
+                    </button>
+                    <ChevronRight size={16} className="row-link-icon" />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <PaginationControls
+          page={safeViewPage}
+          totalCount={totalCount}
+          pageSize={PAGE_SIZE}
+          onPrev={() => setViewPage((p) => Math.max(1, p - 1))}
+          onNext={() => {
+            const nextPage = safeViewPage + 1;
+            if (nextPage > totalPages) return;
+            setViewPage(nextPage);
+          }}
+        />
+        </>
+      ) : (
+        <div className="job-list">
+          {pageItems.map((customer) => (
+            <div key={customer.id} className="job-card-wrapper">
+              <button
+                className="job-card"
+                onClick={() => navigate(`/app/customers/${customer.id}`)}
+                type="button"
+              >
+                <div className="job-card-top job-card-top-center">
+                  <Building2 size={20} className="customer-icon" />
+                  <h3 className="customer-name">{customer.name}</h3>
+                </div>
+
+                <div className="job-card-body">
+                  <span className="meta-item customer-job-count">
+                     {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
+                  </span>
+                  {customer.address && (
+                    <span className="meta-item">
+                      <MapPin size={14} />
+                      <span>{customer.address}</span>
+                    </span>
+                  )}
+                  {customer.email && (
+                    <span className="meta-item">
+                      <Mail size={14} />
+                      <span>{customer.email}</span>
+                    </span>
+                  )}
+                  {customer.contactPerson && (
+                    <span className="meta-item">
+                      <Users size={14} />
+                      <span>{customer.contactPerson}</span>
+                    </span>
+                  )}
+                  {customer.phone && (
+                    <span className="meta-item">
+                      <Phone size={14} />
+                      <span>{customer.phone}</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="job-card-footer">
+                  <span />
+                  <span className="btn-icon" aria-label="Se kunde">
+                    <ChevronRight size={20} />
+                  </span>
+                </div>
+              </button>
+
+              <div className="worksheet-actions-menu-root customer-actions-anchor">
+                <button
+                  type="button"
+                  className="btn-icon customer-actions-btn"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleActionMenu(event, customer.id);
+                  }}
+                  aria-label="\u00c5bn handlinger for kunde"
+                  aria-expanded={openActionMenu?.customerId === customer.id}
+                  title="Handlinger"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {customers.length === 0 && !isFetchingNextPage && (
+            <div className="empty-state">
+              <p>Ingen kunder fundet.</p>
+            </div>
+          )}
+
+          {!isDesktop && (
+            <InfiniteScrollSentinel
+              sentinelRef={sentinelRef}
+              isLoading={isFetchingNextPage}
+            />
+          )}
+        </div>
+      )}
+      </>)}
 
       {ActionMenuPortal}
       {EditDialog}

@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ChevronRight, Mail, Shield } from 'lucide-react';
+import { ChevronRight, Mail, Shield } from 'lucide-react';
 import { type UserListViewModel, type UserViewModel } from '../../../api/generated/models';
+import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { announceSection } from '../../../components/filters/StatusFilter';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
-import { useInfiniteList } from '../../../hooks/useInfiniteList';
-import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
-import { useSearch } from '../../../hooks/useSearch';
+import { PaginationControls } from '../../../components/pagination/PaginationControls';
+import { usePaginatedList } from '../../../hooks/usePaginatedList';
+import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 
 const PAGE_SIZE = 20;
@@ -24,124 +25,222 @@ const SkeletonCard = () => (
 
 export const UserList = () => {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
 
-  const fetchUsersPage = useCallback(async ({ limit, offset }: { limit: number; offset: number }) => {
+  const fetchUsersPage = useCallback(async ({ limit, offset, search, sortBy, sortDirection }: { limit: number; offset: number; search?: string; sortBy?: string; sortDirection?: string }) => {
     const response = (await apiClient.get('/api/users', {
-      params: { limit, offset },
+      params: { limit, offset, search, sortBy, sortDirection },
     })) as UserListViewModel;
 
-    return response.users;
+    return { items: response.users, totalCount: Number(response.total) };
   }, []);
 
-  const query = useInfiniteList<UserViewModel>({
-    queryKey: ['/api/users', 'list', { limit: PAGE_SIZE }],
+  const {
+    items: users,
+    totalCount,
+    isLoading,
+    isFetching,
+    isError,
+    isFetchingNextPage,
+    refetch,
+    search,
+    handleSearchChange,
+    sortBy,
+    sortDirection,
+    handleSort,
+    setViewPage,
+    totalPages,
+    safeViewPage,
+    pageItems,
+    sentinelRef,
+    isDesktop,
+  } = usePaginatedList<UserViewModel>({
+    queryKey: ['/api/users', 'list'],
     fetchPage: fetchUsersPage,
     pageSize: PAGE_SIZE,
+    storageKey: 'users',
   });
-
-  const { sentinelRef } = useInfiniteScroll({
-    onReachEnd: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
-        void query.fetchNextPage();
-      }
-    },
-    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
-  });
-
-  const users = useSearch(query.items, search, (user, term) =>
-    [user.displayName, user.email, user.phone, user.role].some((value) => value?.toLowerCase().includes(term)),
-  ) ?? [];
 
   useEffect(() => {
     announceSection('users');
   }, []);
 
-  if (query.isLoading) {
-    return (
-      <div className="page-container">
-        <div className="page-header">
-          <div className="skeleton skeleton-title" />
-          <div className="skeleton skeleton-subtitle" />
-        </div>
-        <div className="job-list">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      </div>
-    );
-  }
+  const { handleMouseDown } = useColumnResize();
 
-  if (query.isError) {
-    return (
-      <div className="page-container">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente brugere. Prøv igen.</p>
-          <button className="btn btn-primary" onClick={() => void query.refetch()}>
-            Prøv igen
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const showLoadingSkeleton = isLoading && users.length === 0;
+  const isErrored = isError && users.length === 0;
+  const showPageLoading = isDesktop && isFetching && !showLoadingSkeleton && users.length < safeViewPage * PAGE_SIZE;
 
   return (
     <div className="page-container">
+      {isFetching && <div className="data-table-loading-bar" />}
       <div className="page-header">
-        <h2>Folk</h2>
-        <p className="subtitle">{users.length} {users.length === 1 ? 'bruger' : 'brugere'}</p>
-      </div>
-
-      <SearchBar value={search} onChange={setSearch} placeholder="Søg brugere..." />
-      <div className="search-bar-spacer" />
-
-      <div className="job-list">
-        {users.map((user) => (
-          <button
-            key={user.id}
-            className="job-card"
-            onClick={() => navigate(`/app/users/${user.id}`)}
-            type="button"
-          >
-            <div className="job-card-top">
-              <div>
-                <h3 className="job-customer">{user.displayName}</h3>
-              </div>
-            </div>
-
-            <div className="job-card-meta">
-              <span className="meta-item">
-                <Mail size={14} />
-                <span>{user.email}</span>
-              </span>
-              <span className="meta-item">
-                <Shield size={14} />
-                <span>{user.role}</span>
-              </span>
-            </div>
-
-            <div className="job-card-footer">
-              <span />
-              <span className="btn-icon" aria-label="Se bruger">
-                <ChevronRight size={20} />
-              </span>
-            </div>
-          </button>
-        ))}
-
-        {users.length === 0 && !query.isFetchingNextPage && (
-          <div className="empty-state">
-            <p>Ingen brugere fundet.</p>
-          </div>
+        {showLoadingSkeleton ? (
+          <>
+            <div className="skeleton skeleton-title" />
+            <div className="skeleton skeleton-subtitle" />
+          </>
+        ) : (
+          <>
+            <h2>Folk</h2>
+            <p className="subtitle">{totalCount} {totalCount === 1 ? 'bruger' : 'brugere'}</p>
+          </>
         )}
-
-        <InfiniteScrollSentinel
-          sentinelRef={sentinelRef}
-          isLoading={query.isFetchingNextPage}
-        />
       </div>
+
+      <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg brugere..." />
+
+      {isErrored ? (
+        <ErrorState message="Kunne ikke hente brugere. Prøv igen." onRetry={() => void refetch()} />
+      ) : showLoadingSkeleton || showPageLoading ? (
+        isDesktop ? (
+          <>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="col-name">Navn</th>
+                <th className="col-email">Email</th>
+                <th className="col-role">Rolle</th>
+                <th className="col-actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  <td><div className="skeleton" style={{ height: '1em', width: '60%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '70%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '40%' }} /></td>
+                  <td><div className="skeleton" style={{ height: '1em', width: '1.5rem' }} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </>
+        ) : (
+          <div className="job-list">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        )
+      ) : (
+        <>
+        {isDesktop ? (
+          <>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th className={`col-name sortable${sortBy === 'displayName' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('displayName')}>
+                  Navn<span className="sort-icon">{sortBy === 'displayName' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
+              </th>
+              <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('email')}>
+                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
+              </th>
+              <th className={`col-role sortable${sortBy === 'role' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('role')}>
+                  Rolle<span className="sort-icon">{sortBy === 'role' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
+              </th>
+              <th className="col-actions">
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageItems.map((user) => (
+              <tr
+                key={user.id}
+                className="clickable"
+                onClick={() => navigate(`/app/users/${user.id}`)}
+              >
+                <td><strong>{user.displayName}</strong></td>
+                <td>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Mail size={14} style={{ color: 'var(--text-muted)' }} />
+                    {user.email}
+                  </span>
+                </td>
+                <td>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Shield size={14} style={{ color: 'var(--text-muted)' }} />
+                    {user.role}
+                  </span>
+                </td>
+                <td className="col-actions">
+                  <ChevronRight size={16} className="row-link-icon" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <PaginationControls
+          page={safeViewPage}
+          totalCount={totalCount}
+          pageSize={PAGE_SIZE}
+          onPrev={() => setViewPage((p) => Math.max(1, p - 1))}
+          onNext={() => {
+            const nextPage = safeViewPage + 1;
+            if (nextPage > totalPages) return;
+            setViewPage(nextPage);
+          }}
+        />
+        </>
+      ) : (
+        <div className="job-list">
+          {pageItems.map((user) => (
+            <button
+              key={user.id}
+              className="job-card"
+              onClick={() => navigate(`/app/users/${user.id}`)}
+              type="button"
+            >
+              <div className="job-card-top">
+                <div>
+                  <h3 className="job-customer">{user.displayName}</h3>
+                </div>
+              </div>
+
+              <div className="job-card-meta">
+                <span className="meta-item">
+                  <Mail size={14} />
+                  <span>{user.email}</span>
+                </span>
+                <span className="meta-item">
+                  <Shield size={14} />
+                  <span>{user.role}</span>
+                </span>
+              </div>
+
+              <div className="job-card-footer">
+                <span />
+                <span className="btn-icon" aria-label="Se bruger">
+                  <ChevronRight size={20} />
+                </span>
+              </div>
+            </button>
+          ))}
+
+          {users.length === 0 && !isFetchingNextPage && (
+            <div className="empty-state">
+              <p>Ingen brugere fundet.</p>
+            </div>
+          )}
+
+          {!isDesktop && (
+            <InfiniteScrollSentinel
+              sentinelRef={sentinelRef}
+              isLoading={isFetchingNextPage}
+            />
+          )}
+        </div>
+      )}
+      </>)}
     </div>
   );
 };

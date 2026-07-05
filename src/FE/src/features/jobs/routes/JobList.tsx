@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ChevronRight, MapPin, Timer, User } from 'lucide-react';
+import { ChevronRight, MapPin, Plus, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
-import { useInfiniteList } from '../../../hooks/useInfiniteList';
-import { useInfiniteScroll } from '../../../hooks/useInfiniteScroll';
-import { useSearch } from '../../../hooks/useSearch';
+import { PaginationControls } from '../../../components/pagination/PaginationControls';
+import { usePaginatedList } from '../../../hooks/usePaginatedList';
+import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useAuth } from '../../../providers/useAuth';
+import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
+import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
-import { getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-shell';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
@@ -43,78 +43,75 @@ const SkeletonCard = () => (
 
 export const JobList = () => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const [search, setSearch] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() =>
     getSavedStatusFilter('mine-jobs', [JobStatus.Draft]),
   );
+  const { handleMouseDown } = useColumnResize();
 
-  const fetchStatuses = useMemo(
-    () =>
-      isAdmin
-        ? [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected]
-        : [JobStatus.Draft, JobStatus.InReview, JobStatus.Approved],
-    [isAdmin],
-  );
+  const handleStatusChange = useCallback((statuses: JobStatus[]) => {
+    setSelectedStatuses(statuses);
+    saveStatusFilter('mine-jobs', statuses);
+  }, []);
 
   const fetchJobsPage = useCallback(
-    async ({ limit, offset }: { limit: number; offset: number }) =>
-      (await apiClient.get('/api/jobs', {
+    async ({ limit, offset, search, sortBy, sortDirection }: { limit: number; offset: number; search?: string; sortBy?: string; sortDirection?: string }) => {
+      const data = await apiClient.get('/api/jobs', {
         params: {
-          status: fetchStatuses,
+          status: selectedStatuses,
+          search: search || undefined,
+          sortBy: sortBy || undefined,
+          sortDirection: sortDirection || undefined,
           limit,
           offset,
         },
-      })) as JobListItemViewModel[],
-    [fetchStatuses],
+      }) as { items: JobListItemViewModel[]; totalCount: number };
+      return data;
+    },
+    [selectedStatuses],
   );
 
-  const query = useInfiniteList({
-    queryKey: ['/api/jobs', { status: fetchStatuses, limit: PAGE_SIZE }],
+  const {
+    items,
+    totalCount,
+    isLoading,
+    isFetching,
+    isError,
+    isFetchingNextPage,
+    refetch,
+    search,
+    handleSearchChange,
+    sortBy,
+    sortDirection,
+    handleSort,
+    setViewPage,
+    totalPages,
+    safeViewPage,
+    pageStart,
+    pageEnd,
+    sentinelRef,
+    isDesktop,
+  } = usePaginatedList<JobListItemViewModel>({
+    queryKey: ['/api/jobs', { status: selectedStatuses }],
     fetchPage: fetchJobsPage,
     pageSize: PAGE_SIZE,
+    storageKey: 'jobs',
   });
 
-  const { sentinelRef } = useInfiniteScroll({
-    onReachEnd: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
-        void query.fetchNextPage();
-      }
-    },
-    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
-  });
-
-  const filtered = useMemo(() => {
-    let result = query.items;
-
+  const displayedJobs = useMemo(() => {
+    let result = items;
     if (!isAdmin) {
       const currentUserId = user?.id;
       if (!currentUserId) return [];
-      result = result.filter((job) => job.assignedUsers.some((assignedUser) => assignedUser.id === currentUserId));
+      result = result.filter((job) => job.assignedUsers.some((au) => au.id === currentUserId));
     }
-
-    result = result.filter((job) => selectedStatuses.includes(job.status));
-
     return result;
-  }, [query.items, isAdmin, user?.id, selectedStatuses]);
+  }, [items, isAdmin, user?.id]);
 
-  const jobs = useSearch(filtered, search, (job, term) =>
-    [
-      job.customer?.name,
-      job.customer?.address,
-      job.customer?.email,
-      job.customer?.contactPerson,
-      job.customer?.phone,
-      job.reportNumber,
-      ...job.assignedUsers.map((assignedUser) => assignedUser.displayName),
-    ].some((value) => value?.toLowerCase().includes(term)),
-  );
-
-  useEffect(() => {
-    saveStatusFilter('mine-jobs', selectedStatuses);
-  }, [selectedStatuses]);
+  const desktopPageItems = isDesktop ? displayedJobs.slice(pageStart, pageEnd) : displayedJobs;
+  const isPageDataLoaded = items.length >= pageEnd;
+  const showPageLoading = isDesktop && isFetchingNextPage && !isPageDataLoaded;
 
   useEffect(() => {
     announceSection('mine-jobs');
@@ -131,16 +128,12 @@ export const JobList = () => {
   }, []);
 
   useEffect(() => {
-    void queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-  }, [queryClient]);
-
-  useEffect(() => {
-    if (query.isLoading) return;
+    if (isLoading) return;
     const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY);
     if (saved) {
       getScrollContainer()?.scrollTo({ top: Number(saved) });
     }
-  }, [query.isLoading]);
+  }, [isLoading]);
 
   useEffect(() => {
     return () => {
@@ -151,44 +144,36 @@ export const JobList = () => {
     };
   }, []);
 
-  if (query.isLoading) {
-    return (
-      <div className="page-container">
-        <div className="page-header">
-          <div className="skeleton skeleton-title" />
-          <div className="skeleton skeleton-subtitle" />
-        </div>
-        <div className="job-list">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      </div>
-    );
-  }
+  const showLoadingSkeleton = isLoading && items.length === 0;
 
-  if (query.isError) {
-    return (
-      <div className="page-container">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente jobs. Sørg for at du er logget ind.</p>
-          <button className="btn btn-primary" onClick={() => void query.refetch()}>
-            Prøv igen
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const isErrored = isError && items.length === 0;
 
   return (
     <div className="page-container">
+      {isFetching && <div className="data-table-loading-bar" />}
       <div className="page-header">
-        <h2>Opgaver</h2>
-        {isAdmin ? (
-          <p className="subtitle">{jobs.length} registrerede opgaver</p>
+        {showLoadingSkeleton ? (
+          <>
+            <div className="skeleton skeleton-title" />
+            <div className="skeleton skeleton-subtitle" />
+          </>
         ) : (
-          <p className="subtitle">Viser kun sager tildelt dig · {jobs.length} {jobs.length === 1 ? 'sag' : 'sager'}</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div>
+              <h2>Opgaver</h2>
+              {isAdmin ? (
+                <p className="subtitle">{totalCount} registrerede opgaver</p>
+              ) : (
+                <p className="subtitle">Viser kun sager tildelt dig &middot; {displayedJobs.length} {displayedJobs.length === 1 ? 'sag' : 'sager'}</p>
+              )}
+            </div>
+            {isDesktop && (
+              <button className="btn btn-primary" onClick={() => navigate('/app/create')} type="button">
+                <Plus size={18} />
+                <span>Ny opgave</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -208,28 +193,207 @@ export const JobList = () => {
               ]
         }
         selected={selectedStatuses}
-        onChange={setSelectedStatuses}
+        onChange={handleStatusChange}
       />
+      <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg opgaver..." />
 
-      <SearchBar value={search} onChange={setSearch} placeholder="Søg opgaver..." />
-      <div className="search-bar-spacer" />
+      {isErrored ? (
+        <ErrorState message="Kunne ikke hente jobs. Sørg for at du er logget ind." onRetry={() => void refetch()} />
+      ) : showLoadingSkeleton ? (
+        isDesktop ? (
+          <>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="col-number">Sagsnr.</th>
+                <th className="col-name">Kunde</th>
+                <th className="col-address">Adresse</th>
+                <th className="col-status">Status</th>
+                <th className="col-installation">Anlæg</th>
+                <th className="col-hours">Timer</th>
+                <th className="col-users">Medarbejdere</th>
+                <th className="col-date">Rapp. dato</th>
+                <th className="col-date">Opdateret</th>
+                <th className="col-actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 10 }).map((_, j) => (
+                    <td key={j}><div className="skeleton" style={{ height: '1em', width: j === 9 ? '1.5rem' : '80%' }} /></td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </>
+        ) : (
+          <div className="job-list">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        )
+      ) : (
+        <>
+      {isDesktop ? (
+        <>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th className={`col-number sortable${sortBy === 'reportNumber' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('reportNumber')}>
+                  Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
+              </th>
+              <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('name')}>
+                  Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
+              </th>
+              <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('address')}>
+                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
+              </th>
+              <th className="col-status">
+                Status
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
+              </th>
+              <th className="col-installation">
+                Anlæg
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
+              </th>
+              <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('totalHours')}>
+                  Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
+              </th>
+              <th className="col-users">
+                Medarbejdere
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
+              </th>
+              <th className={`col-date sortable${sortBy === 'reportDate' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('reportDate')}>
+                  Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
+              </th>
+              <th className={`col-date sortable${sortBy === 'updatedAt' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('updatedAt')}>
+                  Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(8, e)} />
+              </th>
+              <th className="col-actions">
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(9, e)} />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {showPageLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={`skeleton-${i}`}>
+                  {Array.from({ length: 10 }).map((_, j) => (
+                    <td key={j}><div className="skeleton" style={{ height: '1em', width: j === 9 ? '1.5rem' : '80%' }} /></td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              desktopPageItems.map((job) => (
+              <tr
+                key={job.id}
+                className="clickable"
+                onClick={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })}
+              >
+                <td><span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span></td>
+                <td>{job.customer?.name || 'Ukendt kunde'}</td>
+                <td>{job.customer?.address || '\u2014'}</td>
+                <td>
+                  <span className={`status-badge-cell cell-status-${job.status}`}>
+                    {formatJobStatus(job.status)}
+                  </span>
+                </td>
+                <td>
+                  <InstallationTypeTags types={job.installationTypes} />
+                </td>
+                <td className="cell-number">{job.totalHours != null ? `${job.totalHours}` : '\u2014'}</td>
+                <td>
+                  <TableAssignedUsers users={job.assignedUsers} />
+                </td>
+                <td className="cell-date">{formatDateLong(job.reportDate) ?? '\u2014'}</td>
+                <td className="cell-date">{formatDateLong(job.updatedAt) ?? '\u2014'}</td>
+                <td className="col-actions">
+                  <ChevronRight size={16} className="row-link-icon" />
+                </td>
+              </tr>
+            )))}
+          </tbody>
+        </table>
+        <PaginationControls
+          page={safeViewPage}
+          totalCount={totalCount}
+          pageSize={PAGE_SIZE}
+          onPrev={() => setViewPage((p) => Math.max(1, p - 1))}
+          onNext={() => {
+            const nextPage = safeViewPage + 1;
+            if (nextPage > totalPages) return;
+            setViewPage(nextPage);
+          }}
+        />
+        </>
+      ) : (
+        <div className="job-sort-controls">
+          <span className="sort-label">Sorter:</span>
+          <button
+            type="button"
+            className={`sort-btn${sortBy === 'reportNumber' ? ' active' : ''}`}
+            onClick={() => handleSort('reportNumber')}
+          >
+            Sagsnr.{sortBy === 'reportNumber' && (sortDirection === 'asc' ? <>&nbsp;\u2191</> : <>&nbsp;\u2193</>)}
+          </button>
+          <button
+            type="button"
+            className={`sort-btn${sortBy === 'name' ? ' active' : ''}`}
+            onClick={() => handleSort('name')}
+          >
+            Kundenavn{sortBy === 'name' && (sortDirection === 'asc' ? <>&nbsp;\u2191</> : <>&nbsp;\u2193</>)}
+          </button>
+          <button
+            type="button"
+            className={`sort-btn${sortBy === 'address' ? ' active' : ''}`}
+            onClick={() => handleSort('address')}
+          >
+            Adresse{sortBy === 'address' && (sortDirection === 'asc' ? <>&nbsp;\u2191</> : <>&nbsp;\u2193</>)}
+          </button>
+        </div>
+      )}
 
       <div className="job-list">
-        {jobs.map((job) => (
+        {!isDesktop && desktopPageItems.map((job) => (
           <JobCard key={job.id} job={job} onOpen={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })} />
         ))}
 
-        {jobs.length === 0 && !query.isFetchingNextPage && (
+        {displayedJobs.length === 0 && !isFetchingNextPage && (
           <div className="empty-state">
             <p>{isAdmin ? 'Du har ingen opgaver endnu.' : 'Du har ingen opgaver tildelt endnu.'}</p>
           </div>
         )}
 
-        <InfiniteScrollSentinel
-          sentinelRef={sentinelRef}
-          isLoading={query.isFetchingNextPage}
-        />
+        {!isDesktop && (
+          <InfiniteScrollSentinel
+            sentinelRef={sentinelRef}
+            isLoading={isFetchingNextPage}
+          />
+        )}
       </div>
+      </>
+      )}
     </div>
   );
 };
@@ -253,7 +417,7 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
       </p>
 
       <div className="job-card-meta">
-        <span className="meta-item">{formatInstallationTypes(job.installationTypes)}</span>
+        <span className="meta-item"><InstallationTypeTags types={job.installationTypes} /></span>
         {job.totalHours != null && (
           <span className="meta-item meta-hours">
             <Timer size={14} /> {job.totalHours} 
@@ -263,7 +427,7 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
 
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="Åbn sag">
+        <span className="btn-icon" aria-label="\u00c5bn sag">
           <ChevronRight size={20} />
         </span>
       </div>
@@ -282,20 +446,35 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
   }
 
   return (
-    <div className="job-assigned">
-      {users.slice(0, 2).map((user) => (
-        <span key={user.id} className="assigned-user">
-          <User size={12} />
-          <span>{user.displayName}</span>
-        </span>
+    <span className="cell-comma-list">
+      {users.map((user) => (
+        <span key={user.id} className="cell-comma-list-item">{user.displayName}</span>
       ))}
-      {users.length > 2 && <span className="assigned-user">+{users.length - 2}</span>}
-    </div>
+    </span>
   );
 }
 
-function formatInstallationTypes(installationTypes: string[]) {
-  if (installationTypes.length === 0) return 'Ingen installationstype';
-  if (installationTypes.length === 1) return installationTypes[0];
-  return `${installationTypes[0]} +${installationTypes.length - 1}`;
+function TableAssignedUsers({ users }: { users: AssignedUserResponse[] }) {
+  if (users.length === 0) {
+    return <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-xs)' }}>\u2014</span>;
+  }
+
+  return (
+    <span className="cell-comma-list">
+      {users.map((user) => (
+        <span key={user.id} className="cell-comma-list-item">{user.displayName}</span>
+      ))}
+    </span>
+  );
+}
+
+function InstallationTypeTags({ types }: { types: string[] }) {
+  if (types.length === 0) return <span style={{ color: 'var(--text-muted)' }}>\u2014</span>;
+  return (
+    <span className="cell-comma-list">
+      {types.map((type) => (
+        <span key={type} className="cell-comma-list-item">{type}</span>
+      ))}
+    </span>
+  );
 }

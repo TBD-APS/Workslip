@@ -1,14 +1,12 @@
 using Ardalis.Result;
 using FluentValidation;
 using FluentValidation.Results;
-using Microsoft.AspNetCore.SignalR.Protocol;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
 using Workslip.Domain;
-using Workslip.Domain.Models;
 
 namespace Workslip.Application.Jobs;
 
@@ -101,12 +99,15 @@ public sealed class JobService(
 
     }
 
-    public async Task<Result<IReadOnlyList<JobListItemResponse>>> ListAsync(
+    public async Task<Result<JobListResponse>> ListAsync(
         List<JobStatus>? statuses,
         string? reportNumber,
         string? customerName,
         string? customerEmail,
         string? customerAddress,
+        string? search,
+        string? sortBy,
+        string? sortDirection,
         int? limit,
         int? offset,
         CancellationToken cancellationToken)
@@ -114,27 +115,27 @@ public sealed class JobService(
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            return Result<IReadOnlyList<JobListItemResponse>>.Unauthorized();
+            return Result<JobListResponse>.Unauthorized();
         }
 
-        var searchErrors = ValidateSearchFilters(reportNumber, customerName, customerEmail, customerAddress);
+        var searchErrors = ValidateSearchFilters(reportNumber, customerName, customerEmail, customerAddress, search);
         if (searchErrors.Count > 0)
         {
-            return Result<IReadOnlyList<JobListItemResponse>>.Invalid(searchErrors);
+            return Result<JobListResponse>.Invalid(searchErrors);
         }
 
-        var query = BuildJobQuery(organizationId.Value, statuses, reportNumber, customerName, customerEmail, customerAddress, limit, offset);
+        var query = BuildJobQuery(organizationId.Value, statuses, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset);
 
         var cacheKey = BuildJobListCacheKey(query);
         var jobList = await _jobRepository.ListAsync(query, cancellationToken);
-        var jobs = await cache.GetOrCreateAsync(
+        var result = await cache.GetOrCreateAsync(
             cacheKey,
-            async token => (jobList),
+            async token => jobList,
             JobListCacheOptions,
             tags: ["jobs", JobListTag(query.OrganizationId)],
             cancellationToken: cancellationToken);
 
-        return Result<IReadOnlyList<JobListItemResponse>>.Success(jobs);
+        return Result<JobListResponse>.Success(result);
     }
 
     public async Task<Result<JobReportSummaryResponse>> GetSingleJobAsync(Guid id, CancellationToken cancellationToken)
@@ -549,7 +550,7 @@ public sealed class JobService(
         IReadOnlyList<WorksheetResponse> worksheets,
         ICurrentUserContext? user = null)
     {
-        var isRegularUser = user != null && user.Role == "User";
+        var isRegularUser = user != null && user.Role == Roles.User;
         var filteredWorksheets = isRegularUser
             ? worksheets.Where(w => w.UserId == user!.UserId).ToList()
             : worksheets;
@@ -690,7 +691,7 @@ public sealed class JobService(
     }
 
     private static List<ValidationError> ValidateSearchFilters(
-        string? reportNumber, string? customerName, string? customerEmail, string? customerAddress)
+        string? reportNumber, string? customerName, string? customerEmail, string? customerAddress, string? search)
     {
         var errors = new List<ValidationError>();
         if (reportNumber?.Length > 0 && reportNumber.Length < 2)
@@ -701,21 +702,30 @@ public sealed class JobService(
             errors.Add(new() { Identifier = nameof(customerEmail), ErrorMessage = "Søgning på e-mail skal være på mindst 2 tegn." });
         if (customerAddress?.Length > 0 && customerAddress.Length < 2)
             errors.Add(new() { Identifier = nameof(customerAddress), ErrorMessage = "Søgning på adresse skal være på mindst 2 tegn." });
+        if (search?.Length > 0 && search.Length < 2)
+            errors.Add(new() { Identifier = nameof(search), ErrorMessage = "Søgning skal være på mindst 2 tegn." });
         return errors;
     }
 
     private static JobQuery BuildJobQuery(
         Guid organizationId, List<JobStatus>? statuses,
         string? reportNumber, string? customerName, string? customerEmail, string? customerAddress,
+        string? search,
+        string? sortBy, string? sortDirection,
         int? limit, int? offset)
     {
         var normalizedReportSearch = string.IsNullOrWhiteSpace(reportNumber) ? null : reportNumber.Trim();
         var normalizedNameSearch = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
         var normalizedEmailSearch = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim();
         var normalizedAddressSearch = string.IsNullOrWhiteSpace(customerAddress) ? null : customerAddress.Trim();
+        var normalizedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        var normalizedSortBy = string.IsNullOrWhiteSpace(sortBy) ? null : sortBy.Trim();
+        var normalizedSortDirection = string.IsNullOrWhiteSpace(sortDirection) ? null : sortDirection.Trim().ToLowerInvariant();
 
         return new JobQuery(organizationId, statuses, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0),
-            normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch);
+            normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch,
+            normalizedSearch,
+            normalizedSortBy, normalizedSortDirection);
     }
 
     private static string BuildJobListCacheKey(JobQuery query)
@@ -726,7 +736,10 @@ public sealed class JobService(
     
         return $"jobs:list:organization={query.OrganizationId:N}:status={statusKey}" +
             $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
-            $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}:limit={query.Limit}:offset={query.Offset}";
+            $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}" +
+            $":search={query.Search ?? "none"}" +
+            $":sortBy={query.SortBy ?? "default"}:sortDirection={query.SortDirection ?? "default"}" +
+            $":limit={query.Limit}:offset={query.Offset}";
     }
     private async Task<ValidationError?> ValidateLinkTargetAsync(Guid reportId, Guid targetId, Guid organizationId, CancellationToken cancellationToken)
     {

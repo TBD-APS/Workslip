@@ -5,6 +5,7 @@ using Workslip.Application.Common;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 using Workslip.Domain.Models;
+using Workslip.Domain;
 
 namespace Workslip.Application.Invitations;
 
@@ -336,7 +337,7 @@ public sealed class InvitationService(
             Phone = phone ?? string.Empty,
             EntraEmail = invite.EntraEmail ?? invite.Email,
             EntraId = invite.EntraUserId ?? string.Empty,
-            Role = invite.Role ?? "User",
+            Role = invite.Role ?? Roles.User,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

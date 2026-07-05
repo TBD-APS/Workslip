@@ -326,7 +326,7 @@ public sealed class InvitationEnrollmentTests
             return Task.CompletedTask;
         }
         public Task<InviteTokenRow?> GetByTokenAsync(string token, CancellationToken cancellationToken) => Task.FromResult(token == invite.Token ? invite : null);
-        public Task<InviteTokenRow> GetInviteByEmailAsync(Guid organizationId, string email, CancellationToken cancellationToken) => Task.FromResult(invite);
+        public Task<InviteTokenRow?> GetInviteByEmailAsync(Guid organizationId, string email, CancellationToken cancellationToken) => Task.FromResult<InviteTokenRow?>(invite);
         public Task<List<InviteTokenRow>> GetByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken) => Task.FromResult(new List<InviteTokenRow> { invite });
         public Task<IReadOnlyList<InviteTokenRow>> GetStaleEntraProvisionedAsync(DateTimeOffset now, int take, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<InviteTokenRow>>(invite is { Consumed: false, EntraCreatedByInvite: true, EntraCleanedAt: null }

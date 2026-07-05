@@ -9,7 +9,7 @@ public static class ReferenceDataEndpoints
     {
         var group = app.MapGroup("/api/reference-data")
             .WithTags("reference-data")
-            .RequireAuthorization(AuthPolicies.RequireUser);
+            .RequireAuthorization(AuthPolicies.RequireReadAccess);
 
         group.MapGet("/", async (HttpContext httpContext, IReferenceDataService service, CancellationToken cancellationToken) =>
         {

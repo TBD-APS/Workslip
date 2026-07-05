@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Clock, Mail, MapPin, MoreHorizontal, Phone, Users } from 'lucide-react';
+import { ArrowLeft, Clock, Mail, MapPin, MoreHorizontal, Phone, Users } from 'lucide-react';
+import { ErrorState } from '../../../components/ErrorState';
 import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
@@ -42,13 +43,11 @@ export const CustomerDetail = () => {
   if (query.isError || !customer) {
     return (
       <div className="page-container">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente kundeoplysninger.</p>
+        <ErrorState message="Kunne ikke hente kundeoplysninger.">
           <button className="btn btn-primary" onClick={() => navigate('/app/customers')}>
             Tilbage til kunder
           </button>
-        </div>
+        </ErrorState>
       </div>
     );
   }

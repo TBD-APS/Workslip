@@ -54,16 +54,13 @@ public sealed class EfJobRepository : IJobRepository
 
         var customerSnapshot = request.CustomerSnapshot;
 
-        //Customer snapshot without customer ID implies creating a new customer based on the snapshot data,
-        //so we handle that before creating the job report to ensure we have the new customer ID available for the report.
-        //If both CustomerId and CustomerSnapshot are provided, we assume the snapshot is just additional data for the existing customer and do not create a new one.
         Guid? customerId = null;
         if (request.CustomerId is null && customerSnapshot is not null)
         {
             var customerInfo = new CustomerInfo(Guid.NewGuid(),
-                                                customerSnapshot.Name, 
+                                                customerSnapshot.Name,
                                                 customerSnapshot.Address,
-                                                customerSnapshot.Email, 
+                                                customerSnapshot.Email,
                                                 customerSnapshot.ContactPerson,
                                                 customerSnapshot.Phone);
 
@@ -85,10 +82,10 @@ public sealed class EfJobRepository : IJobRepository
             Id = reportId,
             OrganizationId = organizationId,
             CustomerId = customerId,
-            CustomerName = customerSnapshot.Name,
-            CustomerEmail = customerSnapshot.Email,
-            CustomerPhone = customerSnapshot.Phone,
-            CustomerAddress = customerSnapshot.Address,
+            CustomerName = customerSnapshot?.Name,
+            CustomerEmail = customerSnapshot?.Email,
+            CustomerPhone = customerSnapshot?.Phone,
+            CustomerAddress = customerSnapshot?.Address,
             ReportNumber = reportNumber,
             Status = JobStatus.Draft.ToString(),
             ReportDate = ToDateTime(request.Observations?.ReportDate),
@@ -127,38 +124,43 @@ public sealed class EfJobRepository : IJobRepository
         await tx.CommitAsync(cancellationToken);
 
         var job = await GetSingleJobAsync(reportId, organizationId, cancellationToken);
-        return job;
+        return job!;
     }
 
-    public Task<IReadOnlyList<JobListItemResponse>> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
+    public Task<JobListResponse> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("jobs.list", token => ListAsyncCoreAsync(query, token), cancellationToken);
 
-    private async Task<IReadOnlyList<JobListItemResponse>> ListAsyncCoreAsync(JobQuery query, CancellationToken cancellationToken)
+    private async Task<JobListResponse> ListAsyncCoreAsync(JobQuery query, CancellationToken cancellationToken)
     {
         _dbContext.ChangeTracker.Clear();
 
         var statuses = query.Statuses?.Select(x => x.ToString()).Distinct() ?? [];       
 
-        var projected = await (
+        var baseQuery =
             from job in _dbContext.JobReports.AsNoTracking()
             where job.OrganizationId == query.OrganizationId
             where statuses.Contains(job.Status)
             where job.IsSoftDeleted == false
             where query.ReportNumber == null || (job.ReportNumber != null && job.ReportNumber.Contains(query.ReportNumber))
-            where query.CustomerName == null || ((job.CustomerName != null && job.CustomerName.Contains(query.CustomerName)))
+            where query.CustomerName == null || (job.CustomerName != null && job.CustomerName.Contains(query.CustomerName))
             where query.CustomerEmail == null || (job.CustomerEmail != null && job.CustomerEmail.Contains(query.CustomerEmail))
-            where query.CustomerAddress == null || ((job.CustomerAddress != null && job.CustomerAddress.Contains(query.CustomerAddress)))
-            orderby job.UpdatedAt descending
+            where query.CustomerAddress == null || (job.CustomerAddress != null && job.CustomerAddress.Contains(query.CustomerAddress))
+            where query.Search == null || (
+                (job.ReportNumber != null && job.ReportNumber.Contains(query.Search)) ||
+                (job.CustomerName != null && job.CustomerName.Contains(query.Search)) ||
+                (job.CustomerAddress != null && job.CustomerAddress.Contains(query.Search)) ||
+                (job.CustomerEmail != null && job.CustomerEmail.Contains(query.Search))
+            )
             select new
             {
                 job.Id,
                 job.OrganizationId,
                 CustId = job.CustomerId,
-                CustName = job.CustomerName ?? job.CustomerRow.Name,
-                CustAddress = job.CustomerAddress ?? job.CustomerRow.Address,
-                CustEmail = job.CustomerEmail ?? job.CustomerRow.Email,
-                CustContactPerson = job.CustomerContactPerson ?? job.CustomerRow.ContactPerson,
-                CustPhone = job.CustomerPhone ?? job.CustomerRow.Phone,
+                CustName = job.CustomerName ?? job.CustomerRow!.Name,
+                CustAddress = job.CustomerAddress ?? job.CustomerRow!.Address,
+                CustEmail = job.CustomerEmail ?? job.CustomerRow!.Email,
+                CustContactPerson = job.CustomerContactPerson ?? job.CustomerRow!.ContactPerson,
+                CustPhone = job.CustomerPhone ?? job.CustomerRow!.Phone,
                 job.ReportNumber,
                 job.Status,
                 job.ReportDate,
@@ -173,8 +175,32 @@ public sealed class EfJobRepository : IJobRepository
                 job.UpdatedAt,
                 job.IsSoftDeleted,
                 job.DeletionScheduledAt
-            }
-        ).Skip(query.Offset).Take(query.Limit).AsNoTracking().ToListAsync(cancellationToken);
+            };
+
+        var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+        var ordered = (query.SortBy, query.SortDirection) switch
+        {
+            ("name", "asc") => baseQuery.OrderBy(j => j.CustName),
+            ("name", _) => baseQuery.OrderByDescending(j => j.CustName),
+            ("address", "asc") => baseQuery.OrderBy(j => j.CustAddress),
+            ("address", _) => baseQuery.OrderByDescending(j => j.CustAddress),
+            ("reportNumber", "asc") => baseQuery.OrderBy(j => j.ReportNumber),
+            ("reportNumber", _) => baseQuery.OrderByDescending(j => j.ReportNumber),
+            ("createdAt", "asc") => baseQuery.OrderBy(j => j.CreatedAt),
+            ("createdAt", _) => baseQuery.OrderByDescending(j => j.CreatedAt),
+            ("updatedAt", "asc") => baseQuery.OrderBy(j => j.UpdatedAt),
+            ("updatedAt", _) => baseQuery.OrderByDescending(j => j.UpdatedAt),
+            ("reportDate", "asc") => baseQuery.OrderBy(j => j.ReportDate),
+            ("reportDate", _) => baseQuery.OrderByDescending(j => j.ReportDate),
+            _ => baseQuery.OrderByDescending(j => j.UpdatedAt),
+        };
+
+        var projected = await ordered
+            .Skip(query.Offset)
+            .Take(query.Limit)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
 
         var reportIds = projected.Select(x => x.Id).ToArray();
         var assignedUsersByReport = await _assignmentRepo.GetAssignedUsersByReportAsync(query.OrganizationId, reportIds, cancellationToken);
@@ -190,7 +216,7 @@ public sealed class EfJobRepository : IJobRepository
                 g => g.OrderBy(it => it.SortOrder).Select(it => it.InstallationTypeDefinition.Name).ToArray() as IReadOnlyList<string>,
                 cancellationToken);
 
-        return projected.Select(x =>
+        var items = projected.Select(x =>
         {
             var hasCustomerData = x.CustId is not null || !string.IsNullOrWhiteSpace(x.CustName);
             var customerInfo = hasCustomerData
@@ -207,6 +233,8 @@ public sealed class EfJobRepository : IJobRepository
                 x.IsSoftDeleted, x.DeletionScheduledAt,
                 totalHoursByJob.GetValueOrDefault(x.Id));
         }).ToArray();
+
+        return new JobListResponse(items, totalCount);
     }
 
     public Task<JobReportResponse?> GetSingleJobAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
@@ -308,12 +336,12 @@ public sealed class EfJobRepository : IJobRepository
 
             entry.Property(e => e.ReportNumber).CurrentValue = reportNumber;
         }
-        
+
         if (request.Observations is not null)
         {
-            if (request.Observations.ReportDate is not null) 
+            if (request.Observations.ReportDate is not null)
                 entry.Property(e => e.ReportDate).CurrentValue = ToDateTime(request.Observations.ReportDate);
-            
+
             entry.Property(e => e.TaskDescription).CurrentValue = request.Observations.TaskDescription;
             entry.Property(e => e.CustomerObservations).CurrentValue = request.Observations.CustomerObservations;
             entry.Property(e => e.TechnicalObservations).CurrentValue = request.Observations.TechnicalObservations;

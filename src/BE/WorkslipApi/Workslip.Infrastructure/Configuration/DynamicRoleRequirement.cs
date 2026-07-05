@@ -24,13 +24,17 @@ public class DynamicRoleHandler(IConfiguration configuration) : AuthorizationHan
             .Select(c => c.Value)
             .ToList();
 
-        // 2. Tjek om brugeren har den specifikke rolle direkte, eller om de har en overordnet rolle
+        var requiredRoles = requirement.RequiredRole.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
         foreach (var userRole in userRoles)
         {
-            if (userRole == requirement.RequiredRole || IsRoleHigherInHierarchy(userRole, requirement.RequiredRole, new HashSet<string>()))
+            foreach (var requiredRole in requiredRoles)
             {
-                context.Succeed(requirement);
-                break;
+                if (userRole == requiredRole || IsRoleHigherInHierarchy(userRole, requiredRole, new HashSet<string>()))
+                {
+                    context.Succeed(requirement);
+                    return Task.CompletedTask;
+                }
             }
         }
 

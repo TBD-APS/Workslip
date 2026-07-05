@@ -16,7 +16,7 @@ public static class AuthEndpoints
         {
             var me = await service.GetCurrentUserAsync(cancellationToken);
             return Results.Ok(UserViewModelBuilder.ToUser(me));
-        }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireUser);
+        }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireReadAccess);
 
         group.MapPatch("/me", async (UpdateUserRequest request, IAuthService service, CancellationToken cancellationToken) =>
         {

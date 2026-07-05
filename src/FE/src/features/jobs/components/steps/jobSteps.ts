@@ -1,5 +1,4 @@
 import { Building2, CheckCircle2, ClipboardList, FileSpreadsheet, FileText, ShieldCheck } from 'lucide-react';
-
 export const JOB_STEPS = [
   { icon: Building2, label: 'Sagsdetaljer' },
   { icon: FileText, label: 'Anlægstyper' },

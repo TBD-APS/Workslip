@@ -8,7 +8,7 @@ public static class OrganizationEndpoints
 {
     public static IEndpointRouteBuilder MapOrganizationEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/organizations").WithTags("organizations").RequireAuthorization(AuthPolicies.RequireAdmin);
+        var group = app.MapAdminGroup("/api/organizations", "organizations");
 
         group.MapPost("/", async (CreateOrganizationRequest request, IOrganizationService service, CancellationToken cancellationToken) =>
         {

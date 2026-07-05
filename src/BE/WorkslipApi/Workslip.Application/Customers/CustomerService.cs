@@ -13,19 +13,20 @@ public sealed class CustomerService(
     IValidator<UpdateCustomerRequest> updateValidator,
     ILogger<CustomerService> logger) : ICustomerService
 {
-    public async Task<Result<IReadOnlyList<CustomerListItemResponse>>> ListAsync(int? limit, int? offset, CancellationToken cancellationToken)
+    public async Task<Result<CustomerListResponse>> ListAsync(int? limit, int? offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
             logger.LogWarning("Customer list requested without OrganizationId in claims.");
-            return Result<IReadOnlyList<CustomerListItemResponse>>.Unauthorized();
+            return Result<CustomerListResponse>.Unauthorized();
         }
 
         var normalizedLimit = Math.Clamp(limit ?? 50, 1, 200);
         var normalizedOffset = Math.Max(offset ?? 0, 0);
-        var customers = await customerRepository.ListAsync(organizationId.Value, normalizedLimit, normalizedOffset, cancellationToken);
-        return Result<IReadOnlyList<CustomerListItemResponse>>.Success(customers);
+        var customers = await customerRepository.ListAsync(organizationId.Value, normalizedLimit, normalizedOffset, search, sortBy, sortDirection, cancellationToken);
+        var totalCount = await customerRepository.GetCustomerCountAsync(organizationId.Value, search, cancellationToken);
+        return Result<CustomerListResponse>.Success(new CustomerListResponse(customers, totalCount));
     }
 
     public async Task<Result<CustomerDetailResponse>> GetByIdAsync(Guid id, CancellationToken cancellationToken)

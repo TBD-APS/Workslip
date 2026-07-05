@@ -9,7 +9,10 @@ public sealed record JobQuery(Guid OrganizationId, List<JobStatus>? Statuses, in
     string? ReportNumber = null,
     string? CustomerName = null, 
     string? CustomerEmail = null,
-    string? CustomerAddress = null);
+    string? CustomerAddress = null,
+    string? Search = null,
+    string? SortBy = null,
+    string? SortDirection = null);
 
 public enum JobDeleteRepositoryStatus
 {
@@ -184,6 +187,10 @@ public sealed record JobWorkKindResponse(
     bool RequiresCustomWorkKind,
     int SortOrder,
     string? CustomWorkKind);
+
+public sealed record JobListResponse(
+    IReadOnlyList<JobListItemResponse> Items,
+    int TotalCount);
 
 public sealed record JobListItemResponse(
     Guid Id,

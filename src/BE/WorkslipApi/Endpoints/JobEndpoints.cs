@@ -12,20 +12,18 @@ public static class JobEndpoints
 {
     public static IEndpointRouteBuilder MapJobEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/jobs").WithTags("jobs").RequireAuthorization(AuthPolicies.RequireUser);
+        var (readGroup, userGroup) = app.MapReadUserGroups("/api/jobs", "jobs");
+        var adminGroup = app.MapAdminGroup("/api/jobs", "jobs");
 
-        group.MapPost("/", async (CreateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.CreateAsync(request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        }).Produces<JobReportSummaryViewModel>().RequireAuthorization(AuthPolicies.RequireAdmin);
-
-        group.MapGet("/", async (
+        readGroup.MapGet("/", async (
             [FromQuery(Name = "status")] JobStatus[]? statuses,
             [FromQuery] string? reportNumber,
             [FromQuery] string? customerName,
             [FromQuery] string? customerEmail,
             [FromQuery] string? customerAddress,
+            [FromQuery] string? search,
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDirection,
             [FromQuery] int? limit,
             [FromQuery] int? offset,
             HttpContext httpContext,
@@ -34,13 +32,16 @@ public static class JobEndpoints
             CancellationToken cancellationToken) =>
         {
             var statusList = statuses?.ToList();
-            var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, limit, offset, cancellationToken);
-           return CachedOk(result, httpContext,
-                jobs => HttpCacheHeaders.JobListEtag(jobs, currentUser.OrganizationId!.Value, statusList, reportNumber, customerName, customerEmail, customerAddress, limit, offset),
-                jobs => jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
-        }).Produces<List<JobListItemViewModel>>();
+            var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, cancellationToken);
+            return CachedOk(result, httpContext,
+                response => HttpCacheHeaders.JobListEtag(response, currentUser.OrganizationId!.Value, statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset),
+                response => new {
+                    items = response.Items.Select(JobViewModelBuilder.ToListItem).ToArray(),
+                    totalCount = response.TotalCount
+                });
+        });
 
-        group.MapGet("/my-assigned", async (HttpContext httpContext, ICurrentUserContext currentUser, IJobService service, CancellationToken cancellationToken) =>
+        readGroup.MapGet("/my-assigned", async (HttpContext httpContext, ICurrentUserContext currentUser, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetMyAssignedJobsAsync(cancellationToken);
             return CachedOk(result, httpContext,
@@ -48,19 +49,19 @@ public static class JobEndpoints
                 jobs => jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
         }).Produces<List<JobListItemViewModel>>();
 
-        group.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
+        readGroup.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetSingleJobAsync(id, cancellationToken);
             return CachedOk(result, httpContext, report => HttpCacheHeaders.JobReportEtag(report), JobViewModelBuilder.ToSummary);
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
-        group.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
+        readGroup.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetHistoryAsync(id, limit, offset, cancellationToken);
             return CachedOk(result, httpContext, events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
         }).Produces<List<JobHistoryResponse>>(StatusCodes.Status200OK);
 
-        group.MapGet("/{id:guid}/report/pdf", async (Guid id, HttpContext httpContext, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
+        readGroup.MapGet("/{id:guid}/report/pdf", async (Guid id, HttpContext httpContext, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
         {
             var result = await service.GetSingleJobAsync(id, cancellationToken);
             if (!result.IsSuccess)
@@ -76,19 +77,27 @@ public static class JobEndpoints
             return Results.File(pdf, "application/pdf", $"rapport-{reportNumber}.pdf");
         });
 
-        group.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
+
+        userGroup.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
-        group.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, IJobService service, CancellationToken cancellationToken) =>
+        userGroup.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.ChangeStatusAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
-        group.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+
+        adminGroup.MapPost("/", async (CreateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.CreateAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+
+        adminGroup.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);
             return result.Status == Ardalis.Result.ResultStatus.Conflict
@@ -96,23 +105,20 @@ public static class JobEndpoints
                 : ResultExtensions.ToHttpResult(result);
         })
         .Produces(StatusCodes.Status204NoContent)
-        .Produces<JobDeleteErrorResponse>(StatusCodes.Status409Conflict)
-        .RequireAuthorization(AuthPolicies.RequireAdmin);
+        .Produces<JobDeleteErrorResponse>(StatusCodes.Status409Conflict);
 
-        group.MapPost("/{id:guid}/restore/deletion", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        adminGroup.MapPost("/{id:guid}/restore/deletion", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.RestoreDeletionAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK)
-        .RequireAuthorization(AuthPolicies.RequireAdmin);
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
-        group.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
+        adminGroup.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
         {
             var result = await jobService.AssignAsync(id, request.UserIds, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         })
-        .Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK)
-        .RequireAuthorization(AuthPolicies.RequireAdmin);
+        .Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
         return app;
     }

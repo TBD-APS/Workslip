@@ -1,8 +1,16 @@
 import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+import { useAuth } from './useAuth';
 
 export function ErrorFallback({ error, resetErrorBoundary }: { error: unknown; resetErrorBoundary: () => void }) {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const message = error instanceof Error ? error.message : String(error);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
@@ -11,9 +19,12 @@ export function ErrorFallback({ error, resetErrorBoundary }: { error: unknown; r
         <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
           Der opstod en uventet fejl
         </p>
-        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button className="btn btn-primary" onClick={resetErrorBoundary}>Prøv igen</button>
           <button className="btn btn-secondary" onClick={() => navigate('/')}>Gå til forsiden</button>
+          <button className="btn btn-secondary" onClick={handleLogout}>
+            <LogOut size={16} /> Log ud
+          </button>
         </div>
         {import.meta.env.DEV && (
           <details style={{ marginTop: '1rem', textAlign: 'left' }}>

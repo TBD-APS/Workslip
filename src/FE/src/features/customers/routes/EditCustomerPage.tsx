@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { ErrorState } from '../../../components/ErrorState';
 import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
 import { apiClient } from '../../../lib/axios';
 import { useQueryClient } from '@tanstack/react-query';
@@ -66,13 +67,11 @@ export const EditCustomerPage = () => {
   if (query.isError || !customer) {
     return (
       <div className="page-container">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente kundeoplysninger.</p>
+        <ErrorState message="Kunne ikke hente kundeoplysninger.">
           <button className="btn btn-primary" onClick={() => navigate('/app/customers')}>
             Tilbage til kunder
           </button>
-        </div>
+        </ErrorState>
       </div>
     );
   }

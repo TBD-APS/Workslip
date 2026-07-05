@@ -389,9 +389,10 @@ export const Login = () => {
           <div className="login-dev-section">
             <div className="login-dev-buttons">
               {[
-                { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net' },
-                { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net' },
-                { label: 'Dev Login · SuperAdmin', email: 'rbj@17v3ygzs.mailosaur.net' },
+                { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
+                { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
+                { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
+                { label: 'Dev Login · Superadmin', email: 'rbj@17v3ygzs.mailosaur.net', redirect: '/app' }
               ].map((entry) => (
                 <button
                   key={entry.email}
@@ -400,7 +401,7 @@ export const Login = () => {
                     setIsSubmitting(true);
                     try {
                       const success = await devLogin(entry.email);
-                      if (success) navigate('/app');
+                      if (success) navigate(entry.redirect);
                       else setErrorMsg(`Dev login failed - ${entry.email} not found`);
                     } catch {
                       setErrorMsg('Dev login failed');

@@ -104,12 +104,14 @@ export const AppLayout = () => {
       <nav className={`bottom-nav ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
         <NavLink to="/app" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <ClipboardList size={24} />
-          <span>Mine Jobs</span>
+          <span>Sager</span>
         </NavLink>
-        <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-          <CalendarDays size={24} />
-          <span>Timer</span>
-        </NavLink>
+        <Can permission="worksheet:view">
+          <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <CalendarDays size={24} />
+            <span>Timer</span>
+          </NavLink>
+        </Can>
         <div className="nav-item-fab">
           <Can permission="job:create">
             <button className="fab-button" onClick={() => navigate('/app/create')} aria-label="Opret">

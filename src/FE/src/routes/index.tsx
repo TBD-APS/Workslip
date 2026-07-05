@@ -18,6 +18,7 @@ import { AppLayout } from '../components/layouts/AppLayout';
 import { MyWorksheets } from '../features/worksheets/routes/MyWorksheets';
 import { CustomerDetail } from '../features/customers/routes/CustomerDetail';
 import { Settings } from '../features/settings/routes/Settings';
+import { AuditorReportList } from '../features/auditor/routes/AuditorReportList';
 import { Profile } from '../features/settings/routes/Profile';
 
 /**
@@ -95,6 +96,7 @@ export const AppRoutes = () => {
         { path: 'customers/new', element: <RoleGuard permission="user:manage"><CreateCustomerPage /></RoleGuard> },
         { path: 'customers/:id', element: <RoleGuard permission="user:manage"><CustomerDetail /></RoleGuard> },
         { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
+        { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
         { path: 'profil', element: <Profile /> },
         { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
       ],

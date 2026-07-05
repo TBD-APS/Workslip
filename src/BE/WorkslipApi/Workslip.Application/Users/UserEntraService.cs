@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using Microsoft.Graph.Models.ODataErrors;
+using Workslip.Domain;
 
 namespace Workslip.Application.Users;
 
@@ -23,7 +24,7 @@ public sealed class UserEntraService(
         var existingUser = await FindExistingEntraUserAsync(email, ct);
         if (existingUser != null)
         {
-            await AssignAppRoleTo(existingUser.Id!, "User", ct);
+            await AssignAppRoleTo(existingUser.Id!, Roles.User, ct);
             return new CreateEntraUserResult(existingUser.Id!, ResolveEntraMail(existingUser, email), existingUser.DisplayName ?? email, Created: false);
         }
 
@@ -43,7 +44,7 @@ public sealed class UserEntraService(
 
         try
         {
-            await AssignAppRoleTo(invitedUser.Id!, "User", ct);
+            await AssignAppRoleTo(invitedUser.Id!, Roles.User, ct);
         }
         catch
         {
@@ -134,7 +135,7 @@ public sealed class UserEntraService(
                             request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail", "otherMails"];
                             request.QueryParameters.Top = 1;
                         }, ct);
-            return result?.Value.FirstOrDefault();
+            return result?.Value?.FirstOrDefault();
         }
         catch (ODataError odataError)
         {
@@ -146,7 +147,7 @@ public sealed class UserEntraService(
         catch (Exception e)
         {
             logger.LogError(e, "Generel fejl under kald til Graph API");
-            throw e;
+            throw;
         }
     }
 

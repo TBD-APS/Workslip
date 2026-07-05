@@ -1,49 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Download, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
-import type {
-  InstallationTypeResponse,
-  JobLinkInfoResponse,
-  JobReportSummaryViewModel,
-  WorksheetResponse,
-} from '../../../api/generated/models';
+import { ErrorState } from '../../../components/ErrorState';
 import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { useAuth } from '../../../providers/useAuth';
-import { AssignmentBlock, CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from '../components/JobDetailBlocks';
-import { ControlPointsStep } from '../components/steps/ControlPointsStep';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
-import { JobCompletionStep } from '../components/steps/JobCompletionStep';
-import { JobWorksheetsStep } from '../components/steps/JobWorksheetsStep';
-import { WorkCategoryStep } from '../components/steps/WorkCategoryStep';
 import { useJobDetailsState } from '../hooks/useJobDetails';
+import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
-import { downloadJobReportPdf } from '../utils/downloadJobReportPdf';
+import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
+import { compactPairs, formatNumber, formatUnit, parseNullableNumber } from '../../../lib/formatUtils';
+import { ConfirmActionDialog } from '../components/ConfirmActionDialog';
+import { CompletedJobEditForm } from '../components/CompletedJobEditForm';
+import { DetailGrid } from '../components/DetailGrid';
+import { AssignedUsers } from '../components/AssignedUsers';
+import { LinkedJobs } from '../components/LinkedJobs';
+import { Worksheets } from '../components/Worksheets';
+import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories } from '../components/ControlPointOverview';
+import { formatReportNumber, formatWorkKind, formatInstallationTypeNames, formatClosureFlags } from '../utils/completedJobFormatters';
 
-const DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
-const NUMBER_FORMATTER = new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 });
-
-type DetailPair = { label: string; value: string | null | undefined };
-type CompletedJobDetailsState = ReturnType<typeof useJobDetailsState>;
-
-type SelectedControlPoint = {
-  id: string;
-  installationType: string;
-  category: string;
-  name: string;
-};
-
-type IrrelevantCategory = {
-  id: string;
-  installationType: string;
-  category: string;
-};
+function scrollToTop() {
+  document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
+}
 
 export const CompletedJobReport = () => {
   const { id } = useParams<{ id: string }>();
@@ -51,37 +36,41 @@ export const CompletedJobReport = () => {
   const queryClient = useQueryClient();
   const location = useLocation();
   const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
+  const readOnly = Boolean((location.state as { readOnly?: boolean } | undefined)?.readOnly);
   const details = useJobDetailsState(id, { autoSave: false });
   const isAdmin = useIsAdmin();
   const { user } = useAuth();
+  const isDesktop = useMediaQuery('(min-width: 768px)');
   const statusMutation = usePostApiJobsIdStatus();
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const previewUrlRef = useRef<string | null>(null);
   const job = details.job;
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const sortedWorksheets = useMemo(
     () => {
-      const allWorksheets = [...(job?.worksheets ?? [])].sort((left, right) => {
+      return [...(job?.worksheets ?? [])].sort((left, right) => {
         const leftName = left.userDisplayName || left.userId;
         const rightName = right.userDisplayName || right.userId;
         const byName = leftName.localeCompare(rightName, 'da-DK', { sensitivity: 'base' });
         if (byName !== 0) return byName;
-
         return right.workDate.localeCompare(left.workDate);
       });
-      
-      if (!isAdmin) {
-        return allWorksheets?.filter((ws) => ws.userId === user?.id) ?? [];
-      }
-
-      return allWorksheets;
     },
-    [job?.worksheets, isAdmin, user?.id],
+    [job?.worksheets],
   );
+
+  const visibleWorksheets = useMemo(() => {
+    if (!isAdmin) {
+      return sortedWorksheets.filter((ws) => ws.userId === user?.id);
+    }
+    return sortedWorksheets;
+  }, [sortedWorksheets, isAdmin, user?.id]);
 
   const initialLoadDone = useRef(false);
   const editScrollDone = useRef(false);
@@ -89,23 +78,15 @@ export const CompletedJobReport = () => {
   useEffect(() => {
     if (!job || initialLoadDone.current) return;
     initialLoadDone.current = true;
-
-    const el = document.querySelector<HTMLElement>('.app-shell');
-    if (!el) return;
-
-    el.scrollTo(0, 0);
-    requestAnimationFrame(() => el.scrollTop = 0);
+    scrollToTop();
+    requestAnimationFrame(() => scrollToTop());
   }, [job]);
 
   useEffect(() => {
     if (!isEditing || editScrollDone.current) return;
     editScrollDone.current = true;
-
-    const el = document.querySelector<HTMLElement>('.app-shell');
-    if (!el) return;
-
-    el.scrollTo(0, 0);
-    requestAnimationFrame(() => el.scrollTop = 0);
+    scrollToTop();
+    requestAnimationFrame(() => scrollToTop());
   }, [isEditing]);
 
   useEffect(() => {
@@ -125,16 +106,40 @@ export const CompletedJobReport = () => {
     }
   };
 
+  const handlePreviewPdf = async () => {
+    if (!job) return;
+    setIsLoadingPreview(true);
+
+    try {
+      const { url } = await createJobReportPdfPreview(job);
+      if (previewUrlRef.current) {
+        window.URL.revokeObjectURL(previewUrlRef.current);
+      }
+      previewUrlRef.current = url;
+      window.open(url, '_blank');
+      setTimeout(() => {
+        if (previewUrlRef.current === url) {
+          window.URL.revokeObjectURL(url);
+          previewUrlRef.current = null;
+        }
+      }, 60000);
+    } catch {
+      toast.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
   const handleStartEdit = () => {
     details.discardChanges();
     setIsEditing(true);
-    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
+    scrollToTop();
   };
 
   const handleCancelEdit = () => {
     details.discardChanges();
     setIsEditing(false);
-    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
+    scrollToTop();
   };
 
   const handleSaveEdit = async () => {
@@ -148,7 +153,7 @@ export const CompletedJobReport = () => {
     if (!saved) return;
 
     setIsEditing(false);
-    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
+    scrollToTop();
     toast.success(`Sagen ${details.form.reportNumber} er opdateret`);
   };
 
@@ -185,9 +190,34 @@ export const CompletedJobReport = () => {
   if (details.isLoading) {
     return (
       <div className="page-container report-overview-page">
-        <div className="detail-loading">
-          <Loader2 size={24} className="spin" />
-          <p>Henter sagsrapport...</p>
+        <div className="detail-header report-overview-header">
+          <div className="skeleton skeleton-icon" />
+          <div>
+            <div className="skeleton" style={{ width: '10rem', height: '0.85rem', marginBottom: '0.35rem' }} />
+            <div className="skeleton" style={{ width: '8rem', height: '1.25rem' }} />
+          </div>
+        </div>
+        <div className="report-overview-toolbar" aria-label="Rapport handlinger">
+          <div className="report-overview-actions report-overview-actions--left">
+            <div className="skeleton" style={{ width: '2rem', height: '2rem', borderRadius: 'var(--radius-sm)' }} />
+            <div className="skeleton" style={{ width: '2rem', height: '2rem', borderRadius: 'var(--radius-sm)' }} />
+          </div>
+        </div>
+        <div className="report-overview-grid">
+          <div className="report-overview-colpair">
+            <section className="detail-section">
+              <div className="skeleton" style={{ width: '6rem', height: '1rem', marginBottom: '0.75rem' }} />
+              <div className="skeleton" style={{ width: '100%', height: '6rem' }} />
+            </section>
+            <section className="detail-section">
+              <div className="skeleton" style={{ width: '6rem', height: '1rem', marginBottom: '0.75rem' }} />
+              <div className="skeleton" style={{ width: '100%', height: '6rem' }} />
+            </section>
+          </div>
+          <section className="detail-section">
+            <div className="skeleton" style={{ width: '7rem', height: '1rem', marginBottom: '0.75rem' }} />
+            <div className="skeleton" style={{ width: '60%', height: '3rem' }} />
+          </section>
         </div>
       </div>
     );
@@ -196,13 +226,7 @@ export const CompletedJobReport = () => {
   if (details.isError || !job) {
     return (
       <div className="page-container report-overview-page">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente sagsrapporten.</p>
-          <button className="btn btn-primary" onClick={() => details.refetch()}>
-            Prøv igen
-          </button>
-        </div>
+        <ErrorState message="Kunne ikke hente sagsrapporten." onRetry={() => details.refetch()} />
       </div>
     );
   }
@@ -210,7 +234,7 @@ export const CompletedJobReport = () => {
   const summaryPairs = compactPairs([
     { label: 'Sagsnummer', value: formatReportNumber(job) },
     { label: 'Status', value: formatJobStatus(job.status)},
-    { label: 'Rapportdato', value: formatDate(job.observations.reportDate) },
+    { label: 'Rapportdato', value: formatDateLong(job.observations.reportDate) },
     { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
     { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Afslutning', value: formatClosureFlags(job) },
@@ -253,7 +277,7 @@ export const CompletedJobReport = () => {
               </button>
             </>
           ) : (
-            isAdmin && (
+            isAdmin && !readOnly && (
               <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} aria-label="Rediger sag">
                 <Pencil size={16} />
               </button>
@@ -269,6 +293,18 @@ export const CompletedJobReport = () => {
           >
             <History size={16} />
           </button>
+          {isDesktop && (
+            <button
+              className="btn btn-secondary report-overview-icon-action"
+              type="button"
+              onClick={() => void handlePreviewPdf()}
+              disabled={isLoadingPreview || isEditing}
+              aria-label="Forhåndsvis PDF"
+              title="Forhåndsvis PDF"
+            >
+              {isLoadingPreview ? <Loader2 size={16} className="spin" /> : <Eye size={16} />}
+            </button>
+          )}
           <button
             className="btn btn-secondary report-overview-icon-action"
             type="button"
@@ -280,104 +316,127 @@ export const CompletedJobReport = () => {
             {isDownloadingPdf ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
           </button>
         </div>
+        {isDesktop && job.status === JobStatus.InReview && isAdmin && !readOnly && !isEditing && (
+          <div className="report-overview-actions report-overview-actions--right">
+            <button className="btn btn-secondary" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
+              <X size={16} />
+              <span>Afvis</span>
+            </button>
+            <button className="btn btn-primary" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
+              {statusMutation.isPending ? <Loader2 size={16} className="spin" /> : <CheckCircle2 size={16} />}
+              <span>{statusMutation.isPending ? 'Godkender...' : 'Godkend'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {isEditing ? (
         <CompletedJobEditForm details={details} onCancel={handleCancelEdit} onSave={handleSaveEdit} />
       ) : (
         <>
-
-          <section className="detail-section report-overview-hero">
-            <div className="section-header-row attestation-compact-header">
-              <FileCheck2 size={18} />
-              <h3>Sag</h3>
+          <div className="report-overview-grid">
+            <div className="report-overview-colpair">
+              <section className="detail-section report-overview-hero">
+                <div className="section-header-row attestation-compact-header">
+                  <FileCheck2 size={18} />
+                  <h3>Sag</h3>
+                </div>
+                <DetailGrid items={summaryPairs} />
+              </section>
+              <section className="detail-section">
+                <div className="section-header-row attestation-compact-header">
+                  <User size={18} />
+                  <h3>Kunde</h3>
+                </div>
+                <DetailGrid items={customerPairs} />
+              </section>
             </div>
-            <DetailGrid items={summaryPairs} />
-          </section>
-          <section className="detail-section">
-            <div className="section-header-row attestation-compact-header">
-              <User size={18} />
-              <h3>Kunde</h3>
-            </div>
-            <DetailGrid items={customerPairs} />
-          </section>
 
-          <section className="detail-section">
-            <div className="section-header-row">
-              <User size={18} />
-              <h3>Medarbejdere</h3>
-            </div>
-            <AssignedUsers users={job.assignedUsers} />
-          </section>
-
-          {observationPairs.length > 0 && (
-            <section className="detail-section attestation-summary-section">
-              <div className="section-header-row attestation-compact-header">
-                <FileCheck2 size={18} />
-                <h3>Observationer og noter</h3>
+            <section className="detail-section">
+              <div className="section-header-row">
+                <User size={18} />
+                <h3>Medarbejdere</h3>
               </div>
-              <div className="attestation-observations-list">
-                {observationPairs.map((item) => (
-                  <div key={item.label} className="attestation-data-pair observation">
-                    <dt>{item.label}</dt>
-                    <dd>{item.value}</dd>
-                  </div>
-                ))}
-              </div>
+              <AssignedUsers users={job.assignedUsers} />
             </section>
-          )}
 
-          <section className="detail-section">
-            <div className="section-header-row attestation-compact-header">
-              <Link2 size={18} />
-              <h3>Tilknyttede sager</h3>
-            </div>
-            <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
-          </section>
+            {observationPairs.length > 0 ? (
+              <section className="detail-section attestation-summary-section">
+                <div className="section-header-row attestation-compact-header">
+                  <FileCheck2 size={18} />
+                  <h3>Observationer og noter</h3>
+                </div>
+                <div className="attestation-observations-list">
+                  {observationPairs.map((item) => (
+                    <div key={item.label} className="attestation-data-pair observation">
+                      <dt>{item.label}</dt>
+                      <dd>{item.value}</dd>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : (
+              <section className="detail-section">
+                <div className="section-header-row attestation-compact-header">
+                  <FileCheck2 size={18} />
+                  <h3>Observationer og noter</h3>
+                </div>
+                <p className="empty-state-text">Ingen observationer registreret.</p>
+              </section>
+            )}
 
-          {sortedWorksheets.length > 3 ? (
+            <section className="detail-section">
+              <div className="section-header-row attestation-compact-header">
+                <Link2 size={18} />
+                <h3>Tilknyttede sager</h3>
+              </div>
+              <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
+            </section>
+
+            {visibleWorksheets.length > 3 ? (
             <CollapsibleSection
               icon={<Timer size={18} />}
-              title={`Timesedler (${sortedWorksheets.length})`}
+              title={`Timesedler (${visibleWorksheets.length})`}
               defaultOpen={false}
             >
-              <div className="worksheet-list-section">
-                <Worksheets worksheets={sortedWorksheets} />
+                <div className="worksheet-list-section">
+                  <Worksheets worksheets={visibleWorksheets} />
+                  <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
+                    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
+                    {parseNullableNumber(job.totalOutlay) > 0 && (
+                      <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
+                    )}
+                  </div>
+                </div>
+              </CollapsibleSection>
+            ) : (
+              <section className="detail-section worksheet-list-section">
+                <div className="section-header-row attestation-compact-header">
+                  <Timer size={18} />
+                  <h3>Timesedler</h3>
+                </div>
+                <Worksheets worksheets={visibleWorksheets} />
                 <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
                   <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
                   {parseNullableNumber(job.totalOutlay) > 0 && (
                     <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
                   )}
                 </div>
-              </div>
-            </CollapsibleSection>
-          ) : (
-            <section className="detail-section worksheet-list-section">
-              <div className="section-header-row attestation-compact-header">
-                <Timer size={18} />
-                <h3>Timesedler</h3>
-              </div>
-              <Worksheets worksheets={sortedWorksheets} />
-              <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
-                <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
-                {parseNullableNumber(job.totalOutlay) > 0 && (
-                  <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
-                )}
-              </div>
-            </section>
-          )}
+              </section>
+            )}
+          </div>
 
           <CollapsibleSection
             icon={<CheckCircle2 size={18} />}
             title="Kontrolpunkter"
-            defaultOpen={false}
+            className="kontrolpunkter-section"
           >
             <div className="attestation-control-section compact">
               <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
             </div>
           </CollapsibleSection>
 
-          {job.status === JobStatus.InReview && isAdmin && (
+          {!isDesktop && job.status === JobStatus.InReview && isAdmin && !readOnly && !isEditing && (
             <section className="detail-section">
               <div className="section-header-row">
                 <ShieldCheck size={18} />
@@ -415,428 +474,4 @@ export const CompletedJobReport = () => {
       )}
     </div>
   );
-};
-
-type ConfirmActionDialogProps = {
-  action: 'approve' | 'reject';
-  reportNumber: string;
-  isPending: boolean;
-  onConfirm: () => void;
-  onClose: () => void;
-};
-
-function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm, onClose }: ConfirmActionDialogProps) {
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  const isApprove = action === 'approve';
-
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal-card"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={isApprove ? 'Godkend sag' : 'Afvis sag'}
-      >
-        <h3>{isApprove ? 'Godkend sag' : 'Afvis sag'}</h3>
-        <p>
-          Er du sikker på, du vil {isApprove ? 'godkende' : 'afvise'} sagen <strong>{reportNumber}</strong>?
-        </p>
-
-        <div className="modal-actions" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <button
-            type="button"
-            className={isApprove ? 'btn btn-primary' : 'btn btn-danger'}
-            onClick={onConfirm}
-            disabled={isPending}
-          >
-            {isPending && <Loader2 className="animate-spin" size={16} />}
-            <span>{isPending ? (isApprove ? 'Godkender...' : 'Afviser...') : (isApprove ? 'Godkend' : 'Afvis')}</span>
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={onClose}
-            disabled={isPending}
-          >
-            Annuller
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFormProps) {
-  if (!details.job) return null;
-
-  return (
-    <>
-      <CustomerDetailsBlock
-        form={details.form}
-        customerSnapshot={details.form.customerSnapshot}
-        editSnapshot={details.form.editSnapshot}
-        onCustomerSelect={details.selectCustomer}
-        onSnapshotFieldChange={details.updateSnapshotField}
-        onEditSnapshotChange={details.updateEditSnapshot}
-        showEditCheckbox={true}
-      />
-      <AssignmentBlock assignment={{
-          users: details.assignableUsers!,
-          assignedUserIds: details.assignedUserIds,
-          isLoadingUsers: details.isLoadingUsers,
-          onAssignedUsersChange: details.updateAssignedUsers,
-        }} />
-
-      <LinkedJobsBlock
-        jobs={details.linkableJobs}
-        linkedJobIds={details.linkedJobIds}
-        isLoading={details.isLoadingJobs}
-        onChange={details.updateLinkedJobs}
-      />
-
-      <section className="detail-section attestation-summary-section">
-        <div className="section-header-row attestation-compact-header">
-          <FileCheck2 size={18} />
-          <h3>Observationer og noter</h3>
-        </div>
-        <TextAreaBlock
-          icon={<FileCheck2 size={18} />}
-          title="Opgave"
-          value={details.form.taskDescription}
-          onChange={details.updateTaskDescription}
-          placeholder="Beskriv opgaven..."
-        />
-        <TextAreaBlock
-          icon={<User size={18} />}
-          title="Kundeinfo"
-          value={details.form.customerObservations}
-          onChange={details.updateCustomerObservations}
-          placeholder="Notér oplysninger til kunden..."
-        />
-        <TextAreaBlock
-          icon={<CheckCircle2 size={18} />}
-          title="Teknisk"
-          value={details.form.technicalObservations}
-          onChange={details.updateTechnicalObservations}
-          placeholder="Notér tekniske observationer..."
-        />
-      </section>
-
-      <section className="detail-section">
-        <div className="section-header-row attestation-compact-header">
-          <FileCheck2 size={18} />
-          <h3>Opgavetype</h3>
-        </div>
-        <WorkCategoryStep
-          form={details.form}
-          referenceData={details.referenceData}
-          isLoading={details.isLoadingReferenceData}
-          onCategoriesChange={details.updateWorkCategories}
-          onWorkKindChange={details.updateWorkKind}
-          onCustomWorkKindChange={details.updateCustomWorkKind}
-          mode="work-kind"
-        />
-      </section>
-
-      <section className="detail-section">
-        <div className="section-header-row attestation-compact-header">
-          <CheckCircle2 size={18} />
-          <h3>Anlægstyper og kontrolpunkter</h3>
-        </div>
-        <div style={{ marginBottom: '1.5rem' }}>
-          <WorkCategoryStep
-            form={details.form}
-            referenceData={details.referenceData}
-            isLoading={details.isLoadingReferenceData}
-            onCategoriesChange={details.updateWorkCategories}
-            onWorkKindChange={details.updateWorkKind}
-            onCustomWorkKindChange={details.updateCustomWorkKind}
-            mode="categories"
-          />
-        </div>
-        <ControlPointsStep
-          form={details.form}
-          referenceData={details.referenceData}
-          onToggleControlPoint={details.toggleControlPoint}
-          onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
-        />
-      </section>
-
-      <JobWorksheetsStep
-        jobId={details.job.id}
-        worksheets={details.worksheets}
-        totalHours={details.job.totalHours}
-        totalOutlay={details.job.totalOutlay}
-        assignableUsers={details.assignableUsers!}
-        isLoadingUsers={details.isLoadingUsers}
-        isSaving={details.isSavingWorksheet}
-        isDeleting={details.isDeletingWorksheet}
-        onUpsert={details.upsertWorksheet}
-        onDelete={details.deleteWorksheet}
-        variant="list"
-      />
-
-      <JobCompletionStep
-        form={details.form}
-        referenceData={details.referenceData}
-        isLoading={details.isLoadingReferenceData}
-        onClosureFlagsChange={details.updateClosureFlags}
-        worksheetCount={details.worksheets.length}
-      />
-
-      <div className="edit-form-bottom-actions">
-        <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={onCancel} disabled={details.saveStatus === 'saving'}>
-          <X size={18} />
-          Annuller
-        </button>
-        <button className="btn btn-primary edit-form-bottom-btn edit-form-save-btn" type="button" onClick={onSave} disabled={details.saveStatus === 'saving'}>
-          {details.saveStatus === 'saving' ? <Loader2 size={18} className="spin" /> : <Save size={18} />}
-          {details.saveStatus === 'saving' ? 'Gemmer...' : 'Gem ændringer'}
-        </button>
-      </div>
-    </>
-  );
-}
-
-type CompletedJobEditFormProps = {
-  details: CompletedJobDetailsState;
-  onCancel: () => void;
-  onSave: () => void;
-};
-
-function DetailGrid({ items }: { items: DetailPair[] }) {
-  if (items.length === 0) {
-    return <p className="empty-state-text">Ingen oplysninger registreret.</p>;
-  }
-
-  return (
-    <dl className="attestation-data-list report-overview-data-list">
-      {items.map((item) => (
-        <div key={item.label} className="attestation-data-pair">
-          <dt>{item.label}</dt>
-          <dd>{item.value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function AssignedUsers({ users }: { users: JobReportSummaryViewModel['assignedUsers'] }) {
-  if (users.length === 0) {
-    return <p className="empty-state-text report-overview-block-gap">Ingen montører tildelt.</p>;
-  }
-
-  return (
-    <div className="report-overview-chip-list report-overview-block-gap">
-      {users.map((user) => (
-        <span key={user.id} className="assigned-user report-overview-chip">
-          <User size={12} />
-          <span>{user.displayName}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function LinkedJobs({ links, onOpen }: { links: JobLinkInfoResponse[]; onOpen: (linkedJobId: string) => void }) {
-  if (links.length === 0) {
-    return <p className="empty-state-text">Ingen tilknyttede sager.</p>;
-  }
-
-  return (
-    <div className="report-overview-link-list">
-      {links.map((link) => (
-        <button key={link.id} type="button" className="report-overview-link-card" onClick={() => onOpen(link.linkedReportId)}>
-          <div className="report-overview-top-row">
-            <span className="report-overview-customer">{link.linkedCustomerName || 'Ukendt kunde'}</span>
-            <span className="job-number">SAG-{link.linkedReportNumber}</span>
-          </div>
-          <div className="report-overview-link-card-footer">
-            <span className="report-overview-address">{link.linkedAddress || 'Ukendt adresse'}</span>
-            <span className="btn-icon" aria-label="Åbn tilknyttet sag">
-              <ChevronRight size={20} />
-            </span>
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Worksheets({ worksheets }: { worksheets: WorksheetResponse[] }) {
-  if (worksheets.length === 0) {
-    return <p className="empty-state-text">Ingen timesedler registreret.</p>;
-  }
-
-  return (
-    <ul className="worksheet-list worksheet-list--detail report-overview-timesheet-list">
-      {worksheets.map((worksheet) => {
-        const hours = parseNullableNumber(worksheet.hoursWorked);
-        const userName = worksheet.userDisplayName || worksheet.userId;
-        return (
-          <li key={worksheet.id} className="worksheet-list-item worksheet-list-item--detail">
-            <div className="worksheet-list-item-main worksheet-list-item-main--detail">
-              <span className="worksheet-list-item-title" title={userName}>{userName}</span>
-              <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDate(worksheet.workDate)}</span>
-            </div>
-
-            <div className="worksheet-list-item-meta">
-              <div className="worksheet-list-item-badge">
-                <strong>{formatNumber(hours)}</strong>
-                <span>{formatUnit(hours, 'time', 'timer')}</span>
-              </div>
-              {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function ControlPointOverview({
-  selectedControlPoints,
-  irrelevantCategories,
-}: {
-  selectedControlPoints: SelectedControlPoint[];
-  irrelevantCategories: IrrelevantCategory[];
-}) {
-  if (selectedControlPoints.length === 0 && irrelevantCategories.length === 0) {
-    return <p className="empty-state-text">Ingen kontrolpunkter markeret.</p>;
-  }
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, { key: string; installationType: string; category: string; items: SelectedControlPoint[] }>();
-    for (const cp of selectedControlPoints) {
-      const key = `${cp.installationType}|${cp.category}`;
-      let group = map.get(key);
-      if (!group) {
-        group = { key, installationType: cp.installationType, category: cp.category, items: [] };
-        map.set(key, group);
-      }
-      group.items.push(cp);
-    }
-    return [...map.values()];
-  }, [selectedControlPoints]);
-
-  return (
-    <>
-      {grouped.map((group, index) => (
-        <div key={group.key}>
-          {index > 0 && <hr className="attestation-group-divider" />}
-          <span className="attestation-group-label">{group.installationType} · {capitalize(group.category)}</span>
-          <ul className="attestation-control-list compact">
-            {group.items.map((controlPoint) => (
-              <li key={controlPoint.id}>
-                <span>{controlPoint.name}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-
-      {irrelevantCategories.length > 0 && (
-        <div className="attestation-irrelevant-block">
-          <span className="attestation-irrelevant-label">Markeret irrelevant</span>
-          <ul className="attestation-control-list compact">
-            {irrelevantCategories.map((controlPoint) => (
-              <li key={controlPoint.id} className="attestation-control-list-item-muted">
-              <small>{controlPoint.installationType} · {capitalize(controlPoint.category)}</small>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </>
-  );
-}
-
-function getSelectedControlPoints(installationTypes: InstallationTypeResponse[]): SelectedControlPoint[] {
-  return installationTypes.flatMap((installationType) =>
-    installationType.categories.flatMap((category) =>
-      category.controlPoints
-        .filter((controlPoint) => controlPoint.isChecked)
-        .map((controlPoint) => ({
-          id: controlPoint.id,
-          installationType: installationType.name,
-          category: category.name,
-          name: controlPoint.name
-        })),
-    ),
-  );
-}
-
-function getIrrelevantCategories(installationTypes: InstallationTypeResponse[]): IrrelevantCategory[] {
-  return installationTypes.flatMap((installationType) =>
-    installationType.categories
-      .filter((category) => category.isIrrelevant)
-      .map((category) => ({
-        id: `${installationType.id}-${category.id}`,
-        installationType: installationType.name,
-        category: category.name,
-      })),
-  );
-}
-
-function compactPairs(items: DetailPair[]) {
-  return items.filter((item): item is { label: string; value: string } => hasText(item.value));
-}
-
-function hasText(value: string | null | undefined): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
-function formatReportNumber(job: Pick<JobReportSummaryViewModel, 'id' | 'reportNumber'>) {
-  return `SAG-${(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}`;
-}
-
-function formatWorkKind(job: JobReportSummaryViewModel) {
-  const workKind = job.work.workKind;
-  if (!workKind) return null;
-  if (workKind.customWorkKind) return `${workKind.label}: ${workKind.customWorkKind}`;
-  return workKind.label;
-}
-
-function formatInstallationTypeNames(installationTypes: InstallationTypeResponse[]) {
-  const names = installationTypes.map((installationType) => installationType.name).filter(hasText);
-  return names.length > 0 ? names.join(', ') : null;
-}
-
-function formatClosureFlags(job: JobReportSummaryViewModel) {
-  const labels = job.work.closureFlags.map((flag) => flag.label).filter(hasText);
-  return labels.length > 0 ? labels.join(', ') : null;
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return DATE_FORMATTER.format(date);
-}
-
-function parseNullableNumber(value: number | string | null) {
-  if (value === null) return 0;
-  const parsed = typeof value === 'number' ? value : Number(value.replace(',', '.'));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatNumber(value: number | string | null) {
-  return NUMBER_FORMATTER.format(parseNullableNumber(value));
-}
-
-function formatUnit(value: number, singular: string, plural: string) {
-  return Math.abs(value) === 1 ? singular : plural;
-}
-
-function capitalize(value: string) {
-  if (value.length === 0) return value;
-  return `${value[0].toLocaleUpperCase('da-DK')}${value.slice(1)}`;
 }

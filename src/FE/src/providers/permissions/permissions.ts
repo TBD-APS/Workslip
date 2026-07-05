@@ -18,9 +18,13 @@ export type Permission =
   | 'job:delete'
   | 'job:viewAll'
   | 'worksheet:assign'
-  | 'user:manage';
+  | 'worksheet:view'
+  | 'user:manage'
+  | 'report:view';
 
 const ADMIN_ROLES: readonly Role[] = [ROLES.Admin, ROLES.Superadmin];
+const AUDITOR_ROLES: readonly Role[] = [ROLES.Auditor, ROLES.Admin, ROLES.Superadmin];
+const USER_ROLES: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
 
 const PERMISSIONS: Record<Permission, readonly Role[]> = {
   'job:create': ADMIN_ROLES,
@@ -28,7 +32,9 @@ const PERMISSIONS: Record<Permission, readonly Role[]> = {
   'job:delete': ADMIN_ROLES,
   'job:viewAll': ADMIN_ROLES,
   'worksheet:assign': ADMIN_ROLES,
+  'worksheet:view': USER_ROLES,
   'user:manage': ADMIN_ROLES,
+  'report:view': AUDITOR_ROLES,
 };
 
 export function hasPermission(role: string | null | undefined, permission: Permission): boolean {

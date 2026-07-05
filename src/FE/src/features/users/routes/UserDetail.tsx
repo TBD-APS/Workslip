@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ErrorState } from '../../../components/ErrorState';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  AlertCircle,
   ArrowLeft,
   Building2,
   Check,
@@ -180,13 +180,11 @@ export const UserDetail = () => {
   if (query.isError || !user) {
     return (
       <div className="page-container">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente brugeroplysninger.</p>
+        <ErrorState message="Kunne ikke hente brugeroplysninger.">
           <button className="btn btn-primary" onClick={() => navigate('/app/users')}>
             Tilbage til brugerliste
           </button>
-        </div>
+        </ErrorState>
       </div>
     );
   }
@@ -295,10 +293,7 @@ export const UserDetail = () => {
           )}
 
           {(searchQuery.isError || customerSearchQuery.isError) && (
-            <div className="error-state">
-              <AlertCircle size={32} />
-              <p>Kunne ikke søge efter sager.</p>
-            </div>
+            <ErrorState message="Kunne ikke søge efter sager." />
           )}
 
           {!searchQuery.isLoading && !customerSearchQuery.isLoading &&
@@ -322,10 +317,7 @@ export const UserDetail = () => {
           )}
 
           {suggestionsQuery.isError && (
-            <div className="error-state">
-              <AlertCircle size={32} />
-              <p>Kunne ikke hente forslag.</p>
-            </div>
+            <ErrorState message="Kunne ikke hente forslag." />
           )}
 
           {!suggestionsQuery.isLoading && !suggestionsQuery.isError && suggestionResults.length === 0 && (

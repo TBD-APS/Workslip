@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertCircle, ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
+import { ErrorState } from '../../../components/ErrorState';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
@@ -9,6 +10,7 @@ import { useDeleteApiJobsId, getGetApiJobsQueryKey } from '../../../api/generate
 import { DeleteButton } from '../../../components/common/DeleteButton';
 import { useCan } from '../../../providers/permissions';
 import { isValidJobForm, isValidWork } from '../utils';
+import { formatDateLong } from '../../../lib/formatDate';
 import { ControlPointsStep } from './steps/ControlPointsStep';
 import { validateControlPoints } from './steps/controlPointsValidation';
 import { JobAttestationStep } from './steps/JobAttestationStep';
@@ -86,13 +88,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   if (details.isError || !details.job) {
     return (
       <div className="page-container">
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente sagen.</p>
+        <ErrorState message="Kunne ikke hente sagen.">
           <button className="btn btn-secondary" onClick={onBack}>
             Tilbage til oversigten
           </button>
-        </div>
+        </ErrorState>
       </div>
     );
   }
@@ -353,8 +353,6 @@ function getAttachedWorksheetsMessage(worksheetCount: number): string {
   return `Sagen kan ikke slettes, fordi den har ${worksheetCount} ${noun}. Slet ${noun} først.`;
 }
 
-const SUBMITTED_DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
-
 type SubmittedConfirmationProps = {
   reportNumber: string;
   submittedAt: Date;
@@ -369,7 +367,7 @@ function SubmittedConfirmation({ reportNumber, submittedAt, onDone }: SubmittedC
       </div>
       <h2 className="submitted-confirmation-title">Sag indsendt</h2>
       <p className="submitted-confirmation-body">
-        Du har indsendt sag {reportNumber} til kontoret d. {SUBMITTED_DATE_FORMATTER.format(submittedAt)}.
+        Du har indsendt sag {reportNumber} til kontoret d. {formatDateLong(submittedAt.toISOString())}.
       </p>
       <button type="button" className="btn btn-primary submitted-confirmation-button" onClick={onDone}>
         Tilbage til oversigt

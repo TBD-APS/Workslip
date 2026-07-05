@@ -40,9 +40,8 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
 
         var existing = await _dbContext.JobReports.FirstOrDefaultAsync(r => r.Id == jobId && r.OrganizationId == organizationId, cancellationToken);
 
-        if (existing is null) 
+        if (existing is null)
             return;
-
 
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 

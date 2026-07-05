@@ -2,18 +2,24 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { useGetApiJobs } from '../../../api/generated/jobs/jobs';
+import { useQuery } from '@tanstack/react-query';
+import { getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
 import { useJobCreate } from '../hooks/useJobCreate';
 import { CreateOverviewStep } from '../components/steps/CreateOverviewStep';
 import { getLinkableJobs } from '../utils';
+import type { JobListItemViewModel } from '../../../api/generated/models';
 import { JobStatus } from '../../../api/generated/models';
+import { apiClient } from '../../../lib/axios';
 
 export const JobCreate = () => {
   const navigate = useNavigate();
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
-  const { data: jobsData, isLoading: isLoadingJobs } = useGetApiJobs({ 
-    status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview],
-    limit: 200 
+  const { data: jobsData, isLoading: isLoadingJobs } = useQuery({
+    queryKey: getGetApiJobsQueryKey({ status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 }),
+    queryFn: async () => {
+      const data = await apiClient.get('/api/jobs', { params: { status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 } }) as { items: JobListItemViewModel[]; totalCount: number };
+      return data.items;
+    },
   });
   const linkableJobs = getLinkableJobs(jobsData, undefined);
 

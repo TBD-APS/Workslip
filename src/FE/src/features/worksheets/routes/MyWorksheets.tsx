@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, BriefcaseBusiness, ChevronDown, ChevronLeft, ChevronRight, MapPin, ReceiptText, Timer } from 'lucide-react';
+import { BriefcaseBusiness, ChevronDown, ChevronLeft, ChevronRight, MapPin, ReceiptText, Timer } from 'lucide-react';
+import { ErrorState } from '../../../components/ErrorState';
 import { apiClient } from '../../../lib/axios';
 
 type MyWorksheetEntryResponse = {
@@ -48,7 +49,7 @@ type TimerOverviewState = {
 
 const TIMER_OVERVIEW_STATE_KEY = 'workslip.timerOverviewState';
 
-const MONTH_FORMATTER = new Intl.DateTimeFormat('da-DK', { month: 'long', year: 'numeric' });
+const MONTH_FORMATTER = new Intl.DateTimeFormat('da-DK', { month: 'short', year: 'numeric' });
 const DAY_FORMATTER = new Intl.DateTimeFormat('da-DK', { weekday: 'short', day: 'numeric' });
 const WEEK_RANGE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short' });
 
@@ -150,13 +151,7 @@ export function MyWorksheets() {
       )}
 
       {query.isError && (
-        <div className="error-state">
-          <AlertCircle size={32} />
-          <p>Kunne ikke hente dine timer.</p>
-          <button type="button" className="btn btn-primary" onClick={() => query.refetch()}>
-            Prøv igen
-          </button>
-        </div>
+        <ErrorState message="Kunne ikke hente dine timer." onRetry={() => query.refetch()} />
       )}
 
       {data && (

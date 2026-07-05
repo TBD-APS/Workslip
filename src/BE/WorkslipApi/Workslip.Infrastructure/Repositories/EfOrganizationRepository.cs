@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Application.Organizations;
 using Workslip.Domain.Models;
+using Workslip.Domain;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
 
@@ -65,7 +66,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository
             DisplayName = request.AdminDisplayName.Trim(),
             Email = NullIfWhiteSpace(request.AdminEmail) ?? "",
             Phone = NullIfWhiteSpace(request.AdminPhone) ?? "",
-            Role = "Admin",
+            Role = Roles.Admin,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -84,7 +85,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository
 
         return new OrganizationOnboardingResponse(
             new OrganizationResponse(organizationId, request.Name.Trim(), normalizedCvr, now, now),
-            new OrganizationUserResponse(userId, organizationId, request.AdminDisplayName.Trim(), NullIfWhiteSpace(request.AdminEmail), NullIfWhiteSpace(request.AdminPhone), "Admin", now, now));
+            new OrganizationUserResponse(userId, organizationId, request.AdminDisplayName.Trim(), NullIfWhiteSpace(request.AdminEmail), NullIfWhiteSpace(request.AdminPhone), Roles.Admin, now, now));
     }
 
     public Task<CurrentUserResponse?> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken) =>

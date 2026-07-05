@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import {
@@ -11,9 +11,10 @@ import {
   usePostApiJobsIdLinks,
   usePostApiJobsIdStatus,
   usePatchApiJobsId,
-  useGetApiJobs,
 } from '../../../api/generated/jobs/jobs';
-import { JobStatus } from '../../../api/generated/models/jobStatus';
+import type { JobListItemViewModel } from '../../../api/generated/models';
+import { JobStatus } from '../../../api/generated/models';
+import { apiClient } from '../../../lib/axios';
 import {
   useDeleteApiWorksheetsWorksheetIdJobsJobId,
   usePostApiWorksheetsJobsJobId,
@@ -71,11 +72,17 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const job = query.data;
   const usersQuery = useGetApiUsers({ limit: 200 }, { query: { enabled: isAdmin } });
   const referenceDataQuery = useGetApiReferenceData();
-  const jobsData = useGetApiJobs({ status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 });
+  const jobsQuery = useQuery({
+    queryKey: getGetApiJobsQueryKey({ status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 }),
+    queryFn: async () => {
+      const data = await apiClient.get('/api/jobs', { params: { status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 } }) as { items: JobListItemViewModel[]; totalCount: number };
+      return data.items;
+    },
+  });
   const assignableUsers = usersQuery.data?.users ?? [];
   const referenceData = referenceDataQuery.data!;
 
-  const linkableJobs = getLinkableJobs(jobsData.data, jobId);
+  const linkableJobs = getLinkableJobs(jobsQuery.data, jobId);
   const initialForm = job ? toForm(job) : null;
   const form =
     draft && draft.jobId === jobId ? draft.form : initialForm ?? emptyForm;

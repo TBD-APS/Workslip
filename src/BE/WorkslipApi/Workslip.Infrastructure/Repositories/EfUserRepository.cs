@@ -76,12 +76,34 @@ public sealed class EfUserRepository : IUserRepository
         };
     }
 
-    public async Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken)
     {
-        return await _dbContext.Users
+        var query = _dbContext.Users
             .AsNoTracking()
-            .Where(u => u.OrganizationId == organizationId)
-            .OrderByDescending(u => u.CreatedAt)
+            .Where(u => u.OrganizationId == organizationId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(u =>
+                (u.DisplayName != null && u.DisplayName.Contains(term)) ||
+                (u.Email != null && u.Email.Contains(term)) ||
+                (u.Phone != null && u.Phone.Contains(term)) ||
+                (u.Role != null && u.Role.Contains(term)));
+        }
+
+        query = (sortBy, sortDirection) switch
+        {
+            ("displayName", "asc") => query.OrderBy(u => u.DisplayName),
+            ("displayName", "desc") => query.OrderByDescending(u => u.DisplayName),
+            ("email", "asc") => query.OrderBy(u => u.Email),
+            ("email", "desc") => query.OrderByDescending(u => u.Email),
+            ("role", "asc") => query.OrderBy(u => u.Role),
+            ("role", "desc") => query.OrderByDescending(u => u.Role),
+            _ => query.OrderByDescending(u => u.CreatedAt)
+        };
+
+        return await query
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken);

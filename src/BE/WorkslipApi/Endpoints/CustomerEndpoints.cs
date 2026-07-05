@@ -1,6 +1,5 @@
 using Workslip.Api.Helpers;
 using Workslip.Api.ViewModels;
-using Workslip.Application.Auth;
 using Workslip.Application.Customers;
 
 namespace Workslip.Api.Endpoints;
@@ -9,9 +8,7 @@ public static class CustomerEndpoints
 {
     public static IEndpointRouteBuilder MapCustomerEndpoints(this IEndpointRouteBuilder app)
     {
-        var searchGroup = app.MapGroup("/api/customers")
-            .WithTags("customers")
-            .RequireAuthorization(AuthPolicies.RequireUser);
+        var searchGroup = app.MapReadGroup("/api/customers", "customers");
 
         searchGroup.MapGet("/search", async (string? query, int? limit, ICustomerService service, CancellationToken cancellationToken) =>
         {
@@ -31,15 +28,13 @@ public static class CustomerEndpoints
             return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToSearch).ToArray());
         }).Produces<List<CustomerSearchViewModel>>();
 
-        var group = app.MapGroup("/api/customers")
-            .WithTags("customers")
-            .RequireAuthorization(AuthPolicies.RequireAdmin);
+        var group = app.MapAdminGroup("/api/customers", "customers");
 
-        group.MapGet("/", async (int? limit, int? offset, ICustomerService service, CancellationToken cancellationToken) =>
+        group.MapGet("/", async (int? limit, int? offset, string? search, string? sortBy, string? sortDirection, ICustomerService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.ListAsync(limit, offset, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToListItem).ToArray());
-        }).Produces<List<CustomerListItemViewModel>>();
+            var result = await service.ListAsync(limit, offset, search, sortBy, sortDirection, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, CustomerViewModelBuilder.ToList);
+        }).Produces<CustomerListViewModel>();
 
         group.MapGet("/{id:guid}", async (Guid id, ICustomerService service, CancellationToken cancellationToken) =>
         {

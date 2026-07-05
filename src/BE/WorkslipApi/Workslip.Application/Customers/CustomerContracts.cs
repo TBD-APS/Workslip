@@ -27,6 +27,10 @@ public sealed record CustomerDetailResponse(
     int JobCount,
     IReadOnlyList<CustomerJobResponse> Jobs);
 
+public sealed record CustomerListResponse(
+    IReadOnlyList<CustomerListItemResponse> Items,
+    int TotalCount);
+
 public sealed record CustomerSearchResponse(
     Guid Id,
     string Name,
