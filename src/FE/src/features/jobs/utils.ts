@@ -144,7 +144,7 @@ export function toUpdateRequest(
       initial.customerObservations !== form.customerObservations ||
       initial.technicalObservations !== form.technicalObservations
         ? {
-            reportDate: job.observations.reportDate ?? null,
+            reportDate: null,
             taskDescription: form.taskDescription.trim() || null,
             customerObservations: form.customerObservations.trim() || null,
             technicalObservations: form.technicalObservations.trim() || null,

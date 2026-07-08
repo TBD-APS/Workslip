@@ -12,7 +12,7 @@ import { validateControlPoints } from '../components/steps/controlPointsValidati
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useJobDetailsState } from '../hooks/useJobDetails';
-import { formatDateLong } from '../../../lib/formatDate';
+
 import { formatJobStatus } from '../statusLabels';
 import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
@@ -236,7 +236,6 @@ export const CompletedJobReport = () => {
   const summaryPairs = compactPairs([
     { label: 'Sagsnummer', value: formatReportNumber(job) },
     { label: 'Status', value: formatJobStatus(job.status)},
-    { label: 'Rapportdato', value: formatDateLong(job.observations.reportDate) },
     { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
     { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Afslutning', value: formatClosureFlags(job) },
