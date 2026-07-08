@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, MapPin, Plus, Timer, User } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Plus, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
@@ -158,7 +158,7 @@ export const JobList = () => {
             <div className="skeleton skeleton-subtitle" />
           </>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+          <div className="flex-row-between">
             <div>
               <h2>Opgaver</h2>
               {isAdmin ? (
@@ -244,49 +244,49 @@ export const JobList = () => {
             <tr>
               <th className={`col-number sortable${sortBy === 'reportNumber' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('reportNumber')}>
-                  Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
               <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('name')}>
-                  Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
               <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('address')}>
-                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
-              <th className="col-status">
-                Status
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
-              </th>
               <th className="col-installation">
                 Anlæg
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
               </th>
               <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('totalHours')}>
-                  Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
               </th>
               <th className="col-users">
                 Medarbejdere
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
+              </th>
+              <th className="col-status">
+                Status
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'reportDate' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('reportDate')}>
-                  Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'updatedAt' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('updatedAt')}>
-                  Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(8, e)} />
               </th>
@@ -313,21 +313,21 @@ export const JobList = () => {
               >
                 <td><span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span></td>
                 <td>{job.customer?.name || 'Ukendt kunde'}</td>
-                <td>{job.customer?.address || '\u2014'}</td>
+                <td>{job.customer?.address}</td>
+                <td>
+                  <InstallationTypeTags types={job.installationTypes} />
+                </td>
+                <td className="cell-number"> {job.totalHours}</td>
+                <td>
+                  <TableAssignedUsers users={job.assignedUsers} />
+                </td>
                 <td>
                   <span className={`status-badge-cell cell-status-${job.status}`}>
                     {formatJobStatus(job.status)}
                   </span>
                 </td>
-                <td>
-                  <InstallationTypeTags types={job.installationTypes} />
-                </td>
-                <td className="cell-number">{job.totalHours != null ? `${job.totalHours}` : '\u2014'}</td>
-                <td>
-                  <TableAssignedUsers users={job.assignedUsers} />
-                </td>
-                <td className="cell-date">{formatDateLong(job.reportDate) ?? '\u2014'}</td>
-                <td className="cell-date">{formatDateLong(job.updatedAt) ?? '\u2014'}</td>
+                <td className="cell-date">{formatDateLong(job.reportDate)}</td>
+                <td className="cell-date">{formatDateLong(job.updatedAt)}</td>
                 <td className="col-actions">
                   <ChevronRight size={16} className="row-link-icon" />
                 </td>
@@ -355,22 +355,38 @@ export const JobList = () => {
             className={`sort-btn${sortBy === 'reportNumber' ? ' active' : ''}`}
             onClick={() => handleSort('reportNumber')}
           >
-            Sagsnr.{sortBy === 'reportNumber' && (sortDirection === 'asc' ? <>&nbsp;\u2191</> : <>&nbsp;\u2193</>)}
+            Sagsnr.{sortBy === 'reportNumber' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
           </button>
           <button
             type="button"
             className={`sort-btn${sortBy === 'name' ? ' active' : ''}`}
             onClick={() => handleSort('name')}
           >
-            Kundenavn{sortBy === 'name' && (sortDirection === 'asc' ? <>&nbsp;\u2191</> : <>&nbsp;\u2193</>)}
+            Kundenavn{sortBy === 'name' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
           </button>
           <button
             type="button"
             className={`sort-btn${sortBy === 'address' ? ' active' : ''}`}
             onClick={() => handleSort('address')}
           >
-            Adresse{sortBy === 'address' && (sortDirection === 'asc' ? <>&nbsp;\u2191</> : <>&nbsp;\u2193</>)}
+            Adresse{sortBy === 'address' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
           </button>
+          <div className="job-sort-secondary">
+            <button
+              type="button"
+              className={`sort-btn${sortBy === 'createdAt' ? ' active' : ''}`}
+              onClick={() => handleSort('createdAt')}
+            >
+              Skabt{sortBy === 'createdAt' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+            </button>
+            <button
+              type="button"
+              className={`sort-btn${sortBy === 'updatedAt' ? ' active' : ''}`}
+              onClick={() => handleSort('updatedAt')}
+            >
+              Opdateret{sortBy === 'updatedAt' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+            </button>
+          </div>
         </div>
       )}
 
@@ -455,10 +471,6 @@ function AssignedUsers({ users }: { users: AssignedUserResponse[] }) {
 }
 
 function TableAssignedUsers({ users }: { users: AssignedUserResponse[] }) {
-  if (users.length === 0) {
-    return <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-xs)' }}>\u2014</span>;
-  }
-
   return (
     <span className="cell-comma-list">
       {users.map((user) => (
@@ -469,7 +481,6 @@ function TableAssignedUsers({ users }: { users: AssignedUserResponse[] }) {
 }
 
 function InstallationTypeTags({ types }: { types: string[] }) {
-  if (types.length === 0) return <span style={{ color: 'var(--text-muted)' }}>\u2014</span>;
   return (
     <span className="cell-comma-list">
       {types.map((type) => (

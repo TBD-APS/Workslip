@@ -13,6 +13,7 @@ import { hasSnapshotData } from './hooks/useCustomerSnapshot';
 
 type UpdateJobRequestWithSnapshot = UpdateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
+  reportNumber?: string | null;
 };
 
 export const emptySnapshot: CustomerSnapshotData = {
@@ -27,7 +28,9 @@ export const emptyForm: JobForm = {
   customerId: null,
   customerSnapshot: { ...emptySnapshot },
   editSnapshot: false,
+  createCustomer: false,
   reportNumber: '',
+  destinationAddress: '',
   taskDescription: '',
   customerObservations: '',
   technicalObservations: '',
@@ -77,6 +80,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
 
   return {
     customerId: job.customerId ?? null,
+    createCustomer: false,
     customerSnapshot: {
       name: job.customerSnapshot.name ?? null,
       address: job.customerSnapshot.address ?? null,
@@ -86,6 +90,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
     },
     editSnapshot: false,
     reportNumber: job.reportNumber ?? '',
+    destinationAddress: job.destinationAddress ?? '',
     taskDescription: job.observations.taskDescription ?? '',
     customerObservations: job.observations.customerObservations ?? '',
     technicalObservations: job.observations.technicalObservations ?? '',
@@ -127,6 +132,9 @@ export function toUpdateRequest(
 
   return {
     customerSnapshot: snapshot,
+    destinationAddress: job.destinationAddress
+      ? null
+      : (initial.destinationAddress !== form.destinationAddress ? form.destinationAddress.trim() || null : null),
     reportNumber: job.reportNumber
       ? null
       : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),
@@ -182,6 +190,7 @@ export function sameFormWithoutWork(left: JobForm, right: JobForm) {
     left.customerId === right.customerId &&
     sameSnapshot(left.customerSnapshot, right.customerSnapshot) &&
     left.reportNumber === right.reportNumber &&
+    left.destinationAddress === right.destinationAddress &&
     left.taskDescription === right.taskDescription &&
     left.customerObservations === right.customerObservations &&
     left.technicalObservations === right.technicalObservations

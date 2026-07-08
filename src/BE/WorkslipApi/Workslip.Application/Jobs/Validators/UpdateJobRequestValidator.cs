@@ -6,9 +6,6 @@ public sealed class UpdateJobRequestValidator : AbstractValidator<UpdateJobReque
 {
     public UpdateJobRequestValidator()
     {
-        RuleFor(x => x.ReportNumber)
-            .MaximumLength(80).WithMessage("Report number must not exceed 80 characters.");
-
         RuleFor(x => x.CustomerSnapshot)
             .SetValidator(new CustomerSnapshotDataValidator()!)
             .When(x => x.CustomerSnapshot is not null);

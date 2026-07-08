@@ -32,7 +32,6 @@ export function useColumnResize() {
     el.addEventListener('click', preventClick, true);
 
     const startWidth = th.getBoundingClientRect().width;
-    setColWidth(th, startWidth);
     resizing.current = { index, startX: e.clientX, startWidth, element: th };
 
     const handleMouseMove = (e: MouseEvent) => {

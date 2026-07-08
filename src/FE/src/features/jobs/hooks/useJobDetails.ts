@@ -306,6 +306,10 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateDraft({ ...form, reportNumber: value });
   };
 
+  const updateDestinationAddress = (value: string) => {
+    updateDraft({ ...form, destinationAddress: value });
+  };
+
   const updateTaskDescription = (value: string) => {
     updateDraft({ ...form, taskDescription: value });
   };
@@ -594,6 +598,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     assignmentStatus,
     linksStatus,
     canContinue: isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber) }) && isValidWork(form, referenceData),
+    hasUnsavedChanges: draft !== null && initialForm !== null && !sameForm(initialForm, draft.form),
     reportNumberReadOnly: Boolean(job?.reportNumber),
     flushSave,
     saveAllChanges,
@@ -607,6 +612,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateSnapshotField,
     updateEditSnapshot,
     updateReportNumber,
+    updateDestinationAddress,
     updateTaskDescription,
     updateCustomerObservations,
     updateTechnicalObservations,

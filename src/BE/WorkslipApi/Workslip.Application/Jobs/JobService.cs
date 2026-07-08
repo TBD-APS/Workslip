@@ -589,13 +589,13 @@ public sealed class JobService(
             report.Status,
             report.Customer?.CustomerId,
             customerSnapshot,
+            report.DestinationAddress,
             new JobReportSummaryWorkResponse(
                 report.WorkKind,
                 report.InstallationTypes,
                 closureFlags!,
                 report.Remarks),
             new JobReportSummaryObservationResponse(
-                report.ReportDate,
                 report.TaskDescription,
                 report.CustomerObservations,
                 report.TechnicalObservations),

@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Mail, Shield } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Mail, Shield } from 'lucide-react';
 import { type UserListViewModel, type UserViewModel } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
@@ -106,10 +106,10 @@ export const UserList = () => {
             <tbody>
               {Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  <td><div className="skeleton" style={{ height: '1em', width: '60%' }} /></td>
-                  <td><div className="skeleton" style={{ height: '1em', width: '70%' }} /></td>
-                  <td><div className="skeleton" style={{ height: '1em', width: '40%' }} /></td>
-                  <td><div className="skeleton" style={{ height: '1em', width: '1.5rem' }} /></td>
+                  <td><div className="skeleton skeleton-w-60" /></td>
+                  <td><div className="skeleton skeleton-w-70" /></td>
+                  <td><div className="skeleton skeleton-w-40" /></td>
+                  <td><div className="skeleton skeleton-w-1-5rem" /></td>
                 </tr>
               ))}
             </tbody>
@@ -131,19 +131,19 @@ export const UserList = () => {
             <tr>
               <th className={`col-name sortable${sortBy === 'displayName' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('displayName')}>
-                  Navn<span className="sort-icon">{sortBy === 'displayName' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Navn<span className="sort-icon">{sortBy === 'displayName' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
               <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('email')}>
-                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
               <th className={`col-role sortable${sortBy === 'role' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('role')}>
-                  Rolle<span className="sort-icon">{sortBy === 'role' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Rolle<span className="sort-icon">{sortBy === 'role' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
@@ -161,14 +161,14 @@ export const UserList = () => {
               >
                 <td><strong>{user.displayName}</strong></td>
                 <td>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Mail size={14} style={{ color: 'var(--text-muted)' }} />
+                  <span className="inline-flex-center">
+                    <Mail size={14} className="text-muted" />
                     {user.email}
                   </span>
                 </td>
                 <td>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Shield size={14} style={{ color: 'var(--text-muted)' }} />
+                  <span className="inline-flex-center">
+                    <Shield size={14} className="text-muted" />
                     {user.role}
                   </span>
                 </td>

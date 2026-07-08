@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
+import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { AxiosError } from 'axios';
@@ -147,6 +148,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
 
   return (
     <div className="page-container job-detail-page">
+      <NavigationGuard when={details.hasUnsavedChanges} onSave={() => details.saveAllChanges()} />
       <JobDetailsHeader
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}

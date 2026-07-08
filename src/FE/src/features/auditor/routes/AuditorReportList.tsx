@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, MapPin, Timer, User } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import type { JobListItemViewModel } from '../../../api/generated/models';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { ErrorState } from '../../../components/ErrorState';
@@ -224,19 +224,19 @@ export const AuditorReportList = () => {
             <tr>
               <th className={`col-number sortable${sortBy === 'reportNumber' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('reportNumber')}>
-                  Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+                  Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
               <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('name')}>
-                  Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+                  Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
               <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('address')}>
-                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
@@ -250,7 +250,7 @@ export const AuditorReportList = () => {
               </th>
               <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('totalHours')}>
-                  Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+                  Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
               </th>
@@ -260,13 +260,13 @@ export const AuditorReportList = () => {
               </th>
               <th className={`col-date sortable${sortBy === 'reportDate' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('reportDate')}>
-                  Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+                  Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'updatedAt' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('updatedAt')}>
-                  Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
+                  Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(8, e)} />
               </th>
@@ -395,7 +395,7 @@ function AssignedUsers({ users }: { users: JobListItemViewModel['assignedUsers']
 }
 
 function InstallationTypeTags({ types }: { types: string[] }) {
-  if (types.length === 0) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+  if (types.length === 0) return <span className="text-muted">—</span>;
   return (
     <span className="cell-comma-list">
       {types.map((type) => (
@@ -407,7 +407,7 @@ function InstallationTypeTags({ types }: { types: string[] }) {
 
 function AuditorTableAssignedUsers({ users }: { users: JobListItemViewModel['assignedUsers'] }) {
   if (users.length === 0) {
-    return <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-xs)' }}>—</span>;
+    return <span className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>—</span>;
   }
 
   return (

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, ChevronRight, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronRight, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
@@ -89,7 +89,7 @@ export const CustomerList = () => {
             <div className="skeleton skeleton-subtitle" />
           </>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+          <div className="flex-row-between">
             <div>
               <h2>Kunder</h2>
               <p className="subtitle">{totalCount} {totalCount === 1 ? 'kunde' : 'kunder'}</p>
@@ -125,12 +125,12 @@ export const CustomerList = () => {
             <tbody>
               {Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  <td><div className="skeleton" style={{ height: '1em', width: '70%' }} /></td>
-                  <td><div className="skeleton" style={{ height: '1em', width: '60%' }} /></td>
-                  <td><div className="skeleton" style={{ height: '1em', width: '50%' }} /></td>
-                  <td><div className="skeleton" style={{ height: '1em', width: '40%' }} /></td>
-                  <td><div className="skeleton" style={{ height: '1em', width: '2rem' }} /></td>
-                  <td><div className="skeleton" style={{ height: '1em', width: '1.5rem' }} /></td>
+                  <td><div className="skeleton skeleton-w-70" /></td>
+                  <td><div className="skeleton skeleton-w-60" /></td>
+                  <td><div className="skeleton skeleton-w-50" /></td>
+                  <td><div className="skeleton skeleton-w-40" /></td>
+                  <td><div className="skeleton skeleton-w-2rem" /></td>
+                  <td><div className="skeleton skeleton-w-1-5rem" /></td>
                 </tr>
               ))}
             </tbody>
@@ -152,31 +152,31 @@ export const CustomerList = () => {
             <tr>
               <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('name')}>
-                  Navn<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Navn<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
               <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('address')}>
-                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
               <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('email')}>
-                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
               <th className={`col-contact sortable${sortBy === 'contactPerson' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('contactPerson')}>
-                  Kontakt<span className="sort-icon">{sortBy === 'contactPerson' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Kontakt<span className="sort-icon">{sortBy === 'contactPerson' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
               </th>
               <th className={`col-hours sortable${sortBy === 'jobCount' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('jobCount')}>
-                  Sager<span className="sort-icon">{sortBy === 'jobCount' ? (sortDirection === 'asc' ? '\u2191' : '\u2193') : '\u2195'}</span>
+                  Sager<span className="sort-icon">{sortBy === 'jobCount' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
               </th>
@@ -193,21 +193,20 @@ export const CustomerList = () => {
                 onClick={() => navigate(`/app/customers/${customer.id}`)}
               >
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Building2 size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  <div className="flex-row-center">
+                    <Building2 size={16} className="text-muted flex-shrink-0" />
                     <span>{customer.name}</span>
                   </div>
                 </td>
-                <td>{customer.address || '\u2014'}</td>
-                <td>{customer.email || '\u2014'}</td>
-                <td>{customer.contactPerson || '\u2014'}</td>
+                <td>{customer.address}</td>
+                <td>{customer.email}</td>
+                <td>{customer.contactPerson}</td>
                 <td className="cell-number">{customer.jobCount}</td>
                 <td className="col-actions">
-                  <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                  <div className="flex-row-end">
                     <button
                       type="button"
-                      className="btn-icon"
-                      style={{ opacity: 0.5 }}
+                      className="btn-icon opacity-50"
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleActionMenu(e, customer.id);

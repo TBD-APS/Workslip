@@ -1,6 +1,6 @@
 import { FileText, MessageSquare, Wrench } from 'lucide-react';
 import type { useJobCreate } from '../../hooks/useJobCreate';
-import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, ReportNumberBlock, AssignmentBlock } from '../JobDetailBlocks';
+import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, ReportNumberBlock, AssignmentBlock, DestinationAddressBlock } from '../JobDetailBlocks';
 import type { LinkableJob } from '../../types';
 
 type JobCreateState = ReturnType<typeof useJobCreate>;
@@ -14,21 +14,30 @@ type CreateOverviewStepProps = {
 export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: CreateOverviewStepProps) {
   return (
     <>
+      <ReportNumberBlock
+        value={create.form.reportNumber ?? ''}
+        onChange={create.updateReportNumber}
+        readOnly={false}
+      />
+      
+      <DestinationAddressBlock
+        value={create.form.destinationAddress}
+        onChange={create.updateDestinationAddress}
+      />
+
       <CustomerDetailsBlock
         form={create.form}
         customerSnapshot={create.form.customerSnapshot}
         editSnapshot={create.form.editSnapshot}
+        createCustomer={create.form.createCustomer}
+        onCreateCustomerChange={create.updateCreateCustomer}
+        hasCustomerChanges={create.hasCustomerChanges}
         onCustomerSelect={create.selectCustomer}
         onSnapshotFieldChange={create.updateSnapshotField}
         onEditSnapshotChange={create.updateEditSnapshot}
         showEditCheckbox={true}
       />
 
-      <ReportNumberBlock
-        value={create.form.reportNumber ?? ''}
-        onChange={create.updateReportNumber}
-        readOnly={false}
-      />
 
       <AssignmentBlock
         assignment={{

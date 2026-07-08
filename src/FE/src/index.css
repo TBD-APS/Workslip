@@ -3,6 +3,13 @@
 :root {
   /* Core Palette */
   --bg: #050505;
+  --text-primary: var(--text);
+  --text-secondary: var(--text-muted);
+  --text-disabled: rgba(255, 255, 255, 0.4);
+  --surface-color: var(--surface-floating);
+  --surface-border: var(--border);
+  --surface-overlay: rgba(0, 0, 0, 0.6);
+  --danger-hover: #b91c1c;
   --text: #f5f5f7;
   --text-muted: #a1a1aa;
   --text-dim: rgba(255, 255, 255, 0.4);
@@ -37,6 +44,13 @@
   --overlay-medium: rgba(0, 0, 0, 0.6);
   --overlay-heavy: rgba(0, 0, 0, 0.85);
   --overlay-blur: rgba(5, 5, 5, 0.8);
+  --overlay-dark-01: rgba(0, 0, 0, 0.1);
+  --overlay-dark-04: rgba(0, 0, 0, 0.4);
+  --overlay-dark-095: rgba(0, 0, 0, 0.95);
+  --overlay-light-002: rgba(255, 255, 255, 0.02);
+  --overlay-light-0055: rgba(255, 255, 255, 0.055);
+  --overlay-light-03: rgba(255, 255, 255, 0.03);
+  --overlay-light-050: rgba(255, 255, 255, 0.5);
 
   /* Status System */
   --status-blue-bg: rgba(37, 99, 235, 0.12);
@@ -71,7 +85,106 @@
   --radius-lg: 16px;
   --radius-pill: 999px;
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-sm-raw: 0 2px 4px rgba(0, 0, 0, 0.15);
   --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.35);
+  --shadow-accent: 0 0 20px rgba(44, 84, 172, 0.5);
+}
+
+[data-theme="day"] {
+  --bg: #f3f4f6;
+  --text: #18181b;
+  --text-muted: #52525b;
+  --text-dim: rgba(0, 0, 0, 0.45);
+  --text-disabled: rgba(0, 0, 0, 0.38);
+  --surface-floating: #ffffff;
+  --surface-color: #ffffff;
+  --surface: rgba(0, 0, 0, 0.04);
+  --surface-raised: rgba(0, 0, 0, 0.06);
+  --surface-input: #ffffff;
+  --surface-elevated: rgba(0, 0, 0, 0.08);
+  --surface-selected: rgba(44, 84, 172, 0.12);
+  --surface-selected-strong: rgba(0, 0, 0, 0.08);
+  --surface-modal: #ffffff;
+  --surface-actions-menu: #ffffff;
+  --surface-border: rgba(0, 0, 0, 0.1);
+  --surface-overlay: rgba(255, 255, 255, 0.8);
+  --border: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --focus-ring: rgba(44, 84, 172, 0.3);
+  --overlay-subtle: rgba(0, 0, 0, 0.1);
+  --overlay-medium: rgba(0, 0, 0, 0.25);
+  --overlay-heavy: rgba(0, 0, 0, 0.5);
+  --overlay-blur: rgba(255, 255, 255, 0.8);
+  --overlay-dark-01: rgba(0, 0, 0, 0.06);
+  --overlay-dark-04: rgba(0, 0, 0, 0.2);
+  --overlay-dark-095: rgba(0, 0, 0, 0.8);
+  --overlay-light-002: rgba(0, 0, 0, 0.02);
+  --overlay-light-0055: rgba(0, 0, 0, 0.04);
+  --overlay-light-03: rgba(0, 0, 0, 0.035);
+  --overlay-light-050: rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.07);
+  --shadow-sm-raw: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.12);
+  --shadow-accent: 0 0 20px rgba(44, 84, 172, 0.25);
+  --status-blue-text: #2563eb;
+  --status-red-text: #dc2626;
+  --status-amber-text: #d97706;
+  --status-green-text: #16a34a;
+  --status-neutral-text: #52525b;
+}
+
+[data-theme="day"] .navbar {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="day"] .hero h1 {
+  background: linear-gradient(180deg, #18181b 0%, #71717a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+[data-theme="day"] .bottom-nav {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+[data-theme="day"] .nav-item {
+  color: var(--text-muted);
+}
+
+[data-theme="day"] .nav-item.active {
+  color: var(--text);
+}
+
+[data-theme="day"] .form-input:focus {
+  background: var(--surface-input);
+}
+
+[data-theme="day"] .control-point-type:focus-within {
+  background: var(--surface-input);
+}
+
+[data-theme="day"] .multi-select-trigger:hover:not(:disabled),
+[data-theme="day"] .multi-select-trigger[aria-expanded="true"] {
+  background: var(--surface-input);
+  border-color: var(--focus-ring);
+}
+
+[data-theme="day"] .status-filter-btn {
+  color: var(--text-muted);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+[data-theme="day"] .bg-glow-1 {
+  background: radial-gradient(circle, rgba(0,112,243,0.08) 0%, rgba(0,0,0,0) 70%);
+}
+
+[data-theme="day"] .bg-glow-2 {
+  background: radial-gradient(circle, rgba(0,198,255,0.06) 0%, rgba(0,0,0,0) 70%);
+}
+
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 /* Styrer teksten */

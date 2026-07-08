@@ -55,6 +55,7 @@ internal static class AuditDisplayNames
         { "IsChecked", "Afkrydset" },
         { "IsIrrelevant", "Ikke relevant" },
         { "CustomerContactPerson", "Kundens kontaktperson" },
+        { "DestinationAddress", "Adresse (destination)" },
         { "SubmittedAt", "Attesteret" },
         { "IsSoftDeleted", "Slettet" },
         { "DeletionScheduledAt", "Sletning planlagt" }

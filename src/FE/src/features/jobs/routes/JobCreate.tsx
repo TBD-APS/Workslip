@@ -6,7 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
 import { useJobCreate } from '../hooks/useJobCreate';
 import { CreateOverviewStep } from '../components/steps/CreateOverviewStep';
-import { getLinkableJobs } from '../utils';
+import { NavigationGuard } from '../../../components/forms/NavigationGuard';
+import { emptyForm, getLinkableJobs, sameForm } from '../utils';
 import type { JobListItemViewModel } from '../../../api/generated/models';
 import { JobStatus } from '../../../api/generated/models';
 import { apiClient } from '../../../lib/axios';
@@ -35,8 +36,11 @@ export const JobCreate = () => {
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const hasUnsavedChanges = createdJobId === null && (!sameForm(create.form, emptyForm) || create.linkedJobIds.length > 0);
+
   return (
     <div className="page-container">
+      <NavigationGuard when={hasUnsavedChanges} />
       <div className="detail-header">
         <button className="btn-icon" onClick={() => navigate('/app')} aria-label="Tilbage">
           <ArrowLeft size={22} />
