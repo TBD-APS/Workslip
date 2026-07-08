@@ -55,6 +55,7 @@ export function JobAttestationStep({
     .filter(hasText);
   const summaryItems = compactSummaryItems([
     { label: 'Sag', value: job.reportNumber },
+    { label: 'Adresse (destination)', value: job.destinationAddress },
     { label: 'Kunde', value: job.customerSnapshot.name },
     { label: 'Adresse', value: job.customerSnapshot.address },
     { label: 'Kontakt', value: formatContact(job.customerSnapshot.contactPerson, job.customerSnapshot.phone, job.customerSnapshot.email) },

@@ -306,6 +306,10 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateDraft({ ...form, reportNumber: value });
   };
 
+  const updateDestinationAddress = (value: string) => {
+    updateDraft({ ...form, destinationAddress: value });
+  };
+
   const updateTaskDescription = (value: string) => {
     updateDraft({ ...form, taskDescription: value });
   };
@@ -608,6 +612,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateSnapshotField,
     updateEditSnapshot,
     updateReportNumber,
+    updateDestinationAddress,
     updateTaskDescription,
     updateCustomerObservations,
     updateTechnicalObservations,

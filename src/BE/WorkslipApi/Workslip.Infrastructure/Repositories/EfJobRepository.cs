@@ -82,6 +82,7 @@ public sealed class EfJobRepository : IJobRepository
             CustomerEmail = customerSnapshot?.Email,
             CustomerPhone = customerSnapshot?.Phone,
             CustomerAddress = customerSnapshot?.Address,
+            DestinationAddress = request.DestinationAddress,
             ReportNumber = reportNumber,
             Status = JobStatus.Draft.ToString(),
             ReportDate = ToDateTime(request.Observations?.ReportDate),
@@ -311,6 +312,9 @@ public sealed class EfJobRepository : IJobRepository
             entry.Property(e => e.CustomerAddress).CurrentValue = ValueOrNull(request.CustomerSnapshot.Address);
             entry.Property(e => e.CustomerContactPerson).CurrentValue = ValueOrNull(request.CustomerSnapshot.ContactPerson);
         }
+
+        if (request.DestinationAddress is not null)
+            entry.Property(e => e.DestinationAddress).CurrentValue = request.DestinationAddress;
 
         if (request.Observations is not null)
         {

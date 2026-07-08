@@ -272,6 +272,7 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.CustomerEmail);
         entity.Property(e => e.CustomerPhone);
         entity.Property(e => e.CustomerAddress);
+        entity.Property(e => e.DestinationAddress);
 
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");
         entity.Property(e => e.UpdatedAt).HasColumnType("datetimeoffset");

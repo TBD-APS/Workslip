@@ -589,6 +589,7 @@ public sealed class JobService(
             report.Status,
             report.Customer?.CustomerId,
             customerSnapshot,
+            report.DestinationAddress,
             new JobReportSummaryWorkResponse(
                 report.WorkKind,
                 report.InstallationTypes,

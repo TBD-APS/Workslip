@@ -54,6 +54,32 @@ export function ReportNumberBlock({ value, onChange, readOnly = false }: ReportN
   );
 }
 
+type DestinationAddressBlockProps = {
+  value: string;
+  onChange: (value: string) => void;
+};
+
+export function DestinationAddressBlock({ value, onChange }: DestinationAddressBlockProps) {
+  return (
+    <section className="detail-section">
+      <div className="detail-form">
+        <div className="section-header-row">
+          <FileText size={18} />
+          <h3>Adresse (destination)</h3>
+        </div>
+        <div className="form-group">
+          <input
+            className="form-input"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Indsæt adresse..."
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 type EditCustomerCheckboxProps = {
   checked: boolean;
   onChange: (checked: boolean) => void;

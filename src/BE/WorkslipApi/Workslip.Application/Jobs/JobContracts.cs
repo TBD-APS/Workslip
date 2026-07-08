@@ -138,7 +138,8 @@ public sealed record CreateJobWorkRequest(
     string? WorkKind,
     string? CustomWorkKind,
     IReadOnlyList<string>? ClosureFlags,
-    string? Remarks);
+    string? Remarks,
+    string? DestinationAddress = null);
 
 public sealed record CreateJobObservationRequest(
     DateOnly? ReportDate,
@@ -151,12 +152,14 @@ public sealed record CreateJobRequest(
     CustomerSnapshotData? CustomerSnapshot = null,
     bool? CreateCustomerFromSnapshot = null,
     CreateJobWorkRequest? Work = null,
-    CreateJobObservationRequest? Observations = null);
+    CreateJobObservationRequest? Observations = null,
+    string? DestinationAddress = null);
 
 public sealed record UpdateJobRequest(
     CustomerSnapshotData? CustomerSnapshot = null,
     CreateJobWorkRequest? Work = null,
-    CreateJobObservationRequest? Observations = null);
+    CreateJobObservationRequest? Observations = null,
+    string? DestinationAddress = null);
 
 public sealed record AssignJobRequest(
     IReadOnlyList<Guid> UserIds);
@@ -214,6 +217,7 @@ public sealed record JobReportResponse(
     string OrganizationCvr,
     CustomerInfo? Customer,
     string? ReportNumber,
+    string? DestinationAddress,
     JobStatus Status,
     DateOnly? ReportDate,
     string? TaskDescription,
@@ -285,6 +289,7 @@ public sealed record JobReportSummaryResponse(
     JobStatus Status,
     Guid? CustomerId,
     CustomerSnapshotResponse CustomerSnapshot,
+    string? DestinationAddress,
     JobReportSummaryWorkResponse Work,
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<ControlInstallationTypeResponse> ControlInstallationTypes,

@@ -96,6 +96,10 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     setForm((prev) => ({ ...prev, reportNumber: value }));
   };
 
+  const updateDestinationAddress = (value: string) => {
+    setForm((prev) => ({ ...prev, destinationAddress: value }));
+  };
+
   const updateTaskDescription = (value: string) => {
     setForm((prev) => ({ ...prev, taskDescription: value }));
   };
@@ -159,6 +163,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
         ? trimSnapshot(form.customerSnapshot)
         : null,
       createCustomerFromSnapshot: form.createCustomer || undefined,
+      destinationAddress: form.destinationAddress.trim() || null,
       reportNumber: form.reportNumber.trim() || null,
       work: null,
       observations: {
@@ -200,6 +205,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     updateCreateCustomer,
     hasCustomerChanges,
     updateReportNumber,
+    updateDestinationAddress,
     updateTaskDescription,
     updateCustomerObservations,
     updateTechnicalObservations,

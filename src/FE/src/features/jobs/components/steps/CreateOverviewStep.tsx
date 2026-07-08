@@ -1,6 +1,6 @@
 import { FileText, MessageSquare, Wrench } from 'lucide-react';
 import type { useJobCreate } from '../../hooks/useJobCreate';
-import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, ReportNumberBlock, AssignmentBlock } from '../JobDetailBlocks';
+import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, ReportNumberBlock, AssignmentBlock, DestinationAddressBlock } from '../JobDetailBlocks';
 import type { LinkableJob } from '../../types';
 
 type JobCreateState = ReturnType<typeof useJobCreate>;
@@ -20,6 +20,11 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
         readOnly={false}
       />
       
+      <DestinationAddressBlock
+        value={create.form.destinationAddress}
+        onChange={create.updateDestinationAddress}
+      />
+
       <CustomerDetailsBlock
         form={create.form}
         customerSnapshot={create.form.customerSnapshot}

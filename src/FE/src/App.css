@@ -172,7 +172,7 @@
 .user-avatar--accent {
   background: var(--primary);
   border-color: var(--surface-selected-strong);
-  color: var(--text);
+  color: white;
 }
 
 .app-content {
@@ -231,7 +231,7 @@
   border-radius: var(--radius-pill);
   background: var(--primary);
   border: none;
-  color: var(--text);
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1678,7 +1678,7 @@
 }
 
 .step-dot.active {
-  color: var(--text);
+  color: white;
   background: var(--primary);
   border: none;
 }
@@ -1765,9 +1765,13 @@
 
 .step-nav-btn-next {
   margin-left: auto;
-  color: var(--text);
+  color: white;
   background: var(--primary);
   border: 1px solid var(--border);
+}
+
+.step-nav-btn-next svg {
+  color: white;
 }
 
 .step-nav-btn-next:active {
@@ -2788,7 +2792,7 @@
 .calendar-picker-day:hover,
 .calendar-picker-day.selected {
   background: var(--primary);
-  color: var(--text);
+  color: white;
 }
 
 .worksheet-overnight-wrapper .multi-select-option {
@@ -3366,7 +3370,7 @@
   height: 80px;
   border-radius: var(--radius-pill);
   background: var(--primary);
-  color: var(--text);
+  color: white;
   margin-bottom: 0.5rem;
 }
 

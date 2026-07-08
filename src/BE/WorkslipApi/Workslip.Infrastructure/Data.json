@@ -284,6 +284,134 @@
       ]
     },
     {
+      "key": "ventilation",
+      "label": "Ventilation",
+      "sortOrder": 3,
+      "categories": [
+        {
+          "categoryKey": "forundersoegelse",
+          "controlPoints": [
+            {
+              "key": "ventilation-forundersoegelse-ansoegning-paa-gas",
+              "label": "Ansøgning på gas",
+              "sortOrder": 1,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "modtagekontrol",
+          "controlPoints": [
+            {
+              "key": "ventilation-modtagekontrol-roer-og-fittings",
+              "label": "Rør og fittings",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-modtagekontrol-armaturer",
+              "label": "Armaturer",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-modtagekontrol-kedel-vb",
+              "label": "Kedel / VB",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-modtagekontrol-saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "udfoerelseskontrol",
+          "controlPoints": [
+            {
+              "key": "ventilation-udfoerelseskontrol-stikledning-og-indfoering",
+              "label": "Stikledning og indføring",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-udfoerelseskontrol-roerophaeng",
+              "label": "Rørophæng",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-udfoerelseskontrol-tilslutning-til-varmtvandsforsyning",
+              "label": "Tilslutning til varmtvandsforsyning",
+              "sortOrder": 3,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "slutkontrol",
+          "controlPoints": [
+            {
+              "key": "ventilation-slutkontrol-taethedsproevning",
+              "label": "Tæthedsprøvning",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-slutkontrol-funktionsproevning",
+              "label": "Funktionsprøvning",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-slutkontrol-sikkerhedsarmaturer",
+              "label": "Sikkerhedsarmaturer",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-slutkontrol-optaelling-af-materialer",
+              "label": "Optælling af materialer",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "drift-vedligehold",
+          "controlPoints": [
+            {
+              "key": "ventilation-drift-vedligehold-driftsinstruktion",
+              "label": "Driftsinstruktion",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-drift-vedligehold-vedligeholdsinstruktion",
+              "label": "Vedligeholdsinstruktion",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-drift-vedligehold-ventiler-og-komponenter",
+              "label": "Ventiler og komponenter",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-drift-vedligehold-saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    {
       "key": "vand",
       "label": "Vand",
       "sortOrder": 2,
