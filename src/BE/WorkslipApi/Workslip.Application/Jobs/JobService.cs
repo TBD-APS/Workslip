@@ -595,7 +595,6 @@ public sealed class JobService(
                 closureFlags!,
                 report.Remarks),
             new JobReportSummaryObservationResponse(
-                report.ReportDate,
                 report.TaskDescription,
                 report.CustomerObservations,
                 report.TechnicalObservations),

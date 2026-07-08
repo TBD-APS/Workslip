@@ -1,14 +1,17 @@
 import { useNavigate, NavLink, Outlet } from 'react-router-dom';
-import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, User, Users } from 'lucide-react';
+import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, User, Users, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
 import { useEffect, useState } from 'react';
 import { DropdownProvider } from '../../providers/DropdownContext';
+import { useTheme } from '../../providers/ThemeProvider';
 
 export const AppLayout = () => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  const { theme, toggle: toggleTheme } = useTheme();
 
   const handleLogout = () => {
     logout();
@@ -67,6 +70,15 @@ export const AppLayout = () => {
               <Settings size={18} />
             </button>
           </Can>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="user-avatar"
+            aria-label={theme === 'night' ? 'Skift til dagtilstand' : 'Skift til nattilstand'}
+            title={theme === 'night' ? 'Dagtilstand' : 'Nattilstand'}
+          >
+            {theme === 'night' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
           <button
             type="button"
             onClick={() => navigate('/app/profil')}

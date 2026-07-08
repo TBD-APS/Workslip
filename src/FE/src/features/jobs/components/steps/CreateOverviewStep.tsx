@@ -14,21 +14,25 @@ type CreateOverviewStepProps = {
 export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: CreateOverviewStepProps) {
   return (
     <>
+      <ReportNumberBlock
+        value={create.form.reportNumber ?? ''}
+        onChange={create.updateReportNumber}
+        readOnly={false}
+      />
+      
       <CustomerDetailsBlock
         form={create.form}
         customerSnapshot={create.form.customerSnapshot}
         editSnapshot={create.form.editSnapshot}
+        createCustomer={create.form.createCustomer}
+        onCreateCustomerChange={create.updateCreateCustomer}
+        hasCustomerChanges={create.hasCustomerChanges}
         onCustomerSelect={create.selectCustomer}
         onSnapshotFieldChange={create.updateSnapshotField}
         onEditSnapshotChange={create.updateEditSnapshot}
         showEditCheckbox={true}
       />
 
-      <ReportNumberBlock
-        value={create.form.reportNumber ?? ''}
-        onChange={create.updateReportNumber}
-        readOnly={false}
-      />
 
       <AssignmentBlock
         assignment={{

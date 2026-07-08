@@ -41,6 +41,7 @@ export type JobForm = {
   customerId: string | null;
   customerSnapshot: CustomerSnapshotData | null;
   editSnapshot: boolean;
+  createCustomer: boolean;
   reportNumber: string;
   taskDescription: string;
   customerObservations: string;

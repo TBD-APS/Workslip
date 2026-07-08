@@ -149,13 +149,12 @@ public sealed record CreateJobObservationRequest(
 public sealed record CreateJobRequest(
     Guid? CustomerId = null,
     CustomerSnapshotData? CustomerSnapshot = null,
-    string? ReportNumber = default,
+    bool? CreateCustomerFromSnapshot = null,
     CreateJobWorkRequest? Work = null,
     CreateJobObservationRequest? Observations = null);
 
 public sealed record UpdateJobRequest(
     CustomerSnapshotData? CustomerSnapshot = null,
-    string? ReportNumber = null,
     CreateJobWorkRequest? Work = null,
     CreateJobObservationRequest? Observations = null);
 
@@ -311,7 +310,6 @@ public sealed record JobReportSummaryClosureFlagResponse(
     string Label);
 
 public sealed record JobReportSummaryObservationResponse(
-    DateOnly? ReportDate,
     string? TaskDescription,
     string? CustomerObservations,
     string? TechnicalObservations);

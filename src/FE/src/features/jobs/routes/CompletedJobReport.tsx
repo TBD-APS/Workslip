@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronRight, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { ErrorState } from '../../../components/ErrorState';
 import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
@@ -10,6 +10,7 @@ import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { useAuth } from '../../../providers/useAuth';
 import { validateControlPoints } from '../components/steps/controlPointsValidation';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
+import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useJobDetailsState } from '../hooks/useJobDetails';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
@@ -47,6 +48,7 @@ export const CompletedJobReport = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [worksheetOpen, setWorksheetOpen] = useState(true);
   const previewUrlRef = useRef<string | null>(null);
   const job = details.job;
 
@@ -255,6 +257,7 @@ export const CompletedJobReport = () => {
 
   return (
     <div className="page-container report-overview-page">
+      <NavigationGuard when={isEditing && details.hasUnsavedChanges} onSave={() => details.saveAllChanges()} />
       <div className="detail-header report-overview-header">
         <button className="btn-icon" type="button" onClick={() => navigate(-1)} aria-label="Tilbage til afsluttede sager">
           <ArrowLeft size={22} />
@@ -393,12 +396,23 @@ export const CompletedJobReport = () => {
               <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
             </section>
 
-            {visibleWorksheets.length > 3 ? (
-            <CollapsibleSection
-              icon={<Timer size={18} />}
-              title={`Timesedler (${visibleWorksheets.length})`}
-              defaultOpen={false}
-            >
+            <section className="detail-section">
+              <button
+                className="section-header-row attestation-compact-header btn-reset"
+                type="button"
+                onClick={() => setWorksheetOpen(o => !o)}
+                aria-expanded={worksheetOpen}
+              >
+                <Timer size={18} />
+                <h3>Timesedler ({visibleWorksheets.length})</h3>
+                <ChevronRight
+                  size={18}
+                  className="chevron-icon"
+                  style={{ transform: worksheetOpen ? 'rotate(90deg)' : 'none' }}
+                />
+              </button>
+
+              {worksheetOpen && (
                 <div className="worksheet-list-section">
                   <Worksheets worksheets={visibleWorksheets} />
                   <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
@@ -408,22 +422,8 @@ export const CompletedJobReport = () => {
                     )}
                   </div>
                 </div>
-              </CollapsibleSection>
-            ) : (
-              <section className="detail-section worksheet-list-section">
-                <div className="section-header-row attestation-compact-header">
-                  <Timer size={18} />
-                  <h3>Timesedler</h3>
-                </div>
-                <Worksheets worksheets={visibleWorksheets} />
-                <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
-                  <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
-                  {parseNullableNumber(job.totalOutlay) > 0 && (
-                    <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
-                  )}
-                </div>
-              </section>
-            )}
+              )}
+            </section>
           </div>
 
           <CollapsibleSection

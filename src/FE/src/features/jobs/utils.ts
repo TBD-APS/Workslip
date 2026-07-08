@@ -27,6 +27,7 @@ export const emptyForm: JobForm = {
   customerId: null,
   customerSnapshot: { ...emptySnapshot },
   editSnapshot: false,
+  createCustomer: false,
   reportNumber: '',
   taskDescription: '',
   customerObservations: '',

@@ -195,7 +195,7 @@ export const EditCustomerPage = () => {
           onClick={() => void handleSave()}
           disabled={isSaving}
         >
-          {isSaving && <div className="animate-spin" style={{ width: 16, height: 16, border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', marginRight: 8 }} />}
+          {isSaving && <div className="animate-spin spinner-white" />}
           <span>{isSaving ? 'Gemmer...' : 'Gem'}</span>
         </button>
         <button

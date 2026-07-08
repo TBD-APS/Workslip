@@ -17,6 +17,9 @@ type CustomerBlockProps = {
   form: { customerId: string | null; customerSnapshot: CustomerSnapshotData | null; reportNumber: string };
   customerSnapshot: CustomerSnapshotData | null;
   editSnapshot: boolean;
+  createCustomer?: boolean;
+  onCreateCustomerChange?: (value: boolean) => void;
+  hasCustomerChanges?: (snapshot: CustomerSnapshotData | null) => boolean;
   onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
   onSnapshotFieldChange?: (field: keyof CustomerSnapshotData, value: string) => void;
   onEditSnapshotChange?: (edit: boolean) => void;
@@ -80,6 +83,9 @@ export function CustomerDetailsBlock({
   form,
   customerSnapshot,
   editSnapshot,
+  createCustomer,
+  onCreateCustomerChange,
+  hasCustomerChanges,
   onCustomerSelect,
   onSnapshotFieldChange,
   onEditSnapshotChange,
@@ -89,6 +95,8 @@ export function CustomerDetailsBlock({
   const isAdmin = useIsAdmin();
   const [emailError, setEmailError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const showCreateCustomerCheckbox =
+    hasExistingCustomer && editSnapshot && hasCustomerChanges && hasCustomerChanges(customerSnapshot);
 
   function displayValue(field: keyof CustomerSnapshotData): string {
     if (hasExistingCustomer) {
@@ -185,6 +193,21 @@ export function CustomerDetailsBlock({
               checked={editSnapshot}
               onChange={onEditSnapshotChange ?? (() => {})}
             />
+          )}
+          {showCreateCustomerCheckbox && (
+            <label className="attestation-confirm-row">
+              <span className="attestation-confirm-copy">
+                <span className="attestation-confirm-label">Gem som ny kunde</span>
+                <span className="attestation-confirm-description">
+                  Opret en ny kunde i databasen med de ændrede oplysninger
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={createCustomer ?? false}
+                onChange={(e) => onCreateCustomerChange?.(e.target.checked)}
+              />
+            </label>
           )}
       </div>
     </section>

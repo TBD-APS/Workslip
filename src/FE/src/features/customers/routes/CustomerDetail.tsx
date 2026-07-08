@@ -58,7 +58,7 @@ export const CustomerDetail = () => {
         <button className="btn-icon-back" onClick={() => navigate('/app/customers')} aria-label="Tilbage">
           <ArrowLeft size={20} />
         </button>
-        <div style={{ flex: 1 }}>
+        <div className="flex-1">
           <h2>{customer.name}</h2>
           <p className="subtitle">{customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}</p>
         </div>

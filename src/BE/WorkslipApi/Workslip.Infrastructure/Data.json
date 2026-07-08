@@ -28,15 +28,15 @@
   ],
   "installationTypes": [
     {
-      "key": "gas-varme",
-      "label": "Gas/Varme",
+      "key": "gas",
+      "label": "Gas",
       "sortOrder": 1,
       "categories": [
         {
           "categoryKey": "forundersoegelse",
           "controlPoints": [
             {
-              "key": "gas-varme-forundersoegelse-ansoegning-paa-gas",
+              "key": "gas-forundersoegelse-ansoegning-paa-gas",
               "label": "Ansøgning på gas",
               "sortOrder": 1,
               "isRequired": true
@@ -47,25 +47,25 @@
           "categoryKey": "modtagekontrol",
           "controlPoints": [
             {
-              "key": "gas-varme-modtagekontrol-roer-og-fittings",
+              "key": "gas-modtagekontrol-roer-og-fittings",
               "label": "Rør og fittings",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "gas-varme-modtagekontrol-armaturer",
+              "key": "gas-modtagekontrol-armaturer",
               "label": "Armaturer",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "gas-varme-modtagekontrol-kedel-vb",
+              "key": "gas-modtagekontrol-kedel-vb",
               "label": "Kedel / VB",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "gas-varme-modtagekontrol-saerlige-komponenter",
+              "key": "gas-modtagekontrol-saerlige-komponenter",
               "label": "Særlige komponenter",
               "sortOrder": 4,
               "isRequired": true
@@ -76,19 +76,19 @@
           "categoryKey": "udfoerelseskontrol",
           "controlPoints": [
             {
-              "key": "gas-varme-udfoerelseskontrol-stikledning-og-indfoering",
+              "key": "gas-udfoerelseskontrol-stikledning-og-indfoering",
               "label": "Stikledning og indføring",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "gas-varme-udfoerelseskontrol-roerophaeng",
+              "key": "gas-udfoerelseskontrol-roerophaeng",
               "label": "Rørophæng",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "gas-varme-udfoerelseskontrol-tilslutning-til-varmtvandsforsyning",
+              "key": "gas-udfoerelseskontrol-tilslutning-til-varmtvandsforsyning",
               "label": "Tilslutning til varmtvandsforsyning",
               "sortOrder": 3,
               "isRequired": true
@@ -99,25 +99,25 @@
           "categoryKey": "slutkontrol",
           "controlPoints": [
             {
-              "key": "gas-varme-slutkontrol-taethedsproevning",
+              "key": "gas-slutkontrol-taethedsproevning",
               "label": "Tæthedsprøvning",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "gas-varme-slutkontrol-funktionsproevning",
+              "key": "gas-slutkontrol-funktionsproevning",
               "label": "Funktionsprøvning",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "gas-varme-slutkontrol-sikkerhedsarmaturer",
+              "key": "gas-slutkontrol-sikkerhedsarmaturer",
               "label": "Sikkerhedsarmaturer",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "gas-varme-slutkontrol-optaelling-af-materialer",
+              "key": "gas-slutkontrol-optaelling-af-materialer",
               "label": "Optælling af materialer",
               "sortOrder": 4,
               "isRequired": true
@@ -128,25 +128,153 @@
           "categoryKey": "drift-vedligehold",
           "controlPoints": [
             {
-              "key": "gas-varme-drift-vedligehold-driftsinstruktion",
+              "key": "gas-drift-vedligehold-driftsinstruktion",
               "label": "Driftsinstruktion",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "gas-varme-drift-vedligehold-vedligeholdsinstruktion",
+              "key": "gas-drift-vedligehold-vedligeholdsinstruktion",
               "label": "Vedligeholdsinstruktion",
               "sortOrder": 2,
               "isRequired": true
             },
             {
-              "key": "gas-varme-drift-vedligehold-ventiler-og-komponenter",
+              "key": "gas-drift-vedligehold-ventiler-og-komponenter",
               "label": "Ventiler og komponenter",
               "sortOrder": 3,
               "isRequired": true
             },
             {
-              "key": "gas-varme-drift-vedligehold-saerlige-komponenter",
+              "key": "gas-drift-vedligehold-saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "varme",
+      "label": "Varme",
+      "sortOrder": 2,
+      "categories": [
+        {
+          "categoryKey": "forundersoegelse",
+          "controlPoints": [
+            {
+              "key": "varme-forundersoegelse-ansoegning-paa-gas",
+              "label": "Ansøgning på gas",
+              "sortOrder": 1,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "modtagekontrol",
+          "controlPoints": [
+            {
+              "key": "varme-modtagekontrol-roer-og-fittings",
+              "label": "Rør og fittings",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "varme-modtagekontrol-armaturer",
+              "label": "Armaturer",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "varme-modtagekontrol-kedel-vb",
+              "label": "Kedel / VB",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "varme-modtagekontrol-saerlige-komponenter",
+              "label": "Særlige komponenter",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "udfoerelseskontrol",
+          "controlPoints": [
+            {
+              "key": "varme-udfoerelseskontrol-stikledning-og-indfoering",
+              "label": "Stikledning og indføring",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "varme-udfoerelseskontrol-roerophaeng",
+              "label": "Rørophæng",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "varme-udfoerelseskontrol-tilslutning-til-varmtvandsforsyning",
+              "label": "Tilslutning til varmtvandsforsyning",
+              "sortOrder": 3,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "slutkontrol",
+          "controlPoints": [
+            {
+              "key": "varme-slutkontrol-taethedsproevning",
+              "label": "Tæthedsprøvning",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "varme-slutkontrol-funktionsproevning",
+              "label": "Funktionsprøvning",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "varme-slutkontrol-sikkerhedsarmaturer",
+              "label": "Sikkerhedsarmaturer",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "varme-slutkontrol-optaelling-af-materialer",
+              "label": "Optælling af materialer",
+              "sortOrder": 4,
+              "isRequired": true
+            }
+          ]
+        },
+        {
+          "categoryKey": "drift-vedligehold",
+          "controlPoints": [
+            {
+              "key": "varme-drift-vedligehold-driftsinstruktion",
+              "label": "Driftsinstruktion",
+              "sortOrder": 1,
+              "isRequired": true
+            },
+            {
+              "key": "varme-drift-vedligehold-vedligeholdsinstruktion",
+              "label": "Vedligeholdsinstruktion",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "varme-drift-vedligehold-ventiler-og-komponenter",
+              "label": "Ventiler og komponenter",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "varme-drift-vedligehold-saerlige-komponenter",
               "label": "Særlige komponenter",
               "sortOrder": 4,
               "isRequired": true

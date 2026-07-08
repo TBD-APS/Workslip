@@ -594,6 +594,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     assignmentStatus,
     linksStatus,
     canContinue: isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber) }) && isValidWork(form, referenceData),
+    hasUnsavedChanges: draft !== null && initialForm !== null && !sameForm(initialForm, draft.form),
     reportNumberReadOnly: Boolean(job?.reportNumber),
     flushSave,
     saveAllChanges,

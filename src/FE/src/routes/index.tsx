@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useRoutes, Navigate } from 'react-router-dom';
+import { Navigate, Outlet, createBrowserRouter } from 'react-router-dom';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorFallback } from '../providers/ErrorFallback';
 import { useAuth } from '../providers/useAuth';
 import { RoleGuard } from '../providers/permissions';
 import { Login } from '../features/auth/routes/Login';
@@ -62,46 +64,55 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-export const AppRoutes = () => {
-  const routes = useRoutes([
-    {
-      path: '/',
-      element: <Login />,
-    },
-    {
-      path: '/login',
-      element: <Login />,
-    },
-    {
-      path: '/invite/callback',
-      element: <InviteAccept />,
-    },
-    {
-      path: '/invite/:token',
-      element: <InviteAccept />,
-    },
-    {
-      path: '/app',
-      element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
-      children: [
-        { index: true, element: <JobList /> },
-        { path: 'timer', element: <MyWorksheets /> },
-        { path: 'create', element: <RoleGuard permission="job:create"><Create /></RoleGuard> },
-        { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
-        { path: 'job/:id', element: <JobDetail /> },
-        { path: 'completed/:id', element: <CompletedJobReport /> },
-        { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
-        { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
-        { path: 'customers', element: <RoleGuard permission="user:manage"><CustomerList /></RoleGuard> },
-        { path: 'customers/new', element: <RoleGuard permission="user:manage"><CreateCustomerPage /></RoleGuard> },
-        { path: 'customers/:id', element: <RoleGuard permission="user:manage"><CustomerDetail /></RoleGuard> },
-        { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
-        { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
-        { path: 'profil', element: <Profile /> },
-        { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
-      ],
-    },
-  ]);
+function RootErrorBoundary() {
+  return (
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <Outlet />
+    </ErrorBoundary>
+  );
+}
 
-  return <>{routes}</>;
-};
+export const router = createBrowserRouter([
+  {
+    element: <RootErrorBoundary />,
+    children: [
+      {
+        path: '/',
+        element: <Login />,
+      },
+      {
+        path: '/login',
+        element: <Login />,
+      },
+      {
+        path: '/invite/callback',
+        element: <InviteAccept />,
+      },
+      {
+        path: '/invite/:token',
+        element: <InviteAccept />,
+      },
+      {
+        path: '/app',
+        element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
+        children: [
+          { index: true, element: <JobList /> },
+          { path: 'timer', element: <MyWorksheets /> },
+          { path: 'create', element: <RoleGuard permission="job:create"><Create /></RoleGuard> },
+          { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
+          { path: 'job/:id', element: <JobDetail /> },
+          { path: 'completed/:id', element: <CompletedJobReport /> },
+          { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
+          { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
+          { path: 'customers', element: <RoleGuard permission="user:manage"><CustomerList /></RoleGuard> },
+          { path: 'customers/new', element: <RoleGuard permission="user:manage"><CreateCustomerPage /></RoleGuard> },
+          { path: 'customers/:id', element: <RoleGuard permission="user:manage"><CustomerDetail /></RoleGuard> },
+          { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
+          { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
+          { path: 'profil', element: <Profile /> },
+          { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
+        ],
+      },
+    ],
+  },
+]);

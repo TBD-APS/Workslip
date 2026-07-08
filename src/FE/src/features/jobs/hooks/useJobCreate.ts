@@ -21,6 +21,7 @@ import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustome
 
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
+  createCustomerFromSnapshot?: boolean;
 };
 
 export function useJobCreate(onCreated: (jobId: string) => void) {
@@ -85,7 +86,11 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     },
   });
 
-  const { selectCustomer, updateSnapshotField, updateEditSnapshot } = useCustomerSnapshot(setForm);
+  const { selectCustomer, updateSnapshotField, updateEditSnapshot, hasCustomerChanges } = useCustomerSnapshot(setForm);
+
+  const updateCreateCustomer = (value: boolean) => {
+    setForm((prev) => ({ ...prev, createCustomer: value }));
+  };
 
   const updateReportNumber = (value: string) => {
     setForm((prev) => ({ ...prev, reportNumber: value }));
@@ -153,6 +158,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
       customerSnapshot: hasSnapshotData(form.customerSnapshot)
         ? trimSnapshot(form.customerSnapshot)
         : null,
+      createCustomerFromSnapshot: form.createCustomer || undefined,
       reportNumber: form.reportNumber.trim() || null,
       work: null,
       observations: {
@@ -191,6 +197,8 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     selectCustomer,
     updateSnapshotField,
     updateEditSnapshot,
+    updateCreateCustomer,
+    hasCustomerChanges,
     updateReportNumber,
     updateTaskDescription,
     updateCustomerObservations,

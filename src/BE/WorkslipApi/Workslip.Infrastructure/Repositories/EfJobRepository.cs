@@ -43,19 +43,15 @@ public sealed class EfJobRepository : IJobRepository
 
         var now = DateTimeOffset.UtcNow;
         var reportId = Guid.NewGuid();
-        var reportNumber = request.ReportNumber?.Trim();
-
-        var matchingReportNumber = await _dbContext.JobReports
-            .AsNoTracking()
-            .AnyAsync(r => r.OrganizationId == organizationId && r.ReportNumber == reportNumber, cancellationToken);
-
-        if (matchingReportNumber)
-            throw new DuplicateReportNumberException(reportNumber);
+        
+        // Generate sequential report number
+        var nextSequenceNumber = await GetNextReportNumberAsync(organizationId, cancellationToken);
+        var reportNumber = nextSequenceNumber.ToString("D4");
 
         var customerSnapshot = request.CustomerSnapshot;
 
         Guid? customerId = null;
-        if (request.CustomerId is null && customerSnapshot is not null)
+        if (customerSnapshot is not null && (request.CustomerId is null || request.CreateCustomerFromSnapshot == true))
         {
             var customerInfo = new CustomerInfo(Guid.NewGuid(),
                                                 customerSnapshot.Name,
@@ -111,16 +107,8 @@ public sealed class EfJobRepository : IJobRepository
 
         var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
         await _assignmentRepo.AddAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
-
-        try
-        {
-            await _dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException ex) when (IsDuplicateReportNumberViolation(ex))
-        {
-            throw new DuplicateReportNumberException(reportNumber, ex);
-        }
-
+        
+        await _dbContext.SaveChangesAsync(cancellationToken);        
         await tx.CommitAsync(cancellationToken);
 
         var job = await GetSingleJobAsync(reportId, organizationId, cancellationToken);
@@ -324,19 +312,6 @@ public sealed class EfJobRepository : IJobRepository
             entry.Property(e => e.CustomerContactPerson).CurrentValue = ValueOrNull(request.CustomerSnapshot.ContactPerson);
         }
 
-        var reportNumber = request.ReportNumber?.Trim();
-        if (reportNumber is not null)
-        {
-            var matchingReportNumber = await _dbContext.JobReports
-                .AsNoTracking()
-                .AnyAsync(r => r.OrganizationId == organizationId && r.Id != id && r.ReportNumber == reportNumber, cancellationToken);
-
-            if (matchingReportNumber)
-                throw new DuplicateReportNumberException(reportNumber);
-
-            entry.Property(e => e.ReportNumber).CurrentValue = reportNumber;
-        }
-
         if (request.Observations is not null)
         {
             if (request.Observations.ReportDate is not null)
@@ -372,15 +347,7 @@ public sealed class EfJobRepository : IJobRepository
         }
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
 
-        try
-        {
-            await _dbContext.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException ex) when (IsDuplicateReportNumberViolation(ex))
-        {
-            throw new DuplicateReportNumberException(reportNumber, ex);
-        }
-
+        await _dbContext.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
@@ -769,6 +736,55 @@ public sealed class EfJobRepository : IJobRepository
         }
     }
 
+        private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)
+    {
+        // Serialize per-organization report-number allocation by acquiring a
+        // row-level exclusive lock on the organization row. This prevents two
+        // concurrent CreateAsync calls from reading the same max+1 and racing
+        // on the UX_JobReports_Organization_ReportNumber unique index.
+        var conn = _dbContext.Database.GetDbConnection();
+        if (conn.State != System.Data.ConnectionState.Open)
+        {
+            await conn.OpenAsync(cancellationToken);
+        }
+
+        await using (var lockCmd = conn.CreateCommand())
+        {
+            lockCmd.CommandText = "SELECT Id FROM Organizations WHERE Id = @orgId";
+            var orgIdParam = lockCmd.CreateParameter();
+            orgIdParam.ParameterName = "@orgId";
+            orgIdParam.Value = organizationId;
+            lockCmd.Parameters.Add(orgIdParam);
+
+            // XLOCK = exclusive lock, HOLDLOCK = hold until end of transaction.
+            // Forces sequential allocation per organization; reads still scale
+            // because the lock is scoped to a single row.
+            lockCmd.CommandText += " OPTION (XLOCK, HOLDLOCK)";
+            await lockCmd.ExecuteScalarAsync(cancellationToken);
+        }
+
+        // Re-read max under the lock; any concurrent caller for the same org
+        // will block on the XLOCK above until our transaction commits/rolls back.
+        var maxReportNumber = await _dbContext.JobReports
+            .AsNoTracking()
+            .Where(r => r.OrganizationId == organizationId)
+            .Select(r => r.ReportNumber)
+            .Where(num => num != null)
+            .Select(num => ConvertToIntSafe(num))
+            .DefaultIfEmpty(0)
+            .MaxAsync(cancellationToken);
+
+        return maxReportNumber + 1;
+    }
+
+    private static int ConvertToIntSafe(string? reportNumber)
+    {
+        if (int.TryParse(reportNumber, out var result))
+            return result;
+        return 0;
+    }
+
+
     private async Task AddSelectedInstallationsAsync(
         Guid organizationId,
         Guid jobReportId,
@@ -862,20 +878,4 @@ public sealed class EfJobRepository : IJobRepository
     private static string? ValueOrNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static bool IsDuplicateReportNumberViolation(DbUpdateException exception)
-    {
-        if (exception.InnerException is not SqlException sqlException)
-            return false;
-
-        foreach (SqlError error in sqlException.Errors)
-        {
-            if ((error.Number == 2601 || error.Number == 2627)
-                && error.Message.Contains(DuplicateReportNumberIndexName, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }
