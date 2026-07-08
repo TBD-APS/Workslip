@@ -22,6 +22,7 @@ import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustome
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
   createCustomerFromSnapshot?: boolean;
+  reportNumber?: string | null;
 };
 
 export function useJobCreate(onCreated: (jobId: string) => void) {

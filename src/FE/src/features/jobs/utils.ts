@@ -13,6 +13,7 @@ import { hasSnapshotData } from './hooks/useCustomerSnapshot';
 
 type UpdateJobRequestWithSnapshot = UpdateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
+  reportNumber?: string | null;
 };
 
 export const emptySnapshot: CustomerSnapshotData = {
@@ -79,6 +80,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
 
   return {
     customerId: job.customerId ?? null,
+    createCustomer: false,
     customerSnapshot: {
       name: job.customerSnapshot.name ?? null,
       address: job.customerSnapshot.address ?? null,

@@ -31,7 +31,7 @@ export function NavigationGuard({
 
   const handleSaveAndLeave = useCallback(async () => {
     if (!onSave) {
-      blocker.proceed();
+      blocker.proceed?.();
       return;
     }
     setIsSaving(true);
@@ -40,7 +40,7 @@ export function NavigationGuard({
     } catch {
       // proceed anyway
     }
-    blocker.proceed();
+    blocker.proceed?.();
   }, [blocker, onSave]);
 
   if (blocker.state !== 'blocked') return null;
