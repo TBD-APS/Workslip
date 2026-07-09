@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
+using Workslip.Application.Notifications;
 using Workslip.Domain;
 
 namespace Workslip.Application.Jobs;
@@ -23,7 +24,8 @@ public sealed class JobService(
     IValidator<ChangeJobStatusRequest> changeJobStatusValidator,
     ICurrentUserContext currentUser,
     ILogger<JobService> logger,
-    JobValidationService jobValidationService) : IJobService
+    JobValidationService jobValidationService,
+    INotificationService notificationService) : IJobService
 {
     private static readonly HybridCacheEntryOptions JobReportCacheOptions = new()
     {
@@ -350,6 +352,33 @@ public sealed class JobService(
             targetStatus,
             actorId);
 
+        var address = report.DestinationAddress ?? report.Customer?.Address ?? "Ingen adresse angivet";
+        var reportNumber = report.ReportNumber ?? "Uden nummer";
+
+        if (targetStatus == JobStatus.InReview)
+        {
+            var usersInOrg = await userRepository.GetByOrganizationIdAsync(organizationId.Value, 1000, 0, null, null, null, cancellationToken);
+            var auditorsAndAdmins = usersInOrg.Where(u => u.Role == Roles.Auditor || u.Role == Roles.Admin);
+            foreach (var user in auditorsAndAdmins)
+            {
+                await notificationService.QueueJobReadyForReviewAsync(user.Id, report.Id, reportNumber, address, cancellationToken);
+            }
+        }
+        else if (targetStatus == JobStatus.Rejected)
+        {
+            foreach (var assignedUser in report.AssignedUsers)
+            {
+                await notificationService.QueueJobDeniedAsync(assignedUser.Id, report.Id, reportNumber, address, cancellationToken);
+            }
+        }
+        else if (targetStatus == JobStatus.Approved)
+        {
+            foreach (var assignedUser in report.AssignedUsers)
+            {
+                await notificationService.QueueJobCompletedAsync(assignedUser.Id, report.Id, reportNumber, address, cancellationToken);
+            }
+        }
+
         return await ToSummaryResultAsync(report, cancellationToken);
     }
 
@@ -528,10 +557,17 @@ public sealed class JobService(
              return Result<JobReportSummaryResponse>.NotFound();
          }
 
-         await InvalidateJobCachesAsync(jobId, organizationId.Value, cancellationToken);
-         logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {Assigneds}.", jobId, userIds);
+          await InvalidateJobCachesAsync(jobId, organizationId.Value, cancellationToken);
+          logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {Assigneds}.", jobId, userIds);
 
-         return await ToSummaryResultAsync(job, cancellationToken);
+          var address = job.DestinationAddress ?? job.Customer?.Address ?? "Ingen adresse angivet";
+          var reportNumber = job.ReportNumber ?? "Uden nummer";
+          foreach (var userId in userIds)
+          {
+              await notificationService.QueueJobAssignedAsync(userId, jobId, reportNumber, address, cancellationToken);
+          }
+
+          return await ToSummaryResultAsync(job, cancellationToken);
      }
 
     private async Task<Result<JobReportSummaryResponse>> ToSummaryResultAsync(JobReportResponse report, CancellationToken cancellationToken)

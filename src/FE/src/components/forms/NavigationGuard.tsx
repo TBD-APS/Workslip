@@ -55,7 +55,7 @@ export function NavigationGuard({
       >
         <h3>{title}</h3>
         <p>{message}</p>
-        <div className={`modal-actions ${onSave ? 'modal-actions--triple' : 'modal-actions--double'}`}>
+        <div className="modal-actions">
           {isSaving ? (
             <div className="saving-indicator">
               <Loader2 className="animate-spin" size={18} />
@@ -63,17 +63,30 @@ export function NavigationGuard({
             </div>
           ) : (
             <>
-              <button type="button" className="btn btn-secondary" onClick={() => blocker.reset()}>
-                Annuller
-              </button>
-              {onSave && (
-                <button type="button" className="btn btn-secondary" onClick={() => blocker.proceed()}>
-                  Forlad uden at gemme
-                </button>
+              {onSave ? (
+                <>
+                  <div className="modal-actions--double">
+                    <button type="button" className="btn btn-secondary" onClick={() => blocker.proceed()}>
+                      Forlad uden at gemme
+                    </button>
+                    <button type="button" className="btn btn-primary" onClick={handleSaveAndLeave}>
+                      Gem og forlad
+                    </button>
+                  </div>
+                  <button type="button" className="btn btn-secondary" onClick={() => blocker.reset()}>
+                    Annuller
+                  </button>
+                </>
+              ) : (
+                <div className="modal-actions--double">
+                  <button type="button" className="btn btn-secondary" onClick={() => blocker.reset()}>
+                    Annuller
+                  </button>
+                  <button type="button" className="btn btn-primary" onClick={handleSaveAndLeave}>
+                    Forlad siden
+                  </button>
+                </div>
               )}
-              <button type="button" className="btn btn-primary" onClick={handleSaveAndLeave}>
-                {onSave ? 'Gem og forlad' : 'Forlad siden'}
-              </button>
             </>
           )}
         </div>

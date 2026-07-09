@@ -34,6 +34,62 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             token => GetWorksheetsForUserCoreAsync(userId, organizationId, monthStart, monthEnd, token),
             cancellationToken);
 
+    public Task<IReadOnlyList<MyWorksheetEntryResponse>> GetAllWorksheetsAsync(
+        Guid organizationId,
+        DateOnly monthStart,
+        DateOnly monthEnd,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "worksheets.all",
+            token => GetAllWorksheetsCoreAsync(organizationId, monthStart, monthEnd, token),
+            cancellationToken);
+
+    private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetAllWorksheetsCoreAsync(
+        Guid organizationId,
+        DateOnly monthStart,
+        DateOnly monthEnd,
+        CancellationToken cancellationToken)
+    {
+        var fromDate = monthStart.ToDateTime(TimeOnly.MinValue);
+        var toDate = monthEnd.ToDateTime(TimeOnly.MaxValue);
+
+        var rows = await (
+            from w in _dbContext.Worksheets.AsNoTracking()
+            join u in _dbContext.Users.AsNoTracking() on w.UserId equals u.Id
+            join r in _dbContext.JobReports.AsNoTracking() on w.JobId equals r.Id
+            join c in _dbContext.Customers.AsNoTracking() on new { Id = r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
+            from c in rjc.DefaultIfEmpty()
+            where w.OrganizationId == organizationId
+                && r.OrganizationId == organizationId
+                && w.WorkDate >= fromDate
+                && w.WorkDate <= toDate
+                && !r.IsSoftDeleted
+                && u.OrganizationId == organizationId
+            orderby u.DisplayName
+            select new WorksheetMyProjection
+            {
+                WorkDate = w.WorkDate,
+                JobId = w.JobId,
+                ReportNumber = r.ReportNumber,
+                CustomerName = r.CustomerName ?? (c != null ? c.Name : "Ukendt kunde"),
+                CustomerAddress = r.CustomerAddress ?? (c != null ? c.Address : null),
+                HasOutlay = w.SleptOnJob,
+                HoursWorked = w.HoursWorked,
+                UserDisplayName = u.DisplayName,
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(row => new MyWorksheetEntryResponse(
+            DateOnly.FromDateTime(row.WorkDate),
+            row.JobId,
+            row.ReportNumber,
+            row.CustomerName,
+            row.CustomerAddress,
+            row.HoursWorked,
+            row.HasOutlay,
+            row.UserDisplayName)).ToArray();
+    }
+
     private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserCoreAsync(
         Guid userId,
         Guid organizationId,

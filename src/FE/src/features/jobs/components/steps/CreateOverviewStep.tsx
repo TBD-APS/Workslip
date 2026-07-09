@@ -1,7 +1,8 @@
 import { FileText, MessageSquare, Wrench } from 'lucide-react';
 import type { useJobCreate } from '../../hooks/useJobCreate';
-import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, ReportNumberBlock, AssignmentBlock, DestinationAddressBlock } from '../JobDetailBlocks';
+import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock, DestinationAddressBlock } from '../JobDetailBlocks';
 import type { LinkableJob } from '../../types';
+import { useIsAdmin } from '../../../../providers/permissions';
 
 type JobCreateState = ReturnType<typeof useJobCreate>;
 
@@ -12,17 +13,14 @@ type CreateOverviewStepProps = {
 };
 
 export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: CreateOverviewStepProps) {
+  const isAdmin = useIsAdmin();
   return (
     <>
-      <ReportNumberBlock
-        value={create.form.reportNumber ?? ''}
-        onChange={create.updateReportNumber}
-        readOnly={false}
-      />
-      
       <DestinationAddressBlock
         value={create.form.destinationAddress}
         onChange={create.updateDestinationAddress}
+        required={isAdmin}
+        error={create.fieldErrors.destinationAddress}
       />
 
       <CustomerDetailsBlock
@@ -33,9 +31,11 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
         onCreateCustomerChange={create.updateCreateCustomer}
         hasCustomerChanges={create.hasCustomerChanges}
         onCustomerSelect={create.selectCustomer}
+        onCreateNewCustomer={create.createNewCustomer}
         onSnapshotFieldChange={create.updateSnapshotField}
         onEditSnapshotChange={create.updateEditSnapshot}
         showEditCheckbox={true}
+        fieldErrors={create.fieldErrors}
       />
 
 

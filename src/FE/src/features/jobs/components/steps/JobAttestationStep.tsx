@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Clock, FileCheck2, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, FileCheck2, Loader2, ShieldCheck } from 'lucide-react';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { formatNumber, formatUnit, parseNullableNumber, capitalize } from '../../../../lib/formatUtils';
@@ -96,7 +96,6 @@ export function JobAttestationStep({
         </div>
 
         <div className={isInReview ? 'attestation-status submitted' : 'attestation-status'}>
-          {isInReview ? <CheckCircle2 size={20} /> : <Clock size={20} />}
           <div>
             <span className="attestation-status-title">{isInReview ? 'Sagen er attesteret' : 'Klar til attestering'}</span>
             <span>
@@ -143,7 +142,7 @@ export function JobAttestationStep({
         <section className="detail-section attestation-control-section compact">
           <div className="section-header-row attestation-compact-header">
             <CheckCircle2 size={18} />
-            <h3>Afslutning</h3>
+            <h3>Status</h3>
           </div>
           <ul className="attestation-control-list compact">
             {selectedClosureFlags.map((flag) => (
@@ -215,7 +214,7 @@ export function JobAttestationStep({
 
           {irrelevantCategories.length > 0 && (
             <div className="attestation-irrelevant-block">
-              <span className="attestation-irrelevant-label">Markeret irrelevant</span>
+              <span className="attestation-irrelevant-label">Irrelevant</span>
               <ul className="attestation-control-list compact">
                 {irrelevantCategories.map((item) => (
                   <li key={item.id}>

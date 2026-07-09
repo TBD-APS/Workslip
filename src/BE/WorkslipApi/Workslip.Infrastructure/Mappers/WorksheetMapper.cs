@@ -20,6 +20,7 @@ public static class WorksheetMapper
         public string? CustomerAddress { get; init; }
         public bool HasOutlay { get; init; }
         public decimal HoursWorked { get; init; }
+        public string UserDisplayName { get; init; } = "";
     }
 
     public static IReadOnlyList<WorksheetUserGroupResponse> ToGroupedResponse(

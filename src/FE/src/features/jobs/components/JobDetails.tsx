@@ -9,7 +9,7 @@ import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId, getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
 import { DeleteButton } from '../../../components/common/DeleteButton';
-import { useCan } from '../../../providers/permissions';
+import { useCan, useIsAdmin } from '../../../providers/permissions';
 import { isValidJobForm, isValidWork } from '../utils';
 import { formatDateLong } from '../../../lib/formatDate';
 import { ControlPointsStep } from './steps/ControlPointsStep';
@@ -44,6 +44,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   const [attestationConfirmed, setAttestationConfirmed] = useState(false);
   const [submission, setSubmission] = useState<{ reportNumber: string; submittedAt: Date } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const isAdmin = useIsAdmin();
   const deleteMutation = useDeleteApiJobsId({
     mutation: {
       onSuccess: () => {
@@ -112,7 +113,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   }
 
   const isLastStep = details.currentStep === JOB_STEPS.length - 1;
-  const disableNext = !canAdvanceCurrentStep(details);
+  const disableNext = !canAdvanceCurrentStep(details, isAdmin);
   const nextDisabledReason = disableNext ? getNextDisabledReason(details) : undefined;
   const globalSaveStatus = getGlobalSaveStatus([
     details.saveStatus,
@@ -120,7 +121,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     details.linksStatus,
   ]);
   const completedSteps = [
-    isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly }),
+    isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin }),
     isValidWork(details.form, details.referenceData!),
     validateControlPoints(details.form, details.referenceData!).valid,
     details.worksheets.length > 0,
@@ -248,9 +249,9 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   );
 }
 
-function canAdvanceCurrentStep(details: JobDetailsState): boolean {
+function canAdvanceCurrentStep(details: JobDetailsState, isAdmin?: boolean): boolean {
   if (details.currentStep === 0) {
-    return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly });
+    return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin });
   }
   if (details.currentStep === 1) {
     return isValidWork(details.form, details.referenceData!);

@@ -101,10 +101,10 @@ public sealed class JobReportPdfService : IJobReportPdfService
             col.Spacing(PdfStyle.SectionGap);
             col.Item().Element(c => ComposeMetaSection(c, job));
             col.Item().Element(c => ComposeCustomerSection(c, job));
+            col.Item().Element(c => ComposeWorksheetsSection(c, job));
             col.Item().Element(c => ComposeObservationsSection(c, job));
             col.Item().Element(c => ComposeLinksSection(c, job, jobBaseUri));    
             col.Item().Element(c => ComposeWorkSection(c, job));
-            col.Item().Element(c => ComposeWorksheetsSection(c, job));
         });
     }
 

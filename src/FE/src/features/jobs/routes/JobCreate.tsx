@@ -63,7 +63,7 @@ export const JobCreate = () => {
         <button
           className="step-nav-btn step-nav-btn-next step-nav-btn-next--wide"
           onClick={create.save}
-          disabled={create.isSaving || !create.canSave}
+          disabled={create.isSaving}
         >
           {create.isSaving ? <Loader2 className="animate-spin" size={18} /> : null}
           <span>{create.isSaving ? 'Gemmer...' : 'Opret sag'}</span>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ import { useAuth } from '../../../providers/useAuth';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import { emptyForm, isValidCreateForm } from '../utils';
+import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CreateJobRequest } from '../../../api/generated/models';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobForm } from '../types';
@@ -22,7 +23,6 @@ import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustome
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
   createCustomerFromSnapshot?: boolean;
-  reportNumber?: string | null;
 };
 
 export function useJobCreate(onCreated: (jobId: string) => void) {
@@ -46,6 +46,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   const [isSaving, setIsSaving] = useState(false);
   const [linksStatus, setLinksStatus] = useTimedStatus();
   const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const createMutation = usePostApiJobs({
     mutation: {
       onSuccess: (response) => {
@@ -87,18 +88,24 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     },
   });
 
-  const { selectCustomer, updateSnapshotField, updateEditSnapshot, hasCustomerChanges } = useCustomerSnapshot(setForm);
+  const { selectCustomer, updateEditSnapshot, hasCustomerChanges } = useCustomerSnapshot(setForm);
+
+  const createNewCustomer = () => {
+    setForm((prev) => ({
+      ...prev,
+      customerId: null,
+      customerSnapshot: { name: null, email: null, phone: null, address: null, contactPerson: null },
+      editSnapshot: true,
+    }));
+  };
 
   const updateCreateCustomer = (value: boolean) => {
     setForm((prev) => ({ ...prev, createCustomer: value }));
   };
 
-  const updateReportNumber = (value: string) => {
-    setForm((prev) => ({ ...prev, reportNumber: value }));
-  };
-
   const updateDestinationAddress = (value: string) => {
     setForm((prev) => ({ ...prev, destinationAddress: value }));
+    clearFieldError('destinationAddress');
   };
 
   const updateTaskDescription = (value: string) => {
@@ -112,6 +119,22 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
   const updateTechnicalObservations = (value: string) => {
     setForm((prev) => ({ ...prev, technicalObservations: value }));
   };
+
+  const updateSnapshotField = useCallback(
+    (field: keyof CustomerSnapshotData, value: string) => {
+      setForm((prev) => ({
+        ...prev,
+        customerSnapshot: {
+          ...(prev.customerSnapshot ?? { name: null, email: null, phone: null, address: null, contactPerson: null }),
+          [field]: value,
+        },
+        editSnapshot: true,
+      }));
+      const fieldKey = field === 'name' ? 'customerName' : field;
+      clearFieldError(fieldKey);
+    },
+    [setForm],
+  );
 
   const updateLinkedJobs = (jobIds: string[]) => {
     setLinkedJobIds(jobIds);
@@ -144,10 +167,45 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     setForm((prev) => ({ ...prev, work: { ...prev.work, customWorkKind } }));
   };
 
-  const canSave = isValidCreateForm(form);
+  const canSave = isValidCreateForm(form, { requireDestinationAddress: isAdmin });
+
+  function computeFieldErrors(): Record<string, string> {
+    const errors: Record<string, string> = {};
+    const name = form.customerSnapshot?.name ?? null;
+    const email = form.customerSnapshot?.email ?? null;
+    const phone = form.customerSnapshot?.phone ?? null;
+
+    if ((name?.trim().length ?? 0) === 0) errors.customerName = 'Kundenavn er påkrævet';
+    if (validateEmail(email) !== null) errors.email = validateEmail(email)!;
+    if (validatePhoneNumber(phone) !== null) errors.phone = validatePhoneNumber(phone)!;
+    if (isAdmin && form.destinationAddress.trim().length === 0) errors.destinationAddress = 'Adresse er påkrævet';
+    return errors;
+  }
+
+  const clearFieldError = (field: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
 
   const save = () => {
-    if (!canSave) return;
+    const errors = computeFieldErrors();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstKey = Object.keys(errors)[0];
+      setTimeout(() => {
+        const el = document.querySelector(`[data-field-error="${firstKey}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          (el as HTMLElement)?.focus?.();
+        }
+      }, 100);
+      return;
+    }
+    setFieldErrors({});
 
     const request: CreateJobRequestWithSnapshot = {
       customerId: form.customerId,
@@ -165,7 +223,6 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
         : null,
       createCustomerFromSnapshot: form.createCustomer || undefined,
       destinationAddress: form.destinationAddress.trim() || null,
-      reportNumber: form.reportNumber.trim() || null,
       work: null,
       observations: {
         reportDate: null,
@@ -201,11 +258,11 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     isLoadingReferenceData: referenceDataQuery.isLoading,
     isLoadingUsers: usersQuery.isLoading,
     selectCustomer,
+    createNewCustomer,
     updateSnapshotField,
     updateEditSnapshot,
     updateCreateCustomer,
     hasCustomerChanges,
-    updateReportNumber,
     updateDestinationAddress,
     updateTaskDescription,
     updateCustomerObservations,
@@ -215,6 +272,7 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
     updateWorkCategories,
     updateWorkKind,
     updateCustomWorkKind,
+    fieldErrors,
     save,
     reset,
   };

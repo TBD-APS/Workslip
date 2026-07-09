@@ -1,5 +1,5 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
@@ -752,9 +752,16 @@ public sealed class EfJobRepository : IJobRepository
             await conn.OpenAsync(cancellationToken);
         }
 
+        var currentTransaction = _dbContext.Database.CurrentTransaction?.GetDbTransaction();
+
         await using (var lockCmd = conn.CreateCommand())
         {
-            lockCmd.CommandText = "SELECT Id FROM Organizations WHERE Id = @orgId";
+            if (currentTransaction != null)
+            {
+                lockCmd.Transaction = currentTransaction;
+            }
+
+            lockCmd.CommandText = "SELECT Id FROM Organizations WITH (XLOCK, HOLDLOCK) WHERE Id = @orgId";
             var orgIdParam = lockCmd.CreateParameter();
             orgIdParam.ParameterName = "@orgId";
             orgIdParam.Value = organizationId;
@@ -763,7 +770,6 @@ public sealed class EfJobRepository : IJobRepository
             // XLOCK = exclusive lock, HOLDLOCK = hold until end of transaction.
             // Forces sequential allocation per organization; reads still scale
             // because the lock is scoped to a single row.
-            lockCmd.CommandText += " OPTION (XLOCK, HOLDLOCK)";
             await lockCmd.ExecuteScalarAsync(cancellationToken);
         }
 

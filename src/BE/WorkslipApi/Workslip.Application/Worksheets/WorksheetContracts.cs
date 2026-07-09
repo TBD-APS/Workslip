@@ -38,7 +38,8 @@ public sealed record MyWorksheetEntryResponse(
     string CustomerName,
     string? CustomerAddress,
     decimal HoursWorked,
-    bool HasOutlay);
+    bool HasOutlay,
+    string? UserDisplayName = null);
 
 public sealed record MyWorksheetDayResponse(
     DateOnly Date,
@@ -67,4 +68,5 @@ public interface IWorksheetService
     Task<Result<JobReportSummaryResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken);
     Task<Result<JobReportSummaryResponse>> DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken);
     Task<Result<MyWorksheetsMonthResponse>> GetWorksheetsForUserAsync(int? year, int? month, CancellationToken cancellationToken);
+    Task<Result<MyWorksheetsMonthResponse>> GetAllWorksheetsAsync(int? year, int? month, CancellationToken cancellationToken);
 }

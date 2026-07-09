@@ -201,6 +201,10 @@ export function sameCustomer(left: JobForm, right: JobForm) {
   return left.customerId === right.customerId;
 }
 
+function snapshotVal(v: string | null | undefined): string {
+  return v ?? '';
+}
+
 export function sameSnapshot(
   left: CustomerSnapshotData | null,
   right: CustomerSnapshotData | null,
@@ -208,11 +212,11 @@ export function sameSnapshot(
   if (left === right) return true;
   if (!left || !right) return false;
   return (
-    left.name === right.name &&
-    left.email === right.email &&
-    left.phone === right.phone &&
-    left.address === right.address &&
-    left.contactPerson === right.contactPerson
+    snapshotVal(left.name) === snapshotVal(right.name) &&
+    snapshotVal(left.email) === snapshotVal(right.email) &&
+    snapshotVal(left.phone) === snapshotVal(right.phone) &&
+    snapshotVal(left.address) === snapshotVal(right.address) &&
+    snapshotVal(left.contactPerson) === snapshotVal(right.contactPerson)
   );
 }
 
@@ -220,7 +224,7 @@ export function sameWork(left: JobForm, right: JobForm) {
   return JSON.stringify(left.work) === JSON.stringify(right.work);
 }
 
-export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean }) {
+export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean; requireDestinationAddress?: boolean }) {
   const name = form.customerSnapshot?.name ?? null;
   const email = form.customerSnapshot?.email ?? null;
   const phone = form.customerSnapshot?.phone ?? null;
@@ -229,12 +233,13 @@ export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?:
     (options?.reportNumberReadOnly || form.reportNumber.trim().length > 0) &&
     (name?.trim().length ?? 0) > 0 &&
     validateEmail(email) === null &&
-    validatePhoneNumber(phone) === null
+    validatePhoneNumber(phone) === null &&
+    (!options?.requireDestinationAddress || form.destinationAddress.trim().length > 0)
   );
 }
 
-export function isValidCreateForm(form: JobForm) {
-  return isValidJobForm(form);
+export function isValidCreateForm(form: JobForm, options?: { requireDestinationAddress?: boolean }) {
+  return isValidJobForm(form, { reportNumberReadOnly: true, ...options });
 }
 
 export function isValidWork(form: JobForm, referenceData: ReferenceDataResponse | null) {

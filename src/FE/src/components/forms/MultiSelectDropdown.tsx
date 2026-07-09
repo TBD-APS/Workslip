@@ -18,7 +18,6 @@ type MultiSelectDropdownProps = {
   options: MultiSelectOption[];
   selectedIds: string[];
   isLoading?: boolean;
-  icon?: React.ReactNode;
   commitOnClose?: boolean;
   onChange: (selectedIds: string[]) => void;
 };
@@ -31,7 +30,6 @@ export function MultiSelectDropdown({
   options,
   selectedIds,
   isLoading = false,
-  icon,
   commitOnClose = false,
   onChange,
 }: MultiSelectDropdownProps) {
@@ -159,7 +157,6 @@ export function MultiSelectDropdown({
           aria-expanded={isOpen}
         >
           <span className="multi-select-trigger-content">
-            {icon}
             <span className="multi-select-trigger-label">
               {selectedOptions.length > 0
                 ? selectedOptions.slice(0, 2).map((o) => o.label).join(', ') + (selectedOptions.length > 2 ? ` +${selectedOptions.length - 2}` : '')

@@ -101,8 +101,9 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         if (jobId) {
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
-        const currentDraft = draftRef.current;
         const newInitialForm = toForm(data);
+        initialFormRef.current = newInitialForm;
+        const currentDraft = draftRef.current;
         if (currentDraft && !sameFormWithoutWork(newInitialForm, currentDraft.form)) {
           setDraft(currentDraft);
         } else {
@@ -138,7 +139,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     if (!isAssigned || !hasWorksheet) return;
 
     const form = toForm(job);
-    const jobFormValid = isValidJobForm(form, { reportNumberReadOnly: Boolean(job.reportNumber) });
+    const jobFormValid = isValidJobForm(form, { reportNumberReadOnly: Boolean(job.reportNumber), requireDestinationAddress: isAdmin });
     const workValid = isValidWork(form, referenceData);
     const controlPointsValid = validateControlPoints(form, referenceData).valid;
 
@@ -268,7 +269,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         return;
       }
 
-      if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(currentJob.reportNumber) })) {
+      if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(currentJob.reportNumber), requireDestinationAddress: isAdmin })) {
         setSaveStatus('error');
         return;
       }
@@ -301,10 +302,6 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   );
 
   const { selectCustomer, updateSnapshotField, updateEditSnapshot } = useCustomerSnapshot(setCustomerForm);
-
-  const updateReportNumber = (value: string) => {
-    updateDraft({ ...form, reportNumber: value });
-  };
 
   const updateDestinationAddress = (value: string) => {
     updateDraft({ ...form, destinationAddress: value });
@@ -475,7 +472,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
       setDraft(null);
       return true;
     }
-    if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
+    if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber), requireDestinationAddress: isAdmin })) {
       setSaveStatus('error');
       return false;
     }
@@ -501,7 +498,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
       setDraft(null);
       return true;
     }
-    if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
+    if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber), requireDestinationAddress: isAdmin })) {
       setSaveStatus('error');
       toast.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
       return false;
@@ -558,7 +555,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     if (nextStep === currentStep) return;
 
     if (nextStep > currentStep) {
-      if (!isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber) })) {
+      if (!isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber), requireDestinationAddress: isAdmin })) {
         setSaveStatus('error');
         toast.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
         return;
@@ -597,8 +594,9 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     saveStatus,
     assignmentStatus,
     linksStatus,
-    canContinue: isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber) }) && isValidWork(form, referenceData),
+    canContinue: isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber), requireDestinationAddress: isAdmin }) && isValidWork(form, referenceData),
     hasUnsavedChanges: draft !== null && initialForm !== null && !sameForm(initialForm, draft.form),
+    isAdmin,
     reportNumberReadOnly: Boolean(job?.reportNumber),
     flushSave,
     saveAllChanges,
@@ -611,7 +609,6 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     selectCustomer,
     updateSnapshotField,
     updateEditSnapshot,
-    updateReportNumber,
     updateDestinationAddress,
     updateTaskDescription,
     updateCustomerObservations,

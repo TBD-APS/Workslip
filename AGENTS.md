@@ -131,3 +131,43 @@ AI-powered code search. Requires Sourcegraph login (`cody login`).
 ```
 cody search "semantic query here"
 ```
+
+# Frontend Form Components
+
+Use the shared form components in `src/FE/src/components/forms/`. Do not roll your own `<input>` for fields that already have a dedicated component.
+
+## Numeric input — always use `NumericInput`
+
+**Never** use a raw `<input type="number" />` for numeric fields. iOS Safari and Android Chrome strip the Danish decimal comma on `type="number"`, breaking kommatal input. The `NumericInput` component renders `type="text"` with the correct `inputMode` and accepts both `,` and `.` (decimal) or digits only (integer).
+
+```tsx
+import { NumericInput } from '../../../components/forms/NumericInput';
+
+// Kommatal (timer, mængder, beløb)
+<NumericInput
+  id="hours"
+  kind="decimal"
+  min={0}
+  max={24}
+  value={draft.hours}
+  onChange={(value) => updateDraft({ hours: value })}
+/>
+
+// Heltal (antal, postnumre)
+<NumericInput
+  kind="integer"
+  value={count}
+  onChange={(value) => setCount(value)}
+/>
+```
+
+Normalization (e.g. replacing `,` with `.` before `parseFloat`) is the caller's responsibility — see `parseHours` in `src/FE/src/features/jobs/components/worksheetUtils.ts` for the established pattern.
+
+## Other shared form components
+
+| Component | Purpose |
+|---|---|
+| `ValidatedInput` | Text/numeric input with built-in validation message |
+| `Checkbox` | Standard checkbox with label |
+| `SingleSelectDropdown` | Single-select picker |
+| `MultiSelectDropdown` | Multi-select picker |
