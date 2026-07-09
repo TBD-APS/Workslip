@@ -71,16 +71,7 @@ public static class DatabaseSeeder
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate(50);
 
-        var users = new Faker<UserDataRow>()
-            .RuleFor(x => x.Id, _ => Guid.NewGuid())
-            .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.DisplayName, f => f.Name.FullName())
-            .RuleFor(x => x.Email, f => f.Internet.Email())
-            .RuleFor(x => x.Phone, f => f.Phone.PhoneNumber("########"))
-            .RuleFor(x => x.Role, _ => Roles.User)
-            .RuleFor(x => x.CreatedAt, _ => now)
-            .RuleFor(x => x.UpdatedAt, _ => now)
-            .Generate(50);
+        var users = new List<UserDataRow>();
 
         var rbjUser = new Faker<UserDataRow>()
             .RuleFor(x => x.Id, _ => new Guid("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F"))
@@ -96,7 +87,7 @@ public static class DatabaseSeeder
         var adminUser = new Faker<UserDataRow>()
             .RuleFor(x => x.Id, _ => new Guid("A1A1A1A1-DA5B-4CC4-BBEB-07B40CAB806F"))
             .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.DisplayName, _ => "Admin Test")
+            .RuleFor(x => x.DisplayName, _ => "Niels Petersen")
             .RuleFor(x => x.Email, _ => "admin@17v3ygzs.mailosaur.net")
             .RuleFor(x => x.Phone, _ => "10000001")
             .RuleFor(x => x.Role, _ => Roles.Admin)
@@ -107,7 +98,7 @@ public static class DatabaseSeeder
         var regularUser = new Faker<UserDataRow>()
             .RuleFor(x => x.Id, _ => new Guid("B2B2B2B2-DA5B-4CC4-BBEB-07B40CAB806F"))
             .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.DisplayName, _ => "User Test")
+            .RuleFor(x => x.DisplayName, _ => "Arne Arnesen")
             .RuleFor(x => x.Email, _ => "user@17v3ygzs.mailosaur.net")
             .RuleFor(x => x.Phone, _ => "10000002")
             .RuleFor(x => x.Role, _ => Roles.User)
@@ -118,7 +109,7 @@ public static class DatabaseSeeder
         var auditorUser = new Faker<UserDataRow>()
             .RuleFor(x => x.Id, _ => new Guid("C3C3C3C3-DA5B-4CC4-BBEB-07B40CAB806F"))
             .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.DisplayName, _ => "Auditor Test")
+            .RuleFor(x => x.DisplayName, _ => "Auditor Jakobsen")
             .RuleFor(x => x.Email, _ => "auditor@17v3ygzs.mailosaur.net")
             .RuleFor(x => x.Phone, _ => "10000003")
             .RuleFor(x => x.Role, _ => Roles.Auditor)
@@ -149,6 +140,7 @@ public static class DatabaseSeeder
                     CustomerEmail = customer.Email,
                     CustomerAddress = customer.Address,
                     CustomerContactPerson = customer.ContactPerson,
+                    DestinationAddress = f.Address.FullAddress(),
                     CustomerName = customer.Name,
                     CustomerPhone = customer.Phone,
                     ReportNumber = formattedReportNumber,
