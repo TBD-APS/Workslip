@@ -8,6 +8,7 @@ using Workslip.Application.Jobs;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 using Workslip.Application.Customers;
+using Workslip.Application.Notifications;
 
 namespace Workslip.Application;
 
@@ -25,6 +26,8 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<IWorksheetService, WorksheetService>();
     services.AddScoped<IReferenceDataService, ReferenceDataService>();
     services.AddScoped<ICustomerService, CustomerService>();
+    services.AddScoped<INotificationService, NotificationService>();
+    services.AddScoped<IPushSubscriptionService, PushSubscriptionService>();
 
     // Add FluentValidation validators (scans the entire assembly)
     services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());

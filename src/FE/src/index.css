@@ -175,6 +175,10 @@
   border-color: var(--border);
 }
 
+[data-theme="day"] .attestation-confirm-row input {
+  background: var(--surface-input);
+}
+
 [data-theme="day"] .bg-glow-1 {
   background: radial-gradient(circle, rgba(0,112,243,0.08) 0%, rgba(0,0,0,0) 70%);
 }
@@ -347,13 +351,17 @@ a:hover {
   justify-content: center;
   gap: 0.35rem;
   padding: 0.75rem 1.5rem;
-  border-radius: 9999px;
+  border-radius: var(--radius);
   font-size: 0.95rem;
   font-weight: 400;
   cursor: pointer;
   transition: all 0.15s ease;
   border: none;
   font-family: var(--font-main);
+}
+
+.btn-pill {
+  border-radius: 9999px;
 }
 
 .btn-sm {

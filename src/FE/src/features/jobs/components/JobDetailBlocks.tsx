@@ -21,59 +21,37 @@ type CustomerBlockProps = {
   onCreateCustomerChange?: (value: boolean) => void;
   hasCustomerChanges?: (snapshot: CustomerSnapshotData | null) => boolean;
   onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
+  onCreateNewCustomer?: () => void;
   onSnapshotFieldChange?: (field: keyof CustomerSnapshotData, value: string) => void;
   onEditSnapshotChange?: (edit: boolean) => void;
   showEditCheckbox: boolean;
+  fieldErrors?: Record<string, string>;
 };
-
-type ReportNumberBlockProps = {
-  value: string;
-  onChange: (value: string) => void;
-  readOnly?: boolean;
-};
-
-export function ReportNumberBlock({ value, onChange, readOnly = false }: ReportNumberBlockProps) {
-  return (
-    <section className="detail-section">
-      <div className="detail-form">
-        <div className="section-header-row">
-          <FileText size={18} />
-          <h3>Sagsnummer</h3>
-        </div>
-        <div className="form-group">
-          <input
-            className="form-input"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Indsæt sagsnummer..."
-            readOnly={readOnly}
-          />
-        </div>
-      </div>
-    </section>
-  );
-}
 
 type DestinationAddressBlockProps = {
   value: string;
   onChange: (value: string) => void;
+  required?: boolean;
+  error?: string;
 };
 
-export function DestinationAddressBlock({ value, onChange }: DestinationAddressBlockProps) {
+export function DestinationAddressBlock({ value, onChange, required, error }: DestinationAddressBlockProps) {
   return (
     <section className="detail-section">
       <div className="detail-form">
         <div className="section-header-row">
           <FileText size={18} />
-          <h3>Adresse (destination)</h3>
+          <h3>Adresse (destination){required && <span className="required-asterisk">*</span>}</h3>
         </div>
-        <div className="form-group">
+        <div className="form-group" data-field-error="destinationAddress">
           <input
-            className="form-input"
+            className={`form-input${error ? ' form-input-invalid' : ''}`}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="Indsæt adresse..."
+            required={required}
           />
+          {error && <p className="form-error-text">{error}</p>}
         </div>
       </div>
     </section>
@@ -113,27 +91,27 @@ export function CustomerDetailsBlock({
   onCreateCustomerChange,
   hasCustomerChanges,
   onCustomerSelect,
+  onCreateNewCustomer,
   onSnapshotFieldChange,
   onEditSnapshotChange,
   showEditCheckbox = true,
+  fieldErrors = {},
 }: CustomerBlockProps) {
   const hasExistingCustomer = Boolean(form.customerId);
   const isAdmin = useIsAdmin();
   const [emailError, setEmailError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const showPicker = !hasExistingCustomer || editSnapshot;
   const showCreateCustomerCheckbox =
     hasExistingCustomer && editSnapshot && hasCustomerChanges && hasCustomerChanges(customerSnapshot);
 
   function displayValue(field: keyof CustomerSnapshotData): string {
-    if (hasExistingCustomer) {
-      const snapshotVal = customerSnapshot?.[field];
-      return (snapshotVal ?? '') as string;
-    }
-    return '';
+    const snapshotVal = customerSnapshot?.[field];
+    return (snapshotVal ?? '') as string;
   }
 
   function handleFieldChange(field: keyof CustomerSnapshotData, value: string) {
-    if (hasExistingCustomer && editSnapshot) {
+    if (editSnapshot || !hasExistingCustomer) {
       onSnapshotFieldChange?.(field, value);
     }
   }
@@ -152,22 +130,24 @@ export function CustomerDetailsBlock({
         <h3>Kunde</h3>
       </div>
 
-        {isAdmin && (
+        {isAdmin && showPicker && (
           <CustomerSearchDropdown
             selectedId={form.customerId}
             onSelect={onCustomerSelect}
+            onCreateNew={onCreateNewCustomer}
           />
         )}
 
-          <div className="form-group">
-            <label className="form-label">Kundenavn</label>
+          <div className="form-group" data-field-error="customerName">
+            <label className="form-label">Kundenavn<span className="required-asterisk">*</span></label>
             <input
-              className="form-input"
+              className={`form-input${fieldErrors.customerName ? ' form-input-invalid' : ''}`}
               value={displayValue('name')}
               onChange={(e) => handleFieldChange('name', e.target.value)}
               placeholder="Kundenavn"
               readOnly={isFieldReadOnly()}
             />
+            {fieldErrors.customerName && <p className="form-error-text">{fieldErrors.customerName}</p>}
           </div>
           <div className="form-group">
             <label className="form-label">Adresse</label>
@@ -179,29 +159,29 @@ export function CustomerDetailsBlock({
               readOnly={isFieldReadOnly()}
             />
           </div>
-          <div className="form-group">
-            <label className="form-label">Email</label>
+          <div className="form-group" data-field-error="email">
+            <label className="form-label">Email<span className="required-asterisk">*</span></label>
             <input
-              className={`form-input${emailError ? ' form-input-invalid' : ''}`}
+              className={`form-input${emailError || fieldErrors.email ? ' form-input-invalid' : ''}`}
               value={displayValue('email')}
               onChange={(e) => { handleFieldChange('email', e.target.value); setEmailError(null); }}
               onBlur={() => setEmailError(validateEmail(displayValue('email')))}
               placeholder="Email"
               readOnly={isFieldReadOnly()}
             />
-            {emailError && <p className="form-error-text">{emailError}</p>}
+            {(emailError || fieldErrors.email) && <p className="form-error-text">{emailError || fieldErrors.email}</p>}
           </div>
-          <div className="form-group">
-            <label className="form-label">Telefon</label>
+          <div className="form-group" data-field-error="phone">
+            <label className="form-label">Telefon<span className="required-asterisk">*</span></label>
             <input
-              className={`form-input${phoneError ? ' form-input-invalid' : ''}`}
+              className={`form-input${phoneError || fieldErrors.phone ? ' form-input-invalid' : ''}`}
               value={displayValue('phone')}
               onChange={(e) => { handleFieldChange('phone', e.target.value); setPhoneError(null); }}
               onBlur={() => setPhoneError(validatePhoneNumber(displayValue('phone')))}
               placeholder="Telefon"
               readOnly={isFieldReadOnly()}
             />
-            {phoneError && <p className="form-error-text">{phoneError}</p>}
+            {(phoneError || fieldErrors.phone) && <p className="form-error-text">{phoneError || fieldErrors.phone}</p>}
           </div>
           <div className="form-group">
             <label className="form-label">Kontaktperson</label>
@@ -273,24 +253,16 @@ export function AssignmentBlock({ assignment, readOnlyAssigned, isEditing = true
             options={assignment.users.map((user) => ({ id: user.id, label: user.displayName, description: user.email }))}
             selectedIds={assignment.assignedUserIds}
             isLoading={assignment.isLoadingUsers}
-            icon={<Users size={16} />}
             commitOnClose
             onChange={assignment.onAssignedUsersChange}
           />
         ) : (
           <div className="form-group">
-            <div className="form-readonly-list" aria-readonly="true">
-              {(readOnlyAssigned && readOnlyAssigned.length > 0) ? (
-                readOnlyAssigned.map((u) => (
-                  <span key={u.id} className="form-readonly-chip">
-                    <Users size={12} />
-                    <span>{u.displayName}</span>
-                  </span>
-                ))
-              ) : (
-                <span className="form-readonly-empty">Ingen medarbejdere tildelt</span>
-              )}
-            </div>
+            {(readOnlyAssigned && readOnlyAssigned.length > 0) ? (
+              <span className="form-readonly-value">{readOnlyAssigned.map((u) => u.displayName).join(', ')}</span>
+            ) : (
+              <span className="form-readonly-empty">Ingen medarbejdere tildelt</span>
+            )}
           </div>
         )}
       </div>
@@ -320,7 +292,6 @@ export function LinkedJobsBlock({ jobs, linkedJobIds, isLoading, onChange }: Lin
         options={jobs}
         selectedIds={linkedJobIds}
         isLoading={isLoading}
-        icon={<FileText size={16} />}
         commitOnClose
         onChange={onChange}
       />
@@ -352,12 +323,15 @@ export function TextAreaBlock({ icon, title, value, placeholder, onChange }: Tex
   );
 }
 
+const NEW_CUSTOMER_ID = '__new__';
+
 type CustomerSearchDropdownProps = {
   selectedId: string | null;
   onSelect?: (customer: CustomerSearchViewModel) => void;
+  onCreateNew?: () => void;
 };
 
-function CustomerSearchDropdown({ selectedId, onSelect }: CustomerSearchDropdownProps) {
+function CustomerSearchDropdown({ selectedId, onSelect, onCreateNew }: CustomerSearchDropdownProps) {
   const [inputValue, setInputValue] = useState('');
   const debouncedQuery = useDebounce(inputValue, 300);
   const isSearching = debouncedQuery.length >= 2;
@@ -383,17 +357,25 @@ function CustomerSearchDropdown({ selectedId, onSelect }: CustomerSearchDropdown
       description: c.address ?? undefined,
     }));
 
+    if (!isSearching) {
+      list.unshift({ id: NEW_CUSTOMER_ID, label: 'Opret ny kunde', description: 'Udfyld kundeoplysninger manuelt' });
+    }
+
     return list;
-  }, [results, selectedId,  isSearching]);
+  }, [results, isSearching]);
 
   const handleSelect = useCallback(
     (option: { id: string }) => {
+      if (option.id === NEW_CUSTOMER_ID) {
+        onCreateNew?.();
+        return;
+      }
       const customer = results.find((c: CustomerSearchViewModel) => c.id === option.id);
       if (customer && onSelect) {
         onSelect(customer);
       }
     },
-    [results, onSelect]
+    [results, onSelect, onCreateNew]
   );
 
   return (

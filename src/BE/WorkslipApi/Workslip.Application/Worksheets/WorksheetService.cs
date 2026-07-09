@@ -61,6 +61,31 @@ public class WorksheetService : IWorksheetService
         return Result<MyWorksheetsMonthResponse>.Success(BuildMonthResponse(selectedYear, selectedMonth, monthStart, monthEnd, entries));
     }
 
+    public async Task<Result<MyWorksheetsMonthResponse>> GetAllWorksheetsAsync(int? year, int? month, CancellationToken cancellationToken)
+    {
+        var organizationId = _currentUserContext.OrganizationId;
+
+        if (organizationId is null)
+        {
+            return Result<MyWorksheetsMonthResponse>.Unauthorized();
+        }
+
+        var (selectedYear, selectedMonth) = ResolveYearMonth(year, month);
+        if (selectedYear is null)
+        {
+            return Result<MyWorksheetsMonthResponse>.Invalid([new ValidationError
+            {
+                Identifier = "month",
+                ErrorMessage = "Vælg en gyldig måned."
+            }]);
+        }
+
+        var (monthStart, monthEnd) = GetMonthRange(selectedYear.Value, selectedMonth!.Value);
+        var entries = await _repository.GetAllWorksheetsAsync(organizationId.Value, monthStart, monthEnd, cancellationToken);
+
+        return Result<MyWorksheetsMonthResponse>.Success(BuildMonthResponse(selectedYear.Value, selectedMonth.Value, monthStart, monthEnd, entries));
+    }
+
     public async Task<Result<JobReportSummaryResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken)
     {
         var organizationId = _currentUserContext.OrganizationId;
@@ -180,6 +205,23 @@ public class WorksheetService : IWorksheetService
     {
         var daysFromMonday = ((int)date.DayOfWeek + 6) % 7;
         return date.AddDays(-daysFromMonday);
+    }
+
+    private static (int? year, int? month) ResolveYearMonth(int? year, int? month)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var selectedYear = year ?? now.Year;
+        var selectedMonth = month ?? now.Month;
+        if (selectedYear is < 2000 or > 2100 || selectedMonth is < 1 or > 12)
+            return (null, null);
+        return (selectedYear, selectedMonth);
+    }
+
+    private static (DateOnly monthStart, DateOnly monthEnd) GetMonthRange(int year, int month)
+    {
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        return (monthStart, monthEnd);
     }
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>

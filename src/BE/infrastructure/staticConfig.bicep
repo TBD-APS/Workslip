@@ -45,7 +45,7 @@ var appConfigValues = {
   //Email
   'Azure:Acs:InviteBaseUrl': 'https://workslip-v2-0.vercel.app/invite'
   'Azure:Acs:PLainHeaderText': 'Du er blevet inviteret til Workslip'
-  
+
   'Azure:Acs:HtmlInviteText': '''
   <html>
   <body style="font-family: Arial, sans-serif; padding: 24px;">
@@ -61,12 +61,18 @@ var appConfigValues = {
     <hr/>
     <p style="color: #666; font-size: 12px;">Workslip – automatisk invitation</p>
   </body>
-</html>'''
-  
-'Azure:Acs:PlainInviteText': '''
+  </html>'''
+
+  'Azure:Acs:PlainInviteText': '''
     Du er blevet inviteret til Workslip.
     Klik på følgende link for at acceptere invitationen:
     {inviteLink}
     Linket udløber om 7 dage.
-'''
+  '''
+
+  // Push Notifications
+  'Vapid:PublicKey': 'iliuPfZbFqfkSXzXBgdfsLYYd4OmeoXnwIPQ/FCQ0QZ6uK+brB0YTGxfMwCPZ/1ahNxYZPhV+JiIVS0o0lQHFg=='
+  'Vapid:PrivateKey': 'JHW4NwJzcBv8ynro/ZMA/z8sEwTNTbfuuLmJkMasEVM='
 }
+
+

@@ -2279,6 +2279,75 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "/api/worksheets/all",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/worksheets/all?year={{currentYear}}&month={{currentMonth}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "worksheets",
+                "all"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "{{currentYear}}"
+                },
+                {
+                  "key": "month",
+                  "value": "{{currentMonth}}"
+                }
+              ]
+            },
+            "description": "Retrieves all worksheets for the organization for a given month (admin only). Returns worksheets grouped by week with all employee hours."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const today = new Date();",
+                  "pm.collectionVariables.set('currentYear', today.getFullYear());",
+                  "pm.collectionVariables.set('currentMonth', today.getMonth() + 1);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('response contains month data with weeks', function () {",
+                  "  pm.expect(json).to.have.property('year');",
+                  "  pm.expect(json).to.have.property('month');",
+                  "  pm.expect(json).to.have.property('totalHours');",
+                  "  pm.expect(json).to.have.property('weeks');",
+                  "  pm.expect(json.weeks).to.be.an('array');",
+                  "});",
+                  "pm.test('week entries include user display names', function () {",
+                  "  const weeks = json.weeks;",
+                  "  if (weeks.length > 0 && weeks[0].days.length > 0) {",
+                  "    const entries = weeks[0].days[0].entries;",
+                  "    if (entries.length > 0) {",
+                  "      pm.expect(entries[0]).to.have.property('userDisplayName');",
+                  "    }",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
         }
       ]
     }

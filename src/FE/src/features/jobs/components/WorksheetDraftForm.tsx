@@ -1,6 +1,7 @@
-import { Loader2, Users } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Checkbox } from '../../../components/forms/Checkbox';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
+import { NumericInput } from '../../../components/forms/NumericInput';
 import { CalendarPicker } from './CalendarPicker';
 import type { WorksheetDraft, UserOption } from './worksheetUtils';
 
@@ -50,7 +51,6 @@ export function WorksheetDraftForm({
             options={userOptions}
             selectedIds={draft.userId ? [draft.userId] : []}
             isLoading={isLoadingUsers}
-            icon={<Users size={16} />}
             onChange={(ids) => updateDraft({ userId: ids.at(-1) ?? '' })}
           />
         ) : (
@@ -64,16 +64,13 @@ export function WorksheetDraftForm({
       <div className="worksheet-form-grid worksheet-form-grid-hours">
         <div className="form-group">
           <label className="form-label" htmlFor={`${title}-worksheet-hours`}>Timer</label>
-          <input
+          <NumericInput
             id={`${title}-worksheet-hours`}
-            className="form-input"
-            type="number"
-            min="0"
-            max="24"
-            step="0.25"
-            inputMode="decimal"
+            kind="decimal"
+            min={0}
+            max={24}
             value={draft.hours}
-            onChange={(e) => updateDraft({ hours: e.target.value })}
+            onChange={(value) => updateDraft({ hours: value })}
             placeholder="0"
           />
         </div>

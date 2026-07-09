@@ -23,6 +23,7 @@ public static class EndpointConfiguration
         app.MapJobLinkEndpoints();
         app.MapWorkSheetEndpoints();
         app.MapReferenceDataEndpoints();
+        app.MapPushNotificationEndpoints();
 
         return app;
     }

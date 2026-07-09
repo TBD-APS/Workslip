@@ -355,6 +355,35 @@ export const CompletedJobReport = () => {
             </div>
 
             <section className="detail-section">
+              <button
+                className="section-header-row attestation-compact-header btn-reset"
+                type="button"
+                onClick={() => setWorksheetOpen(o => !o)}
+                aria-expanded={worksheetOpen}
+              >
+                <Timer size={18} />
+                <h3>Timesedler ({visibleWorksheets.length})</h3>
+                <ChevronRight
+                  size={18}
+                  className="chevron-icon"
+                  style={{ transform: worksheetOpen ? 'rotate(90deg)' : 'none' }}
+                />
+              </button>
+
+              {worksheetOpen && (
+                <div className="worksheet-list-section">
+                  <Worksheets worksheets={visibleWorksheets} />
+                  <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
+                    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
+                    {parseNullableNumber(job.totalOutlay) > 0 && (
+                      <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="detail-section">
               <div className="section-header-row">
                 <User size={18} />
                 <h3>Medarbejdere</h3>
@@ -395,34 +424,6 @@ export const CompletedJobReport = () => {
               <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
             </section>
 
-            <section className="detail-section">
-              <button
-                className="section-header-row attestation-compact-header btn-reset"
-                type="button"
-                onClick={() => setWorksheetOpen(o => !o)}
-                aria-expanded={worksheetOpen}
-              >
-                <Timer size={18} />
-                <h3>Timesedler ({visibleWorksheets.length})</h3>
-                <ChevronRight
-                  size={18}
-                  className="chevron-icon"
-                  style={{ transform: worksheetOpen ? 'rotate(90deg)' : 'none' }}
-                />
-              </button>
-
-              {worksheetOpen && (
-                <div className="worksheet-list-section">
-                  <Worksheets worksheets={visibleWorksheets} />
-                  <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
-                    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
-                    {parseNullableNumber(job.totalOutlay) > 0 && (
-                      <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </section>
           </div>
 
           <CollapsibleSection

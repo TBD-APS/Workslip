@@ -1,15 +1,16 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
 import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
 import type { UserViewModel } from '../api/generated/models';
 import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY, AuthStorage, clearReauthInFlight } from './authContextValue';
-
+import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
   const queryClient = useQueryClient();
+  const { register: registerPush } = usePushNotifications();
 
   const meQuery = useGetApiAuthMe({
     query: {
@@ -22,6 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const user = meQuery.data ?? null;
   const isAuthenticated = Boolean(authToken) && Boolean(user);
   const isLoading = Boolean(authToken) && meQuery.isPending;
+
+  // Register push notifications when the user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      registerPush();
+    }
+  }, [isAuthenticated, registerPush]);
 
   const login = useCallback(
     async (email: string, code: string): Promise<boolean> => {

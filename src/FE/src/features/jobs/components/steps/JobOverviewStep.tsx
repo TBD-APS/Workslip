@@ -14,6 +14,12 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
   const canAssign = useCan('job:assign');
   return (
     <>
+      <DestinationAddressBlock
+        value={details.form.destinationAddress}
+        onChange={details.updateDestinationAddress}
+        required={details.isAdmin}
+      />
+
       <CustomerDetailsBlock
         form={details.form}
         customerSnapshot={details.form.customerSnapshot}
@@ -22,11 +28,6 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         onSnapshotFieldChange={details.updateSnapshotField}
         onEditSnapshotChange={details.updateEditSnapshot}
         showEditCheckbox={true}
-      />
-
-      <DestinationAddressBlock
-        value={details.form.destinationAddress}
-        onChange={details.updateDestinationAddress}
       />
 
       <AssignmentBlock

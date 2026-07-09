@@ -9,6 +9,7 @@ using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
+using Workslip.Application.Notifications;
 using Workslip.Infrastructure.Invitations;
 using Workslip.Application.Worksheets;
 using Workslip.Infrastructure.Jobs;
@@ -16,6 +17,8 @@ using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
 using Workslip.Infrastructure.Transactions;
+using Workslip.Infrastructure.Configuration;
+using Workslip.Infrastructure.Notifications;
 
 namespace Workslip.Infrastructure;
 
@@ -52,10 +55,17 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
+        services.AddScoped<INotificationRepository, EfNotificationRepository>();
 
         services.AddScoped<IEmailService, AcsEmailService>();
+        services.AddScoped<IPushSender, WebPushSender>();
         services.AddHostedService<JobDeletionCleanupService>();
         services.AddHostedService<InviteEntraCleanupService>();
+        services.AddHostedService<PushNotificationWorker>();
+
+        services.AddOptions<VapidOptions>()
+            .Configure<IConfiguration>((options, config) =>
+                config.GetSection(VapidOptions.SectionName).Bind(options));
 
         return services;
     }

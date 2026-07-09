@@ -31,6 +31,12 @@ namespace Workslip.Api.Endpoints
                 return ResultExtensions.ToHttpResult(result);
             }).Produces<MyWorksheetsMonthResponse>(StatusCodes.Status200OK);
 
+            group.MapGet("/all", async ([FromQuery] int? year, [FromQuery] int? month, IWorksheetService service, CancellationToken cancellationToken) =>
+            {
+                var result = await service.GetAllWorksheetsAsync(year, month, cancellationToken);
+                return ResultExtensions.ToHttpResult(result);
+            }).Produces<MyWorksheetsMonthResponse>(StatusCodes.Status200OK).RequireAuthorization(AuthPolicies.RequireAdmin);
+
             return app;
         }
     }

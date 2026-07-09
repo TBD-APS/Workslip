@@ -349,7 +349,6 @@ export const JobList = () => {
         </>
       ) : (
         <div className="job-sort-controls">
-          <span className="sort-label">Sorter:</span>
           <button
             type="button"
             className={`sort-btn${sortBy === 'reportNumber' ? ' active' : ''}`}
@@ -372,13 +371,6 @@ export const JobList = () => {
             Adresse{sortBy === 'address' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
           </button>
           <div className="job-sort-secondary">
-            <button
-              type="button"
-              className={`sort-btn${sortBy === 'createdAt' ? ' active' : ''}`}
-              onClick={() => handleSort('createdAt')}
-            >
-              Skabt{sortBy === 'createdAt' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
-            </button>
             <button
               type="button"
               className={`sort-btn${sortBy === 'updatedAt' ? ' active' : ''}`}
