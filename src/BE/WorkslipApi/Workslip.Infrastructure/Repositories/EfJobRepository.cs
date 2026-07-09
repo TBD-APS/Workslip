@@ -740,12 +740,8 @@ public sealed class EfJobRepository : IJobRepository
         }
     }
 
-        private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)
+    private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)
     {
-        // Serialize per-organization report-number allocation by acquiring a
-        // row-level exclusive lock on the organization row. This prevents two
-        // concurrent CreateAsync calls from reading the same max+1 and racing
-        // on the UX_JobReports_Organization_ReportNumber unique index.
         var conn = _dbContext.Database.GetDbConnection();
         if (conn.State != System.Data.ConnectionState.Open)
         {
@@ -779,12 +775,9 @@ public sealed class EfJobRepository : IJobRepository
             .AsNoTracking()
             .Where(r => r.OrganizationId == organizationId)
             .Select(r => r.ReportNumber)
-            .Where(num => num != null)
-            .Select(num => ConvertToIntSafe(num))
-            .DefaultIfEmpty(0)
             .MaxAsync(cancellationToken);
 
-        return maxReportNumber + 1;
+        return ConvertToIntSafe(maxReportNumber) + 1;
     }
 
     private static int ConvertToIntSafe(string? reportNumber)

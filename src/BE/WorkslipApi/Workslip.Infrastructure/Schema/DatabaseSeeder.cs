@@ -139,7 +139,9 @@ public static class DatabaseSeeder
                 var workKind = f.PickRandom(jobWorkKinds);
 
                 var customer = f.PickRandom(customers);
-                return new JobReportRow
+                var formattedReportNumber = (f.IndexFaker + 1).ToString("D4");
+
+                var row = new JobReportRow
                 {
                     Id = Guid.NewGuid(),
                     OrganizationId = organization.Id,
@@ -149,7 +151,7 @@ public static class DatabaseSeeder
                     CustomerContactPerson = customer.ContactPerson,
                     CustomerName = customer.Name,
                     CustomerPhone = customer.Phone,
-                    ReportNumber = f.Random.Replace("####"),
+                    ReportNumber = formattedReportNumber,
                     Status = f.PickRandom(statuses).ToString(),
                     ReportDate = f.Date.Past(1).Date,
                     TaskDescription = f.Lorem.Sentence(),
@@ -161,6 +163,9 @@ public static class DatabaseSeeder
                     CreatedAt = f.Date.PastOffset(1),
                     UpdatedAt = now
                 };
+
+                return row;
+
             })
             .Generate(50);
 
