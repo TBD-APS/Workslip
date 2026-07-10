@@ -22,6 +22,7 @@ import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
 import { JOB_STEPS } from './steps/jobSteps';
 import { JobHistoryDrawer } from './JobHistoryDrawer';
+import { ClosureFlagLabels } from '../closureFlagLabels';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -43,6 +44,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   const canDeleteJob = useCan('job:delete');
   const [attestationConfirmed, setAttestationConfirmed] = useState(false);
   const [submission, setSubmission] = useState<{ reportNumber: string; submittedAt: Date } | null>(null);
+  const [isPostSubmitting, setIsPostSubmitting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const isAdmin = useIsAdmin();
   const deleteMutation = useDeleteApiJobsId({
@@ -99,6 +101,15 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     );
   }
 
+  if (details.isSubmittingJob || isPostSubmitting) {
+    return (
+      <div className="page-container job-detail-page">
+        <div className="job-details-header-spacer" />
+        <SubmissionOverlay />
+      </div>
+    );
+  }
+
   if (submission) {
     return (
       <div className="page-container job-detail-page">
@@ -114,7 +125,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
 
   const isLastStep = details.currentStep === JOB_STEPS.length - 1;
   const disableNext = !canAdvanceCurrentStep(details, isAdmin);
-  const nextDisabledReason = disableNext ? getNextDisabledReason(details) : undefined;
+  const nextDisabledReason = disableNext ? getNextDisabledReason(details, details.currentStep) : undefined;
   const globalSaveStatus = getGlobalSaveStatus([
     details.saveStatus,
     details.assignmentStatus,
@@ -125,23 +136,18 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     isValidWork(details.form, details.referenceData!),
     validateControlPoints(details.form, details.referenceData!).valid,
     details.worksheets.length > 0,
-    (details.form.work.closureFlags?.length ?? 0) > 0,
+    isValidClosureFlags(details.form.work.closureFlags),
   ];
   const handleStepChange = (nextStep: number) => {
-    if (nextStep === 3 && !completedSteps[2]) {
-      const validation = validateControlPoints(details.form, details.referenceData!);
-      toast.error(validation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter');
-      return;
-    }
-
-    if (nextStep === 5 && !completedSteps[4]) {
-      toast.error('Vælg venligst mindst én afslutningsstatus');
-      return;
-    }
-
-    if (nextStep > 3 && details.worksheets.length === 0) {
-      toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
-      return;
+    // Prevent jumping to any step if previous steps are incomplete
+    if (nextStep > details.currentStep) {
+      for (let i = details.currentStep; i < nextStep; i++) {
+        if (!canAdvanceStep(details, i, isAdmin)) {
+          const reason = getNextDisabledReason(details, i);
+          if (reason) toast.error(reason);
+          return;
+        }
+      }
     }
 
     details.navigateToStep(nextStep);
@@ -214,10 +220,16 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
             details={details}
             confirmed={attestationConfirmed}
             onConfirmedChange={setAttestationConfirmed}
-            onSubmitted={() => setSubmission({
-              reportNumber: details.job?.reportNumber ?? '',
-              submittedAt: new Date(),
-            })}
+            onSubmitted={() => {
+              setIsPostSubmitting(true);
+              setTimeout(() => {
+                setIsPostSubmitting(false);
+                setSubmission({
+                  reportNumber: details.job?.reportNumber ?? '',
+                  submittedAt: new Date(),
+                });
+              }, 1500);
+            }}
           />
         )}
       </div>
@@ -232,7 +244,10 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
             details.navigateToStep(details.currentStep - 1);
           }
         }}
-        onNext={() => details.navigateToStep(details.currentStep + 1)}
+        onNext={() => {
+          if (disableNext) return;
+          details.navigateToStep(details.currentStep + 1);
+        }}
         disableNext={disableNext}
         nextDisabledReason={nextDisabledReason}
         statusSlot={<SaveStatusIndicator saveStatus={globalSaveStatus} />}
@@ -250,6 +265,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
 }
 
 function canAdvanceCurrentStep(details: JobDetailsState, isAdmin?: boolean): boolean {
+  // Check if CURRENT step is completed
   if (details.currentStep === 0) {
     return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin });
   }
@@ -263,18 +279,52 @@ function canAdvanceCurrentStep(details: JobDetailsState, isAdmin?: boolean): boo
     return details.worksheets.length > 0;
   }
   if (details.currentStep === 4) {
-    return (details.form.work.closureFlags?.length ?? 0) > 0;
+    return isValidClosureFlags(details.form.work.closureFlags);
   }
   return true;
 }
 
-function getNextDisabledReason(details: JobDetailsState): string | undefined {
-  if (details.currentStep === 0) return 'Udfyld venligst stamdata';
-  if (details.currentStep === 1) return 'Vælg venligst anlægstype';
-  if (details.currentStep === 2) return 'Udfyld venligst alle påkrævede kontrolpunkter';
-  if (details.currentStep === 3) return 'Tilføj venligst mindst én timeseddel';
-  if (details.currentStep === 4) return 'Vælg venligst mindst én afslutningsstatus';
+function canAdvanceStep(details: JobDetailsState, step: number, isAdmin?: boolean): boolean {
+  if (step === 0) {
+    return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin });
+  }
+  if (step === 1) {
+    return isValidWork(details.form, details.referenceData!);
+  }
+  if (step === 2) {
+    return validateControlPoints(details.form, details.referenceData!).valid;
+  }
+  if (step === 3) {
+    return details.worksheets.length > 0;
+  }
+  if (step === 4) {
+    return isValidClosureFlags(details.form.work.closureFlags) && details.worksheets.length > 0;
+  }
+  return true;
+}
+
+function getNextDisabledReason(details: JobDetailsState, step?: number): string | undefined {
+  const currentStep = step ?? details.currentStep;
+  if (currentStep === 0) return 'Udfyld venligst stamdata';
+  if (step === 1) return 'Vælg venligst anlægstype';
+  if (step === 2) return 'Udfyld venligst alle påkrævede kontrolpunkter';
+  if (step === 3) return 'Tilføj venligst mindst én timeseddel';
+  if (step === 4) {
+    const flags = details.form.work.closureFlags ?? [];
+    if (flags.length === 0) return 'Vælg venligst mindst én afslutningsstatus';
+    if (isOnlyOperationMaintenance(flags)) return 'Vælg også Ikke færdig, Færdig eller Klar til faktura';
+    return 'Vælg venligst mindst én afslutningsstatus';
+  }
   return undefined;
+}
+
+function isValidClosureFlags(flags: string[] | null | undefined): boolean {
+  if (!flags || flags.length === 0) return false;
+  return !isOnlyOperationMaintenance(flags);
+}
+
+function isOnlyOperationMaintenance(flags: string[]): boolean {
+  return flags.length === 1 && flags[0] === ClosureFlagLabels.OperationMaintenanceInstructions;
 }
 
 type HeaderProps = {
@@ -362,15 +412,30 @@ type SubmittedConfirmationProps = {
   onDone: () => void;
 };
 
+function SubmissionOverlay() {
+  return (
+    <section className="detail-section submission-overlay">
+      <Loader2 className="submission-overlay-spinner" size={40} />
+      <h2 className="submission-overlay-title">Indsender sag</h2>
+      <p className="submission-overlay-body">
+        Vent et øjeblik mens sagen bliver sendt til kontoret.
+      </p>
+    </section>
+  );
+}
+
 function SubmittedConfirmation({ reportNumber, submittedAt, onDone }: SubmittedConfirmationProps) {
   return (
     <section className="detail-section submitted-confirmation">
       <div className="submitted-confirmation-icon" aria-hidden="true">
         <CheckCircle2 size={48} />
       </div>
-      <h2 className="submitted-confirmation-title">Sag indsendt</h2>
+      <h2 className="submitted-confirmation-title">Sag sendt til kontoret</h2>
       <p className="submitted-confirmation-body">
-        Du har indsendt sag {reportNumber} til kontoret d. {formatDateLong(submittedAt.toISOString())}.
+        Sag <strong>{reportNumber}</strong> er nu indsendt og klar til behandling hos kontoret.
+      </p>
+      <p className="submitted-confirmation-date">
+        Indsendt d. {formatDateLong(submittedAt.toISOString())}
       </p>
       <button type="button" className="btn btn-primary submitted-confirmation-button" onClick={onDone}>
         Tilbage til oversigt

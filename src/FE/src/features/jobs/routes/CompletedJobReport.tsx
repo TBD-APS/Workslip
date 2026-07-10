@@ -23,7 +23,7 @@ import { CompletedJobEditForm } from '../components/CompletedJobEditForm';
 import { DetailGrid } from '../components/DetailGrid';
 import { AssignedUsers } from '../components/AssignedUsers';
 import { LinkedJobs } from '../components/LinkedJobs';
-import { Worksheets } from '../components/Worksheets';
+import { WorksheetDetailList } from '../components/WorksheetDetailList';
 import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories } from '../components/ControlPointOverview';
 import { formatReportNumber, formatWorkKind, formatInstallationTypeNames, formatClosureFlags } from '../utils/completedJobFormatters';
 
@@ -54,25 +54,12 @@ export const CompletedJobReport = () => {
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
-  const sortedWorksheets = useMemo(
-    () => {
-      return [...(job?.worksheets ?? [])].sort((left, right) => {
-        const leftName = left.userDisplayName || left.userId;
-        const rightName = right.userDisplayName || right.userId;
-        const byName = leftName.localeCompare(rightName, 'da-DK', { sensitivity: 'base' });
-        if (byName !== 0) return byName;
-        return right.workDate.localeCompare(left.workDate);
-      });
-    },
-    [job?.worksheets],
-  );
-
   const visibleWorksheets = useMemo(() => {
     if (!isAdmin) {
-      return sortedWorksheets.filter((ws) => ws.userId === user?.id);
+      return (job?.worksheets ?? []).filter((ws) => ws.userId === user?.id);
     }
-    return sortedWorksheets;
-  }, [sortedWorksheets, isAdmin, user?.id]);
+    return job?.worksheets ?? [];
+  }, [job?.worksheets, isAdmin, user?.id]);
 
   const initialLoadDone = useRef(false);
   const editScrollDone = useRef(false);
@@ -372,12 +359,12 @@ export const CompletedJobReport = () => {
 
               {worksheetOpen && (
                 <div className="worksheet-list-section">
-                  <Worksheets worksheets={visibleWorksheets} />
+                  <WorksheetDetailList worksheets={visibleWorksheets} className="report-overview-timesheet-list" />
                   <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
-                    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
                     {parseNullableNumber(job.totalOutlay) > 0 && (
                       <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
                     )}
+                    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
                   </div>
                 </div>
               )}

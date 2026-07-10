@@ -31,7 +31,7 @@ export function StepIndicators({ currentStep, onStepChange, completedSteps }: St
         const StepIcon = step.icon;
         const isActive = index === currentStep;
         const isCompleted = index < currentStep;
-        const isDisabled = (index === 3 && !completedSteps[2]) || (index === 5 && !completedSteps[4]);
+        const isDisabled = index > 0 && !completedSteps[index - 1];
         return (
           <button
             key={step.label}

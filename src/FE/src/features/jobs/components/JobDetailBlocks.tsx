@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Building2, FileText, Link2, Users } from 'lucide-react';
+import { Building2, FileText, Link2, Lock, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
@@ -128,14 +128,17 @@ export function CustomerDetailsBlock({
     <div className="section-header-row">
         <Building2 size={18} />
         <h3>Kunde</h3>
+        {isFieldReadOnly() && <Lock size={14} className="readonly-indicator" />}
       </div>
 
-        {isAdmin && showPicker && (
-          <CustomerSearchDropdown
-            selectedId={form.customerId}
-            onSelect={onCustomerSelect}
-            onCreateNew={onCreateNewCustomer}
-          />
+        {isAdmin && (
+          <div className={`customer-search-slot${showPicker ? ' is-open' : ''}`}>
+            <CustomerSearchDropdown
+              selectedId={form.customerId}
+              onSelect={onCustomerSelect}
+              onCreateNew={onCreateNewCustomer}
+            />
+          </div>
         )}
 
           <div className="form-group" data-field-error="customerName">

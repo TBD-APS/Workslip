@@ -190,6 +190,7 @@ export const JobList = () => {
                 { value: JobStatus.Draft, label: 'Aktiv' },
                 { value: JobStatus.InReview, label: 'Til gennemsyn' },
                 { value: JobStatus.Approved, label: 'Godkendt' },
+                { value: JobStatus.Rejected, label: 'Afvist' },
               ]
         }
         selected={selectedStatuses}

@@ -28,33 +28,35 @@ public static class CustomerEndpoints
             return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToSearch).ToArray());
         }).Produces<List<CustomerSearchViewModel>>();
 
-        var group = app.MapAdminGroup("/api/customers", "customers");
+        var userGroup = app.MapUserGroup("/api/customers", "customers");
 
-        group.MapGet("/", async (int? limit, int? offset, string? search, string? sortBy, string? sortDirection, ICustomerService service, CancellationToken cancellationToken) =>
+        userGroup.MapGet("/", async (int? limit, int? offset, string? search, string? sortBy, string? sortDirection, ICustomerService service, CancellationToken cancellationToken) =>
         {
             var result = await service.ListAsync(limit, offset, search, sortBy, sortDirection, cancellationToken);
             return ResultExtensions.ToHttpResult(result, CustomerViewModelBuilder.ToList);
         }).Produces<CustomerListViewModel>();
 
-        group.MapGet("/{id:guid}", async (Guid id, ICustomerService service, CancellationToken cancellationToken) =>
+        userGroup.MapGet("/{id:guid}", async (Guid id, ICustomerService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetByIdAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result, customer => CustomerViewModelBuilder.ToDetail(customer));
         }).Produces<CustomerDetailViewModel>();
 
-        group.MapPost("/", async (CreateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>
+        var adminGroup = app.MapAdminGroup("/api/customers", "customers");
+
+        adminGroup.MapPost("/", async (CreateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>
         {
             var result = await service.CreateAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, CustomerViewModelBuilder.ToDetail);
         }).Produces<CustomerDetailViewModel>();
 
-        group.MapPut("/{id:guid}", async (Guid id, UpdateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>
+        adminGroup.MapPut("/{id:guid}", async (Guid id, UpdateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>
         {
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, customer => CustomerViewModelBuilder.ToDetail(customer));
         }).Produces<CustomerDetailViewModel>();
 
-        group.MapDelete("/{id:guid}", async (Guid id, ICustomerService service, CancellationToken cancellationToken) =>
+        adminGroup.MapDelete("/{id:guid}", async (Guid id, ICustomerService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result);

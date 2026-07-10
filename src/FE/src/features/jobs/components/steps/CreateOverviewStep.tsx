@@ -3,6 +3,7 @@ import type { useJobCreate } from '../../hooks/useJobCreate';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock, DestinationAddressBlock } from '../JobDetailBlocks';
 import type { LinkableJob } from '../../types';
 import { useIsAdmin } from '../../../../providers/permissions';
+import { useAuth } from '../../../../providers/useAuth';
 
 type JobCreateState = ReturnType<typeof useJobCreate>;
 
@@ -14,6 +15,13 @@ type CreateOverviewStepProps = {
 
 export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: CreateOverviewStepProps) {
   const isAdmin = useIsAdmin();
+  const { user } = useAuth();
+  
+  // For non-admins, show the current user as assigned since they can't use the dropdown
+  const readOnlyAssigned = !isAdmin && user?.id && create.assignedUserIds.includes(user.id)
+    ? [{ id: user.id, displayName: user.displayName }]
+    : undefined;
+
   return (
     <>
       <DestinationAddressBlock
@@ -46,6 +54,7 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
           isLoadingUsers: create.isLoadingUsers,
           onAssignedUsersChange: create.updateAssignedUsers,
         }}
+        readOnlyAssigned={readOnlyAssigned}
         isEditing={true}
       />
 

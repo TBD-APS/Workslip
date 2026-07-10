@@ -2,7 +2,12 @@ import { useMutation } from '@tanstack/react-query';
 import { postApiPushSubscriptions } from '../../../api/generated/push-subscriptions/push-subscriptions';
 import type { RegisterPushSubscriptionRequest } from '../../../api/generated/models';
 
+function base64ToBase64Url(key: string): string {
+  return key.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+const VAPID_PUBLIC_KEY_BASE64 = VAPID_PUBLIC_KEY ? base64ToBase64Url(VAPID_PUBLIC_KEY) : null;
 
 export function usePushNotifications() {
   const mutation = useMutation({
@@ -11,7 +16,7 @@ export function usePushNotifications() {
   });
 
   const register = async () => {
-    if (!VAPID_PUBLIC_KEY) {
+    if (!VAPID_PUBLIC_KEY_BASE64) {
       console.error('VAPID_PUBLIC_KEY is not defined in environment variables.');
       return;
     }
@@ -38,7 +43,7 @@ export function usePushNotifications() {
 
       const newSubscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: VAPID_PUBLIC_KEY,
+        applicationServerKey: VAPID_PUBLIC_KEY_BASE64,
       });
 
       // Use type assertion to access non-standard properties in TS

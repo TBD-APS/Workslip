@@ -175,6 +175,44 @@
   border-color: var(--border);
 }
 
+[data-theme="day"] .work-kind-option {
+  background: var(--surface-input);
+}
+
+[data-theme="day"] .multi-select-option {
+  background: var(--surface-input);
+  border-color: var(--border);
+}
+
+[data-theme="day"] .attestation-confirm-row {
+  background: var(--surface-input);
+}
+
+[data-theme="day"] .time-entry-card {
+  background: var(--surface-input);
+  border-color: var(--border);
+}
+
+[data-theme="day"] .time-month-switcher,
+[data-theme="day"] .time-week-card,
+[data-theme="day"] .time-week-totals span,
+[data-theme="day"] .time-summary-card {
+  background: var(--surface-floating);
+}
+
+[data-theme="day"] .time-week-totals span {
+  border: 1px solid var(--border);
+}
+
+[data-theme="day"] .time-week-toggle {
+  background: var(--surface-input);
+}
+
+[data-theme="day"] .time-week-toggle:hover {
+  background: var(--surface-floating);
+  border-color: var(--border-strong);
+}
+
 [data-theme="day"] .attestation-confirm-row input {
   background: var(--surface-input);
 }

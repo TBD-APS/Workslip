@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Clock, Mail, MapPin, MoreHorizontal, Phone, Users } from 'lucide-react';
+import { ArrowLeft, Clock, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
+import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
 import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
 import { formatDateLong } from '../../../lib/formatDate';
@@ -62,18 +63,40 @@ export const CustomerDetail = () => {
           <h2>{customer.name}</h2>
           <p className="subtitle">{customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}</p>
         </div>
-        <div className="worksheet-actions-menu-root">
-          <button
-            type="button"
-            className="btn-icon"
-            onClick={(event) => toggleActionMenu(event, customer.id)}
-            aria-label="More options for customer"
-            aria-expanded={openActionMenu?.customerId === customer.id}
-            title="Handlinger"
-          >
-            <MoreHorizontal size={18} />
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => navigate('/app/job/new', {
+            state: {
+              fromCustomer: true,
+              customerId: customer.id,
+              customerSnapshot: {
+                name: customer.name,
+                email: customer.email,
+                phone: customer.phone,
+                address: customer.address,
+                contactPerson: customer.contactPerson,
+              },
+            },
+          })}
+        >
+          <Plus size={16} />
+          <span>Ny sag</span>
+        </button>
+        <Can permission="user:manage">
+          <div className="worksheet-actions-menu-root">
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={(event) => toggleActionMenu(event, customer.id)}
+              aria-label="More options for customer"
+              aria-expanded={openActionMenu?.customerId === customer.id}
+              title="Handlinger"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+          </div>
+        </Can>
       </div>
 
       <section className="detail-section">
