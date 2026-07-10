@@ -71,8 +71,8 @@ var appConfigValues = {
   '''
 
   // Push Notifications
-  'Vapid:PublicKey': 'iliuPfZbFqfkSXzXBgdfsLYYd4OmeoXnwIPQ/FCQ0QZ6uK+brB0YTGxfMwCPZ/1ahNxYZPhV+JiIVS0o0lQHFg=='
-  'Vapid:PrivateKey': 'JHW4NwJzcBv8ynro/ZMA/z8sEwTNTbfuuLmJkMasEVM='
+  'Vapid:PublicKey': 'BK5wzcorbTV2rLqLYyPdWYMXmtY0Vr5xLzW4suFnbZH3bdvYM8Ddp_XqEFh8dwRwdEtNlO3YMMZe3ZQTOZVVLgY'
+  'Vapid:PrivateKey': '4eJ5_bcufexYURqE3vKJJEzuzkmgFzaaj8AftPrdqOg'
 }
 
 

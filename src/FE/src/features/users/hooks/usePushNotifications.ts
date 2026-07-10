@@ -2,28 +2,14 @@ import { useMutation } from '@tanstack/react-query';
 import { postApiPushSubscriptions } from '../../../api/generated/push-subscriptions/push-subscriptions';
 import type { RegisterPushSubscriptionRequest } from '../../../api/generated/models';
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  // 1. Fjern eventuelle usynlige linjeskift, mellemrum eller gåseøjne
-  let cleaned = base64String.trim().replace(/["']/g, '').replace(/\s/g, '');
-
-  // 2. Konverter fra Base64Url til standard Base64 (hvis det ikke allerede er det)
-  cleaned = cleaned.replace(/\-/g, '+').replace(/_/g, '/');
-
-  // 3. Håndter padding (skal gå op i 4)
-  const pad = (4 - (cleaned.length % 4)) % 4;
-  if (pad > 0) {
-    cleaned += '='.repeat(pad);
-  }
-
-  // 4. Afkod strengen til binær data
-  const rawData = window.atob(cleaned);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-
-  return outputArray;
+function urlBase64ToUint8Array(base64String : string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/')
+  ;
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -65,7 +51,7 @@ export function usePushNotifications() {
       // Send det binære array med i stedet for strengen
       const newSubscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: VAPID_PUBLIC_KEY_ARRAY.buffer as ArrayBuffer,
+        applicationServerKey: VAPID_PUBLIC_KEY_ARRAY,
       });
 
       // 2. Moderne og standardiseret måde at hente p256dh og auth på (uden non-standard casting)
