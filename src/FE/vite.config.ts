@@ -26,6 +26,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      strategies: 'generateSW',
       workbox: {
         cleanupOutdatedCaches: true, // Sletter gamle caches automatisk ved ny version
         skipWaiting: true,           // Tvinger den nye SW til at overtage med det samme
