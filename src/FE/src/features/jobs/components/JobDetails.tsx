@@ -125,7 +125,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
 
   const isLastStep = details.currentStep === JOB_STEPS.length - 1;
   const disableNext = !canAdvanceCurrentStep(details, isAdmin);
-  const nextDisabledReason = disableNext ? getNextDisabledReason(details) : undefined;
+  const nextDisabledReason = disableNext ? getNextDisabledReason(details, details.currentStep) : undefined;
   const globalSaveStatus = getGlobalSaveStatus([
     details.saveStatus,
     details.assignmentStatus,
@@ -139,25 +139,15 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     isValidClosureFlags(details.form.work.closureFlags),
   ];
   const handleStepChange = (nextStep: number) => {
-    if (nextStep === 3 && !completedSteps[2]) {
-      const validation = validateControlPoints(details.form, details.referenceData!);
-      toast.error(validation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter');
-      return;
-    }
-
-    if (nextStep === 5 && !completedSteps[4]) {
-      const flags = details.form.work.closureFlags ?? [];
-      if (isOnlyOperationMaintenance(flags)) {
-        toast.error('Vælg også Ikke færdig, Færdig eller Klar til faktura');
-      } else {
-        toast.error('Vælg venligst mindst én afslutningsstatus');
+    // Prevent jumping to any step if previous steps are incomplete
+    if (nextStep > details.currentStep) {
+      for (let i = details.currentStep; i < nextStep; i++) {
+        if (!canAdvanceStep(details, i, isAdmin)) {
+          const reason = getNextDisabledReason(details, i);
+          if (reason) toast.error(reason);
+          return;
+        }
       }
-      return;
-    }
-
-    if (nextStep > 3 && details.worksheets.length === 0) {
-      toast.error('Tilføj mindst én arbejdsseddel før du fortsætter');
-      return;
     }
 
     details.navigateToStep(nextStep);
@@ -254,7 +244,10 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
             details.navigateToStep(details.currentStep - 1);
           }
         }}
-        onNext={() => details.navigateToStep(details.currentStep + 1)}
+        onNext={() => {
+          if (disableNext) return;
+          details.navigateToStep(details.currentStep + 1);
+        }}
         disableNext={disableNext}
         nextDisabledReason={nextDisabledReason}
         statusSlot={<SaveStatusIndicator saveStatus={globalSaveStatus} />}
@@ -272,6 +265,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
 }
 
 function canAdvanceCurrentStep(details: JobDetailsState, isAdmin?: boolean): boolean {
+  // Check if CURRENT step is completed
   if (details.currentStep === 0) {
     return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin });
   }
@@ -290,12 +284,32 @@ function canAdvanceCurrentStep(details: JobDetailsState, isAdmin?: boolean): boo
   return true;
 }
 
-function getNextDisabledReason(details: JobDetailsState): string | undefined {
-  if (details.currentStep === 0) return 'Udfyld venligst stamdata';
-  if (details.currentStep === 1) return 'Vælg venligst anlægstype';
-  if (details.currentStep === 2) return 'Udfyld venligst alle påkrævede kontrolpunkter';
-  if (details.currentStep === 3) return 'Tilføj venligst mindst én timeseddel';
-  if (details.currentStep === 4) {
+function canAdvanceStep(details: JobDetailsState, step: number, isAdmin?: boolean): boolean {
+  if (step === 0) {
+    return isValidJobForm(details.form, { reportNumberReadOnly: details.reportNumberReadOnly, requireDestinationAddress: isAdmin });
+  }
+  if (step === 1) {
+    return isValidWork(details.form, details.referenceData!);
+  }
+  if (step === 2) {
+    return validateControlPoints(details.form, details.referenceData!).valid;
+  }
+  if (step === 3) {
+    return details.worksheets.length > 0;
+  }
+  if (step === 4) {
+    return isValidClosureFlags(details.form.work.closureFlags) && details.worksheets.length > 0;
+  }
+  return true;
+}
+
+function getNextDisabledReason(details: JobDetailsState, step?: number): string | undefined {
+  const currentStep = step ?? details.currentStep;
+  if (currentStep === 0) return 'Udfyld venligst stamdata';
+  if (step === 1) return 'Vælg venligst anlægstype';
+  if (step === 2) return 'Udfyld venligst alle påkrævede kontrolpunkter';
+  if (step === 3) return 'Tilføj venligst mindst én timeseddel';
+  if (step === 4) {
     const flags = details.form.work.closureFlags ?? [];
     if (flags.length === 0) return 'Vælg venligst mindst én afslutningsstatus';
     if (isOnlyOperationMaintenance(flags)) return 'Vælg også Ikke færdig, Færdig eller Klar til faktura';

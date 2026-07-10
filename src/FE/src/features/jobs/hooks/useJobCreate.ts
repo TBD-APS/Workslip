@@ -25,21 +25,19 @@ type CreateJobRequestWithSnapshot = CreateJobRequest & {
   createCustomerFromSnapshot?: boolean;
 };
 
-export function useJobCreate(onCreated: (jobId: string) => void) {
+export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: JobForm) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
   const referenceDataQuery = useGetApiReferenceData();
   const referenceData = referenceDataQuery.data ?? null;
   const usersQuery = useGetApiUsers({ limit: 20 }, { query: { enabled: isAdmin } });
-  const userEmail = user?.email ?? null;
   const assignableUsers = usersQuery.data?.users ?? [];
   const defaultAssignedUserIds = useMemo(() => {
-    if (!isAdmin || !userEmail) return [];
-    const currentUser = assignableUsers.find((assignableUser) => assignableUser.email === userEmail);
-    return currentUser ? [currentUser.id] : [];
-  }, [assignableUsers, isAdmin, userEmail]);
-  const [form, setForm] = useState<JobForm>(emptyForm);
+    if (!user?.id) return [];
+    return [user.id];
+  }, [user?.id]);
+  const [form, setForm] = useState<JobForm>(initialForm ?? emptyForm);
   const [linkedJobIds, setLinkedJobIds] = useState<string[]>([]);
   const [assignedUserIdsDraft, setAssignedUserIdsDraft] = useState<string[] | null>(null);
   const assignedUserIds = assignedUserIdsDraft ?? defaultAssignedUserIds;
@@ -66,6 +64,11 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
           setIsSaving(false);
           toast.success('Sagen er oprettet');
+          onCreated(jobId);
+        }).catch((error) => {
+          setIsSaving(false);
+          toast.error('Sagen er oprettet, men tildeling mislykkedes', { id: 'job-assign-error' });
+          console.error('Assignment failed:', error);
           onCreated(jobId);
         });
       },
@@ -203,6 +206,10 @@ export function useJobCreate(onCreated: (jobId: string) => void) {
           (el as HTMLElement)?.focus?.();
         }
       }, 100);
+      return;
+    }
+    if (!user?.id) {
+      toast.error('Bruger ikke fundet. Log ind igen.', { id: 'job-create-no-user' });
       return;
     }
     setFieldErrors({});

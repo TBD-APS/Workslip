@@ -1,8 +1,9 @@
-import { AlertCircle, CheckCircle2, FileCheck2, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Info, ListChecks, Send, ShieldCheck } from 'lucide-react';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { formatNumber, formatUnit, parseNullableNumber, capitalize } from '../../../../lib/formatUtils';
-import { formatDateLong } from '../../../../lib/formatDate';
+import { WorksheetDetailList } from '../WorksheetDetailList';
+
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -28,7 +29,6 @@ export function JobAttestationStep({
   const isInReview = job.status === JobStatus.InReview;
   const isSavingDraft = details.saveStatus === 'saving';
   const confirmationDisabled = isInReview || details.isSubmittingJob || isSavingDraft;
-  const sortedWorksheets = [...details.worksheets].sort((left, right) => right.workDate.localeCompare(left.workDate));
   const selectedControlPoints = job.work.installationTypes.flatMap((installationType) =>
     installationType.categories.flatMap((category) =>
       category.controlPoints
@@ -110,7 +110,7 @@ export function JobAttestationStep({
       {(summaryItems.length > 0 || observationItems.length > 0) && (
         <section className="detail-section attestation-summary-section">
           <div className="section-header-row attestation-compact-header">
-            <FileCheck2 size={18} />
+            <Info size={18} />
             <h3>Information</h3>
           </div>
 
@@ -156,41 +156,16 @@ export function JobAttestationStep({
 
       <section className="detail-section worksheet-list-section">
         <div className="section-header-row attestation-compact-header">
-          <FileCheck2 size={18} />
+          <Clock size={18} />
           <h3>Timesedler</h3>
         </div>
 
-        {sortedWorksheets.length === 0 ? (
-          <p className="empty-state-text">Ingen timesedler registreret.</p>
-        ) : (
-          <ul className="worksheet-list worksheet-list--detail">
-            {sortedWorksheets.map((worksheet) => {
-              const hours = parseNullableNumber(worksheet.hoursWorked);
-              const userName = getUserName(worksheet.userId, details);
-              return (
-                <li key={worksheet.id} className="worksheet-list-item worksheet-list-item--detail">
-                  <div className="worksheet-list-item-main worksheet-list-item-main--detail">
-                    <span className="worksheet-list-item-title" title={userName}>{userName}</span>
-                    <span className="worksheet-list-item-subtitle worksheet-list-item-subtitle--detail">{formatDateLong(worksheet.workDate) ?? ''}</span>
-                  </div>
-
-                  <div className="worksheet-list-item-meta">
-                    <div className="worksheet-list-item-badge">
-                      <strong>{formatNumber(hours)}</strong>
-                      <span>{formatUnit(hours, 'time', 'timer')}</span>
-                    </div>
-                    {worksheet.sleptOnJob && <span className="worksheet-list-item-tag">Udlæg</span>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <WorksheetDetailList worksheets={details.worksheets} />
 
         {(totalHoursLabel || totalOutlayLabel) && (
           <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
-            {totalHoursLabel}
             {totalOutlayLabel}
+            {totalHoursLabel}
           </div>
         )}
       </section>
@@ -198,7 +173,7 @@ export function JobAttestationStep({
       {(selectedControlPoints.length > 0 || irrelevantCategories.length > 0) && (
         <section className="detail-section attestation-control-section compact">
           <div className="section-header-row attestation-compact-header">
-            <CheckCircle2 size={18} />
+            <ListChecks size={18} />
             <h3>Valgte kontrolpunkter</h3>
           </div>
 
@@ -228,6 +203,11 @@ export function JobAttestationStep({
       )}
 
       <section className="detail-section attestation-confirm-section">
+        <div className="section-header-row attestation-compact-header">
+          <Send size={18} />
+          <h3>Indsendelse</h3>
+        </div>
+
         {details.submitJobFieldErrors.length > 0 && (
           <div className="validation-error attestation-validation-error">
             <AlertCircle size={18} />
@@ -299,12 +279,6 @@ function compactObservations(items: Array<{ label: string; value: string | null 
 
 function hasText(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0;
-}
-
-function getUserName(userId: string, details: JobDetailsState) {
-  return details.assignableUsers?.find((user) => user.id === userId)?.displayName
-    ?? details.job?.assignedUsers.find((user) => user.id === userId)?.displayName
-    ?? userId;
 }
 
 function formatContact(

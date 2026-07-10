@@ -91,7 +91,7 @@ public static class JobEndpoints
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
 
-        adminGroup.MapPost("/", async (CreateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
+        userGroup.MapPost("/", async (CreateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.CreateAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
@@ -113,7 +113,7 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
-        adminGroup.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
+        userGroup.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
         {
             var result = await jobService.AssignAsync(id, request.UserIds, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);

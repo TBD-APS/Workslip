@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
@@ -8,12 +8,32 @@ import { useJobCreate } from '../hooks/useJobCreate';
 import { CreateOverviewStep } from '../components/steps/CreateOverviewStep';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { emptyForm, getLinkableJobs, sameForm } from '../utils';
+import type { JobForm } from '../types';
+import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { JobListItemViewModel } from '../../../api/generated/models';
 import { JobStatus } from '../../../api/generated/models';
 import { apiClient } from '../../../lib/axios';
 
+type JobCreateLocationState = {
+  fromCustomer?: boolean;
+  customerId?: string;
+  customerSnapshot?: CustomerSnapshotData;
+};
+
 export const JobCreate = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as JobCreateLocationState | null;
+
+  const initialForm: JobForm | undefined = locationState?.fromCustomer && locationState.customerSnapshot
+    ? {
+        ...emptyForm,
+        customerId: locationState.customerId ?? null,
+        customerSnapshot: { ...locationState.customerSnapshot },
+      }
+    : undefined;
+  const initialFormRef = useRef(initialForm ?? emptyForm);
+
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
   const { data: jobsData, isLoading: isLoadingJobs } = useQuery({
     queryKey: getGetApiJobsQueryKey({ status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 }),
@@ -24,7 +44,7 @@ export const JobCreate = () => {
   });
   const linkableJobs = getLinkableJobs(jobsData, undefined);
 
-  const create = useJobCreate((jobId) => setCreatedJobId(jobId));
+  const create = useJobCreate((jobId) => setCreatedJobId(jobId), initialForm);
 
   useEffect(() => {
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -36,7 +56,7 @@ export const JobCreate = () => {
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const hasUnsavedChanges = createdJobId === null && (!sameForm(create.form, emptyForm) || create.linkedJobIds.length > 0);
+  const hasUnsavedChanges = createdJobId === null && (!sameForm(create.form, initialFormRef.current) || create.linkedJobIds.length > 0);
 
   return (
     <div className="page-container">

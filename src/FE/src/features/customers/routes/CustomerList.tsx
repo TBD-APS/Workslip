@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronRight, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
+import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
@@ -287,21 +288,23 @@ export const CustomerList = () => {
                 </div>
               </button>
 
-              <div className="worksheet-actions-menu-root customer-actions-anchor">
-                <button
-                  type="button"
-                  className="btn-icon customer-actions-btn"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleActionMenu(event, customer.id);
-                  }}
-                  aria-label="\u00c5bn handlinger for kunde"
-                  aria-expanded={openActionMenu?.customerId === customer.id}
-                  title="Handlinger"
-                >
-                  <MoreHorizontal size={18} />
-                </button>
-              </div>
+              <Can permission="user:manage">
+                <div className="worksheet-actions-menu-root customer-actions-anchor">
+                  <button
+                    type="button"
+                    className="btn-icon customer-actions-btn"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleActionMenu(event, customer.id);
+                    }}
+                    aria-label="Åbn handlinger for kunde"
+                    aria-expanded={openActionMenu?.customerId === customer.id}
+                    title="Handlinger"
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
+                </div>
+              </Can>
             </div>
           ))}
 
