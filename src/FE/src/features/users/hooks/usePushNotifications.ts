@@ -2,12 +2,33 @@ import { useMutation } from '@tanstack/react-query';
 import { postApiPushSubscriptions } from '../../../api/generated/push-subscriptions/push-subscriptions';
 import type { RegisterPushSubscriptionRequest } from '../../../api/generated/models';
 
-function base64ToBase64Url(key: string): string {
-  return key.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  // 1. Fjern eventuelle usynlige linjeskift, mellemrum eller gåseøjne
+  let cleaned = base64String.trim().replace(/["']/g, '').replace(/\s/g, '');
+
+  // 2. Konverter fra Base64Url til standard Base64 (hvis det ikke allerede er det)
+  cleaned = cleaned.replace(/\-/g, '+').replace(/_/g, '/');
+
+  // 3. Håndter padding (skal gå op i 4)
+  const pad = (4 - (cleaned.length % 4)) % 4;
+  if (pad > 0) {
+    cleaned += '='.repeat(pad);
+  }
+
+  // 4. Afkod strengen til binær data
+  const rawData = window.atob(cleaned);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
 }
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-const VAPID_PUBLIC_KEY_BASE64 = VAPID_PUBLIC_KEY ? base64ToBase64Url(VAPID_PUBLIC_KEY) : null;
+// Konverter nøglen ÉN gang herude, hvis den eksisterer
+const VAPID_PUBLIC_KEY_ARRAY = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
 
 export function usePushNotifications() {
   const mutation = useMutation({
@@ -16,8 +37,8 @@ export function usePushNotifications() {
   });
 
   const register = async () => {
-    if (!VAPID_PUBLIC_KEY_BASE64) {
-      console.error('VAPID_PUBLIC_KEY is not defined in environment variables.');
+    if (!VAPID_PUBLIC_KEY_ARRAY) {
+      console.error('VAPID_PUBLIC_KEY is not defined or invalid in environment variables.');
       return;
     }
 
@@ -41,14 +62,22 @@ export function usePushNotifications() {
         return;
       }
 
+      // Send det binære array med i stedet for strengen
       const newSubscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: VAPID_PUBLIC_KEY_BASE64,
+        applicationServerKey: VAPID_PUBLIC_KEY_ARRAY.buffer as ArrayBuffer,
       });
 
-      // Use type assertion to access non-standard properties in TS
-      const p256dh = btoa(String.fromCharCode(...new Uint8Array((newSubscription as any).getPublicKey())));
-      const auth = btoa(String.fromCharCode(...new Uint8Array((newSubscription as any).getAuth())));
+      // 2. Moderne og standardiseret måde at hente p256dh og auth på (uden non-standard casting)
+      const rawP256dh = newSubscription.getKey('p256dh');
+      const rawAuth = newSubscription.getKey('auth');
+
+      if (!rawP256dh || !rawAuth) {
+        throw new Error('Could not retrieve keys from subscription object.');
+      }
+
+      const p256dh = btoa(String.fromCharCode(...new Uint8Array(rawP256dh)));
+      const auth = btoa(String.fromCharCode(...new Uint8Array(rawAuth)));
 
       await mutation.mutateAsync({
         endpoint: newSubscription.endpoint,
