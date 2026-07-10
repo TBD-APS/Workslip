@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, FileCheck2, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, FileCheck2, ShieldCheck } from 'lucide-react';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { formatNumber, formatUnit, parseNullableNumber, capitalize } from '../../../../lib/formatUtils';
@@ -279,18 +279,8 @@ export function JobAttestationStep({
                 title={!confirmed ? 'Bekræft først at sagen er gennemgået' : undefined}
                 aria-disabled={!confirmed || confirmationDisabled}
               >
-                {details.isSubmittingJob || isSavingDraft ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <ShieldCheck size={18} />
-                )}
-                <span>
-                  {isSavingDraft
-                    ? 'Gemmer...'
-                    : details.isSubmittingJob
-                      ? 'Indsender...'
-                      : 'Attestér og indsend'}
-                </span>
+                <ShieldCheck size={18} />
+                <span>Attestér og indsend</span>
               </button>
             </div>
           )}

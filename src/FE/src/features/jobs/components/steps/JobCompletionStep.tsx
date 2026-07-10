@@ -40,6 +40,12 @@ export function JobCompletionStep({
       } else {
         nextFlags = [...currentFlags.filter((f) => f !== ClosureFlagLabels.NotCompleted), flagLabel];
       }
+    } else if (flagLabel === ClosureFlagLabels.OperationMaintenanceInstructions) {
+      if (currentFlags.includes(ClosureFlagLabels.OperationMaintenanceInstructions)) {
+        nextFlags = currentFlags.filter((f) => f !== ClosureFlagLabels.OperationMaintenanceInstructions);
+      } else {
+        nextFlags = [...currentFlags, ClosureFlagLabels.OperationMaintenanceInstructions];
+      }
     } else {
       if (currentFlags.includes(flagLabel)) {
         nextFlags = currentFlags.filter((f) => f !== flagLabel);

@@ -327,40 +327,58 @@ public sealed class JobReportPdfService : IJobReportPdfService
 
                 var worksheets = job.Worksheets.OrderBy(x => x.WorkDate).ThenBy(x => x.UserDisplayName).ToList();
 
+                var userGroups = worksheets
+                    .GroupBy(x => x.UserDisplayName ?? "Ukendt")
+                    .OrderBy(g => g.Key)
+                    .ToList();
+
                 col.Spacing(PdfStyle.CompactGap);
                 col.Item().Table(table =>
                 {
                     table.ColumnsDefinition(columns =>
                     {
-                        columns.RelativeColumn(2);
                         columns.RelativeColumn(4);
+                        columns.RelativeColumn(2);
                         columns.ConstantColumn(55);
                         columns.ConstantColumn(65);
                     });
 
                     table.Header(header =>
                     {
-                        header.Cell().Element(c => TableHeaderCell(c, "Dato"));
                         header.Cell().Element(c => TableHeaderCell(c, "Medarbejder"));
+                        header.Cell().Element(c => TableHeaderCell(c, "Dato"));
                         header.Cell().Element(c => TableHeaderCell(c, "Timer"));
                         header.Cell().Element(c => TableHeaderCell(c, "Overnatning"));
                     });
 
-                    foreach (var ws in worksheets)
+                    var rowIndex = 0;
+                    foreach (var group in userGroups)
                     {
-                        var bgColor = (worksheets.IndexOf(ws) % 2 == 0) ? Colors.White : PdfStyle.PrimaryLight;
+                        foreach (var ws in group)
+                        {
+                            var bgColor = (rowIndex % 2 == 0) ? Colors.White : PdfStyle.PrimaryLight;
 
-                        table.Cell().Element(c => TableCell(c, FormatDate(ws.WorkDate), bgColor));
-                        table.Cell().Element(c => TableCell(c, Value(ws.UserDisplayName), bgColor));
-                        table.Cell().Element(c => TableCell(c, FormatDecimal(ws.HoursWorked), bgColor));
-                        table.Cell().Element(c => TableCell(c, ws.SleptOnJob ? "Ja" : "Nej", bgColor));
+                            table.Cell().Element(c => TableCell(c, ws.UserDisplayName ?? "-", bgColor));
+                            table.Cell().Element(c => TableCell(c, FormatDate(ws.WorkDate), bgColor));
+                            table.Cell().Element(c => TableCell(c, FormatDecimal(ws.HoursWorked), bgColor));
+                            table.Cell().Element(c => TableCell(c, ws.SleptOnJob ? "Ja" : "Nej", bgColor));
+                            rowIndex++;
+                        }
+
+                        var userTotalHours = group.Sum(x => x.HoursWorked);
+                        var userOutlayCount = group.Count(x => x.SleptOnJob);
+
+                        table.Cell().Element(c => SubtotalLabelCell(c, $"{group.Key} - i alt"));
+                        table.Cell().Element(c => SubtotalValueCell(c, "-"));
+                        table.Cell().Element(c => SubtotalValueCell(c, FormatDecimal(userTotalHours)));
+                        table.Cell().Element(c => SubtotalValueCell(c, FormatOvernightStays(userOutlayCount)));
+                        rowIndex++;
                     }
-                });
 
-                col.Item().PaddingTop(PdfStyle.SmallPadding).Row(row =>
-                {
-                    row.RelativeItem().Element(c => SummaryField(c, "I alt timer", FormatDecimal(job.TotalHours)));
-                    row.RelativeItem().Element(c => SummaryField(c, "I alt udlæg", FormatOvernightStays(job.TotalOutlay)));
+                    table.Cell().Element(c => TotalLabelCell(c, "I alt"));
+                    table.Cell().Element(c => TotalValueCell(c, "-"));
+                    table.Cell().Element(c => TotalValueCell(c, FormatDecimal(job.TotalHours)));
+                    table.Cell().Element(c => TotalValueCell(c, FormatOvernightStays(job.TotalOutlay)));
                 });
             });
         });
@@ -443,13 +461,22 @@ public sealed class JobReportPdfService : IJobReportPdfService
         });
     }
 
-    private static void SummaryField(IContainer container, string label, string value)
+    private static void TotalLabelCell(IContainer container, string text)
     {
-        container.BorderTop(1).BorderColor(PdfStyle.BorderColor).PaddingTop(PdfStyle.SmallPadding).Column(col =>
-        {
-            col.Item().Text(label).FontSize(PdfStyle.LabelSize).FontColor(PdfStyle.TextMedium);
-            col.Item().Text(value).FontSize(PdfStyle.FieldValueSize).Bold().FontColor(PdfStyle.Primary);
-        });
+        container.Background(PdfStyle.PrimaryLight)
+            .BorderTop(2).BorderBottom(1).BorderColor(PdfStyle.Primary)
+            .DefaultTextStyle(x => x.FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.Primary).SemiBold())
+            .PaddingVertical(3).PaddingHorizontal(PdfStyle.SmallPadding)
+            .Text(text);
+    }
+
+    private static void TotalValueCell(IContainer container, string text)
+    {
+        container.Background(PdfStyle.PrimaryLight)
+            .BorderTop(2).BorderBottom(1).BorderColor(PdfStyle.Primary)
+            .DefaultTextStyle(x => x.FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.Primary).Bold())
+            .PaddingVertical(3).PaddingHorizontal(PdfStyle.SmallPadding)
+            .Text(text);
     }
 
     private static void TableHeaderCell(IContainer container, string text)
@@ -464,6 +491,24 @@ public sealed class JobReportPdfService : IJobReportPdfService
     {
         container.Background(background)
             .DefaultTextStyle(x => x.FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.TextDark))
+            .PaddingVertical(3).PaddingHorizontal(PdfStyle.SmallPadding)
+            .Text(text);
+    }
+
+    private static void SubtotalLabelCell(IContainer container, string text)
+    {
+        container.Background(PdfStyle.PrimaryLight)
+            .BorderTop(1).BorderBottom(1).BorderColor(PdfStyle.Primary)
+            .DefaultTextStyle(x => x.FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.Primary).SemiBold())
+            .PaddingVertical(3).PaddingHorizontal(PdfStyle.SmallPadding)
+            .Text(text);
+    }
+
+    private static void SubtotalValueCell(IContainer container, string text)
+    {
+        container.Background(PdfStyle.PrimaryLight)
+            .BorderTop(1).BorderBottom(1).BorderColor(PdfStyle.Primary)
+            .DefaultTextStyle(x => x.FontSize(PdfStyle.FieldValueSize).FontColor(PdfStyle.Primary).Bold())
             .PaddingVertical(3).PaddingHorizontal(PdfStyle.SmallPadding)
             .Text(text);
     }

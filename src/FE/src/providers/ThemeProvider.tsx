@@ -22,6 +22,10 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute('content', theme === 'night' ? '#050505' : '#f3f4f6');
+    }
   }, [theme]);
 
   const toggle = useCallback(() => {

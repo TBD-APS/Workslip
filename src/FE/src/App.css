@@ -1093,6 +1093,26 @@
   margin: 0;
 }
 
+.customer-search-slot {
+  overflow: visible;
+  transition: max-height 0.2s ease;
+}
+
+.customer-search-slot:not(.is-open) {
+  max-height: 0;
+  overflow: hidden;
+}
+
+.customer-search-slot.is-open {
+  max-height: 200px;
+}
+
+.readonly-indicator {
+  color: var(--text-muted);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
 .required-asterisk {
   color: var(--danger);
   margin-left: 0.2rem;
@@ -2538,6 +2558,7 @@
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
+  overflow: hidden;
   gap: 0.12rem;
   flex: 1 1 auto;
 }
@@ -3369,6 +3390,50 @@
 /* ------------------------------------------------------------
    Submission confirmation
    ------------------------------------------------------------ */
+.submission-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 5rem 1.5rem;
+  text-align: center;
+  min-height: 50vh;
+}
+
+.submission-overlay-spinner {
+  color: var(--primary);
+  animation: spin 0.8s linear infinite;
+}
+
+.submission-overlay-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.submission-overlay-body {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0); opacity: 0; }
+  40% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes ring-draw {
+  0% { stroke-dashoffset: 226; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .submitted-confirmation {
   display: flex;
   flex-direction: column;
@@ -3388,12 +3453,13 @@
   background: var(--primary);
   color: white;
   margin-bottom: 0.5rem;
+  animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .submitted-confirmation-title {
   margin: 0;
   font-size: var(--fs-lg);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
 }
@@ -3404,6 +3470,12 @@
   color: var(--text-muted);
   font-size: var(--fs-body);
   line-height: 1.5;
+}
+
+.submitted-confirmation-date {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
 }
 
 .submitted-confirmation-button {
@@ -3536,9 +3608,7 @@
 .job-sort-secondary {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 0.5rem;
-  width: 100%;
 }
 
 .sort-label {

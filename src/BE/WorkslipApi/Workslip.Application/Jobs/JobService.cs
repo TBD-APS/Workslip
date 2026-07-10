@@ -721,6 +721,17 @@ public sealed class JobService(
             {
                 errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.ClosureFlags), ErrorMessage = "Ikke færdig kan ikke kombineres med Færdig eller Klar til faktura." });
             }
+
+            var hasOperationMaintenance = normalizedClosureFlags.Any(f =>
+                f.Equals(ClosureFlagLabels.OperationMaintenanceInstructions, StringComparison.OrdinalIgnoreCase));
+            var hasCompletionStatus = normalizedClosureFlags.Any(f =>
+                f.Equals(ClosureFlagLabels.NotCompleted, StringComparison.OrdinalIgnoreCase) ||
+                f.Equals(ClosureFlagLabels.Completed, StringComparison.OrdinalIgnoreCase) ||
+                f.Equals(ClosureFlagLabels.ReadyForInvoice, StringComparison.OrdinalIgnoreCase));
+            if (hasOperationMaintenance && !hasCompletionStatus)
+            {
+                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.ClosureFlags), ErrorMessage = "Drift og vedligeholdelses-instruktioner kræver at der også vælges Ikke færdig, Færdig eller Klar til faktura." });
+            }
         }
 
         return errors;

@@ -56,10 +56,6 @@ export const Login = () => {
   // a second PKCE state that overwrites the first.
   const reauthStartedRef = useRef(false);
 
-  if (isAuthenticated) {
-    return <Navigate to="/app" />;
-  }
-
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(EmailSchema),
     defaultValues: {
@@ -207,6 +203,10 @@ export const Login = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (isAuthenticated) {
+    return <Navigate to="/app" />;
+  }
 
   return (
     <div className="app-container app-container-center">
