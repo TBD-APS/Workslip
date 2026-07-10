@@ -19,8 +19,8 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'Workslip';
   const options = payload.options || {};
   const body = options.body || '';
-  const icon = options.icon || '/favicon.svg';
-  const badge = options.badge || '/favicon.svg';
+  const icon = options.icon || '/logo.png';
+  const badge = options.badge || '/logo.png';
   const tag = options.tag || '';
   const data = options.data || {};
 
