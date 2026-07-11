@@ -244,7 +244,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   };
 
   const reset = (preserve?: { customerId?: string | null; customerSnapshot?: CustomerSnapshotData | null }) => {
-    setForm(prev => ({
+    setForm(_ => ({
       ...emptyForm,
       customerId: preserve?.customerId ?? emptyForm.customerId,
       customerSnapshot: preserve?.customerSnapshot ?? emptyForm.customerSnapshot,
