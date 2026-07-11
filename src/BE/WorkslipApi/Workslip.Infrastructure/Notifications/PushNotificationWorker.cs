@@ -142,7 +142,7 @@ public sealed class PushNotificationWorker : BackgroundService
                 tag = $"job-{payload.JobId}",
                 data = new
                 {
-                    url = $"/jobs/{payload.JobId}"
+                    url = $"/app/job/{payload.JobId}"
                 }
             }
         };

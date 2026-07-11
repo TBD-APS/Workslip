@@ -6,8 +6,17 @@ declare const self: ServiceWorkerGlobalScope;
 
 precacheAndRoute(self.__WB_MANIFEST);
 
-self.skipWaiting();
-clientsClaim();
+const BUILD_TIME = '__BUILD_TIME__';
+
+self.addEventListener('install', () => {
+  console.log('[SW] Installing (build:', BUILD_TIME + ')');
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating (build:', BUILD_TIME + ')');
+  event.waitUntil(clientsClaim());
+});
 
 self.addEventListener('push', (event) => {
   console.log('[SW] Push event received', event.data);
@@ -53,17 +62,16 @@ self.addEventListener('notificationclick', (event) => {
   const urlToOpen = event.notification.data?.url || '/';
 
   event.waitUntil(
-    self.clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((windowClients) => {
-        for (const client of windowClients) {
-          if ('focus' in client && client.url === urlToOpen) {
-            return client.focus();
-          }
-        }
-        if (self.clients.openWindow) {
-          return self.clients.openWindow(urlToOpen);
-        }
-      })
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      const existingClient = windowClients[0];
+      if (existingClient) {
+        const url = new URL(urlToOpen, self.location.origin);
+        existingClient.navigate(url.pathname);
+        return existingClient.focus();
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(urlToOpen);
+      }
+    })
   );
 });
