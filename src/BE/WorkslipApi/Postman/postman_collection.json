@@ -2350,6 +2350,47 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Cache",
+      "item": [
+        {
+          "name": "/api/admin/cache/clear",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/cache/clear",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "cache",
+                "clear"
+              ]
+            },
+            "description": "Clears all backend caches (HybridCache + IMemoryCache). Admin only."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response has message', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('message');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
     }
   ],
   "event": [

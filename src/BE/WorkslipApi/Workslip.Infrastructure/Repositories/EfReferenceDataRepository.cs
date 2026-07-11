@@ -29,7 +29,7 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
             $"reference-data:{organizationId:N}",
             async token => await _retryPolicy.ExecuteAsync("reference-data.get", ct => GetCoreAsync(organizationId, ct), token),
             CacheOptions,
-            tags: ["reference-data", $"org:{organizationId:N}"],
+            tags: ["all", "reference-data", $"org:{organizationId:N}"],
             cancellationToken: cancellationToken);
 
     private async Task<ReferenceDataResponse> GetCoreAsync(Guid? organizationId, CancellationToken cancellationToken)

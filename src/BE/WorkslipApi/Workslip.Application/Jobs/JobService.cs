@@ -134,7 +134,7 @@ public sealed class JobService(
             cacheKey,
             async token => jobList,
             JobListCacheOptions,
-            tags: ["jobs", JobListTag(query.OrganizationId)],
+            tags: ["all", "jobs", JobListTag(query.OrganizationId)],
             cancellationToken: cancellationToken);
 
         return Result<JobListResponse>.Success(result);
@@ -180,7 +180,7 @@ public sealed class JobService(
 
         var cached = await cache.GetOrCreateAsync(JobReportCacheKey(id, orgId),
             async token => CachedJobReport.From(await _jobRepository.GetSingleJobAsync(id, orgId, token)),
-            JobReportCacheOptions, tags: ["jobs", JobReportTag(id, orgId)],
+            JobReportCacheOptions, tags: ["all", "jobs", JobReportTag(id, orgId)],
             cancellationToken: cancellationToken);
 
         if (!cached.Found || cached.Value is null)
