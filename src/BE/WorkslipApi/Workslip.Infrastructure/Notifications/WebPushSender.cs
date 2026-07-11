@@ -21,7 +21,8 @@ public sealed class WebPushSender : IPushSender
         try
         {
             var pushSubscription = new WebPush.PushSubscription(subscription.Endpoint, subscription.P256Dh, subscription.Auth);
-            var vapidDetails = new VapidDetails(_options.Subject, _options.PublicKey, _options.PrivateKey);
+            var subject = string.IsNullOrWhiteSpace(_options.Subject) ? "mailto:push@workslip.app" : _options.Subject;
+            var vapidDetails = new VapidDetails(subject, _options.PublicKey, _options.PrivateKey);
             
             var webPushClient = new WebPushClient();
             await webPushClient.SendNotificationAsync(pushSubscription, payloadJson, vapidDetails, cancellationToken);
