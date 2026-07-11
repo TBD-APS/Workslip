@@ -205,18 +205,20 @@ export const CustomerList = () => {
                 <td className="cell-number">{customer.jobCount}</td>
                 <td className="col-actions">
                   <div className="flex-row-end">
-                    <button
-                      type="button"
-                      className="btn-icon opacity-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleActionMenu(e, customer.id);
-                      }}
-                      aria-label="Handlinger"
-                      title="Handlinger"
-                    >
-                      <MoreHorizontal size={16} />
-                    </button>
+                    <Can permission="customer:edit">
+                      <button
+                        type="button"
+                        className="btn-icon opacity-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleActionMenu(e, customer.id);
+                        }}
+                        aria-label="Handlinger"
+                        title="Handlinger"
+                      >
+                        <MoreHorizontal size={16} />
+                      </button>
+                    </Can>
                     <ChevronRight size={16} className="row-link-icon" />
                   </div>
                 </td>

@@ -124,23 +124,25 @@ export const AppLayout = () => {
             <span>Timer</span>
           </NavLink>
         </Can>
-        <div className="nav-item-fab">
           <Can permission="job:create">
+            <div className="nav-item-fab">
             <button className="fab-button" onClick={() => navigate('/app/create')} aria-label="Opret">
               <PlusCircle size={28} />
             </button>
+            </div>
           </Can>
-        </div>
         <Can permission="user:manage">
           <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Users size={24} />
             <span>Folk</span>
           </NavLink>
         </Can>
-                <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <Can permission="customer:view">
+          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <Building2 size={24} />
             <span>Kunder</span>
           </NavLink>
+        </Can>
       </nav>
     </div>
     </DropdownProvider>

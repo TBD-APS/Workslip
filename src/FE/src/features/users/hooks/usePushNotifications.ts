@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { postApiPushSubscriptions } from '../../../api/generated/push-subscriptions/push-subscriptions';
 import type { RegisterPushSubscriptionRequest } from '../../../api/generated/models';
@@ -22,7 +23,7 @@ export function usePushNotifications() {
       postApiPushSubscriptions(request),
   });
 
-  const register = async () => {
+  const register = useCallback(async () => {
     if (!VAPID_PUBLIC_KEY_ARRAY) {
       console.error('VAPID_PUBLIC_KEY is not defined or invalid in environment variables.');
       return;
@@ -35,28 +36,23 @@ export function usePushNotifications() {
 
     try {
       const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
+      let subscription = await registration.pushManager.getSubscription();
 
-      if (subscription) {
-        console.log('Push subscription already exists.');
-        return;
+      if (!subscription) {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          console.warn('Notification permission was denied.');
+          return;
+        }
+
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: VAPID_PUBLIC_KEY_ARRAY,
+        });
       }
 
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        console.warn('Notification permission was denied.');
-        return;
-      }
-
-      // Send det binære array med i stedet for strengen
-      const newSubscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: VAPID_PUBLIC_KEY_ARRAY,
-      });
-
-      // 2. Moderne og standardiseret måde at hente p256dh og auth på (uden non-standard casting)
-      const rawP256dh = newSubscription.getKey('p256dh');
-      const rawAuth = newSubscription.getKey('auth');
+      const rawP256dh = subscription.getKey('p256dh');
+      const rawAuth = subscription.getKey('auth');
 
       if (!rawP256dh || !rawAuth) {
         throw new Error('Could not retrieve keys from subscription object.');
@@ -66,7 +62,7 @@ export function usePushNotifications() {
       const auth = btoa(String.fromCharCode(...new Uint8Array(rawAuth)));
 
       await mutation.mutateAsync({
-        endpoint: newSubscription.endpoint,
+        endpoint: subscription.endpoint,
         keys: {
           p256Dh: p256dh,
           auth,
@@ -78,7 +74,7 @@ export function usePushNotifications() {
       console.error('Failed to register push subscription:', error);
       throw error;
     }
-  };
+  }, [mutation]);
 
   return {
     register,

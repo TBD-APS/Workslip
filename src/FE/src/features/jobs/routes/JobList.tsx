@@ -14,6 +14,7 @@ import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
+import { Can } from '../../../providers/permissions';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-shell';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
@@ -167,12 +168,14 @@ export const JobList = () => {
                 <p className="subtitle">Viser kun sager tildelt dig &middot; {displayedJobs.length} {displayedJobs.length === 1 ? 'sag' : 'sager'}</p>
               )}
             </div>
-            {isDesktop && (
-              <button className="btn btn-primary" onClick={() => navigate('/app/create')} type="button">
-                <Plus size={18} />
-                <span>Ny opgave</span>
-              </button>
-            )}
+            <Can permission='job:create'>
+              {isDesktop && (
+                <button className="btn btn-primary" onClick={() => navigate('/app/create')} type="button">
+                  <Plus size={18} />
+                  <span>Ny opgave</span>
+                </button>
+              )}
+            </Can>
           </div>
         )}
       </div>
