@@ -67,11 +67,10 @@ public sealed class EfInviteRepository : IInviteRepository
 
     private async Task<List<InviteTokenRow>> GetByOrganizationCoreAsync(Guid organizationId, CancellationToken cancellationToken)
     {
-        var invites = await _dbContext.InviteTokens
+        return await _dbContext.InviteTokens
             .Where(i => i.OrganizationId == organizationId)
-            .OrderByDescending(i => !i.Consumed).ToListAsync();
-
-        return invites.DistinctBy(x => x.EntraEmail).ToList();
+            .OrderByDescending(i => !i.Consumed)
+            .ToListAsync(cancellationToken);
     }
 
     private async Task MarkConsumedCoreAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken)

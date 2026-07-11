@@ -51,7 +51,17 @@ export const JobCreate = () => {
   }, []);
 
   const handleCreateAnother = () => {
-    create.reset();
+    const preservedCustomerId = create.form.customerId;
+    const preservedSnapshot = create.form.customerSnapshot;
+    create.reset({
+      customerId: preservedCustomerId,
+      customerSnapshot: preservedSnapshot,
+    });
+    initialFormRef.current = {
+      ...emptyForm,
+      customerId: preservedCustomerId,
+      customerSnapshot: preservedSnapshot,
+    };
     setCreatedJobId(null);
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
   };

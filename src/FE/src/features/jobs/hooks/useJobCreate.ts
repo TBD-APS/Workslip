@@ -243,8 +243,12 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     createMutation.mutate({ data: request });
   };
 
-  const reset = () => {
-    setForm(emptyForm);
+  const reset = (preserve?: { customerId?: string | null; customerSnapshot?: CustomerSnapshotData | null }) => {
+    setForm(prev => ({
+      ...emptyForm,
+      customerId: preserve?.customerId ?? emptyForm.customerId,
+      customerSnapshot: preserve?.customerSnapshot ?? emptyForm.customerSnapshot,
+    }));
     setLinkedJobIds([]);
     setAssignedUserIdsDraft(null);
     setIsSaving(false);
