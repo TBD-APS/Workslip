@@ -27,9 +27,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Register push notifications when the user becomes authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      registerPush();
+      registerPush().catch((err) => {
+        console.error('[Auth] Failed to register push notifications:', err);
+      });
     }
-  }, [isAuthenticated, registerPush]);
+  }, [isAuthenticated]);
 
   const login = useCallback(
     async (email: string, code: string): Promise<boolean> => {

@@ -26,11 +26,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
-      strategies: 'generateSW', //Service worker registration
-      workbox: {
-        cleanupOutdatedCaches: true, // Sletter gamle caches automatisk ved ny version
-        skipWaiting: true,           // Tvinger den nye SW til at overtage med det samme
-        clientsClaim: true           // Overtager kontrollen over faner/apps med det samme
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
       },
       manifest: {
         name: 'Workslip',
