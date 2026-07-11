@@ -41,6 +41,16 @@ export const AppLayout = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'NAVIGATE' && event.data?.url) {
+        navigate(event.data.url);
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', handler);
+    return () => navigator.serviceWorker?.removeEventListener('message', handler);
+  }, [navigate]);
+
   return (
     <DropdownProvider>
       <div className="app-shell">
