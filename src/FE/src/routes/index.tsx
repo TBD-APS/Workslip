@@ -114,6 +114,10 @@ export const router = createBrowserRouter([
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
         ],
       },
+      {
+        path: '*',
+        element: <ErrorFallback error={new Error('Siden blev ikke fundet (404)')} resetErrorBoundary={() => {}} />,
+      },
     ],
   },
 ]);

@@ -1,5 +1,8 @@
+using System.Net.Http.Json;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
+using Workslip.Infrastructure.Configuration;
 
 namespace Workslip.Api.Endpoints;
 
@@ -12,6 +15,7 @@ public static class CacheEndpoints
         group.MapPost("/clear", async (
             HybridCache hybridCache,
             IMemoryCache memoryCache,
+            IConfiguration configuration,
             CancellationToken cancellationToken) =>
         {
             await hybridCache.RemoveByTagAsync("all", cancellationToken);
@@ -21,7 +25,30 @@ public static class CacheEndpoints
                 concrete.Compact(1.0);
             }
 
-            return Results.Ok(new { message = "All caches cleared." });
+            var vercelProjectId = configuration["Vercel:projectId"];
+            var vercelToken = configuration["Vercel:Token"];
+
+            var isVercelCacheCleared = false;
+            if (!string.IsNullOrEmpty(vercelToken) && !string.IsNullOrEmpty(vercelProjectId))
+            {
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", vercelToken);
+
+                var response = await httpClient.PostAsJsonAsync(
+                    $"https://api.vercel.com/v1/edge-cache/invalidate-by-tags?projectIdOrName={vercelProjectId}",
+                    new { tags = new[] { "all" }, target = "production" },
+                    cancellationToken);
+
+                isVercelCacheCleared = response.IsSuccessStatusCode;
+                if (!response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                    return Results.Ok(new { message = $"All caches cleared. Vercel CDN purge failed: {response.StatusCode} {body}" });
+                }
+            }
+
+            return Results.Ok(new { message = $"All caches cleared. Vercel Cache cleared: {isVercelCacheCleared}" });
         });
 
         return app;

@@ -44,6 +44,7 @@ export const AppLayout = () => {
   return (
     <DropdownProvider>
       <div className="app-shell">
+      <div className="safe-area-top" aria-hidden="true" />
         {/* Top Header for Mobile */}
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate('/app')}>

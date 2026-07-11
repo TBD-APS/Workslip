@@ -366,6 +366,22 @@ public sealed class JobService(
         }
         else if (targetStatus == JobStatus.Rejected)
         {
+            var events = await _jobRepository.GetEventsAsync(id, organizationId.Value, 100, 0, cancellationToken);
+            var submitterEvent = events?.FirstOrDefault(e =>
+                e.ActorId is not null
+                && e.Changes.Any(c => c.PropertyName == "Status" && c.After == JobStatus.InReview.ToString()));
+
+            if (submitterEvent?.ActorId is Guid submitterId)
+            {
+                await assignmentRepository.AssignAsync(report.Id, organizationId.Value, [submitterId], actorId, cancellationToken);
+                report = await _jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken) ?? report;
+                logger.LogInformation("Job reassigned to submitter on rejection. JobId: {JobId}. SubmitterId: {SubmitterId}.", id, submitterId);
+            }
+            else
+            {
+                logger.LogWarning("Could not find submitter for rejected job. JobId: {JobId}. Falling back to current assignees.", id);
+            }
+
             foreach (var assignedUser in report.AssignedUsers)
             {
                 await notificationService.QueueJobDeniedAsync(assignedUser.Id, report.Id, reportNumber, address, cancellationToken);

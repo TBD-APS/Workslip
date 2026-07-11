@@ -73,6 +73,10 @@ var appConfigValues = {
   // Push Notifications
   'Vapid:PublicKey': 'BK5wzcorbTV2rLqLYyPdWYMXmtY0Vr5xLzW4suFnbZH3bdvYM8Ddp_XqEFh8dwRwdEtNlO3YMMZe3ZQTOZVVLgY'
   'Vapid:PrivateKey': '4eJ5_bcufexYURqE3vKJJEzuzkmgFzaaj8AftPrdqOg'
+
+  //Vercel
+  'Vercel:ProjectId': 'prj_eIy6jy8lbxQSpuzJsvzhurAivAaX'
+  'Vercel:Token': 'vcp_7A324Q5DBCQbFlbBLmJ1KrjAunTdmt38FITu1EvmfpuOSeALfF1gcuj0'
 }
 
 

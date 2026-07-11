@@ -55,9 +55,15 @@
   overflow-anchor: none;
 }
 
+.safe-area-top {
+  flex-shrink: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--bg);
+}
+
 .app-header {
   position: sticky;
-  top: 0;
+  top: env(safe-area-inset-top, 0px);
   display: flex;
   justify-content: space-between;
   align-items: center;
