@@ -42,6 +42,8 @@ export const emptyForm: JobForm = {
     irrelevantCategoryIds: [],
     closureFlags: [],
   },
+  jobType: 'V4v05',
+  timesheets: [],
 };
 
 export function getLinkableJobs(
@@ -78,6 +80,14 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
     }
   }
 
+  // Get timesheets from job if available
+  const timesheets = (job as unknown as { worksheets?: Array<{ workDate: string; userId: string; hoursWorked: number | string; sleptOnJob: boolean }> }).worksheets?.map(ws => ({
+    workDate: ws.workDate,
+    userId: ws.userId,
+    hours: String(ws.hoursWorked),
+    sleptOnJob: ws.sleptOnJob,
+  })) ?? [];
+
   return {
     customerId: job.customerId ?? null,
     createCustomer: false,
@@ -102,6 +112,8 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       irrelevantCategoryIds,
       closureFlags: job.work.closureFlags ? job.work.closureFlags.map((flag) => flag.normalizedLabel) : [],
     },
+    jobType: ((job as unknown as { jobType?: string }).jobType === 'Diverse' ? 'Diverse' : 'V4v05') as 'V4v05' | 'Diverse',
+    timesheets,
   };
 }
 
@@ -225,6 +237,14 @@ export function sameWork(left: JobForm, right: JobForm) {
 }
 
 export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean; requireDestinationAddress?: boolean }) {
+  // For Diverse jobs, skip customer/work validation
+  if (form.jobType === 'Diverse') {
+    return (
+      (options?.reportNumberReadOnly || form.reportNumber.trim().length > 0) &&
+      (!options?.requireDestinationAddress || form.destinationAddress.trim().length > 0)
+    );
+  }
+
   const name = form.customerSnapshot?.name ?? null;
   const email = form.customerSnapshot?.email ?? null;
   const phone = form.customerSnapshot?.phone ?? null;

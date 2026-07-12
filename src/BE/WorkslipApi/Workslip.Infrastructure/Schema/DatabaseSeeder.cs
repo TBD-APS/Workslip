@@ -331,6 +331,9 @@ public static class DatabaseSeeder
         {
             var selectedFlags = faker.PickRandom(jobClosureFlags, faker.Random.Int(1, jobClosureFlags.Count)).ToList();
 
+            if(selectedFlags.Any(x => x.NormalizedLabel == "OperationMaintenanceInstructions") && selectedFlags.Count == 1)
+                selectedFlags.Add(jobClosureFlags[1]);
+            
             var notCompleted = selectedFlags.FirstOrDefault(f => f.NormalizedLabel == ClosureFlagLabels.NotCompleted);
             if (notCompleted is not null)
             {

@@ -205,8 +205,8 @@
   display: flex;
   justify-content: space-around;
   align-items: center;
-  height: calc(80px + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
+  height: auto;
+  padding-top: 10px;
   z-index: 100;
 }
 
@@ -593,6 +593,15 @@
   white-space: nowrap;
 }
 
+.job-number-sep {
+  margin: 0 0.35rem;
+  opacity: 0.5;
+}
+
+.job-number-status {
+  font-weight: 500;
+}
+
 .job-customer {
   font-family: var(--font-heading);
   font-size: var(--fs-lg);
@@ -664,6 +673,33 @@
   letter-spacing: 0.3px;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.job-card-badges {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.job-type-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.job-type-v4v05 {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
+}
+
+.job-type-diverse {
+  background: color-mix(in srgb, var(--color-info, #6366f1) 15%, transparent);
+  color: var(--color-info, #6366f1);
 }
 
 
@@ -2242,26 +2278,6 @@
     0% { opacity: 1; }
     50% { opacity: 0.4; }
     100% { opacity: 1; }
-  }
-
-  .data-table .status-badge-cell.cell-status-0 {
-    background: var(--status-blue-bg);
-    color: var(--status-blue-text);
-  }
-
-  .data-table .status-badge-cell.cell-status-1 {
-    background: var(--status-amber-bg);
-    color: var(--status-amber-text);
-  }
-
-  .data-table .status-badge-cell.cell-status-2 {
-    background: var(--status-green-bg);
-    color: var(--status-green-text);
-  }
-
-  .data-table .status-badge-cell.cell-status-3 {
-    background: var(--status-red-bg);
-    color: var(--status-red-text);
   }
 
   .data-table .cell-number {

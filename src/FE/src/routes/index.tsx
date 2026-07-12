@@ -9,6 +9,7 @@ import { InviteAccept } from '../features/auth/routes/InviteAccept';
 import { JobList } from '../features/jobs/routes/JobList';
 import { JobDetail } from '../features/jobs/routes/JobDetail';
 import { JobCreate } from '../features/jobs/routes/JobCreate';
+import { SimpleJobCreate } from '../features/jobs/routes/SimpleJobCreate';
 import { CompletedJobReport } from '../features/jobs/routes/CompletedJobReport';
 import { Create } from '../features/create/routes/Create';
 import { UserList } from '../features/users/routes/UserList';
@@ -98,9 +99,10 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <JobList /> },
           { path: 'timer', element: <MyWorksheets /> },
-          { path: 'create', element: <RoleGuard permission="job:create"><Create /></RoleGuard> }, //"BIG BLUE BUTTON"
+          { path: 'create', element: <Create /> }, //"BIG BLUE BUTTON"
           { path: 'job/new', element: <RoleGuard permission="job-from-customer:create"><JobCreate /></RoleGuard> },
           { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
+          { path: 'job/simple/new', element: <SimpleJobCreate /> },
           { path: 'job/:id', element: <JobDetail /> },
           { path: 'completed/:id', element: <CompletedJobReport /> },
           { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },

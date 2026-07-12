@@ -1,4 +1,7 @@
 import type { CustomerSnapshotData } from '../../api/generated/models/customerSnapshotData';
+import type { WorksheetDraft } from './components/worksheetUtils';
+
+export type { WorksheetDraft };
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -48,6 +51,8 @@ export type JobForm = {
   customerObservations: string;
   technicalObservations: string;
   work: JobWorkForm;
+  jobType: 'V4v05' | 'Diverse' | 'Unknown';
+  timesheets: WorksheetDraft[];
 };
 
 

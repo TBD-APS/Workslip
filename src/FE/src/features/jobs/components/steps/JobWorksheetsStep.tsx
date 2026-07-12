@@ -6,7 +6,7 @@ import { useGetApiUsers } from '../../../../api/generated/users/users';
 import { parseNullableNumber } from '../../../../lib/formatUtils';
 import { WorksheetsSection } from '../../components/WorksheetsSection';
 import { WorksheetActionMenuPortal } from '../../components/WorksheetActionMenuPortal';
-import { initialWorksheetUiState, worksheetUiReducer, dateKey, parseHours } from '../../components/worksheetUtils';
+import { initialWorksheetUiState, worksheetUiReducer, dateKey, parseHours, validateWorksheetDraft } from '../../components/worksheetUtils';
 import type { WorksheetDraft } from '../../components/worksheetUtils';
 
 type JobWorksheetsStepProps = {
@@ -116,38 +116,12 @@ export function JobWorksheetsStep({
   }, [openActionMenu]);
 
   const validateDraft = (draft: WorksheetDraft, currentWorksheetId?: string): number | null => {
-    if (!draft.userId) {
-      dispatch({ type: 'setFormError', error: 'Vælg en montør.' });
+    const result = validateWorksheetDraft(draft, worksheets, currentWorksheetId);
+    if ('error' in result) {
+      dispatch({ type: 'setFormError', error: result.error });
       return null;
     }
-
-    const hoursNumber = Number(draft.hours.replace(',', '.'));
-    if (!Number.isFinite(hoursNumber) || hoursNumber <= 0) {
-      dispatch({ type: 'setFormError', error: 'Timer skal være større end 0' });
-      return null;
-    }
-
-    if (hoursNumber > 24) {
-      dispatch({ type: 'setFormError', error: 'Timer kan ikke overstige 24 på en dag.' });
-      return null;
-    }
-
-    if (!Number.isInteger(hoursNumber * 4)) {
-      dispatch({ type: 'setFormError', error: 'Timer skal angives i intervaller af 0,25.' });
-      return null;
-    }
-
-    const existingTotal = worksheets
-      .filter((worksheet) => worksheet.id !== currentWorksheetId)
-      .filter((worksheet) => worksheet.userId === draft.userId && dateKey(worksheet.workDate) === dateKey(draft.workDate))
-      .reduce((total, worksheet) => total + parseHours(worksheet.hoursWorked), 0);
-
-    if (!Number.isFinite(existingTotal) || existingTotal + hoursNumber > 24) {
-      dispatch({ type: 'setFormError', error: 'Montøren kan ikke registrere mere end 24 timer på samme dato.' });
-      return null;
-    }
-
-    return hoursNumber;
+    return result.hours;
   };
 
   const saveDraft = async (draft: WorksheetDraft, worksheetId?: string) => {
@@ -179,7 +153,7 @@ export function JobWorksheetsStep({
       draft: {
         userId: worksheet.userId,
         workDate: dateKey(worksheet.workDate),
-        hours: String(parseHours(worksheet.hoursWorked)),
+        hours: parseHours(worksheet.hoursWorked),
         sleptOnJob: worksheet.sleptOnJob,
       },
     });

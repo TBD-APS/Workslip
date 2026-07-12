@@ -1,5 +1,6 @@
 ﻿using Ardalis.Result;
 using Microsoft.Extensions.Logging;
+using Workslip.Domain;
 
 namespace Workslip.Application.Jobs
 {
@@ -27,6 +28,13 @@ namespace Workslip.Application.Jobs
         private static List<ValidationError> ValidateReadyForSubmission(JobReportResponse report, ReferenceDataResponse referenceData)
         {
             var errors = new List<ValidationError>();
+
+            // Skip submit validation for Diverse jobs
+            if (report.JobType == JobType.Diverse)
+            {
+                return errors;
+            }
+
             AddRequired(errors, nameof(JobReportResponse.ReportNumber), report.ReportNumber, "Report number is required.");
             AddRequired(errors, $"{nameof(JobReportResponse.Customer)}.{nameof(CustomerInfo.Name)}", report.Customer?.Name, "Customer name is required.");
             AddRequired(errors, $"{nameof(JobReportResponse.Customer)}.{nameof(CustomerInfo.Address)}", report.Customer?.Address, "Customer address is required.");
@@ -60,7 +68,7 @@ namespace Workslip.Application.Jobs
         }
 
         private static string ValidationFields(IEnumerable<ValidationError> errors) =>
-    string.Join(",", errors.Select(error => error.Identifier).Distinct());
+            string.Join(",", errors.Select(error => error.Identifier).Distinct());
 
         private static void AddRequired(List<ValidationError> errors, string identifier, string? value, string message)
         {

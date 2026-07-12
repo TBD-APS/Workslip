@@ -69,7 +69,7 @@ export function WorksheetDraftForm({
             kind="decimal"
             min={0}
             max={24}
-            value={draft.hours}
+            value={String(draft.hours)}
             onChange={(value) => updateDraft({ hours: value })}
             placeholder="0"
           />

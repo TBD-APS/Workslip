@@ -57,7 +57,11 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Invalid(errors);
         }
 
-        if (request.Work is not null)
+        // Resolve JobType (default to V4v05)
+        var jobType = string.IsNullOrWhiteSpace(request.JobType) ? JobType.V4v05 : Enum.Parse<JobType>(request.JobType);
+
+        // Skip work/installation validation for Diverse jobs
+        if (jobType != JobType.Diverse && request.Work is not null)
         {
             var workErrors = await ValidateDraftWorkAsync(organizationId.Value, request.Work, cancellationToken);
             if (workErrors.Count != 0)
@@ -243,7 +247,11 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
-        if (request.Work is not null)
+        // Resolve JobType from request (default to V4v05)
+        var jobType = Enum.TryParse<JobType>(request.JobType, out var parsed) ? parsed : JobType.V4v05;
+
+        // Skip work/installation validation for Diverse jobs
+        if (jobType != JobType.Diverse && request.Work is not null)
         {
             var workErrors = await ValidateDraftWorkAsync(organizationId.Value, request.Work, cancellationToken);
             if (workErrors.Count != 0)
@@ -642,6 +650,7 @@ public sealed class JobService(
             report.Customer?.CustomerId,
             customerSnapshot,
             report.DestinationAddress,
+            report.JobType.ToString(),
             new JobReportSummaryWorkResponse(
                 report.WorkKind,
                 report.InstallationTypes,

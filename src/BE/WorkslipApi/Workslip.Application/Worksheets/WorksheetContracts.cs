@@ -39,7 +39,8 @@ public sealed record MyWorksheetEntryResponse(
     string? CustomerAddress,
     decimal HoursWorked,
     bool HasOutlay,
-    string? UserDisplayName = null);
+    string? UserDisplayName = null,
+    string? JobType = null);
 
 public sealed record MyWorksheetDayResponse(
     DateOnly Date,

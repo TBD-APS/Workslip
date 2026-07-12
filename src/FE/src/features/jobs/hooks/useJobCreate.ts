@@ -17,12 +17,13 @@ import { emptyForm, isValidCreateForm } from '../utils';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CreateJobRequest } from '../../../api/generated/models';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
-import type { JobForm } from '../types';
+import type { JobForm, WorksheetDraft } from '../types';
 import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustomerSnapshot';
 
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
   createCustomerFromSnapshot?: boolean;
+  jobType: 'V4v05' | 'Diverse' | 'Unknown';
 };
 
 export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: JobForm) {
@@ -111,6 +112,24 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     clearFieldError('destinationAddress');
   };
 
+  const updateJobType = (value: 'V4v05' | 'Diverse') => {
+    setForm((prev) => ({ ...prev, jobType: value }));
+    // Clear customer-related errors when switching to Diverse
+    if (value === 'Diverse') {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.customerName;
+        delete next.email;
+        delete next.phone;
+        return next;
+      });
+    }
+  };
+
+  const updateTimesheets = (timesheets: WorksheetDraft[]) => {
+    setForm((prev) => ({ ...prev, timesheets }));
+  };
+
   const updateTaskDescription = (value: string) => {
     setForm((prev) => ({ ...prev, taskDescription: value }));
   };
@@ -174,13 +193,17 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
 
   function computeFieldErrors(): Record<string, string> {
     const errors: Record<string, string> = {};
-    const name = form.customerSnapshot?.name ?? null;
-    const email = form.customerSnapshot?.email ?? null;
-    const phone = form.customerSnapshot?.phone ?? null;
 
-    if ((name?.trim().length ?? 0) === 0) errors.customerName = 'Kundenavn er påkrævet';
-    if (validateEmail(email) !== null) errors.email = validateEmail(email)!;
-    if (validatePhoneNumber(phone) !== null) errors.phone = validatePhoneNumber(phone)!;
+    if (form.jobType !== 'Diverse') {
+      const name = form.customerSnapshot?.name ?? null;
+      const email = form.customerSnapshot?.email ?? null;
+      const phone = form.customerSnapshot?.phone ?? null;
+
+      if ((name?.trim().length ?? 0) === 0) errors.customerName = 'Kundenavn er påkrævet';
+      if (validateEmail(email) !== null) errors.email = validateEmail(email)!;
+      if (validatePhoneNumber(phone) !== null) errors.phone = validatePhoneNumber(phone)!;
+    }
+
     if (isAdmin && form.destinationAddress.trim().length === 0) errors.destinationAddress = 'Adresse er påkrævet';
     return errors;
   }
@@ -230,6 +253,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
         : null,
       createCustomerFromSnapshot: form.createCustomer || undefined,
       destinationAddress: form.destinationAddress.trim() || null,
+      jobType: form.jobType,
       work: null,
       observations: {
         reportDate: null,
@@ -237,6 +261,17 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
         customerObservations: form.customerObservations.trim() || null,
         technicalObservations: form.technicalObservations.trim() || null,
       },
+      // Include timesheets for Diverse jobs
+      ...(form.jobType === 'Diverse' && form.timesheets.length > 0
+        ? {
+            timesheets: form.timesheets.map(ts => ({
+              workDate: ts.workDate,
+              userId: ts.userId,
+              hoursWorked: typeof ts.hours === 'number' ? ts.hours : Number(String(ts.hours).replace(',', '.')),
+              sleptOnJob: ts.sleptOnJob,
+            })),
+          }
+        : {}),
     };
 
     setIsSaving(true);
@@ -275,6 +310,8 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     updateCreateCustomer,
     hasCustomerChanges,
     updateDestinationAddress,
+    updateJobType,
+    updateTimesheets,
     updateTaskDescription,
     updateCustomerObservations,
     updateTechnicalObservations,

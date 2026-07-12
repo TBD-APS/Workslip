@@ -22,6 +22,8 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
     ? [{ id: user.id, displayName: user.displayName }]
     : undefined;
 
+  const isSimpleJob = create.form.jobType === 'Diverse';
+
   return (
     <>
       <DestinationAddressBlock
@@ -31,39 +33,43 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
         error={create.fieldErrors.destinationAddress}
       />
 
-      <CustomerDetailsBlock
-        form={create.form}
-        customerSnapshot={create.form.customerSnapshot}
-        editSnapshot={create.form.editSnapshot}
-        createCustomer={create.form.createCustomer}
-        onCreateCustomerChange={create.updateCreateCustomer}
-        hasCustomerChanges={create.hasCustomerChanges}
-        onCustomerSelect={create.selectCustomer}
-        onCreateNewCustomer={create.createNewCustomer}
-        onSnapshotFieldChange={create.updateSnapshotField}
-        onEditSnapshotChange={create.updateEditSnapshot}
-        showEditCheckbox={true}
-        fieldErrors={create.fieldErrors}
-      />
+      {!isSimpleJob && (
+        <>
+          <CustomerDetailsBlock
+            form={create.form}
+            customerSnapshot={create.form.customerSnapshot}
+            editSnapshot={create.form.editSnapshot}
+            createCustomer={create.form.createCustomer}
+            onCreateCustomerChange={create.updateCreateCustomer}
+            hasCustomerChanges={create.hasCustomerChanges}
+            onCustomerSelect={create.selectCustomer}
+            onCreateNewCustomer={create.createNewCustomer}
+            onSnapshotFieldChange={create.updateSnapshotField}
+            onEditSnapshotChange={create.updateEditSnapshot}
+            showEditCheckbox={true}
+            fieldErrors={create.fieldErrors}
+          />
 
 
-      <AssignmentBlock
-        assignment={{
-          users: create.assignableUsers,
-          assignedUserIds: create.assignedUserIds,
-          isLoadingUsers: create.isLoadingUsers,
-          onAssignedUsersChange: create.updateAssignedUsers,
-        }}
-        readOnlyAssigned={readOnlyAssigned}
-        isEditing={true}
-      />
+          <AssignmentBlock
+            assignment={{
+              users: create.assignableUsers,
+              assignedUserIds: create.assignedUserIds,
+              isLoadingUsers: create.isLoadingUsers,
+              onAssignedUsersChange: create.updateAssignedUsers,
+            }}
+            readOnlyAssigned={readOnlyAssigned}
+            isEditing={true}
+          />
 
-      <LinkedJobsBlock
-        jobs={linkableJobs}
-        linkedJobIds={create.linkedJobIds}
-        isLoading={isLoadingJobs}
-        onChange={create.updateLinkedJobs}
-      />
+          <LinkedJobsBlock
+            jobs={linkableJobs}
+            linkedJobIds={create.linkedJobIds}
+            isLoading={isLoadingJobs}
+            onChange={create.updateLinkedJobs}
+          />
+        </>
+      )}
 
       <TextAreaBlock
         icon={<FileText size={18} />}
@@ -73,21 +79,25 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
         placeholder="Beskriv opgaven..."
       />
 
-      <TextAreaBlock
-        icon={<MessageSquare size={18} />}
-        title="Oplysninger til kunden"
-        value={create.form.customerObservations}
-        onChange={create.updateCustomerObservations}
-        placeholder="Notér oplysninger til kunden..."
-      />
+      {!isSimpleJob && (
+        <>
+          <TextAreaBlock
+            icon={<MessageSquare size={18} />}
+            title="Oplysninger til kunden"
+            value={create.form.customerObservations}
+            onChange={create.updateCustomerObservations}
+            placeholder="Notér oplysninger til kunden..."
+          />
 
-      <TextAreaBlock
-        icon={<Wrench size={18} />}
-        title="Tekniske observationer"
-        value={create.form.technicalObservations}
-        onChange={create.updateTechnicalObservations}
-        placeholder="Notér tekniske observationer..."
-      />
+          <TextAreaBlock
+            icon={<Wrench size={18} />}
+            title="Tekniske observationer"
+            value={create.form.technicalObservations}
+            onChange={create.updateTechnicalObservations}
+            placeholder="Notér tekniske observationer..."
+          />
+        </>
+      )}
     </>
   );
 }

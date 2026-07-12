@@ -76,6 +76,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
                 HasOutlay = w.SleptOnJob,
                 HoursWorked = w.HoursWorked,
                 UserDisplayName = u.DisplayName,
+                JobType = r.JobType.ToString()
             })
             .ToListAsync(cancellationToken);
 
@@ -87,7 +88,8 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             row.CustomerAddress,
             row.HoursWorked,
             row.HasOutlay,
-            row.UserDisplayName)).ToArray();
+            row.UserDisplayName,
+            row.JobType)).ToArray();
     }
 
     private async Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserCoreAsync(
@@ -120,7 +122,8 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
                 CustomerName = r.CustomerName ?? (c != null ? c.Name : "Ukendt kunde"),
                 CustomerAddress = r.CustomerAddress ?? (c != null ? c.Address : null),
                 HasOutlay = w.SleptOnJob,
-                HoursWorked = w.HoursWorked
+                HoursWorked = w.HoursWorked,
+                JobType = r.JobType.ToString()
             })
             .ToListAsync(cancellationToken);
 
@@ -131,7 +134,9 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             row.CustomerName,
             row.CustomerAddress,
             row.HoursWorked,
-            row.HasOutlay)).ToArray();
+            row.HasOutlay,
+            UserDisplayName: row.UserDisplayName,
+            row.JobType)).ToArray();
     }
 
     public Task<WorksheetResponse> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken) =>

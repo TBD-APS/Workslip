@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock } from 'lucide-react';
 import { DOCUMENT_TYPES } from '../documentTypes';
+import { Can } from '../../../providers/permissions';
 
 /**
  * Generic document-type picker.
@@ -65,28 +66,40 @@ export const Create = () => {
             </>
           );
 
+          const tile = disabled ? (
+            <div
+              className="create-type-tile create-type-tile--disabled"
+              aria-disabled="true"
+              aria-labelledby={labelId}
+              aria-describedby={descId}
+            >
+              {content}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="create-type-tile"
+              onClick={() => navigate(type.path)}
+              aria-labelledby={labelId}
+              aria-describedby={descId}
+            >
+              {content}
+            </button>
+          );
+
+          if (type.permission) {
+            return (
+              <li key={type.id} className="create-type-item">
+                <Can permission={type.permission}>
+                  {tile}
+                </Can>
+              </li>
+            );
+          }
+
           return (
             <li key={type.id} className="create-type-item">
-              {disabled ? (
-                <div
-                  className="create-type-tile create-type-tile--disabled"
-                  aria-disabled="true"
-                  aria-labelledby={labelId}
-                  aria-describedby={descId}
-                >
-                  {content}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="create-type-tile"
-                  onClick={() => navigate(type.path)}
-                  aria-labelledby={labelId}
-                  aria-describedby={descId}
-                >
-                  {content}
-                </button>
-              )}
+              {tile}
             </li>
           );
         })}

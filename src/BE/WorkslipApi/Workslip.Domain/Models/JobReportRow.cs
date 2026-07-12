@@ -16,6 +16,7 @@ public sealed class JobReportRow : IJobRelated
     public string? DestinationAddress { get; init; }
     public string? ReportNumber { get; init; }
     public string Status { get; init; } = "";
+    public JobType JobType { get; init; } = JobType.V4v05;
     public DateTime? ReportDate { get; init; }
     public string? TaskDescription { get; init; }
     public string? CustomerObservations { get; init; }

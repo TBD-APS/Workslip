@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Plus, Timer, User } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, PlusCircle, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
+import { formatJobType } from '../statusLabels';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
@@ -14,7 +15,7 @@ import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
-import { Can } from '../../../providers/permissions';
+
 
 const SCROLL_CONTAINER_SELECTOR = '.app-shell';
 const SCROLL_STORAGE_KEY = 'jobListScrollTop';
@@ -168,14 +169,11 @@ export const JobList = () => {
                 <p className="subtitle">Viser kun sager tildelt dig &middot; {displayedJobs.length} {displayedJobs.length === 1 ? 'sag' : 'sager'}</p>
               )}
             </div>
-            <Can permission='job:create'>
-              {isDesktop && (
-                <button className="btn btn-primary" onClick={() => navigate('/app/create')} type="button">
-                  <Plus size={18} />
-                  <span>Ny opgave</span>
-                </button>
-              )}
-            </Can>
+            {!isAdmin && (
+              <button className="fab-button" onClick={() => navigate('/app/create')} type="button" aria-label="Opret">
+                <PlusCircle size={24} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -210,6 +208,7 @@ export const JobList = () => {
             <thead>
               <tr>
                 <th className="col-number">Sagsnr.</th>
+                <th className="col-type">Type</th>
                 <th className="col-name">Kunde</th>
                 <th className="col-address">Adresse</th>
                 <th className="col-status">Status</th>
@@ -224,8 +223,8 @@ export const JobList = () => {
             <tbody>
               {Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 10 }).map((_, j) => (
-                    <td key={j}><div className="skeleton" style={{ height: '1em', width: j === 9 ? '1.5rem' : '80%' }} /></td>
+                  {Array.from({ length: 11 }).map((_, j) => (
+                    <td key={j}><div className="skeleton" style={{ height: '1em', width: j === 10 ? '1.5rem' : '80%' }} /></td>
                   ))}
                 </tr>
               ))}
@@ -252,50 +251,54 @@ export const JobList = () => {
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
+              <th className="col-type">
+                Type
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
+              </th>
               <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('name')}>
                   Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
               <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('address')}>
                   Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
               </th>
               <th className="col-installation">
                 Anlæg
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
               </th>
               <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('totalHours')}>
                   Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
               </th>
               <th className="col-users">
                 Medarbejdere
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
               </th>
               <th className="col-status">
                 Status
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'reportDate' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('reportDate')}>
                   Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(8, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'updatedAt' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('updatedAt')}>
                   Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(8, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(9, e)} />
               </th>
               <th className="col-actions">
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(9, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(10, e)} />
               </th>
             </tr>
           </thead>
@@ -303,8 +306,8 @@ export const JobList = () => {
             {showPageLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={`skeleton-${i}`}>
-                  {Array.from({ length: 10 }).map((_, j) => (
-                    <td key={j}><div className="skeleton" style={{ height: '1em', width: j === 9 ? '1.5rem' : '80%' }} /></td>
+                  {Array.from({ length: 11 }).map((_, j) => (
+                    <td key={j}><div className="skeleton" style={{ height: '1em', width: j === 10 ? '1.5rem' : '80%' }} /></td>
                   ))}
                 </tr>
               ))
@@ -316,8 +319,9 @@ export const JobList = () => {
                 onClick={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })}
               >
                 <td><span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span></td>
-                <td>{job.customer?.name || 'Ukendt kunde'}</td>
-                <td>{job.customer?.address}</td>
+                <td><span className={`job-type-badge job-type-${job.jobType?.toLowerCase()}`}>{formatJobType(job.jobType)}</span></td>
+                <td>{job.customer?.name || job.taskDescription || 'Ukendt kunde'}</td>
+                <td>{job.destinationAddress || job.customer?.address}</td>
                 <td>
                   <InstallationTypeTags types={job.installationTypes} />
                 </td>
@@ -415,17 +419,14 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
     <button className="job-card" onClick={onOpen} type="button">
       <div className="job-card-top">
         <div>
-          <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
-          <h3 className="job-customer">{job.customer?.name || 'Ukendt kunde'}</h3>
+          <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span>{formatJobType(job.jobType)}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span></span>
+          <h3 className="job-customer">{job.customer?.name || job.taskDescription || 'Ukendt kunde'}</h3>
         </div>
-        <span className={`status-badge status-${job.status.toString().toLowerCase()}`}>
-          {formatJobStatus(job.status)}
-        </span>
       </div>
 
       <p className="job-address-row">
         <MapPin size={14} />
-        <span className="job-address">{job.customer?.address || 'Ingen adresse angivet'}</span>
+        <span className="job-address">{job.destinationAddress || job.customer?.address || 'Ingen adresse angivet'}</span>
       </p>
 
       <div className="job-card-meta">
