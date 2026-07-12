@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import type { AxiosError } from 'axios';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
@@ -52,11 +52,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-        toast.success('Sagen er slettet');
+        notify.success('Sagen er slettet');
         onDone();
       },
       onError: (error) => {
-        toast.error(getJobDeleteErrorMessage(error));
+        notify.error(getJobDeleteErrorMessage(error));
       },
     },
   });
@@ -66,7 +66,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     if (!details.job?.id) return;
 
     if (details.worksheets.length > 0) {
-      toast.error(getAttachedWorksheetsMessage(details.worksheets.length));
+      notify.error(getAttachedWorksheetsMessage(details.worksheets.length));
       return;
     }
 
@@ -145,7 +145,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       for (let i = details.currentStep; i < nextStep; i++) {
         if (!canAdvanceStep(details, i, isAdmin)) {
           const reason = getNextDisabledReason(details, i);
-          if (reason) toast.error(reason);
+          if (reason) notify.error(reason);
           return;
         }
       }

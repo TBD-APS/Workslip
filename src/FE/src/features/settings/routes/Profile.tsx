@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { User, Mail, Shield, PartyPopper, Pencil, Save, X, Loader2 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import { useAuth } from '../../../providers/useAuth';
 import { usePatchApiAuthMe, getGetApiAuthMeQueryKey } from '../../../api/generated/auth/auth';
 
@@ -36,7 +36,7 @@ export const Profile = () => {
 
   const handleSave = async () => {
     if (!displayName.trim()) {
-      toast.error('Navn skal udfyldes');
+      notify.error('Navn skal udfyldes');
       return;
     }
 
@@ -49,9 +49,9 @@ export const Profile = () => {
       queryClient.invalidateQueries({ queryKey: getGetApiAuthMeQueryKey() });
 
       setIsEditing(false);
-      toast.success('Profil opdateret');
+      notify.success('Profil opdateret');
     } catch {
-      toast.error('Kunne ikke opdatere profilen. Prøv igen.');
+      notify.error('Kunne ikke opdatere profilen. Prøv igen.');
     }
   };
 

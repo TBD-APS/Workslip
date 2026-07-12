@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ErrorState } from '../../../components/ErrorState';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import {
   ArrowLeft,
   Building2,
@@ -134,13 +134,13 @@ export const UserDetail = () => {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetApiUsersIdQueryKey(id!) });
-        toast.success('Brugeren er tilknyttet sagen');
+        notify.success('Brugeren er tilknyttet sagen');
         setAssigningJobId(null);
         setSearchValue('');
         setDebouncedSearch('');
       },
       onError: () => {
-        toast.error('Kunne ikke tilknytte bruger til sagen');
+        notify.error('Kunne ikke tilknytte bruger til sagen');
         setAssigningJobId(null);
       },
     },
@@ -149,13 +149,13 @@ export const UserDetail = () => {
   const handleAssign = (job: SearchResult) => {
     if (assigningJobId) return;
     if (job.softDeleted) {
-      toast.error('Sagen er slettet og kan ikke tildeles');
+      notify.error('Sagen er slettet og kan ikke tildeles');
       return;
     }
 
     const currentUserIds = job.assignedUsers.map((u) => u.id);
     if (currentUserIds.includes(id!)) {
-      toast.info('Brugeren er allerede tilknyttet denne sag');
+      notify.info('Brugeren er allerede tilknyttet denne sag');
       return;
     }
 

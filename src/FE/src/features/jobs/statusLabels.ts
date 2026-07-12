@@ -14,8 +14,9 @@ export function formatJobStatus(status: string): string {
 }
 
 const JOB_TYPE_LABELS: Record<string, string> = {
-  Standard: '4v05',
+  KLS: '4v05',
   Diverse: 'Diverse',
+  Unknown: 'Unknown'
 };
 
 export function formatJobType(jobType: string): string {

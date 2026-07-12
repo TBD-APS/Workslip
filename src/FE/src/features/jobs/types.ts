@@ -53,7 +53,7 @@ export type JobForm = {
   customerObservations: string;
   technicalObservations: string;
   work: JobWorkForm;
-  jobType: '4v05' | 'Diverse' | 'Unknown';
+  jobType: 'KLS' | 'Diverse' | 'Unknown';
   timesheets: WorksheetDraft[];
 };
 

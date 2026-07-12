@@ -1557,6 +1557,17 @@
   background: var(--surface-selected);
 }
 
+/* Solid blue selected state for the job work steps:
+   Anlægstyper, Opgavetype and Kontrolpunkter. Scoped so shared
+   dropdowns (SingleSelect/MultiSelect) keep their default styling. */
+.category-choice-grid .choice-card.selected,
+.work-kind-list .work-kind-option.selected,
+.control-points-list .multi-select-option.selected {
+  border-color: var(--primary);
+  border: 1px solid var(--primary);
+  background-color: white;
+}
+
 .selection-pill {
   flex-shrink: 0;
   margin-left: auto;
@@ -2649,6 +2660,14 @@
   min-height: 0;
 }
 
+.worksheet-list-item--detail:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.worksheet-list-item--detail.worksheet-list-item--editing {
+  border-bottom: none;
+}
+
 .worksheet-list-item--detail .worksheet-list-item-badge,
 .worksheet-list-item--detail .worksheet-list-item-tag {
   border: none;
@@ -2989,17 +3008,6 @@
   font-size: var(--fs-body);
   font-weight: 400;
   margin-top: 0.75rem;
-  background: var(--surface-selected);
-  border-color: var(--border);
-  box-shadow: none;
-}
-
-@media (hover: hover) {
-.worksheet-add-trigger-cta:hover {
-  background: var(--surface-selected-strong);
-  border-color: var(--focus-ring);
-  transform: translateY(-1px);
-}
 }
 
 /* ------------------------------------------------------------
@@ -5312,5 +5320,22 @@
   color: var(--text-muted);
   transition: transform 0.2s;
   margin-left: auto;
+}
+
+@keyframes toast-shake-a {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+@keyframes toast-shake-b {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+.toast-shake [data-content] {
+  animation: toast-shake-a 0.4s ease;
+}
+.toast-shake.toast-shake-alt [data-content] {
+  animation: toast-shake-b 0.4s ease;
 }
 

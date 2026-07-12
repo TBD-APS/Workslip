@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import {
   usePostApiJobs,
   usePostApiJobsIdAssign,
@@ -23,7 +23,7 @@ import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustome
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
   createCustomerFromSnapshot?: boolean;
-  jobType: '4v05' | 'Diverse' | 'Unknown';
+  jobType: 'KLS' | 'Diverse' | 'Unknown';
 };
 
 export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: JobForm) {
@@ -64,32 +64,35 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
         Promise.all(promises).then(() => {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
           setIsSaving(false);
-          toast.success('Sagen er oprettet');
+          notify.success('Sagen er oprettet');
           onCreated(jobId);
         }).catch((error) => {
           setIsSaving(false);
-          toast.error('Sagen er oprettet, men tildeling mislykkedes', { id: 'job-assign-error' });
+          notify.error('Sagen er oprettet, men tildeling mislykkedes', { id: 'job-assign-error' });
           console.error('Assignment failed:', error);
           onCreated(jobId);
         });
       },
       onError: (error) => {
         setIsSaving(false);
-        toast.error(getCreateErrorMessage(error), { id: 'job-create-error' });
+        notify.error(getCreateErrorMessage(error), { id: 'job-create-error' });
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const linkMutation = usePostApiJobsIdLinks({
     mutation: {
       onSuccess: () => setLinksStatus('saved'),
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const assignMutation = usePostApiJobsIdAssign({
     mutation: {
       onSuccess: () => setAssignmentStatus('saved'),
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const { selectCustomer, updateEditSnapshot, hasCustomerChanges } = useCustomerSnapshot(setForm);
@@ -121,7 +124,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     setForm((prev) => ({ ...prev, destinationCity: value }));
   };
 
-  const updateJobType = (value: '4v05' | 'Diverse') => {
+  const updateJobType = (value: 'KLS' | 'Diverse') => {
     setForm((prev) => ({ ...prev, jobType: value }));
     // Clear customer-related errors when switching to Diverse
     if (value === 'Diverse') {
@@ -203,7 +206,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   function computeFieldErrors(): Record<string, string> {
     const errors: Record<string, string> = {};
 
-    if (form.jobType === '4v05') {
+    if (form.jobType === 'KLS') {
       const name = form.customerSnapshot?.name ?? null;
       const email = form.customerSnapshot?.email ?? null;
       const phone = form.customerSnapshot?.phone ?? null;
@@ -241,7 +244,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       return;
     }
     if (!user?.id) {
-      toast.error('Bruger ikke fundet. Log ind igen.', { id: 'job-create-no-user' });
+      notify.error('Bruger ikke fundet. Log ind igen.', { id: 'job-create-no-user' });
       return;
     }
     setFieldErrors({});

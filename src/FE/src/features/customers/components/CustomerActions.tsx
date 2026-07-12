@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react
 import { createPortal } from 'react-dom';
 import { Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import type { CustomerListItemViewModel, CustomerDetailViewModel } from '../../../api/generated/models';
 import { getGetApiCustomersQueryKey, getGetApiCustomersIdQueryKey } from '../../../api/generated/customers/customers';
 import { apiClient } from '../../../lib/axios';
@@ -130,10 +130,10 @@ function EditCustomerDialog({ customer, onClose }: EditCustomerDialogProps) {
 
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersIdQueryKey(customer.id) });
-      toast.success('Kunden er opdateret.');
+      notify.success('Kunden er opdateret.');
       onClose();
     } catch {
-      toast.error('Kunne ikke opdatere kunden. Prøv igen.');
+      notify.error('Kunne ikke opdatere kunden. Prøv igen.');
     } finally {
       setIsSaving(false);
     }
@@ -265,11 +265,11 @@ function DeleteCustomerDialog({ customer, onClose, onDeleted }: DeleteCustomerDi
       await apiClient.delete(`/api/customers/${customer.id}`);
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersIdQueryKey(customer.id) });
-      toast.success('Kunden er slettet.');
+      notify.success('Kunden er slettet.');
       onDeleted?.(customer);
       onClose();
     } catch {
-      toast.error('Kunne ikke slette kunden. Prøv igen.');
+      notify.error('Kunne ikke slette kunden. Prøv igen.');
       deleteLockRef.current = false;
       setIsDeleting(false);
     }

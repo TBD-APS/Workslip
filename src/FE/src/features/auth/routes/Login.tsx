@@ -6,7 +6,7 @@ import * as z from 'zod';
 import { Mail, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../providers/useAuth';
 import { sendAuthCode } from '../api/devToken';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import {
   AUTH_TOKEN_KEY,
   USER_EMAIL_KEY,
@@ -124,7 +124,7 @@ export const Login = () => {
           clearEntraLoginSession();
           const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
           setErrorMsg(message);
-          toast.error(message);
+          notify.error(message);
           setIsSubmitting(false);
         });
       return;
@@ -161,9 +161,9 @@ export const Login = () => {
       await sendAuthCode(data.email);
       setEmail(data.email);
       setStep('code');
-      toast.success('Tjek din indbakke – en kode er sendt.');
+      notify.success('Tjek din indbakke – en kode er sendt.');
     } catch {
-      toast.error('Kunne ikke sende kode. Prøv igen.');
+      notify.error('Kunne ikke sende kode. Prøv igen.');
       setErrorMsg('Kunne ikke sende kode. Prøv igen.');
     } finally {
       setIsSubmitting(false);
@@ -179,7 +179,7 @@ export const Login = () => {
     } catch (err: unknown) {
       const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
       setErrorMsg(message);
-      toast.error(message);
+      notify.error(message);
       setIsSubmitting(false);
     }
   };
@@ -194,11 +194,11 @@ export const Login = () => {
         navigate('/app');
       } else {
         setErrorMsg('Ugyldig kode. Prøv igen.');
-        toast.error('Ugyldig kode. Prøv igen.');
+        notify.error('Ugyldig kode. Prøv igen.');
       }
     } catch {
       setErrorMsg('Ugyldig kode. Prøv igen.');
-      toast.error('Ugyldig kode. Prøv igen.');
+      notify.error('Ugyldig kode. Prøv igen.');
     } finally {
       setIsSubmitting(false);
     }

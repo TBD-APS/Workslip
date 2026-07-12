@@ -57,8 +57,8 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Invalid(errors);
         }
 
-        // Resolve JobType (default to 4v05)
-        var jobType = string.IsNullOrWhiteSpace(request.JobType) ? JobType.Standard : Enum.Parse<JobType>(request.JobType);
+        // Resolve JobType (default to KLS)
+        var jobType = string.IsNullOrWhiteSpace(request.JobType) ? JobType.KLS : Enum.Parse<JobType>(request.JobType);
 
         // Skip work/installation validation for Diverse jobs
         if (jobType != JobType.Diverse && request.Work is not null)
@@ -247,8 +247,8 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
-        // Resolve JobType from request (default to 4v05)
-        var jobType = Enum.TryParse<JobType>(request.JobType, out var parsed) ? parsed : JobType.Standard;
+        // Resolve JobType from request (default to KLS)
+        var jobType = Enum.TryParse<JobType>(request.JobType, out var parsed) ? parsed : JobType.KLS;
 
         // Skip work/installation validation for Diverse jobs
         if (jobType != JobType.Diverse && request.Work is not null)

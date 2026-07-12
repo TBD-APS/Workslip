@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, ChevronRight, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import { ErrorState } from '../../../components/ErrorState';
 import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
@@ -89,7 +89,7 @@ export const CompletedJobReport = () => {
     try {
       await downloadJobReportPdf(job);
     } catch {
-      toast.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
+      notify.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -113,7 +113,7 @@ export const CompletedJobReport = () => {
         }
       }, 60000);
     } catch {
-      toast.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
+      notify.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
     } finally {
       setIsLoadingPreview(false);
     }
@@ -134,7 +134,7 @@ export const CompletedJobReport = () => {
   const handleSaveEdit = async () => {
     const cpValidation = validateControlPoints(details.form, details.referenceData!);
     if (!cpValidation.valid) {
-      toast.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter');
+      notify.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter');
       return;
     }
 
@@ -143,7 +143,7 @@ export const CompletedJobReport = () => {
 
     setIsEditing(false);
     scrollToTop();
-    toast.success(`Sagen ${details.form.reportNumber} er opdateret`);
+    notify.success(`Sagen ${details.form.reportNumber} er opdateret`);
   };
 
   const handleApprove = () => {
@@ -164,14 +164,14 @@ export const CompletedJobReport = () => {
       const message = confirmAction === 'approve'
         ? `Sagen ${details.form.reportNumber} er godkendt`
         : `Sagen ${details.form.reportNumber} er afvist`;
-      toast.success(message);
+      notify.success(message);
       setConfirmAction(null);
       navigate(from);
     } catch {
       const message = confirmAction === 'approve'
         ? `Kunne ikke godkende sagen ${details.form.reportNumber}. Prøv igen.`
         : `Kunne ikke afvise sagen ${details.form.reportNumber}. Prøv igen.`;
-      toast.error(message);
+      notify.error(message);
       setConfirmAction(null);
     }
   };

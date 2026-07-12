@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import {
   Check,
   CheckCircle2,
@@ -30,11 +30,11 @@ export const Settings = () => {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed) return;
     if (!isValidEmail(trimmed)) {
-      toast.error('Ugyldig e-mail-adresse');
+      notify.error('Ugyldig e-mail-adresse');
       return;
     }
     if (emails.includes(trimmed)) {
-      toast.error('E-mail er allerede tilføjet');
+      notify.error('E-mail er allerede tilføjet');
       return;
     }
     setEmails((prev) => [...prev, trimmed]);
@@ -54,7 +54,7 @@ export const Settings = () => {
 
   const handleSendInvites = async () => {
     if (emails.length === 0) {
-      toast.error('Tilføj mindst én e-mail');
+      notify.error('Tilføj mindst én e-mail');
       return;
     }
 
@@ -66,11 +66,11 @@ export const Settings = () => {
           inviteBaseUrl: window.location.origin,
         },
       });
-      toast.success(`${emails.length} invitation(er) sendt`);
+      notify.success(`${emails.length} invitation(er) sendt`);
       setEmails([]);
       queryClient.invalidateQueries({ queryKey: ['/api/auth/invites'] });
     } catch {
-      toast.error('Kunne ikke sende invitationer');
+      notify.error('Kunne ikke sende invitationer');
     }
   };
 

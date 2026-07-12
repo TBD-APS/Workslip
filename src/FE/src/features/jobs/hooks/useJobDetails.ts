@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import {
   getGetApiJobsQueryKey,
   getGetApiJobsIdQueryKey,
@@ -113,9 +113,10 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
       },
       onError: (error) => {
         setSaveStatus('error');
-        toast.error(getSaveErrorMessage(error), { id: 'job-save-error' });
+        notify.error(getSaveErrorMessage(error), { id: 'job-save-error' });
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const initialFormRef = useRef(initialForm);
@@ -159,9 +160,10 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
       },
       onError: () => {
         setAssignmentStatus('error');
-        toast.error('Kunne ikke opdatere tildeling', { id: 'job-assign-error' });
+        notify.error('Kunne ikke opdatere tildeling', { id: 'job-assign-error' });
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const linkMutation = usePostApiJobsIdLinks({
@@ -182,9 +184,10 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
           pendingLinksRef.current.delete(id);
         }
         setLinksStatus('error');
-        toast.error('Kunne ikke opdatere tilknyttede sager', { id: 'job-links-error' });
+        notify.error('Kunne ikke opdatere tilknyttede sager', { id: 'job-links-error' });
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const deleteLinkMutation = useDeleteApiJobsIdLinks({
@@ -205,9 +208,10 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
           pendingLinksRef.current.delete(id);
         }
         setLinksStatus('error');
-        toast.error('Kunne ikke fjerne tilknyttede sager', { id: 'job-links-error' });
+        notify.error('Kunne ikke fjerne tilknyttede sager', { id: 'job-links-error' });
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const upsertWorksheetMutation = usePostApiWorksheetsJobsJobId({
@@ -216,12 +220,13 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         if (jobId) {
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
-        toast.success('Arbejdssedlen er gemt');
+        notify.success('Arbejdssedlen er gemt');
       },
       onError: (error) => {
-        toast.error(getWorksheetErrorMessage(error), { id: 'worksheet-upsert-error' });
+        notify.error(getWorksheetErrorMessage(error), { id: 'worksheet-upsert-error' });
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const deleteWorksheetMutation = useDeleteApiWorksheetsWorksheetIdJobsJobId({
@@ -230,12 +235,13 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         if (jobId) {
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
-        toast.success('Arbejdssedlen er slettet');
+        notify.success('Arbejdssedlen er slettet');
       },
       onError: (error) => {
-        toast.error(getWorksheetDeleteErrorMessage(error), { id: 'worksheet-delete-error' });
+        notify.error(getWorksheetDeleteErrorMessage(error), { id: 'worksheet-delete-error' });
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const submitJobMutation = usePostApiJobsIdStatus({
@@ -245,12 +251,13 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
         queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-        toast.success('Sagen er attesteret og indsendt');
+        notify.success('Sagen er attesteret og indsendt');
       },
       onError: (error) => {
-        toast.error(getSubmitErrorMessage(error), { id: 'job-submit-error' });
+        notify.error(getSubmitErrorMessage(error), { id: 'job-submit-error' });
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   useEffect(() => {
@@ -486,7 +493,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     }
     if (includeWork && validateWork && !isValidWork(draft.form, referenceData)) {
       setSaveStatus('error');
-      toast.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
+      notify.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
         id: 'job-work-validation-error',
       });
       return false;
@@ -508,12 +515,12 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     }
     if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber), requireDestinationAddress: isAdmin })) {
       setSaveStatus('error');
-      toast.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
+      notify.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
       return false;
     }
     if (!isValidWork(draft.form, referenceData)) {
       setSaveStatus('error');
-      toast.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
+      notify.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
         id: 'job-work-validation-error',
       });
       return false;
@@ -522,7 +529,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     const cpValidation = validateControlPoints(draft.form, referenceData);
     if (!cpValidation.valid) {
       setSaveStatus('error');
-      toast.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter', {
+      notify.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter', {
         id: 'job-cp-validation-error',
       });
       return false;
@@ -565,13 +572,13 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     if (nextStep > currentStep) {
       if (!isValidJobForm(form, { reportNumberReadOnly: Boolean(job?.reportNumber), requireDestinationAddress: isAdmin })) {
         setSaveStatus('error');
-        toast.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
+        notify.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
         return;
       }
 
       if (nextStep > 1 && !isValidWork(form, referenceData)) {
         setSaveStatus('error');
-        toast.error(getWorkValidationMessage(form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
+        notify.error(getWorkValidationMessage(form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
           id: 'job-work-validation-error',
         });
         return;

@@ -44,7 +44,7 @@ export const emptyForm: JobForm = {
     irrelevantCategoryIds: [],
     closureFlags: [],
   },
-  jobType: '4v05',
+  jobType: 'KLS',
   timesheets: [],
 };
 
@@ -116,7 +116,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       irrelevantCategoryIds,
       closureFlags: job.work.closureFlags ? job.work.closureFlags.map((flag) => flag.normalizedLabel) : [],
     },
-    jobType: job.jobType === 'Diverse' ? 'Diverse' : '4v05',
+    jobType: job.jobType === 'Diverse' ? 'Diverse' : 'KLS',
     timesheets,
   };
 }

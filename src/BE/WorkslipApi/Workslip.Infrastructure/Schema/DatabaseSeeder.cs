@@ -138,6 +138,7 @@ public static class DatabaseSeeder
                     OrganizationId = organization.Id,
                     CustomerId = customer.Id,
                     CustomerEmail = customer.Email,
+                    JobType = JobType.KLS,
                     CustomerAddress = customer.Address,
                     CustomerContactPerson = customer.ContactPerson,
                     DestinationAddress = f.Address.FullAddress(),
