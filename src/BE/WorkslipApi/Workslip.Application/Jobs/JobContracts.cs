@@ -153,13 +153,27 @@ public sealed record CreateJobRequest(
     bool? CreateCustomerFromSnapshot = null,
     CreateJobWorkRequest? Work = null,
     CreateJobObservationRequest? Observations = null,
-    string? DestinationAddress = null);
+    string? DestinationAddress = null,
+    string? DestinationZipCode = null,
+    string? DestinationCity = null,
+    string? JobType = null,
+    IReadOnlyList<CreateTimesheetRequest>? Timesheets = null);
+
+public sealed record CreateTimesheetRequest(
+    string WorkDate,
+    string UserId,
+    decimal HoursWorked,
+    bool SleptOnJob);
 
 public sealed record UpdateJobRequest(
     CustomerSnapshotData? CustomerSnapshot = null,
     CreateJobWorkRequest? Work = null,
     CreateJobObservationRequest? Observations = null,
-    string? DestinationAddress = null);
+    string? DestinationAddress = null,
+    string? DestinationZipCode = null,
+    string? DestinationCity = null,
+    string? JobType = null,
+    IReadOnlyList<CreateTimesheetRequest>? Timesheets = null);
 
 public sealed record AssignJobRequest(
     IReadOnlyList<Guid> UserIds);
@@ -201,6 +215,11 @@ public sealed record JobListItemResponse(
     string? ReportNumber,
     JobStatus Status,
     DateOnly? ReportDate,
+    Workslip.Domain.JobType JobType,
+    string? DestinationAddress,
+    string? DestinationZipCode,
+    string? DestinationCity,
+    string? TaskDescription,
     IReadOnlyList<string> InstallationTypes,
     JobWorkKindResponse? WorkKind,
     DateTimeOffset CreatedAt,
@@ -218,8 +237,11 @@ public sealed record JobReportResponse(
     CustomerInfo? Customer,
     string? ReportNumber,
     string? DestinationAddress,
+    string? DestinationZipCode,
+    string? DestinationCity,
     JobStatus Status,
     DateOnly? ReportDate,
+    Workslip.Domain.JobType JobType,
     string? TaskDescription,
     string? CustomerObservations,
     string? TechnicalObservations,
@@ -290,6 +312,9 @@ public sealed record JobReportSummaryResponse(
     Guid? CustomerId,
     CustomerSnapshotResponse CustomerSnapshot,
     string? DestinationAddress,
+    string? DestinationZipCode,
+    string? DestinationCity,
+    string JobType,
     JobReportSummaryWorkResponse Work,
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<ControlInstallationTypeResponse> ControlInstallationTypes,

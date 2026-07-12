@@ -9,6 +9,7 @@ import { InviteAccept } from '../features/auth/routes/InviteAccept';
 import { JobList } from '../features/jobs/routes/JobList';
 import { JobDetail } from '../features/jobs/routes/JobDetail';
 import { JobCreate } from '../features/jobs/routes/JobCreate';
+import { SimpleJobCreate } from '../features/jobs/routes/SimpleJobCreate';
 import { CompletedJobReport } from '../features/jobs/routes/CompletedJobReport';
 import { Create } from '../features/create/routes/Create';
 import { UserList } from '../features/users/routes/UserList';
@@ -98,16 +99,16 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <JobList /> },
           { path: 'timer', element: <MyWorksheets /> },
-          { path: 'create', element: <RoleGuard permission="job:create"><Create /></RoleGuard> }, //"BIG BLUE BUTTON"
-          { path: 'job/new', element: <RoleGuard permission="job-from-customer:create"><JobCreate /></RoleGuard> },
+          { path: 'create', element: <Create /> }, //"BIG BLUE BUTTON"
           { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
+          { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
           { path: 'job/:id', element: <JobDetail /> },
           { path: 'completed/:id', element: <CompletedJobReport /> },
           { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
           { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
           { path: 'customers', element: <RoleGuard permission="customer:view"><CustomerList /></RoleGuard> },
-          { path: 'customers/new', element: <CreateCustomerPage /> },
-          { path: 'customers/:id', element: <CustomerDetail /> },
+          { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /> </RoleGuard> },
+          { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /> </RoleGuard>},
           { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
           { path: 'profil', element: <Profile /> },

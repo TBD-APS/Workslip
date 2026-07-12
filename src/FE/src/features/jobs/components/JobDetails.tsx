@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import type { AxiosError } from 'axios';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
@@ -12,6 +12,7 @@ import { DeleteButton } from '../../../components/common/DeleteButton';
 import { useCan, useIsAdmin } from '../../../providers/permissions';
 import { isValidJobForm, isValidWork } from '../utils';
 import { formatDateLong } from '../../../lib/formatDate';
+import { formatJobType } from '../statusLabels';
 import { ControlPointsStep } from './steps/ControlPointsStep';
 import { validateControlPoints } from './steps/controlPointsValidation';
 import { JobAttestationStep } from './steps/JobAttestationStep';
@@ -51,11 +52,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-        toast.success('Sagen er slettet');
+        notify.success('Sagen er slettet');
         onDone();
       },
       onError: (error) => {
-        toast.error(getJobDeleteErrorMessage(error));
+        notify.error(getJobDeleteErrorMessage(error));
       },
     },
   });
@@ -65,7 +66,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
     if (!details.job?.id) return;
 
     if (details.worksheets.length > 0) {
-      toast.error(getAttachedWorksheetsMessage(details.worksheets.length));
+      notify.error(getAttachedWorksheetsMessage(details.worksheets.length));
       return;
     }
 
@@ -144,7 +145,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       for (let i = details.currentStep; i < nextStep; i++) {
         if (!canAdvanceStep(details, i, isAdmin)) {
           const reason = getNextDisabledReason(details, i);
-          if (reason) toast.error(reason);
+          if (reason) notify.error(reason);
           return;
         }
       }
@@ -159,6 +160,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       <JobDetailsHeader
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
+        jobType={details.job.jobType}
         onBack={handleBack}
         onDelete={canDeleteJob ? handleDelete : undefined}
         onShowHistory={() => setHistoryOpen(true)}
@@ -330,19 +332,20 @@ function isOnlyOperationMaintenance(flags: string[]): boolean {
 type HeaderProps = {
   title: string;
   jobNumber: string;
+  jobType?: string;
   onBack: () => void;
   onDelete?: () => void;
   onShowHistory: () => void;
 };
 
-function JobDetailsHeader({ title, jobNumber, onBack, onDelete, onShowHistory }: HeaderProps) {
+function JobDetailsHeader({ title, jobNumber, jobType, onBack, onDelete, onShowHistory }: HeaderProps) {
   return (
     <div className="detail-header">
       <button className="btn-icon" onClick={onBack} aria-label="Tilbage">
         <ArrowLeft size={22} />
       </button>
       <div>
-        <span className="job-number">{jobNumber}</span>
+        <span className="job-number">{jobNumber} &middot; {jobType && formatJobType(jobType)}</span>
         <h2 className="detail-title">{title}</h2>
       </div>
       <div className="detail-header-actions">

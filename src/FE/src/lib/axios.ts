@@ -1,6 +1,15 @@
 import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
-import { toast } from 'sonner';
+import { notify } from './toast';
+
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    // When true, the global response interceptor will not emit an error toast.
+    // Set this on requests whose callers handle (and translate) errors locally,
+    // to avoid stacking the raw backend message on top of the friendly message.
+    skipGlobalErrorToast?: boolean;
+  }
+}
 import qs from 'qs';
 import {
   AUTH_TOKEN_KEY,
@@ -111,7 +120,7 @@ apiClient.interceptors.response.use(
           // Dismiss any leftover toasts before the page navigation — Sonner
           // toasts otherwise persist across navigations and can show stale
           // errors from the previous page once the user returns from Microsoft.
-          toast.dismiss();
+          notify.dismiss();
           // No toast: the Login page already shows its own "Genindlæser login..."
           // spinner, and adding "Fornyer login..." here would leak into the
           // user's view after they return from Microsoft.
@@ -129,18 +138,21 @@ apiClient.interceptors.response.use(
         AuthStorage.removeItem(AUTH_TOKEN_KEY);
         AuthStorage.removeItem(USER_EMAIL_KEY);
       }
+    } else if (error.config?.skipGlobalErrorToast) {
+      // Caller handles (and translates) this error locally. Suppress the global
+      // toast so the raw backend message is not shown alongside the friendly one.
     } else if (error.response?.status === 403) {
-      toast.error('Du har ikke adgang til denne handling');
+      notify.error('Du har ikke adgang til denne handling');
     } else if (error.response?.status === 400 && error.response?.data?.errors) {
       // ValidationProblem from backend
-      toast.error('Ugyldig indtastning. Tjek venligst felterne.');
+      notify.error('Ugyldig indtastning. Tjek venligst felterne.');
     } else if (error.response?.status === 409) {
       // Conflict
-      toast.error(`Konflikt: ${error.response.data.error || message}`);
+      notify.error(`Konflikt: ${error.response.data.error || message}`);
     } else if (message) {
-      toast.error(message);
+      notify.error(message);
     } else {
-      toast.error('Der opstod en uventet fejl');
+      notify.error('Der opstod en uventet fejl');
     }
 
     return Promise.reject(error);

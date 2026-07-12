@@ -205,8 +205,8 @@
   display: flex;
   justify-content: space-around;
   align-items: center;
-  height: calc(80px + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
+  height: auto;
+  padding-top: 10px;
   z-index: 100;
 }
 
@@ -593,6 +593,15 @@
   white-space: nowrap;
 }
 
+.job-number-sep {
+  margin: 0 0.35rem;
+  opacity: 0.5;
+}
+
+.job-number-status {
+  font-weight: 500;
+}
+
 .job-customer {
   font-family: var(--font-heading);
   font-size: var(--fs-lg);
@@ -664,6 +673,33 @@
   letter-spacing: 0.3px;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.job-card-badges {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.job-type-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.job-type-v4v05 {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
+}
+
+.job-type-diverse {
+  background: color-mix(in srgb, var(--color-info, #6366f1) 15%, transparent);
+  color: var(--color-info, #6366f1);
 }
 
 
@@ -1521,6 +1557,17 @@
   background: var(--surface-selected);
 }
 
+/* Solid blue selected state for the job work steps:
+   Anlægstyper, Opgavetype and Kontrolpunkter. Scoped so shared
+   dropdowns (SingleSelect/MultiSelect) keep their default styling. */
+.category-choice-grid .choice-card.selected,
+.work-kind-list .work-kind-option.selected,
+.control-points-list .multi-select-option.selected {
+  border-color: var(--primary);
+  border: 1px solid var(--primary);
+  background-color: white;
+}
+
 .selection-pill {
   flex-shrink: 0;
   margin-left: auto;
@@ -1643,6 +1690,69 @@
   margin: 0.1rem 0 0;
   color: var(--status-red-text);
   font-size: var(--fs-xs);
+}
+
+.address-autocomplete {
+  position: relative;
+}
+
+.address-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.address-spinner {
+  position: absolute;
+  right: 0.6rem;
+  color: var(--text-muted);
+  animation: spin 0.8s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.address-suggestions {
+  position: absolute;
+  z-index: 100;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.address-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  transition: background 0.1s;
+}
+
+.address-suggestion-item:hover,
+.address-suggestion-item:focus {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+  outline: none;
+}
+
+.address-suggestion-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .form-readonly-list {
@@ -2244,26 +2354,6 @@
     100% { opacity: 1; }
   }
 
-  .data-table .status-badge-cell.cell-status-0 {
-    background: var(--status-blue-bg);
-    color: var(--status-blue-text);
-  }
-
-  .data-table .status-badge-cell.cell-status-1 {
-    background: var(--status-amber-bg);
-    color: var(--status-amber-text);
-  }
-
-  .data-table .status-badge-cell.cell-status-2 {
-    background: var(--status-green-bg);
-    color: var(--status-green-text);
-  }
-
-  .data-table .status-badge-cell.cell-status-3 {
-    background: var(--status-red-bg);
-    color: var(--status-red-text);
-  }
-
   .data-table .cell-number {
     font-variant-numeric: tabular-nums;
   }
@@ -2568,6 +2658,14 @@
   border-radius: 0;
   padding: 0.45rem 0;
   min-height: 0;
+}
+
+.worksheet-list-item--detail:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.worksheet-list-item--detail.worksheet-list-item--editing {
+  border-bottom: none;
 }
 
 .worksheet-list-item--detail .worksheet-list-item-badge,
@@ -2910,17 +3008,6 @@
   font-size: var(--fs-body);
   font-weight: 400;
   margin-top: 0.75rem;
-  background: var(--surface-selected);
-  border-color: var(--border);
-  box-shadow: none;
-}
-
-@media (hover: hover) {
-.worksheet-add-trigger-cta:hover {
-  background: var(--surface-selected-strong);
-  border-color: var(--focus-ring);
-  transform: translateY(-1px);
-}
 }
 
 /* ------------------------------------------------------------
@@ -5233,5 +5320,22 @@
   color: var(--text-muted);
   transition: transform 0.2s;
   margin-left: auto;
+}
+
+@keyframes toast-shake-a {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+@keyframes toast-shake-b {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+.toast-shake [data-content] {
+  animation: toast-shake-a 0.4s ease;
+}
+.toast-shake.toast-shake-alt [data-content] {
+  animation: toast-shake-b 0.4s ease;
 }
 

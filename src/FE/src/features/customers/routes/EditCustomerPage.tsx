@@ -5,7 +5,7 @@ import { useGetApiCustomersId } from '../../../api/generated/customers/customers
 import { apiClient } from '../../../lib/axios';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetApiCustomersQueryKey, getGetApiCustomersIdQueryKey } from '../../../api/generated/customers/customers';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
 
@@ -99,10 +99,10 @@ export const EditCustomerPage = () => {
 
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersIdQueryKey(customer.id) });
-      toast.success('Kunden er opdateret.');
+      notify.success('Kunden er opdateret.');
       navigate(`/app/customers/${customer.id}`);
     } catch {
-      toast.error('Kunne ikke opdatere kunden. Prøv igen.');
+      notify.error('Kunne ikke opdatere kunden. Prøv igen.');
     } finally {
       setIsSaving(false);
     }

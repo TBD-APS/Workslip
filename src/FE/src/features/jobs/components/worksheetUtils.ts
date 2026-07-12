@@ -1,8 +1,10 @@
 import { formatDateLong } from '../../../lib/formatDate';
+
 export type WorksheetDraft = {
+  id?: string;
   userId: string;
   workDate: string;
-  hours: string;
+  hours: string | number;
   sleptOnJob: boolean;
 };
 
@@ -73,13 +75,58 @@ export function defaultDraft(defaultUserId: string): WorksheetDraft {
   };
 }
 
-export function initialWorksheetUiState(defaultUserId: string): WorksheetUiState {
+type ValidatableEntry = { userId: string; workDate: string; id?: string; hours?: string | number; hoursWorked?: string | number };
+
+function entryHours(e: ValidatableEntry): string | number {
+  return e.hoursWorked ?? e.hours!;
+}
+
+export type WorksheetValidationError = { error: string };
+export type WorksheetValidationSuccess = { hours: number };
+export type WorksheetValidationResult = WorksheetValidationError | WorksheetValidationSuccess;
+
+export function validateWorksheetDraft(
+  draft: WorksheetDraft,
+  existing: ValidatableEntry[],
+  excludeId?: string,
+): WorksheetValidationResult {
+  if (!draft.userId) {
+    return { error: 'Vælg en montør.' };
+  }
+
+  const hoursNumber = parseHours(draft.hours);
+  if (!Number.isFinite(hoursNumber) || hoursNumber <= 0) {
+    return { error: 'Timer skal være større end 0.' };
+  }
+
+  if (hoursNumber > 24) {
+    return { error: 'Timer kan ikke overstige 24 på en dag.' };
+  }
+
+  const scaledHours = hoursNumber * 4;
+  if (Math.abs(scaledHours - Math.round(scaledHours)) > 1e-9) {
+     return { error: 'Timer skal angives i intervaller af 0,25.' };
+  }
+
+  const existingTotal = existing
+    .filter(e => e.id !== excludeId)
+    .filter(e => e.userId === draft.userId && dateKey(e.workDate) === dateKey(draft.workDate))
+    .reduce((total, e) => total + parseHours(entryHours(e)), 0);
+
+  if (!Number.isFinite(existingTotal) || existingTotal + hoursNumber > 24) {
+    return { error: 'Montøren kan ikke registrere mere end 24 timer på samme dato.' };
+  }
+
+  return { hours: hoursNumber };
+}
+
+export function initialWorksheetUiState(defaultUserId: string, isAddOpen = false): WorksheetUiState {
   return {
     addDraft: defaultDraft(defaultUserId),
     editDraft: null,
     editingWorksheetId: null,
     openActionMenu: null,
-    isAddOpen: false,
+    isAddOpen,
     formError: null,
   };
 }

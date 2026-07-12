@@ -525,14 +525,14 @@ public sealed class SqlDbContext : DbContext
 
         entity.Property(e => e.ReportNumber).HasMaxLength(80);
 
-
-
-        entity.Property(e => e.Status)
+entity.Property(e => e.Status)
 
             .HasMaxLength(40)
 
             .IsRequired();
 
+
+        entity.Property(e => e.JobType).HasColumnType("nvarchar(max)");
 
 
         entity.Property(e => e.ReportDate).HasColumnType("date");
@@ -560,6 +560,10 @@ public sealed class SqlDbContext : DbContext
         entity.Property(e => e.CustomerAddress);
 
         entity.Property(e => e.DestinationAddress);
+
+        entity.Property(e => e.DestinationZipCode).HasMaxLength(10);
+
+        entity.Property(e => e.DestinationCity).HasMaxLength(200);
 
 
 

@@ -14,8 +14,11 @@ public sealed class JobReportRow : IJobRelated
     public string? CustomerAddress { get; init; }
     public string? CustomerContactPerson { get; set; }
     public string? DestinationAddress { get; init; }
+    public string? DestinationZipCode { get; init; }
+    public string? DestinationCity { get; init; }
     public string? ReportNumber { get; init; }
     public string Status { get; init; } = "";
+    public JobType JobType { get; init; } = JobType.KLS;
     public DateTime? ReportDate { get; init; }
     public string? TaskDescription { get; init; }
     public string? CustomerObservations { get; init; }

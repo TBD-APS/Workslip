@@ -31,6 +31,8 @@ export const emptyForm: JobForm = {
   createCustomer: false,
   reportNumber: '',
   destinationAddress: '',
+  destinationZipCode: '',
+  destinationCity: '',
   taskDescription: '',
   customerObservations: '',
   technicalObservations: '',
@@ -42,6 +44,8 @@ export const emptyForm: JobForm = {
     irrelevantCategoryIds: [],
     closureFlags: [],
   },
+  jobType: 'KLS',
+  timesheets: [],
 };
 
 export function getLinkableJobs(
@@ -78,6 +82,14 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
     }
   }
 
+  // Get timesheets from job if available
+  const timesheets = job.worksheets?.map(ws => ({
+    workDate: ws.workDate,
+    userId: ws.userId,
+    hours: String(ws.hoursWorked),
+    sleptOnJob: ws.sleptOnJob,
+  })) ?? [];
+
   return {
     customerId: job.customerId ?? null,
     createCustomer: false,
@@ -91,6 +103,8 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
     editSnapshot: false,
     reportNumber: job.reportNumber ?? '',
     destinationAddress: job.destinationAddress ?? '',
+    destinationZipCode: job.destinationZipCode ?? '',
+    destinationCity: job.destinationCity ?? '',
     taskDescription: job.observations.taskDescription ?? '',
     customerObservations: job.observations.customerObservations ?? '',
     technicalObservations: job.observations.technicalObservations ?? '',
@@ -102,6 +116,8 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       irrelevantCategoryIds,
       closureFlags: job.work.closureFlags ? job.work.closureFlags.map((flag) => flag.normalizedLabel) : [],
     },
+    jobType: job.jobType === 'Diverse' ? 'Diverse' : 'KLS',
+    timesheets,
   };
 }
 
@@ -135,6 +151,12 @@ export function toUpdateRequest(
     destinationAddress: job.destinationAddress
       ? null
       : (initial.destinationAddress !== form.destinationAddress ? form.destinationAddress.trim() || null : null),
+    destinationZipCode: job.destinationZipCode
+      ? null
+      : (initial.destinationZipCode !== form.destinationZipCode ? form.destinationZipCode.trim() || null : null),
+    destinationCity: job.destinationCity
+      ? null
+      : (initial.destinationCity !== form.destinationCity ? form.destinationCity.trim() || null : null),
     reportNumber: job.reportNumber
       ? null
       : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),
@@ -191,6 +213,8 @@ export function sameFormWithoutWork(left: JobForm, right: JobForm) {
     sameSnapshot(left.customerSnapshot, right.customerSnapshot) &&
     left.reportNumber === right.reportNumber &&
     left.destinationAddress === right.destinationAddress &&
+    left.destinationZipCode === right.destinationZipCode &&
+    left.destinationCity === right.destinationCity &&
     left.taskDescription === right.taskDescription &&
     left.customerObservations === right.customerObservations &&
     left.technicalObservations === right.technicalObservations
@@ -225,6 +249,14 @@ export function sameWork(left: JobForm, right: JobForm) {
 }
 
 export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean; requireDestinationAddress?: boolean }) {
+  // For Diverse jobs, skip customer/work validation
+  if (form.jobType === 'Diverse') {
+    return (
+      (options?.reportNumberReadOnly || form.reportNumber.trim().length > 0) &&
+      (!options?.requireDestinationAddress || form.destinationAddress.trim().length > 0)
+    );
+  }
+
   const name = form.customerSnapshot?.name ?? null;
   const email = form.customerSnapshot?.email ?? null;
   const phone = form.customerSnapshot?.phone ?? null;

@@ -11,6 +11,8 @@ import type { CustomerSearchViewModel, CustomerSnapshotData, UserViewModel } fro
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
+import { type AddressSuggestion } from '../hooks/useAddressAutocomplete';
+import { AddressAutocomplete } from './AddressAutocomplete';
 
 
 type CustomerBlockProps = {
@@ -30,12 +32,34 @@ type CustomerBlockProps = {
 
 type DestinationAddressBlockProps = {
   value: string;
+  zipCode: string;
+  city: string;
   onChange: (value: string) => void;
+  onZipCodeChange: (value: string) => void;
+  onCityChange: (value: string) => void;
   required?: boolean;
   error?: string;
 };
 
-export function DestinationAddressBlock({ value, onChange, required, error }: DestinationAddressBlockProps) {
+export function DestinationAddressBlock({ value, zipCode, city, onChange, onZipCodeChange, onCityChange, required, error }: DestinationAddressBlockProps) {
+  const displayValue = useMemo(() => {
+    if (zipCode && city && value) return `${value}, ${zipCode} ${city}`;
+    if (value) return value;
+    return '';
+  }, [value, zipCode, city]);
+
+  const handleTextChange = useCallback((text: string) => {
+    onChange(text);
+    onZipCodeChange('');
+    onCityChange('');
+  }, [onChange, onZipCodeChange, onCityChange]);
+
+  const handleSelect = useCallback((suggestion: AddressSuggestion) => {
+    onChange(suggestion.street);
+    onZipCodeChange(suggestion.zipCode);
+    onCityChange(suggestion.city);
+  }, [onChange, onZipCodeChange, onCityChange]);
+
   return (
     <section className="detail-section">
       <div className="detail-form">
@@ -43,16 +67,14 @@ export function DestinationAddressBlock({ value, onChange, required, error }: De
           <FileText size={18} />
           <h3>Adresse (destination){required && <span className="required-asterisk">*</span>}</h3>
         </div>
-        <div className="form-group" data-field-error="destinationAddress">
-          <input
-            className={`form-input${error ? ' form-input-invalid' : ''}`}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Indsæt adresse..."
-            required={required}
-          />
-          {error && <p className="form-error-text">{error}</p>}
-        </div>
+        <AddressAutocomplete
+          value={displayValue}
+          error={error}
+          required={required}
+          placeholder="Søg adresse..."
+          onTextChange={handleTextChange}
+          onSelectSuggestion={handleSelect}
+        />
       </div>
     </section>
   );
@@ -154,12 +176,12 @@ export function CustomerDetailsBlock({
           </div>
           <div className="form-group">
             <label className="form-label">Adresse</label>
-            <input
-              className="form-input"
+            <AddressAutocomplete
               value={displayValue('address')}
-              onChange={(e) => handleFieldChange('address', e.target.value)}
               placeholder="Adresse"
               readOnly={isFieldReadOnly()}
+              onTextChange={(text) => handleFieldChange('address', text)}
+              onSelectSuggestion={(s) => handleFieldChange('address', s.display)}
             />
           </div>
           <div className="form-group" data-field-error="email">

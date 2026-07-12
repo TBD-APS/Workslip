@@ -31,7 +31,12 @@ public sealed record JobListItemViewModel(
     decimal? TotalHours,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateOnly? ReportDate);
+    DateOnly? ReportDate,
+    string JobType,
+    string? DestinationAddress,
+    string? DestinationZipCode,
+    string? DestinationCity,
+    string? TaskDescription);
 
 public sealed record JobReportSummaryViewModel(
     Guid Id,
@@ -41,6 +46,8 @@ public sealed record JobReportSummaryViewModel(
     Guid? CustomerId,
     CustomerSnapshotResponse CustomerSnapshot,
     string? DestinationAddress,
+    string? DestinationZipCode,
+    string? DestinationCity,
     JobReportSummaryWorkResponse Work,
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<JobLinkInfoResponse> Links,
@@ -48,7 +55,8 @@ public sealed record JobReportSummaryViewModel(
     IReadOnlyList<WorksheetResponse> Worksheets,
     decimal? TotalHours, 
     int? TotalOutlay,
-    bool SoftDeleted);
+    bool SoftDeleted,
+    string JobType);
 
 public sealed record JobLinkViewModel(
     Guid Id,
@@ -72,7 +80,12 @@ public static class JobViewModelBuilder
         job.TotalHours,
         job.CreatedAt,
         job.UpdatedAt,
-        job.ReportDate);
+        job.ReportDate,
+        job.JobType.ToString(),
+        job.DestinationAddress,
+        job.DestinationZipCode,
+        job.DestinationCity,
+        job.TaskDescription);
 
     public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
         summary.Id,
@@ -87,6 +100,8 @@ public static class JobViewModelBuilder
             summary.CustomerSnapshot.Address,
             summary.CustomerSnapshot.ContactPerson),
         summary.DestinationAddress,
+        summary.DestinationZipCode,
+        summary.DestinationCity,
         summary.Work,
         summary.Observations,
         summary.Links,
@@ -94,7 +109,8 @@ public static class JobViewModelBuilder
         summary.Worksheets,
         summary.TotalHours,
         summary.TotalOutlay,
-        summary.SoftDeleted);
+        summary.SoftDeleted,
+        summary.JobType);
 
     public static JobLinkViewModel ToLink(JobLinkResponse link) => new(
         link.Id,

@@ -14,7 +14,6 @@ import { hasAnyRole, normalizeRole } from './roles';
 
 export type Permission =
   | 'job:create'
-  | 'job-from-customer:create'
   | 'job:assign'
   | 'job:delete'
   | 'job:viewAll'
@@ -31,8 +30,7 @@ const AUDITOR_PERMISSIONS: readonly Role[] = [ROLES.Auditor, ROLES.Admin, ROLES.
 const USER_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
 
 const PERMISSIONS: Record<Permission, readonly Role[]> = {
-  'job:create': ADMIN_PERMISSIONS,
-  'job-from-customer:create': USER_PERMISSIONS,
+  'job:create': USER_PERMISSIONS, 
   'job:assign': ADMIN_PERMISSIONS,
   'job:delete': ADMIN_PERMISSIONS,
   'job:viewAll': ADMIN_PERMISSIONS,

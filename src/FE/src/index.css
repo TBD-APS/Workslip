@@ -10,7 +10,7 @@
   --surface-border: var(--border);
   --surface-overlay: rgba(0, 0, 0, 0.6);
   --danger-hover: #b91c1c;
-  --text: #f5f5f7;
+  --text: #e6e6e6;
   --text-muted: #a1a1aa;
   --text-dim: rgba(255, 255, 255, 0.4);
   --surface-floating: #0e0e16;
@@ -800,4 +800,115 @@ footer {
     width: 100%;
     max-width: 300px;
   }
+}
+/* Job type selector */
+.job-type-selector {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.job-type-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.job-type-tabs {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--surface-hover);
+  padding: 0.25rem;
+  border-radius: 8px;
+}
+
+.job-type-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.875rem 1rem;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  flex: 1;
+  text-align: left;
+}
+
+.job-type-tab:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.job-type-tab.active {
+  background: var(--primary);
+  color: white;
+}
+
+.job-type-tab svg {
+  flex-shrink: 0;
+}
+
+.job-type-desc {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.job-type-tab.active .job-type-desc {
+  opacity: 0.9;
+}
+/* Simple job inline worksheet */
+.worksheet-inline-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.worksheet-inline-section .section-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.worksheet-inline-section .section-header-row h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.worksheet-inline-section .worksheet-form {
+  max-width: 600px;
+}
+/* Timesheet summary rows in simple job create */
+.timesheet-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-hover);
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.timesheet-summary-row span {
+  color: var(--text-primary);
+}
+
+.timesheet-summary-row .btn-icon {
+  color: var(--text-secondary);
+  padding: 0.25rem;
+}
+
+.timesheet-summary-row .btn-icon:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
 }

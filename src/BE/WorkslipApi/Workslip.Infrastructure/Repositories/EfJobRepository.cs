@@ -83,8 +83,11 @@ public sealed class EfJobRepository : IJobRepository
             CustomerPhone = customerSnapshot?.Phone,
             CustomerAddress = customerSnapshot?.Address,
             DestinationAddress = request.DestinationAddress,
+            DestinationZipCode = request.DestinationZipCode,
+            DestinationCity = request.DestinationCity,
             ReportNumber = reportNumber,
             Status = JobStatus.Draft.ToString(),
+            JobType = Enum.TryParse<JobType>(request.JobType, out var jobType) ? jobType : JobType.Unknown,
             ReportDate = ToDateTime(request.Observations?.ReportDate),
             TaskDescription = request.Observations?.TaskDescription,
             CustomerObservations = request.Observations?.CustomerObservations,
@@ -106,6 +109,12 @@ public sealed class EfJobRepository : IJobRepository
             await AddClosureFlagsAsync(organizationId, reportId, request.Work.ClosureFlags, cancellationToken);
         }
 
+        // Create timesheets if provided (before saving to ensure transaction atomicity)
+        if (request.Timesheets?.Count > 0)
+        {
+            await CreateTimesheetsAsync(organizationId, reportId, request.Timesheets, now, cancellationToken);
+        }
+
         var normalizedUserIds = assignedUserIds.Where(id => id != Guid.Empty).Distinct().ToArray();
         await _assignmentRepo.AddAssignedUsersAsync(organizationId, reportId, normalizedUserIds, actorId, now, cancellationToken);
         
@@ -114,6 +123,52 @@ public sealed class EfJobRepository : IJobRepository
 
         var job = await GetSingleJobAsync(reportId, organizationId, cancellationToken);
         return job!;
+    }
+
+private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, IReadOnlyList<CreateTimesheetRequest> timesheets, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var worksheetRows = timesheets.Select(ts => new WorksheetRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            JobId = jobReportId,
+            UserId = Guid.Parse(ts.UserId),
+            WorkDate = DateOnly.Parse(ts.WorkDate).ToDateTime(TimeOnly.MinValue),
+            HoursWorked = ts.HoursWorked,
+            SleptOnJob = ts.SleptOnJob,
+            CreatedAt = now,
+            UpdatedAt = now
+        }).ToList();
+
+        _dbContext.Worksheets.AddRange(worksheetRows);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SyncTimesheetsAsync(Guid organizationId, Guid jobReportId, IReadOnlyList<CreateTimesheetRequest> timesheets, CancellationToken cancellationToken)
+    {
+        // Delete existing timesheets for this job
+        var existingTimesheets = await _dbContext.Worksheets
+            .Where(w => w.JobId == jobReportId && w.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        _dbContext.Worksheets.RemoveRange(existingTimesheets);
+
+        // Add new timesheets
+        var now = DateTimeOffset.UtcNow;
+        var worksheetRows = timesheets.Select(ts => new WorksheetRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            JobId = jobReportId,
+            UserId = Guid.Parse(ts.UserId),
+            WorkDate = DateOnly.Parse(ts.WorkDate).ToDateTime(TimeOnly.MinValue),
+            HoursWorked = ts.HoursWorked,
+            SleptOnJob = ts.SleptOnJob,
+            CreatedAt = now,
+            UpdatedAt = now
+        }).ToList();
+
+        _dbContext.Worksheets.AddRange(worksheetRows);
     }
 
     public Task<JobListResponse> ListAsync(JobQuery query, CancellationToken cancellationToken) =>
@@ -153,6 +208,11 @@ public sealed class EfJobRepository : IJobRepository
                 job.ReportNumber,
                 job.Status,
                 job.ReportDate,
+                job.JobType,
+                job.DestinationAddress,
+                job.DestinationZipCode,
+                job.DestinationCity,
+                job.TaskDescription,
                 WorkKind = job.WorkKindRow != null ? new JobWorkKindResponse(
                     job.WorkKindRow.Id,
                     job.WorkKindRow.NormalizedLabel,
@@ -216,6 +276,11 @@ public sealed class EfJobRepository : IJobRepository
                 x.Id, x.OrganizationId,
                 customerInfo,
                 x.ReportNumber, JobReportMapper.ParseStatus(x.Status), JobReportMapper.ToDateOnly(x.ReportDate),
+                x.JobType,
+                x.DestinationAddress,
+                x.DestinationZipCode,
+                x.DestinationCity,
+                x.TaskDescription,
                 installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
                 x.CreatedAt, x.UpdatedAt,
                 assignedUsersByReport.GetValueOrDefault(x.Id) ?? [],
@@ -316,6 +381,12 @@ public sealed class EfJobRepository : IJobRepository
         if (request.DestinationAddress is not null)
             entry.Property(e => e.DestinationAddress).CurrentValue = request.DestinationAddress;
 
+        if (request.DestinationZipCode is not null)
+            entry.Property(e => e.DestinationZipCode).CurrentValue = request.DestinationZipCode;
+
+        if (request.DestinationCity is not null)
+            entry.Property(e => e.DestinationCity).CurrentValue = request.DestinationCity;
+
         if (request.Observations is not null)
         {
             if (request.Observations.ReportDate is not null)
@@ -344,11 +415,18 @@ public sealed class EfJobRepository : IJobRepository
                 await SyncSelectedInstallationsAsync(organizationId, id, request.Work.InstallationTypes, cancellationToken);
             }
 
-            if (request.Work.ClosureFlags is not null)
+if (request.Work.ClosureFlags is not null)
             {
                 await SyncClosureFlagsAsync(organizationId, id, request.Work.ClosureFlags, cancellationToken);
             }
         }
+
+        // Update timesheets if provided (replace all)
+        if (request.Timesheets != null)
+        {
+            await SyncTimesheetsAsync(organizationId, id, request.Timesheets, cancellationToken);
+        }
+
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
 
         await _dbContext.SaveChangesAsync(cancellationToken);

@@ -30,6 +30,9 @@ internal static class AuditDisplayNames
         { "CustomerEmail", "Kunde e-mail" },
         { "CustomerPhone", "Kundes telefon" },
         { "CustomerAddress", "Kundeadresse" },
+        { "DestinationAddress", "Adresse (destination)" },
+        { "DestinationZipCode", "Destination postnummer" },
+        { "DestinationCity", "Destination by" },
         { "JobId", "Sag" },
         { "ReportId", "Sag" },
         { "ReportNumber", "Sagsnummer" },
@@ -55,7 +58,6 @@ internal static class AuditDisplayNames
         { "IsChecked", "Afkrydset" },
         { "IsIrrelevant", "Ikke relevant" },
         { "CustomerContactPerson", "Kundens kontaktperson" },
-        { "DestinationAddress", "Adresse (destination)" },
         { "SubmittedAt", "Attesteret" },
         { "IsSoftDeleted", "Slettet" },
         { "DeletionScheduledAt", "Sletning planlagt" }

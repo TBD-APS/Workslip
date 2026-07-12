@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Building2, ClipboardList, FileText, Wrench } from 'lucide-react';
+import { Building2, ClipboardList, FileText, Wrench, FileSpreadsheet } from 'lucide-react';
 
 
 export type DocumentTypeStatus = 'available' | 'coming_soon';
@@ -17,11 +17,19 @@ export interface DocumentType {
 export const DOCUMENT_TYPES: readonly DocumentType[] = [
   {
     id: 'job',
-    label: 'Job',
-    description: 'Opret en ny sag til en kunde.',
+    label: '4v05-rapport',
+    description: 'Opret en ny kls-sag på en kunde.',
     icon: ClipboardList,
     path: '/app/job/new',
     permission: 'job:create',
+    status: 'available',
+  },
+  {
+    id: 'Diverse-job',
+    label: 'Diverse job',
+    description: 'Opret et diverse job',
+    icon: FileSpreadsheet,
+    path: '/app/job/simple/new',
     status: 'available',
   },
   {

@@ -21,6 +21,7 @@ public static class WorksheetMapper
         public bool HasOutlay { get; init; }
         public decimal HoursWorked { get; init; }
         public string UserDisplayName { get; init; } = "";
+        public string? JobType { get; init; }
     }
 
     public static IReadOnlyList<WorksheetUserGroupResponse> ToGroupedResponse(

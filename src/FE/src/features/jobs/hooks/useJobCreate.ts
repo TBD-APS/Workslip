@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
-import { toast } from 'sonner';
+import { notify } from '../../../lib/toast';
 import {
   usePostApiJobs,
   usePostApiJobsIdAssign,
@@ -17,12 +17,13 @@ import { emptyForm, isValidCreateForm } from '../utils';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import type { CreateJobRequest } from '../../../api/generated/models';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
-import type { JobForm } from '../types';
+import type { JobForm, WorksheetDraft } from '../types';
 import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustomerSnapshot';
 
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
   createCustomerFromSnapshot?: boolean;
+  jobType: 'KLS' | 'Diverse' | 'Unknown';
 };
 
 export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: JobForm) {
@@ -63,32 +64,35 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
         Promise.all(promises).then(() => {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
           setIsSaving(false);
-          toast.success('Sagen er oprettet');
+          notify.success('Sagen er oprettet');
           onCreated(jobId);
         }).catch((error) => {
           setIsSaving(false);
-          toast.error('Sagen er oprettet, men tildeling mislykkedes', { id: 'job-assign-error' });
+          notify.error('Sagen er oprettet, men tildeling mislykkedes', { id: 'job-assign-error' });
           console.error('Assignment failed:', error);
           onCreated(jobId);
         });
       },
       onError: (error) => {
         setIsSaving(false);
-        toast.error(getCreateErrorMessage(error), { id: 'job-create-error' });
+        notify.error(getCreateErrorMessage(error), { id: 'job-create-error' });
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const linkMutation = usePostApiJobsIdLinks({
     mutation: {
       onSuccess: () => setLinksStatus('saved'),
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const assignMutation = usePostApiJobsIdAssign({
     mutation: {
       onSuccess: () => setAssignmentStatus('saved'),
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const { selectCustomer, updateEditSnapshot, hasCustomerChanges } = useCustomerSnapshot(setForm);
@@ -109,6 +113,33 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const updateDestinationAddress = (value: string) => {
     setForm((prev) => ({ ...prev, destinationAddress: value }));
     clearFieldError('destinationAddress');
+  };
+
+  const updateDestinationZipCode = (value: string) => {
+    setForm((prev) => ({ ...prev, destinationZipCode: value }));
+    clearFieldError('destinationZipCode');
+  };
+
+  const updateDestinationCity = (value: string) => {
+    setForm((prev) => ({ ...prev, destinationCity: value }));
+  };
+
+  const updateJobType = (value: 'KLS' | 'Diverse') => {
+    setForm((prev) => ({ ...prev, jobType: value }));
+    // Clear customer-related errors when switching to Diverse
+    if (value === 'Diverse') {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.customerName;
+        delete next.email;
+        delete next.phone;
+        return next;
+      });
+    }
+  };
+
+  const updateTimesheets = (timesheets: WorksheetDraft[]) => {
+    setForm((prev) => ({ ...prev, timesheets }));
   };
 
   const updateTaskDescription = (value: string) => {
@@ -174,13 +205,17 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
 
   function computeFieldErrors(): Record<string, string> {
     const errors: Record<string, string> = {};
-    const name = form.customerSnapshot?.name ?? null;
-    const email = form.customerSnapshot?.email ?? null;
-    const phone = form.customerSnapshot?.phone ?? null;
 
-    if ((name?.trim().length ?? 0) === 0) errors.customerName = 'Kundenavn er påkrævet';
-    if (validateEmail(email) !== null) errors.email = validateEmail(email)!;
-    if (validatePhoneNumber(phone) !== null) errors.phone = validatePhoneNumber(phone)!;
+    if (form.jobType === 'KLS') {
+      const name = form.customerSnapshot?.name ?? null;
+      const email = form.customerSnapshot?.email ?? null;
+      const phone = form.customerSnapshot?.phone ?? null;
+
+      if ((name?.trim().length ?? 0) === 0) errors.customerName = 'Kundenavn er påkrævet';
+      if (validateEmail(email) !== null) errors.email = validateEmail(email)!;
+      if (validatePhoneNumber(phone) !== null) errors.phone = validatePhoneNumber(phone)!;
+    }
+
     if (isAdmin && form.destinationAddress.trim().length === 0) errors.destinationAddress = 'Adresse er påkrævet';
     return errors;
   }
@@ -209,7 +244,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       return;
     }
     if (!user?.id) {
-      toast.error('Bruger ikke fundet. Log ind igen.', { id: 'job-create-no-user' });
+      notify.error('Bruger ikke fundet. Log ind igen.', { id: 'job-create-no-user' });
       return;
     }
     setFieldErrors({});
@@ -230,6 +265,9 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
         : null,
       createCustomerFromSnapshot: form.createCustomer || undefined,
       destinationAddress: form.destinationAddress.trim() || null,
+      destinationZipCode: form.destinationZipCode.trim() || null,
+      destinationCity: form.destinationCity.trim() || null,
+      jobType: form.jobType,
       work: null,
       observations: {
         reportDate: null,
@@ -237,6 +275,17 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
         customerObservations: form.customerObservations.trim() || null,
         technicalObservations: form.technicalObservations.trim() || null,
       },
+      // Include timesheets for Diverse jobs
+      ...(form.jobType === 'Diverse' && form.timesheets.length > 0
+        ? {
+            timesheets: form.timesheets.map(ts => ({
+              workDate: ts.workDate,
+              userId: ts.userId,
+              hoursWorked: typeof ts.hours === 'number' ? ts.hours : Number(String(ts.hours).replace(',', '.')),
+              sleptOnJob: ts.sleptOnJob,
+            })),
+          }
+        : {}),
     };
 
     setIsSaving(true);
@@ -275,6 +324,10 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     updateCreateCustomer,
     hasCustomerChanges,
     updateDestinationAddress,
+    updateDestinationZipCode,
+    updateDestinationCity,
+    updateJobType,
+    updateTimesheets,
     updateTaskDescription,
     updateCustomerObservations,
     updateTechnicalObservations,
