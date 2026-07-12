@@ -16,7 +16,11 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
     <>
       <DestinationAddressBlock
         value={details.form.destinationAddress}
+        zipCode={details.form.destinationZipCode}
+        city={details.form.destinationCity}
         onChange={details.updateDestinationAddress}
+        onZipCodeChange={details.updateDestinationZipCode}
+        onCityChange={details.updateDestinationCity}
         required={details.isAdmin}
       />
 

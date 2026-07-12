@@ -34,6 +34,8 @@ public sealed record JobListItemViewModel(
     DateOnly? ReportDate,
     string JobType,
     string? DestinationAddress,
+    string? DestinationZipCode,
+    string? DestinationCity,
     string? TaskDescription);
 
 public sealed record JobReportSummaryViewModel(
@@ -44,6 +46,8 @@ public sealed record JobReportSummaryViewModel(
     Guid? CustomerId,
     CustomerSnapshotResponse CustomerSnapshot,
     string? DestinationAddress,
+    string? DestinationZipCode,
+    string? DestinationCity,
     JobReportSummaryWorkResponse Work,
     JobReportSummaryObservationResponse Observations,
     IReadOnlyList<JobLinkInfoResponse> Links,
@@ -79,6 +83,8 @@ public static class JobViewModelBuilder
         job.ReportDate,
         job.JobType.ToString(),
         job.DestinationAddress,
+        job.DestinationZipCode,
+        job.DestinationCity,
         job.TaskDescription);
 
     public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
@@ -94,6 +100,8 @@ public static class JobViewModelBuilder
             summary.CustomerSnapshot.Address,
             summary.CustomerSnapshot.ContactPerson),
         summary.DestinationAddress,
+        summary.DestinationZipCode,
+        summary.DestinationCity,
         summary.Work,
         summary.Observations,
         summary.Links,

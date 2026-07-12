@@ -6,7 +6,7 @@ namespace Workslip.Application.Jobs.Validators;
 public static class SharedJobRequestRules
 {
     public static bool BeValidJobType(string? jobType) =>
-        jobType == nameof(JobType.V4v05) || jobType == nameof(JobType.Diverse);
+        jobType == nameof(JobType.Standard) || jobType == nameof(JobType.Diverse);
 
     public static void AddCommonRules(AbstractValidator<CreateJobRequest> validator)
     {
@@ -36,7 +36,7 @@ public static class SharedJobRequestRules
         Func<T, string?> getJobType) where T : class
     {
         validator.RuleFor(x => getJobType(x))
-            .Must(BeValidJobType).WithMessage("JobType must be 'V4v05' or 'Diverse'.")
+            .Must(BeValidJobType).WithMessage("JobType must be '4v05' or 'Diverse'.")
             .When(x => !string.IsNullOrWhiteSpace(getJobType(x)));
     }
 

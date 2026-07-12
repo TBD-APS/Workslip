@@ -31,6 +31,8 @@ export const emptyForm: JobForm = {
   createCustomer: false,
   reportNumber: '',
   destinationAddress: '',
+  destinationZipCode: '',
+  destinationCity: '',
   taskDescription: '',
   customerObservations: '',
   technicalObservations: '',
@@ -42,7 +44,7 @@ export const emptyForm: JobForm = {
     irrelevantCategoryIds: [],
     closureFlags: [],
   },
-  jobType: 'V4v05',
+  jobType: '4v05',
   timesheets: [],
 };
 
@@ -101,6 +103,8 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
     editSnapshot: false,
     reportNumber: job.reportNumber ?? '',
     destinationAddress: job.destinationAddress ?? '',
+    destinationZipCode: job.destinationZipCode ?? '',
+    destinationCity: job.destinationCity ?? '',
     taskDescription: job.observations.taskDescription ?? '',
     customerObservations: job.observations.customerObservations ?? '',
     technicalObservations: job.observations.technicalObservations ?? '',
@@ -112,7 +116,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       irrelevantCategoryIds,
       closureFlags: job.work.closureFlags ? job.work.closureFlags.map((flag) => flag.normalizedLabel) : [],
     },
-    jobType: ((job as unknown as { jobType?: string }).jobType === 'Diverse' ? 'Diverse' : 'V4v05') as 'V4v05' | 'Diverse',
+    jobType: job.jobType === 'Diverse' ? 'Diverse' : '4v05',
     timesheets,
   };
 }
@@ -147,6 +151,12 @@ export function toUpdateRequest(
     destinationAddress: job.destinationAddress
       ? null
       : (initial.destinationAddress !== form.destinationAddress ? form.destinationAddress.trim() || null : null),
+    destinationZipCode: job.destinationZipCode
+      ? null
+      : (initial.destinationZipCode !== form.destinationZipCode ? form.destinationZipCode.trim() || null : null),
+    destinationCity: (job as unknown as { destinationCity?: string }).destinationCity
+      ? null
+      : (initial.destinationCity !== form.destinationCity ? form.destinationCity.trim() || null : null),
     reportNumber: job.reportNumber
       ? null
       : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),
@@ -203,6 +213,8 @@ export function sameFormWithoutWork(left: JobForm, right: JobForm) {
     sameSnapshot(left.customerSnapshot, right.customerSnapshot) &&
     left.reportNumber === right.reportNumber &&
     left.destinationAddress === right.destinationAddress &&
+    left.destinationZipCode === right.destinationZipCode &&
+    left.destinationCity === right.destinationCity &&
     left.taskDescription === right.taskDescription &&
     left.customerObservations === right.customerObservations &&
     left.technicalObservations === right.technicalObservations

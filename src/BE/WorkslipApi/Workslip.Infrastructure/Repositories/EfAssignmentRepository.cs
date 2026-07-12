@@ -122,6 +122,8 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 r.Status,
                 r.JobType,
                 r.DestinationAddress,
+                r.DestinationZipCode,
+                r.DestinationCity,
                 r.TaskDescription,
                 r.ReportDate,
                 WorkKind = r.WorkKindRow != null ? new JobWorkKindResponse(
@@ -183,6 +185,8 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 x.ReportNumber, Enum.Parse<JobStatus>(x.Status, ignoreCase: true), JobReportMapper.ToDateOnly(x.ReportDate),
                 x.JobType,
                 x.DestinationAddress,
+                x.DestinationZipCode,
+                x.DestinationCity,
                 x.TaskDescription,
                 installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
                 x.CreatedAt, x.UpdatedAt,

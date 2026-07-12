@@ -83,6 +83,8 @@ public sealed class EfJobRepository : IJobRepository
             CustomerPhone = customerSnapshot?.Phone,
             CustomerAddress = customerSnapshot?.Address,
             DestinationAddress = request.DestinationAddress,
+            DestinationZipCode = request.DestinationZipCode,
+            DestinationCity = request.DestinationCity,
             ReportNumber = reportNumber,
             Status = JobStatus.Draft.ToString(),
             JobType = Enum.TryParse<JobType>(request.JobType, out var jobType) ? jobType : JobType.Unknown,
@@ -208,6 +210,8 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 job.ReportDate,
                 job.JobType,
                 job.DestinationAddress,
+                job.DestinationZipCode,
+                job.DestinationCity,
                 job.TaskDescription,
                 WorkKind = job.WorkKindRow != null ? new JobWorkKindResponse(
                     job.WorkKindRow.Id,
@@ -274,6 +278,8 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 x.ReportNumber, JobReportMapper.ParseStatus(x.Status), JobReportMapper.ToDateOnly(x.ReportDate),
                 x.JobType,
                 x.DestinationAddress,
+                x.DestinationZipCode,
+                x.DestinationCity,
                 x.TaskDescription,
                 installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
                 x.CreatedAt, x.UpdatedAt,
@@ -375,6 +381,12 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
         if (request.DestinationAddress is not null)
             entry.Property(e => e.DestinationAddress).CurrentValue = request.DestinationAddress;
 
+        if (request.DestinationZipCode is not null)
+            entry.Property(e => e.DestinationZipCode).CurrentValue = request.DestinationZipCode;
+
+        if (request.DestinationCity is not null)
+            entry.Property(e => e.DestinationCity).CurrentValue = request.DestinationCity;
+
         if (request.Observations is not null)
         {
             if (request.Observations.ReportDate is not null)
@@ -406,15 +418,6 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
 if (request.Work.ClosureFlags is not null)
             {
                 await SyncClosureFlagsAsync(organizationId, id, request.Work.ClosureFlags, cancellationToken);
-            }
-        }
-
-        // Update JobType if provided
-        if (!string.IsNullOrWhiteSpace(request.JobType))
-        {
-            if (Enum.TryParse<JobType>(request.JobType, out var parsedJobType))
-            {
-                entry.Property(e => e.JobType).CurrentValue = parsedJobType;
             }
         }
 

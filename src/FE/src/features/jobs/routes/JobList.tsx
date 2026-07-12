@@ -320,7 +320,7 @@ export const JobList = () => {
               >
                 <td><span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span></td>
                 <td><span className={`job-type-badge job-type-${job.jobType?.toLowerCase()}`}>{formatJobType(job.jobType)}</span></td>
-                <td>{job.customer?.name || job.taskDescription || 'Ukendt kunde'}</td>
+                <td>{job.customer?.name || job.taskDescription}</td>
                 <td>{job.destinationAddress || job.customer?.address}</td>
                 <td>
                   <InstallationTypeTags types={job.installationTypes} />
@@ -420,7 +420,7 @@ function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => voi
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span>{formatJobType(job.jobType)}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span></span>
-          <h3 className="job-customer">{job.customer?.name || job.taskDescription || 'Ukendt kunde'}</h3>
+          <h3 className="job-customer">{job.customer?.name || job.taskDescription}</h3>
         </div>
       </div>
 

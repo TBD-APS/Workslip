@@ -47,11 +47,13 @@ export type JobForm = {
   createCustomer: boolean;
   reportNumber: string;
   destinationAddress: string;
+  destinationZipCode: string;
+  destinationCity: string;
   taskDescription: string;
   customerObservations: string;
   technicalObservations: string;
   work: JobWorkForm;
-  jobType: 'V4v05' | 'Diverse' | 'Unknown';
+  jobType: '4v05' | 'Diverse' | 'Unknown';
   timesheets: WorksheetDraft[];
 };
 

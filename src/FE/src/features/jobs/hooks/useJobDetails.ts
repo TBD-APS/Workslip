@@ -307,6 +307,14 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateDraft({ ...form, destinationAddress: value });
   };
 
+  const updateDestinationZipCode = (value: string) => {
+    updateDraft({ ...form, destinationZipCode: value });
+  };
+
+  const updateDestinationCity = (value: string) => {
+    updateDraft({ ...form, destinationCity: value });
+  };
+
   const updateTaskDescription = (value: string) => {
     updateDraft({ ...form, taskDescription: value });
   };
@@ -610,6 +618,8 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateSnapshotField,
     updateEditSnapshot,
     updateDestinationAddress,
+    updateDestinationZipCode,
+    updateDestinationCity,
     updateTaskDescription,
     updateCustomerObservations,
     updateTechnicalObservations,

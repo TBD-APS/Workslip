@@ -23,7 +23,7 @@ import { useCustomerSnapshot, hasSnapshotData, trimSnapshot } from './useCustome
 type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
   createCustomerFromSnapshot?: boolean;
-  jobType: 'V4v05' | 'Diverse' | 'Unknown';
+  jobType: '4v05' | 'Diverse' | 'Unknown';
 };
 
 export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: JobForm) {
@@ -112,7 +112,16 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     clearFieldError('destinationAddress');
   };
 
-  const updateJobType = (value: 'V4v05' | 'Diverse') => {
+  const updateDestinationZipCode = (value: string) => {
+    setForm((prev) => ({ ...prev, destinationZipCode: value }));
+    clearFieldError('destinationZipCode');
+  };
+
+  const updateDestinationCity = (value: string) => {
+    setForm((prev) => ({ ...prev, destinationCity: value }));
+  };
+
+  const updateJobType = (value: '4v05' | 'Diverse') => {
     setForm((prev) => ({ ...prev, jobType: value }));
     // Clear customer-related errors when switching to Diverse
     if (value === 'Diverse') {
@@ -194,7 +203,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   function computeFieldErrors(): Record<string, string> {
     const errors: Record<string, string> = {};
 
-    if (form.jobType !== 'Diverse') {
+    if (form.jobType === '4v05') {
       const name = form.customerSnapshot?.name ?? null;
       const email = form.customerSnapshot?.email ?? null;
       const phone = form.customerSnapshot?.phone ?? null;
@@ -253,6 +262,8 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
         : null,
       createCustomerFromSnapshot: form.createCustomer || undefined,
       destinationAddress: form.destinationAddress.trim() || null,
+      destinationZipCode: form.destinationZipCode.trim() || null,
+      destinationCity: form.destinationCity.trim() || null,
       jobType: form.jobType,
       work: null,
       observations: {
@@ -310,6 +321,8 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     updateCreateCustomer,
     hasCustomerChanges,
     updateDestinationAddress,
+    updateDestinationZipCode,
+    updateDestinationCity,
     updateJobType,
     updateTimesheets,
     updateTaskDescription,

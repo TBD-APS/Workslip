@@ -561,6 +561,10 @@ entity.Property(e => e.Status)
 
         entity.Property(e => e.DestinationAddress);
 
+        entity.Property(e => e.DestinationZipCode).HasMaxLength(10);
+
+        entity.Property(e => e.DestinationCity).HasMaxLength(200);
+
 
 
         entity.Property(e => e.CreatedAt).HasColumnType("datetimeoffset");

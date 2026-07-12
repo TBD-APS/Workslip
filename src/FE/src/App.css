@@ -1681,6 +1681,69 @@
   font-size: var(--fs-xs);
 }
 
+.address-autocomplete {
+  position: relative;
+}
+
+.address-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.address-spinner {
+  position: absolute;
+  right: 0.6rem;
+  color: var(--text-muted);
+  animation: spin 0.8s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.address-suggestions {
+  position: absolute;
+  z-index: 100;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.address-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  transition: background 0.1s;
+}
+
+.address-suggestion-item:hover,
+.address-suggestion-item:focus {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+  outline: none;
+}
+
+.address-suggestion-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
 .form-readonly-list {
   display: flex;
   flex-wrap: wrap;

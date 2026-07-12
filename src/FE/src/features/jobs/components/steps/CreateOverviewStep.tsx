@@ -28,7 +28,11 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
     <>
       <DestinationAddressBlock
         value={create.form.destinationAddress}
+        zipCode={create.form.destinationZipCode}
+        city={create.form.destinationCity}
         onChange={create.updateDestinationAddress}
+        onZipCodeChange={create.updateDestinationZipCode}
+        onCityChange={create.updateDestinationCity}
         required={isAdmin}
         error={create.fieldErrors.destinationAddress}
       />

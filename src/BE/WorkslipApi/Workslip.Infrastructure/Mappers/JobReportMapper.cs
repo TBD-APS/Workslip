@@ -54,7 +54,7 @@ public static class JobReportMapper
         return new(
             row.Id, row.OrganizationId, organizationName, organizationCvr,
             customer,
-            row.ReportNumber, row.DestinationAddress, ParseStatus(row.Status), ToDateOnly(row.ReportDate), row.JobType,
+            row.ReportNumber, row.DestinationAddress, row.DestinationZipCode, row.DestinationCity, ParseStatus(row.Status), ToDateOnly(row.ReportDate), row.JobType,
             row.TaskDescription, row.CustomerObservations, row.TechnicalObservations,
             installationTypes, ToWorkKindResponse(row.WorkKindRow, row.CustomWorkKind),
             row.Remarks, closureFlags, links,
