@@ -103,8 +103,9 @@ export function validateWorksheetDraft(
     return { error: 'Timer kan ikke overstige 24 på en dag.' };
   }
 
-  if (!Number.isInteger(Math.round(hoursNumber * 4))) {
-    return { error: 'Timer skal angives i intervaller af 0,25.' };
+  const scaledHours = hoursNumber * 4;
+  if (Math.abs(scaledHours - Math.round(scaledHours)) > 1e-9) {
+     return { error: 'Timer skal angives i intervaller af 0,25.' };
   }
 
   const existingTotal = existing
@@ -119,13 +120,13 @@ export function validateWorksheetDraft(
   return { hours: hoursNumber };
 }
 
-export function initialWorksheetUiState(defaultUserId: string): WorksheetUiState {
+export function initialWorksheetUiState(defaultUserId: string, isAddOpen = false): WorksheetUiState {
   return {
     addDraft: defaultDraft(defaultUserId),
     editDraft: null,
     editingWorksheetId: null,
     openActionMenu: null,
-    isAddOpen: true,
+    isAddOpen,
     formError: null,
   };
 }

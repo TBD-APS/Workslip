@@ -297,6 +297,19 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     if (saveStatus === 'saved') setSaveStatus('idle');
   }, [jobId, saveStatus, setDraft, setSaveStatus]);
 
+  // Functional form update: derives the current form from the previous
+  // draft (or the loaded initial form) so sequential updates in the same
+  // tick compose instead of clobbering each other. Mirrors useJobCreate's
+  // setForm((prev) => ...) pattern.
+  const updateForm = useCallback((updater: (prev: JobForm) => JobForm) => {
+    if (!jobId) return;
+    setDraft((prev) => {
+      const base = prev && prev.jobId === jobId ? prev.form : (initialFormRef.current ?? emptyForm);
+      return { jobId, form: updater(base) };
+    });
+    if (saveStatus === 'saved') setSaveStatus('idle');
+  }, [jobId, saveStatus, setDraft, setSaveStatus]);
+
   // Adapter: useCustomerSnapshot expects a setter that takes an
   // updater fn and returns the next slice. useJobDetails's `updateDraft`
   // takes a fully-formed form. Bridge them so the snapshot logic
@@ -311,15 +324,15 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   const { selectCustomer, updateSnapshotField, updateEditSnapshot } = useCustomerSnapshot(setCustomerForm);
 
   const updateDestinationAddress = (value: string) => {
-    updateDraft({ ...form, destinationAddress: value });
+    updateForm((prev) => ({ ...prev, destinationAddress: value }));
   };
 
   const updateDestinationZipCode = (value: string) => {
-    updateDraft({ ...form, destinationZipCode: value });
+    updateForm((prev) => ({ ...prev, destinationZipCode: value }));
   };
 
   const updateDestinationCity = (value: string) => {
-    updateDraft({ ...form, destinationCity: value });
+    updateForm((prev) => ({ ...prev, destinationCity: value }));
   };
 
   const updateTaskDescription = (value: string) => {

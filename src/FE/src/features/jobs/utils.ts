@@ -83,7 +83,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
   }
 
   // Get timesheets from job if available
-  const timesheets = (job as unknown as { worksheets?: Array<{ workDate: string; userId: string; hoursWorked: number | string; sleptOnJob: boolean }> }).worksheets?.map(ws => ({
+  const timesheets = job.worksheets?.map(ws => ({
     workDate: ws.workDate,
     userId: ws.userId,
     hours: String(ws.hoursWorked),
@@ -154,7 +154,7 @@ export function toUpdateRequest(
     destinationZipCode: job.destinationZipCode
       ? null
       : (initial.destinationZipCode !== form.destinationZipCode ? form.destinationZipCode.trim() || null : null),
-    destinationCity: (job as unknown as { destinationCity?: string }).destinationCity
+    destinationCity: job.destinationCity
       ? null
       : (initial.destinationCity !== form.destinationCity ? form.destinationCity.trim() || null : null),
     reportNumber: job.reportNumber

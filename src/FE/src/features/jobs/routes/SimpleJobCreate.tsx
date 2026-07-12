@@ -67,7 +67,7 @@ const SimpleJobCreate = () => {
   const [uiState, uiDispatch] = useReducer(
     worksheetUiReducer,
     defaultUserId,
-    initialWorksheetUiState,
+    (id: string) => initialWorksheetUiState(id, true),
   );
 
   const { data: jobsData, isLoading: isLoadingJobs } = useQuery({
@@ -83,7 +83,13 @@ const SimpleJobCreate = () => {
   const create = useJobCreate((jobId) => {
     statusMutation.mutate(
       { id: jobId, data: { status: JobStatus.InReview } },
-      { onSettled: () => setCreatedJobId(jobId) },
+      {
+        onSuccess: () => setCreatedJobId(jobId),
+        onError: () => {
+          // surface an error to the user instead of showing a false "success" dialog
+          uiDispatch({ type: 'setFormError', error: 'Jobbet blev oprettet, men kunne ikke sendes til gennemgang.' });
+        },
+      },
     );
   }, initialForm);
 
