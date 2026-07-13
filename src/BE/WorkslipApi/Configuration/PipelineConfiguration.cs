@@ -36,6 +36,7 @@ public static class PipelineConfiguration
 
         app.UseRouting();
         app.UseCors("Frontend");
+        app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
 

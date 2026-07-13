@@ -1,5 +1,10 @@
 @charset "UTF-8";
 
+/* Sonner Toast — push below Dynamic Island / display cutout */
+[data-sonner-toaster] {
+  --offset-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+}
+
 /* App Shell & Forms CSS */
 
 /* Forms */
@@ -73,7 +78,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.8rem 1.5rem;
-  padding-top: calc(0.8rem + env(safe-area-inset-top, 20px));
+  padding-top: calc(0.8rem + env(safe-area-inset-top, 0px));
   background: var(--overlay-blur);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
@@ -190,7 +195,14 @@
 .app-content {
   flex: 1;
   padding: 1.5rem;
-  padding-bottom: calc(80px + 1.5rem); /* Make room for bottom nav */
+  padding-bottom: calc(80px + 1.5rem + env(safe-area-inset-bottom, 0px)); /* Make room for bottom nav + safe area */
+}
+
+@media (max-width: 480px) {
+  .app-content {
+    padding: 1rem;
+    padding-bottom: calc(80px + 1rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Bottom Navigation */
@@ -207,6 +219,7 @@
   align-items: center;
   height: auto;
   padding-top: 10px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   z-index: 100;
 }
 

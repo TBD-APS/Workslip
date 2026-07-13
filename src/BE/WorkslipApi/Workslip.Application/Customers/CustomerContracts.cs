@@ -54,3 +54,5 @@ public sealed record CreateCustomerRequest(
     string? Phone);
 
 public sealed record DeleteCustomerResponse(bool success);
+
+public sealed record ImportCustomerResponse(int Imported, int Skipped);
