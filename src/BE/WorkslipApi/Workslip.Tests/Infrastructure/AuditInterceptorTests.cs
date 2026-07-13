@@ -2234,8 +2234,6 @@ public sealed class AuditInterceptorTests
         await repository.TransitionAsync(jobId, orgId, JobStatus.InReview, actorId, CancellationToken.None);
 
         var request = new UpdateJobRequest(
-            Customer: null,
-            ReportNumber: null,
             Work: new CreateJobWorkRequest(
                 InstallationTypes:
                 [

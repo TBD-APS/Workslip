@@ -76,7 +76,7 @@ public sealed class AuthServiceEntraLoginTests
 
         public Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) => Task.FromResult<UserDataRow?>(null);
         public Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, IReadOnlyCollection<string> emailCandidates, CancellationToken cancellationToken) => Task.FromResult<UserDataRow?>(null);
-        public Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<UserDataRow>>(Array.Empty<UserDataRow>());
+        public Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<UserDataRow>>(Array.Empty<UserDataRow>());
         public Task<int> GetCountByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken) => Task.FromResult(0);
         public Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken) => Task.FromResult(user.Id);
         public Task UpdateAsync(UserDataRow user, CancellationToken cancellationToken) => Task.CompletedTask;
