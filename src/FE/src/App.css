@@ -1154,6 +1154,21 @@
   margin: 0;
 }
 
+.nav-maps-link {
+  margin-left: auto;
+  color: var(--text-muted, #6b7280);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.nav-maps-link:hover {
+  color: var(--primary, #2563eb);
+}
+
 .customer-search-slot {
   overflow: visible;
   transition: max-height 0.2s ease;
