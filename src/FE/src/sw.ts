@@ -13,6 +13,13 @@ self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    console.log('[SW] SKIP_WAITING received — activating');
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating (build:', BUILD_TIME + ')');
   event.waitUntil(clientsClaim());

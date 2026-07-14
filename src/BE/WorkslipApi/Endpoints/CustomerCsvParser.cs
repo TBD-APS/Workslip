@@ -32,7 +32,7 @@ public static class CustomerCsvParser
             MissingFieldFound = null,
             BadDataFound = args =>
             {
-                logger.LogWarning("Bad CSV data at row {RawRecord}: {Context}", args.Context.Parser.Row, args.RawRecord);
+                logger.LogWarning("Bad CSV data at row {RawRecord}: {Context}", args.Context.Parser?.Row, args.RawRecord);
             }
         });
 
