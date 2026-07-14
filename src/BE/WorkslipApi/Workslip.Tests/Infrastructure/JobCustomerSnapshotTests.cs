@@ -25,18 +25,16 @@ public sealed class JobCustomerSnapshotTests
         await context.SaveChangesAsync();
 
         var repo = CreateJobRepository(context, actorId, orgId);
-        var customerInfo = new CustomerInfo(
-            CustomerId: null,
+        var snapshot = new CustomerSnapshotData(
             Name: "New Customer",
-            Address: "Main Street 1",
             Email: "new@test.com",
-            ContactPerson: null,
-            Phone: "12345678");
+            Phone: "12345678",
+            Address: "Main Street 1",
+            ContactPerson: null);
 
         var request = new CreateJobRequest(
-            Customer: customerInfo,
-            CustomerSnapshot: null,
-            ReportNumber: "JOB-NEW-1",
+            CustomerSnapshot: snapshot,
+            CreateCustomerFromSnapshot: true,
             Work: null,
             Observations: null);
 
@@ -47,7 +45,7 @@ public sealed class JobCustomerSnapshotTests
         Assert.Equal("Main Street 1", masterCustomer.Address);
         Assert.Equal("new@test.com", masterCustomer.Email);
 
-        var job = await context.JobReports.AsNoTracking().FirstOrDefaultAsync(r => r.ReportNumber == "JOB-NEW-1");
+        var job = await context.JobReports.AsNoTracking().FirstOrDefaultAsync(r => r.CustomerName == "New Customer");
         Assert.NotNull(job);
         Assert.Equal(masterCustomer.Id, job.CustomerId);
         // Snapshot should reflect the customer data
@@ -83,24 +81,23 @@ public sealed class JobCustomerSnapshotTests
         var beforeCount = await context.Customers.CountAsync();
 
         var repo = CreateJobRepository(context, actorId, orgId);
-        var customerInfo = new CustomerInfo(
-            CustomerId: existingCustomer.Id,
+        var snapshot = new CustomerSnapshotData(
             Name: "Existing Customer",
-            Address: "Old Address",
             Email: "existing@test.com",
-            ContactPerson: "Contact",
-            Phone: "87654321");
+            Phone: "87654321",
+            Address: "Old Address",
+            ContactPerson: "Contact");
 
         var request = new CreateJobRequest(
-            Customer: customerInfo,
-            ReportNumber: "JOB-EXIST-1");
+            CustomerId: existingCustomer.Id,
+            CustomerSnapshot: snapshot);
 
         await repo.CreateAsync(orgId, request, [], actorId, CancellationToken.None);
 
         var afterCount = await context.Customers.CountAsync();
         Assert.Equal(beforeCount, afterCount);
 
-        var job = await context.JobReports.AsNoTracking().FirstOrDefaultAsync(r => r.ReportNumber == "JOB-EXIST-1");
+        var job = await context.JobReports.AsNoTracking().FirstOrDefaultAsync(r => r.CustomerId == existingCustomer.Id);
         Assert.NotNull(job);
         Assert.Equal(existingCustomer.Id, job.CustomerId);
     }
@@ -120,16 +117,15 @@ public sealed class JobCustomerSnapshotTests
             Name: "Snapshot Name",
             Email: "snapshot@test.com",
             Phone: "11223344",
-            Address: "Snapshot Address");
+            Address: "Snapshot Address",
+            ContactPerson: null);
 
         var request = new CreateJobRequest(
-            Customer: null,
-            CustomerSnapshot: snapshot,
-            ReportNumber: "JOB-SNAP-1");
+            CustomerSnapshot: snapshot);
 
         await repo.CreateAsync(orgId, request, [], actorId, CancellationToken.None);
 
-        var job = await context.JobReports.AsNoTracking().FirstOrDefaultAsync(r => r.ReportNumber == "JOB-SNAP-1");
+        var job = await context.JobReports.AsNoTracking().FirstOrDefaultAsync(r => r.CustomerName == "Snapshot Name");
         Assert.NotNull(job);
         Assert.Null(job.CustomerId);
         Assert.Equal("Snapshot Name", job.CustomerName);
@@ -164,16 +160,16 @@ public sealed class JobCustomerSnapshotTests
             Name: "Snapshot Override",
             Email: null,
             Phone: null,
-            Address: null);
+            Address: null,
+            ContactPerson: null);
 
         var request = new CreateJobRequest(
-            Customer: customerInfo,
             CustomerSnapshot: snapshot,
-            ReportNumber: "JOB-BOTH-1");
+            CreateCustomerFromSnapshot: true);
 
         await repo.CreateAsync(orgId, request, [], actorId, CancellationToken.None);
 
-        var job = await context.JobReports.AsNoTracking().FirstOrDefaultAsync(r => r.ReportNumber == "JOB-BOTH-1");
+        var job = await context.JobReports.AsNoTracking().FirstOrDefaultAsync(r => r.CustomerName == "Snapshot Override");
         Assert.NotNull(job);
         Assert.Equal("Snapshot Override", job.CustomerName);
         // Snapshot's null fields should NOT fall through to master values
@@ -231,22 +227,20 @@ public sealed class JobCustomerSnapshotTests
         await context.SaveChangesAsync();
 
         var repo = CreateJobRepository(context, actorId, orgId);
-        var updateCustomer = new CustomerInfo(
-            CustomerId: secondCustomer.Id,
+        var updateSnapshot = new CustomerSnapshotData(
             Name: "Second Customer",
-            Address: null,
             Email: "second@test.com",
-            ContactPerson: null,
-            Phone: null);
+            Phone: null,
+            Address: null,
+            ContactPerson: null);
 
         var updateRequest = new UpdateJobRequest(
-            Customer: updateCustomer);
+            CustomerSnapshot: updateSnapshot);
 
         await repo.UpdateAsync(jobId, orgId, updateRequest, CancellationToken.None);
 
         var job = await context.JobReports.AsNoTracking().FirstOrDefaultAsync(r => r.Id == jobId);
         Assert.NotNull(job);
-        Assert.Equal(secondCustomer.Id, job.CustomerId);
         Assert.Equal("Second Customer", job.CustomerName);
 
         // Master customer records should be completely untouched
@@ -301,7 +295,8 @@ public sealed class JobCustomerSnapshotTests
             Name: "Snapshot Only Override",
             Email: null,
             Phone: "99999999",
-            Address: null);
+            Address: null,
+            ContactPerson: null);
 
         var updateRequest = new UpdateJobRequest(
             CustomerSnapshot: snapshot);

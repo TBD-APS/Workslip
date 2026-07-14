@@ -44,6 +44,9 @@ public sealed class EfCustomerRepository : ICustomerRepository
     public Task DeleteAsync(Guid organizationId, Guid id, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("customers.delete", token => DeleteCoreAsync(organizationId, id, token), cancellationToken);
 
+    public Task<int> BulkCreateAsync(Guid organizationId, IReadOnlyList<CustomerInfo> customers, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("customers.bulk-create", token => BulkCreateCoreAsync(organizationId, customers, token), cancellationToken);
+
     private async Task<Guid> CreateCustomerCoreAsync(Guid organizationId, CustomerInfo customer, CancellationToken cancellationToken)
     {
         var row = new CustomerRow
@@ -293,5 +296,35 @@ public sealed class EfCustomerRepository : ICustomerRepository
         _dbContext.Customers.Remove(row);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<int> BulkCreateCoreAsync(Guid organizationId, IReadOnlyList<CustomerInfo> customers, CancellationToken cancellationToken)
+    {
+        const int batchSize = 500;
+        var now = DateTimeOffset.UtcNow;
+        var totalCount = 0;
+
+        for (var i = 0; i < customers.Count; i += batchSize)
+        {
+            var batch = customers.Skip(i).Take(batchSize);
+            var rows = batch.Select(c => new CustomerRow
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                Name = c.Name ?? string.Empty,
+                Address = c.Address,
+                Email = c.Email,
+                ContactPerson = c.ContactPerson,
+                Phone = c.Phone,
+                CreatedAt = now,
+                UpdatedAt = now
+            }).ToList();
+
+            _dbContext.Customers.AddRange(rows);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            totalCount += rows.Count;
+        }
+
+        return totalCount;
     }
 }

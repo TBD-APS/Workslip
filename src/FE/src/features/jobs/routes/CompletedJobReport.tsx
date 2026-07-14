@@ -51,6 +51,7 @@ export const CompletedJobReport = () => {
   const [worksheetOpen, setWorksheetOpen] = useState(true);
   const previewUrlRef = useRef<string | null>(null);
   const job = details.job;
+  const isDiverseInReview = job?.jobType === 'Diverse' && job?.status === JobStatus.InReview;
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
@@ -225,6 +226,7 @@ export const CompletedJobReport = () => {
     { label: 'Status', value: formatJobStatus(job.status)},
     { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
     { label: 'Opgavetype', value: formatWorkKind(job) },
+    { label: 'Destination', value: job.destinationAddress },
     { label: 'Afslutning', value: formatClosureFlags(job) },
   ]);
   const customerPairs = compactPairs([
@@ -332,13 +334,15 @@ export const CompletedJobReport = () => {
                 </div>
                 <DetailGrid items={summaryPairs} />
               </section>
-              <section className="detail-section">
-                <div className="section-header-row attestation-compact-header">
-                  <User size={18} />
-                  <h3>Kunde</h3>
-                </div>
-                <DetailGrid items={customerPairs} />
-              </section>
+              {!isDiverseInReview && (
+                <section className="detail-section">
+                  <div className="section-header-row attestation-compact-header">
+                    <User size={18} />
+                    <h3>Kunde</h3>
+                  </div>
+                  <DetailGrid items={customerPairs} />
+                </section>
+              )}
             </div>
 
             <section className="detail-section">
@@ -403,25 +407,29 @@ export const CompletedJobReport = () => {
               </section>
             )}
 
-            <section className="detail-section">
-              <div className="section-header-row attestation-compact-header">
-                <Link2 size={18} />
-                <h3>Tilknyttede sager</h3>
-              </div>
-              <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
-            </section>
+            {!isDiverseInReview && (
+              <section className="detail-section">
+                <div className="section-header-row attestation-compact-header">
+                  <Link2 size={18} />
+                  <h3>Tilknyttede sager</h3>
+                </div>
+                <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
+              </section>
+            )}
 
           </div>
 
-          <CollapsibleSection
-            icon={<CheckCircle2 size={18} />}
-            title="Kontrolpunkter"
-            className="kontrolpunkter-section"
-          >
-            <div className="attestation-control-section compact">
-              <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
-            </div>
-          </CollapsibleSection>
+          {!isDiverseInReview && (
+            <CollapsibleSection
+              icon={<CheckCircle2 size={18} />}
+              title="Kontrolpunkter"
+              className="kontrolpunkter-section"
+            >
+              <div className="attestation-control-section compact">
+                <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
+              </div>
+            </CollapsibleSection>
+          )}
 
           {!isDesktop && job.status === JobStatus.InReview && isAdmin && !readOnly && !isEditing && (
             <section className="detail-section">

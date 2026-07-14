@@ -430,9 +430,9 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/auth/me",
+              "raw": "{{baseUrl}}/api/auth/me",
               "host": [
-                "{{base_url}}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "api",
@@ -485,6 +485,54 @@
                   "  });",
                   "  pm.collectionVariables.set('authToken', json.token);",
                   "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth - Update Me",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Updates the current user's profile (display name, phone, role). Requires authentication.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"{{adminDisplayName}}\",\n  \"phone\": \"{{adminPhone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('user view model hides internal timestamps', function () { ['createdAt', 'updatedAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
                 ]
               }
             }
@@ -542,6 +590,41 @@
                   "  pm.test('token is JWT with 3 parts', function () { pm.expect(json.token.split('.')).to.have.length(3); });",
                   "  pm.test('user info returned', function () { pm.expect(json.user.email).to.eql(pm.variables.get('testEmail')); });",
                   "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/dev/debug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dev/debug",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "dev",
+                "debug"
+              ]
+            },
+            "description": "DEV ONLY: Returns current user context including claims, organization, and role. Guarded behind IsDevelopment()."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('debug has isAuthenticated', function () { pm.expect(json).to.have.property('isAuthenticated'); });",
+                  "pm.test('debug has currentUserId', function () { pm.expect(json).to.have.property('currentUserId'); });",
+                  "pm.test('debug has currentOrganizationId', function () { pm.expect(json).to.have.property('currentOrganizationId'); });"
                 ]
               }
             }
@@ -1090,6 +1173,183 @@
               }
             }
           ]
+        },
+        {
+          "name": "/api/customers (create)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ]
+            },
+            "description": "Creates a new customer in the organization. Requires admin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Kunde\",\n  \"address\": \"Test Vej 1, 1000 København\",\n  \"email\": \"test@example.com\",\n  \"contactPerson\": \"Test Person\",\n  \"phone\": \"+4512345678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('customer has id', function () { pm.expect(json).to.have.property('id'); pm.expect(json.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('customer has name', function () { pm.expect(json.name).to.eql('Test Kunde'); });",
+                  "pm.collectionVariables.set('customerId', json.id);",
+                  "pm.test('customer id captured', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
+                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/customers/{id} (update)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}"
+              ]
+            },
+            "description": "Updates an existing customer. Requires admin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Opdateret Kunde\",\n  \"address\": \"Opdateret Vej 1, 2100 København\",\n  \"email\": \"opdateret@example.com\",\n  \"contactPerson\": \"Opdateret Kontakt\",\n  \"phone\": \"+4598765432\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 404 Not Found', function () { pm.expect([200, 404]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('customer name updated', function () { pm.expect(json.name).to.eql('Opdateret Kunde'); });",
+                  "  pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/customers/{id} (delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}"
+              ]
+            },
+            "description": "Deletes a customer. Requires admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content or 404 Not Found', function () { pm.expect([204, 404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/customers/import",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "import"
+              ]
+            },
+            "description": "Imports customers from a CSV file. Accepts .csv files up to 10 MB with max 10,000 rows. Rate limited to 5 requests per minute. Requires admin.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK or 400 Bad Request', function () { pm.expect([200, 400]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.test('response has imported count', function () { pm.expect(json.imported).to.be.a('number'); });",
+                  "  pm.test('response has skipped count', function () { pm.expect(json.skipped).to.be.a('number'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -1461,22 +1721,22 @@
                   "disabled": true
                 },
                 {
-                  "key": "reportNumberSearch",
+                  "key": "reportNumber",
                   "value": "",
                   "disabled": true
                 },
                 {
-                  "key": "customerNameSearch",
+                  "key": "customerName",
                   "value": "",
                   "disabled": true
                 },
                 {
-                  "key": "customerEmailSearch",
+                  "key": "customerEmail",
                   "value": "",
                   "disabled": true
                 },
                 {
-                  "key": "customerAddressSearch",
+                  "key": "customerAddress",
                   "value": "",
                   "disabled": true
                 },
@@ -1505,9 +1765,10 @@
                   "const json = pm.response.json();",
                   "pm.test('jobs list uses private revalidation', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('private'); });",
                   "pm.test('jobs list sends ETag', function () { pm.expect(pm.response.headers.get('ETag')).to.match(/^W\\/\"[a-f0-9]+\"$/); });",
-                  "pm.test('job list view model hides internal timestamps', function () { if (json.length > 0) ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json[0]).to.not.have.property(field)); });",
-                  "pm.test('job list view model exposes assignedUsers array', function () { if (json.length > 0) pm.expect(json[0].assignedUsers).to.be.an('array'); });",
-                  "pm.test('job list view model exposes softDeleted flag', function () { if (json.length > 0) pm.expect(json[0].softDeleted).to.be.a('boolean'); });",
+                  "pm.test('response has items and totalCount', function () { pm.expect(json.items).to.be.an('array'); pm.expect(json.totalCount).to.be.a('number'); });",
+                  "pm.test('job list view model hides internal timestamps', function () { if (json.items.length > 0) ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json.items[0]).to.not.have.property(field)); });",
+                  "pm.test('job list view model exposes assignedUsers array', function () { if (json.items.length > 0) pm.expect(json.items[0].assignedUsers).to.be.an('array'); });",
+                  "pm.test('job list view model exposes softDeleted flag', function () { if (json.items.length > 0) pm.expect(json.items[0].softDeleted).to.be.a('boolean'); });",
                   "pm.collectionVariables.set('jobsListEtag', pm.response.headers.get('ETag'));"
                 ]
               }
