@@ -27,5 +27,5 @@ navigator.serviceWorker.addEventListener('controllerchange', () => {
 if ('serviceWorker' in navigator) {
   setInterval(() => {
     navigator.serviceWorker.ready.then((reg) => reg.update());
-  }, 60 * 60 * 1000);
+  }, 5 * 60 * 1000);
 }
