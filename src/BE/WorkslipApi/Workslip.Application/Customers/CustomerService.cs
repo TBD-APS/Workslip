@@ -13,6 +13,8 @@ public sealed class CustomerService(
     IValidator<UpdateCustomerRequest> updateValidator,
     ILogger<CustomerService> logger) : ICustomerService
 {
+    private const int MaxImportRows = 10_000;
+
     public async Task<Result<CustomerListResponse>> ListAsync(int? limit, int? offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
@@ -173,5 +175,37 @@ public sealed class CustomerService(
         await customerRepository.DeleteAsync(organizationId.Value, id, cancellationToken);
         logger.LogInformation("Customer {CustomerId} deleted successfully in org {OrgId}", id, organizationId);
         return Result.Success();
+    }
+
+    public async Task<Result<ImportCustomerResponse>> ImportAsync(IReadOnlyList<CustomerInfo> customers, CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            logger.LogWarning("Customer import requested without OrganizationId in claims.");
+            return Result<ImportCustomerResponse>.Unauthorized();
+        }
+
+        if (customers.Count > MaxImportRows)
+        {
+            return Result<ImportCustomerResponse>.Invalid(new List<ValidationError>
+            {
+                new() { Identifier = "Csv", ErrorMessage = $"Too many rows. Maximum allowed is {MaxImportRows}." }
+            });
+        }
+
+        if (customers.Count == 0)
+        {
+            return Result<ImportCustomerResponse>.Invalid(new List<ValidationError>
+            {
+                new() { Identifier = "Csv", ErrorMessage = "No valid rows to import." }
+            });
+        }
+
+        logger.LogInformation("Importing {Count} customers for org {OrgId}", customers.Count, organizationId);
+
+        var imported = await customerRepository.BulkCreateAsync(organizationId.Value, customers, cancellationToken);
+
+        return Result<ImportCustomerResponse>.Success(new ImportCustomerResponse(imported, 0));
     }
 }

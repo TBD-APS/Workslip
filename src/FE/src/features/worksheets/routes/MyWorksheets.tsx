@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { BriefcaseBusiness, ChevronDown, ChevronLeft, ChevronRight, MapPin, ReceiptText, Timer } from 'lucide-react';
+import { BriefcaseBusiness, ChevronDown, ChevronLeft, ChevronRight, MapPin, ReceiptText, Timer, Users } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
 import { apiClient } from '../../../lib/axios';
 import { useIsAdmin } from '../../../providers/permissions';
@@ -136,7 +136,7 @@ function AdminWeeklyOverview({
                       {formatNumber(day.totalHours)}
                     </td>
                   ))}
-                  <td className="admin-col-total admin-week-total">{formatNumber(week.totalHours)}</td>
+                  <td className="admin-col-total">{formatNumber(week.totalHours)}</td>
                 </tr>
               </tbody>
             </table>
@@ -243,6 +243,7 @@ export function MyWorksheets() {
               <SummaryCard icon={<Timer size={12} />} label="Timer" value={`${formatNumber(data.totalHours)} t`} />
               <SummaryCard icon={<ReceiptText size={12} />} label="Udlæg" value={`${data.outlayCount}`} />
               <SummaryCard icon={<BriefcaseBusiness size={12} />} label="Jobs" value={`${countEntries(data.weeks)}`} />
+              {isAdmin && <SummaryCard icon={<Users size={12} />} label="Medarbejdere" value={`${countUniqueEmployees(data.weeks)}`} />}
             </section>
           )}
         </div>
@@ -497,6 +498,18 @@ function countEntries(weeks: MyWorksheetWeekResponse[]) {
 
 function countWeekEntries(week: MyWorksheetWeekResponse) {
   return week.days.reduce((sum, day) => sum + day.entries.length, 0);
+}
+
+function countUniqueEmployees(weeks: MyWorksheetWeekResponse[]): number {
+  const names = new Set<string>();
+  for (const week of weeks) {
+    for (const day of week.days) {
+      for (const entry of day.entries) {
+        if (entry.userDisplayName) names.add(entry.userDisplayName);
+      }
+    }
+  }
+  return names.size;
 }
 
 function parseDate(value: string) {

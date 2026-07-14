@@ -1,5 +1,10 @@
 @charset "UTF-8";
 
+/* Sonner Toast — push below Dynamic Island / display cutout */
+[data-sonner-toaster] {
+  --offset-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+}
+
 /* App Shell & Forms CSS */
 
 /* Forms */
@@ -73,7 +78,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.8rem 1.5rem;
-  padding-top: calc(0.8rem + env(safe-area-inset-top, 20px));
+  padding-top: calc(0.8rem + env(safe-area-inset-top, 0px));
   background: var(--overlay-blur);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
@@ -190,7 +195,14 @@
 .app-content {
   flex: 1;
   padding: 1.5rem;
-  padding-bottom: calc(80px + 1.5rem); /* Make room for bottom nav */
+  padding-bottom: calc(80px + 1.5rem + env(safe-area-inset-bottom, 0px)); /* Make room for bottom nav + safe area */
+}
+
+@media (max-width: 480px) {
+  .app-content {
+    padding: 1rem;
+    padding-bottom: calc(80px + 1rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Bottom Navigation */
@@ -207,6 +219,7 @@
   align-items: center;
   height: auto;
   padding-top: 10px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   z-index: 100;
 }
 
@@ -1139,6 +1152,21 @@
 .section-header-row h3 {
   font-size: var(--fs-body);
   margin: 0;
+}
+
+.nav-maps-link {
+  margin-left: auto;
+  color: var(--text-muted, #6b7280);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.nav-maps-link:hover {
+  color: var(--primary, #2563eb);
 }
 
 .customer-search-slot {
@@ -3956,6 +3984,25 @@
   max-width: 1100px;
 }
 
+/* ── Admin Timer — forced white theme ── */
+.time-overview-page--admin {
+  --bg: #ffffff;
+  --text: #18181b;
+  --text-muted: #6b7280;
+  --text-dim: rgba(0, 0, 0, 0.4);
+  --surface: #f8f9fa;
+  --surface-raised: #f1f3f5;
+  --surface-elevated: #e9ecef;
+  --surface-input: #ffffff;
+  --border: #dee2e6;
+  --border-strong: #ced4da;
+  --primary: #2c54ac;
+  --primary-rgb: 44, 84, 172;
+  --focus-ring: rgba(44, 84, 172, 0.3);
+  background: var(--bg);
+  color: var(--text);
+}
+
 .time-overview-header {
   display: flex;
   align-items: flex-start;
@@ -4434,7 +4481,7 @@
 .admin-week-card.is-current {
   border-color: var(--primary);
   background: var(--surface);
-  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.1);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 44, 84, 172), 0.1);
 }
 
 .admin-week-title {
@@ -4448,7 +4495,7 @@
 
 .admin-week-title h3 {
   margin: 0;
-  font-size: var(--fs-base);
+  font-size: var(--fs-body);
   font-weight: 500;
 }
 
@@ -4474,7 +4521,7 @@
 }
 
 .admin-week-table thead th {
-  padding: 0.5rem 0.6rem;
+  padding: 0.6rem 0.75rem;
   text-align: center;
   font-weight: 600;
   font-size: 0.75rem;
@@ -4534,7 +4581,7 @@
 }
 
 .admin-user-row td {
-  padding: 0.5rem 0.6rem;
+  padding: 0.6rem 0.75rem;
   text-align: center;
   border-right: 1px solid var(--border);
   color: var(--text);
@@ -4561,7 +4608,7 @@
 }
 
 .admin-row-total td {
-  padding: 0.5rem 0.6rem;
+  padding: 0.6rem 0.75rem;
   text-align: center;
   border-right: 1px solid var(--border);
   background: var(--surface-raised);
@@ -4576,8 +4623,6 @@
 
 .admin-row-total td:last-child {
   border-right: none;
-  background: var(--primary-soft) !important;
-  color: var(--primary) !important;
   border-left: 2px solid var(--primary);
 }
 
@@ -4596,7 +4641,7 @@
 
   .admin-week-table thead th,
   .admin-week-table tbody td {
-    padding: 0.65rem 0.75rem;
+    padding: 0.75rem 0.85rem;
   }
 
   .admin-col-name {

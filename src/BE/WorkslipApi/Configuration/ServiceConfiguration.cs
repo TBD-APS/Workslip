@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Azure.Core;
 using Microsoft.Graph;
 using Workslip.Api.Services;
@@ -27,6 +28,22 @@ public static class ServiceConfiguration
 
         builder.Services.AddWorkslipApplication();
         builder.Services.AddWorkslipInfrastructure();
+
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.AddPolicy("customer-import", httpContext =>
+            {
+                var partitionKey = httpContext.User.Identity?.Name ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+                    return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    QueueLimit = 0,
+                    Window = TimeSpan.FromMinutes(1)
+                });
+            });
+        });
 
         builder.Services.AddSingleton<IJobReportPdfService, JobReportPdfService>();
 

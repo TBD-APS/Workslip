@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Building2, FileText, Link2, Lock, Users } from 'lucide-react';
+import { Building2, FileText, Link2, Lock, Navigation, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
@@ -14,6 +14,11 @@ import { validateEmail, validatePhoneNumber } from '../../../components/forms/va
 import { type AddressSuggestion } from '../hooks/useAddressAutocomplete';
 import { AddressAutocomplete } from './AddressAutocomplete';
 
+function getMapsUrl(address: string, zipCode: string, city: string): string | null {
+  const parts = [address, zipCode, city].filter((p) => p.trim().length > 0);
+  if (parts.length === 0) return null;
+  return `https://maps.google.com/?q=${encodeURIComponent(parts.join(', '))}`;
+}
 
 type CustomerBlockProps = {
   form: { customerId: string | null; customerSnapshot: CustomerSnapshotData | null; reportNumber: string };
@@ -66,6 +71,21 @@ export function DestinationAddressBlock({ value, zipCode, city, onChange, onZipC
         <div className="section-header-row">
           <FileText size={18} />
           <h3>Adresse (destination){required && <span className="required-asterisk">*</span>}</h3>
+          {(() => {
+            const mapsUrl = getMapsUrl(value, zipCode, city);
+            return mapsUrl ? (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="nav-maps-link"
+                title="Åbn i Google Maps"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Navigation size={16} />
+              </a>
+            ) : null;
+          })()}
         </div>
         <AddressAutocomplete
           value={displayValue}

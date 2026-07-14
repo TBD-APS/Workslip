@@ -34,6 +34,8 @@ param provisionWebApiSqlAccess bool   = false
 // this template on a real environment.
 @secure()
 param sqlAdminPassword string
+@secure()
+param vercelToken string
 
 // ── Role definition IDs ───────────────────────────────────────────────────────
 // Centralised here so they're easy to audit and update.
@@ -273,6 +275,7 @@ module staticConfig './staticConfig.bicep' = {
   name: 'static-config-values'
   params: {
     appConfigurationName: appConfiguration.name
+    vercelToken: vercelToken
   }
 }
 

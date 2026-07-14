@@ -1,4 +1,6 @@
 param appConfigurationName string
+@secure()
+param vercelToken string
 
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
   name: appConfigurationName
@@ -76,7 +78,7 @@ var appConfigValues = {
 
   //Vercel
   'Vercel:ProjectId': 'prj_eIy6jy8lbxQSpuzJsvzhurAivAaX'
-  'Vercel:Token': 'vcp_7A324Q5DBCQbFlbBLmJ1KrjAunTdmt38FITu1EvmfpuOSeALfF1gcuj0'
+  'Vercel:Token': vercelToken
 }
 
 
