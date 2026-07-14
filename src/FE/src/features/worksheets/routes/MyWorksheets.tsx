@@ -136,7 +136,7 @@ function AdminWeeklyOverview({
                       {formatNumber(day.totalHours)}
                     </td>
                   ))}
-                  <td className="admin-col-total admin-week-total">{formatNumber(week.totalHours)}</td>
+                  <td className="admin-col-total">{formatNumber(week.totalHours)}</td>
                 </tr>
               </tbody>
             </table>

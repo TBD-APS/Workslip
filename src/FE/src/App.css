@@ -4623,8 +4623,6 @@
 
 .admin-row-total td:last-child {
   border-right: none;
-  background: rgba(var(--primary-rgb, 44, 84, 172), 0.1) !important;
-  color: var(--primary) !important;
   border-left: 2px solid var(--primary);
 }
 
