@@ -4465,6 +4465,7 @@
   border-collapse: collapse;
   font-size: 0.875rem;
   background: var(--surface);
+  table-layout: fixed;
 }
 
 .admin-week-table thead {
@@ -4489,15 +4490,15 @@
 .admin-col-name {
   text-align: left !important;
   font-weight: 600;
-  min-width: 120px;
+  width: 150px;
 }
 
 .admin-col-day {
-  min-width: 60px;
+  width: auto;
 }
 
 .admin-col-total {
-  min-width: 60px;
+  width: 80px;
   border-left: 2px solid var(--primary) !important;
 }
 
@@ -4600,11 +4601,11 @@
   }
 
   .admin-col-name {
-    min-width: 140px;
+    width: 160px;
   }
 
   .admin-col-day {
-    min-width: 70px;
+    width: auto;
   }
 }
 
