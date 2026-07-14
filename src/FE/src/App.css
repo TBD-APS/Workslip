@@ -3984,6 +3984,25 @@
   max-width: 1100px;
 }
 
+/* ── Admin Timer — forced white theme ── */
+.time-overview-page--admin {
+  --bg: #ffffff;
+  --text: #18181b;
+  --text-muted: #6b7280;
+  --text-dim: rgba(0, 0, 0, 0.4);
+  --surface: #f8f9fa;
+  --surface-raised: #f1f3f5;
+  --surface-elevated: #e9ecef;
+  --surface-input: #ffffff;
+  --border: #dee2e6;
+  --border-strong: #ced4da;
+  --primary: #2c54ac;
+  --primary-rgb: 44, 84, 172;
+  --focus-ring: rgba(44, 84, 172, 0.3);
+  background: var(--bg);
+  color: var(--text);
+}
+
 .time-overview-header {
   display: flex;
   align-items: flex-start;
@@ -4462,7 +4481,7 @@
 .admin-week-card.is-current {
   border-color: var(--primary);
   background: var(--surface);
-  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.1);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 44, 84, 172), 0.1);
 }
 
 .admin-week-title {
@@ -4476,7 +4495,7 @@
 
 .admin-week-title h3 {
   margin: 0;
-  font-size: var(--fs-base);
+  font-size: var(--fs-body);
   font-weight: 500;
 }
 
@@ -4502,7 +4521,7 @@
 }
 
 .admin-week-table thead th {
-  padding: 0.5rem 0.6rem;
+  padding: 0.6rem 0.75rem;
   text-align: center;
   font-weight: 600;
   font-size: 0.75rem;
@@ -4562,7 +4581,7 @@
 }
 
 .admin-user-row td {
-  padding: 0.5rem 0.6rem;
+  padding: 0.6rem 0.75rem;
   text-align: center;
   border-right: 1px solid var(--border);
   color: var(--text);
@@ -4589,7 +4608,7 @@
 }
 
 .admin-row-total td {
-  padding: 0.5rem 0.6rem;
+  padding: 0.6rem 0.75rem;
   text-align: center;
   border-right: 1px solid var(--border);
   background: var(--surface-raised);
@@ -4604,7 +4623,7 @@
 
 .admin-row-total td:last-child {
   border-right: none;
-  background: var(--primary-soft) !important;
+  background: rgba(var(--primary-rgb, 44, 84, 172), 0.1) !important;
   color: var(--primary) !important;
   border-left: 2px solid var(--primary);
 }
@@ -4624,7 +4643,7 @@
 
   .admin-week-table thead th,
   .admin-week-table tbody td {
-    padding: 0.65rem 0.75rem;
+    padding: 0.75rem 0.85rem;
   }
 
   .admin-col-name {
