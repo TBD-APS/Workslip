@@ -22,7 +22,13 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating (build:', BUILD_TIME + ')');
-  event.waitUntil(clientsClaim());
+  event.waitUntil(
+    clientsClaim().then(() =>
+      self.clients.matchAll({ type: 'window' }).then((clients) => {
+        clients.forEach((client) => client.navigate(client.url));
+      })
+    )
+  );
 });
 
 self.addEventListener('push', (event) => {

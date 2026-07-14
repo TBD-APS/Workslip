@@ -1,0 +1,15 @@
+name: Post-Deploy Cache Clear
+
+on:
+  deployment_status:
+
+jobs:
+  clear-cache:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clear Vercel CDN + SW caches
+        run: |
+          curl -sf -X POST "${{ secrets.BE_API_URL }}/api/admin/cache/clear" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_API_KEY }}" \
+            -H "Content-Type: application/json" || echo "Cache clear failed (non-fatal)"

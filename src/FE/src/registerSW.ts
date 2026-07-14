@@ -19,7 +19,13 @@ const updateSW = registerSW({
 navigator.serviceWorker.addEventListener('controllerchange', () => {
   if (!isRefreshing) {
     isRefreshing = true;
-    console.log('[PWA] Controller changed — reloading page');
-    window.location.reload();
+    console.log('[PWA] Controller changed — hard-navigating');
+    window.location.href = window.location.href;
   }
 });
+
+if ('serviceWorker' in navigator) {
+  setInterval(() => {
+    navigator.serviceWorker.ready.then((reg) => reg.update());
+  }, 60 * 60 * 1000);
+}
