@@ -283,7 +283,7 @@ export function MyWorksheets() {
               <AdminWeeklyOverview data={data} currentWeekStart={getCurrentWeekStart()} />
               <div className="admin-total-footer">
                 <span>Totale timer:</span>
-                <span className="admin-total-value">{formatNumber(data.totalHours)} t</span>
+                <span className="admin-total-value">{formatNumber(data.totalHours)}</span>
               </div>
             </>
           ) : (
