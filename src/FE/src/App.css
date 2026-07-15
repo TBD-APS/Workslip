@@ -1,5 +1,10 @@
 @charset "UTF-8";
 
+/* Sonner Toast — force safe-area-inset-top via CSS (env() in inline styles unreliable on iOS) */
+[data-sonner-toaster][data-y-position="top"] {
+  top: calc(env(safe-area-inset-top, 0px) + 1rem) !important;
+}
+
 /* App Shell & Forms CSS */
 
 /* Forms */
@@ -190,13 +195,13 @@
 .app-content {
   flex: 1;
   padding: 1.5rem;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 480px) {
   .app-content {
     padding: 1rem;
-    padding-bottom: calc(safe-area-inset-bottom, 0px);
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   }
 }
 
