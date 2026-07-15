@@ -1,11 +1,10 @@
 name: Post Deploy – Clear Caches
 
 on:
-  deployment_status:
+  workflow_dispatch:
 
 jobs:
   clear-caches:
-    if: github.event.deployment_status.state == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Get admin token

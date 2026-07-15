@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronLeft, ChevronRight, MapPin, Timer } from 'lucide-react';
+import { BriefcaseBusiness, ChevronDown, ChevronLeft, ChevronRight, MapPin, ReceiptText, Timer } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
 import { apiClient } from '../../../lib/axios';
 import { useIsAdmin } from '../../../providers/permissions';
@@ -502,18 +502,6 @@ function countEntries(weeks: MyWorksheetWeekResponse[]) {
 
 function countWeekEntries(week: MyWorksheetWeekResponse) {
   return week.days.reduce((sum, day) => sum + day.entries.length, 0);
-}
-
-function countUniqueEmployees(weeks: MyWorksheetWeekResponse[]): number {
-  const names = new Set<string>();
-  for (const week of weeks) {
-    for (const day of week.days) {
-      for (const entry of day.entries) {
-        if (entry.userDisplayName) names.add(entry.userDisplayName);
-      }
-    }
-  }
-  return names.size;
 }
 
 function parseDate(value: string) {
