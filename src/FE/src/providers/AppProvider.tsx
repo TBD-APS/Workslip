@@ -11,6 +11,7 @@ const ToasterWithTheme = () => {
     <Toaster
       theme={theme === 'night' ? 'dark' : 'light'}
       position="top-center"
+      offset="calc(env(safe-area-inset-top, 0px) + 1rem)"
       toastOptions={{
         style: {
           background: 'var(--surface-color)',

@@ -1,10 +1,5 @@
 @charset "UTF-8";
 
-/* Sonner Toast — push below Dynamic Island / display cutout */
-[data-sonner-toaster] {
-  --offset-top: calc(env(safe-area-inset-top, 0px) + 1rem);
-}
-
 /* App Shell & Forms CSS */
 
 /* Forms */
@@ -195,13 +190,13 @@
 .app-content {
   flex: 1;
   padding: 1.5rem;
-  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 480px) {
   .app-content {
     padding: 1rem;
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(safe-area-inset-bottom, 0px);
   }
 }
 
