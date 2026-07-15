@@ -1,8 +1,5 @@
-using System.Net.Http.Json;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Options;
-using Workslip.Infrastructure.Configuration;
 
 namespace Workslip.Api.Endpoints;
 

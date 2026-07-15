@@ -4577,14 +4577,6 @@
   color: var(--text-muted);
 }
 
-.admin-total-top {
-  display: flex;
-  justify-content: flex-end;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  padding: 0.25rem 0;
-}
-
 .admin-total-value {
   font-weight: 500;
   color: var(--text);

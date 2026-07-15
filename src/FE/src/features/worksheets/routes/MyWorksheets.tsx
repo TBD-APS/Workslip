@@ -252,8 +252,9 @@ export function MyWorksheets() {
             Til nuværende måned
           </button>
           {data && (
-            <div className="admin-total-top">
-              Totale timer: {formatNumber(data.totalHours)}
+            <div className="admin-total-footer">
+              <span>Total:</span>
+              <span className="admin-total-value">{formatNumber(data.totalHours)} t</span>
             </div>
           )}
         </div>
