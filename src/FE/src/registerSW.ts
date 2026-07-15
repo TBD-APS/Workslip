@@ -3,6 +3,14 @@ import { registerSW } from 'virtual:pwa-register';
 
 let isRefreshing = false;
 
+navigator.serviceWorker.addEventListener('message', (event) => {
+  if (event.data?.type === 'RELOAD' && !isRefreshing) {
+    isRefreshing = true;
+    console.log('[PWA] Received RELOAD from SW');
+    window.location.reload();
+  }
+});
+
 const updateSW = registerSW({
   onNeedRefresh() {
     console.log('[PWA] New update available — activating');
@@ -16,20 +24,18 @@ const updateSW = registerSW({
   },
 });
 
-navigator.serviceWorker.addEventListener('message', (event) => {
-  if (event.data?.type === 'RELOAD' && !isRefreshing) {
-    isRefreshing = true;
-    console.log('[PWA] Received RELOAD from SW — reloading');
-    window.location.reload();
-  }
-});
-
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.ready.then((reg) => {
     reg.update();
   });
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      navigator.serviceWorker.ready.then((reg) => reg.update());
+    }
+  });
+
   setInterval(() => {
     navigator.serviceWorker.ready.then((reg) => reg.update());
-  }, 5 * 60 * 1000);
+  }, 60 * 1000);
 }
