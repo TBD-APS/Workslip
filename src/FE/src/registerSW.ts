@@ -5,7 +5,7 @@ let isRefreshing = false;
 
 const updateSW = registerSW({
   onNeedRefresh() {
-    console.log('[PWA] New update available — forcing active controller swap');
+    console.log('[PWA] New update available — activating');
     updateSW();
   },
   onOfflineReady() {
@@ -16,15 +16,19 @@ const updateSW = registerSW({
   },
 });
 
-navigator.serviceWorker.addEventListener('controllerchange', () => {
-  if (!isRefreshing) {
+navigator.serviceWorker.addEventListener('message', (event) => {
+  if (event.data?.type === 'RELOAD' && !isRefreshing) {
     isRefreshing = true;
-    console.log('[PWA] Controller changed — hard-navigating');
-    window.location.href = window.location.href;
+    console.log('[PWA] Received RELOAD from SW — reloading');
+    window.location.reload();
   }
 });
 
 if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.ready.then((reg) => {
+    reg.update();
+  });
+
   setInterval(() => {
     navigator.serviceWorker.ready.then((reg) => reg.update());
   }, 5 * 60 * 1000);

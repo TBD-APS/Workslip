@@ -25,7 +25,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     clientsClaim().then(() =>
       self.clients.matchAll({ type: 'window' }).then((clients) => {
-        clients.forEach((client) => client.navigate(client.url));
+        for (const client of clients) {
+          client.postMessage({ type: 'RELOAD' });
+        }
       })
     )
   );
