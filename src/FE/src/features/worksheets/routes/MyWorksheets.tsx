@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { BriefcaseBusiness, ChevronDown, ChevronLeft, ChevronRight, MapPin, ReceiptText, Timer, Users } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, MapPin, Timer } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
 import { apiClient } from '../../../lib/axios';
 import { useIsAdmin } from '../../../providers/permissions';
@@ -105,12 +105,17 @@ function AdminWeeklyOverview({
                     <span className="admin-week-info">{formatWeekRange(week.weekStart, week.weekEnd)}</span>
                     <span className="admin-week-number">Uge {getIsoWeek(week.weekStart)}</span>
                   </th>
-                  {week.days.map((day) => (
-                    <th key={day.date} className="admin-col-day">
-                      <span className="admin-day-short">{DAY_FORMATTER.format(parseDate(day.date)).split(' ')[0]}</span>
-                      <span className="admin-day-num">{parseDate(day.date).getDate()}</span>
-                    </th>
-                  ))}
+                  {week.days.map((day) => {
+                    const date = parseDate(day.date);
+                    const dayOfWeek = date.getDay();
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                    return (
+                      <th key={day.date} className={`admin-col-day ${isWeekend ? 'admin-col-weekend' : ''}`}>
+                        <span className="admin-day-short">{DAY_FORMATTER.format(date).split(' ')[0]}</span>
+                        <span className="admin-day-num">{date.getDate()}</span>
+                      </th>
+                    );
+                  })}
                   <th className="admin-col-total">I alt</th>
                 </tr>
               </thead>
@@ -120,8 +125,11 @@ function AdminWeeklyOverview({
                     <td className="admin-col-name admin-user-name">{user}</td>
                     {week.days.map((day) => {
                       const dayData = dayMap.get(day.date);
+                      const date = parseDate(day.date);
+                      const dayOfWeek = date.getDay();
+                      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                       return (
-                        <td key={day.date} className="admin-col-day admin-col-hours">
+                        <td key={day.date} className={`admin-col-day admin-col-hours ${isWeekend ? 'admin-col-weekend' : ''}`}>
                           {dayData ? formatNumber(dayData.hours) : '—'}
                         </td>
                       );
@@ -131,11 +139,16 @@ function AdminWeeklyOverview({
                 ))}
                 <tr className="admin-row-total">
                    <td className="admin-col-name">I alt pr. dag</td>
-                  {week.days.map((day) => (
-                    <td key={day.date} className="admin-col-day admin-col-hours">
-                      {formatNumber(day.totalHours)}
-                    </td>
-                  ))}
+                  {week.days.map((day) => {
+                    const date = parseDate(day.date);
+                    const dayOfWeek = date.getDay();
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                    return (
+                      <td key={day.date} className={`admin-col-day admin-col-hours ${isWeekend ? 'admin-col-weekend' : ''}`}>
+                        {formatNumber(day.totalHours)}
+                      </td>
+                    );
+                  })}
                   <td className="admin-col-total">{formatNumber(week.totalHours)}</td>
                 </tr>
               </tbody>
@@ -239,12 +252,9 @@ export function MyWorksheets() {
             Til nuværende måned
           </button>
           {data && (
-            <section className="time-summary-grid" aria-label="Månedsopsummering">
-              <SummaryCard icon={<Timer size={12} />} label="Timer" value={`${formatNumber(data.totalHours)} t`} />
-              <SummaryCard icon={<ReceiptText size={12} />} label="Udlæg" value={`${data.outlayCount}`} />
-              <SummaryCard icon={<BriefcaseBusiness size={12} />} label="Jobs" value={`${countEntries(data.weeks)}`} />
-              {isAdmin && <SummaryCard icon={<Users size={12} />} label="Medarbejdere" value={`${countUniqueEmployees(data.weeks)}`} />}
-            </section>
+            <div className="admin-total-top">
+              Totale timer: {formatNumber(data.totalHours)}
+            </div>
           )}
         </div>
       </div>
@@ -268,7 +278,13 @@ export function MyWorksheets() {
             </div>
           )}
           {isAdmin && data.weeks.length > 0 ? (
-            <AdminWeeklyOverview data={data} currentWeekStart={getCurrentWeekStart()} />
+            <>
+              <AdminWeeklyOverview data={data} currentWeekStart={getCurrentWeekStart()} />
+              <div className="admin-total-footer">
+                <span>Total:</span>
+                <span className="admin-total-value">{formatNumber(data.totalHours)} t</span>
+              </div>
+            </>
           ) : (
             <section className="time-week-list" aria-label="Ugentligt timeoverblik">
               {data.weeks.map((week) => (
@@ -395,18 +411,6 @@ function DayCell({
             )}
           </button>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="time-summary-card">
-      <span className="time-summary-icon">{icon}</span>
-      <div>
-        <span>{label}</span>
-        <span>{value}</span>
       </div>
     </div>
   );

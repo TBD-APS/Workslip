@@ -3982,6 +3982,7 @@
    ------------------------------------------------------------ */
 .time-overview-page {
   max-width: 1100px;
+  padding: 0 1rem;
 }
 
 /* ── Admin Timer — forced white theme ── */
@@ -4512,7 +4513,8 @@
   border-collapse: collapse;
   font-size: 0.875rem;
   background: var(--surface);
-  table-layout: fixed;
+  table-layout: auto;
+  min-width: 540px;
 }
 
 .admin-week-table thead {
@@ -4522,12 +4524,11 @@
 }
 
 .admin-week-table thead th {
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem 0.5rem;
   text-align: center;
   font-weight: 600;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
-  text-transform: uppercase;
   letter-spacing: 0.03em;
   border: 1px solid var(--border);
   white-space: nowrap;
@@ -4537,32 +4538,77 @@
 .admin-col-name {
   text-align: left !important;
   font-weight: 600;
-  width: 150px;
+  width: 120px;
+  min-width: 100px;
+}
+
+.admin-row-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.admin-week-info {
+  font-size: 0.8rem;
+}
+
+.admin-week-number {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .admin-col-day {
   width: auto;
 }
 
+.admin-col-weekend {
+  background: var(--surface-raised);
+  opacity: 0.6;
+}
+
+.admin-total-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.admin-total-top {
+  display: flex;
+  justify-content: flex-end;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  padding: 0.25rem 0;
+}
+
+.admin-total-value {
+  font-weight: 500;
+  color: var(--text);
+}
+
 .admin-col-total {
-  width: 80px;
-  border-left: 2px solid var(--primary) !important;
+  width: 60px;
+  min-width: 50px;
+  border-left: 2px solid var(--border-strong) !important;
 }
 
 .admin-day-short {
   display: block;
   font-size: 0.65rem;
   color: var(--text-muted);
-  text-transform: uppercase;
   font-weight: 500;
   line-height: 1;
 }
 
 .admin-day-num {
   display: block;
-  font-weight: 700;
-  color: var(--text);
-  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 0.8rem;
   line-height: 1.1;
 }
 
@@ -4582,10 +4628,11 @@
 }
 
 .admin-user-row td {
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem 0.5rem;
   text-align: center;
   border-right: 1px solid var(--border);
   color: var(--text);
+  font-size: 0.8rem;
 }
 
 .admin-user-row .admin-col-name {
@@ -4609,12 +4656,13 @@
 }
 
 .admin-row-total td {
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem 0.5rem;
   text-align: center;
   border-right: 1px solid var(--border);
   background: var(--surface-raised);
   color: var(--text);
   font-weight: 600;
+  font-size: 0.8rem;
 }
 
 .admin-row-total .admin-col-name {
@@ -4640,17 +4688,39 @@
     font-size: 0.9375rem;
   }
 
+  .admin-week-table thead th {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
   .admin-week-table thead th,
   .admin-week-table tbody td {
     padding: 0.75rem 0.85rem;
   }
 
   .admin-col-name {
-    width: 160px;
+    width: 140px;
+    min-width: 120px;
   }
 
   .admin-col-day {
     width: auto;
+  }
+
+  .admin-user-row td {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.9375rem;
+  }
+
+  .admin-row-total td {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.9375rem;
+  }
+
+  .admin-day-num {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
   }
 }
 

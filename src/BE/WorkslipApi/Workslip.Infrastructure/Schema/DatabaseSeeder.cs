@@ -77,7 +77,7 @@ public static class DatabaseSeeder
             .RuleFor(x => x.Id, _ => new Guid("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F"))
             .RuleFor(x => x.OrganizationId, _ => organization.Id)
             .RuleFor(x => x.DisplayName, f => "Rasmus Bak Jakobsen")
-            .RuleFor(x => x.Email, f => "rbj@17v3ygzs.mailosaur.net")
+            .RuleFor(x => x.Email, f => "rasmusvm6@hotmail.com")
             .RuleFor(x => x.Phone, f => "28929173")
             .RuleFor(x => x.Role, _ => Roles.Superadmin)
             .RuleFor(x => x.CreatedAt, _ => now)

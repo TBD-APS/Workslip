@@ -392,7 +392,7 @@ export const Login = () => {
                 { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
                 { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
                 { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
-                { label: 'Dev Login · Superadmin', email: 'rbj@17v3ygzs.mailosaur.net', redirect: '/app' }
+                { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' }
               ].map((entry) => (
                 <button
                   key={entry.email}
