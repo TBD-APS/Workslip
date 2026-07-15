@@ -1,0 +1,22 @@
+name: Post Deploy – Clear Caches
+
+on:
+  deployment_status:
+
+jobs:
+  clear-caches:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get admin token
+        id: token
+        run: |
+          TOKEN=$(curl -s -X POST "${{ secrets.BE_API_URL }}/api/dev/token" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"${{ secrets.ADMIN_EMAIL }}"}' | jq -r '.token')
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Clear BE + Vercel CDN caches
+        run: |
+          curl -s -X POST "${{ secrets.BE_API_URL }}/api/admin/cache/clear" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.token }}"
