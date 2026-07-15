@@ -195,13 +195,13 @@
 .app-content {
   flex: 1;
   padding: 1.5rem;
-  padding-bottom: calc(80px + 1.5rem + env(safe-area-inset-bottom, 0px)); /* Make room for bottom nav + safe area */
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 480px) {
   .app-content {
     padding: 1rem;
-    padding-bottom: calc(80px + 1rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
 }
 
