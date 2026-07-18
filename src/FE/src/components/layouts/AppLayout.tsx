@@ -5,6 +5,7 @@ import { Can } from '../../providers/permissions';
 import { useEffect, useState } from 'react';
 import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
+import { CreateBottomSheet } from '../common/CreateBottomSheet';
 
 export const AppLayout = () => {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export const AppLayout = () => {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const { theme, toggle: toggleTheme } = useTheme();
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
 
   const scrollToTopIfActive = (path: string) => {
     if (location.pathname === path) {
@@ -132,11 +134,9 @@ export const AppLayout = () => {
           </NavLink>
         </Can>
           <Can permission="job:create">
-            <div className="nav-item-fab">
-            <button className="fab-button" onClick={() => navigate('/app/create')} aria-label="Opret">
-              <PlusCircle size={28} />
+            <button className="nav-item nav-item-create" onClick={() => setCreateSheetOpen(true)}>
+              <PlusCircle size={25} />
             </button>
-            </div>
           </Can>
         <Can permission="user:manage">
           <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
@@ -151,6 +151,7 @@ export const AppLayout = () => {
           </NavLink>
         </Can>
       </nav>
+      <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
     </div>
     </DropdownProvider>
   );

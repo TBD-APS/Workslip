@@ -144,10 +144,10 @@ export function JobAttestationStep({
             <CheckCircle2 size={18} />
             <h3>Status</h3>
           </div>
-          <ul className="attestation-control-list compact">
+          <ul className="attestation-status-flags">
             {selectedClosureFlags.map((flag) => (
               <li key={flag.id}>
-                <span>{flag.label}</span>
+                {flag.label}
               </li>
             ))}
           </ul>

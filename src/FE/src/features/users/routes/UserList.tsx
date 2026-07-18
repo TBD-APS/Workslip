@@ -12,6 +12,7 @@ import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 
 const PAGE_SIZE = 20;
+const SHOW_SEARCH = false;
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -87,7 +88,7 @@ export const UserList = () => {
         )}
       </div>
 
-      <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg brugere..." />
+      {SHOW_SEARCH && <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg brugere..." />}
 
       {isErrored ? (
         <ErrorState message="Kunne ikke hente brugere. Prøv igen." onRetry={() => void refetch()} />

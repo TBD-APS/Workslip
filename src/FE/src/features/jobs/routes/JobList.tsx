@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, PlusCircle, Timer, User } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { formatJobType } from '../statusLabels';
 import { SearchBar } from '../../../components/filters/SearchBar';
@@ -169,11 +169,6 @@ export const JobList = () => {
                 <p className="subtitle">Viser kun sager tildelt dig &middot; {displayedJobs.length} {displayedJobs.length === 1 ? 'sag' : 'sager'}</p>
               )}
             </div>
-            {!isAdmin && (
-              <button className="fab-button" onClick={() => navigate('/app/create')} type="button" aria-label="Opret">
-                <PlusCircle size={24} />
-              </button>
-            )}
           </div>
         )}
       </div>

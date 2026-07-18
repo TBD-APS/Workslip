@@ -19,6 +19,7 @@ type MultiSelectDropdownProps = {
   selectedIds: string[];
   isLoading?: boolean;
   commitOnClose?: boolean;
+  hideSearch?: boolean;
   onChange: (selectedIds: string[]) => void;
 };
 
@@ -31,6 +32,7 @@ export function MultiSelectDropdown({
   selectedIds,
   isLoading = false,
   commitOnClose = false,
+  hideSearch = false,
   onChange,
 }: MultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -168,15 +170,17 @@ export function MultiSelectDropdown({
 
         {isOpen && (
           <div className="multi-select-menu">
-            <div className="multi-select-search">
-              <input
-                className="multi-select-search-input"
-                type="text"
-                placeholder="Søg..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+            {!hideSearch && (
+              <div className="multi-select-search">
+                <input
+                  className="multi-select-search-input"
+                  type="text"
+                  placeholder="Søg..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            )}
             {isLoading && <p className="multi-select-menu-empty">{loadingText}</p>}
             {!isLoading && filteredOptions.length === 0 && <p className="multi-select-menu-empty">{searchQuery ? 'Ingen resultater' : emptyText}</p>}
             {filteredOptions.map((option) => {

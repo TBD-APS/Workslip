@@ -1,5 +1,5 @@
-import { History, X, User, Clock, ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from 'lucide-react';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { History, X, User, Clock, ChevronDown, ChevronUp, ChevronLeft, Plus, Pencil, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useGetApiJobsIdHistory } from '../../../api/generated/jobs/jobs';
 import type { JobHistoryResponse } from '../../../api/generated/models';
 import { formatDateLong } from '../../../lib/formatDate';
@@ -17,48 +17,11 @@ export function JobHistoryDrawer({ jobId, isOpen, onClose }: JobHistoryDrawerPro
     },
   });
 
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const swiping = useRef(false);
-  const [swipeOffset, setSwipeOffset] = useState(0);
-
   useEffect(() => {
     if (isOpen) {
       refetch();
     }
   }, [isOpen, refetch]);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    swiping.current = false;
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const dx = e.touches[0].clientX - touchStartX.current;
-    const dy = e.touches[0].clientY - touchStartY.current;
-
-    if (!swiping.current) {
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
-        swiping.current = true;
-      } else if (Math.abs(dy) > 10) {
-        return;
-      }
-    }
-
-    if (swiping.current && dx < 0) {
-      e.preventDefault();
-      setSwipeOffset(dx);
-    }
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    if (swipeOffset < -80) {
-      onClose();
-    }
-    setSwipeOffset(0);
-  }, [swipeOffset, onClose]);
 
   return (
     <>
@@ -67,12 +30,10 @@ export function JobHistoryDrawer({ jobId, isOpen, onClose }: JobHistoryDrawerPro
         onClick={onClose}
       />
       <div
-        ref={drawerRef}
         className={`drawer history-drawer ${isOpen ? 'open' : ''}`}
-        style={swipeOffset < 0 ? { transform: `translateX(${swipeOffset}px)`, transition: 'none' } : undefined}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Sags historik"
       >
         <div className="drawer-drag-handle" />
         <div className="drawer-header">
@@ -80,10 +41,18 @@ export function JobHistoryDrawer({ jobId, isOpen, onClose }: JobHistoryDrawerPro
             <History size={20} />
             <h2>Sags historik</h2>
           </div>
-          <button className="btn-icon" onClick={onClose}>
+          <button className="btn-icon" onClick={onClose} aria-label="Luk historik">
             <X size={24} />
           </button>
         </div>
+
+        <button
+          className="drawer-back-hint"
+          onClick={onClose}
+          aria-label="Gå tilbage"
+        >
+          <ChevronLeft size={22} />
+        </button>
 
         <div className="drawer-content">
           {isLoading ? (

@@ -306,6 +306,7 @@ export function AssignmentBlock({ assignment, readOnlyAssigned, isEditing = true
             selectedIds={assignment.assignedUserIds}
             isLoading={assignment.isLoadingUsers}
             commitOnClose
+            hideSearch
             onChange={assignment.onAssignedUsersChange}
           />
         ) : (

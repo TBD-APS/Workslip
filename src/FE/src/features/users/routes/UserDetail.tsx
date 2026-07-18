@@ -8,6 +8,7 @@ import {
   Building2,
   Check,
   Clock,
+  ClipboardList,
   Loader2,
   Mail,
   MapPin,
@@ -21,6 +22,7 @@ import { useGetApiJobs, usePostApiJobsIdAssign } from '../../../api/generated/jo
 import { JobStatus } from '../../../api/generated/models';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
+import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { announceSection } from '../../../components/filters/StatusFilter';
 
 
@@ -215,62 +217,6 @@ export const UserDetail = () => {
         )}
       </div>
 
-      <h3 className="section-title">Tildelte opgaver</h3>
-
-      <div className="job-list">
-        {user.assignedJobs.map((job) => (
-          <button
-            key={job.reportId}
-            className="job-card"
-            onClick={() => navigate(`/app/completed/${job.reportId}`, { state: { from: `/app/users/${id}` } })}
-            type="button"
-          >
-            <div className="job-card-top">
-              <div>
-                <span className="job-number">
-                  {formatJobNumber(job.reportNumber, job.reportId)}
-                </span>
-              </div>
-              <span className={`status-badge status-${job.status.toLowerCase()}`}>
-                {formatJobStatus(job.status)}
-              </span>
-            </div>
-            <div className="job-card-body">
-              {job.customerName && (
-                <span className="meta-item">
-                  <Building2 size={14} />
-                  <span>{job.customerName}</span>
-                </span>
-              )}
-              {job.customerEmail && (
-                <span className="meta-item">
-                  <Mail size={14} />
-                  <span>{job.customerEmail}</span>
-                </span>
-              )}
-              {job.customerAddress && (
-                <span className="meta-item">
-                  <MapPin size={14} />
-                  <span>{job.customerAddress}</span>
-                </span>
-              )}
-            </div>
-            <div className="job-card-meta">
-              <span className="meta-item meta-item--muted">
-                <Clock size={14} />
-                <span>Sidst opdateret: {formatDateLong(job.updatedAt)}</span>
-              </span>
-            </div>
-          </button>
-        ))}
-
-        {user.assignedJobs.length === 0 && (
-          <div className="empty-state">
-            <p>Ingen tildelte opgaver.</p>
-          </div>
-        )}
-      </div>
-
       <h3 className="section-title">Tildel sag</h3>
 
       <div className="search-input-wrapper">
@@ -329,6 +275,64 @@ export const UserDetail = () => {
           {suggestionResults.map((job) => renderAssignableJobCard(job))}
         </div>
       )}
+
+      <CollapsibleSection
+        icon={<ClipboardList size={18} />}
+        title={`Tildelte opgaver (${user.assignedJobs.length})`}
+        defaultOpen={false}
+      >
+        {user.assignedJobs.map((job) => (
+          <button
+            key={job.reportId}
+            className="job-card"
+            onClick={() => navigate(`/app/completed/${job.reportId}`, { state: { from: `/app/users/${id}` } })}
+            type="button"
+          >
+            <div className="job-card-top">
+              <div>
+                <span className="job-number">
+                  {formatJobNumber(job.reportNumber, job.reportId)}
+                </span>
+              </div>
+              <span className={`status-badge status-${job.status.toLowerCase()}`}>
+                {formatJobStatus(job.status)}
+              </span>
+            </div>
+            <div className="job-card-body">
+              {job.customerName && (
+                <span className="meta-item">
+                  <Building2 size={14} />
+                  <span>{job.customerName}</span>
+                </span>
+              )}
+              {job.customerEmail && (
+                <span className="meta-item">
+                  <Mail size={14} />
+                  <span>{job.customerEmail}</span>
+                </span>
+              )}
+              {job.customerAddress && (
+                <span className="meta-item">
+                  <MapPin size={14} />
+                  <span>{job.customerAddress}</span>
+                </span>
+              )}
+            </div>
+            <div className="job-card-meta">
+              <span className="meta-item meta-item--muted">
+                <Clock size={14} />
+                <span>Sidst opdateret: {formatDateLong(job.updatedAt)}</span>
+              </span>
+            </div>
+          </button>
+        ))}
+
+        {user.assignedJobs.length === 0 && (
+          <div className="empty-state">
+            <p>Ingen tildelte opgaver.</p>
+          </div>
+        )}
+      </CollapsibleSection>
     </div>
   );
 

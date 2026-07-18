@@ -157,7 +157,7 @@
 
 [data-theme="day"] .bottom-nav {
   background: rgba(255, 255, 255, 0.92);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
 }
 
 [data-theme="day"] .nav-item {
