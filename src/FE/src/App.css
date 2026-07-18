@@ -221,8 +221,12 @@
   padding-top: 10px;
   padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
   z-index: 100;
+  transform: none !important;
+  transition: none !important;
 }
 
+/* Hide the nav without moving it: visibility keeps its box in place
+   (layout/scroll are unaffected), only its painted output disappears. */
 .app-shell.keyboard-visible .bottom-nav {
   visibility: hidden;
   pointer-events: none;
@@ -5040,14 +5044,6 @@
   justify-content: space-between;
   align-items: center;
   background: var(--surface-raised);
-}
-
-.drawer-drag-handle {
-  width: 36px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border);
-  margin: 0.5rem auto 0;
 }
 
 .drawer-title {

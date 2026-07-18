@@ -35,7 +35,6 @@ export function JobHistoryDrawer({ jobId, isOpen, onClose }: JobHistoryDrawerPro
         aria-modal="true"
         aria-label="Sags historik"
       >
-        <div className="drawer-drag-handle" />
         <div className="drawer-header">
           <div className="drawer-title">
             <History size={20} />
