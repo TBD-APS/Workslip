@@ -232,10 +232,6 @@
   pointer-events: none;
 }
 
-.app-shell.keyboard-visible .app-content {
-  padding-bottom: 0 !important;
-}
-
 .nav-item {
   display: flex;
   flex-direction: column;
@@ -2131,6 +2127,23 @@
 /* ------------------------------------------------------------
    Step navigation (prev / next buttons)
    ------------------------------------------------------------ */
+.step-nav-anchor {
+  position: sticky;
+  bottom: calc(80px + 1rem);
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+
+.step-nav-anchor.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
 .step-nav {
   display: flex;
   align-items: center;
