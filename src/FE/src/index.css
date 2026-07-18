@@ -7,6 +7,9 @@
   --safe-bottom: env(safe-area-inset-bottom);
   --safe-left: env(safe-area-inset-left);
 
+  /* Layout */
+  --bottom-nav-height: 56px;
+
   /* Core Palette */
   --bg: #050505;
   --text-primary: var(--text);

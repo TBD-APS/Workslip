@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Building2, FileText, Link2, Lock, Navigation, Star, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
-import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
+import { SingleSelectDropdown, type SingleSelectOption } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
 import { useCan, useIsAdmin } from '../../../providers/permissions';
 import { useGetApiCustomersSuggest } from '../../../api/generated/customers/customers';
@@ -424,7 +424,7 @@ function CustomerSearchDropdown({ selectedId, onSelect, onCreateNew }: CustomerS
   const isLoading = isSearching ? isSearchingLoading : isTopLoading;
 
   const options = useMemo(() => {
-    const list = results.map((c: CustomerSearchViewModel) => ({
+    const list: SingleSelectOption[] = results.map((c: CustomerSearchViewModel) => ({
       id: c.id ?? '',
       label: c.name ?? '',
       description: c.address ?? undefined,

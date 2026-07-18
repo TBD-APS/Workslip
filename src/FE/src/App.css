@@ -195,13 +195,13 @@
 .app-content {
   flex: 1;
   padding: 1.5rem;
-  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: var(--bottom-nav-height);
 }
 
 @media (max-width: 480px) {
   .app-content {
     padding: 1rem;
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--bottom-nav-height);
   }
 }
 

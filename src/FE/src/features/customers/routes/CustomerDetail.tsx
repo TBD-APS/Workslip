@@ -16,7 +16,7 @@ export const CustomerDetail = () => {
   const customer = query.data;
 
   const listItems: CustomerListItemViewModel[] = customer
-    ? [{ id: customer.id, name: customer.name, address: customer.address, email: customer.email, contactPerson: customer.contactPerson, phone: customer.phone, jobCount: customer.jobCount }]
+    ? [{ id: customer.id, name: customer.name, address: customer.address, email: customer.email, contactPerson: customer.contactPerson, phone: customer.phone, jobCount: customer.jobCount, isTop: false }]
     : [];
 
   const {
