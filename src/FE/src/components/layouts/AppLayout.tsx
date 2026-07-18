@@ -50,7 +50,7 @@ export const AppLayout = () => {
 
   return (
     <DropdownProvider>
-      <div className="app-shell">
+      <div className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
         {/* Top Header for Mobile */}
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate('/app')}>
@@ -120,7 +120,7 @@ export const AppLayout = () => {
       </main>
 
       {/* Bottom Navigation (Mobile First) */}
-      <nav className={`bottom-nav ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
+      <nav className="bottom-nav">
         <NavLink to="/app" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app')}>
           <ClipboardList size={24} />
           <span>Sager</span>

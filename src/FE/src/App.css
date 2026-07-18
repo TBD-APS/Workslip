@@ -223,8 +223,13 @@
   z-index: 100;
 }
 
-.bottom-nav.keyboard-visible {
-  display: none;
+.app-shell.keyboard-visible .bottom-nav {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.app-shell.keyboard-visible .app-content {
+  padding-bottom: 0 !important;
 }
 
 .nav-item {
@@ -2227,10 +2232,6 @@
     border-top: none;
     border-bottom: 1px solid var(--border);
     order: 1;
-  }
-
-  .bottom-nav.keyboard-visible {
-    display: flex;
   }
 
   .app-content {
