@@ -30,7 +30,7 @@ const AUDITOR_PERMISSIONS: readonly Role[] = [ROLES.Auditor, ROLES.Admin, ROLES.
 const USER_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
 
 const PERMISSIONS: Record<Permission, readonly Role[]> = {
-  'job:create': USER_PERMISSIONS, 
+  'job:create': USER_PERMISSIONS,
   'job:assign': ADMIN_PERMISSIONS,
   'job:delete': ADMIN_PERMISSIONS,
   'job:viewAll': ADMIN_PERMISSIONS,

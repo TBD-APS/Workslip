@@ -30,6 +30,7 @@ export const DOCUMENT_TYPES: readonly DocumentType[] = [
     description: 'Opret et diverse job',
     icon: FileSpreadsheet,
     path: '/app/job/simple/new',
+    permission: 'job:create',
     status: 'available',
   },
   {
