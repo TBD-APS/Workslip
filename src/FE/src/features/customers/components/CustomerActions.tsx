@@ -6,6 +6,7 @@ import { notify } from '../../../lib/toast';
 import type { CustomerListItemViewModel, CustomerDetailViewModel } from '../../../api/generated/models';
 import { getGetApiCustomersQueryKey, getGetApiCustomersIdQueryKey } from '../../../api/generated/customers/customers';
 import { apiClient } from '../../../lib/axios';
+import { ConfirmDeleteDialog } from '../../../components/common/ConfirmDeleteDialog';
 
 type ActionMenuState = {
   customerId: string;
@@ -243,73 +244,24 @@ type DeleteCustomerDialogProps = {
 
 function DeleteCustomerDialog({ customer, onClose, onDeleted }: DeleteCustomerDialogProps) {
   const queryClient = useQueryClient();
-  const deleteLockRef = useRef(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  useEffect(() => {
-    if (!customer) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [customer, onClose]);
-
-  if (!customer) return null;
 
   const handleDelete = async () => {
-    if (deleteLockRef.current) return;
-    deleteLockRef.current = true;
-    setIsDeleting(true);
-    try {
-      await apiClient.delete(`/api/customers/${customer.id}`);
-      await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
-      await queryClient.invalidateQueries({ queryKey: getGetApiCustomersIdQueryKey(customer.id) });
-      notify.success('Kunden er slettet.');
-      onDeleted?.(customer);
-      onClose();
-    } catch {
-      notify.error('Kunne ikke slette kunden. Prøv igen.');
-      deleteLockRef.current = false;
-      setIsDeleting(false);
-    }
+    if (!customer) return;
+    await apiClient.delete(`/api/customers/${customer.id}`);
+    await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
+    notify.success('Kunden er slettet.');
+    onDeleted?.(customer);
+    onClose();
   };
 
-  return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal-card"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Slet kunde"
-      >
-        <h3>Slet kunde</h3>
-        <p>
-          Er du sikker på, du vil slette <strong>{customer.name}</strong>?
-        </p>
-
-        <div className="modal-actions">
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={() => void handleDelete()}
-            disabled={isDeleting}
-          >
-            {isDeleting && <Loader2 className="animate-spin" size={16} />}
-            <span>{isDeleting ? 'Sletter...' : 'Slet'}</span>
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={onClose}
-            disabled={isDeleting}
-          >
-            Annuller
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+  return (
+    <ConfirmDeleteDialog
+      open={customer !== null}
+      title="Slet kunde"
+      message={`Er du sikker på, du vil slette ${customer?.name ?? ''}?`}
+      onConfirm={handleDelete}
+      onClose={onClose}
+    />
   );
 }
 

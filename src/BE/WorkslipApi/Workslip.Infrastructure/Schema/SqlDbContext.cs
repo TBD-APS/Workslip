@@ -299,6 +299,8 @@ public sealed class SqlDbContext : DbContext
 
         entity.Property(e => e.Phone).HasMaxLength(80);
 
+        entity.Property(e => e.IsTop).HasDefaultValue(false);
+
 
 
         entity.Property(e => e.CreatedAt)

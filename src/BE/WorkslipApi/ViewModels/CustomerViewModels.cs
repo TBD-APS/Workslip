@@ -9,7 +9,8 @@ public sealed record CustomerListItemViewModel(
     string? Email,
     string? ContactPerson,
     string? Phone,
-    int JobCount);
+    int JobCount,
+    bool IsTop);
 
 public sealed record CustomerJobViewModel(
     Guid Id,
@@ -39,7 +40,8 @@ public sealed record CustomerSearchViewModel(
     string? Email,
     string? Phone,
     string? Address,
-    string? ContactPerson);
+    string? ContactPerson,
+    bool IsTop);
 
 public static class CustomerViewModelBuilder
 {
@@ -54,7 +56,8 @@ public static class CustomerViewModelBuilder
         customer.Email,
         customer.ContactPerson,
         customer.Phone,
-        customer.JobCount);
+        customer.JobCount,
+        customer.IsTop);
 
     public static CustomerDetailViewModel ToDetail(CustomerDetailResponse customer) => new(
         customer.Id,
@@ -72,7 +75,8 @@ public static class CustomerViewModelBuilder
         customer.Email,
         customer.Phone,
         customer.Address,
-        customer.ContactPerson);
+        customer.ContactPerson,
+        customer.IsTop);
 
     private static CustomerJobViewModel ToJob(CustomerJobResponse job) => new(
         job.Id,

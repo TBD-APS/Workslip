@@ -220,6 +220,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         if (jobId) {
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
+        queryClient.invalidateQueries({ queryKey: ['worksheets'] });
         notify.success('Arbejdssedlen er gemt');
       },
       onError: (error) => {
@@ -235,6 +236,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         if (jobId) {
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
+        queryClient.invalidateQueries({ queryKey: ['worksheets'] });
         notify.success('Arbejdssedlen er slettet');
       },
       onError: (error) => {

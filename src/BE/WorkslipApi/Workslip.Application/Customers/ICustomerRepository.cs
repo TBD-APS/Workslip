@@ -12,6 +12,7 @@ public interface ICustomerRepository
     Task<CustomerDetailResponse?> GetByIdAsync(Guid organizationId, Guid id, CancellationToken cancellationToken);
 
     Task UpdateAsync(Guid organizationId, Guid id, CustomerInfo customer, CancellationToken cancellationToken);
+    Task SetTopAsync(Guid organizationId, Guid id, bool isTop, CancellationToken cancellationToken);
     Task DeleteAsync(Guid organizationId, Guid id, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CustomerSearchResponse>> SearchAsync(Guid organizationId, string query, int limit, CancellationToken cancellationToken);

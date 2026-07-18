@@ -19,6 +19,13 @@ export function capitalize(value: string): string {
   return `${value[0].toLocaleUpperCase('da-DK')}${value.slice(1)}`;
 }
 
+export function abbreviateName(name: string | null | undefined): string {
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length <= 1) return name;
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
+}
+
 export type DetailPair = { label: string; value: string | null | undefined };
 
 export function hasText(value: string | null | undefined): value is string {

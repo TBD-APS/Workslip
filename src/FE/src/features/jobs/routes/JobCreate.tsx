@@ -72,7 +72,7 @@ export const JobCreate = () => {
     <div className="page-container">
       <NavigationGuard when={hasUnsavedChanges} />
       <div className="detail-header">
-        <button className="btn-icon" onClick={() => navigate('/app')} aria-label="Tilbage">
+        <button className="btn-icon" onClick={() => navigate(-1)} aria-label="Tilbage">
           <ArrowLeft size={22} />
         </button>
         <div>
@@ -87,7 +87,7 @@ export const JobCreate = () => {
       />
 
       <div className="step-nav">
-        <button className="step-nav-btn step-nav-btn-back" onClick={() => navigate('/app')}>
+        <button className="step-nav-btn step-nav-btn-back" onClick={() => navigate(-1)}>
           Tilbage
         </button>
         <button

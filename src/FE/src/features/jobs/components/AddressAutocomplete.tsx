@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
-import { Loader2, MapPin } from 'lucide-react';
+import { Loader2, MapPin, X } from 'lucide-react';
 import { useAddressAutocomplete, type AddressSuggestion } from '../hooks/useAddressAutocomplete';
 
 type AddressAutocompleteProps = {
   value: string;
   onTextChange: (text: string) => void;
   onSelectSuggestion: (suggestion: AddressSuggestion) => void;
+  onClear?: () => void;
   error?: string;
   required?: boolean;
   placeholder?: string;
@@ -16,6 +17,7 @@ export function AddressAutocomplete({
   value,
   onTextChange,
   onSelectSuggestion,
+  onClear,
   error,
   required,
   placeholder,
@@ -74,6 +76,11 @@ export function AddressAutocomplete({
           autoComplete="off"
         />
         {isLoading && <Loader2 size={16} className="address-spinner" />}
+        {!isLoading && value && onClear && (
+          <button type="button" className="address-clear-btn" title="Fjern adresse" onClick={onClear}>
+            <X size={16} />
+          </button>
+        )}
       </div>
       {isOpen && suggestions.length > 0 && (
         <ul className="address-suggestions" role="listbox">

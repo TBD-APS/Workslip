@@ -60,6 +60,12 @@ public static class CustomerEndpoints
             return ResultExtensions.ToHttpResult(result, customer => CustomerViewModelBuilder.ToDetail(customer));
         }).Produces<CustomerDetailViewModel>();
 
+        adminGroup.MapPatch("/{id:guid}/top", async (Guid id, [FromBody] SetTopRequest request, ICustomerService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.SetTopAsync(id, request.IsTop, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
+
         adminGroup.MapDelete("/{id:guid}", async (Guid id, ICustomerService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);

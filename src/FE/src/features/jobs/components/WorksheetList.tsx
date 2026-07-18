@@ -1,6 +1,6 @@
 import { MoreHorizontal } from 'lucide-react';
 import type { WorksheetResponse } from '../../../api/generated/models';
-import { formatNumber, formatUnit } from '../../../lib/formatUtils';
+import { formatNumber, formatUnit, abbreviateName } from '../../../lib/formatUtils';
 import type { WorksheetDraft, ActionMenuState, UserOption } from './worksheetUtils';
 import { parseHours, formatDate } from './worksheetUtils';
 import { WorksheetDraftForm } from './WorksheetDraftForm';
@@ -48,7 +48,7 @@ export function WorksheetList({
   return (
     <ul className={`worksheet-list ${isScrollableList ? 'worksheet-list--scrollable' : ''} ${isDetailList ? 'worksheet-list--detail' : ''} ${editingWorksheetId ? 'expanded' : ''}`}>
       {sortedWorksheets.map((worksheet) => {
-        const assigneeName = displayNameFor(worksheet.userId);
+        const assigneeName = abbreviateName(displayNameFor(worksheet.userId));
         const isEditing = editingWorksheetId === worksheet.id && editDraft;
 
         return (

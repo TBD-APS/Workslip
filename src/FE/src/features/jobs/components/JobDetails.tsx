@@ -9,6 +9,7 @@ import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId, getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
 import { DeleteButton } from '../../../components/common/DeleteButton';
+import { ConfirmDeleteDialog } from '../../../components/common/ConfirmDeleteDialog';
 import { useCan, useIsAdmin } from '../../../providers/permissions';
 import { isValidJobForm, isValidWork } from '../utils';
 import { formatDateLong } from '../../../lib/formatDate';
@@ -47,6 +48,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
   const [submission, setSubmission] = useState<{ reportNumber: string; submittedAt: Date } | null>(null);
   const [isPostSubmitting, setIsPostSubmitting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const isAdmin = useIsAdmin();
   const deleteMutation = useDeleteApiJobsId({
     mutation: {
@@ -70,7 +72,11 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
       return;
     }
 
-    if (!confirm('Slet sagen permanent? Det kan kun lade sig gøre, hvis sagen ikke har timesedler.')) return;
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (!details.job?.id) return;
     deleteMutation.mutate({ id: details.job.id });
   };
 
@@ -261,6 +267,14 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
         jobId={details.job.id} 
         isOpen={historyOpen} 
         onClose={() => setHistoryOpen(false)} 
+      />
+
+      <ConfirmDeleteDialog
+        open={deleteDialogOpen}
+        title="Slet sag"
+        message="Er du sikker på, du vil slette sagen permanent? Det kan kun lade sig gøre, hvis sagen ikke har timesedler."
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteDialogOpen(false)}
       />
     </div>
   );

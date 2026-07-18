@@ -108,6 +108,7 @@ public sealed class EfCustomerRepository : ICustomerRepository
                 c.Email,
                 c.ContactPerson,
                 c.Phone,
+                c.IsTop,
                 JobCount = _dbContext.JobReports
                     .Count(r => r.OrganizationId == organizationId
                                 && r.CustomerId == c.Id
@@ -125,7 +126,8 @@ public sealed class EfCustomerRepository : ICustomerRepository
                 c.Email,
                 c.ContactPerson,
                 c.Phone,
-                c.JobCount))
+                c.JobCount,
+                c.IsTop))
             .ToArray();
     }
 
@@ -220,7 +222,8 @@ public sealed class EfCustomerRepository : ICustomerRepository
                 (c.Email != null && c.Email.Contains(trimmed)) ||
                 (c.Phone != null && c.Phone.Contains(trimmed)) ||
                 (c.Address != null && c.Address.Contains(trimmed)))
-            .OrderBy(c => c.Name != null && c.Name.StartsWith(trimmed) ? 0 : 1)
+            .OrderBy(c => c.IsTop ? 0 : 1)
+            .ThenBy(c => c.Name != null && c.Name.StartsWith(trimmed) ? 0 : 1)
             .ThenBy(c => c.Name)
             .Take(limit)
             .Select(c => new CustomerSearchResponse(
@@ -229,7 +232,8 @@ public sealed class EfCustomerRepository : ICustomerRepository
                 c.Email,
                 c.Phone,
                 c.Address,
-                c.ContactPerson))
+                c.ContactPerson,
+                c.IsTop))
             .ToListAsync(cancellationToken);
 
         return customers ?? new List<CustomerSearchResponse>();
@@ -239,8 +243,8 @@ public sealed class EfCustomerRepository : ICustomerRepository
     {
         var customers = await _dbContext.Customers
             .AsNoTracking()
-            .Where(c => c.OrganizationId == organizationId)
-            .OrderByDescending(c => _dbContext.JobReports.Count(r => r.CustomerId == c.Id && r.OrganizationId == organizationId && !r.IsSoftDeleted))
+            .Where(c => c.OrganizationId == organizationId && c.IsTop)
+            .OrderBy(c => c.Name)
             .Take(limit)
             .Select(c => new CustomerSearchResponse(
                 c.Id,
@@ -248,7 +252,8 @@ public sealed class EfCustomerRepository : ICustomerRepository
                 c.Email,
                 c.Phone,
                 c.Address,
-                c.ContactPerson))
+                c.ContactPerson,
+                c.IsTop))
             .ToListAsync(cancellationToken);
 
         return customers;
@@ -269,6 +274,25 @@ public sealed class EfCustomerRepository : ICustomerRepository
         _dbContext.Entry(row).Property(x => x.Email).CurrentValue = customer.Email;
         _dbContext.Entry(row).Property(x => x.ContactPerson).CurrentValue = customer.ContactPerson;
         _dbContext.Entry(row).Property(x => x.Phone).CurrentValue = customer.Phone;
+        _dbContext.Entry(row).Property(x => x.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task SetTopAsync(Guid organizationId, Guid id, bool isTop, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("customers.set-top", token => SetTopCoreAsync(organizationId, id, isTop, token), cancellationToken);
+
+    private async Task SetTopCoreAsync(Guid organizationId, Guid id, bool isTop, CancellationToken cancellationToken)
+    {
+        var row = await _dbContext.Customers
+            .FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, cancellationToken);
+
+        if (row is null)
+        {
+            return;
+        }
+
+        _dbContext.Entry(row).Property(x => x.IsTop).CurrentValue = isTop;
         _dbContext.Entry(row).Property(x => x.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);

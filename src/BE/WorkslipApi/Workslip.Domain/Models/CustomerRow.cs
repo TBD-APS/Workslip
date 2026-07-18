@@ -9,6 +9,7 @@ public sealed class CustomerRow : IAuditable
     public string? Email { get; init; }
     public string? ContactPerson { get; init; }
     public string? Phone { get; init; }
+    public bool IsTop { get; init; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
 }

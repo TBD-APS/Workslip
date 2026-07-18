@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { WorksheetResponse } from '../../../api/generated/models';
 import { formatDateLong } from '../../../lib/formatDate';
-import { formatNumber, formatUnit, parseNullableNumber } from '../../../lib/formatUtils';
+import { formatNumber, formatUnit, parseNullableNumber, abbreviateName } from '../../../lib/formatUtils';
 
 type WorksheetDetailListProps = {
   worksheets: WorksheetResponse[];
@@ -27,7 +27,7 @@ export function WorksheetDetailList({ worksheets, className }: WorksheetDetailLi
     <ul className={`worksheet-list worksheet-list--detail${className ? ` ${className}` : ''}`}>
       {sorted.map((worksheet) => {
         const hours = parseNullableNumber(worksheet.hoursWorked);
-        const userName = worksheet.userDisplayName || worksheet.userId;
+        const userName = abbreviateName(worksheet.userDisplayName) || worksheet.userId;
         return (
           <li key={worksheet.id} className="worksheet-list-item worksheet-list-item--detail">
             <div className="worksheet-list-item-main worksheet-list-item-main--detail">

@@ -156,6 +156,26 @@ public sealed class CustomerService(
         return Result<CustomerDetailResponse>.Success(updated!);
     }
 
+    public async Task<Result> SetTopAsync(Guid id, bool isTop, CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            logger.LogWarning("Customer SetTop requested without OrganizationId in claims.");
+            return Result.Unauthorized();
+        }
+
+        var existing = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
+        if (existing is null)
+        {
+            return Result.NotFound();
+        }
+
+        logger.LogInformation("Setting customer {CustomerId} IsTop={IsTop} in org {OrgId}", id, isTop, organizationId);
+        await customerRepository.SetTopAsync(organizationId.Value, id, isTop, cancellationToken);
+        return Result.Success();
+    }
+
     public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;

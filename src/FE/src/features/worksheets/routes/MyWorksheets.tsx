@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { BriefcaseBusiness, ChevronDown, ChevronLeft, ChevronRight, MapPin, ReceiptText, Timer } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
 import { apiClient } from '../../../lib/axios';
+import { abbreviateName } from '../../../lib/formatUtils';
 import { useIsAdmin } from '../../../providers/permissions';
 
 type MyWorksheetEntryResponse = {
@@ -71,7 +72,7 @@ function AdminWeeklyOverview({
         
         week.days.forEach((day) => {
           day.entries.forEach((entry) => {
-            const user = entry.userDisplayName || 'Ukendt';
+            const user = abbreviateName(entry.userDisplayName) || 'Ukendt';
             if (!userDayMap.has(user)) {
               userDayMap.set(user, new Map());
             }
@@ -103,8 +104,9 @@ function AdminWeeklyOverview({
                 <tr>
                   <th className="admin-col-name admin-row-label">
                     <span className="admin-week-info">{formatWeekRange(week.weekStart, week.weekEnd)}</span>
-                    <span className="admin-week-number">Uge {getIsoWeek(week.weekStart)}</span>
+                    <span className="admin-week-number">Uge {getIsoWeek(week.weekStart)}{isCurrentWeek && <span className="current-week-badge">Nu</span>}</span>
                   </th>
+                  <th className="admin-col-total">I alt</th>
                   {week.days.map((day) => {
                     const date = parseDate(day.date);
                     const dayOfWeek = date.getDay();
@@ -116,13 +118,13 @@ function AdminWeeklyOverview({
                       </th>
                     );
                   })}
-                  <th className="admin-col-total">I alt</th>
                 </tr>
               </thead>
               <tbody>
                 {Array.from(userDayMap.entries()).map(([user, dayMap]) => (
                   <tr key={user} className="admin-user-row">
                     <td className="admin-col-name admin-user-name">{user}</td>
+                    <td className="admin-col-total admin-user-total">{formatNumber(userTotals.get(user) || 0)}</td>
                     {week.days.map((day) => {
                       const dayData = dayMap.get(day.date);
                       const date = parseDate(day.date);
@@ -134,11 +136,11 @@ function AdminWeeklyOverview({
                         </td>
                       );
                     })}
-                    <td className="admin-col-total admin-user-total">{formatNumber(userTotals.get(user) || 0)}</td>
                   </tr>
                 ))}
                 <tr className="admin-row-total">
                    <td className="admin-col-name">I alt pr. dag</td>
+                   <td className="admin-col-total">{formatNumber(week.totalHours)}</td>
                   {week.days.map((day) => {
                     const date = parseDate(day.date);
                     const dayOfWeek = date.getDay();
@@ -149,7 +151,6 @@ function AdminWeeklyOverview({
                       </td>
                     );
                   })}
-                  <td className="admin-col-total">{formatNumber(week.totalHours)}</td>
                 </tr>
               </tbody>
             </table>
@@ -293,6 +294,7 @@ export function MyWorksheets() {
                   key={week.weekStart}
                   week={week}
                   month={data.month}
+                  isCurrentWeek={week.weekStart === getCurrentWeekStart()}
                   isExpanded={expandedWeeks.has(week.weekStart)}
                   onToggle={() => toggleWeek(week.weekStart)}
                   onOpenJob={openJob}
@@ -309,12 +311,14 @@ export function MyWorksheets() {
 function WeekCard({
   week,
   month,
+  isCurrentWeek,
   isExpanded,
   onToggle,
   onOpenJob,
 }: {
   week: MyWorksheetWeekResponse;
   month: number;
+  isCurrentWeek: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   onOpenJob: (jobId: string) => void;
@@ -323,10 +327,11 @@ function WeekCard({
   const contentId = `week-${week.weekStart}`;
 
   return (
-    <article className={`time-week-card ${isExpanded ? 'is-expanded' : ''}`}>
+    <article className={`time-week-card ${isCurrentWeek ? 'is-current' : ''} ${isExpanded ? 'is-expanded' : ''}`}>
       <div className="time-week-header">
         <div>
           <span className="job-number">{formatWeekRange(week.weekStart, week.weekEnd)} | Uge {getIsoWeek(week.weekStart)} </span>
+          {isCurrentWeek && <span className="current-week-badge">Nu</span>}
         </div>
         <div className="time-week-totals">
           <span><Timer size={14} /> {formatNumber(week.totalHours)} t</span>
@@ -405,7 +410,7 @@ function DayCell({
                 {entry.hasOutlay && <span className="time-entry-outlay"><ReceiptText size={12} /> Udlæg</span>}
               </span>
             </div>
-            {entry.userDisplayName && <span className="time-entry-user">{entry.userDisplayName}</span>}
+            {entry.userDisplayName && <span className="time-entry-user">{abbreviateName(entry.userDisplayName)}</span>}
             <strong>{entry.customerName}</strong>
             {entry.customerAddress && (
               <span className="time-entry-address"><MapPin size={12} /> {entry.customerAddress}</span>

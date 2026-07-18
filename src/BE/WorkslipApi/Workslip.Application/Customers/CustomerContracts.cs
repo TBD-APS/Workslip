@@ -7,7 +7,8 @@ public sealed record CustomerListItemResponse(
     string? Email,
     string? ContactPerson,
     string? Phone,
-    int JobCount);
+    int JobCount,
+    bool IsTop);
 
 public sealed record CustomerJobResponse(
     Guid Id,
@@ -37,7 +38,8 @@ public sealed record CustomerSearchResponse(
     string? Email,
     string? Phone,
     string? Address,
-    string? ContactPerson);
+    string? ContactPerson,
+    bool IsTop);
 
 public sealed record UpdateCustomerRequest(
     string Name,
@@ -56,3 +58,5 @@ public sealed record CreateCustomerRequest(
 public sealed record DeleteCustomerResponse(bool success);
 
 public sealed record ImportCustomerResponse(int Imported, int Skipped);
+
+public sealed record SetTopRequest(bool IsTop);

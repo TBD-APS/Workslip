@@ -11,6 +11,7 @@ public interface ICustomerService
     Task<Result<IReadOnlyList<CustomerSearchResponse>>> GetTopAsync(int limit, CancellationToken cancellationToken);
     Task<Result<CustomerDetailResponse>> CreateAsync(CreateCustomerRequest request, CancellationToken cancellationToken);
     Task<Result<CustomerDetailResponse>> UpdateAsync(Guid id, UpdateCustomerRequest request, CancellationToken cancellationToken);
+    Task<Result> SetTopAsync(Guid id, bool isTop, CancellationToken cancellationToken);
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken);
 
     Task<Result<ImportCustomerResponse>> ImportAsync(IReadOnlyList<CustomerInfo> customers, CancellationToken cancellationToken);

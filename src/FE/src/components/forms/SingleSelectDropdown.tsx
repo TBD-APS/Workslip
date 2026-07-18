@@ -6,6 +6,7 @@ export type SingleSelectOption = {
   id: string;
   label: string;
   description?: string;
+  icon?: React.ReactNode;
 };
 
 type SingleSelectDropdownProps = {
@@ -139,7 +140,10 @@ export function SingleSelectDropdown({
                   aria-selected={isSelected}
                 >
                   <span className="multi-select-option-text">
-                    <span>{option.label}</span>
+                    <span className="multi-select-option-label">
+                      {option.icon && <span className="multi-select-option-icon">{option.icon}</span>}
+                      <span>{option.label}</span>
+                    </span>
                     {option.description && <small>{option.description}</small>}
                   </span>
                 </button>

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Building2, FileText, Link2, Lock, Navigation, Users } from 'lucide-react';
+import { Building2, FileText, Link2, Lock, Navigation, Star, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown } from '../../../components/forms/SingleSelectDropdown';
@@ -65,6 +65,12 @@ export function DestinationAddressBlock({ value, zipCode, city, onChange, onZipC
     onCityChange(suggestion.city);
   }, [onChange, onZipCodeChange, onCityChange]);
 
+  const handleClear = useCallback(() => {
+    onChange('');
+    onZipCodeChange('');
+    onCityChange('');
+  }, [onChange, onZipCodeChange, onCityChange]);
+
   return (
     <section className="detail-section">
       <div className="detail-form">
@@ -94,6 +100,7 @@ export function DestinationAddressBlock({ value, zipCode, city, onChange, onZipC
           placeholder="Søg adresse..."
           onTextChange={handleTextChange}
           onSelectSuggestion={handleSelect}
+          onClear={handleClear}
         />
       </div>
     </section>
@@ -389,10 +396,31 @@ function CustomerSearchDropdown({ selectedId, onSelect, onCreateNew }: CustomerS
   const { data: topCustomers = [], isLoading: isTopLoading } = useQuery({
     queryKey: ['customers', 'top'],
     queryFn: () => getApiCustomersTop({ limit: 10 }),
-    enabled: !isSearching,
   });
 
-  const results: CustomerSearchViewModel[] = isSearching ? searchResults : topCustomers;
+  const results: CustomerSearchViewModel[] = useMemo(() => {
+    if (!isSearching) return topCustomers;
+
+    const seen = new Set<string>();
+    const sorted = [...searchResults].sort((a, b) => (a.isTop === b.isTop ? 0 : a.isTop ? -1 : 1));
+    const merged: CustomerSearchViewModel[] = [];
+
+    for (const c of sorted) {
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        merged.push(c);
+      }
+    }
+
+    for (const c of topCustomers) {
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        merged.push(c);
+      }
+    }
+
+    return merged;
+  }, [isSearching, searchResults, topCustomers]);
   const isLoading = isSearching ? isSearchingLoading : isTopLoading;
 
   const options = useMemo(() => {
@@ -400,6 +428,7 @@ function CustomerSearchDropdown({ selectedId, onSelect, onCreateNew }: CustomerS
       id: c.id ?? '',
       label: c.name ?? '',
       description: c.address ?? undefined,
+      icon: c.isTop ? <Star size={14} className="top-customer-icon" /> : undefined,
     }));
 
     if (!isSearching) {

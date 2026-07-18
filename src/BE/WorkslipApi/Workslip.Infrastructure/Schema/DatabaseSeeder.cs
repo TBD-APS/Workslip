@@ -67,6 +67,7 @@ public static class DatabaseSeeder
             .RuleFor(x => x.Email, f => f.Internet.Email())
             .RuleFor(x => x.ContactPerson, f => f.Name.FullName())
             .RuleFor(x => x.Phone, f => f.Phone.PhoneNumber("########"))
+            .RuleFor(x => x.IsTop, f => f.IndexFaker < 5)
             .RuleFor(x => x.CreatedAt, _ => now)
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate(50);

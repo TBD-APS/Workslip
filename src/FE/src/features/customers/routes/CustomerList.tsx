@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronRight, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronRight, Mail, MapPin, MoreHorizontal, Phone, Plus, Star, TrendingUp, Users } from 'lucide-react';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
@@ -11,6 +12,7 @@ import { usePaginatedList } from '../../../hooks/usePaginatedList';
 import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useCustomerActions } from '../components/CustomerActions';
+import { getApiCustomersTop, patchApiCustomersIdTop } from '../../jobs/customerApi';
 
 const PAGE_SIZE = 20;
 
@@ -76,6 +78,21 @@ export const CustomerList = () => {
 
   const { handleMouseDown } = useColumnResize();
 
+  const { data: topCustomers = [] } = useQuery({
+    queryKey: ['customers', 'top', 5],
+    queryFn: () => getApiCustomersTop({ limit: 5 }),
+  });
+
+  const queryClient = useQueryClient();
+  const toggleTopMutation = useMutation({
+    mutationFn: ({ id, isTop }: { id: string; isTop: boolean }) =>
+      patchApiCustomersIdTop(id, { isTop }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['customers'] });
+      void queryClient.invalidateQueries({ queryKey: ['customers', 'top'] });
+    },
+  });
+
   const showLoadingSkeleton = isLoading && customers.length === 0;
   const isErrored = isError && customers.length === 0;
   const showPageLoading = isDesktop && isFetching && !showLoadingSkeleton && customers.length < safeViewPage * PAGE_SIZE;
@@ -106,6 +123,31 @@ export const CustomerList = () => {
       </div>
 
       <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg kunder..." />
+
+      {topCustomers.length > 0 && !search && (
+        <div className="top-customers-section">
+          <div className="top-customers-header">
+            <TrendingUp size={16} />
+            <span>Mest aktive kunder</span>
+          </div>
+          <div className="top-customers-grid">
+            {topCustomers.map((customer) => (
+              <button
+                key={customer.id}
+                className="top-customer-card"
+                onClick={() => navigate(`/app/customers/${customer.id}`)}
+                type="button"
+              >
+                <Building2 size={16} className="top-customer-icon" />
+                <span className="top-customer-name">{customer.name}</span>
+                {customer.contactPerson && (
+                  <span className="top-customer-contact">{customer.contactPerson}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isErrored ? (
         <ErrorState message="Kunne ikke hente kunder. Prøv igen." onRetry={() => void refetch()} />
@@ -208,6 +250,20 @@ export const CustomerList = () => {
                     <Can permission="customer:edit">
                       <button
                         type="button"
+                        className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleTopMutation.mutate({ id: customer.id, isTop: !customer.isTop });
+                        }}
+                        aria-label={customer.isTop ? 'Fjern fra top' : 'Tilføj til top'}
+                        title={customer.isTop ? 'Fjern fra top' : 'Tilføj til top'}
+                      >
+                        <Star size={16} fill={customer.isTop ? 'currentColor' : 'none'} />
+                      </button>
+                    </Can>
+                    <Can permission="customer:edit">
+                      <button
+                        type="button"
                         className="btn-icon opacity-50"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -283,7 +339,20 @@ export const CustomerList = () => {
                 </div>
 
                 <div className="job-card-footer">
-                  <span />
+                  <Can permission="customer:edit">
+                    <button
+                      type="button"
+                      className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleTopMutation.mutate({ id: customer.id, isTop: !customer.isTop });
+                      }}
+                      aria-label={customer.isTop ? 'Fjern fra top' : 'Tilføj til top'}
+                      title={customer.isTop ? 'Fjern fra top' : 'Tilføj til top'}
+                    >
+                      <Star size={18} fill={customer.isTop ? 'currentColor' : 'none'} />
+                    </button>
+                  </Can>
                   <span className="btn-icon" aria-label="Se kunde">
                     <ChevronRight size={20} />
                   </span>

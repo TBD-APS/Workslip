@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, type MouseEvent } from 'react';
+import { useEffect, useMemo, useReducer, useState, type MouseEvent } from 'react';
 import { useAuth } from '../../../../providers/useAuth';
 import { useCan } from '../../../../providers/permissions';
 import type { UserViewModel, WorksheetResponse } from '../../../../api/generated/models';
@@ -6,6 +6,7 @@ import { useGetApiUsers } from '../../../../api/generated/users/users';
 import { parseNullableNumber } from '../../../../lib/formatUtils';
 import { WorksheetsSection } from '../../components/WorksheetsSection';
 import { WorksheetActionMenuPortal } from '../../components/WorksheetActionMenuPortal';
+import { ConfirmDeleteDialog } from '../../../../components/common/ConfirmDeleteDialog';
 import { initialWorksheetUiState, worksheetUiReducer, dateKey, parseHours, validateWorksheetDraft } from '../../components/worksheetUtils';
 import type { WorksheetDraft } from '../../components/worksheetUtils';
 
@@ -60,6 +61,7 @@ export function JobWorksheetsStep({
 
   const [uiState, dispatch] = useReducer(worksheetUiReducer, defaultUserId, initialWorksheetUiState);
   const { addDraft, editDraft, editingWorksheetId, openActionMenu, isAddOpen, formError } = uiState;
+  const [pendingDelete, setPendingDelete] = useState<WorksheetResponse | null>(null);
 
   const isDetailList = variant === 'list';
   const sortedWorksheets = useMemo(
@@ -161,9 +163,13 @@ export function JobWorksheetsStep({
 
   const handleDelete = (worksheet: WorksheetResponse) => {
     dispatch({ type: 'deleteStarted', worksheetId: worksheet.id });
-    const confirmed = window.confirm('Slet denne timeseddel?');
-    if (!confirmed) return;
-    onDelete({ worksheetId: worksheet.id, jobId });
+    setPendingDelete(worksheet);
+  };
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    onDelete({ worksheetId: pendingDelete.id, jobId });
+    setPendingDelete(null);
   };
 
   const toggleActionMenu = (event: MouseEvent<HTMLButtonElement>, worksheetId: string) => {
@@ -213,6 +219,14 @@ export function JobWorksheetsStep({
         canDelete={canPickUser || openActionWorksheet?.userId === user?.id}
         onStartEdit={startEdit}
         onDelete={handleDelete}
+      />
+
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        title="Slet timeseddel"
+        message="Er du sikker på, du vil slette denne timeseddel?"
+        onConfirm={confirmDelete}
+        onClose={() => setPendingDelete(null)}
       />
     </>
   );

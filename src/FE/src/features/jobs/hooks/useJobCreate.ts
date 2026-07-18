@@ -63,6 +63,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
 
         Promise.all(promises).then(() => {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ['worksheets'] });
           setIsSaving(false);
           notify.success('Sagen er oprettet');
           onCreated(jobId);

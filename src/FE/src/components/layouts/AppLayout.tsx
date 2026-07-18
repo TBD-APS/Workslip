@@ -1,4 +1,4 @@
-import { useNavigate, NavLink, Outlet } from 'react-router-dom';
+import { useNavigate, useLocation, NavLink, Outlet } from 'react-router-dom';
 import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, User, Users, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
@@ -8,10 +8,17 @@ import { useTheme } from '../../providers/ThemeProvider';
 
 export const AppLayout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout, user } = useAuth();
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const { theme, toggle: toggleTheme } = useTheme();
+
+  const scrollToTopIfActive = (path: string) => {
+    if (location.pathname === path) {
+      document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -114,12 +121,12 @@ export const AppLayout = () => {
 
       {/* Bottom Navigation (Mobile First) */}
       <nav className={`bottom-nav ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
-        <NavLink to="/app" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/app" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app')}>
           <ClipboardList size={24} />
           <span>Sager</span>
         </NavLink>
         <Can permission="worksheet:view">
-          <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>
             <CalendarDays size={24} />
             <span>Timer</span>
           </NavLink>
@@ -132,13 +139,13 @@ export const AppLayout = () => {
             </div>
           </Can>
         <Can permission="user:manage">
-          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
             <Users size={24} />
             <span>Folk</span>
           </NavLink>
         </Can>
         <Can permission="customer:view">
-          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
             <Building2 size={24} />
             <span>Kunder</span>
           </NavLink>
