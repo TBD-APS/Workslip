@@ -34,7 +34,12 @@ public sealed class NotificationService : INotificationService
 
     private async Task QueueNotificationInternalAsync(Guid userId, Guid jobId, string jobNumber, string customerAddress, NotificationType type, CancellationToken cancellationToken)
     {
-        var payload = new NotificationPayload(jobId, jobNumber, customerAddress, type.ToString());
+        var url = type switch
+        {
+            NotificationType.JobReadyForReview or NotificationType.JobCompleted => $"/app/completed/{jobId}",
+            _ => $"/app/job/{jobId}"
+        };
+        var payload = new NotificationPayload(jobId, jobNumber, customerAddress, type.ToString(), url);
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         var row = new NotificationQueueRow
