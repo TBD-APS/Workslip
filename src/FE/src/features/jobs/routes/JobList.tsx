@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
@@ -51,6 +51,30 @@ export const JobList = () => {
     getSavedStatusFilter('mine-jobs', [JobStatus.Draft]),
   );
   const { handleMouseDown } = useColumnResize();
+  const sortScrollRef = useRef<HTMLDivElement>(null);
+  const [sortCanScrollLeft, setSortCanScrollLeft] = useState(false);
+  const [sortCanScrollRight, setSortCanScrollRight] = useState(false);
+
+  const updateSortScrollState = useCallback(() => {
+    const el = sortScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setSortCanScrollLeft(scrollLeft > 4);
+    setSortCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = sortScrollRef.current;
+    if (!el) return;
+    updateSortScrollState();
+    el.addEventListener('scroll', updateSortScrollState, { passive: true });
+    const observer = new ResizeObserver(updateSortScrollState);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener('scroll', updateSortScrollState);
+      observer.disconnect();
+    };
+  }, [updateSortScrollState]);
 
   const handleStatusChange = useCallback((statuses: JobStatus[]) => {
     setSelectedStatuses(statuses);
@@ -351,7 +375,12 @@ export const JobList = () => {
         />
         </>
       ) : (
-        <div className="job-sort-controls">
+        <div
+          className="job-sort-controls-scroll"
+          data-scroll-left={sortCanScrollLeft}
+          data-scroll-right={sortCanScrollRight}
+        >
+        <div className="job-sort-controls" ref={sortScrollRef}>
           <button
             type="button"
             className={`sort-btn${sortBy === 'reportNumber' ? ' active' : ''}`}
@@ -382,6 +411,7 @@ export const JobList = () => {
               Opdateret{sortBy === 'updatedAt' && (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
             </button>
           </div>
+        </div>
         </div>
       )}
 

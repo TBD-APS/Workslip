@@ -1,6 +1,6 @@
-@charset "UTF-8";
+﻿@charset "UTF-8";
 
-/* Sonner Toast — force safe-area-inset-top via CSS (env() in inline styles unreliable on iOS) */
+/* Sonner Toast â€” force safe-area-inset-top via CSS (env() in inline styles unreliable on iOS) */
 [data-sonner-toaster][data-y-position="top"] {
   top: calc(env(safe-area-inset-top, 0px) + 1rem) !important;
 }
@@ -380,11 +380,66 @@
   gap: 0.5rem;
 }
 
+.status-filter-scroll {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.status-filter-scroll::before,
+.status-filter-scroll::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2.5rem;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.status-filter-scroll::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg) 10%, transparent);
+}
+
+.status-filter-scroll::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg) 10%, transparent);
+}
+
+.status-filter-scroll[data-scroll-left="true"]::before,
+.status-filter-scroll[data-scroll-right="true"]::after {
+  opacity: 1;
+}
+
 .status-filter {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  scrollbar-width: none;
+}
+
+.status-filter::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .status-filter-scroll::before,
+  .status-filter-scroll::after {
+    display: none;
+  }
+
+  .status-filter {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    scrollbar-width: auto;
+  }
+  .status-filter::-webkit-scrollbar {
+    display: block;
+  }
 }
 
 .status-filter-btn {
@@ -541,6 +596,115 @@
   flex-direction: column;
   gap: 0.5rem;
 }
+
+.linked-job-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .linked-job-row:hover .linked-job-link {
+    text-decoration: underline;
+  }
+}
+
+.linked-job-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.linked-job-link {
+  color: var(--primary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.linked-job-customer {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: var(--fs-body);
+  min-width: 0;
+}
+
+.linked-jobs-variant .multi-select-chip-description {
+  color: var(--text);
+  font-size: var(--fs-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.assignment-variant .multi-select-chip {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--fs-body);
+  font-weight: 400;
+}
+
+.linked-jobs-variant .multi-select-option-text {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.linked-jobs-variant .multi-select-option-text span:first-child {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.linked-jobs-variant .multi-select-option-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: var(--fs-body);
+  min-width: 0;
+}
+
+.linked-jobs-variant .multi-select-chip {
+  background: none;
+  border: none;
+  padding: 0;
+  gap: 0.5rem;
+}
+
+.linked-jobs-variant .multi-select-chip span:first-child {
+  color: var(--text);
+  font-weight: 500;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.linked-jobs-variant .multi-select-chip-description {
+  color: var(--text);
+  font-size: var(--fs-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+
 
 .report-overview-link-card {
   display: flex;
@@ -799,7 +963,7 @@
   white-space: nowrap;
 }
 
-/* (legacy detail-row classes removed — meta badges now use job-card-meta) */
+/* (legacy detail-row classes removed â€” meta badges now use job-card-meta) */
 
 /* ------------------------------------------------------------
    Card footer: assigned users + chevron
@@ -1149,7 +1313,7 @@
   white-space: nowrap;
 }
 
-/* ── Create Bottom Sheet ──────────────────────────────────────────────────── */
+/* â”€â”€ Create Bottom Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .create-sheet-overlay {
   position: fixed;
@@ -1574,7 +1738,7 @@
   background: var(--overlay-light-03);
 }
 
-/* Afslutning — invalid steps warning */
+/* Afslutning â€” invalid steps warning */
 
 .work-kind-list {
   display: flex;
@@ -1790,7 +1954,7 @@
 }
 
 /* Solid blue selected state for the job work steps:
-   Anlægstyper, Opgavetype and Kontrolpunkter. Scoped so shared
+   AnlÃ¦gstyper, Opgavetype and Kontrolpunkter. Scoped so shared
    dropdowns (SingleSelect/MultiSelect) keep their default styling. */
 .category-choice-grid .choice-card.selected,
 .work-kind-list .work-kind-option.selected,
@@ -4029,12 +4193,58 @@
 }
 }
 
+.job-sort-controls-scroll {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.job-sort-controls-scroll::before,
+.job-sort-controls-scroll::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2.5rem;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.job-sort-controls-scroll::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg) 10%, transparent);
+}
+
+.job-sort-controls-scroll::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg) 10%, transparent);
+}
+
+.job-sort-controls-scroll[data-scroll-left="true"]::before,
+.job-sort-controls-scroll[data-scroll-right="true"]::after {
+  opacity: 1;
+}
+
+@media (min-width: 768px) {
+  .job-sort-controls-scroll::before,
+  .job-sort-controls-scroll::after {
+    display: none;
+  }
+}
+
 .job-sort-controls {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  scrollbar-width: none;
+}
+
+.job-sort-controls::-webkit-scrollbar {
+  display: none;
 }
 
 .job-sort-secondary {
@@ -4068,7 +4278,7 @@
 }
 
 .sort-btn.active {
-  border-color: var(--primary);
+  border-color: black;
   color: var(--text);
   font-weight: 500;
 }
@@ -4256,7 +4466,7 @@
   padding: 0 1rem;
 }
 
-/* ── Admin Timer — forced white theme ── */
+/* â”€â”€ Admin Timer â€” forced white theme â”€â”€ */
 .time-overview-page--admin {
   --bg: #ffffff;
   --text: #18181b;
@@ -5478,7 +5688,7 @@
 }
 
 /* ------------------------------------------------------------
-   Login page — reauth spinner
+   Login page â€” reauth spinner
    ------------------------------------------------------------ */
 .reauth-card {
   display: flex;
@@ -5516,7 +5726,7 @@
 }
 
 /* ------------------------------------------------------------
-   Login page — email step buttons
+   Login page â€” email step buttons
    ------------------------------------------------------------ */
 .login-email-step {
   display: flex;
@@ -5560,7 +5770,7 @@
 }
 
 /* ------------------------------------------------------------
-   Login page — code step back button
+   Login page â€” code step back button
    ------------------------------------------------------------ */
 .login-back-btn {
   width: 100%;
@@ -5577,7 +5787,7 @@
 }
 
 /* ------------------------------------------------------------
-   Login page — error banner
+   Login page â€” error banner
    ------------------------------------------------------------ */
 .login-error-banner {
   padding: 0.75rem 1rem;
@@ -5593,11 +5803,11 @@
 }
 
 /* ------------------------------------------------------------
-   Login page — email sent info
+   Login page â€” email sent info
    ------------------------------------------------------------ */
 
 /* ------------------------------------------------------------
-   Login page — back to front page
+   Login page â€” back to front page
    ------------------------------------------------------------ */
 .login-frontpage-footer {
   text-align: center;
@@ -5610,7 +5820,7 @@
 }
 
 /* ------------------------------------------------------------
-   Login page — dev login section
+   Login page â€” dev login section
    ------------------------------------------------------------ */
 .login-dev-section {
   margin-top: 2rem;
@@ -5639,7 +5849,7 @@
 }
 
 /* ------------------------------------------------------------
-   Invite — submit button disabled state
+   Invite â€” submit button disabled state
    ------------------------------------------------------------ */
 .invite-btn-submit:disabled {
   opacity: 0.7;
@@ -5647,14 +5857,14 @@
 }
 
 /* ------------------------------------------------------------
-   Invite — footer link
+   Invite â€” footer link
    ------------------------------------------------------------ */
 .invite-footer-link {
   color: var(--text-muted);
 }
 
 /* ------------------------------------------------------------
-   Customer actions — context menu anchor + edit form
+   Customer actions â€” context menu anchor + edit form
    ------------------------------------------------------------ */
 .job-card-wrapper {
   position: relative;

@@ -20,6 +20,7 @@ type MultiSelectDropdownProps = {
   isLoading?: boolean;
   commitOnClose?: boolean;
   hideSearch?: boolean;
+  className?: string;
   onChange: (selectedIds: string[]) => void;
 };
 
@@ -33,6 +34,7 @@ export function MultiSelectDropdown({
   isLoading = false,
   commitOnClose = false,
   hideSearch = false,
+  className,
   onChange,
 }: MultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -145,7 +147,7 @@ export function MultiSelectDropdown({
   };
 
   return (
-    <div className="multi-select-field">
+    <div className={className ? `multi-select-field ${className}` : 'multi-select-field'}>
       <div className="multi-select-field-header">
         <label className="form-label">{label}</label>
       </div>
@@ -211,6 +213,7 @@ export function MultiSelectDropdown({
           selectedOptions.map((option) => (
             <span key={option.id} className="multi-select-chip">
               <span>{option.label}</span>
+              {option.description && <span className="multi-select-chip-description">{option.description}</span>}
               <button
                 className="multi-select-chip-remove"
                 type="button"

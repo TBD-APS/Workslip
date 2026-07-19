@@ -63,7 +63,7 @@ export function getLinkableJobs(
     .map((job) => ({
       id: job.id,
       label: `SAG-${(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}`,
-      description: `${job.customer?.name || 'Ukendt kunde'}\n${job.customer?.address || ''}`,
+      description: `${job.customer?.name || 'Ukendt kunde'}`,
     }));
 }
 
