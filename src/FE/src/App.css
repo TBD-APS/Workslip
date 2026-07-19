@@ -1519,6 +1519,12 @@
   margin-bottom: 1.5rem;
 }
 
+.form-divider {
+  height: 1px;
+  background: var(--surface-border);
+  margin: 0.75rem 0;
+}
+
 .report-overview-colpair {
   margin-bottom: var(--section-gap);
 }
