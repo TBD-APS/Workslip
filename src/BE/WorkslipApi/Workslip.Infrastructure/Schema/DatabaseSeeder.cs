@@ -143,6 +143,8 @@ public static class DatabaseSeeder
                     CustomerAddress = customer.Address,
                     CustomerContactPerson = customer.ContactPerson,
                     DestinationAddress = f.Address.FullAddress(),
+                    DestinationZipCode = f.Address.ZipCode(),
+                    DestinationCity = f.Address.City(),
                     CustomerName = customer.Name,
                     CustomerPhone = customer.Phone,
                     ReportNumber = formattedReportNumber,

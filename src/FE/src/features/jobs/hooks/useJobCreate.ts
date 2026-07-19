@@ -50,6 +50,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     mutation: {
       onSuccess: (response) => {
         const jobId = response.id;
+        const reportNumber = response.reportNumber;
 
         const promises: Promise<unknown>[] = [];
 
@@ -65,7 +66,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
           queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
           queryClient.invalidateQueries({ queryKey: ['worksheets'] });
           setIsSaving(false);
-          notify.success('Sagen er oprettet');
+          notify.success(reportNumber ? `Sag ${reportNumber} er oprettet` : 'Sagen er oprettet');
           onCreated(jobId);
         }).catch((error) => {
           setIsSaving(false);

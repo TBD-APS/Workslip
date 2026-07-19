@@ -49,7 +49,7 @@ export function JobWorksheetsStep({
   const defaultUserId = canPickUser
     ? (user?.email ? (resolvedUsers.find((u) => u.email === user.email)?.id ?? '') : '')
     : (user?.id ?? '');
-  const userOptions = resolvedUsers.map((u) => ({ id: u.id, label: u.displayName, description: u.email }));
+  const userOptions = resolvedUsers.map((u) => ({ id: u.id, label: u.displayName }));
   const currentUserName = user?.displayName ?? user?.email ?? 'dig';
 
   // Non-admins only see their own worksheets; show the current user's name on

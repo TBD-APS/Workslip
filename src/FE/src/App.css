@@ -192,6 +192,26 @@
   color: white;
 }
 
+.profile-edit-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.profile-edit-actions .btn-primary {
+  flex: 1;
+}
+
+.profile-edit-actions .btn-secondary {
+  flex: 1;
+}
+
+@media (max-width: 600px) {
+  .profile-edit-actions .btn-primary {
+    flex: 2;
+  }
+}
+
 .app-content {
   flex: 1;
   padding: 1.5rem;

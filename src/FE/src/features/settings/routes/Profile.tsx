@@ -133,7 +133,7 @@ export const Profile = () => {
                 <Shield size={16} />
                 <span style={{ color: 'var(--text-primary)' }}>{roleLabels[user.role] ?? user.role}</span>
               </div>
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <div className="profile-edit-actions">
                 <button className="btn btn-secondary" type="button" onClick={handleCancel} disabled={patchMutation.isPending}>
                   <X size={16} />
                   Annuller

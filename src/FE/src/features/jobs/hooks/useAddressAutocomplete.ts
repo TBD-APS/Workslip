@@ -3,6 +3,8 @@ import { useCallback, useRef, useState } from 'react';
 type DawaAdgangsadresse = {
   vejnavn: string;
   husnr: string;
+  etage: string | null;
+  dør: string | null;
   postnr: string;
   postnrnavn: string;
 };
@@ -55,12 +57,21 @@ export function useAddressAutocomplete() {
         }
 
         const data: DawaAdresse[] = await res.json();
-        const mapped: AddressSuggestion[] = data.map((item) => ({
-          display: item.tekst,
-          street: [item.adresse.vejnavn, item.adresse.husnr].filter(Boolean).join(' '),
-          zipCode: item.adresse.postnr,
-          city: item.adresse.postnrnavn,
-        }));
+        const mapped: AddressSuggestion[] = data.map((item) => {
+          const base = [item.adresse.vejnavn, item.adresse.husnr].filter(Boolean).join(' ');
+          const floor = item.adresse.etage;
+          const door = item.adresse.dør;
+          const street = [base, floor && door ? `${floor}. ${door}` : floor ? `${floor}.` : door ? `. ${door}` : '']
+            .filter(Boolean)
+            .join(', ');
+
+          return {
+            display: item.tekst,
+            street,
+            zipCode: item.adresse.postnr,
+            city: item.adresse.postnrnavn,
+          };
+        });
 
         setSuggestions(mapped);
       } catch {
