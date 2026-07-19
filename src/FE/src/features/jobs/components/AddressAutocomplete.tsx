@@ -41,7 +41,6 @@ export function AddressAutocomplete({
     onSelectSuggestion(suggestion);
     clear();
     setIsOpen(false);
-    inputRef.current?.blur();
   }, [onSelectSuggestion, clear]);
 
   const handleFocus = useCallback(() => {

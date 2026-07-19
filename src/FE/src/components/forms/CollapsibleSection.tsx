@@ -9,9 +9,10 @@ type CollapsibleSectionProps = {
   defaultOpen?: boolean;
   open?: boolean;
   onToggle?: (open: boolean) => void;
+  scrollOnOpen?: boolean;
 };
 
-export function CollapsibleSection({ icon, title, children, className, defaultOpen = true, open, onToggle }: CollapsibleSectionProps) {
+export function CollapsibleSection({ icon, title, children, className, defaultOpen = true, open, onToggle, scrollOnOpen = true }: CollapsibleSectionProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const isOpen = open ?? internalOpen;
   const isControlled = open !== undefined;
@@ -24,10 +25,10 @@ export function CollapsibleSection({ icon, title, children, className, defaultOp
       isInitialMount.current = false;
       return;
     }
-    if (isOpen) {
+    if (isOpen && scrollOnOpen) {
       contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [isOpen, isControlled]);
+  }, [isOpen, isControlled, scrollOnOpen]);
 
   const handleToggle = () => {
     if (isControlled) {

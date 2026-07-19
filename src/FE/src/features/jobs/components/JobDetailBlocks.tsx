@@ -362,7 +362,7 @@ type TextAreaBlockProps = {
 
 export function TextAreaBlock({ icon, title, value, placeholder, onChange }: TextAreaBlockProps) {
   return (
-    <CollapsibleSection icon={icon} title={title} defaultOpen={value.trim().length > 0}>
+    <CollapsibleSection icon={icon} title={title} defaultOpen={value.trim().length > 0} scrollOnOpen={false}>
       <div className="form-group">
         <textarea
           className="form-input form-textarea"
