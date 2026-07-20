@@ -3,9 +3,6 @@ import { CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { JOB_STEPS } from './jobSteps';
 import { useDropdownContext } from '../../../../providers/DropdownContext';
 
-const HIDE_DELAY_MS = 10;
-const SCROLL_THRESHOLD = 5;
-
 type StepIndicatorsProps = {
   currentStep: number;
   onStepChange: (step: number) => void;
@@ -81,12 +78,8 @@ export function StepNavigation({
   statusSlot,
   hideDoneButton = false,
 }: StepNavigationProps) {
-  const [scrollState, setScrollState] = useState<'visible' | 'hidden'>('visible');
   const { openDropdowns } = useDropdownContext();
-  const stateRef = useRef(scrollState);
-  const lastScrollY = useRef(0);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const rafId = useRef(0);
+  const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
     const container = document.querySelector('.app-shell');
@@ -103,51 +96,35 @@ export function StepNavigation({
       return document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
     };
 
-    const go = (next: 'visible' | 'hidden') => {
-      if (next !== stateRef.current) {
-        stateRef.current = next;
-        setScrollState(next);
-      }
-    };
+    let lastScrollY = getScrollTop();
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
     const update = () => {
       const scrollTop = getScrollTop();
       const scrollBottom = getScrollBottom();
-      const atBottom = scrollBottom <= 24;
-      const d = scrollTop - lastScrollY.current;
+      const d = scrollTop - lastScrollY;
 
-      if (atBottom) {
-        clearTimeout(hideTimer.current);
-        go('visible');
-      } else {
-        const scrollingDown = scrollTop > SCROLL_THRESHOLD && d > 0;
-
-        if (scrollingDown && stateRef.current === 'visible') {
-          clearTimeout(hideTimer.current);
-          hideTimer.current = setTimeout(() => go('hidden'), HIDE_DELAY_MS);
-        }
-
-        if (d < 0 && stateRef.current !== 'visible') {
-          clearTimeout(hideTimer.current);
-          go('visible');
-        }
+      if (scrollBottom <= 24) {
+        clearTimeout(hideTimer);
+        setHidden(false);
+      } else if (scrollTop > 5 && d > 0) {
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => setHidden(true), 10);
+      } else if (d < 0) {
+        clearTimeout(hideTimer);
+        setHidden(false);
       }
 
-      lastScrollY.current = scrollTop;
+      lastScrollY = scrollTop;
     };
 
-    const onScroll = () => {
-      cancelAnimationFrame(rafId.current);
-      rafId.current = requestAnimationFrame(update);
-    };
-
+    const onScroll = () => requestAnimationFrame(update);
     target.addEventListener('scroll', onScroll, { passive: true });
     update();
 
     return () => {
       target.removeEventListener('scroll', onScroll);
-      cancelAnimationFrame(rafId.current);
-      clearTimeout(hideTimer.current);
+      clearTimeout(hideTimer);
     };
   }, []);
 
@@ -196,19 +173,13 @@ export function StepNavigation({
   );
 
   const isDropdownOpen = openDropdowns > 0;
+  const hiddenNow = hidden || isDropdownOpen;
 
   return (
     <div
+      className={`step-nav-anchor${hiddenNow ? ' is-hidden' : ''}`}
       style={{
-        position: 'sticky',
-        bottom: 'calc(80px + 1rem)',
-        zIndex: 150,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        opacity: scrollState === 'hidden' || isDropdownOpen ? 0 : 1,
-        pointerEvents: scrollState === 'hidden' || isDropdownOpen ? 'none' : 'auto',
-        transition: 'opacity 0.1s ease',
+        pointerEvents: hiddenNow ? 'none' : 'auto',
       }}
     >
       {statusSlot && <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>{statusSlot}</div>}

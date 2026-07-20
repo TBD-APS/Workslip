@@ -63,7 +63,7 @@ export function getLinkableJobs(
     .map((job) => ({
       id: job.id,
       label: `SAG-${(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}`,
-      description: `${job.customer?.name || 'Ukendt kunde'}\n${job.customer?.address || ''}`,
+      description: `${job.customer?.name || 'Ukendt kunde'}`,
     }));
 }
 
@@ -148,15 +148,9 @@ export function toUpdateRequest(
 
   return {
     customerSnapshot: snapshot,
-    destinationAddress: job.destinationAddress
-      ? null
-      : (initial.destinationAddress !== form.destinationAddress ? form.destinationAddress.trim() || null : null),
-    destinationZipCode: job.destinationZipCode
-      ? null
-      : (initial.destinationZipCode !== form.destinationZipCode ? form.destinationZipCode.trim() || null : null),
-    destinationCity: job.destinationCity
-      ? null
-      : (initial.destinationCity !== form.destinationCity ? form.destinationCity.trim() || null : null),
+    destinationAddress: initial.destinationAddress !== form.destinationAddress ? form.destinationAddress.trim() || null : null,
+    destinationZipCode: initial.destinationZipCode !== form.destinationZipCode ? form.destinationZipCode.trim() || null : null,
+    destinationCity: initial.destinationCity !== form.destinationCity ? form.destinationCity.trim() || null : null,
     reportNumber: job.reportNumber
       ? null
       : (initial.reportNumber !== form.reportNumber ? form.reportNumber.trim() || null : null),

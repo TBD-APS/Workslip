@@ -92,18 +92,20 @@ public sealed class EfUserRepository : IUserRepository
                 (u.Role != null && u.Role.Contains(term)));
         }
 
-        query = (sortBy, sortDirection) switch
+        var orderedQuery = query.OrderBy(u => u.Id == _currentUser.UserId ? 0 : 1);
+
+        IOrderedQueryable<UserDataRow> sorted = (sortBy, sortDirection) switch
         {
-            ("displayName", "asc") => query.OrderBy(u => u.DisplayName),
-            ("displayName", "desc") => query.OrderByDescending(u => u.DisplayName),
-            ("email", "asc") => query.OrderBy(u => u.Email),
-            ("email", "desc") => query.OrderByDescending(u => u.Email),
-            ("role", "asc") => query.OrderBy(u => u.Role),
-            ("role", "desc") => query.OrderByDescending(u => u.Role),
-            _ => query.OrderByDescending(u => u.CreatedAt)
+            ("displayName", "asc") => orderedQuery.ThenBy(u => u.DisplayName),
+            ("displayName", "desc") => orderedQuery.ThenByDescending(u => u.DisplayName),
+            ("email", "asc") => orderedQuery.ThenBy(u => u.Email),
+            ("email", "desc") => orderedQuery.ThenByDescending(u => u.Email),
+            ("role", "asc") => orderedQuery.ThenBy(u => u.Role),
+            ("role", "desc") => orderedQuery.ThenByDescending(u => u.Role),
+            _ => orderedQuery.ThenByDescending(u => u.CreatedAt)
         };
 
-        return await query
+        return await sorted
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken);
@@ -166,6 +168,35 @@ public sealed class EfUserRepository : IUserRepository
             .AsNoTracking()
             .Where(w => w.OrganizationId == organizationId && w.UserId == userId)
             .SumAsync(w => (decimal?)w.HoursWorked, cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, UserPeriodHours>> GetPeriodHoursAsync(Guid organizationId, DateOnly biweeklyStart, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var weekStart = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+
+        var biweeklyStartDt = biweeklyStart.ToDateTime(TimeOnly.MinValue);
+        var weekStartDt = weekStart.ToDateTime(TimeOnly.MinValue);
+        var monthStartDt = monthStart.ToDateTime(TimeOnly.MinValue);
+
+        var data = await _dbContext.Worksheets
+            .AsNoTracking()
+            .Where(w => w.OrganizationId == organizationId && w.WorkDate >= biweeklyStartDt)
+            .GroupBy(w => w.UserId)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                HoursThisWeek = g.Where(w => w.WorkDate >= weekStartDt).Sum(w => (decimal?)w.HoursWorked),
+                HoursThisMonth = g.Where(w => w.WorkDate >= monthStartDt).Sum(w => (decimal?)w.HoursWorked),
+                HoursBiweekly = g.Sum(w => (decimal?)w.HoursWorked),
+            })
+            .ToDictionaryAsync(x => x.UserId, x => new UserPeriodHours(
+                x.HoursThisWeek ?? 0m,
+                x.HoursThisMonth ?? 0m,
+                x.HoursBiweekly ?? 0m), cancellationToken);
+
+        return data;
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)

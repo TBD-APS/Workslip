@@ -2,6 +2,8 @@ using Workslip.Domain.Models;
 
 namespace Workslip.Application.Users;
 
+public sealed record UserPeriodHours(decimal HoursThisWeek, decimal HoursThisMonth, decimal HoursBiweekly);
+
 public interface IUserRepository
 {
     Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
@@ -14,4 +16,5 @@ public interface IUserRepository
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyList<AssignedJobResponse>> GetAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
     Task<decimal?> GetTotalHoursAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<Guid, UserPeriodHours>> GetPeriodHoursAsync(Guid organizationId, DateOnly biweeklyStart, CancellationToken cancellationToken);
 }

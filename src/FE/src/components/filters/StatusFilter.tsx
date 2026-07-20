@@ -1,3 +1,5 @@
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
+
 const LAST_ACTIVE_KEY = 'statusFilter:lastActive';
 
 export function getSavedStatusFilter<T extends string>(sectionKey: string, defaults: T[]): T[] {
@@ -53,6 +55,35 @@ export function StatusFilter<T extends string>({
   selected,
   onChange,
 }: StatusFilterProps<T>) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 4);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    updateScrollState();
+
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+
+    const observer = new ResizeObserver(updateScrollState);
+    observer.observe(el);
+
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      observer.disconnect();
+    };
+  }, [options, updateScrollState]);
+
   const toggle = (value: T) => {
     if (selected.includes(value)) {
       onChange(selected.filter((s) => s !== value));
@@ -62,18 +93,24 @@ export function StatusFilter<T extends string>({
   };
 
   return (
-    <div className="status-filter">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          className={`status-filter-btn${selected.includes(option.value) ? ' selected' : ''}`}
-          type="button"
-          onClick={() => toggle(option.value)}
-          aria-pressed={selected.includes(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
+    <div
+      className="status-filter-scroll"
+      data-scroll-left={canScrollLeft}
+      data-scroll-right={canScrollRight}
+    >
+      <div className="status-filter" ref={scrollRef}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            className={`status-filter-btn${selected.includes(option.value) ? ' selected' : ''}`}
+            type="button"
+            onClick={() => toggle(option.value)}
+            aria-pressed={selected.includes(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -159,7 +159,9 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             .GroupBy(x => x.ReportId)
             .ToDictionary(
                 g => g.Key,
-                g => g.Select(x => new AssignedUserResponse(x.Id, x.DisplayName)).ToArray() as IReadOnlyList<AssignedUserResponse>);
+                g => g.OrderBy(x => x.Id == _currentUser.UserId ? 0 : 1)
+                      .Select(x => new AssignedUserResponse(x.Id, x.DisplayName))
+                      .ToArray() as IReadOnlyList<AssignedUserResponse>);
 
         var installationTypesByReport = await _dbContext.JobReportInstallations
             .AsNoTracking()
@@ -213,7 +215,9 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             .GroupBy(r => r.ReportId)
             .ToDictionary(
                 g => g.Key,
-                g => g.Select(r => new AssignedUserResponse(r.Id, r.DisplayName)).ToArray() as IReadOnlyList<AssignedUserResponse>);
+                g => g.OrderBy(r => r.Id == _currentUser.UserId ? 0 : 1)
+                      .Select(r => new AssignedUserResponse(r.Id, r.DisplayName))
+                      .ToArray() as IReadOnlyList<AssignedUserResponse>);
 
         return result;
     }

@@ -17,7 +17,10 @@ public sealed record UserResponse(
     string Email,
     string DisplayName,
     string Phone,
-    string Role);
+    string Role,
+    decimal? HoursThisWeek = null,
+    decimal? HoursThisMonth = null,
+    decimal? HoursBiweekly = null);
 
 public sealed record UserListResponse(
     IReadOnlyList<UserResponse> Users,
@@ -40,7 +43,10 @@ public sealed record UserDetailResponse(
     string Phone,
     string Role,
     IReadOnlyList<AssignedJobResponse> AssignedJobs,
-    decimal? TotalHours);
+    decimal? TotalHours,
+    decimal? HoursThisWeek = null,
+    decimal? HoursThisMonth = null,
+    decimal? HoursBiweekly = null);
 
 public sealed record InviteUsersRequest(
     IReadOnlyList<string> Emails,

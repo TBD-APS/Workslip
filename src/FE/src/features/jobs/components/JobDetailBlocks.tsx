@@ -302,11 +302,12 @@ export function AssignmentBlock({ assignment, readOnlyAssigned, isEditing = true
             placeholder="Søg efter medarbejdere..."
             emptyText="Ingen medarbejdere fundet"
             loadingText="Henter medarbejdere..."
-            options={assignment.users.map((user) => ({ id: user.id, label: user.displayName, description: user.email }))}
+            options={assignment.users.map((user) => ({ id: user.id, label: user.displayName }))}
             selectedIds={assignment.assignedUserIds}
             isLoading={assignment.isLoadingUsers}
             commitOnClose
             hideSearch
+            className="assignment-variant"
             onChange={assignment.onAssignedUsersChange}
           />
         ) : (
@@ -346,6 +347,7 @@ export function LinkedJobsBlock({ jobs, linkedJobIds, isLoading, onChange }: Lin
         selectedIds={linkedJobIds}
         isLoading={isLoading}
         commitOnClose
+        className="linked-jobs-variant"
         onChange={onChange}
       />
     </section>
@@ -362,7 +364,7 @@ type TextAreaBlockProps = {
 
 export function TextAreaBlock({ icon, title, value, placeholder, onChange }: TextAreaBlockProps) {
   return (
-    <CollapsibleSection icon={icon} title={title} defaultOpen={value.trim().length > 0}>
+    <CollapsibleSection icon={icon} title={title} defaultOpen={value.trim().length > 0} scrollOnOpen={false}>
       <div className="form-group">
         <textarea
           className="form-input form-textarea"

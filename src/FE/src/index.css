@@ -8,7 +8,12 @@
   --safe-left: env(safe-area-inset-left);
 
   /* Layout */
-  --bottom-nav-height: 56px;
+  /* Real nav height: 10px top padding + ~40px content (icon+label or 40px create button) + 4px bottom padding + safe-area. */
+  --bottom-nav-height: calc(54px + env(safe-area-inset-bottom, 0px));
+  /* Extra breathing room between the last form CTA and the nav itself. The
+     nav already has its own visual top border, but on create/edit pages users
+     keep reporting the buttons feel glued to it. */
+  --bottom-nav-extra: 0.75rem;
 
   /* Core Palette */
   --bg: #050505;
@@ -259,6 +264,12 @@ strong, b {
   font-weight: 400;
 }
 
+html, body {
+  min-height: 100vh;
+  /* Forhindrer browseren i automatisk at prøve at håndtere scroll ved fokus-skift */
+  overflow-anchor: none; 
+}
+
 body {
   font-family: var(--font-main);
   background-color: var(--bg);
@@ -290,6 +301,16 @@ a:hover {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
+  /* iOS PWA + Dynamic Island: viewport-fit=cover in index.html means the
+     100dvh canvas extends behind the status bar / island. The fallback
+     "Henter..." text in AppProvider is the very first thing the user sees
+     after the splash, and previously sat at vh/2 — directly under the
+     island. Push it (and any other top-of-page content) past the cutout
+     with a small base offset on top of the safe-area. */
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
 }
 
 /* Background effects */

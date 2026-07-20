@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Mail, Shield } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Clock, Mail, Shield } from 'lucide-react';
 import { type UserListViewModel, type UserViewModel } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
@@ -13,6 +13,13 @@ import { apiClient } from '../../../lib/axios';
 
 const PAGE_SIZE = 20;
 const SHOW_SEARCH = false;
+
+function formatHours(value: number | string | null): string {
+  if (value == null) return '\u2013';
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (Number.isNaN(num)) return '\u2013';
+  return `${num.toLocaleString('da-DK', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} t`;
+}
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -101,6 +108,7 @@ export const UserList = () => {
                 <th className="col-name">Navn</th>
                 <th className="col-email">Email</th>
                 <th className="col-role">Rolle</th>
+                <th className="col-hours">Uge</th>
                 <th className="col-actions" />
               </tr>
             </thead>
@@ -110,6 +118,7 @@ export const UserList = () => {
                   <td><div className="skeleton skeleton-w-60" /></td>
                   <td><div className="skeleton skeleton-w-70" /></td>
                   <td><div className="skeleton skeleton-w-40" /></td>
+                  <td><div className="skeleton skeleton-w-1-5rem" /></td>
                   <td><div className="skeleton skeleton-w-1-5rem" /></td>
                 </tr>
               ))}
@@ -148,6 +157,7 @@ export const UserList = () => {
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
+              <th className="col-hours">Uge</th>
               <th className="col-actions">
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
               </th>
@@ -173,6 +183,7 @@ export const UserList = () => {
                     {user.role}
                   </span>
                 </td>
+                <td className="col-hours">{formatHours(user.hoursThisWeek)}</td>
                 <td className="col-actions">
                   <ChevronRight size={16} className="row-link-icon" />
                 </td>
@@ -216,6 +227,11 @@ export const UserList = () => {
                   <Shield size={14} />
                   <span>{user.role}</span>
                 </span>
+              </div>
+
+              <div className="user-hours-row">
+                <Clock size={14} className="text-muted" />
+                <span>{formatHours(user.hoursThisWeek)} denne uge</span>
               </div>
 
               <div className="job-card-footer">

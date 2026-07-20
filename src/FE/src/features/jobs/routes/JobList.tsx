@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
@@ -51,6 +51,30 @@ export const JobList = () => {
     getSavedStatusFilter('mine-jobs', [JobStatus.Draft]),
   );
   const { handleMouseDown } = useColumnResize();
+  const sortScrollRef = useRef<HTMLDivElement>(null);
+  const [sortCanScrollLeft, setSortCanScrollLeft] = useState(false);
+  const [sortCanScrollRight, setSortCanScrollRight] = useState(false);
+
+  const updateSortScrollState = useCallback(() => {
+    const el = sortScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setSortCanScrollLeft(scrollLeft > 4);
+    setSortCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = sortScrollRef.current;
+    if (!el) return;
+    updateSortScrollState();
+    el.addEventListener('scroll', updateSortScrollState, { passive: true });
+    const observer = new ResizeObserver(updateSortScrollState);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener('scroll', updateSortScrollState);
+      observer.disconnect();
+    };
+  }, [updateSortScrollState]);
 
   const handleStatusChange = useCallback((statuses: JobStatus[]) => {
     setSelectedStatuses(statuses);
@@ -242,7 +266,7 @@ export const JobList = () => {
             <tr>
               <th className={`col-number sortable${sortBy === 'reportNumber' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('reportNumber')}>
-                  Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
@@ -252,13 +276,13 @@ export const JobList = () => {
               </th>
               <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('name')}>
-                  Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
               <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('address')}>
-                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
               </th>
@@ -268,7 +292,7 @@ export const JobList = () => {
               </th>
               <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('totalHours')}>
-                  Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
               </th>
@@ -282,13 +306,13 @@ export const JobList = () => {
               </th>
               <th className={`col-date sortable${sortBy === 'reportDate' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('reportDate')}>
-                  Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(8, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'updatedAt' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('updatedAt')}>
-                  Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                  Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={14} />}</span>
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(9, e)} />
               </th>
@@ -351,27 +375,32 @@ export const JobList = () => {
         />
         </>
       ) : (
-        <div className="job-sort-controls">
+        <div
+          className="job-sort-controls-scroll"
+          data-scroll-left={sortCanScrollLeft}
+          data-scroll-right={sortCanScrollRight}
+        >
+        <div className="job-sort-controls" ref={sortScrollRef}>
           <button
             type="button"
             className={`sort-btn${sortBy === 'reportNumber' ? ' active' : ''}`}
             onClick={() => handleSort('reportNumber')}
           >
-            Sagsnr.{sortBy === 'reportNumber' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+            Sagsnr.{sortBy === 'reportNumber' && (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
           </button>
           <button
             type="button"
             className={`sort-btn${sortBy === 'name' ? ' active' : ''}`}
             onClick={() => handleSort('name')}
           >
-            Kundenavn{sortBy === 'name' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+            Kundenavn{sortBy === 'name' && (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
           </button>
           <button
             type="button"
             className={`sort-btn${sortBy === 'address' ? ' active' : ''}`}
             onClick={() => handleSort('address')}
           >
-            Adresse{sortBy === 'address' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+            Adresse{sortBy === 'address' && (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
           </button>
           <div className="job-sort-secondary">
             <button
@@ -379,9 +408,10 @@ export const JobList = () => {
               className={`sort-btn${sortBy === 'updatedAt' ? ' active' : ''}`}
               onClick={() => handleSort('updatedAt')}
             >
-              Opdateret{sortBy === 'updatedAt' && (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+              Opdateret{sortBy === 'updatedAt' && (sortDirection === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
             </button>
           </div>
+        </div>
         </div>
       )}
 

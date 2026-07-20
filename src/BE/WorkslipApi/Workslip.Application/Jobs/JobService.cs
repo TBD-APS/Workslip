@@ -367,11 +367,18 @@ public sealed class JobService(
 
         if (targetStatus == JobStatus.InReview)
         {
-            var usersInOrg = await userRepository.GetByOrganizationIdAsync(organizationId.Value, 1000, 0, null, null, null, cancellationToken);
-            var auditorsAndAdmins = usersInOrg.Where(u => u.Role == Roles.Auditor || u.Role == Roles.Admin);
-            foreach (var user in auditorsAndAdmins)
+            var users = await userRepository.GetByOrganizationIdAsync(organizationId.Value, 1000, 0, null, null, null, cancellationToken);
+            var admins = users.Where(x => x.Role == Roles.Admin);
+            
+            foreach (var admin in admins)
             {
-                await notificationService.QueueJobReadyForReviewAsync(user.Id, report.Id, reportNumber, address, cancellationToken);
+                logger.LogInformation("Sending review notification to {UserName} with id {UserId}", admin.DisplayName, admin.Id);
+                
+                if (admin.Id == currentUser.UserId) 
+                    continue;
+
+                await notificationService.QueueJobReadyForReviewAsync(admin.Id, admin.DisplayName, report.Id, reportNumber, address, cancellationToken);
+                logger.LogInformation("Sent review notification to {UserName} with id {UserId}", admin.DisplayName, admin.Id);
             }
         }
         else if (targetStatus == JobStatus.Rejected)
@@ -394,14 +401,18 @@ public sealed class JobService(
 
             foreach (var assignedUser in report.AssignedUsers)
             {
-                await notificationService.QueueJobDeniedAsync(assignedUser.Id, report.Id, reportNumber, address, cancellationToken);
+                if (assignedUser.Id == currentUser.UserId) continue;
+                await notificationService.QueueJobDeniedAsync(assignedUser.Id, assignedUser.DisplayName, report.Id, reportNumber, address, cancellationToken);
             }
         }
         else if (targetStatus == JobStatus.Approved)
         {
             foreach (var assignedUser in report.AssignedUsers)
             {
-                await notificationService.QueueJobCompletedAsync(assignedUser.Id, report.Id, reportNumber, address, cancellationToken);
+                if (assignedUser.Id == currentUser.UserId) 
+                    continue;
+                
+                await notificationService.QueueJobCompletedAsync(assignedUser.Id, assignedUser.DisplayName, report.Id, reportNumber, address, cancellationToken);
             }
         }
 
@@ -590,7 +601,12 @@ public sealed class JobService(
           var reportNumber = job.ReportNumber ?? "Uden nummer";
           foreach (var userId in userIds)
           {
-              await notificationService.QueueJobAssignedAsync(userId, jobId, reportNumber, address, cancellationToken);
+              if (userId == currentUser.UserId) 
+                continue;
+                
+              var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
+              var recipientName = assignedUser?.DisplayName ?? "Bruger";
+              await notificationService.QueueJobAssignedAsync(userId, recipientName, jobId, reportNumber, address, cancellationToken);
           }
 
           return await ToSummaryResultAsync(job, cancellationToken);

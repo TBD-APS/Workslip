@@ -156,6 +156,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         if (jobId) {
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
+        queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
         setAssignmentStatus('saved');
       },
       onError: () => {
@@ -175,6 +176,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         if (jobId) {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsIdQueryKey(jobId) });
         }
+        queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
         if (pendingLinksRef.current.size === 0) {
           setLinksStatus('saved');
         }

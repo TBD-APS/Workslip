@@ -8,7 +8,10 @@ public sealed record UserViewModel(
     string Email,
     string DisplayName,
     string Phone,
-    string Role);
+    string Role,
+    decimal? HoursThisWeek,
+    decimal? HoursThisMonth,
+    decimal? HoursBiweekly);
 
 public sealed record UserListViewModel(
     IReadOnlyList<UserViewModel> Users,
@@ -31,7 +34,10 @@ public sealed record UserDetailViewModel(
     string Phone,
     string Role,
     IReadOnlyList<AssignedJobViewModel> AssignedJobs,
-    decimal? TotalHours);
+    decimal? TotalHours,
+    decimal? HoursThisWeek,
+    decimal? HoursThisMonth,
+    decimal? HoursBiweekly);
 
 public static class UserViewModelBuilder
 {
@@ -41,7 +47,10 @@ public static class UserViewModelBuilder
         user.Email,
         user.DisplayName,
         user.Phone,
-        user.Role);
+        user.Role,
+        user.HoursThisWeek,
+        user.HoursThisMonth,
+        user.HoursBiweekly);
 
     public static UserListViewModel ToUserList(UserListResponse list) => new(
         list.Users.Select(ToUser).ToArray(),
@@ -62,5 +71,8 @@ public static class UserViewModelBuilder
             j.CustomerName,
             j.CustomerEmail,
             j.CustomerAddress)).ToArray(),
-        detail.TotalHours);
+        detail.TotalHours,
+        detail.HoursThisWeek,
+        detail.HoursThisMonth,
+        detail.HoursBiweekly);
 }

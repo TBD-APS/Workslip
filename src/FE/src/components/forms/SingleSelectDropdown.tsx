@@ -121,7 +121,6 @@ export function SingleSelectDropdown({
                   setSearchQuery(e.target.value);
                   onSearchChange?.(e.target.value);
                 }}
-                autoFocus
               />
             </div>
             {isLoading && <p className="multi-select-menu-empty">{loadingText}</p>}

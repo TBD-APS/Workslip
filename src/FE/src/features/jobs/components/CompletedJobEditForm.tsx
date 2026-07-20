@@ -1,4 +1,4 @@
-import { FileCheck2, CheckCircle2, User, X, Save, Loader2 } from 'lucide-react';
+import { FileText, MessageSquare, Wrench, FileCheck2, CheckCircle2, X, Save, Loader2 } from 'lucide-react';
 import { AssignmentBlock, CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from './JobDetailBlocks';
 import { ControlPointsStep } from './steps/ControlPointsStep';
 import { JobCompletionStep } from './steps/JobCompletionStep';
@@ -46,21 +46,23 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
           <h3>Observationer og noter</h3>
         </div>
         <TextAreaBlock
-          icon={<FileCheck2 size={18} />}
+          icon={<FileText size={18} />}
           title="Opgave"
           value={details.form.taskDescription}
           onChange={details.updateTaskDescription}
           placeholder="Beskriv opgaven..."
         />
+        <div className="form-divider" />
         <TextAreaBlock
-          icon={<User size={18} />}
+          icon={<MessageSquare size={18} />}
           title="Kundeinfo"
           value={details.form.customerObservations}
           onChange={details.updateCustomerObservations}
           placeholder="Notér oplysninger til kunden..."
         />
+        <div className="form-divider" />
         <TextAreaBlock
-          icon={<CheckCircle2 size={18} />}
+          icon={<Wrench size={18} />}
           title="Teknisk"
           value={details.form.technicalObservations}
           onChange={details.updateTechnicalObservations}
