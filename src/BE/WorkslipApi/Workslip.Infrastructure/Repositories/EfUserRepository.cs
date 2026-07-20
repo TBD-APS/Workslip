@@ -92,18 +92,20 @@ public sealed class EfUserRepository : IUserRepository
                 (u.Role != null && u.Role.Contains(term)));
         }
 
-        query = (sortBy, sortDirection) switch
+        var orderedQuery = query.OrderBy(u => u.Id == _currentUser.UserId ? 0 : 1);
+
+        IOrderedQueryable<UserDataRow> sorted = (sortBy, sortDirection) switch
         {
-            ("displayName", "asc") => query.OrderBy(u => u.DisplayName),
-            ("displayName", "desc") => query.OrderByDescending(u => u.DisplayName),
-            ("email", "asc") => query.OrderBy(u => u.Email),
-            ("email", "desc") => query.OrderByDescending(u => u.Email),
-            ("role", "asc") => query.OrderBy(u => u.Role),
-            ("role", "desc") => query.OrderByDescending(u => u.Role),
-            _ => query.OrderByDescending(u => u.CreatedAt)
+            ("displayName", "asc") => orderedQuery.ThenBy(u => u.DisplayName),
+            ("displayName", "desc") => orderedQuery.ThenByDescending(u => u.DisplayName),
+            ("email", "asc") => orderedQuery.ThenBy(u => u.Email),
+            ("email", "desc") => orderedQuery.ThenByDescending(u => u.Email),
+            ("role", "asc") => orderedQuery.ThenBy(u => u.Role),
+            ("role", "desc") => orderedQuery.ThenByDescending(u => u.Role),
+            _ => orderedQuery.ThenByDescending(u => u.CreatedAt)
         };
 
-        return await query
+        return await sorted
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken);
