@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { notify } from '../../../lib/toast';
@@ -11,7 +11,7 @@ import {
 import { useGetApiUsers } from '../../../api/generated/users/users';
 import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
 import { useAuth } from '../../../providers/useAuth';
-import { useIsAdmin } from '../../../providers/permissions';
+import { canReceiveJobAssignment, useIsAdmin } from '../../../providers/permissions';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
 import { emptyForm, isValidCreateForm } from '../utils';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
@@ -33,11 +33,8 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const referenceDataQuery = useGetApiReferenceData();
   const referenceData = referenceDataQuery.data ?? null;
   const usersQuery = useGetApiUsers({ limit: 20 }, { query: { enabled: isAdmin } });
-  const assignableUsers = usersQuery.data?.users ?? [];
-  const defaultAssignedUserIds = useMemo(() => {
-    if (!user?.id) return [];
-    return [user.id];
-  }, [user?.id]);
+  const assignableUsers = (usersQuery.data?.users ?? []).filter((candidate) => canReceiveJobAssignment(candidate.role));
+  const defaultAssignedUserIds = user?.id && canReceiveJobAssignment(user.role) ? [user.id] : [];
   const [form, setForm] = useState<JobForm>(initialForm ?? emptyForm);
   const [linkedJobIds, setLinkedJobIds] = useState<string[]>([]);
   const [assignedUserIdsDraft, setAssignedUserIdsDraft] = useState<string[] | null>(null);

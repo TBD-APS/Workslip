@@ -197,9 +197,10 @@ public static class DatabaseSeeder
             });
         }
 
+        var assignableUsers = users.Where(u => u.Role is Roles.User or Roles.Admin).ToList();
         foreach (var job in jobs)
         {
-            var userId = faker.PickRandom(users).Id;
+            var userId = faker.PickRandom(assignableUsers).Id;
             if (!usedPairs.Add((job.Id, userId)))
             {
                 continue;
@@ -217,7 +218,7 @@ public static class DatabaseSeeder
         while (assignments.Count < 100)
         {
             var reportId = faker.PickRandom(jobs).Id;
-            var userId = faker.PickRandom(users).Id;
+            var userId = faker.PickRandom(assignableUsers).Id;
             if (usedPairs.Add((reportId, userId)))
             {
                 assignments.Add(new JobAssignmentRow

@@ -22,7 +22,7 @@ import {
 import { useGetApiUsers } from '../../../api/generated/users/users';
 import { useGetApiReferenceData } from '../../../api/generated/reference-data/reference-data';
 import { useTimedStatus } from '../../../hooks/useTimedStatus';
-import { useIsAdmin } from '../../../providers/permissions';
+import { canReceiveJobAssignment, useIsAdmin } from '../../../providers/permissions';
 import { useAuth } from '../../../providers/useAuth';
 import {
   emptyForm,
@@ -79,7 +79,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
       return data.items;
     },
   });
-  const assignableUsers = usersQuery.data?.users ?? [];
+  const assignableUsers = (usersQuery.data?.users ?? []).filter((candidate) => canReceiveJobAssignment(candidate.role));
   const referenceData = referenceDataQuery.data!;
 
   const linkableJobs = getLinkableJobs(jobsQuery.data, jobId);

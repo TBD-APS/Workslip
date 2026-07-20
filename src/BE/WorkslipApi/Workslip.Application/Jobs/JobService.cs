@@ -88,7 +88,9 @@ public sealed class JobService(
         }
 
         var actorId = currentUser.UserId;
-        var assignedUserIds = actorId.HasValue ? [actorId.Value] : Array.Empty<Guid>();
+        var assignedUserIds = actorId.HasValue && IsJobAssignableRole(currentUser.Role)
+            ? [actorId.Value]
+            : Array.Empty<Guid>();
         try
         {
             var created = await _jobRepository.CreateAsync(organizationId.Value, request, assignedUserIds, actorId, cancellationToken);
@@ -858,21 +860,28 @@ public sealed class JobService(
         foreach (var userId in userIds)
         {
             var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
-            if (assignedUser is not null) 
+            if (assignedUser is not null
+                && assignedUser.OrganizationId == organizationId
+                && IsJobAssignableRole(assignedUser.Role))
                 continue;
 
-            logger.LogWarning("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
+            logger.LogError("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
                 jobId, organizationId, userId);
 
             return Result<JobReportSummaryResponse>.Invalid([new ValidationError
             {
                 Identifier = nameof(AssignJobRequest.UserIds),
-                ErrorMessage = "En eller flere valgte brugere findes ikke i organisationen."
+                ErrorMessage = "Sager kan kun tildeles brugere eller administratorer i samme organisation."
             }]);
         }
 
         return null;
     }
+
+    private static bool IsJobAssignableRole(string? role) =>
+        string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors

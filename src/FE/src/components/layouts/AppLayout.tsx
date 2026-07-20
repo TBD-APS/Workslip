@@ -133,11 +133,6 @@ export const AppLayout = () => {
             <span>Timer</span>
           </NavLink>
         </Can>
-          <Can permission="job:create">
-            <button className="nav-item nav-item-create" onClick={() => setCreateSheetOpen(true)}>
-              <PlusCircle size={25} />
-            </button>
-          </Can>
         <Can permission="user:manage">
           <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
             <Users size={24} />
@@ -151,6 +146,15 @@ export const AppLayout = () => {
           </NavLink>
         </Can>
       </nav>
+
+      {/* Floating Create Button - only on Sager list */}
+      {location.pathname === '/app' && (
+        <Can permission="job:create">
+          <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
+            <PlusCircle size={22} />
+          </button>
+        </Can>
+      )}
       <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
     </div>
     </DropdownProvider>

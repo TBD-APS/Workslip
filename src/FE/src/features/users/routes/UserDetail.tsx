@@ -24,6 +24,7 @@ import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { announceSection } from '../../../components/filters/StatusFilter';
+import { canReceiveJobAssignment } from '../../../providers/permissions';
 
 function formatHours(value: number | string | null): string {
   if (value == null) return '\u2013';
@@ -198,6 +199,8 @@ export const UserDetail = () => {
     );
   }
 
+  const canReceiveJobs = canReceiveJobAssignment(user.role);
+
   return (
     <div className="page-container">
       <div className="detail-header">
@@ -234,7 +237,9 @@ export const UserDetail = () => {
         </div>
       </div>
 
-      <h3 className="section-title">Tildel sag</h3>
+      {canReceiveJobs ? (
+        <>
+          <h3 className="section-title">Tildel sag</h3>
 
       <div className="search-input-wrapper">
         <Search size={16} className="search-input-icon" />
@@ -271,7 +276,7 @@ export const UserDetail = () => {
         </div>
       )}
 
-      {!isSearching && (
+          {!isSearching && (
         <div className="job-list">
           {suggestionsQuery.isLoading && (
             <div className="empty-state">
@@ -290,6 +295,12 @@ export const UserDetail = () => {
           )}
 
           {suggestionResults.map((job) => renderAssignableJobCard(job))}
+        </div>
+          )}
+        </>
+      ) : (
+        <div className="empty-state">
+          <p>Auditorer og superadmins kan ikke tildeles sager.</p>
         </div>
       )}
 
