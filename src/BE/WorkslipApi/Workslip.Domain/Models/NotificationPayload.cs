@@ -5,5 +5,6 @@ public sealed record NotificationPayload(
     string JobNumber,
     string CustomerAddress,
     string NotificationType,
+    string RecipientName,
     string Url = "/app"
 );

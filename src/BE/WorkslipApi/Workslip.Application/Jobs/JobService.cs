@@ -375,7 +375,7 @@ public sealed class JobService(
                 if (admin.Id == currentUser.UserId) 
                     continue;
 
-                await notificationService.QueueJobReadyForReviewAsync(admin.Id, report.Id, reportNumber, address, cancellationToken);
+                await notificationService.QueueJobReadyForReviewAsync(admin.Id, admin.DisplayName, report.Id, reportNumber, address, cancellationToken);
                 logger.LogInformation("Sent review notification to {UserName} with id {UserId}", admin.DisplayName, admin.Id);
             }
         }
@@ -400,7 +400,7 @@ public sealed class JobService(
             foreach (var assignedUser in report.AssignedUsers)
             {
                 if (assignedUser.Id == currentUser.UserId) continue;
-                await notificationService.QueueJobDeniedAsync(assignedUser.Id, report.Id, reportNumber, address, cancellationToken);
+                await notificationService.QueueJobDeniedAsync(assignedUser.Id, assignedUser.DisplayName, report.Id, reportNumber, address, cancellationToken);
             }
         }
         else if (targetStatus == JobStatus.Approved)
@@ -410,7 +410,7 @@ public sealed class JobService(
                 if (assignedUser.Id == currentUser.UserId) 
                     continue;
                 
-                await notificationService.QueueJobCompletedAsync(assignedUser.Id, report.Id, reportNumber, address, cancellationToken);
+                await notificationService.QueueJobCompletedAsync(assignedUser.Id, assignedUser.DisplayName, report.Id, reportNumber, address, cancellationToken);
             }
         }
 
@@ -602,7 +602,9 @@ public sealed class JobService(
               if (userId == currentUser.UserId) 
                 continue;
                 
-              await notificationService.QueueJobAssignedAsync(userId, jobId, reportNumber, address, cancellationToken);
+              var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
+              var recipientName = assignedUser?.DisplayName ?? "Bruger";
+              await notificationService.QueueJobAssignedAsync(userId, recipientName, jobId, reportNumber, address, cancellationToken);
           }
 
           return await ToSummaryResultAsync(job, cancellationToken);

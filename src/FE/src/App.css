@@ -1698,6 +1698,13 @@
   grid-template-columns: 1fr;
   gap: 0.75rem;
   margin-top: 1.25rem;
+  /* Guard: even though .app-content already pads for the nav, a form whose
+     primary CTA lives here (CreateCustomerPage, EditCustomerPage, success
+     dialogs, etc.) was the only thing keeping the user from hitting the fixed
+     bottom-nav with a thumb-sized target. The extra space keeps the button
+     visually clear of the nav on devices with a tall safe-area or condensed
+     content above. */
+  margin-bottom: 0.75rem;
 }
 
 .modal-actions--double {
@@ -2332,7 +2339,10 @@
    ------------------------------------------------------------ */
 .step-nav-anchor {
   position: sticky;
-  bottom: calc(80px + 1rem);
+  /* Sit just above the fixed bottom-nav (uses --bottom-nav-height which now
+     already includes env(safe-area-inset-bottom) so the buttons never end up
+     underneath the nav on devices with a tall home-indicator). */
+  bottom: calc(var(--bottom-nav-height) + 0.5rem);
   z-index: 150;
   display: flex;
   flex-direction: column;

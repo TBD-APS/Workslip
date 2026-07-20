@@ -8,7 +8,8 @@
   --safe-left: env(safe-area-inset-left);
 
   /* Layout */
-  --bottom-nav-height: 56px;
+  /* Real nav height: 10px top padding + ~40px content (icon+label or 40px create button) + 4px bottom padding + safe-area. */
+  --bottom-nav-height: calc(54px + env(safe-area-inset-bottom, 0px));
 
   /* Core Palette */
   --bg: #050505;

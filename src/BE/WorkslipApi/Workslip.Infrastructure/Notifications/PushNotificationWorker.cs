@@ -117,7 +117,7 @@ public sealed class PushNotificationWorker : BackgroundService
         var subscriptions = await repo.GetActiveSubscriptionsForUserAsync(notification.UserId, stoppingToken);
         if (subscriptions.Count == 0)
         {
-            _logger.LogInformation("No active push subscriptions found for user.");
+            _logger.LogInformation("No active push subscriptions for user {UserId}. Skipping push for {NotificationType} on job {JobNumber} ({JobId}).", notification.UserId, payload.NotificationType, payload.JobNumber, payload.JobId);
             await repo.MarkNotificationCompletedAsync(notification.Id, stoppingToken);
             return;
         }
@@ -129,7 +129,7 @@ public sealed class PushNotificationWorker : BackgroundService
             return;
         }
 
-        var (title, body) = notificationService.GetLocalizedText(type, payload.JobNumber, payload.CustomerAddress);
+        var (title, body) = notificationService.GetLocalizedText(type, payload.JobNumber, payload.CustomerAddress, payload.RecipientName);
 
         var devicePayload = new
         {
@@ -173,20 +173,20 @@ public sealed class PushNotificationWorker : BackgroundService
 
             if (result.Success)
             {
-                _logger.LogInformation("Push notification sent. NotificationId={NotificationId}", notification.Id);
+                _logger.LogInformation("Push sent to user {UserId}: {NotificationType} for job {JobNumber} ({JobId}). URL: {Url}", notification.UserId, payload.NotificationType, payload.JobNumber, payload.JobId, payload.Url);
             }
             else
             {
                 lastErrorMessage = result.ErrorMessage;
                 if (result.IsExpired)
                 {
-                    _logger.LogInformation("Subscription is expired/invalid. Disabling subscription. SubscriptionId={SubscriptionId}", sub.Id);
+                    _logger.LogInformation("Subscription {SubscriptionId} expired for user {UserId}. Disabling.", sub.Id, notification.UserId);
                     await repo.UpdateSubscriptionActiveStatusAsync(sub.Id, false, stoppingToken);
                 }
                 else
                 {
                     hasTemporaryFailure = true;
-                    _logger.LogWarning("Push notification failed. RetryCount={RetryCount}", notification.RetryCount);
+                    _logger.LogWarning("Push failed for user {UserId}: {NotificationType} on job {JobNumber}. Error: {Error}. RetryCount={RetryCount}", notification.UserId, payload.NotificationType, payload.JobNumber, result.ErrorMessage, notification.RetryCount);
                 }
             }
         }
@@ -196,13 +196,13 @@ public sealed class PushNotificationWorker : BackgroundService
             var nextRetryCount = notification.RetryCount + 1;
             if (nextRetryCount >= 5)
             {
-                _logger.LogError("Notification permanently failed. LastError: {LastError}", lastErrorMessage);
+                _logger.LogError("Push permanently failed for user {UserId}: {NotificationType} on job {JobNumber}. LastError: {LastError}", notification.UserId, payload.NotificationType, payload.JobNumber, lastErrorMessage);
                 await repo.UpdateNotificationStatusAsync(notification.Id, "Failed", nextRetryCount, DateTimeOffset.UtcNow, lastErrorMessage ?? "Max retries exceeded", stoppingToken);
             }
             else
             {
                 var nextAttempt = CalculateNextAttempt(nextRetryCount);
-                _logger.LogWarning("Push notification failed. Scheduling retry. RetryCount={RetryCount}", nextRetryCount);
+                _logger.LogWarning("Push retry scheduled for user {UserId}: {NotificationType} on job {JobNumber}. RetryCount={RetryCount}", notification.UserId, payload.NotificationType, payload.JobNumber, nextRetryCount);
                 await repo.UpdateNotificationStatusAsync(notification.Id, "Pending", nextRetryCount, nextAttempt, lastErrorMessage, stoppingToken);
             }
         }
