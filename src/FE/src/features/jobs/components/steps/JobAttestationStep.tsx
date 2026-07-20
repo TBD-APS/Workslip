@@ -289,14 +289,6 @@ function hasText(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function formatContact(
-  contactPerson: string | null | undefined,
-  phone: string | null | undefined,
-  email: string | null | undefined,
-) {
-  return [contactPerson, phone, email].filter(hasText).join(' · ');
-}
-
 function formatWorkKind(workKind: { label?: string | null; customWorkKind?: string | null } | null) {
   if (!workKind) return '';
   return workKind.customWorkKind || workKind.label || '';
