@@ -1,4 +1,5 @@
-import { AlertCircle, CheckCircle2, Clock, Info, ListChecks, Send, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Info, ListChecks, Send, ShieldCheck, EyeOff } from 'lucide-react';
+import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
 import { JobStatus } from '../../../../api/generated/models/jobStatus';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { formatNumber, formatUnit, parseNullableNumber, capitalize } from '../../../../lib/formatUtils';
@@ -58,7 +59,9 @@ export function JobAttestationStep({
     { label: 'Adresse (destination)', value: job.destinationAddress },
     { label: 'Kunde', value: job.customerSnapshot.name },
     { label: 'Adresse', value: job.customerSnapshot.address },
-    { label: 'Kontakt', value: formatContact(job.customerSnapshot.contactPerson, job.customerSnapshot.phone, job.customerSnapshot.email) },
+    { label: 'Kontakt', value: job.customerSnapshot.contactPerson },
+    { label: 'Telefon', value: job.customerSnapshot.phone },
+    { label: 'Email', value: job.customerSnapshot.email},
     { label: 'Opgavetype', value: formatWorkKind(job.work.workKind) },
     { label: 'Anlægstyper', value: selectedInstallationTypeNames.join(', ') },
   ]);
@@ -188,8 +191,13 @@ export function JobAttestationStep({
           )}
 
           {irrelevantCategories.length > 0 && (
-            <div className="attestation-irrelevant-block">
-              <span className="attestation-irrelevant-label">Irrelevant</span>
+            <CollapsibleSection
+              icon={<EyeOff size={16} />}
+              title={`Irrelevante punkter (${irrelevantCategories.length})`}
+              defaultOpen={false}
+              scrollOnOpen={false}
+              className="attestation-irrelevant-collapsible"
+            >
               <ul className="attestation-control-list compact">
                 {irrelevantCategories.map((item) => (
                   <li key={item.id}>
@@ -197,7 +205,7 @@ export function JobAttestationStep({
                   </li>
                 ))}
               </ul>
-            </div>
+            </CollapsibleSection>
           )}
         </section>
       )}

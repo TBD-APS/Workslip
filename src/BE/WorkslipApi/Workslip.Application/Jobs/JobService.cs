@@ -865,7 +865,7 @@ public sealed class JobService(
                 && IsJobAssignableRole(assignedUser.Role))
                 continue;
 
-            logger.LogWarning("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
+            logger.LogError("Job assignment validation failed. JobId: {JobId}. OrganizationId: {OrganizationId}. InvalidAssignedUserId: {InvalidAssignedUserId}.",
                 jobId, organizationId, userId);
 
             return Result<JobReportSummaryResponse>.Invalid([new ValidationError
@@ -880,7 +880,8 @@ public sealed class JobService(
 
     private static bool IsJobAssignableRole(string? role) =>
         string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase);
+        || string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors

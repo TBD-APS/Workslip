@@ -247,7 +247,14 @@ export const CustomerList = () => {
                 <td className="cell-number">{customer.jobCount}</td>
                 <td className="col-actions">
                   <div className="flex-row-end">
-                    <Can permission="customer:edit">
+                    <Can
+                      permission="customer:edit"
+                      fallback={
+                        <span className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`} title={customer.isTop ? 'Top kunde' : ''}>
+                          <Star size={16} fill={customer.isTop ? 'currentColor' : 'none'} />
+                        </span>
+                      }
+                    >
                       <button
                         type="button"
                         className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`}
@@ -339,7 +346,14 @@ export const CustomerList = () => {
                 </div>
 
                 <div className="job-card-footer">
-                  <Can permission="customer:edit">
+                  <Can
+                    permission="customer:edit"
+                    fallback={
+                      <span className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`} title={customer.isTop ? 'Top kunde' : ''}>
+                        <Star size={18} fill={customer.isTop ? 'currentColor' : 'none'} />
+                      </span>
+                    }
+                  >
                     <button
                       type="button"
                       className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`}
