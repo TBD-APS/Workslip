@@ -84,6 +84,8 @@ public sealed class UserService(
 
         var assignedJobs = await repository.GetAssignedJobsAsync(organizationId.Value, userId, cancellationToken);
         var totalHours = await repository.GetTotalHoursAsync(organizationId.Value, userId, cancellationToken);
+        var periodHours = await repository.GetPeriodHoursAsync(organizationId.Value, ComputeBiweeklyStart(), cancellationToken);
+        var hours = periodHours.GetValueOrDefault(userId);
 
         return Result<UserDetailResponse>.Success(new UserDetailResponse(
             user.Id,
@@ -93,7 +95,10 @@ public sealed class UserService(
             user.Phone,
             user.Role,
             assignedJobs,
-            totalHours));
+            totalHours,
+            hours?.HoursThisWeek,
+            hours?.HoursThisMonth,
+            hours?.HoursBiweekly));
     }
 
     public async Task<Result<UserListResponse>> GetByOrganizationAsync(
@@ -114,8 +119,24 @@ public sealed class UserService(
         var normalizedOffset = Math.Max(offset ?? 0, 0);
         var users = await repository.GetByOrganizationIdAsync(organizationId.Value, normalizedLimit, normalizedOffset, search, sortBy, sortDirection, cancellationToken);
         var count = await repository.GetCountByOrganizationIdAsync(organizationId.Value, cancellationToken);
+        var periodHours = await repository.GetPeriodHoursAsync(organizationId.Value, ComputeBiweeklyStart(), cancellationToken);
 
-        var responses = users.Select(UserResponseBuilder.MapToResponse).ToList();
+        var responses = users.Select(u =>
+        {
+            var response = UserResponseBuilder.MapToResponse(u);
+            var hours = periodHours.GetValueOrDefault(u.Id);
+            if (hours is not null)
+            {
+                response = response with
+                {
+                    HoursThisWeek = hours.HoursThisWeek,
+                    HoursThisMonth = hours.HoursThisMonth,
+                    HoursBiweekly = hours.HoursBiweekly
+                };
+            }
+            return response;
+        }).ToList();
+
         return Result<UserListResponse>.Success(new UserListResponse(responses, count));
     }
 
@@ -208,4 +229,11 @@ public sealed class UserService(
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
+
+    private static DateOnly ComputeBiweeklyStart()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var thisMonday = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+        return thisMonday.AddDays(-14);
+    }
 }

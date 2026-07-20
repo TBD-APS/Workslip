@@ -168,6 +168,35 @@ public sealed class EfUserRepository : IUserRepository
             .SumAsync(w => (decimal?)w.HoursWorked, cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, UserPeriodHours>> GetPeriodHoursAsync(Guid organizationId, DateOnly biweeklyStart, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var weekStart = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+
+        var biweeklyStartDt = biweeklyStart.ToDateTime(TimeOnly.MinValue);
+        var weekStartDt = weekStart.ToDateTime(TimeOnly.MinValue);
+        var monthStartDt = monthStart.ToDateTime(TimeOnly.MinValue);
+
+        var data = await _dbContext.Worksheets
+            .AsNoTracking()
+            .Where(w => w.OrganizationId == organizationId && w.WorkDate >= biweeklyStartDt)
+            .GroupBy(w => w.UserId)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                HoursThisWeek = g.Where(w => w.WorkDate >= weekStartDt).Sum(w => (decimal?)w.HoursWorked),
+                HoursThisMonth = g.Where(w => w.WorkDate >= monthStartDt).Sum(w => (decimal?)w.HoursWorked),
+                HoursBiweekly = g.Sum(w => (decimal?)w.HoursWorked),
+            })
+            .ToDictionaryAsync(x => x.UserId, x => new UserPeriodHours(
+                x.HoursThisWeek ?? 0m,
+                x.HoursThisMonth ?? 0m,
+                x.HoursBiweekly ?? 0m), cancellationToken);
+
+        return data;
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var user = await _dbContext.Users

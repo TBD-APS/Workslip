@@ -919,6 +919,19 @@
   font-weight: 400;
 }
 
+.user-hours-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  padding: 0.25rem 0 0;
+}
+
+.user-hours-sep {
+  opacity: 0.4;
+}
+
 
 /* ------------------------------------------------------------
    Card header: status badge + job ID
@@ -2773,6 +2786,14 @@
 
   .data-table .col-role {
     width: 150px;
+  }
+
+  .data-table .col-hours {
+    width: 80px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
   }
 
   .data-table .col-date {

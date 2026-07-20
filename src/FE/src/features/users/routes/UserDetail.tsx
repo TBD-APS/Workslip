@@ -25,6 +25,13 @@ import { formatJobStatus } from '../../jobs/statusLabels';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { announceSection } from '../../../components/filters/StatusFilter';
 
+function formatHours(value: number | string | null): string {
+  if (value == null) return '\u2013';
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (Number.isNaN(num)) return '\u2013';
+  return `${num.toLocaleString('da-DK', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} t`;
+}
+
 
 type SearchResult = {
   id: string;
@@ -209,12 +216,22 @@ export const UserDetail = () => {
           <Shield size={16} />
           <span>{user.role}</span>
         </div>
-        {user.totalHours != null && (
-          <div className="detail-row">
-            <Timer size={16} />
-            <span>{user.totalHours} timer i alt</span>
-          </div>
-        )}
+        <div className="detail-row">
+          <Clock size={16} />
+          <span>{formatHours(user.hoursThisWeek)} denne uge</span>
+        </div>
+        <div className="detail-row">
+          <Clock size={16} />
+          <span>{formatHours(user.hoursBiweekly)} / 14 dage</span>
+        </div>
+        <div className="detail-row">
+          <Clock size={16} />
+          <span>{formatHours(user.hoursThisMonth)} denne måned</span>
+        </div>
+        <div className="detail-row">
+          <Timer size={16} />
+          <span>{formatHours(user.totalHours)} i alt</span>
+        </div>
       </div>
 
       <h3 className="section-title">Tildel sag</h3>
