@@ -259,6 +259,12 @@ strong, b {
   font-weight: 400;
 }
 
+html, body {
+  min-height: 100vh;
+  /* Forhindrer browseren i automatisk at prøve at håndtere scroll ved fokus-skift */
+  overflow-anchor: none; 
+}
+
 body {
   font-family: var(--font-main);
   background-color: var(--bg);
