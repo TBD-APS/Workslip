@@ -232,7 +232,7 @@ export function JobWorksheetsStep({
   };
 
   const confirmDelete = () => {
-    if (!pendingDelete) return;
+    if (!pendingDelete || localMode) return;
     rest.onDelete({ worksheetId: pendingDelete.id, jobId: rest.jobId });
     setPendingDelete(null);
   };

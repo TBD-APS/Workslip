@@ -32,7 +32,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const isAdmin = useIsAdmin();
   const referenceDataQuery = useGetApiReferenceData();
   const referenceData = referenceDataQuery.data ?? null;
-  const usersQuery = useGetApiUsers({ limit: 20 }, { query: { enabled: isAdmin } });
+  const usersQuery = useGetApiUsers({ limit: 200 }, { query: { enabled: isAdmin } });
   const assignableUsers = (usersQuery.data?.users ?? []).filter((candidate) => canReceiveJobAssignment(candidate.role));
   const defaultAssignedUserIds = user?.id && canReceiveJobAssignment(user.role) ? [user.id] : [];
   const [form, setForm] = useState<JobForm>(initialForm ?? emptyForm);
