@@ -36,7 +36,8 @@ public sealed record JobListItemViewModel(
     string? DestinationAddress,
     string? DestinationZipCode,
     string? DestinationCity,
-    string? TaskDescription);
+    string? TaskDescription,
+    bool IsSeen);
 
 public sealed record JobReportSummaryViewModel(
     Guid Id,
@@ -85,7 +86,8 @@ public static class JobViewModelBuilder
         job.DestinationAddress,
         job.DestinationZipCode,
         job.DestinationCity,
-        job.TaskDescription);
+        job.TaskDescription,
+        job.IsSeenByCurrentUser);
 
     public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
         summary.Id,

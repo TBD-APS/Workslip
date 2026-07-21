@@ -21,8 +21,9 @@ public sealed class EfJobRepository : IJobRepository
     private readonly IAssignmentRepository _assignmentRepo;
     private readonly IJobLinkRepository _linkRepo;
     private readonly IWorksheetRepository _worksheetRepo;
+    private readonly IJobViewRepository _jobViewRepo;
 
-    public EfJobRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICustomerRepository customerRepository, IAssignmentRepository assignmentRepo, IJobLinkRepository linkRepo, IWorksheetRepository worksheetRepo)
+    public EfJobRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICustomerRepository customerRepository, IAssignmentRepository assignmentRepo, IJobLinkRepository linkRepo, IWorksheetRepository worksheetRepo, IJobViewRepository jobViewRepo)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
@@ -30,6 +31,7 @@ public sealed class EfJobRepository : IJobRepository
         _assignmentRepo = assignmentRepo;
         _linkRepo = linkRepo;
         _worksheetRepo = worksheetRepo;
+        _jobViewRepo = jobViewRepo;
     }
 
     public Task<JobReportResponse> CreateAsync(Guid organizationId, CreateJobRequest request, IReadOnlyList<Guid> assignedUserIds, Guid? actorId, CancellationToken cancellationToken) =>
@@ -265,6 +267,14 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 g => g.OrderBy(it => it.SortOrder).Select(it => it.InstallationTypeDefinition.Name).ToArray() as IReadOnlyList<string>,
                 cancellationToken);
 
+        HashSet<Guid> seenJobIds = [];
+        if (query.CurrentUserId.HasValue && reportIds.Length > 0)
+        {
+            var viewed = await _jobViewRepo.GetViewedJobIdsAsync(
+                query.CurrentUserId.Value, reportIds, "New", cancellationToken);
+            seenJobIds = new HashSet<Guid>(viewed);
+        }
+
         var items = projected.Select(x =>
         {
             var hasCustomerData = x.CustId is not null || !string.IsNullOrWhiteSpace(x.CustName);
@@ -285,7 +295,8 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 x.CreatedAt, x.UpdatedAt,
                 assignedUsersByReport.GetValueOrDefault(x.Id) ?? [],
                 x.IsSoftDeleted, x.DeletionScheduledAt,
-                totalHoursByJob.GetValueOrDefault(x.Id));
+                totalHoursByJob.GetValueOrDefault(x.Id),
+                seenJobIds.Contains(x.Id));
         }).ToArray();
 
         return new JobListResponse(items, totalCount);

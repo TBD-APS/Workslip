@@ -12,6 +12,7 @@ import { validateControlPoints } from '../components/steps/controlPointsValidati
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useJobDetailsState } from '../hooks/useJobDetails';
+import { markJobAsSeen } from '../utils/markJobSeen';
 
 import { formatJobStatus } from '../statusLabels';
 import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
@@ -50,6 +51,12 @@ export const CompletedJobReport = () => {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [worksheetOpen, setWorksheetOpen] = useState(true);
   const previewUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    markJobAsSeen(id, queryClient);
+  }, [id]);
+
   const job = details.job;
   const isDiverseInReview = job?.jobType === 'Diverse' && job?.status === JobStatus.InReview;
 

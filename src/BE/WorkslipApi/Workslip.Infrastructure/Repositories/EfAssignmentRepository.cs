@@ -18,14 +18,16 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     private readonly IDatabaseRetryPolicy _retryPolicy;
     private readonly ICurrentUserContext _currentUser;
     private readonly IWorksheetRepository _worksheetRepo;
+    private readonly IJobViewRepository _jobViewRepo;
 
     public EfAssignmentRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy,
-        ICurrentUserContext currentUser, IWorksheetRepository worksheetRepo)
+        ICurrentUserContext currentUser, IWorksheetRepository worksheetRepo, IJobViewRepository jobViewRepo)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
         _currentUser = currentUser;
         _worksheetRepo = worksheetRepo;
+        _jobViewRepo = jobViewRepo;
     }
 
     public Task AssignAsync(Guid jobId, Guid organizationId, IReadOnlyList<Guid> userIds, Guid? actorId, CancellationToken cancellationToken) =>
@@ -175,6 +177,9 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
 
         var totalHoursByJob = await _worksheetRepo.GetTotalHoursByJobAsync(reportIds, cancellationToken);
 
+        var seenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(userId, reportIds, "New", cancellationToken);
+        var seenSet = new HashSet<Guid>(seenJobIds);
+
         return projected.Select(x =>
         {
             var customerInfo = x.CustId is not null
@@ -194,7 +199,8 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 x.CreatedAt, x.UpdatedAt,
                 assignedDictionary.GetValueOrDefault(x.Id) ?? [],
                 x.IsSoftDeleted, x.DeletionScheduledAt,
-                totalHoursByJob.GetValueOrDefault(x.Id));
+                totalHoursByJob.GetValueOrDefault(x.Id),
+                seenSet.Contains(x.Id));
         }).ToArray();
     }
 

@@ -34,7 +34,7 @@ public static class JobEndpoints
             var statusList = statuses?.ToList();
             var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, cancellationToken);
             return CachedOk(result, httpContext,
-                response => HttpCacheHeaders.JobListEtag(response, currentUser.OrganizationId!.Value, statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset),
+                response => HttpCacheHeaders.JobListEtag(response, currentUser.OrganizationId!.Value, currentUser.UserId, statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset),
                 response => new {
                     items = response.Items.Select(JobViewModelBuilder.ToListItem).ToArray(),
                     totalCount = response.TotalCount
@@ -96,6 +96,12 @@ public static class JobEndpoints
             var result = await service.CreateAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+
+        userGroup.MapPost("/{id:guid}/seen", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.MarkJobAsSeenAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).Produces(StatusCodes.Status204NoContent);
 
         adminGroup.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {

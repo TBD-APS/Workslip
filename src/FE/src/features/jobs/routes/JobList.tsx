@@ -337,7 +337,11 @@ export const JobList = () => {
                 className="clickable"
                 onClick={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })}
               >
-                <td><span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span></td>
+                <td>
+                  <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
+                  {isAdmin && job.status === JobStatus.InReview && <span className="review-dot" />}
+                  {!job.isSeen && <span className="unread-dot" />}
+                </td>
                 <td><span className={`job-type-badge job-type-${job.jobType?.toLowerCase()}`}>{formatJobType(job.jobType)}</span></td>
                 <td>{job.customer?.name || job.taskDescription}</td>
                 <td>{job.destinationAddress || job.customer?.address}</td>
@@ -417,7 +421,7 @@ export const JobList = () => {
 
       <div className="job-list">
         {!isDesktop && desktopPageItems.map((job) => (
-          <JobCard key={job.id} job={job} onOpen={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })} />
+          <JobCard key={job.id} job={job} isAdmin={isAdmin} onOpen={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })} />
         ))}
 
         {displayedJobs.length === 0 && !isFetchingNextPage && (
@@ -439,12 +443,14 @@ export const JobList = () => {
   );
 };
 
-function JobCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => void }) {
+function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: () => void; isAdmin: boolean }) {
   return (
     <button className="job-card" onClick={onOpen} type="button">
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span>{formatJobType(job.jobType)}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span></span>
+          {isAdmin && job.status === JobStatus.InReview && <span className="review-dot" />}
+          {!job.isSeen && <span className="unread-dot" />}
           <h3 className="job-customer">{job.customer?.name || job.taskDescription}</h3>
         </div>
       </div>

@@ -6,6 +6,7 @@ using Workslip.Domain.Models;
 namespace Workslip.Application.Jobs;
 
 public sealed record JobQuery(Guid OrganizationId, List<JobStatus>? Statuses, int Limit, int Offset,
+    Guid? CurrentUserId = null,
     string? ReportNumber = null,
     string? CustomerName = null, 
     string? CustomerEmail = null,
@@ -227,7 +228,8 @@ public sealed record JobListItemResponse(
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt,
-    decimal? TotalHours);
+    decimal? TotalHours,
+    bool IsSeenByCurrentUser);
 
 public sealed record JobReportResponse(
     Guid Id,
