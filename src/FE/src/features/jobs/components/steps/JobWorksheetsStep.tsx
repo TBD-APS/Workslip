@@ -10,50 +10,75 @@ import { ConfirmDeleteDialog } from '../../../../components/common/ConfirmDelete
 import { initialWorksheetUiState, worksheetUiReducer, dateKey, parseHours, validateWorksheetDraft } from '../../components/worksheetUtils';
 import type { WorksheetDraft } from '../../components/worksheetUtils';
 
-type JobWorksheetsStepProps = {
+type BaseProps = {
+  assignableUsers: UserViewModel[];
+  isLoadingUsers: boolean;
+  variant?: 'section' | 'list' | 'flat';
+};
+
+type ServerModeProps = BaseProps & {
+  localMode?: false;
   jobId: string;
   worksheets: WorksheetResponse[];
   totalHours: number | string | null;
   totalOutlay: number | string | null;
-  assignableUsers: UserViewModel[];
-  isLoadingUsers: boolean;
   isSaving: boolean;
   isDeleting: boolean;
   onUpsert: (params: { id?: string; jobId: string; userId: string; userDisplayName: string; workDate: string; hoursWorked: number; sleptOnJob: boolean }) => Promise<unknown>;
   onDelete: (params: { worksheetId: string; jobId: string }) => void;
-  variant?: 'section' | 'list';
+  onChange?: never;
 };
 
+type LocalModeProps = BaseProps & {
+  localMode: true;
+  jobId?: never;
+  worksheets?: never;
+  totalHours?: never;
+  totalOutlay?: never;
+  isSaving?: never;
+  isDeleting?: never;
+  onUpsert?: never;
+  onDelete?: never;
+  onChange: (worksheets: WorksheetDraft[]) => void;
+};
+
+type JobWorksheetsStepProps = ServerModeProps | LocalModeProps;
+
+function draftToResponse(draft: WorksheetDraft): WorksheetResponse {
+  return {
+    id: draft.id ?? '',
+    userId: draft.userId,
+    workDate: draft.workDate,
+    hoursWorked: String(draft.hours),
+    sleptOnJob: draft.sleptOnJob,
+  } as WorksheetResponse;
+}
+
 export function JobWorksheetsStep({
-  jobId,
-  worksheets,
-  totalHours,
-  totalOutlay,
   assignableUsers,
   isLoadingUsers,
-  isSaving,
-  isDeleting,
-  onUpsert,
-  onDelete,
   variant = 'section',
+  ...rest
 }: JobWorksheetsStepProps) {
+  const localMode = rest.localMode === true;
   const { user } = useAuth();
-  const canPickUser = useCan('worksheet:assign');
-  const usersQuery = useGetApiUsers({ limit: 20 }, { query: { enabled: canPickUser } });
+  const canPickUserServer = useCan('worksheet:assign');
+  const canPickUser = localMode ? assignableUsers.length > 0 : canPickUserServer;
+  useGetApiUsers({ limit: 20 }, { query: { enabled: canPickUser && !localMode } });
   const resolvedUsers = useMemo(
     () => (canPickUser
       ? (assignableUsers.length > 0 ? assignableUsers : null)
       : []) ?? [],
-    [canPickUser, assignableUsers, usersQuery.data],
+    [canPickUser, assignableUsers],
   );
-  const defaultUserId = canPickUser
-    ? (user?.email ? (resolvedUsers.find((u) => u.email === user.email)?.id ?? '') : '')
-    : (user?.id ?? '');
+  const defaultUserId = localMode
+    ? (user?.id ?? '')
+    : canPickUser
+      ? (user?.email ? (resolvedUsers.find((u) => u.email === user.email)?.id ?? '') : '')
+      : (user?.id ?? '');
   const userOptions = resolvedUsers.map((u) => ({ id: u.id, label: u.displayName }));
   const currentUserName = user?.displayName ?? user?.email ?? 'dig';
 
-  // Non-admins only see their own worksheets; show the current user's name on
-  // every row regardless of who actually created the entry.
   const displayNameFor = (userId: string): string => {
     if (!canPickUser) return currentUserName;
     return resolvedUsers.find((u) => u.id === userId)?.displayName ?? userId.slice(0, 8);
@@ -62,6 +87,22 @@ export function JobWorksheetsStep({
   const [uiState, dispatch] = useReducer(worksheetUiReducer, defaultUserId, initialWorksheetUiState);
   const { addDraft, editDraft, editingWorksheetId, openActionMenu, isAddOpen, formError } = uiState;
   const [pendingDelete, setPendingDelete] = useState<WorksheetResponse | null>(null);
+
+  // --- Local mode state ---
+  const [localDrafts, setLocalDrafts] = useState<WorksheetDraft[]>([]);
+  const localWorksheets = useMemo(() => localDrafts.map(draftToResponse), [localDrafts]);
+  const localTotalHours = useMemo(() => localDrafts.reduce((sum, d) => {
+    const h = typeof d.hours === 'number' ? d.hours : Number(String(d.hours).replace(',', '.'));
+    return sum + (Number.isFinite(h) ? h : 0);
+  }, 0), [localDrafts]);
+  const localTotalOutlay = useMemo(() => localDrafts.filter(d => d.sleptOnJob).length, [localDrafts]);
+
+  // --- Resolve worksheets source ---
+  const worksheets = localMode ? localWorksheets : rest.worksheets;
+  const totalHours = localMode ? localTotalHours : rest.totalHours;
+  const totalOutlay = localMode ? localTotalOutlay : rest.totalOutlay;
+  const isSaving = localMode ? false : rest.isSaving;
+  const isDeleting = localMode ? false : rest.isDeleting;
 
   const isDetailList = variant === 'list';
   const sortedWorksheets = useMemo(
@@ -72,7 +113,6 @@ export function JobWorksheetsStep({
         const byName = leftName.localeCompare(rightName, 'da-DK', { sensitivity: 'base' });
         if (byName !== 0) return byName;
       }
-
       return b.workDate.localeCompare(a.workDate);
     }),
     [worksheets, isDetailList, displayNameFor],
@@ -84,39 +124,44 @@ export function JobWorksheetsStep({
     : null;
   const isScrollableList = variant === 'section';
 
+  // --- Effects ---
   useEffect(() => {
+    if (localMode) return;
     if (!editingWorksheetId) return;
     if (worksheets.some((worksheet) => worksheet.id === editingWorksheetId)) return;
-
     dispatch({ type: 'missingEditingWorksheet' });
-  }, [editingWorksheetId, worksheets]);
+  }, [editingWorksheetId, worksheets, localMode]);
 
   useEffect(() => {
     if (!openActionMenu) return;
-
     const handlePointerDown = (event: PointerEvent) => {
       if (event.target instanceof Element && event.target.closest('.worksheet-actions-menu-root, .worksheet-actions-menu')) return;
       dispatch({ type: 'closeActionMenu' });
     };
-
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [openActionMenu]);
 
   useEffect(() => {
     if (!openActionMenu) return;
-
     const closeMenu = () => dispatch({ type: 'closeActionMenu' });
     const scrollContainer = document.querySelector('.app-shell');
     scrollContainer?.addEventListener('scroll', closeMenu, { passive: true });
     window.addEventListener('resize', closeMenu);
-
     return () => {
       scrollContainer?.removeEventListener('scroll', closeMenu);
       window.removeEventListener('resize', closeMenu);
     };
   }, [openActionMenu]);
 
+  // --- Local mode: update parent on change ---
+  const { onChange } = localMode ? rest : { onChange: undefined };
+  useEffect(() => {
+    if (!localMode || !onChange) return;
+    onChange(localDrafts);
+  }, [localDrafts, localMode, onChange]);
+
+  // --- Validation ---
   const validateDraft = (draft: WorksheetDraft, currentWorksheetId?: string): number | null => {
     const result = validateWorksheetDraft(draft, worksheets, currentWorksheetId);
     if ('error' in result) {
@@ -126,23 +171,38 @@ export function JobWorksheetsStep({
     return result.hours;
   };
 
+  // --- Save ---
   const saveDraft = async (draft: WorksheetDraft, worksheetId?: string) => {
     dispatch({ type: 'setFormError', error: null });
     const hoursWorked = validateDraft(draft, worksheetId);
     if (hoursWorked === null) return;
 
-    try {
-      await onUpsert({
-        id: worksheetId,
-        jobId,
-        userId: draft.userId,
-        userDisplayName: displayNameFor(draft.userId),
+    if (localMode) {
+      const entry: WorksheetDraft = {
+        id: worksheetId ?? crypto.randomUUID(),
         workDate: dateKey(draft.workDate),
-        hoursWorked,
+        userId: draft.userId,
+        hours: hoursWorked,
         sleptOnJob: draft.sleptOnJob,
-      });
-    } catch {
-      return;
+      };
+      setLocalDrafts(prev => worksheetId
+        ? prev.map(ts => ts.id === worksheetId ? entry : ts)
+        : [...prev, entry]
+      );
+    } else {
+      try {
+        await rest.onUpsert({
+          id: worksheetId,
+          jobId: rest.jobId,
+          userId: draft.userId,
+          userDisplayName: displayNameFor(draft.userId),
+          workDate: dateKey(draft.workDate),
+          hoursWorked,
+          sleptOnJob: draft.sleptOnJob,
+        });
+      } catch {
+        return;
+      }
     }
 
     dispatch({ type: 'saveSucceeded', worksheetId, defaultUserId });
@@ -162,13 +222,18 @@ export function JobWorksheetsStep({
   };
 
   const handleDelete = (worksheet: WorksheetResponse) => {
+    if (localMode) {
+      setLocalDrafts(prev => prev.filter(ts => ts.id !== worksheet.id));
+      dispatch({ type: 'deleteStarted', worksheetId: worksheet.id });
+      return;
+    }
     dispatch({ type: 'deleteStarted', worksheetId: worksheet.id });
     setPendingDelete(worksheet);
   };
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
-    onDelete({ worksheetId: pendingDelete.id, jobId });
+    rest.onDelete({ worksheetId: pendingDelete.id, jobId: rest.jobId });
     setPendingDelete(null);
   };
 
@@ -221,13 +286,15 @@ export function JobWorksheetsStep({
         onDelete={handleDelete}
       />
 
-      <ConfirmDeleteDialog
-        open={pendingDelete !== null}
-        title="Slet timeseddel"
-        message="Er du sikker på, du vil slette denne timeseddel?"
-        onConfirm={confirmDelete}
-        onClose={() => setPendingDelete(null)}
-      />
+      {!localMode && (
+        <ConfirmDeleteDialog
+          open={pendingDelete !== null}
+          title="Slet timeseddel"
+          message="Er du sikker på, du vil slette denne timeseddel?"
+          onConfirm={confirmDelete}
+          onClose={() => setPendingDelete(null)}
+        />
+      )}
     </>
   );
 }

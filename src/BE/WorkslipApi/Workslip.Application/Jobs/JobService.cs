@@ -13,6 +13,7 @@ namespace Workslip.Application.Jobs;
 
 public sealed class JobService(
     IJobRepository _jobRepository,
+    IJobViewRepository _jobViewRepository,
     IAssignmentRepository assignmentRepository,
     IJobLinkRepository linkRepository,
     IReferenceDataRepository referenceDataRepository,
@@ -132,7 +133,7 @@ public sealed class JobService(
             return Result<JobListResponse>.Invalid(searchErrors);
         }
 
-        var query = BuildJobQuery(organizationId.Value, statuses, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset);
+        var query = BuildJobQuery(organizationId.Value, statuses, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, currentUser.UserId);
 
         var cacheKey = BuildJobListCacheKey(query);
         var jobList = await _jobRepository.ListAsync(query, cancellationToken);
@@ -414,6 +415,8 @@ public sealed class JobService(
                 
                 await notificationService.QueueJobCompletedAsync(assignedUser.Id, assignedUser.DisplayName, report.Id, reportNumber, address, cancellationToken);
             }
+
+            await _jobViewRepository.MarkAsViewedAsync(id, currentUser.UserId!.Value, "New", cancellationToken);
         }
 
         return await ToSummaryResultAsync(report, cancellationToken);
@@ -804,7 +807,7 @@ public sealed class JobService(
         string? reportNumber, string? customerName, string? customerEmail, string? customerAddress,
         string? search,
         string? sortBy, string? sortDirection,
-        int? limit, int? offset)
+        int? limit, int? offset, Guid? currentUserId = null)
     {
         var normalizedReportSearch = string.IsNullOrWhiteSpace(reportNumber) ? null : reportNumber.Trim();
         var normalizedNameSearch = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
@@ -815,6 +818,7 @@ public sealed class JobService(
         var normalizedSortDirection = string.IsNullOrWhiteSpace(sortDirection) ? null : sortDirection.Trim().ToLowerInvariant();
 
         return new JobQuery(organizationId, statuses, Math.Clamp(limit ?? 50, 1, 200), Math.Max(offset ?? 0, 0),
+            currentUserId,
             normalizedReportSearch, normalizedNameSearch, normalizedEmailSearch, normalizedAddressSearch,
             normalizedSearch,
             normalizedSortBy, normalizedSortDirection);
@@ -901,6 +905,30 @@ public sealed class JobService(
     public async Task InvalidateJobDetailCacheAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)
     {
         await InvalidateJobCachesAsync(id, organizationId, cancellationToken);
+    }
+
+    public async Task<Result> MarkJobAsSeenAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        var userId = currentUser.UserId;
+
+        if (organizationId is null || userId is null)
+        {
+            return Result.Unauthorized();
+        }
+
+        var job = await _jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
+        if (job is null)
+        {
+            logger.LogWarning("Job mark-as-seen returned not found. JobId: {JobId}.", id);
+            return Result.NotFound();
+        }
+
+        await _jobViewRepository.MarkAsViewedAsync(id, userId.Value, "New", cancellationToken);
+        await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
+
+        logger.LogInformation("Job marked as seen. JobId: {JobId}. UserId: {UserId}. ReportNumber: {ReportNumber}", id, userId.Value, job.ReportNumber);
+        return Result.Success();
     }
 
     private async Task InvalidateJobCachesAsync(Guid id, Guid organizationId, CancellationToken cancellationToken)

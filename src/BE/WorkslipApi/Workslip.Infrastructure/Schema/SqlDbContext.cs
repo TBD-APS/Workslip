@@ -56,6 +56,8 @@ public sealed class SqlDbContext : DbContext
 
     public DbSet<NotificationDeliveryLogRow> NotificationDeliveryLog => Set<NotificationDeliveryLogRow>();
 
+    public DbSet<JobViewRow> JobViews => Set<JobViewRow>();
+
 
 
     public DbSet<JobReportInstallationRow> JobReportInstallations => Set<JobReportInstallationRow>();
@@ -125,6 +127,7 @@ public sealed class SqlDbContext : DbContext
         ConfigureNotificationQueue(modelBuilder);
 
         ConfigureNotificationDeliveryLog(modelBuilder);
+        ConfigureJobViews(modelBuilder);
     }
 
 
@@ -1537,6 +1540,24 @@ entity.Property(e => e.Status)
             .WithMany()
             .HasForeignKey(e => e.SubscriptionId)
             .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureJobViews(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<JobViewRow>();
+
+        entity.ToTable("JobViews");
+        entity.HasKey(e => e.Id);
+
+        entity.Property(e => e.ViewType).HasMaxLength(50).IsRequired();
+        entity.Property(e => e.ViewedAt).HasColumnType("datetimeoffset");
+
+        entity.HasIndex(e => new { e.JobId, e.UserId, e.ViewType }).IsUnique();
+
+        entity.HasOne<JobReportRow>()
+            .WithMany()
+            .HasForeignKey(e => e.JobId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 
 

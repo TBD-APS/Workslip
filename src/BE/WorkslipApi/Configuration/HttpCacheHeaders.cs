@@ -76,6 +76,7 @@ public static class HttpCacheHeaders
     public static string JobListEtag(
         JobListResponse response,
         Guid organizationId,
+        Guid? currentUserId,
         List<JobStatus>? status,
         string? reportNumber,
         string? customerName,
@@ -90,6 +91,8 @@ public static class HttpCacheHeaders
         var builder = new StringBuilder()
             .Append("jobs:list:")
             .Append(organizationId.ToString("N"))
+            .Append(':')
+            .Append(currentUserId?.ToString("N") ?? "anon")
             .Append(':')
             .Append(status?.Select(x => x.ToString()).ToString() ?? "all")
             .Append(':')
