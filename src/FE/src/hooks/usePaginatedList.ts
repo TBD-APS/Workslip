@@ -11,6 +11,13 @@ function getScrollContainer(): HTMLElement | null {
 // Only the component holding the current token may write to sessionStorage.
 const scrollTokens: Record<string, symbol> = {};
 
+// Resize cooldown: after a resize event, ignore scroll saves for this long.
+// This prevents layout-triggered scroll events from overwriting saved positions.
+let resizeCooldownUntil = 0;
+window.addEventListener('resize', () => {
+  resizeCooldownUntil = Date.now() + 500;
+}, { passive: true });
+
 interface UsePaginatedListOptions<TItem> {
   queryKey: unknown[];
   fetchPage: (params: {
@@ -184,11 +191,10 @@ export function usePaginatedList<TItem>({
     }
   }, [storageKey, isLoading]);
 
-  // Scroll position save — debounced to sessionStorage.
-  // A global token ensures only the LATEST component instance per storageKey
-  // can write. When a new instance mounts it claims the token, so the old
-  // instance's listener (still briefly attached during React's transition)
-  // cannot overwrite the saved position with the new page's scroll value.
+  // Scroll position save — debounced scroll listener with resize cooldown.
+  // The scroll listener handles back-button restores reliably.
+  // The resize cooldown prevents layout-triggered scroll events from
+  // overwriting the saved position when the browser window is resized.
   useEffect(() => {
     if (!storageKey) return;
     const container = getScrollContainer();
@@ -200,9 +206,11 @@ export function usePaginatedList<TItem>({
     let timer: ReturnType<typeof setTimeout> | undefined;
     const onScroll = () => {
       if (scrollTokens[storageKey] !== myToken) return;
+      if (Date.now() < resizeCooldownUntil) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         if (scrollTokens[storageKey] !== myToken) return;
+        if (Date.now() < resizeCooldownUntil) return;
         sessionStorage.setItem(`${storageKey}:scroll`, String(container.scrollTop));
       }, 200);
     };

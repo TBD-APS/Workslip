@@ -8,6 +8,12 @@ function getScrollContainer(): HTMLElement | null {
 // Only the component holding the current token may write to sessionStorage.
 const tokens: Record<string, symbol> = {};
 
+// Resize cooldown: shared with usePaginatedList
+let resizeCooldownUntil = 0;
+window.addEventListener('resize', () => {
+  resizeCooldownUntil = Date.now() + 500;
+}, { passive: true });
+
 /**
  * Saves and restores `.app-shell` scroll position across route transitions.
  * Pass a unique key (e.g. the route path or entity id).
@@ -21,7 +27,7 @@ export function useScrollRestore(key: string) {
     }
   }, [key]);
 
-  // Save — debounced, token-guarded (same pattern as usePaginatedList)
+  // Save — debounced scroll listener with resize cooldown
   useEffect(() => {
     const container = getScrollContainer();
     if (!container) return;
@@ -32,9 +38,11 @@ export function useScrollRestore(key: string) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const onScroll = () => {
       if (tokens[key] !== myToken) return;
+      if (Date.now() < resizeCooldownUntil) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         if (tokens[key] !== myToken) return;
+        if (Date.now() < resizeCooldownUntil) return;
         sessionStorage.setItem(`scroll:${key}`, String(container.scrollTop));
       }, 200);
     };
