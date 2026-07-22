@@ -32,21 +32,38 @@ export const AppLayout = () => {
   };
 
   useEffect(() => {
+    let focusOutTimer: number | undefined;
+
     const handleFocusChange = () => {
       const activeElement = document.activeElement;
       const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
       setIsKeyboardVisible(isInput);
     };
 
-    document.addEventListener('focusin', handleFocusChange);
-    document.addEventListener('focusout', () => {
+    const clearFocusOutTimer = () => {
+      window.clearTimeout(focusOutTimer);
+      focusOutTimer = undefined;
+    };
+
+    const handleFocusIn = () => {
+      clearFocusOutTimer();
+      handleFocusChange();
+    };
+
+    const handleFocusOut = () => {
+      clearFocusOutTimer();
       // Small timeout to allow next element to focus before hiding
-      setTimeout(handleFocusChange, 50);
-    });
+      focusOutTimer = window.setTimeout(handleFocusChange, 50);
+    };
+
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    handleFocusChange();
 
     return () => {
-      document.removeEventListener('focusin', handleFocusChange);
-      document.removeEventListener('focusout', handleFocusChange);
+      clearFocusOutTimer();
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
     };
   }, []);
 

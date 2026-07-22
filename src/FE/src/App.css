@@ -2271,7 +2271,7 @@
 }
 
 .address-suggestion-item:hover,
-.address-suggestion-item:focus {
+.address-suggestion-item.is-active {
   background: var(--bg-hover, rgba(0, 0, 0, 0.04));
   outline: none;
 }
