@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Schema;
 
@@ -78,9 +79,11 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken)
     {
+        var currentUserRole = _currentUser.Role;
         var query = _dbContext.Users
             .AsNoTracking()
-            .Where(u => u.OrganizationId == organizationId);
+            .Where(u => u.OrganizationId == organizationId
+                && (currentUserRole == Roles.Superadmin || u.Role != Roles.Superadmin));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -113,7 +116,9 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task<int> GetCountByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken)
     {
-        return await _dbContext.Users.CountAsync(u => u.OrganizationId == organizationId, cancellationToken);
+        var currentUserRole = _currentUser.Role;
+        return await _dbContext.Users.CountAsync(u => u.OrganizationId == organizationId
+            && (currentUserRole == Roles.Superadmin || u.Role != Roles.Superadmin), cancellationToken);
     }
 
     public async Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken)
