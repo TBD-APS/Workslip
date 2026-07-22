@@ -118,7 +118,7 @@ const SimpleJobCreate = () => {
         localMode
         assignableUsers={create.assignableUsers}
         isLoadingUsers={create.isLoadingUsers}
-        variant="flat"
+        variant="list"
         onChange={setLocalWorksheets}
       />
 
