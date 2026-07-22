@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteList } from './useInfiniteList';
 import { useInfiniteScroll } from './useInfiniteScroll';
 import { useMediaQuery } from './useMediaQuery';
@@ -6,6 +6,10 @@ import { useMediaQuery } from './useMediaQuery';
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector('.app-shell');
 }
+
+// Global scroll write tokens — one per storageKey.
+// Only the component holding the current token may write to sessionStorage.
+const scrollTokens: Record<string, symbol> = {};
 
 interface UsePaginatedListOptions<TItem> {
   queryKey: unknown[];
@@ -180,28 +184,34 @@ export function usePaginatedList<TItem>({
     }
   }, [storageKey, isLoading]);
 
-  // Track latest scroll position in a ref — always current
-  const lastScrollTopRef = useRef(0);
+  // Scroll position save — debounced to sessionStorage.
+  // A global token ensures only the LATEST component instance per storageKey
+  // can write. When a new instance mounts it claims the token, so the old
+  // instance's listener (still briefly attached during React's transition)
+  // cannot overwrite the saved position with the new page's scroll value.
   useEffect(() => {
     if (!storageKey) return;
     const container = getScrollContainer();
     if (!container) return;
 
-    const onScroll = () => { lastScrollTopRef.current = container.scrollTop; };
-    container.addEventListener('scroll', onScroll, { passive: true });
-    // Initialize from current position
-    lastScrollTopRef.current = container.scrollTop;
-    return () => container.removeEventListener('scroll', onScroll);
-  }, [storageKey]);
+    const myToken = Symbol();
+    scrollTokens[storageKey] = myToken;
 
-  // Save scroll position in useLayoutEffect cleanup — runs synchronously
-  // BEFORE the new route's effects, so the value is correct
-  useLayoutEffect(() => {
-    if (!storageKey) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onScroll = () => {
+      if (scrollTokens[storageKey] !== myToken) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (scrollTokens[storageKey] !== myToken) return;
+        sessionStorage.setItem(`${storageKey}:scroll`, String(container.scrollTop));
+      }, 200);
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      const top = lastScrollTopRef.current;
-      if (top > 0) {
-        sessionStorage.setItem(`${storageKey}:scroll`, String(top));
+      if (timer) clearTimeout(timer);
+      container.removeEventListener('scroll', onScroll);
+      if (scrollTokens[storageKey] === myToken) {
+        delete scrollTokens[storageKey];
       }
     };
   }, [storageKey]);

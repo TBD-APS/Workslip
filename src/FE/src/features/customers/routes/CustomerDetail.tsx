@@ -6,6 +6,7 @@ import { useGetApiCustomersId } from '../../../api/generated/customers/customers
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
 import { useCustomerActions } from '../components/CustomerActions';
+import { useScrollRestore } from '../../../hooks/useScrollRestore';
 import type { CustomerListItemViewModel } from '../../../api/generated/models';
 
 
@@ -14,6 +15,8 @@ export const CustomerDetail = () => {
   const navigate = useNavigate();
   const query = useGetApiCustomersId(id!);
   const customer = query.data;
+
+  useScrollRestore(`customer:${id}`);
 
   const listItems: CustomerListItemViewModel[] = customer
     ? [{ id: customer.id, name: customer.name, address: customer.address, email: customer.email, contactPerson: customer.contactPerson, phone: customer.phone, jobCount: customer.jobCount, isTop: false }]

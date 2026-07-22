@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ErrorState } from '../../../components/ErrorState';
 import { useQueryClient } from '@tanstack/react-query';
 import { notify } from '../../../lib/toast';
+import { useScrollRestore } from '../../../hooks/useScrollRestore';
 import {
   ArrowLeft,
   Building2,
@@ -70,6 +71,8 @@ export const UserDetail = () => {
   const query = useGetApiUsersId(id!);
   const user = query.data;
 
+  useScrollRestore(`user:${id}`);
+
   const [searchValue, setSearchValue] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [assigningJobId, setAssigningJobId] = useState<string | null>(null);
@@ -88,7 +91,7 @@ export const UserDetail = () => {
   // already exist on /api/jobs — no backend changes.
   const searchQuery = useGetApiJobs(
     debouncedSearch.length >= 2
-      ? { reportNumber: debouncedSearch, status: [...ASSIGNABLE_STATUSES], limit: SEARCH_LIMIT }
+      ? { reportNumber: debouncedSearch, status: [...ASSIGNABLE_STATUSES], sortBy: 'reportNumber', sortDirection: 'asc', limit: SEARCH_LIMIT }
       : undefined,
     {
       query: {
@@ -99,7 +102,7 @@ export const UserDetail = () => {
 
   const customerSearchQuery = useGetApiJobs(
     debouncedSearch.length >= 2
-      ? { customerName: debouncedSearch, status: [...ASSIGNABLE_STATUSES], limit: SEARCH_LIMIT }
+      ? { customerName: debouncedSearch, status: [...ASSIGNABLE_STATUSES], sortBy: 'reportNumber', sortDirection: 'asc', limit: SEARCH_LIMIT }
       : undefined,
     {
       query: {
@@ -129,7 +132,7 @@ export const UserDetail = () => {
   // when the search box is empty so the user doesn't have to remember
   // a job number just to assign work.
   const suggestionsQuery = useGetApiJobs(
-    { status: [...ASSIGNABLE_STATUSES], limit: SUGGESTION_LIMIT },
+    { status: [...ASSIGNABLE_STATUSES], sortBy: 'reportNumber', sortDirection: 'asc', limit: SUGGESTION_LIMIT },
     {
       query: {
         enabled: !isSearching,
@@ -149,8 +152,6 @@ export const UserDetail = () => {
         queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
         notify.success('Brugeren er tilknyttet sagen');
         setAssigningJobId(null);
-        setSearchValue('');
-        setDebouncedSearch('');
       },
       onError: () => {
         notify.error('Kunne ikke tilknytte bruger til sagen');
@@ -376,12 +377,13 @@ export const UserDetail = () => {
     const alreadyAssigned = job.assignedUsers.some((u) => u.id === id);
 
     return (
-      <button
+      <div
         key={job.id}
         className={`job-card${isDisabled ? ' job-card--disabled' : ''}`}
-        onClick={() => handleAssign(job)}
-        disabled={isDisabled}
-        type="button"
+        onClick={() => navigate(`/app/job/${job.id}`)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/app/job/${job.id}`); }}
+        role="link"
+        tabIndex={0}
       >
         <div className="job-card-top">
           <div>
@@ -416,21 +418,29 @@ export const UserDetail = () => {
               <span>Slettet</span>
             </span>
           ) : alreadyAssigned ? (
-            <span className="btn btn-sm btn-outline-danger">
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-danger"
+              onClick={(e) => { e.stopPropagation(); handleAssign(job); }}
+            >
               <UserMinus size={14} />
               <span>Fjern</span>
-            </span>
+            </button>
           ) : (
-            <span className="btn btn-sm btn-primary">
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={(e) => { e.stopPropagation(); handleAssign(job); }}
+            >
               <UserPlus size={14} />
               <span>Tildel</span>
-            </span>
+            </button>
           )}
-          <span className="btn-icon" aria-label="Tildel">
+          <span className="btn-icon" aria-label="Gå til sag">
             <ChevronRight size={20} />
           </span>
         </div>
-      </button>
+      </div>
     );
   }
 };
