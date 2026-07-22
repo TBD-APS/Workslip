@@ -6,7 +6,7 @@ import { notify } from '../../../lib/toast';
 import {
   ArrowLeft,
   Building2,
-  Check,
+  ChevronRight,
   Clock,
   ClipboardList,
   Loader2,
@@ -15,6 +15,7 @@ import {
   Search,
   Shield,
   Timer,
+  UserMinus,
   UserPlus,
 } from 'lucide-react';
 import { useGetApiUsersId, getGetApiUsersIdQueryKey } from '../../../api/generated/users/users';
@@ -41,11 +42,12 @@ type SearchResult = {
   softDeleted: boolean;
   customer: {
     name: string | null;
+    address?: string | null;
   } | null;
   customerName?: string | null;
   customerEmail?: string | null;
-  customerAddress?: string | null;
-  assignedUsers: { id: string }[];
+  destinationAddress?: string | null;
+  assignedUsers: { id: string; displayName: string }[];
   updatedAt?: string;
 };
 
@@ -107,10 +109,10 @@ export const UserDetail = () => {
   );
 
   const searchResults: SearchResult[] = useMemo(() => {
-    const a = (searchQuery.data) as unknown;
-    const b = (customerSearchQuery.data) as unknown;
-    const arrA = Array.isArray(a) ? (a as SearchResult[]) : [];
-    const arrB = Array.isArray(b) ? (b as SearchResult[]) : [];
+    const a = (searchQuery.data) as unknown as { items?: SearchResult[] } | undefined;
+    const b = (customerSearchQuery.data) as unknown as { items?: SearchResult[] } | undefined;
+    const arrA = a?.items ?? [];
+    const arrB = b?.items ?? [];
     const seen = new Set<string>();
     const merged: SearchResult[] = [];
     for (const job of [...arrA, ...arrB]) {
@@ -136,14 +138,15 @@ export const UserDetail = () => {
   );
 
   const suggestionResults: SearchResult[] = useMemo(() => {
-    const raw = (suggestionsQuery.data) as unknown;
-    return Array.isArray(raw) ? (raw as SearchResult[]) : [];
+    const raw = (suggestionsQuery.data) as unknown as { items?: SearchResult[] } | undefined;
+    return raw?.items ?? [];
   }, [suggestionsQuery.data]);
 
   const assignMutation = usePostApiJobsIdAssign({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetApiUsersIdQueryKey(id!) });
+        queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
         notify.success('Brugeren er tilknyttet sagen');
         setAssigningJobId(null);
         setSearchValue('');
@@ -164,15 +167,16 @@ export const UserDetail = () => {
     }
 
     const currentUserIds = job.assignedUsers.map((u) => u.id);
-    if (currentUserIds.includes(id!)) {
-      notify.info('Brugeren er allerede tilknyttet denne sag');
-      return;
-    }
+    const alreadyAssigned = currentUserIds.includes(id!);
 
     setAssigningJobId(job.id);
     assignMutation.mutate({
       id: job.id,
-      data: { userIds: [...currentUserIds, id!] },
+      data: {
+        userIds: alreadyAssigned
+          ? currentUserIds.filter((uid) => uid !== id!)
+          : [...currentUserIds, id!],
+      },
     });
   };
 
@@ -308,6 +312,7 @@ export const UserDetail = () => {
         icon={<ClipboardList size={18} />}
         title={`Tildelte opgaver (${user.assignedJobs.length})`}
         defaultOpen={false}
+        className="assigned-jobs-section"
       >
         {user.assignedJobs.map((job) => (
           <button
@@ -365,10 +370,10 @@ export const UserDetail = () => {
   );
 
   function renderAssignableJobCard(job: SearchResult) {
-    const alreadyAssigned = job.assignedUsers.some((u) => u.id === id);
     const isAssigning = assigningJobId === job.id;
     const isDisabled = isAssigning || job.softDeleted;
     const customerLabel = job.customerName ?? job.customer?.name ?? null;
+    const alreadyAssigned = job.assignedUsers.some((u) => u.id === id);
 
     return (
       <button
@@ -381,41 +386,39 @@ export const UserDetail = () => {
         <div className="job-card-top">
           <div>
             <span className="job-number">
-              {formatJobNumber(job.reportNumber, job.id)}
+              SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span>
             </span>
+            <h3 className="job-customer">{customerLabel}</h3>
           </div>
-          <span className={`status-badge status-${job.status.toLowerCase()}`}>
-            {formatJobStatus(job.status)}
-          </span>
         </div>
-        <div className="job-card-body">
-          {customerLabel && (
+
+        <p className="job-address-row">
+          <MapPin size={14} />
+          <span className="job-address">{job.destinationAddress || job.customer?.address || 'Ingen adresse angivet'}</span>
+        </p>
+
+        <div className="job-card-meta">
+          {job.assignedUsers.length > 0 && (
             <span className="meta-item">
-              <Building2 size={14} />
-              <span>{customerLabel}</span>
-            </span>
-          )}
-          {job.customerAddress && (
-            <span className="meta-item">
-              <MapPin size={14} />
-              <span>{job.customerAddress}</span>
+              {job.assignedUsers.map((u) => u.displayName).join(', ')}
             </span>
           )}
         </div>
+
         <div className="job-card-footer">
-          {alreadyAssigned ? (
-            <span className="meta-item meta-item--success">
-              <Check size={14} />
-              <span>Allerede tildelt</span>
-            </span>
-          ) : isAssigning ? (
+          {isAssigning ? (
             <span className="meta-item">
               <Loader2 size={14} className="animate-spin" />
-              <span>Tildeler...</span>
+              <span>{alreadyAssigned ? 'Fjerner...' : 'Tildeler...'}</span>
             </span>
           ) : job.softDeleted ? (
             <span className="meta-item meta-item--muted">
               <span>Slettet</span>
+            </span>
+          ) : alreadyAssigned ? (
+            <span className="btn btn-sm btn-outline-danger">
+              <UserMinus size={14} />
+              <span>Fjern</span>
             </span>
           ) : (
             <span className="btn btn-sm btn-primary">
@@ -423,6 +426,9 @@ export const UserDetail = () => {
               <span>Tildel</span>
             </span>
           )}
+          <span className="btn-icon" aria-label="Tildel">
+            <ChevronRight size={20} />
+          </span>
         </div>
       </button>
     );

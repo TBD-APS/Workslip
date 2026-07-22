@@ -1655,6 +1655,10 @@
   overflow: hidden;
 }
 
+.assigned-jobs-section {
+  margin-top: 1.5rem;
+}
+
 .collapsible-section-trigger {
   width: 100%;
   display: flex;

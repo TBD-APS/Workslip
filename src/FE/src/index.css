@@ -500,10 +500,54 @@ a:hover {
   transform: scale(0.97);
 }
 
+.btn-danger {
+  background: var(--danger);
+  color: white;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.28);
+}
+
+.btn-danger:active {
+  transform: scale(0.97);
+}
+
 @media (hover: hover) {
 .btn-danger:hover {
   background: var(--danger-hover, #b91c1c);
   transform: translateY(-1px);
+}
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.btn-outline:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) {
+.btn-outline:hover {
+  background: var(--surface);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--text);
+}
+}
+
+.btn-outline-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.btn-outline-danger:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) {
+.btn-outline-danger:hover {
+  background: rgba(239, 68, 68, 0.08);
 }
 }
 
