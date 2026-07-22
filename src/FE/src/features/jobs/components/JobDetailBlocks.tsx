@@ -82,8 +82,6 @@ export function DestinationAddressBlock({ value, zipCode, city, onChange, onZipC
             return mapsUrl ? (
               <a
                 href={mapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="nav-maps-link"
                 title="Åbn i Google Maps"
                 onClick={(e) => e.stopPropagation()}

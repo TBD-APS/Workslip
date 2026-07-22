@@ -67,20 +67,20 @@ public sealed class NotificationService : INotificationService
         return notificationType switch
         {
             NotificationType.JobAssigned => (
-                "Nyt job tildelt",
-                $"{recipientName}, job #{jobNumber} er tildelt dig.\nAdresse: {customerAddress}"
+                $"SAG-{jobNumber} tildelt",
+                $"{recipientName}, SAG-{jobNumber} er tildelt dig.\nAdresse: {customerAddress}"
             ),
             NotificationType.JobReadyForReview => (
-                "Job klar til gennemgang",
-                $"{recipientName}, job #{jobNumber} er klar til din gennemgang.\nAdresse: {customerAddress}"
+                $"SAG-{jobNumber} klar til gennemgang",
+                $"{recipientName}, SAG-{jobNumber} er klar til din gennemgang.\nAdresse: {customerAddress}"
             ),
             NotificationType.JobDenied => (
-                "Job afvist",
-                $"{recipientName}, job #{jobNumber} er blevet afvist og kræver ændringer.\nAdresse: {customerAddress}"
+                $"SAG-{jobNumber} afvist",
+                $"{recipientName}, SAG-{jobNumber} er blevet afvist og kræver ændringer.\nAdresse: {customerAddress}"
             ),
             NotificationType.JobCompleted => (
-                "Job afsluttet",
-                $"{recipientName}, job #{jobNumber} er afsluttet.\nAdresse: {customerAddress}"
+                $"SAG-{jobNumber} afsluttet",
+                $"{recipientName}, SAG-{jobNumber} er afsluttet.\nAdresse: {customerAddress}"
             ),
             NotificationType.JobUnassigned => (
                 "Sag uden medarbejdere",

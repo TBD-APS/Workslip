@@ -168,6 +168,7 @@ public sealed record CreateTimesheetRequest(
 
 public sealed record UpdateJobRequest(
     CustomerSnapshotData? CustomerSnapshot = null,
+    bool? CreateCustomerFromSnapshot = null,
     CreateJobWorkRequest? Work = null,
     CreateJobObservationRequest? Observations = null,
     string? DestinationAddress = null,

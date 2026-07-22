@@ -21,6 +21,9 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
         form={details.form}
         customerSnapshot={details.form.customerSnapshot}
         editSnapshot={details.form.editSnapshot}
+        createCustomer={details.form.createCustomer}
+        onCreateCustomerChange={details.updateCreateCustomer}
+        hasCustomerChanges={details.hasCustomerChanges}
         onCustomerSelect={details.selectCustomer}
         onSnapshotFieldChange={details.updateSnapshotField}
         onEditSnapshotChange={details.updateEditSnapshot}

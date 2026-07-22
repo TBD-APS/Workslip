@@ -325,10 +325,14 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     [form, updateDraft],
   );
 
-  const { selectCustomer, updateSnapshotField, updateEditSnapshot } = useCustomerSnapshot(setCustomerForm);
+  const { selectCustomer, updateSnapshotField, updateEditSnapshot, hasCustomerChanges } = useCustomerSnapshot(setCustomerForm);
 
   const updateDestinationAddress = (value: string) => {
     updateForm((prev) => ({ ...prev, destinationAddress: value }));
+  };
+
+  const updateCreateCustomer = (value: boolean) => {
+    updateForm((prev) => ({ ...prev, createCustomer: value }));
   };
 
   const updateDestinationZipCode = (value: string) => {
@@ -641,6 +645,8 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     selectCustomer,
     updateSnapshotField,
     updateEditSnapshot,
+    updateCreateCustomer,
+    hasCustomerChanges,
     updateDestinationAddress,
     updateDestinationZipCode,
     updateDestinationCity,

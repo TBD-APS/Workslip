@@ -14,6 +14,7 @@ import { hasSnapshotData } from './hooks/useCustomerSnapshot';
 type UpdateJobRequestWithSnapshot = UpdateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
   reportNumber?: string | null;
+  createCustomerFromSnapshot?: boolean | null;
 };
 
 export const emptySnapshot: CustomerSnapshotData = {
@@ -148,6 +149,7 @@ export function toUpdateRequest(
 
   return {
     customerSnapshot: snapshot,
+    createCustomerFromSnapshot: form.createCustomer || undefined,
     destinationAddress: initial.destinationAddress !== form.destinationAddress ? form.destinationAddress.trim() || null : null,
     destinationZipCode: initial.destinationZipCode !== form.destinationZipCode ? form.destinationZipCode.trim() || null : null,
     destinationCity: initial.destinationCity !== form.destinationCity ? form.destinationCity.trim() || null : null,

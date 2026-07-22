@@ -32,6 +32,7 @@ type JobDetailsPageProps = {
   details: JobDetailsState;
   onBack: () => void;
   onDone: () => void;
+  onGoToReport: (jobId: string) => void;
 };
 
 type JobDeleteErrorResponse = {
@@ -41,7 +42,7 @@ type JobDeleteErrorResponse = {
   worksheetCount?: number;
 };
 
-export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps) {
+export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDetailsPageProps) {
   const queryClient = useQueryClient();
   const canDeleteJob = useCan('job:delete');
   const [attestationConfirmed, setAttestationConfirmed] = useState(false);
@@ -125,6 +126,7 @@ export function JobDetailsPage({ details, onBack, onDone }: JobDetailsPageProps)
           reportNumber={submission.reportNumber}
           submittedAt={submission.submittedAt}
           onDone={onDone}
+          onGoToReport={() => details.job && onGoToReport(details.job.id)}
         />
       </div>
     );
@@ -427,6 +429,7 @@ type SubmittedConfirmationProps = {
   reportNumber: string;
   submittedAt: Date;
   onDone: () => void;
+  onGoToReport: () => void;
 };
 
 function SubmissionOverlay() {
@@ -441,7 +444,7 @@ function SubmissionOverlay() {
   );
 }
 
-function SubmittedConfirmation({ reportNumber, submittedAt, onDone }: SubmittedConfirmationProps) {
+function SubmittedConfirmation({ reportNumber, submittedAt, onDone, onGoToReport }: SubmittedConfirmationProps) {
   return (
     <section className="detail-section submitted-confirmation">
       <div className="submitted-confirmation-icon" aria-hidden="true">
@@ -456,6 +459,9 @@ function SubmittedConfirmation({ reportNumber, submittedAt, onDone }: SubmittedC
       </p>
       <button type="button" className="btn btn-primary submitted-confirmation-button" onClick={onDone}>
         Tilbage til oversigt
+      </button>
+      <button type="button" className="btn btn-secondary submitted-confirmation-button" onClick={onGoToReport}>
+        Gå til attesteringsside
       </button>
     </section>
   );

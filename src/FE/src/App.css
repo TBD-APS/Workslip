@@ -2271,7 +2271,7 @@
 }
 
 .address-suggestion-item:hover,
-.address-suggestion-item.is-active {
+.address-suggestion-item:focus {
   background: var(--bg-hover, rgba(0, 0, 0, 0.04));
   outline: none;
 }
@@ -6005,7 +6005,7 @@
    ------------------------------------------------------------ */
 .protected-route-loading {
   text-align: center;
-  padding: 2rem;
+  padding: clamp(8rem, 30svh, 16rem) 2rem 2rem;
   color: var(--text-secondary);
 }
 

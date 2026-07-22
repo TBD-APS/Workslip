@@ -387,6 +387,19 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
             entry.Property(e => e.CustomerPhone).CurrentValue = ValueOrNull(request.CustomerSnapshot.Phone);
             entry.Property(e => e.CustomerAddress).CurrentValue = ValueOrNull(request.CustomerSnapshot.Address);
             entry.Property(e => e.CustomerContactPerson).CurrentValue = ValueOrNull(request.CustomerSnapshot.ContactPerson);
+
+            if (request.CreateCustomerFromSnapshot == true)
+            {
+                var customerInfo = new CustomerInfo(Guid.NewGuid(),
+                    request.CustomerSnapshot.Name,
+                    request.CustomerSnapshot.Address,
+                    request.CustomerSnapshot.Email,
+                    request.CustomerSnapshot.ContactPerson,
+                    request.CustomerSnapshot.Phone);
+
+                var newCustomerId = await _customerRepository.CreateCustomerAsync(organizationId, customerInfo, cancellationToken);
+                entry.Property(e => e.CustomerId).CurrentValue = newCustomerId;
+            }
         }
 
         if (request.DestinationAddress is not null)

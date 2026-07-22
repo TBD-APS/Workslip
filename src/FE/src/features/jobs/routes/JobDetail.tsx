@@ -26,6 +26,7 @@ export const JobDetail = () => {
       details={details}
       onBack={() => navigate(-1)}
       onDone={() => navigate(from)}
+      onGoToReport={(jobId) => navigate(`/app/completed/${jobId}`)}
     />
   );
 };
