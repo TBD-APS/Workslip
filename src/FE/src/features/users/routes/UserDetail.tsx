@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ErrorState } from '../../../components/ErrorState';
 import { useQueryClient } from '@tanstack/react-query';
@@ -145,16 +145,22 @@ export const UserDetail = () => {
     return raw?.items ?? [];
   }, [suggestionsQuery.data]);
 
+  const isRemovingRef = useRef(false);
+
   const assignMutation = usePostApiJobsIdAssign({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetApiUsersIdQueryKey(id!) });
         queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
-        notify.success('Brugeren er tilknyttet sagen');
+        const name = user?.displayName ?? 'Brugeren';
+        const wasRemoving = isRemovingRef.current;
+        isRemovingRef.current = false;
+        notify.success(wasRemoving ? `${name} er fjernet fra sagen` : `${name} er tilknyttet sagen`);
         setAssigningJobId(null);
       },
       onError: () => {
-        notify.error('Kunne ikke tilknytte bruger til sagen');
+        isRemovingRef.current = false;
+        notify.error('Handlingen kunne ikke udføres');
         setAssigningJobId(null);
       },
     },
@@ -171,6 +177,7 @@ export const UserDetail = () => {
     const alreadyAssigned = currentUserIds.includes(id!);
 
     setAssigningJobId(job.id);
+    isRemovingRef.current = alreadyAssigned;
     assignMutation.mutate({
       id: job.id,
       data: {

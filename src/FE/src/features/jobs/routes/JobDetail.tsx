@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { JobDetailsPage } from '../components/JobDetails';
 import { useJobDetails } from '../hooks/useJobDetails';
 import { markJobAsSeen } from '../utils/markJobSeen';
+import { useScrollRestore } from '../../../hooks/useScrollRestore';
 
 export const JobDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -12,23 +13,13 @@ export const JobDetail = () => {
   const queryClient = useQueryClient();
   const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
   const details = useJobDetails(id);
-  const initialLoadDone = useRef(false);
+
+  useScrollRestore(`job:${id}`);
 
   useEffect(() => {
     if (!id) return;
     markJobAsSeen(id, queryClient);
   }, [id]);
-
-  useEffect(() => {
-    if (!details.job || initialLoadDone.current) return;
-    initialLoadDone.current = true;
-
-    const el = document.querySelector<HTMLElement>('.app-shell');
-    if (!el) return;
-
-    el.scrollTo(0, 0);
-    requestAnimationFrame(() => el.scrollTop = 0);
-  }, [details.job]);
 
   return (
     <JobDetailsPage

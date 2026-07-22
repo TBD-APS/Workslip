@@ -13,6 +13,7 @@ import { CollapsibleSection } from '../../../components/forms/CollapsibleSection
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useJobDetailsState } from '../hooks/useJobDetails';
 import { markJobAsSeen } from '../utils/markJobSeen';
+import { useScrollRestore } from '../../../hooks/useScrollRestore';
 
 import { formatJobStatus } from '../statusLabels';
 import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
@@ -40,6 +41,8 @@ export const CompletedJobReport = () => {
   const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
   const readOnly = Boolean((location.state as { readOnly?: boolean } | undefined)?.readOnly);
   const details = useJobDetailsState(id, { autoSave: false });
+
+  useScrollRestore(`completed:${id}`);
   const isAdmin = useIsAdmin();
   const { user } = useAuth();
   const isDesktop = useMediaQuery('(min-width: 768px)');
