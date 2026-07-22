@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteList } from './useInfiniteList';
 import { useInfiniteScroll } from './useInfiniteScroll';
 import { useMediaQuery } from './useMediaQuery';
+
+function getScrollContainer(): HTMLElement | null {
+  return document.querySelector('.app-shell');
+}
 
 interface UsePaginatedListOptions<TItem> {
   queryKey: unknown[];
@@ -165,6 +169,42 @@ export function usePaginatedList<TItem>({
     sessionStorage.setItem(`${storageKey}:sort`, JSON.stringify(sort));
     sessionStorage.setItem(`${storageKey}:page`, String(viewPage));
   }, [storageKey, search, sort, viewPage]);
+
+  // Scroll position restore on mount
+  const isLoading = query.isLoading;
+  useEffect(() => {
+    if (!storageKey || isLoading) return;
+    const saved = sessionStorage.getItem(`${storageKey}:scroll`);
+    if (saved) {
+      requestAnimationFrame(() => getScrollContainer()?.scrollTo({ top: Number(saved) }));
+    }
+  }, [storageKey, isLoading]);
+
+  // Track latest scroll position in a ref — always current
+  const lastScrollTopRef = useRef(0);
+  useEffect(() => {
+    if (!storageKey) return;
+    const container = getScrollContainer();
+    if (!container) return;
+
+    const onScroll = () => { lastScrollTopRef.current = container.scrollTop; };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    // Initialize from current position
+    lastScrollTopRef.current = container.scrollTop;
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [storageKey]);
+
+  // Save scroll position in useLayoutEffect cleanup — runs synchronously
+  // BEFORE the new route's effects, so the value is correct
+  useLayoutEffect(() => {
+    if (!storageKey) return;
+    return () => {
+      const top = lastScrollTopRef.current;
+      if (top > 0) {
+        sessionStorage.setItem(`${storageKey}:scroll`, String(top));
+      }
+    };
+  }, [storageKey]);
 
   return {
     items,

@@ -17,16 +17,10 @@ import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
 
 
-const SCROLL_CONTAINER_SELECTOR = '.app-shell';
-const SCROLL_STORAGE_KEY = 'jobListScrollTop';
 const PAGE_SIZE = 20;
 
 const isReadonlyState = (status: JobStatus) =>
   status === JobStatus.InReview || status === JobStatus.Approved;
-
-function getScrollContainer(): HTMLElement | null {
-  return document.querySelector(SCROLL_CONTAINER_SELECTOR);
-}
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -151,23 +145,6 @@ export const JobList = () => {
     };
     window.addEventListener('pageshow', handler);
     return () => window.removeEventListener('pageshow', handler);
-  }, []);
-
-  useEffect(() => {
-    if (isLoading) return;
-    const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY);
-    if (saved) {
-      getScrollContainer()?.scrollTo({ top: Number(saved) });
-    }
-  }, [isLoading]);
-
-  useEffect(() => {
-    return () => {
-      const top = getScrollContainer()?.scrollTop;
-      if (top != null) {
-        sessionStorage.setItem(SCROLL_STORAGE_KEY, String(top));
-      }
-    };
   }, []);
 
   const showLoadingSkeleton = isLoading && items.length === 0;
