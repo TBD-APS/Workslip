@@ -600,17 +600,31 @@ public sealed class JobService(
           await InvalidateJobCachesAsync(jobId, organizationId.Value, cancellationToken);
           logger.LogInformation("Job assigned. JobId: {JobId}. AssignedUserCount: {Assigneds}.", jobId, userIds);
 
-          var address = job.DestinationAddress ?? job.Customer?.Address ?? "Ingen adresse angivet";
-          var reportNumber = job.ReportNumber ?? "Uden nummer";
-          foreach (var userId in userIds)
-          {
-              if (userId == currentUser.UserId) 
-                continue;
-                
-              var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
-              var recipientName = assignedUser?.DisplayName ?? "Bruger";
-              await notificationService.QueueJobAssignedAsync(userId, recipientName, jobId, reportNumber, address, cancellationToken);
-          }
+           var address = job.DestinationAddress ?? job.Customer?.Address ?? "Ingen adresse angivet";
+           var reportNumber = job.ReportNumber ?? "Uden nummer";
+           foreach (var userId in userIds)
+           {
+               if (userId == currentUser.UserId) 
+                 continue;
+                 
+               var assignedUser = await userRepository.GetByIdAsync(userId, cancellationToken);
+               var recipientName = assignedUser?.DisplayName ?? "Bruger";
+               await notificationService.QueueJobAssignedAsync(userId, recipientName, jobId, reportNumber, address, cancellationToken);
+           }
+
+           if (userIds.Count == 0)
+           {
+               var allUsers = await userRepository.GetByOrganizationIdAsync(organizationId.Value, 1000, 0, null, null, null, cancellationToken);
+               var admins = allUsers.Where(u => u.Role == Roles.Admin);
+
+               foreach (var admin in admins)
+               {
+                   if (admin.Id == currentUser.UserId)
+                       continue;
+
+                   await notificationService.QueueJobUnassignedAsync(admin.Id, admin.DisplayName, jobId, reportNumber, address, cancellationToken);
+               }
+           }
 
           return await ToSummaryResultAsync(job, cancellationToken);
      }

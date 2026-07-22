@@ -906,6 +906,18 @@
   top: -1px;
 }
 
+.unassigned-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  margin-left: 6px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
 .job-customer {
   font-family: var(--font-heading);
   font-size: var(--fs-lg);
@@ -5315,7 +5327,6 @@
 
 .admin-row-total td:last-child {
   border-right: none;
-  border-left: 2px solid var(--primary);
 }
 
 @media (min-width: 768px) {

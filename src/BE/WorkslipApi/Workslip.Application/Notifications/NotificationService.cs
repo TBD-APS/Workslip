@@ -32,6 +32,11 @@ public sealed class NotificationService : INotificationService
         await QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobCompleted, cancellationToken);
     }
 
+    public async Task QueueJobUnassignedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken)
+    {
+        await QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobUnassigned, cancellationToken);
+    }
+
     private async Task QueueNotificationInternalAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, NotificationType type, CancellationToken cancellationToken)
     {
         var url = type switch
@@ -76,6 +81,10 @@ public sealed class NotificationService : INotificationService
             NotificationType.JobCompleted => (
                 "Job afsluttet",
                 $"{recipientName}, job #{jobNumber} er afsluttet.\nAdresse: {customerAddress}"
+            ),
+            NotificationType.JobUnassigned => (
+                "Sag uden medarbejdere",
+                $"{recipientName}, SAG-{jobNumber} har ingen tildelte medarbejdere.\nAdresse: {customerAddress}"
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(notificationType), notificationType, null)
         };

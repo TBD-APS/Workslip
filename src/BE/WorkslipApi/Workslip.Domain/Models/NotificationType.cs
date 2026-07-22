@@ -5,5 +5,6 @@ public enum NotificationType
     JobAssigned,
     JobReadyForReview,
     JobDenied,
-    JobCompleted
+    JobCompleted,
+    JobUnassigned
 }
