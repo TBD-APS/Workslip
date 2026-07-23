@@ -477,8 +477,11 @@ if (request.Work.ClosureFlags is not null)
 
         if (string.Equals(existing.Status, nextStatus.ToString(), StringComparison.Ordinal))
         {
-            await tx.CommitAsync(cancellationToken);
+            // Capture the report while the serializable transaction is still open.
+            // Reloading after commit could observe a later transition and make
+            // Changed=false inconsistent with the returned status snapshot.
             var alreadyApplied = await GetSingleJobAsync(id, organizationId, cancellationToken);
+            await tx.CommitAsync(cancellationToken);
             return alreadyApplied is null ? null : new JobTransitionResult(alreadyApplied, false);
         }
 
@@ -494,9 +497,8 @@ if (request.Work.ClosureFlags is not null)
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await tx.CommitAsync(cancellationToken);
-
         var transitioned = await GetSingleJobAsync(id, organizationId, cancellationToken);
+        await tx.CommitAsync(cancellationToken);
         return transitioned is null ? null : new JobTransitionResult(transitioned, true);
     }
 
