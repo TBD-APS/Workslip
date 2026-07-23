@@ -161,4 +161,30 @@ public sealed class EfNotificationRepository : INotificationRepository
             await _dbContext.SaveChangesAsync(token);
         }, cancellationToken);
     }
+
+    public Task<IReadOnlyList<NotificationQueueRow>> GetHistoryAsync(Guid userId, int limit, int offset, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("notifications.history", async token =>
+        {
+            var rows = await _dbContext.NotificationQueue.AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.CreatedUtc)
+                .Skip(offset).Take(limit).ToListAsync(token);
+            return (IReadOnlyList<NotificationQueueRow>)rows;
+        }, cancellationToken);
+
+    public Task MarkReadAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("notifications.mark_read", async token =>
+        {
+            var row = await _dbContext.NotificationQueue.FirstOrDefaultAsync(x => x.Id == notificationId && x.UserId == userId, token);
+            if (row is not null && row.ReadUtc is null) { row.ReadUtc = DateTimeOffset.UtcNow; await _dbContext.SaveChangesAsync(token); }
+        }, cancellationToken);
+
+    public Task MarkAllReadAsync(Guid userId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("notifications.mark_all_read", async token =>
+        {
+            var rows = await _dbContext.NotificationQueue.Where(x => x.UserId == userId && x.ReadUtc == null).ToListAsync(token);
+            var now = DateTimeOffset.UtcNow;
+            foreach (var row in rows) row.ReadUtc = now;
+            if (rows.Count > 0) await _dbContext.SaveChangesAsync(token);
+        }, cancellationToken);
 }

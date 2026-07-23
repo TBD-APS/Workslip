@@ -1,8 +1,9 @@
-import { History, X, User, Clock, ChevronDown, ChevronUp, ChevronLeft, Plus, Pencil, Trash2 } from 'lucide-react';
+import { History, User, Clock, ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useGetApiJobsIdHistory } from '../../../api/generated/jobs/jobs';
 import type { JobHistoryResponse } from '../../../api/generated/models';
 import { formatDateLong } from '../../../lib/formatDate';
+import { Drawer } from '../../../components/common/Drawer';
 
 type JobHistoryDrawerProps = {
   jobId: string;
@@ -24,36 +25,8 @@ export function JobHistoryDrawer({ jobId, isOpen, onClose }: JobHistoryDrawerPro
   }, [isOpen, refetch]);
 
   return (
-    <>
-      <div
-        className={`drawer-overlay ${isOpen ? 'open' : ''}`}
-        onClick={onClose}
-      />
-      <div
-        className={`drawer history-drawer ${isOpen ? 'open' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Sags historik"
-      >
-        <div className="drawer-header">
-          <div className="drawer-title">
-            <History size={20} />
-            <h2>Sags historik</h2>
-          </div>
-          <button className="btn-icon" onClick={onClose} aria-label="Luk historik">
-            <X size={24} />
-          </button>
-        </div>
-
-        <button
-          className="drawer-back-hint"
-          onClick={onClose}
-          aria-label="Gå tilbage"
-        >
-          <ChevronLeft size={22} />
-        </button>
-
-        <div className="drawer-content">
+    <Drawer isOpen={isOpen} onClose={onClose} title="Sags historik" ariaLabel="Sags historik" icon={<History size={20} />} className="history-drawer">
+        <div>
           {isLoading ? (
             <div className="drawer-loading">Henter historik...</div>
           ) : !history || history.length === 0 ? (
@@ -66,8 +39,7 @@ export function JobHistoryDrawer({ jobId, isOpen, onClose }: JobHistoryDrawerPro
             </div>
           )}
         </div>
-      </div>
-    </>
+    </Drawer>
   );
 }
 

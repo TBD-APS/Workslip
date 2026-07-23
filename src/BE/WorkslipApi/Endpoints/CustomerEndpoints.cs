@@ -1,8 +1,10 @@
 using CsvHelper;
 using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
+using Workslip.Api.Services;
 using Workslip.Api.ViewModels;
 using Workslip.Application.Customers;
+using Workslip.Application.Auth;
 
 namespace Workslip.Api.Endpoints;
 
@@ -48,10 +50,21 @@ public static class CustomerEndpoints
 
         var adminGroup = app.MapAdminGroup("/api/customers", "customers");
 
-        adminGroup.MapPost("/", async (CreateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>
+        adminGroup.MapPost("/", async (CreateCustomerRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotentMutationService idempotency, ICustomerService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.CreateAsync(request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, CustomerViewModelBuilder.ToDetail);
+            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            var execution = await idempotency.ExecuteAsync($"customers.create:{currentUser.OrganizationId}:{currentUser.UserId}", key, request, () => service.CreateAsync(request, cancellationToken), CustomerViewModelBuilder.ToDetail, cancellationToken);
+            
+            if (execution.IsReplay) 
+            return Results.Content(execution.ReplayJson!, "application/json", System.Text.Encoding.UTF8, execution.ReplayStatusCode!.Value);
+            
+            if (execution.Conflict)
+             return Results.Conflict(new { error = "idempotency_key_reused_with_different_request" });
+            
+            if (execution.InProgress) return Results.Conflict(new { error = "request_with_idempotency_key_in_progress" });
+                return ResultExtensions.ToHttpResult(execution.Result!, CustomerViewModelBuilder.ToDetail);
+        
         }).Produces<CustomerDetailViewModel>();
 
         adminGroup.MapPut("/{id:guid}", async (Guid id, UpdateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>

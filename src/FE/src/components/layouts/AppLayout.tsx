@@ -1,11 +1,12 @@
 import { useNavigate, useLocation, NavLink, Outlet } from 'react-router-dom';
-import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, User, Users, Sun, Moon } from 'lucide-react';
+import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, User, Users, Sun, Moon, Bell } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
 import { useEffect, useState } from 'react';
 import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
+import { NotificationsDrawer } from '../common/NotificationsDrawer';
 
 export const AppLayout = () => {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export const AppLayout = () => {
 
   const { theme, toggle: toggleTheme } = useTheme();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const scrollToTopIfActive = (path: string) => {
     if (location.pathname === path) {
@@ -68,6 +70,15 @@ export const AppLayout = () => {
             <User size={16} />
             <span>{user?.displayName ?? user?.email ?? ''}</span>
           </span>
+          <button
+            type="button"
+            onClick={() => setNotificationsOpen(true)}
+            className="user-avatar"
+            aria-label="Notifikationer"
+            title="Notifikationer"
+          >
+            <Bell size={18} />
+          </button>
           <Can permission="user:manage">
             <button
               type="button"
@@ -156,6 +167,7 @@ export const AppLayout = () => {
         </Can>
       )}
       <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
+      <NotificationsDrawer isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </div>
     </DropdownProvider>
   );
