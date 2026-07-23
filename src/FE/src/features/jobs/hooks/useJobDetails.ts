@@ -255,7 +255,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
           queryClient.setQueryData(getGetApiJobsIdQueryKey(jobId), data);
         }
         queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-        const sagsnummer = data.reportNumber || data.id.slice(0, 4);
+        const sagsnummer = data.reportNumber ?? '';
         notify.success(`Sagen SAG-${sagsnummer.toUpperCase()} er attesteret og indsendt`);
       },
       onError: (error) => {
