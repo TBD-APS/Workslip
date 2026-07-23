@@ -23,6 +23,7 @@ import { CustomerDetail } from '../features/customers/routes/CustomerDetail';
 import { Settings } from '../features/settings/routes/Settings';
 import { AuditorReportList } from '../features/auditor/routes/AuditorReportList';
 import { Profile } from '../features/settings/routes/Profile';
+import { LegalPage } from '../features/legal';
 
 /**
  * Wraps every authenticated route. Waits through one short retry on a
@@ -113,6 +114,7 @@ export const router = createBrowserRouter([
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
+            { path: 'legal/:type', element: <LegalPage /> },
         ],
       },
       {
