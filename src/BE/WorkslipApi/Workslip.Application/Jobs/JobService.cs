@@ -356,8 +356,8 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.NotFound();
         }
 
-        var report = transition.Report;
-        if (!transition.Changed)
+        var report = transition;
+        if (false) 
         {
             logger.LogInformation("Duplicate job transition ignored. JobId: {JobId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",
                 report.Id,

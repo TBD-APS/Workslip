@@ -14,8 +14,6 @@ namespace Workslip.Infrastructure.Repositories;
 
 public sealed class EfJobRepository : IJobRepository
 {
-    private const string DuplicateReportNumberIndexName = "UX_JobReports_Organization_ReportNumber";
-
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
     private readonly ICustomerRepository _customerRepository;
@@ -460,10 +458,10 @@ if (request.Work.ClosureFlags is not null)
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
-    public Task<JobTransitionResult?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken) =>
+    public Task<JobReportResponse?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("jobs.transition", token => TransitionAsyncCoreAsync(id, organizationId, nextStatus, actorId, token), cancellationToken);
 
-    private async Task<JobTransitionResult?> TransitionAsyncCoreAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
+    private async Task<JobReportResponse?> TransitionAsyncCoreAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
     {
         _dbContext.ChangeTracker.Clear();
 
@@ -487,7 +485,6 @@ if (request.Work.ClosureFlags is not null)
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var transitioned = await GetSingleJobAsync(id, organizationId, cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
