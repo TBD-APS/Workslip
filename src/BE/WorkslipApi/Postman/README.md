@@ -1,6 +1,17 @@
 # Workslip Postman integration tests
 
-Purpose: run the active `Workslip.Api` contract against a non-production deployed API before/after backend changes.
+Purpose: run the active `Workslip.Api` contract against a non-production API before and after contract changes.
+
+## Contract sources
+
+Use these together:
+
+1. endpoint and contract source under `src/BE/WorkslipApi`
+2. runtime `/openapi/v1.json` for the exact deployed build
+3. `postman_collection.json` for executable examples and assertions
+4. `Docs/api` for conventions, endpoint catalog and integration guidance
+
+The application currently maps OpenAPI, Scalar and `/api/dev/*` through `ConfigureDevEnvironment`, but the environment guard is commented out. Do not assume dev endpoints are restricted merely because the collection labels them development-only. Use them only against an isolated local environment.
 
 ## Environment contract
 
@@ -8,29 +19,24 @@ Use a dedicated integration/staging deployment, not production.
 
 Required runtime variable:
 
-- `baseUrl`: base URL for the deployed Workslip API, for example `https://<staging-app>.azurewebsites.net`.
+- `baseUrl`: base URL for the deployed API, for example `https://<staging-app>.azurewebsites.net`.
 
 Optional runtime variable:
 
-- `WORKSLIP_AUTH_TOKEN`: bearer token used for protected endpoints when the target environment does not allow the collection to obtain one via `POST /api/auth/verify-code`. The runner passes it as Postman `authToken`; leave it unset locally if the auth folder can capture a token itself.
+- `WORKSLIP_AUTH_TOKEN`: bearer token for protected endpoints when the collection cannot obtain one through an approved test authentication flow. The runner passes it as `authToken`.
 
-No secrets belong in the Postman environment file. Store deploy-specific values as GitHub Secrets/Variables or local shell environment variables.
+No secrets belong in the collection or Postman environment file. Store deploy-specific values as GitHub Secrets/Variables or local shell environment variables.
 
 ## Test data strategy
 
-The collection generates unique per-run values for:
+The collection generates unique per-run values for organization, CVR, users, report numbers and customers where supported. This reduces collisions on a persistent isolated test database.
 
-- CVR
-- organization name
-- admin email
-- report number
-- customer email
+Choose one documented strategy:
 
-That makes repeated runs reproducible on a persistent test database and avoids the old fixed `12345678` CVR collision. The test database still must be isolated from production. Reset strategy is one of:
+1. Reset an isolated integration database before the suite.
+2. Keep it persistent and rely on unique per-run data for smoke runs.
 
-2. Keep the database persistent and rely on unique per-run test data for normal smoke runs.
-
-Production data must never be used for these tests. Grim, obvious, still worth spelling out.
+Production data must never be used.
 
 ## Local/manual run
 
@@ -39,31 +45,37 @@ cd src/BE/WorkslipApi/Postman
 ./run-integration-tests.sh https://<staging-api-base-url>
 ```
 
-Equivalent without argv:
+Equivalent with an environment variable:
 
 ```bash
-WORKSLIP_INTEGRATION_BASE_URL=https://<staging-api-base-url> ./run-integration-tests.sh
+WORKSLIP_INTEGRATION_BASE_URL=https://<staging-api-base-url> \
+  ./run-integration-tests.sh
 ```
 
-With a pre-issued test bearer token:
+With a pre-issued test token:
 
 ```bash
-WORKSLIP_AUTH_TOKEN=<token> ./run-integration-tests.sh https://<staging-api-base-url>
+WORKSLIP_AUTH_TOKEN=<token> \
+  ./run-integration-tests.sh https://<staging-api-base-url>
 ```
 
-The runner refuses URLs that do not look like localhost/test/staging unless `ALLOW_PRODUCTION_INTEGRATION_TESTS=true` is explicitly set.
+The runner refuses URLs that do not look like localhost/test/staging unless `ALLOW_PRODUCTION_INTEGRATION_TESTS=true` is explicitly set. That override is not approved for normal use.
 
 ## CI run
 
-GitHub Actions workflow: `.github/workflows/integration-tests.yml`.
+Workflow: `.github/workflows/integration-tests.yml`.
 
 Configure one of:
 
-- Repository secret `WORKSLIP_INTEGRATION_BASE_URL`; or
-- manual workflow input `base_url`.
+- repository secret `WORKSLIP_INTEGRATION_BASE_URL`
+- manual workflow input `base_url`
 
 Optional secret:
 
-- `WORKSLIP_AUTH_TOKEN` when the staging environment requires a pre-issued bearer token for protected endpoints.
+- `WORKSLIP_AUTH_TOKEN`
 
-Then run workflow `Workslip Integration Tests`.
+Then run **Workslip Integration Tests**.
+
+## Coverage expectation
+
+For every public contract change, update the matching Postman request and test success plus relevant validation, permission, not-found, conflict, retry/idempotency and tenant-isolation behaviour. A collection description is not evidence that runtime security or behaviour exists; source and deployed OpenAPI remain authoritative.
