@@ -4,7 +4,9 @@ import { notify } from '../../../lib/toast';
 import {
   Check,
   CheckCircle2,
+  ChevronRight,
   Clock,
+  FileText,
   Loader2,
   Mail,
   MailPlus,
@@ -12,6 +14,7 @@ import {
   Send,
   X,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { ErrorState } from '../../../components/ErrorState';
 import { usePostApiAuthInvite } from '../../../api/generated/auth/auth';
 import { useGetApiAuthInvites } from '../api';
@@ -196,6 +199,34 @@ export const Settings = () => {
             })}
           </div>
         )}
+      </div>
+
+      <div className="section-card" style={{ marginTop: '1rem' }}>
+        <h3 className="section-card-title">
+          <FileText size={18} />
+          Juridisk
+        </h3>
+
+        <div className="section-card-link">
+          <Link to="/app/legal/terms">
+            <span>Vilkår og betingelser</span>
+            <ChevronRight size={16} />
+          </Link>
+        </div>
+
+        <div className="section-card-link">
+          <Link to="/app/legal/privacy">
+            <span>Privatlivspolitik</span>
+            <ChevronRight size={16} />
+          </Link>
+        </div>
+
+        <div className="section-card-link">
+          <Link to="/app/legal/cookies">
+            <span>Cookiepolitik</span>
+            <ChevronRight size={16} />
+          </Link>
+        </div>
       </div>
     </div>
   );
