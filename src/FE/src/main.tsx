@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client'
 import './registerSW'
 import './index.css'
 import App from './App.tsx'
+import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
+
+initializeApplicationInsights();
+installGlobalApplicationInsightsHandlers();
 
 if (typeof window !== 'undefined') {
   const originalFocus = HTMLInputElement.prototype.focus;

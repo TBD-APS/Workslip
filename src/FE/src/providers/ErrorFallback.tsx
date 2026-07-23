@@ -1,11 +1,17 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { useAuth } from './useAuth';
+import { reportFrontendError } from '../applicationInsights';
 
 export function ErrorFallback({ error, resetErrorBoundary }: { error: unknown; resetErrorBoundary: () => void }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const message = error instanceof Error ? error.message : String(error);
+
+  useEffect(() => {
+    reportFrontendError(error, 'react.error-boundary');
+  }, [error]);
 
   const handleLogout = () => {
     logout();

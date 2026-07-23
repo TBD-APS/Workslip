@@ -23,6 +23,7 @@ import { CustomerDetail } from '../features/customers/routes/CustomerDetail';
 import { Settings } from '../features/settings/routes/Settings';
 import { AuditorReportList } from '../features/auditor/routes/AuditorReportList';
 import { Profile } from '../features/settings/routes/Profile';
+import { reportFrontendError } from '../applicationInsights';
 
 /**
  * Wraps every authenticated route. Waits through one short retry on a
@@ -67,7 +68,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 function RootErrorBoundary() {
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback}>
+    <ErrorBoundary
+      FallbackComponent={ErrorFallback}
+      onError={(error, info) => reportFrontendError(error, 'react.error-boundary', { componentStack: info.componentStack ?? '' })}
+    >
       <Outlet />
     </ErrorBoundary>
   );

@@ -1,6 +1,12 @@
 import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { notify } from './toast';
+import {
+  consumePendingInteraction,
+  createCorrelationId,
+  trackApiDependency,
+  trackUserInteraction,
+} from '../applicationInsights';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -8,6 +14,9 @@ declare module 'axios' {
     // Set this on requests whose callers handle (and translate) errors locally,
     // to avoid stacking the raw backend message on top of the friendly message.
     skipGlobalErrorToast?: boolean;
+    correlationId?: string;
+    telemetryAction?: string;
+    telemetryStartedAt?: number;
   }
 }
 import qs from 'qs';
@@ -55,12 +64,23 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   }
   config.headers.Accept = 'application/json';
 
+  const interaction = consumePendingInteraction();
+  const method = (config.method ?? 'get').toLowerCase();
+  config.correlationId = config.correlationId ?? interaction?.correlationId ?? createCorrelationId();
+  config.telemetryAction = config.telemetryAction ?? interaction?.action;
+  config.telemetryStartedAt = Date.now();
+  config.headers['X-Correlation-ID'] = config.correlationId;
+
+  if (interaction && mutatingMethods.has(method)) {
+    trackUserInteraction(interaction.action, interaction.correlationId);
+  }
+
   // Deduplicate in-flight mutating requests (POST, PUT, PATCH, DELETE) by
   // method + URL. If the same request is already in-flight, reject the
   // duplicate silently. This prevents 404s from rapid double-clicks on
   // delete/update buttons before React can re-render with disabled state.
-  const method = config.method ?? 'get';
-  if (mutatingMethods.has(method)) {
+  const requestMethod = (config.method ?? 'get').toLowerCase();
+  if (mutatingMethods.has(requestMethod)) {
     const key = requestKey(config);
     if (inFlightKeys.has(key)) {
       return Promise.reject(new Error(DUPLICATE_REQUEST_ERROR));
@@ -74,6 +94,17 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 apiClient.interceptors.response.use(
   (response) => {
     releaseKey(response.config);
+    if (mutatingMethods.has(response.config.method ?? 'get')) {
+      trackApiDependency({
+        correlationId: response.config.correlationId!,
+        action: response.config.telemetryAction,
+        method: response.config.method ?? 'get',
+        url: response.config.url ?? '',
+        durationMs: Date.now() - (response.config.telemetryStartedAt ?? Date.now()),
+        responseCode: response.status,
+        success: response.status >= 200 && response.status < 400,
+      });
+    }
     if (response.config.responseType === 'blob') {
       return response;
     }
@@ -81,6 +112,17 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     if (error.config) releaseKey(error.config);
+    if (error.config && mutatingMethods.has(error.config.method ?? 'get')) {
+      trackApiDependency({
+        correlationId: error.config.correlationId!,
+        action: error.config.telemetryAction,
+        method: error.config.method ?? 'get',
+        url: error.config.url ?? '',
+        durationMs: Date.now() - (error.config.telemetryStartedAt ?? Date.now()),
+        responseCode: error.response?.status,
+        success: false,
+      });
+    }
 
     const isCanceled =
       axios.isCancel(error) ||
