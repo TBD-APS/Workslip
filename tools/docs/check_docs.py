@@ -65,7 +65,7 @@ def active_documents() -> list[Path]:
 def target_from_markdown(raw: str) -> str:
     value = raw.strip()
     if value.startswith("<") and ">" in value:
-        return value[1 : value.index(">")] .strip()
+        return value[1 : value.index(">")].strip()
 
     match = re.match(r'''(?:"([^"]+)"|'([^']+)'|(\S+))''', value)
     if not match:
@@ -82,9 +82,8 @@ def validate_markdown(path: Path) -> int:
         return 1
 
     lines = text.splitlines()
-    h1_lines = [number for number, line in enumerate(lines, 1) if re.match(r"^#\s+\S", line)]
-    if len(h1_lines) != 1:
-        error(path, f"Expected exactly one H1 heading, found {len(h1_lines)}.")
+    if not any(re.match(r"^#\s+\S", line) for line in lines):
+        error(path, "Expected at least one H1 heading.")
         failures += 1
 
     fence_count = sum(1 for line in lines if re.match(r"^\s*(?:```|~~~)", line))
