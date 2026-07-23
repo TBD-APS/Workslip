@@ -4545,6 +4545,31 @@
   color: var(--text);
 }
 
+.section-card-link {
+  margin-bottom: 0.5rem;
+}
+
+.section-card-link a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: var(--radius);
+  transition: background 0.15s ease;
+}
+
+@media (hover: hover) {
+  .section-card-link a:hover {
+    background: var(--surface-raised);
+  }
+}
+
+.section-card-link a:active {
+  background: var(--surface-selected-strong);
+}
+
 .invite-input-row {
   display: flex;
   gap: 0.5rem;
