@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
@@ -144,6 +145,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
 
     private async Task<WorksheetResponse> UpsertAsyncCoreAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken)
     {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var workDate = request.WorkDate.ToDateTime(TimeOnly.MinValue);
 
@@ -211,6 +213,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return new WorksheetResponse(
             existing.Id,

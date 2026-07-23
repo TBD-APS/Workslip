@@ -345,8 +345,8 @@ public sealed class JobService(
         }
 
         var actorId = currentUser.UserId;
-        var report = await _jobRepository.TransitionAsync(id, organizationId.Value, targetStatus, actorId, cancellationToken);
-        if (report is null)
+        var transition = await _jobRepository.TransitionAsync(id, organizationId.Value, targetStatus, actorId, cancellationToken);
+        if (transition is null)
         {
             logger.LogWarning("Job transition returned not found. JobId: {JobId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",
                 id,
@@ -354,6 +354,16 @@ public sealed class JobService(
                 actorId);
 
             return Result<JobReportSummaryResponse>.NotFound();
+        }
+
+        var report = transition.Report;
+        if (!transition.Changed)
+        {
+            logger.LogInformation("Duplicate job transition ignored. JobId: {JobId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",
+                report.Id,
+                targetStatus,
+                actorId);
+            return await ToSummaryResultAsync(report, cancellationToken);
         }
 
         await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);

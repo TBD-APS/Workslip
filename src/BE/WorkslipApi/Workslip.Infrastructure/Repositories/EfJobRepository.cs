@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using System.Data;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
@@ -459,20 +460,27 @@ if (request.Work.ClosureFlags is not null)
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
-    public Task<JobReportResponse?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken) =>
+    public Task<JobTransitionResult?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("jobs.transition", token => TransitionAsyncCoreAsync(id, organizationId, nextStatus, actorId, token), cancellationToken);
 
-    private async Task<JobReportResponse?> TransitionAsyncCoreAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
+    private async Task<JobTransitionResult?> TransitionAsyncCoreAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
     {
         _dbContext.ChangeTracker.Clear();
 
-        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var tx = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
         var existing = await _dbContext.JobReports
             .FirstOrDefaultAsync(r => r.Id == id && r.OrganizationId == organizationId, cancellationToken);
 
         if (existing is null)
             return null;
+
+        if (string.Equals(existing.Status, nextStatus.ToString(), StringComparison.Ordinal))
+        {
+            await tx.CommitAsync(cancellationToken);
+            var alreadyApplied = await GetSingleJobAsync(id, organizationId, cancellationToken);
+            return alreadyApplied is null ? null : new JobTransitionResult(alreadyApplied, false);
+        }
 
         var now = DateTimeOffset.UtcNow;
         var entry = _dbContext.Entry(existing);
@@ -488,7 +496,8 @@ if (request.Work.ClosureFlags is not null)
 
         await tx.CommitAsync(cancellationToken);
 
-        return await GetSingleJobAsync(id, organizationId, cancellationToken);
+        var transitioned = await GetSingleJobAsync(id, organizationId, cancellationToken);
+        return transitioned is null ? null : new JobTransitionResult(transitioned, true);
     }
 
     public Task<JobDeleteRepositoryResult> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
