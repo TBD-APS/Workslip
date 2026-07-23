@@ -12,5 +12,6 @@ public sealed class NotificationQueueRow
     public DateTimeOffset? ProcessingStartedUtc { get; set; }
     public DateTimeOffset NextAttemptUtc { get; set; }
     public DateTimeOffset? CompletedUtc { get; set; }
+    public DateTimeOffset? ReadUtc { get; set; }
     public string? LastError { get; set; }
 }

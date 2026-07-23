@@ -36,8 +36,7 @@ try
     {
         var db = scope.ServiceProvider.GetRequiredService<SqlDbContext>();
 
-        await db.Database.EnsureCreatedAsync();
-        await db.Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<DatabaseSchemaInitializer>().InitializeAsync();
         await db.Database.CanConnectAsync();
 
         if(app.Environment.IsDevelopment())

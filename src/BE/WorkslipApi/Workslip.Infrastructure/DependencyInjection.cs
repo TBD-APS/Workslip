@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
         services.AddScoped<INotificationRepository, EfNotificationRepository>();
         services.AddScoped<IJobViewRepository, EfJobViewRepository>();
+        services.AddScoped<DatabaseSchemaInitializer>();
 
         services.AddScoped<IEmailService, AcsEmailService>();
         services.AddScoped<IPushSender, WebPushSender>();

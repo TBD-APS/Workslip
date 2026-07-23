@@ -17,6 +17,7 @@ declare module 'axios' {
     correlationId?: string;
     telemetryAction?: string;
     telemetryStartedAt?: number;
+    idempotencyKey?: string;
   }
 }
 import qs from 'qs';
@@ -70,6 +71,10 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   config.telemetryAction = config.telemetryAction ?? interaction?.action;
   config.telemetryStartedAt = Date.now();
   config.headers['X-Correlation-ID'] = config.correlationId;
+  if (mutatingMethods.has(method)) {
+    config.idempotencyKey = config.idempotencyKey ?? config.correlationId;
+    config.headers['Idempotency-Key'] = config.idempotencyKey;
+  }
 
   if (interaction && mutatingMethods.has(method)) {
     trackUserInteraction(interaction.action, interaction.correlationId);

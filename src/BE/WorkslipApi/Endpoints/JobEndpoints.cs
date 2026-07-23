@@ -78,23 +78,74 @@ public static class JobEndpoints
         });
 
 
-        userGroup.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
+        userGroup.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.UpdateAsync(id, request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            var reservation = await idempotency.StartAsync($"jobs.update:{currentUser.OrganizationId}:{currentUser.UserId}:{id}", key, request, cancellationToken);
+            var replay = IdempotencyHttp.ReplayOrReject(reservation);
+            if (replay is not null) return replay;
+
+            try
+            {
+                var result = await service.UpdateAsync(id, request, cancellationToken);
+                if (result.IsSuccess)
+                    await idempotency.CompleteAsync(reservation.Reservation!.Id, reservation.ReservationToken!, JobViewModelBuilder.ToSummary(result.Value), StatusCodes.Status200OK, cancellationToken);
+                else
+                    await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, cancellationToken);
+                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            }
+            catch
+            {
+                await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, CancellationToken.None);
+                throw;
+            }
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
-        userGroup.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, IJobService service, CancellationToken cancellationToken) =>
+        userGroup.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.ChangeStatusAsync(id, request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            if (!IdempotencyHttp.TryGetKey(httpContext, out var key)) return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            var reservation = await idempotency.StartAsync($"jobs.status:{currentUser.OrganizationId}:{currentUser.UserId}:{id}", key, request, cancellationToken);
+            var replay = IdempotencyHttp.ReplayOrReject(reservation); if (replay is not null) return replay;
+            try
+            {
+                var result = await service.ChangeStatusAsync(id, request, cancellationToken);
+                if (result.IsSuccess)
+                    await idempotency.CompleteAsync(reservation.Reservation!.Id, reservation.ReservationToken!, JobViewModelBuilder.ToSummary(result.Value), StatusCodes.Status200OK, cancellationToken);
+                else
+                    await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, cancellationToken);
+                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            }
+            catch
+            {
+                await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, CancellationToken.None);
+                throw;
+            }
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
 
-        userGroup.MapPost("/", async (CreateJobRequest request, IJobService service, CancellationToken cancellationToken) =>
+        userGroup.MapPost("/", async (CreateJobRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.CreateAsync(request, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            var reservation = await idempotency.StartAsync($"jobs.create:{currentUser.OrganizationId}:{currentUser.UserId}", key, request, cancellationToken);
+            var replay = IdempotencyHttp.ReplayOrReject(reservation);
+            if (replay is not null) return replay;
+
+            try
+            {
+                var result = await service.CreateAsync(request, cancellationToken);
+                if (result.IsSuccess)
+                    await idempotency.CompleteAsync(reservation.Reservation!.Id, reservation.ReservationToken!, JobViewModelBuilder.ToSummary(result.Value), StatusCodes.Status200OK, cancellationToken);
+                else
+                    await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, cancellationToken);
+                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            }
+            catch
+            {
+                await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, CancellationToken.None);
+                throw;
+            }
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
         userGroup.MapPost("/{id:guid}/seen", async (Guid id, IJobService service, CancellationToken cancellationToken) =>

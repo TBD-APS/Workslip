@@ -57,6 +57,7 @@ public sealed class SqlDbContext : DbContext
     public DbSet<NotificationDeliveryLogRow> NotificationDeliveryLog => Set<NotificationDeliveryLogRow>();
 
     public DbSet<JobViewRow> JobViews => Set<JobViewRow>();
+    public DbSet<IdempotencyRecordRow> IdempotencyRecords => Set<IdempotencyRecordRow>();
 
 
 
@@ -128,6 +129,7 @@ public sealed class SqlDbContext : DbContext
 
         ConfigureNotificationDeliveryLog(modelBuilder);
         ConfigureJobViews(modelBuilder);
+        ConfigureIdempotencyRecords(modelBuilder);
     }
 
 
@@ -1521,6 +1523,7 @@ entity.Property(e => e.Status)
         entity.Property(e => e.ProcessingStartedUtc).HasColumnType("datetimeoffset");
         entity.Property(e => e.NextAttemptUtc).HasColumnType("datetimeoffset");
         entity.Property(e => e.CompletedUtc).HasColumnType("datetimeoffset");
+        entity.Property(e => e.ReadUtc).HasColumnType("datetimeoffset");
         entity.Property(e => e.LastError).HasColumnType("nvarchar(max)");
 
         entity.HasIndex(e => new { e.Status, e.NextAttemptUtc }).HasDatabaseName("IX_NotificationQueue_Status_NextAttempt");
@@ -1558,6 +1561,22 @@ entity.Property(e => e.Status)
             .WithMany()
             .HasForeignKey(e => e.JobId)
             .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void ConfigureIdempotencyRecords(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<IdempotencyRecordRow>();
+        entity.ToTable("IdempotencyRecords");
+        entity.HasKey(x => x.Id);
+        entity.Property(x => x.Scope).HasMaxLength(200).IsRequired();
+        entity.Property(x => x.Key).HasMaxLength(128).IsRequired();
+        entity.Property(x => x.RequestHash).HasMaxLength(64).IsRequired();
+        entity.Property(x => x.ReservationToken).HasMaxLength(64).IsRequired();
+        entity.Property(x => x.ResponseJson).HasColumnType("nvarchar(max)");
+        entity.Property(x => x.CreatedAt).HasColumnType("datetimeoffset");
+        entity.Property(x => x.ExpiresAt).HasColumnType("datetimeoffset");
+        entity.HasIndex(x => new { x.Scope, x.Key }).IsUnique().HasDatabaseName("UX_IdempotencyRecords_Scope_Key");
+        entity.HasIndex(x => x.ExpiresAt).HasDatabaseName("IX_IdempotencyRecords_ExpiresAt");
     }
 
 
