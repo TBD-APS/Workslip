@@ -262,6 +262,8 @@ public sealed record JobReportResponse(
     DateTimeOffset? DeletionScheduledAt,
     decimal? TotalHours);
 
+public sealed record JobTransitionResult(JobReportResponse Report, bool Changed);
+
 public sealed record CreateJobLinkRequest(
     List<Guid> TargetReportIds);
 

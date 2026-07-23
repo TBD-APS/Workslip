@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
@@ -205,7 +206,8 @@ public sealed class AuditInterceptorTests
             context,
             new NoRetryPolicy(),
             new TestCurrentUserContext(actorId, orgId),
-            worksheetRepo: null!);
+            worksheetRepo: null!,
+            jobViewRepo: null!);
 
         await repository.AssignAsync(jobId, orgId, [keptUserId], actorId, CancellationToken.None);
 
@@ -2361,7 +2363,8 @@ public sealed class AuditInterceptorTests
         var retryPolicy = new NoRetryPolicy();
         var currentUser = new TestCurrentUserContext(userId, organizationId);
         var worksheetRepository = new EfWorksheetRepository(context, currentUser, retryPolicy);
-        var assignmentRepository = new EfAssignmentRepository(context, retryPolicy, currentUser, worksheetRepository);
+        var jobViewRepository = new EfJobViewRepository(NullLogger<EfJobViewRepository>.Instance, context);
+        var assignmentRepository = new EfAssignmentRepository(context, retryPolicy, currentUser, worksheetRepository, jobViewRepository);
         var linkRepository = new EfJobLinkRepository(context, retryPolicy);
         return new EfJobRepository(
             context,
@@ -2369,7 +2372,8 @@ public sealed class AuditInterceptorTests
             new EfCustomerRepository(context, retryPolicy),
             assignmentRepository,
             linkRepository,
-            worksheetRepository);
+            worksheetRepository,
+            jobViewRepository);
     }
 
     private static SqlDbContext CreateContext(Guid organizationId, Guid userId)

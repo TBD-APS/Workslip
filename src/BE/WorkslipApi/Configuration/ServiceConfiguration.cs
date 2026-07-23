@@ -17,6 +17,8 @@ public static class ServiceConfiguration
         builder.Services.AddOpenApi();
         builder.Services.AddHybridCache();
         builder.Services.AddMemoryCache();
+        builder.Services.AddScoped<IdempotencyStore>();
+        builder.Services.AddScoped<IdempotentMutationService>();
 
         builder.Services.ConfigureHttpJsonOptions(options =>
         {

@@ -8,7 +8,10 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false, // Don't annoy the user if they tab away and back
     },
     mutations: {
-      retry: 1,
-    }
+      // Mutations are writes. Retrying after a timeout can repeat a request
+      // that already reached the API, so callers must opt in explicitly for
+      // a documented idempotent operation.
+      retry: false,
+    },
   },
 });
