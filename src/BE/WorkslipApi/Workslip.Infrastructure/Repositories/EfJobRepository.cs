@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Data;
+using System.Data;
 using Workslip.Application.Customers;
 using Workslip.Application.Jobs;
 using Workslip.Application.Worksheets;
@@ -475,16 +476,6 @@ if (request.Work.ClosureFlags is not null)
         if (existing is null)
             return null;
 
-        if (string.Equals(existing.Status, nextStatus.ToString(), StringComparison.Ordinal))
-        {
-            // Capture the report while the serializable transaction is still open.
-            // Reloading after commit could observe a later transition and make
-            // Changed=false inconsistent with the returned status snapshot.
-            var alreadyApplied = await GetSingleJobAsync(id, organizationId, cancellationToken);
-            await tx.CommitAsync(cancellationToken);
-            return alreadyApplied is null ? null : new JobTransitionResult(alreadyApplied, false);
-        }
-
         var now = DateTimeOffset.UtcNow;
         var entry = _dbContext.Entry(existing);
         entry.Property(e => e.Status).CurrentValue = nextStatus.ToString();
@@ -499,7 +490,8 @@ if (request.Work.ClosureFlags is not null)
 
         var transitioned = await GetSingleJobAsync(id, organizationId, cancellationToken);
         await tx.CommitAsync(cancellationToken);
-        return transitioned is null ? null : new JobTransitionResult(transitioned, true);
+
+        return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
     public Task<JobDeleteRepositoryResult> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
