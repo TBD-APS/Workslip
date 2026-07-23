@@ -8,6 +8,34 @@ namespace Workslip.Infrastructure.Schema;
 
 public static class DatabaseSeeder
 {
+    private static readonly DevelopmentUserDefinition[] DevelopmentUserDefinitions =
+    [
+        new(
+            new Guid("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F"),
+            "Rasmus Bak Jakobsen",
+            "rasmusvm6@hotmail.com",
+            "28929173",
+            Roles.Superadmin),
+        new(
+            new Guid("A1A1A1A1-DA5B-4CC4-BBEB-07B40CAB806F"),
+            "Niels Petersen",
+            "admin@17v3ygzs.mailosaur.net",
+            "10000001",
+            Roles.Admin),
+        new(
+            new Guid("B2B2B2B2-DA5B-4CC4-BBEB-07B40CAB806F"),
+            "Arne Arnesen",
+            "user@17v3ygzs.mailosaur.net",
+            "10000002",
+            Roles.User),
+        new(
+            new Guid("C3C3C3C3-DA5B-4CC4-BBEB-07B40CAB806F"),
+            "Auditor Jakobsen",
+            "auditor@17v3ygzs.mailosaur.net",
+            "10000003",
+            Roles.Auditor)
+    ];
+
     public static async Task Seed(SqlDbContext db)
     {
         db.IsSeeding = true;
@@ -25,10 +53,18 @@ public static class DatabaseSeeder
     {
         await NormalizeExclusiveClosureFlagSelectionsAsync(db);
 
-        if (await db.Organizations.AnyAsync())
+        var existingOrganization = await db.Organizations
+            .AsNoTracking()
+            .OrderBy(organization => organization.CreatedAt)
+            .ThenBy(organization => organization.Id)
+            .FirstOrDefaultAsync();
+
+        if (existingOrganization is not null)
         {
+            await ReconcileDevelopmentUsersAsync(db, existingOrganization.Id);
             return;
         }
+
         var faker = new Faker();
 
         Randomizer.Seed = new Random(12345);
@@ -72,56 +108,7 @@ public static class DatabaseSeeder
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate(50);
 
-        var users = new List<UserDataRow>();
-
-        var rbjUser = new Faker<UserDataRow>()
-            .RuleFor(x => x.Id, _ => new Guid("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F"))
-            .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.DisplayName, f => "Rasmus Bak Jakobsen")
-            .RuleFor(x => x.Email, f => "rasmusvm6@hotmail.com")
-            .RuleFor(x => x.Phone, f => "28929173")
-            .RuleFor(x => x.Role, _ => Roles.Superadmin)
-            .RuleFor(x => x.CreatedAt, _ => now)
-            .RuleFor(x => x.UpdatedAt, _ => now)
-            .Generate(1);
-
-        var adminUser = new Faker<UserDataRow>()
-            .RuleFor(x => x.Id, _ => new Guid("A1A1A1A1-DA5B-4CC4-BBEB-07B40CAB806F"))
-            .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.DisplayName, _ => "Niels Petersen")
-            .RuleFor(x => x.Email, _ => "admin@17v3ygzs.mailosaur.net")
-            .RuleFor(x => x.Phone, _ => "10000001")
-            .RuleFor(x => x.Role, _ => Roles.Admin)
-            .RuleFor(x => x.CreatedAt, _ => now)
-            .RuleFor(x => x.UpdatedAt, _ => now)
-            .Generate(1);
-
-        var regularUser = new Faker<UserDataRow>()
-            .RuleFor(x => x.Id, _ => new Guid("B2B2B2B2-DA5B-4CC4-BBEB-07B40CAB806F"))
-            .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.DisplayName, _ => "Arne Arnesen")
-            .RuleFor(x => x.Email, _ => "user@17v3ygzs.mailosaur.net")
-            .RuleFor(x => x.Phone, _ => "10000002")
-            .RuleFor(x => x.Role, _ => Roles.User)
-            .RuleFor(x => x.CreatedAt, _ => now)
-            .RuleFor(x => x.UpdatedAt, _ => now)
-            .Generate(1);
-
-        var auditorUser = new Faker<UserDataRow>()
-            .RuleFor(x => x.Id, _ => new Guid("C3C3C3C3-DA5B-4CC4-BBEB-07B40CAB806F"))
-            .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.DisplayName, _ => "Auditor Jakobsen")
-            .RuleFor(x => x.Email, _ => "auditor@17v3ygzs.mailosaur.net")
-            .RuleFor(x => x.Phone, _ => "10000003")
-            .RuleFor(x => x.Role, _ => Roles.Auditor)
-            .RuleFor(x => x.CreatedAt, _ => now)
-            .RuleFor(x => x.UpdatedAt, _ => now)
-            .Generate(1);
-
-        users.AddRange(rbjUser);
-        users.AddRange(adminUser);
-        users.AddRange(regularUser);
-        users.AddRange(auditorUser);
+        var users = CreateDevelopmentUsers(organization.Id, now);
 
         var statuses = new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected };
 
@@ -453,6 +440,52 @@ public static class DatabaseSeeder
 
     private static decimal QuarterHour(decimal hours) => Math.Round(hours * 4, MidpointRounding.AwayFromZero) / 4;
 
+    private static async Task ReconcileDevelopmentUsersAsync(SqlDbContext db, Guid organizationId)
+    {
+        var developmentUserIds = DevelopmentUserDefinitions
+            .Select(definition => definition.Id)
+            .ToArray();
+        var developmentUserEmails = DevelopmentUserDefinitions
+            .Select(definition => definition.Email.ToLowerInvariant())
+            .ToArray();
+
+        var existingIdentities = await db.Users
+            .Where(user =>
+                developmentUserIds.Contains(user.Id) ||
+                developmentUserEmails.Contains(user.Email.ToLower()))
+            .Select(user => new { user.Id, user.Email })
+            .ToListAsync();
+
+        var missingUsers = CreateDevelopmentUsers(organizationId, DateTimeOffset.UtcNow)
+            .Where(candidate => existingIdentities.All(existing =>
+                existing.Id != candidate.Id &&
+                !string.Equals(existing.Email, candidate.Email, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+        if (missingUsers.Length == 0)
+        {
+            return;
+        }
+
+        await db.Users.AddRangeAsync(missingUsers);
+        await db.SaveChangesAsync();
+    }
+
+    private static List<UserDataRow> CreateDevelopmentUsers(Guid organizationId, DateTimeOffset timestamp) =>
+        DevelopmentUserDefinitions
+            .Select(definition => new UserDataRow
+            {
+                Id = definition.Id,
+                OrganizationId = organizationId,
+                DisplayName = definition.DisplayName,
+                Email = definition.Email,
+                Phone = definition.Phone,
+                Role = definition.Role,
+                CreatedAt = timestamp,
+                UpdatedAt = timestamp
+            })
+            .ToList();
+
     private static async Task NormalizeExclusiveClosureFlagSelectionsAsync(SqlDbContext db)
     {
         var closureFlagSelections = await db.JobReportClosureFlags
@@ -487,4 +520,11 @@ public static class DatabaseSeeder
         db.JobReportClosureFlags.RemoveRange(invalidSelections);
         await db.SaveChangesAsync();
     }
+
+    private sealed record DevelopmentUserDefinition(
+        Guid Id,
+        string DisplayName,
+        string Email,
+        string Phone,
+        string Role);
 }
