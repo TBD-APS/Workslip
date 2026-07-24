@@ -17,6 +17,7 @@ export const AppLayout = () => {
   const { theme, toggle: toggleTheme } = useTheme();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const scrollToTopIfActive = (path: string) => {
     if (location.pathname === path) {
@@ -52,6 +53,10 @@ export const AppLayout = () => {
     };
   }, []);
 
+  const notificationLabel = unreadNotifications > 0
+    ? `Notifikationer, ${unreadNotifications} ulæste`
+    : 'Notifikationer';
+
   return (
     <DropdownProvider>
       <div className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
@@ -73,11 +78,16 @@ export const AppLayout = () => {
           <button
             type="button"
             onClick={() => setNotificationsOpen(true)}
-            className="user-avatar"
-            aria-label="Notifikationer"
-            title="Notifikationer"
+            className="user-avatar notification-bell"
+            aria-label={notificationLabel}
+            title={notificationLabel}
           >
             <Bell size={18} />
+            {unreadNotifications > 0 && (
+              <span className="notification-badge" aria-hidden="true">
+                {unreadNotifications > 99 ? '99+' : unreadNotifications}
+              </span>
+            )}
           </button>
           <Can permission="user:manage">
             <button
@@ -167,7 +177,11 @@ export const AppLayout = () => {
         </Can>
       )}
       <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
-      <NotificationsDrawer isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+      <NotificationsDrawer
+        isOpen={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+        onUnreadCountChange={setUnreadNotifications}
+      />
     </div>
     </DropdownProvider>
   );
