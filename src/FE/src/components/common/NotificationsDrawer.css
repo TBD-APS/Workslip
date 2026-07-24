@@ -52,10 +52,8 @@
 }
 
 .notification-item {
+  position: relative;
   width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 3rem;
-  align-items: stretch;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -81,12 +79,13 @@
 }
 
 .notification-item-main {
+  width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 0.35rem;
-  padding: 0.85rem;
+  padding: 0.85rem 2.75rem 0.85rem 0.85rem;
   border: 0;
   background: transparent;
   color: inherit;
@@ -152,15 +151,19 @@
 }
 
 .notification-delete {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  min-height: 100%;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
   border: 0;
-  border-left: 1px solid var(--border);
+  border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--danger);
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
@@ -174,6 +177,7 @@
 
 .notification-delete:active:not(:disabled) {
   background: var(--status-red-bg);
+  color: var(--status-red-text);
 }
 
 .notification-error {
