@@ -5,9 +5,9 @@ Before answering questions about this repository, prefer local tools over guessi
 ## Required lookup order
 
 1. Use repomix and kioki to search through files fast.
-3. Use database/schema tools before answering questions about tables, columns, EF mappings, migrations, seed data, or SQL behavior.
-4. Use documentation tools such as Context7 before answering package/API-specific questions about EF Core, ASP.NET Core, Microsoft Graph, authentication, or frontend libraries.
-5. Use browser/testing tools such as Playwright when the task involves UI behavior, routing, forms, or end-to-end validation.
+2. Use database/schema tools before answering questions about tables, columns, EF mappings, migrations, seed data, or SQL behavior.
+3. Use documentation tools such as Context7 before answering package/API-specific questions about EF Core, ASP.NET Core, Microsoft Graph, authentication, or frontend libraries.
+4. Use browser/testing tools such as Playwright when the task involves UI behavior, routing, forms, or end-to-end validation.
 
 ## Do not guess
 
@@ -18,6 +18,19 @@ If the tool is unavailable, say that and continue with best-effort reasoning.
 
 Do not run destructive commands, database writes, migrations, Git resets, force pushes, or file deletions without explicit user approval.
 Prefer read-only inspection unless the task clearly requires changes.
+
+# Documentation truth and maintenance
+
+- Linear is the source of truth for issue scope, priority, acceptance criteria, ownership, and status.
+- The current repository is the source of truth for implemented code, database mappings, API behavior, configuration, workflows, tests, and stable technical decisions.
+- OpenAPI is the API contract source when it matches the running endpoint registrations. Postman is verification material, not a competing contract.
+- Never describe proposed, planned, experimental, or unverified behavior as implemented. Mark it clearly as `Draft`, `Planned`, `Historical`, or `Needs verification`.
+- Prefer updating an existing active document over creating a parallel document for the same subject.
+- Changes to API, auth, infrastructure, dataflow, database behavior, release workflow, or critical user flow must update the affected documentation in the same PR, or include an explicit documented waiver with an owner and expiry date.
+- Generated documentation and generated API clients must not be hand-edited. Update their source and regenerate them.
+- Keep documentation PRs small, linked to the relevant Linear issue, and separate from unrelated runtime changes.
+- Historical plans and specifications are context only. They do not override current code, schema, tests, ADRs, or active runbooks.
+- Each maintained document should state its status, owner, source of truth, and review cadence where practical.
 
 # API Response Pattern
 

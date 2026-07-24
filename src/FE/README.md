@@ -1,73 +1,76 @@
-# React + TypeScript + Vite
+# Workslip frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19, TypeScript and Vite PWA for Workslip.
 
-Currently, two official plugins are available:
+## Prerequisites
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 22
+- npm
+- Workslip API running locally on `http://localhost:5262`, or an explicit API base URL
 
-## React Compiler
+## Install and run
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The development server listens on `http://127.0.0.1:5270`. Requests to `/api` are proxied to `http://localhost:5262` by `vite.config.ts`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+To call a different API, set `VITE_API_BASE_URL` in an uncommitted environment file such as `.env.local`.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Start Vite development server |
+| `npm run lint` | Run ESLint |
+| `npm run build` | Type-check and create a production build |
+| `npm run preview` | Preview the production build |
+| `npm run generate:api:local` | Generate the API client using `.env.local` |
+| `npm run generate:api:dev` | Generate the API client using `.env.dev` |
+| `npm run generate:api:prod` | Generate the API client using `.env.production` |
+| `npm run doctor` | Run React Doctor diagnostics |
+
+API generation uses Orval. Generated output must be regenerated from the current OpenAPI contract rather than edited as the contract source.
+
+## Architecture
+
+- `src/routes/` defines application routing and access guards.
+- `src/features/` contains feature-oriented UI, hooks and API usage.
+- `src/components/` contains shared UI and form components.
+- `src/lib/axios.ts` configures the API client, auth header, correlation ID and mutation idempotency header.
+- `src/sw.ts` and `src/registerSW.ts` contain service-worker behaviour.
+- `vite.config.ts` defines the local proxy and PWA manifest/build settings.
+
+## Form conventions
+
+Follow the repository `AGENTS.md` rules:
+
+- reuse components in `src/components/forms/`;
+- use `NumericInput` instead of raw `<input type="number">`;
+- normalize Danish decimal comma at the caller boundary;
+- keep authorization enforcement on the backend; frontend guards are UX only.
+
+## Validation
+
+```bash
+npm ci
+npm run lint
+npm run build
 ```
+
+There is currently no general `npm test` script in `package.json`. Do not claim broad frontend test coverage from isolated test files. Add a documented test command when the test runner is standardized.
+
+## Environment and secrets
+
+Only variables prefixed with `VITE_` can be embedded into the browser bundle. Never place client secrets, database credentials or privileged tokens in frontend environment files.
+
+Common runtime configuration includes:
+
+- `VITE_API_BASE_URL` — optional API base URL; blank uses the current origin and local Vite proxy.
+- Entra/Application Insights settings referenced by frontend source — treat these as public client configuration, not secrets.
+
+## PWA caution
+
+The application uses `vite-plugin-pwa` with an injected service worker. Changes to update/reload, caching, offline drafts or synchronization must be validated against long dirty forms and documented conservatively. A PWA cache is not proof that mutations work offline.

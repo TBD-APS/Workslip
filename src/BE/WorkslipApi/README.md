@@ -1,158 +1,152 @@
-# Workslip.Api
+# Workslip API
 
-Workslip.Api er backend-indgangen til Workslip-produktet.
+ASP.NET Core .NET 10 API for Workslip.
 
-Navnet er bevidst bredere end det gamle `DocumentApi`, fordi backend'en ikke kun skal håndtere dokumenter. Den skal være produktets API for:
+The solution is split into `Workslip.Domain`, `Workslip.Application`, `Workslip.Infrastructure`, the API host and tests. Current code and executable tests take precedence over dated plans.
 
-- jobs og digitale arbejdssedler
-- organisationer
-- brugere/login og roller
-- attestering og revisionsspor
-- sagslinkning
-- afvigelser
-- faktura-/fakturaklarhedsdata
-- senere eksport/PDF og eventuelle dokumentmoduler
+## Prerequisites
 
-## Aktiv MVP-retning
+- .NET SDK 10
+- SQL Server-compatible database
+- Azure credentials when configuration enables Azure App Configuration, Key Vault, Microsoft Graph, Application Insights or Azure-hosted integrations
 
-MVP'en er jobs-baseret:
+## Local start
 
-- API-sproget er `jobs`, ikke `workslips`.
-- Aktive endpoints ligger under `/api/jobs`.
-- Den primære persistensmodel er `JobReports`, `JobControlChecks` og `JobEvents`.
-- Generiske dokumentmodeller er ikke aktiv MVP-kontrakt.
+```bash
+dotnet restore
+dotnet run --launch-profile http
+```
+
+The HTTP profile listens on `http://localhost:5262`.
+
+Required database configuration:
+
+```text
+Azure:Sql:ConnectionString
+```
+
+Environment-variable form:
+
+```text
+Azure__Sql__ConnectionString
+```
+
+Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
+
+Health check:
+
+```bash
+curl http://localhost:5262/health
+```
 
 ## Solution structure
 
 ```text
 WorkslipApi/
-  Workslip.slnx
-  Workslip.Api.csproj
-  Program.cs
-  Endpoints/
-    JobEndpoints.cs
-    OrganizationEndpoints.cs
-    AuthEndpoints.cs
-  Workslip.Domain/
-    Workslip.Domain.csproj
-  Workslip.Application/
-    Workslip.Application.csproj
-    Jobs/
-  Workslip.Infrastructure/
-    Workslip.Infrastructure.csproj
-    Repositories/
-    Models/
-    Schema/
+├── Workslip.slnx
+├── Workslip.Api.csproj
+├── Program.cs
+├── Configuration/                 # host, auth, pipeline, services and endpoints
+├── Endpoints/                     # minimal API route registration
+├── Workslip.Domain/               # domain enums and data models
+├── Workslip.Application/          # services, contracts, validators and ports
+├── Workslip.Infrastructure/       # EF Core, repositories, integrations and workers
+├── Workslip.Tests/                # automated tests
+└── Postman/                       # non-production integration suite
 ```
 
-## Current active endpoints
+## Runtime composition
 
-### Health
+`Program.cs` performs these steps:
+
+1. Load infrastructure configuration, including optional Azure App Configuration and Key Vault references.
+2. Configure CORS, authentication, logging, application and infrastructure services.
+3. Initialize the database schema and verify connectivity.
+4. Seed development data only when `ASPNETCORE_ENVIRONMENT=Development`.
+5. Configure middleware and map endpoints.
+
+Persistence uses EF Core `SqlDbContext` with SQL Server, repository implementations and an audit interceptor. Migrations are configured in the API assembly. Hosted services currently include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
+
+## API areas
+
+`Configuration/EndpointConfiguration.cs` maps:
 
 - `GET /health`
+- organizations
+- authentication/current user
+- users and invitations
+- jobs and job links
+- customers
+- worksheets
+- reference data
+- push notifications
+- cache operations
 
-### Organizations
+Use the runtime OpenAPI document and endpoint files for exact routes, request/response models and permissions. Do not use this README as a frozen endpoint list.
 
-- `POST /api/organizations`
+## Authentication and authorization
 
-### Auth/current user
+The API selects between a local JWT scheme and Microsoft Entra JWT based on the bearer-token issuer. Authorization is enforced server-side through ASP.NET Core policies and Workslip's dynamic role/permission handling.
 
-- `GET /api/auth/me?userId={userId}`
+Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend route guards are not security boundaries.
 
-### Jobs
+Developer token/debug endpoints are intended only for Development. Their environment guard is security-sensitive and must remain covered by review/tests.
 
-- `POST /api/jobs`
-- `GET /api/jobs`
-- `GET /api/jobs/{id}`
-- `PATCH /api/jobs/{id}`
-- `POST /api/jobs/{id}/submit`
-- `POST /api/jobs/{id}/approve`
-- `POST /api/jobs/{id}/reject`
+## Result and error conventions
 
-## Work kind mapping
+Application services return `Ardalis.Result`. Endpoints use `ResultExtensions.ToHttpResult` rather than defining custom wrappers or inline HTTP mappings.
 
-`JobReports.WorkKind` stores the selected frontend arbejdstype id.
+Common mapping:
 
-Allowed values match the deployed customer PWA:
+| Result | HTTP |
+|---|---:|
+| Success | 200 |
+| Invalid | 400 validation problem |
+| Unauthorized | 401 |
+| Forbidden | 403 |
+| Not found | 404 |
+| Conflict | 409 |
+| No content | 204 |
+| Unexpected result | 500 |
 
-- `nyInstallation` = Ny installation
-- `aendring` = Ændring af installation
-- `reparation` = Reparationsarbejde
-- `serviceAndet` = Andet
+See the root `AGENTS.md` before changing service or endpoint patterns.
 
-`JobReports.CustomWorkKind` stores the PWA/API `customWorkKind` free-text value. It is only valid when `workKind` is `serviceAndet`; for the other work kinds it must be omitted/null. There is no `CustomerWorkKind` field in the active backend model.
+## Correlation and idempotency
 
-`JobTaxonomy` in configuration seeds `dbo.JobWorkKinds` and `dbo.JobClosureFlags` at startup. Keep API validation and FK data aligned through this taxonomy instead of hardcoding duplicate work-kind lists in validators.
+The pipeline assigns/logs correlation identifiers. Frontend mutations send `X-Correlation-ID` and `Idempotency-Key`; only endpoints/services that explicitly use the idempotency infrastructure should be described as idempotent. A header alone is not proof of durable retry safety.
 
-## Naming rules
+## Database lifecycle
 
-Use these names consistently:
+The application initializes schema at startup through `DatabaseSchemaInitializer`, then verifies connectivity. Treat schema initialization and EF migrations as production-impacting operations:
 
-| Layer | Name |
-|---|---|
-| Solution | `Workslip.slnx` |
-| API project | `Workslip.Api` |
-| Domain project | `Workslip.Domain` |
-| Application project | `Workslip.Application` |
-| Infrastructure project | `Workslip.Infrastructure` |
-| Repository | `DapperJobRepository` |
-| Main table | `dbo.JobReports` |
-| Control checks table | `dbo.JobControlChecks` |
-| Event table | `dbo.JobEvents` |
-| Public route | `/api/jobs` |
+- inspect generated SQL and migration history;
+- use an isolated environment first;
+- define rollback/roll-forward before deployment;
+- never run destructive database actions without explicit approval.
 
-Avoid reintroducing the old document-centric API name, the old workslip route, the old workslip table names, or the old workslip repository name.
-
-## Configuration
-
-Connection string lookup currently supports:
-
-- `ConnectionStrings:JobDB`
-- `Sql:ConnectionString`
-
-Local development can use SQL Server LocalDB or another SQL Server-compatible connection string.
-
-Azure deployments can load centralized configuration from Azure App Configuration when either of these values is set:
-
-- `AZURE_APP_CONFIG_ENDPOINT`
-- `AzureAppConfiguration:Endpoint`
-
-The API uses `DefaultAzureCredential`. The infrastructure template sets `AZURE_CLIENT_ID` and `AZURE_APP_CONFIG_ENDPOINT` on the existing Function App so the user-assigned managed identity reads App Configuration and Key Vault references; local development can use developer credentials instead.
-
-Logging uses Serilog:
-
-- Console logging is configured through `Serilog:WriteTo`.
-- Request logging is enabled through `UseSerilogRequestLogging()`.
-- Application Insights logging uses the deployed `APPLICATIONINSIGHTS_CONNECTION_STRING` setting.
-
-## Database schema
-
-Database schema is generated from code models in `Workslip.Infrastructure/Models` and applied by `Workslip.Infrastructure/Schema/WorkslipSchemaRunner`.
-
-The active MVP schema creates the jobs-oriented tables:
-
-- `Organizations`
-- `Users`
-- `Organizations` with unique 8-digit `Cvr`
-- `Users` with organization-scoped roles
-- `JobReports`
-- `JobControlChecks`
-- `JobEvents`
-
-## Integration tests
-
-Postman/Newman integration tests live under `Postman/`.
-
-Run against a deployed non-production API:
+## Build and tests
 
 ```bash
-src/BE/WorkslipApi/Postman/run-integration-tests.sh https://<staging-api-base-url>
+dotnet build Workslip.slnx
+dotnet test Workslip.slnx
 ```
 
-CI workflow: `.github/workflows/integration-tests.yml`.
+Integration tests use Postman/Newman and must target localhost, test or staging:
 
-Required setting outside source:
+```bash
+Postman/run-integration-tests.sh https://<test-or-staging-api>
+```
 
-- `WORKSLIP_INTEGRATION_BASE_URL`: staging/test API base URL.
+The script rejects URLs that do not look non-production unless `ALLOW_PRODUCTION_INTEGRATION_TESTS=true` is explicitly set. Do not bypass that protection during ordinary validation.
 
-The Postman collection generates unique per-run organization/job data so repeated deploy tests do not collide on CVR/report numbers. The target database must still be isolated from production and resettable through environment recreation/drop-create when release validation needs a clean slate.
+GitHub workflow: `.github/workflows/integration-tests.yml`.
+
+## OpenAPI and Scalar
+
+The host registers ASP.NET Core OpenAPI and Scalar. These surfaces must be treated as non-production developer/integration tooling unless production exposure is explicitly approved and protected. The maintained contract guide lives in `../../../Docs/api/README.md`.
+
+## Deployment
+
+The API deployment workflow is `.github/workflows/main_api-npteknik-prod.yml`. It builds and publishes the .NET project, authenticates to Azure through OIDC and deploys to an Azure Web App.
+
+Workflow definitions are evidence of intended automation, not evidence that a deployment or rollback has succeeded. Record actual release validation separately.
