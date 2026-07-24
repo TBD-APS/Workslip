@@ -199,6 +199,14 @@ public sealed class EfNotificationRepository : INotificationRepository
                 return false;
             }
 
+            var deliveryLogs = await _dbContext.NotificationDeliveryLog
+                .Where(x => x.NotificationId == notificationId)
+                .ToListAsync(token);
+            if (deliveryLogs.Count > 0)
+            {
+                _dbContext.NotificationDeliveryLog.RemoveRange(deliveryLogs);
+            }
+
             _dbContext.NotificationQueue.Remove(row);
             await _dbContext.SaveChangesAsync(token);
             return true;
