@@ -4,7 +4,7 @@ import type {
   ReferenceDataResponse,
   UpdateJobRequest,
   JobListItemViewModel as GeneratedJobListItemViewModel,
- 
+
 } from '../../api/generated/models';
 import { validateEmail, validatePhoneNumber } from '../../components/forms/validators';
 import type { JobForm, LinkableJob } from './types';
@@ -131,13 +131,22 @@ export function toUpdateRequest(
 ): UpdateJobRequestWithSnapshot {
   const includeWork = options.includeWork ?? true;
 
-  // Send `customerSnapshot` whenever it carries data — gated by
-  // data presence, NOT by `editSnapshot`. Picking an existing customer
-  // populates the snapshot from the pick; toggling the edit checkbox
-  // just lets the user mutate those values. Either way the snapshot
-  // is the wire shape the repository dereferences to write customer
-  // fields onto the job row, so dropping it caused NREs.
-  const snapshot = hasSnapshotData(form.customerSnapshot) && !sameSnapshot(initial.customerSnapshot, form.customerSnapshot)
+  // Once the backend has returned a different customer ID, a previous
+  // "Gem som ny kunde" request has already succeeded. Keep later edits
+  // attached to that customer without creating another duplicate.
+  const customerCreationAlreadyPersisted =
+    form.createCustomer &&
+    initial.customerId !== null &&
+    initial.customerId !== form.customerId;
+  const shouldCreateCustomer = form.createCustomer && !customerCreationAlreadyPersisted;
+
+  // Creating a customer requires the snapshot even when its values are
+  // unchanged from the latest autosaved job snapshot.
+  const shouldSendCustomerSnapshot =
+    shouldCreateCustomer ||
+    (hasSnapshotData(form.customerSnapshot) && !sameSnapshot(initial.customerSnapshot, form.customerSnapshot));
+
+  const snapshot = shouldSendCustomerSnapshot
     ? {
         name: form.customerSnapshot?.name?.trim() || null,
         address: form.customerSnapshot?.address?.trim() || null,
@@ -149,7 +158,7 @@ export function toUpdateRequest(
 
   return {
     customerSnapshot: snapshot,
-    createCustomerFromSnapshot: form.createCustomer || undefined,
+    createCustomerFromSnapshot: shouldCreateCustomer || undefined,
     destinationAddress: initial.destinationAddress !== form.destinationAddress ? form.destinationAddress.trim() || null : null,
     destinationZipCode: initial.destinationZipCode !== form.destinationZipCode ? form.destinationZipCode.trim() || null : null,
     destinationCity: initial.destinationCity !== form.destinationCity ? form.destinationCity.trim() || null : null,
@@ -204,8 +213,18 @@ export function sameForm(left: JobForm, right: JobForm) {
 }
 
 export function sameFormWithoutWork(left: JobForm, right: JobForm) {
+  // The server replaces the old/null customer ID with the newly created
+  // customer ID. Treat that response as confirmation that the one-shot
+  // createCustomer flag has been persisted, so the draft can be cleared.
+  const customerCreationWasPersisted =
+    right.createCustomer &&
+    left.customerId !== null &&
+    left.customerId !== right.customerId &&
+    sameSnapshot(left.customerSnapshot, right.customerSnapshot);
+
   return (
-    left.customerId === right.customerId &&
+    (left.customerId === right.customerId || customerCreationWasPersisted) &&
+    (left.createCustomer === right.createCustomer || customerCreationWasPersisted) &&
     sameSnapshot(left.customerSnapshot, right.customerSnapshot) &&
     left.reportNumber === right.reportNumber &&
     left.destinationAddress === right.destinationAddress &&
@@ -291,4 +310,3 @@ export function getWorkValidationMessage(form: JobForm, referenceData: Reference
 export function toNullable(value: string | null) {
   return value && value.length > 0 ? value : null;
 }
-
