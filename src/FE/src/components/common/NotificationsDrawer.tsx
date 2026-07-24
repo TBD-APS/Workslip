@@ -143,9 +143,7 @@ export function NotificationsDrawer({
 
       {loading ? (
         <div className="drawer-empty">Henter notifikationer…</div>
-      ) : items.length === 0 ? (
-        <div className="drawer-empty">Ingen notifikationer endnu.</div>
-      ) : (
+      ) : items.length > 0 ? (
         <div className="notifications-list">
           {items.map((item) => (
             <button
@@ -170,7 +168,9 @@ export function NotificationsDrawer({
             </button>
           ))}
         </div>
-      )}
+      ) : !error ? (
+        <div className="drawer-empty">Ingen notifikationer endnu.</div>
+      ) : null}
     </Drawer>
   );
 }
