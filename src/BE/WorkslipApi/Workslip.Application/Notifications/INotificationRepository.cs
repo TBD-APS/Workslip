@@ -15,4 +15,5 @@ public interface INotificationRepository
     Task<IReadOnlyList<NotificationQueueRow>> GetHistoryAsync(Guid userId, int limit, int offset, CancellationToken cancellationToken);
     Task MarkReadAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken);
     Task MarkAllReadAsync(Guid userId, CancellationToken cancellationToken);
+    Task<bool> DeleteAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken);
 }
