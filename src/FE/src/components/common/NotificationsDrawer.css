@@ -53,18 +53,15 @@
 
 .notification-item {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.35rem;
-  padding: 0.85rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 
 @media (hover: hover) {
@@ -74,13 +71,33 @@
   }
 }
 
-.notification-item:active {
-  transform: scale(0.99);
-}
-
 .notification-item-unread {
   border-color: var(--primary);
   background: var(--surface-selected-strong);
+}
+
+.notification-item-deleting {
+  opacity: 0.55;
+}
+
+.notification-item-main {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.85rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notification-item-main:disabled {
+  cursor: wait;
 }
 
 .notification-item-header {
@@ -124,6 +141,37 @@
   font-size: var(--fs-xs);
 }
 
+.notification-delete-button {
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0.6rem 0.6rem 0 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .notification-delete-button:hover {
+    background: var(--status-red-bg);
+    color: var(--status-red-text);
+  }
+}
+
+.notification-delete-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.notification-delete-button:disabled {
+  cursor: wait;
+}
+
 .notification-error {
   display: flex;
   align-items: center;
@@ -157,5 +205,10 @@
   .notifications-toolbar button {
     justify-content: flex-end;
     text-align: right;
+  }
+
+  .notification-delete-button {
+    width: 2.5rem;
+    height: 2.5rem;
   }
 }
