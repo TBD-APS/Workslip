@@ -187,4 +187,20 @@ public sealed class EfNotificationRepository : INotificationRepository
             foreach (var row in rows) row.ReadUtc = now;
             if (rows.Count > 0) await _dbContext.SaveChangesAsync(token);
         }, cancellationToken);
+
+    public Task<bool> DeleteAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("notifications.delete", async token =>
+        {
+            var row = await _dbContext.NotificationQueue
+                .FirstOrDefaultAsync(x => x.Id == notificationId && x.UserId == userId, token);
+
+            if (row is null)
+            {
+                return false;
+            }
+
+            _dbContext.NotificationQueue.Remove(row);
+            await _dbContext.SaveChangesAsync(token);
+            return true;
+        }, cancellationToken);
 }
