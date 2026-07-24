@@ -38,6 +38,12 @@ public static class PushNotificationEndpoints
             await repository.MarkAllReadAsync(currentUser.UserId.Value, cancellationToken);
             return Results.NoContent();
         });
+        notifications.MapDelete("/{id:guid}", async (Guid id, ICurrentUserContext currentUser, INotificationService service, CancellationToken cancellationToken) =>
+        {
+            if (currentUser.UserId is null) return Results.Unauthorized();
+            var result = await service.DeleteAsync(currentUser.UserId.Value, id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
 
         group.MapPost("/", async (
             RegisterPushSubscriptionRequest request,
@@ -78,5 +84,3 @@ public sealed record PushSubscriptionKeys(
     string P256Dh,
     string Auth
 );
-
-
