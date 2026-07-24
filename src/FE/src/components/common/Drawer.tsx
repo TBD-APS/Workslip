@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 
 type DrawerProps = {
   isOpen: boolean;
@@ -25,13 +25,13 @@ export function Drawer({ isOpen, onClose, title, ariaLabel, icon, className, chi
         aria-label={ariaLabel ?? title}
       >
         <div className="drawer-header">
+          <button className="btn-icon" onClick={onClose} aria-label={`Tilbage fra ${title.toLowerCase()}`}>
+            <ChevronLeft size={26} />
+          </button>
           <div className="drawer-title">
             {icon}
             <h2>{title}</h2>
           </div>
-          <button className="btn-icon" onClick={onClose} aria-label={`Luk ${title.toLowerCase()}`}>
-            <X size={24} />
-          </button>
         </div>
 
         <div className="drawer-content">

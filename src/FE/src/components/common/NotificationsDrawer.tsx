@@ -1,4 +1,4 @@
-import { Bell, CheckCheck, Trash2 } from 'lucide-react';
+import { Bell, CheckCheck, X } from 'lucide-react';
 import { Drawer } from './Drawer';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../../lib/axios';
@@ -109,8 +109,6 @@ export function NotificationsDrawer({
   };
 
   const deleteNotification = async (item: NotificationItem) => {
-    if (!window.confirm(`Slet notifikationen “${item.title}”?`)) return;
-
     setDeletingIds((current) => new Set(current).add(item.id));
     try {
       await apiClient.delete(`/api/notifications/${item.id}`, {
@@ -204,7 +202,7 @@ export function NotificationsDrawer({
                   aria-label={`Slet ${item.title}`}
                   title="Slet notifikation"
                 >
-                  <Trash2 size={18} />
+                  <X size={16} />
                 </button>
               </div>
             );
