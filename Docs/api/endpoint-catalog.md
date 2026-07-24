@@ -1,0 +1,124 @@
+# Endpoint catalog
+
+**Contract build reviewed:** 2026-07-23  
+**Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
+**Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
+
+The Postman item with the same route is the maintained request/response example. Parameterized requests use collection variables such as `jobId`, `userId`, `customerId` and `worksheetId`.
+
+## Platform
+
+| Method | Path | Access | Typical response |
+|---|---|---|---|
+| GET | `/health` | Anonymous | `200 { "status": "ok" }` |
+| GET | `/openapi/v1.json` | Currently mapped by startup | OpenAPI JSON for the running build |
+| GET | Scalar UI path | Currently mapped by startup | Interactive API reference |
+
+OpenAPI/Scalar exposure must be verified per environment. The current startup mapping is not guarded by an active development check.
+
+## Organizations
+
+| Method | Path | Access | Request/response |
+|---|---|---|---|
+| POST | `/api/organizations/` | Admin | Organization onboarding request → organization and initial-user view |
+
+## Authentication and invitations
+
+| Method | Path | Access | Request/response |
+|---|---|---|---|
+| GET | `/api/auth/me` | Read | Current user view |
+| PATCH | `/api/auth/me` | User | Profile update → user view |
+| POST | `/api/auth/send-code` | Anonymous | `{ "email": "..." }` → generic `200` message |
+| POST | `/api/auth/verify-code/{code}` | Anonymous | Email body + code path → local bearer token |
+| POST | `/api/auth/entra-enroll` | Entra JWT | Enrollment request → local bearer token |
+| POST | `/api/auth/entra-login` | Entra JWT | Authenticated Entra identity → local bearer token |
+| GET | `/api/auth/invites` | Admin | Organization invitation list |
+| POST | `/api/auth/invite` | Admin | Invitation batch → result |
+| POST | `/api/auth/invite/{token}/open` | Anonymous | Marks invitation opened |
+
+## Users
+
+All `/api/users` routes are in the admin route group. Additional user requirements do not reduce the effective admin requirement.
+
+| Method | Path | Access | Request/response |
+|---|---|---|---|
+| POST | `/api/users/` | Admin | Create user → user view |
+| GET | `/api/users/` | Admin | `limit`, `offset`, `search`, `sortBy`, `sortDirection` → paginated user list |
+| GET | `/api/users/{id}` | Admin | User detail |
+| PATCH | `/api/users/{id}` | Admin | Update user → user view |
+| DELETE | `/api/users/{id}` | Admin | `204` or mapped error |
+
+## Jobs
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/api/jobs/` | Read | Filters, repeated `status`, sorting and pagination → `{ items, totalCount }` |
+| GET | `/api/jobs/my-assigned` | Read | Current user's assigned jobs |
+| GET | `/api/jobs/{id}` | Read | Job summary; supports ETag revalidation |
+| GET | `/api/jobs/{id}/history` | Read | `limit`/`offset` → history events |
+| GET | `/api/jobs/{id}/report/pdf` | Read | PDF file response |
+| POST | `/api/jobs/` | User | Requires `Idempotency-Key`; create → job summary |
+| PATCH | `/api/jobs/{id}` | User | Requires `Idempotency-Key`; update → job summary |
+| POST | `/api/jobs/{id}/status` | User | Requires `Idempotency-Key`; status request → job summary |
+| POST | `/api/jobs/{id}/seen` | User | Marks job seen → `204` |
+| POST | `/api/jobs/{id}/assign` | User | `{ "userIds": [...] }` → job summary |
+| DELETE | `/api/jobs/{id}` | Admin | `204`, `404` or deletion conflict |
+| POST | `/api/jobs/{id}/restore/deletion` | Admin | Restores scheduled deletion → job summary |
+| POST | `/api/jobs/{id}/links` | User | Link request → job summary |
+| DELETE | `/api/jobs/{id}/links` | User | Link deletion request → mapped result |
+
+Job status values implemented by the current domain are `Draft`, `InReview`, `Approved` and `Rejected`.
+
+## Customers
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/api/customers/search` | Read | `query`, `limit` → search results |
+| GET | `/api/customers/suggest` | Read | Alias-style suggestion search |
+| GET | `/api/customers/top` | Read | Top customers |
+| GET | `/api/customers/` | User | Paginated customer list |
+| GET | `/api/customers/{id}` | User | Customer detail |
+| POST | `/api/customers/` | Admin | Requires `Idempotency-Key`; create → detail |
+| PUT | `/api/customers/{id}` | Admin | Update → detail |
+| PATCH | `/api/customers/{id}/top` | Admin | `{ "isTop": true|false }` |
+| DELETE | `/api/customers/{id}` | Admin | `204` or mapped error |
+| POST | `/api/customers/import` | Admin | Multipart CSV, max 10 MB, rate limited → imported/skipped counts |
+
+## Worksheets
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| POST | `/api/worksheets/jobs/{jobId}` | User | Upsert worksheet → job summary |
+| DELETE | `/api/worksheets/{worksheetId}/jobs/{jobId}` | User | Delete worksheet → job summary |
+| GET | `/api/worksheets/my` | User | Optional `year`, `month` → current-user month |
+| GET | `/api/worksheets/all` | Admin | Optional `year`, `month` → organization month |
+
+## Reference data
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/api/reference-data/` | Read | Reference-data response with ETag/`304` support |
+
+## Notifications and push
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| POST | `/api/push-subscriptions/` | User | Browser push endpoint and keys → mapped result |
+| GET | `/api/notifications/` | User | `limit`, `offset` → notification history |
+| PATCH | `/api/notifications/{id}/read` | User | Marks one notification read → `204` |
+| POST | `/api/notifications/read-all` | User | Marks all read → `204` |
+
+## Operations
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| POST | `/api/admin/cache/clear` | Admin | Clears application caches and attempts Vercel cache invalidation |
+
+## Development endpoints
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| POST | `/api/dev/token` | Anonymous in current route definition | Generates a local token by email; must never be treated as safe outside isolated development |
+| GET | `/api/dev/debug` | Authenticated | Returns identity/claim diagnostics |
+
+The current application maps these endpoints through `ConfigureDevEnvironment`, but the environment guard is commented out. This is a verified implementation risk, not a documentation assumption.
