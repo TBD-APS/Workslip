@@ -1,4 +1,4 @@
-import { Bell, CheckCheck } from 'lucide-react';
+import { Bell, CheckCheck, Trash2 } from 'lucide-react';
 import { Drawer } from './Drawer';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../../lib/axios';
@@ -37,6 +37,7 @@ export function NotificationsDrawer({
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
   const navigate = useNavigate();
 
   const replaceItems = useCallback((nextItems: NotificationItem[]) => {
@@ -107,6 +108,27 @@ export function NotificationsDrawer({
     }
   };
 
+  const deleteNotification = async (item: NotificationItem) => {
+    if (!window.confirm(`Slet notifikationen “${item.title}”?`)) return;
+
+    setDeletingIds((current) => new Set(current).add(item.id));
+    try {
+      await apiClient.delete(`/api/notifications/${item.id}`, {
+        skipGlobalErrorToast: true,
+      });
+      updateItems((current) => current.filter((entry) => entry.id !== item.id));
+      setError(null);
+    } catch {
+      setError('Notifikationen kunne ikke slettes. Prøv igen.');
+    } finally {
+      setDeletingIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
+
   const formatCreatedAt = (createdUtc: string) =>
     new Date(createdUtc).toLocaleString('da-DK', {
       dateStyle: 'medium',
@@ -118,7 +140,9 @@ export function NotificationsDrawer({
       isOpen={isOpen}
       onClose={onClose}
       title="Notifikationer"
+      ariaLabel="Notifikationer"
       icon={<Bell size={20} />}
+      className="history-drawer notifications-drawer"
     >
       {error && (
         <div className="notification-error" role="alert">
@@ -145,28 +169,46 @@ export function NotificationsDrawer({
         <div className="drawer-empty">Henter notifikationer…</div>
       ) : items.length > 0 ? (
         <div className="notifications-list">
-          {items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`notification-item${item.isRead ? '' : ' notification-item-unread'}`}
-              onClick={() => void markRead(item)}
-              aria-label={`${item.title}${item.isRead ? '' : ', ulæst'}`}
-            >
-              <span className="notification-item-header">
-                <strong className="notification-item-title">{item.title}</strong>
-                {!item.isRead && <span className="notification-new-label">Ny</span>}
-              </span>
-              <span className="notification-body">
-                {getBodyLines(item.body).map((line, index) => (
-                  <span key={`${item.id}-${index}`} className="notification-body-line">
-                    {line}
+          {items.map((item) => {
+            const isDeleting = deletingIds.has(item.id);
+            return (
+              <div
+                key={item.id}
+                className={`notification-item${item.isRead ? '' : ' notification-item-unread'}${isDeleting ? ' notification-item-deleting' : ''}`}
+              >
+                <button
+                  type="button"
+                  className="notification-item-main"
+                  onClick={() => void markRead(item)}
+                  aria-label={`${item.title}${item.isRead ? '' : ', ulæst'}`}
+                  disabled={isDeleting}
+                >
+                  <span className="notification-item-header">
+                    <strong className="notification-item-title">{item.title}</strong>
+                    {!item.isRead && <span className="notification-new-label">Ny</span>}
                   </span>
-                ))}
-              </span>
-              <small>{formatCreatedAt(item.createdUtc)}</small>
-            </button>
-          ))}
+                  <span className="notification-body">
+                    {getBodyLines(item.body).map((line, index) => (
+                      <span key={`${item.id}-${index}`} className="notification-body-line">
+                        {line}
+                      </span>
+                    ))}
+                  </span>
+                  <small>{formatCreatedAt(item.createdUtc)}</small>
+                </button>
+                <button
+                  type="button"
+                  className="notification-delete"
+                  onClick={() => void deleteNotification(item)}
+                  disabled={isDeleting}
+                  aria-label={`Slet ${item.title}`}
+                  title="Slet notifikation"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       ) : !error ? (
         <div className="drawer-empty">Ingen notifikationer endnu.</div>

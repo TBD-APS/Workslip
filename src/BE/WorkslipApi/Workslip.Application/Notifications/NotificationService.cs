@@ -1,3 +1,4 @@
+using Ardalis.Result;
 using System.Text.Json;
 using Workslip.Domain.Models;
 
@@ -35,6 +36,12 @@ public sealed class NotificationService : INotificationService
     public async Task QueueJobUnassignedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken)
     {
         await QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobUnassigned, cancellationToken);
+    }
+
+    public async Task<Result> DeleteAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken)
+    {
+        var deleted = await _notificationRepository.DeleteAsync(userId, notificationId, cancellationToken);
+        return deleted ? Result.NoContent() : Result.NotFound();
     }
 
     private async Task QueueNotificationInternalAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, NotificationType type, CancellationToken cancellationToken)
