@@ -1,9 +1,24 @@
 namespace Workslip.Application.Customers;
 
-public sealed record CustomerListItemResponse(
-    Guid Id,
+public sealed record CustomerData(
+    string? CustomerNumber,
     string Name,
     string? Address,
+    string? ZipCode,
+    string? City,
+    string? Country,
+    string? Email,
+    string? ContactPerson,
+    string? Phone);
+
+public sealed record CustomerListItemResponse(
+    Guid Id,
+    string? CustomerNumber,
+    string Name,
+    string? Address,
+    string? ZipCode,
+    string? City,
+    string? Country,
     string? Email,
     string? ContactPerson,
     string? Phone,
@@ -20,8 +35,12 @@ public sealed record CustomerJobResponse(
 
 public sealed record CustomerDetailResponse(
     Guid Id,
+    string? CustomerNumber,
     string Name,
     string? Address,
+    string? ZipCode,
+    string? City,
+    string? Country,
     string? Email,
     string? ContactPerson,
     string? Phone,
@@ -34,29 +53,58 @@ public sealed record CustomerListResponse(
 
 public sealed record CustomerSearchResponse(
     Guid Id,
+    string? CustomerNumber,
     string Name,
     string? Email,
     string? Phone,
     string? Address,
+    string? ZipCode,
+    string? City,
+    string? Country,
     string? ContactPerson,
     bool IsTop);
 
 public sealed record UpdateCustomerRequest(
     string Name,
+    string? CustomerNumber,
     string? Address,
+    string? ZipCode,
+    string? City,
+    string? Country,
     string? Email,
     string? ContactPerson,
     string? Phone);
 
 public sealed record CreateCustomerRequest(
     string Name,
+    string? CustomerNumber,
     string? Address,
+    string? ZipCode,
+    string? City,
+    string? Country,
     string? Email,
     string? ContactPerson,
     string? Phone);
 
-public sealed record DeleteCustomerResponse(bool success);
+public sealed record ImportCustomerRow(
+    int RowNumber,
+    string? CustomerNumber,
+    string? Name,
+    string? Address,
+    string? ZipCode,
+    string? City,
+    string? Country,
+    string? Email,
+    string? ContactPerson,
+    string? Phone);
 
-public sealed record ImportCustomerResponse(int Imported, int Skipped);
+public sealed record ImportCustomerError(int RowNumber, string Field, string Message);
+
+public sealed record ImportCustomerResponse(
+    int Imported,
+    int Duplicates,
+    int Skipped,
+    int Failed,
+    IReadOnlyList<ImportCustomerError> Errors);
 
 public sealed record SetTopRequest(bool IsTop);

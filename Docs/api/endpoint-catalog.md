@@ -1,6 +1,6 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-23  
+**Contract build reviewed:** 2026-07-25  
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
@@ -77,12 +77,14 @@ Job status values implemented by the current domain are `Draft`, `InReview`, `Ap
 | GET | `/api/customers/suggest` | Read | Alias-style suggestion search |
 | GET | `/api/customers/top` | Read | Top customers |
 | GET | `/api/customers/` | User | Paginated customer list |
-| GET | `/api/customers/{id}` | User | Customer detail |
+| GET | `/api/customers/{id}` | User | Customer detail including `customerNumber`, address, ZIP, city and country |
 | POST | `/api/customers/` | Admin | Requires `Idempotency-Key`; create → detail |
 | PUT | `/api/customers/{id}` | Admin | Update → detail |
 | PATCH | `/api/customers/{id}/top` | Admin | `{ "isTop": true|false }` |
 | DELETE | `/api/customers/{id}` | Admin | `204` or mapped error |
-| POST | `/api/customers/import` | Admin | Multipart CSV, max 10 MB, rate limited → imported/skipped counts |
+| POST | `/api/customers/import` | Admin | Multipart `.xlsx`/`.csv`, max 10 MB, rate limited → imported/duplicate/skipped/failed counts and row errors |
+
+Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/city/country fields, and ignore unrelated source columns such as group and customer reference.
 
 ## Worksheets
 
