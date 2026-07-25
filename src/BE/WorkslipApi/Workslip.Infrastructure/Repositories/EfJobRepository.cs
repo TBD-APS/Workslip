@@ -53,8 +53,8 @@ public sealed class EfJobRepository : IJobRepository
 
         var customerSnapshot = request.CustomerSnapshot;
 
-        Guid? customerId = null;
-        if (customerSnapshot is not null && (request.CustomerId is null || request.CreateCustomerFromSnapshot == true))
+        Guid? customerId = request.CustomerId;
+        if (customerSnapshot is not null && request.CreateCustomerFromSnapshot == true)
         {
             var customerInfo = new CustomerInfo(Guid.NewGuid(),
                                                 customerSnapshot.Name,
@@ -855,6 +855,17 @@ if (request.Work.ClosureFlags is not null)
 
     private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)
     {
+        if (!_dbContext.Database.IsRelational())
+        {
+            var nonRelationalMaxReportNumber = await _dbContext.JobReports
+                .AsNoTracking()
+                .Where(r => r.OrganizationId == organizationId)
+                .Select(r => r.ReportNumber)
+                .MaxAsync(cancellationToken);
+
+            return ConvertToIntSafe(nonRelationalMaxReportNumber) + 1;
+        }
+
         var conn = _dbContext.Database.GetDbConnection();
         if (conn.State != System.Data.ConnectionState.Open)
         {

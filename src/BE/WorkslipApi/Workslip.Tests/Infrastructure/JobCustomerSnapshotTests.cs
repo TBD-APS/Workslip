@@ -149,14 +149,6 @@ public sealed class JobCustomerSnapshotTests
         await context.SaveChangesAsync();
 
         var repo = CreateJobRepository(context, actorId, orgId);
-        var customerInfo = new CustomerInfo(
-            CustomerId: null,
-            Name: "Master Name",
-            Address: "Master Address",
-            Email: "master@test.com",
-            ContactPerson: null,
-            Phone: "00000000");
-
         var snapshot = new CustomerSnapshotData(
             Name: "Snapshot Override",
             Email: null,
@@ -178,11 +170,12 @@ public sealed class JobCustomerSnapshotTests
         Assert.Null(job.CustomerPhone);
         Assert.Null(job.CustomerAddress);
 
-        // Master customer was still created and preserved
-        var master = await context.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Name == "Master Name");
+        // The created master uses the same snapshot values, including explicit nulls.
+        var master = await context.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Name == "Snapshot Override");
         Assert.NotNull(master);
-        Assert.Equal("master@test.com", master.Email);
-        Assert.Equal("00000000", master.Phone);
+        Assert.Null(master.Email);
+        Assert.Null(master.Phone);
+        Assert.Null(master.Address);
     }
 
     [Fact]
