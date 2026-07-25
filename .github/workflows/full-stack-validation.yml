@@ -205,6 +205,8 @@ jobs:
             | tee artifacts/postman-selection.log
 
       - name: Run Postman endpoint suite
+        id: newman
+        continue-on-error: true
         run: |
           set -euo pipefail
           npx --yes newman run artifacts/postman-ci-collection.json \
@@ -219,8 +221,7 @@ jobs:
             --env-var "creatorUserId=$WORKSLIP_USER_ID" \
             --reporters cli,junit \
             --reporter-junit-export artifacts/newman-results.xml \
-            --timeout-request 30000 \
-            --bail
+            --timeout-request 30000
 
       - name: Start isolated frontend
         working-directory: src/FE
@@ -253,6 +254,8 @@ jobs:
         run: python -m pip install --disable-pip-version-check selenium
 
       - name: Run Selenium smoke tests
+        id: selenium
+        continue-on-error: true
         run: python tests/full-stack/selenium_smoke.py --base-url "$FRONTEND_URL" --artifacts artifacts/selenium
 
       - name: Upload full-stack evidence
@@ -269,6 +272,20 @@ jobs:
             artifacts/selenium/**
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Validate full-stack results
+        if: always()
+        run: |
+          failed=0
+          if [ "${{ steps.newman.outcome }}" != "success" ]; then
+            echo "::error::Newman endpoint validation did not pass."
+            failed=1
+          fi
+          if [ "${{ steps.selenium.outcome }}" != "success" ]; then
+            echo "::error::Selenium browser validation did not pass."
+            failed=1
+          fi
+          exit "$failed"
 
       - name: Stop local processes
         if: always()
