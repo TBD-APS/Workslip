@@ -35,7 +35,8 @@ public static class JobEndpoints
             var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, cancellationToken);
             return CachedOk(result, httpContext,
                 response => HttpCacheHeaders.JobListEtag(response, currentUser.OrganizationId!.Value, currentUser.UserId, statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset),
-                response => new {
+                response => new
+                {
                     items = response.Items.Select(JobViewModelBuilder.ToListItem).ToArray(),
                     totalCount = response.TotalCount
                 });
@@ -77,9 +78,9 @@ public static class JobEndpoints
             return Results.File(pdf, "application/pdf", $"rapport-{reportNumber}.pdf");
         });
 
-
         userGroup.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             var reservation = await idempotency.StartAsync($"jobs.update:{currentUser.OrganizationId}:{currentUser.UserId}:{id}", key, request, cancellationToken);
@@ -104,9 +105,12 @@ public static class JobEndpoints
 
         userGroup.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
         {
-            if (!IdempotencyHttp.TryGetKey(httpContext, out var key)) return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            HttpCacheHeaders.SetNoStore(httpContext);
+            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             var reservation = await idempotency.StartAsync($"jobs.status:{currentUser.OrganizationId}:{currentUser.UserId}:{id}", key, request, cancellationToken);
-            var replay = IdempotencyHttp.ReplayOrReject(reservation); if (replay is not null) return replay;
+            var replay = IdempotencyHttp.ReplayOrReject(reservation);
+            if (replay is not null) return replay;
             try
             {
                 var result = await service.ChangeStatusAsync(id, request, cancellationToken);
@@ -122,7 +126,6 @@ public static class JobEndpoints
                 throw;
             }
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
-
 
         userGroup.MapPost("/", async (CreateJobRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
         {
