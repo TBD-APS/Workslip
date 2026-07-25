@@ -63,5 +63,6 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
                     WHERE [CustomerNumber] IS NOT NULL;
             END
             """, cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(DatabaseIntegrityConstraintsSql.Apply, cancellationToken);
     }
 }

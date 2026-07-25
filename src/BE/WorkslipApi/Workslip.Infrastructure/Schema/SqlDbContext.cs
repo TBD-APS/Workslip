@@ -598,7 +598,9 @@ entity.Property(e => e.Status)
 
         .WithMany()
 
-        .HasForeignKey(e => e.CustomerId)
+        .HasForeignKey(e => new { e.OrganizationId, e.CustomerId })
+
+        .HasPrincipalKey(e => new { e.OrganizationId, e.Id })
 
         .OnDelete(DeleteBehavior.Restrict);
 
@@ -1054,9 +1056,9 @@ entity.Property(e => e.Status)
 
             .WithMany()
 
-            .HasForeignKey("JobId")
+            .HasForeignKey(e => new { e.OrganizationId, e.JobId })
 
-            .HasPrincipalKey("Id")
+            .HasPrincipalKey(e => new { e.OrganizationId, e.Id })
 
             .OnDelete(DeleteBehavior.Restrict);
 
@@ -1066,9 +1068,9 @@ entity.Property(e => e.Status)
 
             .WithMany()
 
-            .HasForeignKey("UserId")
+            .HasForeignKey(e => new { e.OrganizationId, e.UserId })
 
-            .HasPrincipalKey("Id")
+            .HasPrincipalKey(e => new { e.OrganizationId, e.Id })
 
             .OnDelete(DeleteBehavior.Restrict);
 
@@ -1505,6 +1507,11 @@ entity.Property(e => e.Status)
         entity.Property(e => e.CreatedUtc).HasColumnType("datetimeoffset").HasDefaultValueSql("sysutcdatetime()");
         entity.Property(e => e.LastSeenUtc).HasColumnType("datetimeoffset").HasDefaultValueSql("sysutcdatetime()");
 
+        entity.HasOne<UserDataRow>()
+            .WithMany()
+            .HasForeignKey(e => e.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         entity.HasIndex(e => new { e.UserId, e.IsActive }).HasDatabaseName("IX_PushSubscriptions_User_Active");
     }
 
@@ -1525,6 +1532,11 @@ entity.Property(e => e.Status)
         entity.Property(e => e.CompletedUtc).HasColumnType("datetimeoffset");
         entity.Property(e => e.ReadUtc).HasColumnType("datetimeoffset");
         entity.Property(e => e.LastError).HasColumnType("nvarchar(max)");
+
+        entity.HasOne<UserDataRow>()
+            .WithMany()
+            .HasForeignKey(e => e.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         entity.HasIndex(e => new { e.Status, e.NextAttemptUtc }).HasDatabaseName("IX_NotificationQueue_Status_NextAttempt");
     }
@@ -1561,6 +1573,11 @@ entity.Property(e => e.Status)
             .WithMany()
             .HasForeignKey(e => e.JobId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasOne<UserDataRow>()
+            .WithMany()
+            .HasForeignKey(e => e.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureIdempotencyRecords(ModelBuilder modelBuilder)
