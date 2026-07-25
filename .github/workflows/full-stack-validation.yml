@@ -99,6 +99,12 @@ jobs:
           Azure__AdOAuth__Instance: https://login.microsoftonline.com/
           Azure__AdOAuth__TenantId: common
           Azure__AdOAuth__ClientId: 00000000-0000-0000-0000-000000000001
+          Azure__Acs__ConnectionString: 'endpoint=https://workslip-ci.communication.azure.com/;accesskey=QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE='
+          Azure__Acs__SenderAddress: DoNotReply@workslip-ci.example
+          Azure__Acs__PLainHeaderText: Workslip CI invitation
+          Azure__Acs__PlainInviteText: 'Invitation: {inviteLink}'
+          Azure__Acs__HtmlInviteText: '<a href="{inviteLink}">Invitation</a>'
+          Azure__Acs__InviteBaseUrl: ${{ env.FRONTEND_URL }}/invite
           Cors__AllowedOrigins__0: ${{ env.FRONTEND_URL }}
           Authorization__Policies__RequireSuperAdmin: Superadmin
           Authorization__Policies__RequireAdmin: Admin
