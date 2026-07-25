@@ -51,7 +51,6 @@ public static class CustomerCsvParser
 
         var headers = CustomerImportHeaderMap.Create(csv.HeaderRecord ?? []);
         var customers = new List<Application.Customers.ImportCustomerRow>();
-        var skipped = 0;
 
         while (csv.Read())
         {
@@ -66,7 +65,9 @@ public static class CustomerCsvParser
             }
         }
 
-        return new CustomerImportParseResult(customers, skipped);
+        // Empty rows and rows containing values only in deliberately ignored columns
+        // are structural noise, not customer records, and are therefore not reported.
+        return new CustomerImportParseResult(customers, 0);
     }
 
     private static string DetectDelimiter(string content)
