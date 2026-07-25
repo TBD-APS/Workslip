@@ -6,8 +6,9 @@ import { apiClient } from '../../../lib/axios';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
 import type { CustomerDetailViewModel } from '../../../api/generated/models';
-import { NumericInput } from '../../../components/forms/NumericInput';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
+import { AddressAutocomplete } from '../../jobs/components/AddressAutocomplete';
+import type { AddressSuggestion } from '../../jobs/hooks/useAddressAutocomplete';
 
 export const CreateCustomerPage = () => {
   const navigate = useNavigate();
@@ -18,7 +19,6 @@ export const CreateCustomerPage = () => {
   const [address, setAddress] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [city, setCity] = useState('');
-  const [country, setCountry] = useState('');
   const [email, setEmail] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
@@ -62,7 +62,6 @@ export const CreateCustomerPage = () => {
         address: address.trim() || null,
         zipCode: zipCode.trim() || null,
         city: city.trim() || null,
-        country: country.trim() || null,
         email: email.trim() || null,
         contactPerson: contactPerson.trim() || null,
         phone: phone.trim() || null,
@@ -83,7 +82,6 @@ export const CreateCustomerPage = () => {
     setAddress('');
     setZipCode('');
     setCity('');
-    setCountry('');
     setEmail('');
     setContactPerson('');
     setPhone('');
@@ -132,34 +130,17 @@ export const CreateCustomerPage = () => {
           {fieldErrors.name && <p className="form-error-text">{fieldErrors.name}</p>}
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="create-customer-address">Adresse</label>
-          <input
-            id="create-customer-address"
-            className="form-input"
-            type="text"
+          <label className="form-label">Adresse</label>
+          <AddressAutocomplete
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            maxLength={500}
-            placeholder="Indtast adresse"
+            onTextChange={setAddress}
+            onSelectSuggestion={(s: AddressSuggestion) => {
+              setAddress(s.street);
+              setZipCode(s.zipCode);
+              setCity(s.city);
+            }}
+            onClear={() => { setAddress(''); setZipCode(''); setCity(''); }}
           />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="create-customer-zip">Postnummer</label>
-          <NumericInput
-            id="create-customer-zip"
-            kind="integer"
-            value={zipCode}
-            onChange={setZipCode}
-            placeholder="Indtast postnummer"
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="create-customer-city">By</label>
-          <input id="create-customer-city" className="form-input" type="text" value={city} onChange={(e) => setCity(e.target.value)} maxLength={120} />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="create-customer-country">Land</label>
-          <input id="create-customer-country" className="form-input" type="text" value={country} onChange={(e) => setCountry(e.target.value)} maxLength={120} />
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="create-customer-email">E-mail</label>

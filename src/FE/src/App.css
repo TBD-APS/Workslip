@@ -2718,7 +2718,7 @@
   }
 
   .data-table thead th.sortable.sorted {
-    color: #fff;
+    color: var(--text);
   }
 
   .data-table .sort-trigger {
@@ -2832,6 +2832,10 @@
     width: 16%;
   }
 
+  .data-table .col-phone {
+    width: 12%;
+  }
+
   .data-table .col-number {
     width: 100px;
   }
@@ -2898,6 +2902,7 @@
 
   .data-table .cell-number {
     font-variant-numeric: tabular-nums;
+    text-align: right;
   }
 
   .data-table .cell-date {

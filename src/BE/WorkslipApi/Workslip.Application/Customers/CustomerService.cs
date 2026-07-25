@@ -234,7 +234,7 @@ public sealed class CustomerService(
                 Clean(row.Address),
                 Clean(row.ZipCode),
                 Clean(row.City),
-                Clean(row.Country),
+                "Danmark",
                 Clean(row.Email),
                 Clean(row.ContactPerson),
                 Clean(row.Phone));
@@ -281,7 +281,7 @@ public sealed class CustomerService(
         Clean(request.Address),
         Clean(request.ZipCode),
         Clean(request.City),
-        Clean(request.Country),
+        "Danmark",
         Clean(request.Email),
         Clean(request.ContactPerson),
         Clean(request.Phone));
@@ -292,7 +292,7 @@ public sealed class CustomerService(
         Clean(request.Address),
         Clean(request.ZipCode),
         Clean(request.City),
-        Clean(request.Country),
+        "Danmark",
         Clean(request.Email),
         Clean(request.ContactPerson),
         Clean(request.Phone));

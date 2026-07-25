@@ -1,7 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
-import { NumericInput } from '../../../components/forms/NumericInput';
 import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
 import { apiClient } from '../../../lib/axios';
 import { useQueryClient } from '@tanstack/react-query';
@@ -9,12 +8,13 @@ import { getGetApiCustomersQueryKey, getGetApiCustomersIdQueryKey } from '../../
 import { notify } from '../../../lib/toast';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
+import { AddressAutocomplete } from '../../jobs/components/AddressAutocomplete';
+import type { AddressSuggestion } from '../../jobs/hooks/useAddressAutocomplete';
 
 type ExtendedCustomerFields = {
   customerNumber?: string | null;
   zipCode?: string | null;
   city?: string | null;
-  country?: string | null;
 };
 
 export const EditCustomerPage = () => {
@@ -29,7 +29,6 @@ export const EditCustomerPage = () => {
   const [address, setAddress] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [city, setCity] = useState('');
-  const [country, setCountry] = useState('');
   const [email, setEmail] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
@@ -62,7 +61,6 @@ export const EditCustomerPage = () => {
       setAddress(customer.address ?? '');
       setZipCode(extended.zipCode ?? '');
       setCity(extended.city ?? '');
-      setCountry(extended.country ?? '');
       setEmail(customer.email ?? '');
       setContactPerson(customer.contactPerson ?? '');
       setPhone(customer.phone ?? '');
@@ -109,7 +107,6 @@ export const EditCustomerPage = () => {
         address: address.trim() || null,
         zipCode: zipCode.trim() || null,
         city: city.trim() || null,
-        country: country.trim() || null,
         email: email.trim() || null,
         contactPerson: contactPerson.trim() || null,
         phone: phone.trim() || null,
@@ -158,20 +155,17 @@ export const EditCustomerPage = () => {
           {fieldErrors.name && <p className="form-error-text">{fieldErrors.name}</p>}
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-address">Adresse</label>
-          <input id="edit-customer-address" className="form-input" type="text" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={500} />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-zip">Postnummer</label>
-          <NumericInput id="edit-customer-zip" kind="integer" value={zipCode} onChange={setZipCode} placeholder="Indtast postnummer" />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-city">By</label>
-          <input id="edit-customer-city" className="form-input" type="text" value={city} onChange={(e) => setCity(e.target.value)} maxLength={120} />
-        </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-country">Land</label>
-          <input id="edit-customer-country" className="form-input" type="text" value={country} onChange={(e) => setCountry(e.target.value)} maxLength={120} />
+          <label className="form-label">Adresse</label>
+          <AddressAutocomplete
+            value={address}
+            onTextChange={setAddress}
+            onSelectSuggestion={(s: AddressSuggestion) => {
+              setAddress(s.street);
+              setZipCode(s.zipCode);
+              setCity(s.city);
+            }}
+            onClear={() => { setAddress(''); setZipCode(''); setCity(''); }}
+          />
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="edit-customer-email">E-mail</label>

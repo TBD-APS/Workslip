@@ -1,7 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronRight, Mail, MapPin, MoreHorizontal, Phone, Plus, Star, TrendingUp, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronRight, Loader2, Mail, MapPin, MoreHorizontal, Phone, Plus, Star, TrendingUp, Upload, Users } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
@@ -13,6 +14,8 @@ import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useCustomerActions } from '../components/CustomerActions';
 import { getApiCustomersTop, patchApiCustomersIdTop } from '../../jobs/customerApi';
+import { getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
+import { notify } from '../../../lib/toast';
 
 const PAGE_SIZE = 20;
 
@@ -28,6 +31,30 @@ const SkeletonCard = () => (
 
 export const CustomerList = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingImport, setPendingImport] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleImport = async () => {
+    if (!pendingImport) return;
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', pendingImport);
+      const result = await apiClient.post('/api/customers/import', formData) as { imported: number; duplicates: number; skipped: number; failed: number };
+      void queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
+      notify.success(
+        `${result.imported} importeret, ${result.duplicates} dubletter, ${result.skipped} sprunget over, ${result.failed} med fejl.`,
+      );
+      setPendingImport(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch {
+      // Toast handled by axios interceptor.
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   const fetchCustomersPage = useCallback(
     async ({ limit, offset, search, sortBy, sortDirection }: { limit: number; offset: number; search?: string; sortBy?: string; sortDirection?: string }) => {
@@ -83,7 +110,6 @@ export const CustomerList = () => {
     queryFn: () => getApiCustomersTop({ limit: 5 }),
   });
 
-  const queryClient = useQueryClient();
   const toggleTopMutation = useMutation({
     mutationFn: ({ id, isTop }: { id: string; isTop: boolean }) =>
       patchApiCustomersIdTop(id, { isTop }),
@@ -113,10 +139,27 @@ export const CustomerList = () => {
               <p className="subtitle">{totalCount} {totalCount === 1 ? 'kunde' : 'kunder'}</p>
             </div>
             {isDesktop && (
-              <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
-                <Plus size={18} />
-                <span>Ny kunde</span>
-              </button>
+              <div className="flex-row-center gap-sm">
+                <Can permission="customer:edit">
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.csv"
+                      hidden
+                      onChange={(e) => setPendingImport(e.target.files?.[0] ?? null)}
+                    />
+                    <button className="btn btn-secondary" type="button" onClick={() => fileInputRef.current?.click()}>
+                      <Upload size={16} />
+                      <span>Importér</span>
+                    </button>
+                  </>
+                </Can>
+                <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
+                  <Plus size={18} />
+                  <span>Ny kunde</span>
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -158,9 +201,11 @@ export const CustomerList = () => {
             <thead>
               <tr>
                 <th className="col-name">Navn</th>
+                <th className="col-number">Kundenummer</th>
                 <th className="col-address">Adresse</th>
                 <th className="col-email">Email</th>
                 <th className="col-contact">Kontakt</th>
+                <th className="col-phone">Telefon</th>
                 <th className="col-hours">Sager</th>
                 <th className="col-actions" />
               </tr>
@@ -169,8 +214,10 @@ export const CustomerList = () => {
               {Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
                   <td><div className="skeleton skeleton-w-70" /></td>
+                  <td><div className="skeleton skeleton-w-30" /></td>
                   <td><div className="skeleton skeleton-w-60" /></td>
                   <td><div className="skeleton skeleton-w-50" /></td>
+                  <td><div className="skeleton skeleton-w-40" /></td>
                   <td><div className="skeleton skeleton-w-40" /></td>
                   <td><div className="skeleton skeleton-w-2rem" /></td>
                   <td><div className="skeleton skeleton-w-1-5rem" /></td>
@@ -199,32 +246,42 @@ export const CustomerList = () => {
                 </span>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
+              <th className="col-number">
+                <span>Kundenummer</span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
+              </th>
               <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('address')}>
                   Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
               <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('email')}>
                   Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
               </th>
               <th className={`col-contact sortable${sortBy === 'contactPerson' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('contactPerson')}>
                   Kontakt<span className="sort-icon">{sortBy === 'contactPerson' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
+              </th>
+              <th className={`col-phone sortable${sortBy === 'phone' ? ' sorted' : ''}`}>
+                <span className="sort-trigger" onClick={() => handleSort('phone')}>
+                  Telefon<span className="sort-icon">{sortBy === 'phone' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
+                </span>
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
               </th>
               <th className={`col-hours sortable${sortBy === 'jobCount' ? ' sorted' : ''}`}>
                 <span className="sort-trigger" onClick={() => handleSort('jobCount')}>
                   Sager<span className="sort-icon">{sortBy === 'jobCount' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
                 </span>
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
               </th>
               <th className="col-actions">
-                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
+                <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
               </th>
             </tr>
           </thead>
@@ -241,9 +298,11 @@ export const CustomerList = () => {
                     <span>{customer.name}</span>
                   </div>
                 </td>
+                <td>{customer.customerNumber}</td>
                 <td>{customer.address}</td>
                 <td>{customer.email}</td>
                 <td>{customer.contactPerson}</td>
+                <td>{customer.phone}</td>
                 <td className="cell-number">{customer.jobCount}</td>
                 <td className="col-actions">
                   <div className="flex-row-end">
@@ -313,6 +372,9 @@ export const CustomerList = () => {
                 <div className="job-card-top job-card-top-center">
                   <Building2 size={20} className="customer-icon" />
                   <h3 className="customer-name">{customer.name}</h3>
+                  {customer.customerNumber && (
+                    <span className="job-number">{customer.customerNumber}</span>
+                  )}
                 </div>
 
                 <div className="job-card-body">
@@ -412,6 +474,34 @@ export const CustomerList = () => {
       {ActionMenuPortal}
       {EditDialog}
       {DeleteDialog}
+      {pendingImport && (
+        <CustomerImportConfirmDialog
+          file={pendingImport}
+          isImporting={isImporting}
+          onConfirm={() => void handleImport()}
+          onClose={() => setPendingImport(null)}
+        />
+      )}
     </div>
   );
 };
+
+function CustomerImportConfirmDialog({ file, isImporting, onConfirm, onClose }: { file: File; isImporting: boolean; onConfirm: () => void; onClose: () => void }) {
+  return createPortal(
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="customer-import-title">
+      <div className="modal-card">
+        <h3 id="customer-import-title">Godkend kundeimport</h3>
+        <p>Importér kunder fra <strong>{file.name}</strong>?</p>
+        <p className="subtitle">Rækker med eksisterende kundenummer springes over. Importen kan ikke fortrydes samlet.</p>
+        <div className="modal-actions">
+          <button className="btn btn-primary" type="button" onClick={onConfirm} disabled={isImporting}>
+            {isImporting && <Loader2 className="animate-spin" size={16} />}
+            <span>{isImporting ? 'Importerer...' : 'Importér'}</span>
+          </button>
+          <button className="btn btn-secondary" type="button" onClick={onClose} disabled={isImporting}>Annuller</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
