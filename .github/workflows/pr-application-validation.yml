@@ -35,7 +35,29 @@ jobs:
         run: dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-restore --nologo
 
       - name: Test
-        run: dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-build --nologo --logger 'console;verbosity=normal'
+        shell: bash
+        run: |
+          set +e
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --nologo \
+            --logger 'trx;LogFileName=application-tests.trx' \
+            --logger 'console;verbosity=minimal' \
+            > backend-test.log 2>&1
+          status=$?
+          cat backend-test.log
+          exit $status
+
+      - name: Upload backend test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-logs
+          path: |
+            backend-test.log
+            src/BE/WorkslipApi/Workslip.Tests/TestResults/application-tests.trx
+          if-no-files-found: warn
 
   frontend:
     name: Build frontend
@@ -58,4 +80,18 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        shell: bash
+        run: |
+          set +e
+          npm run build > frontend-build.log 2>&1
+          status=$?
+          cat frontend-build.log
+          exit $status
+
+      - name: Upload frontend build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-log
+          path: src/FE/frontend-build.log
+          if-no-files-found: error
