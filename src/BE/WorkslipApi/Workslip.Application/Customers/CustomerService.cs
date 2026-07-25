@@ -97,9 +97,18 @@ public sealed class CustomerService(
 
         var customer = ToCustomerData(request);
         logger.LogInformation("Creating customer {CustomerName} in org {OrgId}", customer.Name, organizationId);
-        var id = await customerRepository.CreateCustomerAsync(organizationId.Value, customer, cancellationToken);
-        var created = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
-        return Result<CustomerDetailResponse>.Success(created!);
+
+        try
+        {
+            var id = await customerRepository.CreateCustomerAsync(organizationId.Value, customer, cancellationToken);
+            var created = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
+            return Result<CustomerDetailResponse>.Success(created!);
+        }
+        catch (CustomerNumberConflictException)
+        {
+            logger.LogWarning("Customer create conflict. CustomerNumber: {CustomerNumber}. OrgId: {OrgId}", customer.CustomerNumber, organizationId);
+            return Result<CustomerDetailResponse>.Conflict("customer_number_exists");
+        }
     }
 
     public async Task<Result<CustomerDetailResponse>> UpdateAsync(Guid id, UpdateCustomerRequest request, CancellationToken cancellationToken)
@@ -127,9 +136,18 @@ public sealed class CustomerService(
 
         var customer = ToCustomerData(request);
         logger.LogInformation("Updating customer {CustomerId} in org {OrgId}", id, organizationId);
-        await customerRepository.UpdateAsync(organizationId.Value, id, customer, cancellationToken);
-        var updated = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
-        return Result<CustomerDetailResponse>.Success(updated!);
+
+        try
+        {
+            await customerRepository.UpdateAsync(organizationId.Value, id, customer, cancellationToken);
+            var updated = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
+            return Result<CustomerDetailResponse>.Success(updated!);
+        }
+        catch (CustomerNumberConflictException)
+        {
+            logger.LogWarning("Customer update conflict. CustomerId: {CustomerId}. CustomerNumber: {CustomerNumber}. OrgId: {OrgId}", id, customer.CustomerNumber, organizationId);
+            return Result<CustomerDetailResponse>.Conflict("customer_number_exists");
+        }
     }
 
     public async Task<Result> SetTopAsync(Guid id, bool isTop, CancellationToken cancellationToken)
@@ -239,17 +257,18 @@ public sealed class CustomerService(
             validCustomers.Add(ToCustomerData(request));
         }
 
-        var imported = validCustomers.Count == 0
-            ? 0
+        var bulkResult = validCustomers.Count == 0
+            ? new CustomerBulkCreateResult(0, new HashSet<string>(StringComparer.OrdinalIgnoreCase))
             : await customerRepository.BulkCreateAsync(organizationId.Value, validCustomers, cancellationToken);
+        duplicates += bulkResult.ConflictingCustomerNumbers.Count;
 
         var failed = errors.Select(x => x.RowNumber).Distinct().Count();
         logger.LogInformation(
             "Customer import completed for org {OrgId}: {Imported} imported, {Duplicates} duplicates, {Failed} failed",
-            organizationId, imported, duplicates, failed);
+            organizationId, bulkResult.Imported, duplicates, failed);
 
         return Result<ImportCustomerResponse>.Success(new ImportCustomerResponse(
-            imported,
+            bulkResult.Imported,
             duplicates,
             0,
             failed,
