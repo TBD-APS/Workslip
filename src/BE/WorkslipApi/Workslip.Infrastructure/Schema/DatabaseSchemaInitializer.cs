@@ -51,6 +51,17 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
                 ALTER TABLE [dbo].[Customers] ADD [Country] nvarchar(120) NULL;
             ELSE IF COL_LENGTH(N'dbo.Customers', N'Country') = -1
                 ALTER TABLE [dbo].[Customers] ALTER COLUMN [Country] nvarchar(120) NULL;
+
+            IF NOT EXISTS (
+                SELECT 1
+                FROM sys.indexes
+                WHERE [name] = N'UX_Customers_Organization_CustomerNumber'
+                  AND [object_id] = OBJECT_ID(N'dbo.Customers'))
+            BEGIN
+                CREATE UNIQUE INDEX [UX_Customers_Organization_CustomerNumber]
+                    ON [dbo].[Customers] ([OrganizationId], [CustomerNumber])
+                    WHERE [CustomerNumber] IS NOT NULL;
+            END
             """, cancellationToken);
     }
 }
