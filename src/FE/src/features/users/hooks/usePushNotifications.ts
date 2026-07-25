@@ -25,7 +25,7 @@ export function usePushNotifications() {
 
   const register = useCallback(async () => {
     if (!VAPID_PUBLIC_KEY_ARRAY) {
-      console.error('VAPID_PUBLIC_KEY is not defined or invalid in environment variables.');
+      console.warn('Push notifications are disabled because VITE_VAPID_PUBLIC_KEY is not configured.');
       return;
     }
 
