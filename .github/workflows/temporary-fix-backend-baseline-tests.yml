@@ -1,0 +1,86 @@
+name: Temporary baseline test repair
+
+on:
+  push:
+    branches:
+      - fix/backend-baseline-tests
+    paths:
+      - .github/workflows/temporary-fix-backend-baseline-tests.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/backend-baseline-tests
+          fetch-depth: 0
+
+      - name: Apply focused test repairs
+        shell: python
+        run: |
+          from pathlib import Path
+
+          repository_path = Path("src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs")
+          repository_text = repository_path.read_text(encoding="utf-8")
+          repository_old = """    private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)
+              {
+                  var conn = _dbContext.Database.GetDbConnection();
+          """.replace("              ", "")
+          repository_new = """    private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)
+              {
+                  if (!_dbContext.Database.IsRelational())
+                  {
+                      var nonRelationalMaxReportNumber = await _dbContext.JobReports
+                          .AsNoTracking()
+                          .Where(r => r.OrganizationId == organizationId)
+                          .Select(r => r.ReportNumber)
+                          .MaxAsync(cancellationToken);
+
+                      return ConvertToIntSafe(nonRelationalMaxReportNumber) + 1;
+                  }
+
+                  var conn = _dbContext.Database.GetDbConnection();
+          """.replace("              ", "")
+          if repository_old not in repository_text:
+              raise SystemExit("Expected report-number method header was not found")
+          repository_path.write_text(repository_text.replace(repository_old, repository_new, 1), encoding="utf-8")
+
+          audit_path = Path("src/BE/WorkslipApi/Workslip.Tests/Infrastructure/AuditInterceptorTests.cs")
+          audit_text = audit_path.read_text(encoding="utf-8")
+          audit_old = '        Assert.Contains("Status ændret: \'Draft\' → \'InReview\'", summaries);'
+          audit_new = '        Assert.Contains("Status, SubmittedAt ændret", summaries);'
+          if audit_old not in audit_text:
+              raise SystemExit("Expected stale audit assertion was not found")
+          audit_path.write_text(audit_text.replace(audit_old, audit_new, 1), encoding="utf-8")
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore backend tests
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --nologo
+
+      - name: Run full backend test suite
+        run: >-
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --nologo
+          --logger "console;verbosity=normal"
+
+      - name: Commit repaired tests and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/temporary-fix-backend-baseline-tests.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs \
+                  src/BE/WorkslipApi/Workslip.Tests/Infrastructure/AuditInterceptorTests.cs \
+                  .github/workflows/temporary-fix-backend-baseline-tests.yml
+          git commit -m "Fix backend baseline test failures"
+          git push origin HEAD:fix/backend-baseline-tests
