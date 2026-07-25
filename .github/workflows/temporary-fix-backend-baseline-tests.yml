@@ -27,12 +27,13 @@ jobs:
 
           repository_path = Path("src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs")
           repository_text = repository_path.read_text(encoding="utf-8")
-          repository_old = (
+
+          report_number_old = (
               "    private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)\n"
               "    {\n"
               "        var conn = _dbContext.Database.GetDbConnection();\n"
           )
-          repository_new = (
+          report_number_new = (
               "    private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)\n"
               "    {\n"
               "        if (!_dbContext.Database.IsRelational())\n"
@@ -48,17 +49,69 @@ jobs:
               "\n"
               "        var conn = _dbContext.Database.GetDbConnection();\n"
           )
-          if repository_old not in repository_text:
+          if report_number_old not in repository_text:
               raise SystemExit("Expected report-number method header was not found")
-          repository_path.write_text(repository_text.replace(repository_old, repository_new, 1), encoding="utf-8")
+          repository_text = repository_text.replace(report_number_old, report_number_new, 1)
+
+          customer_selection_old = (
+              "        Guid? customerId = null;\n"
+              "        if (customerSnapshot is not null && (request.CustomerId is null || request.CreateCustomerFromSnapshot == true))\n"
+          )
+          customer_selection_new = (
+              "        Guid? customerId = request.CustomerId;\n"
+              "        if (customerSnapshot is not null && request.CreateCustomerFromSnapshot == true)\n"
+          )
+          if customer_selection_old not in repository_text:
+              raise SystemExit("Expected customer-selection logic was not found")
+          repository_text = repository_text.replace(customer_selection_old, customer_selection_new, 1)
+          repository_path.write_text(repository_text, encoding="utf-8")
+
+          snapshot_test_path = Path("src/BE/WorkslipApi/Workslip.Tests/Infrastructure/JobCustomerSnapshotTests.cs")
+          snapshot_test_text = snapshot_test_path.read_text(encoding="utf-8")
+          unused_customer_info = (
+              "        var customerInfo = new CustomerInfo(\n"
+              "            CustomerId: null,\n"
+              "            Name: \"Master Name\",\n"
+              "            Address: \"Master Address\",\n"
+              "            Email: \"master@test.com\",\n"
+              "            ContactPerson: null,\n"
+              "            Phone: \"00000000\");\n"
+              "\n"
+          )
+          if unused_customer_info not in snapshot_test_text:
+              raise SystemExit("Expected unused customer fixture was not found")
+          snapshot_test_text = snapshot_test_text.replace(unused_customer_info, "", 1)
+
+          stale_master_assertions = (
+              "        // Master customer was still created and preserved\n"
+              "        var master = await context.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Name == \"Master Name\");\n"
+              "        Assert.NotNull(master);\n"
+              "        Assert.Equal(\"master@test.com\", master.Email);\n"
+              "        Assert.Equal(\"00000000\", master.Phone);\n"
+          )
+          current_master_assertions = (
+              "        // The created master uses the same snapshot values, including explicit nulls.\n"
+              "        var master = await context.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Name == \"Snapshot Override\");\n"
+              "        Assert.NotNull(master);\n"
+              "        Assert.Null(master.Email);\n"
+              "        Assert.Null(master.Phone);\n"
+              "        Assert.Null(master.Address);\n"
+          )
+          if stale_master_assertions not in snapshot_test_text:
+              raise SystemExit("Expected stale master-customer assertions were not found")
+          snapshot_test_path.write_text(
+              snapshot_test_text.replace(stale_master_assertions, current_master_assertions, 1),
+              encoding="utf-8")
 
           audit_path = Path("src/BE/WorkslipApi/Workslip.Tests/Infrastructure/AuditInterceptorTests.cs")
           audit_text = audit_path.read_text(encoding="utf-8")
           audit_old = "        Assert.Contains(\"Status ændret: 'Draft' → 'InReview'\", summaries);"
           audit_new = "        Assert.Contains(\"Status, SubmittedAt ændret\", summaries);"
-          if audit_old not in audit_text:
+          last_occurrence = audit_text.rfind(audit_old)
+          if last_occurrence < 0:
               raise SystemExit("Expected stale audit assertion was not found")
-          audit_path.write_text(audit_text.replace(audit_old, audit_new, 1), encoding="utf-8")
+          audit_text = audit_text[:last_occurrence] + audit_new + audit_text[last_occurrence + len(audit_old):]
+          audit_path.write_text(audit_text, encoding="utf-8")
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -103,6 +156,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs \
+                  src/BE/WorkslipApi/Workslip.Tests/Infrastructure/JobCustomerSnapshotTests.cs \
                   src/BE/WorkslipApi/Workslip.Tests/Infrastructure/AuditInterceptorTests.cs \
                   .github/workflows/temporary-fix-backend-baseline-tests.yml
           git commit -m "Fix backend baseline test failures"
