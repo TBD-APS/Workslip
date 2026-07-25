@@ -1,5 +1,8 @@
+using System.Globalization;
 using AutoBogus;
 using Bogus;
+using CsvHelper;
+using CsvHelper.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Workslip.Domain;
 using Workslip.Domain.Models;
@@ -95,22 +98,13 @@ public static class DatabaseSeeder
             new() { Id = Guid.NewGuid(), NormalizedLabel = "ReadyForInvoice", Label = "Klar til faktura", IsExclusive = false, IsActive = true, SortOrder = 3, UpdatedAt = now }
         };
 
-        var customers = new Faker<CustomerRow>()
-            .RuleFor(x => x.Id, _ => Guid.NewGuid())
-            .RuleFor(x => x.OrganizationId, _ => organization.Id)
-            .RuleFor(x => x.Name, f => f.Company.CompanyName())
-            .RuleFor(x => x.Address, f => f.Address.FullAddress())
-            .RuleFor(x => x.Email, f => f.Internet.Email())
-            .RuleFor(x => x.ContactPerson, f => f.Name.FullName())
-            .RuleFor(x => x.Phone, f => f.Phone.PhoneNumber("########"))
-            .RuleFor(x => x.IsTop, f => f.IndexFaker < 5)
-            .RuleFor(x => x.CreatedAt, _ => now)
-            .RuleFor(x => x.UpdatedAt, _ => now)
-            .Generate(50);
+        var customers = LoadCustomersFromCsv(organization.Id, now);
 
         var users = CreateDevelopmentUsers(organization.Id, now);
 
         var statuses = new[] { JobStatus.Draft, JobStatus.InReview, JobStatus.Approved, JobStatus.Rejected };
+
+        var danishAddress = new Faker("nb_NO").Address;
 
         var jobs = new Faker<JobReportRow>()
             .CustomInstantiator(f =>
@@ -129,9 +123,9 @@ public static class DatabaseSeeder
                     JobType = JobType.KLS,
                     CustomerAddress = customer.Address,
                     CustomerContactPerson = customer.ContactPerson,
-                    DestinationAddress = f.Address.FullAddress(),
-                    DestinationZipCode = f.Address.ZipCode(),
-                    DestinationCity = f.Address.City(),
+                    DestinationAddress = danishAddress.FullAddress(),
+                    DestinationZipCode = danishAddress.ZipCode(),
+                    DestinationCity = danishAddress.City(),
                     CustomerName = customer.Name,
                     CustomerPhone = customer.Phone,
                     ReportNumber = formattedReportNumber,
@@ -519,6 +513,94 @@ public static class DatabaseSeeder
 
         db.JobReportClosureFlags.RemoveRange(invalidSelections);
         await db.SaveChangesAsync();
+    }
+
+    private static List<CustomerRow> LoadCustomersFromCsv(Guid organizationId, DateTimeOffset now)
+    {
+        var seedFilePath = Path.Combine(AppContext.BaseDirectory, "customerdata.csv");
+
+        var topCustomerNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Add customer numbers (Nr.) here to mark as top customers.
+            // Example: "28405769", "830",
+        };
+
+        using var reader = new StreamReader(seedFilePath);
+        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            Delimiter = ";",
+            HasHeaderRecord = true,
+            HeaderValidated = null,
+            MissingFieldFound = null,
+            PrepareHeaderForMatch = args => args.Header.Trim(),
+        });
+
+        csv.Context.RegisterClassMap<CsvCustomerMap>();
+
+        var records = csv.GetRecords<CsvCustomerRow>().ToList();
+        var customers = new List<CustomerRow>(records.Count);
+
+        foreach (var record in records)
+        {
+            var name = record.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            var nr = record.Nr?.Trim();
+
+            customers.Add(new CustomerRow
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                CustomerNumber = nr,
+                Name = name,
+                Address = record.Adresse1?.Trim(),
+                ZipCode = record.Postnr?.Trim(),
+                City = record.By?.Trim(),
+                Country = record.Land?.Trim(),
+                Email = record.Email?.Trim(),
+                ContactPerson = record.Attention?.Trim(),
+                Phone = record.TelefonFax?.Trim(),
+                IsTop = nr is not null && topCustomerNumbers.Contains(nr),
+                CreatedAt = now,
+                UpdatedAt = now,
+            });
+        }
+
+        return customers;
+    }
+
+    private sealed class CsvCustomerRow
+    {
+        public string? Gruppe { get; set; }
+        public string? Nr { get; set; }
+        public string? Name { get; set; }
+        public string? Adresse1 { get; set; }
+        public string? Postnr { get; set; }
+        public string? By { get; set; }
+        public string? Land { get; set; }
+        public string? TelefonFax { get; set; }
+        public string? Attention { get; set; }
+        public string? DeresRef { get; set; }
+        public string? Email { get; set; }
+    }
+
+    private sealed class CsvCustomerMap : ClassMap<CsvCustomerRow>
+    {
+        public CsvCustomerMap()
+        {
+            Map(m => m.Gruppe).Name("Gruppe");
+            Map(m => m.Nr).Name("Nr.");
+            Map(m => m.Name).Name("Navn");
+            Map(m => m.Adresse1).Name("Adresse 1");
+            Map(m => m.Postnr).Name("Postnr.");
+            Map(m => m.By).Name("By");
+            Map(m => m.Land).Name("Land");
+            Map(m => m.TelefonFax).Name("Telfon/fax");
+            Map(m => m.Attention).Name("Attention");
+            Map(m => m.DeresRef).Name("Deres ref.");
+            Map(m => m.Email).Name("E-mail");
+        }
     }
 
     private sealed record DevelopmentUserDefinition(
