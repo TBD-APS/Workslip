@@ -1,0 +1,259 @@
+name: Full Stack Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/BE/WorkslipApi/**'
+      - 'src/FE/**'
+      - 'tests/full-stack/**'
+      - '.github/workflows/full-stack-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-stack-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  API_URL: http://127.0.0.1:5262
+  FRONTEND_URL: http://127.0.0.1:5270
+  SQL_PASSWORD: Workslip_CI_2026_Strong!
+  SQL_CONNECTION: Server=127.0.0.1,1433;Database=workslip_ci;User Id=sa;Password=Workslip_CI_2026_Strong!;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True
+
+jobs:
+  isolated-stack:
+    name: SQL, API, Postman and Selenium
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: Workslip_CI_2026_Strong!
+        ports:
+          - 1433:1433
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Prepare artifact directory
+        run: mkdir -p artifacts/selenium
+
+      - name: Wait for SQL Server
+        env:
+          SQL_CONTAINER_ID: ${{ job.services.sqlserver.id }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if docker logs "$SQL_CONTAINER_ID" 2>&1 | grep -q 'SQL Server is now ready for client connections'; then
+              echo "SQL Server is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs "$SQL_CONTAINER_ID"
+          echo "::error::SQL Server did not become ready."
+          exit 1
+
+      - name: Restore and build API
+        run: |
+          dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
+          dotnet build src/BE/WorkslipApi/Workslip.Api.csproj --configuration Release --no-restore --nologo
+
+      - name: Install frontend dependencies and build
+        working-directory: src/FE
+        env:
+          VITE_API_BASE_URL: ${{ env.API_URL }}
+          VITE_ENABLE_DEV_LOGIN: 'true'
+        run: |
+          npm ci
+          npm run build
+
+      - name: Start isolated API
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: ${{ env.API_URL }}
+          Azure__Sql__ConnectionString: ${{ env.SQL_CONNECTION }}
+          Jwt__Issuer: workslip-ci
+          Jwt__Audience: workslip-ci
+          Jwt__SigningKey: Workslip_CI_signing_key_2026_with_more_than_32_chars
+          Azure__AdOAuth__Instance: https://login.microsoftonline.com/
+          Azure__AdOAuth__TenantId: common
+          Azure__AdOAuth__ClientId: 00000000-0000-0000-0000-000000000001
+          Cors__AllowedOrigins__0: ${{ env.FRONTEND_URL }}
+        run: |
+          set -euo pipefail
+          dotnet run \
+            --project src/BE/WorkslipApi/Workslip.Api.csproj \
+            --configuration Release \
+            --no-build \
+            > artifacts/api.log 2>&1 &
+          echo $! > artifacts/api.pid
+
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail "$API_URL/health" > /dev/null; then
+              echo "API is ready."
+              exit 0
+            fi
+            if ! kill -0 "$(cat artifacts/api.pid)" 2>/dev/null; then
+              cat artifacts/api.log
+              echo "::error::API process exited before health check passed."
+              exit 1
+            fi
+            sleep 2
+          done
+
+          cat artifacts/api.log
+          echo "::error::API did not become healthy."
+          exit 1
+
+      - name: Bootstrap isolated organization
+        run: |
+          set -euo pipefail
+
+          seed_token_json=$(curl --fail-with-body --silent \
+            -H 'Content-Type: application/json' \
+            --data '{"email":"admin@17v3ygzs.mailosaur.net"}' \
+            "$API_URL/api/dev/token")
+          seed_token=$(jq -er '.token' <<< "$seed_token_json")
+
+          checksum=$(printf '%s' "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" | cksum | awk '{print $1}')
+          cvr=$(printf '%08d' "$((checksum % 100000000))")
+          email="workslip-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.test"
+          idempotency_key="ci-organization-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          organization_json=$(jq -n \
+            --arg name "Workslip CI ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --arg cvr "$cvr" \
+            --arg email "$email" \
+            '{name:$name,cvr:$cvr,adminDisplayName:"Cloud Test Admin",adminEmail:$email,adminPhone:"12345678"}')
+
+          onboarding=$(curl --fail-with-body --silent \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer $seed_token" \
+            -H "Idempotency-Key: $idempotency_key" \
+            --data "$organization_json" \
+            "$API_URL/api/organizations/")
+
+          organization_id=$(jq -er '.organization.id' <<< "$onboarding")
+          user_id=$(jq -er '.user.id' <<< "$onboarding")
+
+          test_token_json=$(curl --fail-with-body --silent \
+            -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg email "$email" '{email:$email}')" \
+            "$API_URL/api/dev/token")
+          auth_token=$(jq -er '.token' <<< "$test_token_json")
+
+          {
+            echo "WORKSLIP_TEST_EMAIL=$email"
+            echo "WORKSLIP_TEST_CVR=$cvr"
+            echo "WORKSLIP_ORGANIZATION_ID=$organization_id"
+            echo "WORKSLIP_USER_ID=$user_id"
+            echo "WORKSLIP_AUTH_TOKEN=$auth_token"
+          } >> "$GITHUB_ENV"
+
+          echo "Created isolated organization $organization_id with user $user_id."
+
+      - name: Build CI-safe Postman collection
+        run: |
+          node tests/full-stack/build-ci-postman-collection.mjs \
+            src/BE/WorkslipApi/Postman/postman_collection.json \
+            artifacts/postman-ci-collection.json \
+            | tee artifacts/postman-selection.log
+
+      - name: Run Postman endpoint suite
+        run: |
+          set -euo pipefail
+          npx --yes newman run artifacts/postman-ci-collection.json \
+            --environment src/BE/WorkslipApi/Postman/workslip.integration.postman_environment.json \
+            --env-var "baseUrl=$API_URL" \
+            --env-var "authToken=$WORKSLIP_AUTH_TOKEN" \
+            --env-var "testEmail=$WORKSLIP_TEST_EMAIL" \
+            --env-var "organizationCvr=$WORKSLIP_TEST_CVR" \
+            --env-var "organizationId=$WORKSLIP_ORGANIZATION_ID" \
+            --env-var "userId=$WORKSLIP_USER_ID" \
+            --env-var "actorId=$WORKSLIP_USER_ID" \
+            --env-var "creatorUserId=$WORKSLIP_USER_ID" \
+            --reporters cli,junit \
+            --reporter-junit-export artifacts/newman-results.xml \
+            --timeout-request 30000 \
+            --bail
+
+      - name: Start isolated frontend
+        working-directory: src/FE
+        env:
+          VITE_API_BASE_URL: ${{ env.API_URL }}
+          VITE_ENABLE_DEV_LOGIN: 'true'
+        run: |
+          set -euo pipefail
+          npm run dev -- --host 127.0.0.1 --port 5270 > ../../artifacts/frontend.log 2>&1 &
+          echo $! > ../../artifacts/frontend.pid
+
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail "$FRONTEND_URL/login" > /dev/null; then
+              echo "Frontend is ready."
+              exit 0
+            fi
+            if ! kill -0 "$(cat ../../artifacts/frontend.pid)" 2>/dev/null; then
+              cat ../../artifacts/frontend.log
+              echo "::error::Frontend process exited before it became ready."
+              exit 1
+            fi
+            sleep 2
+          done
+
+          cat ../../artifacts/frontend.log
+          echo "::error::Frontend did not become ready."
+          exit 1
+
+      - name: Install Selenium
+        run: python -m pip install --disable-pip-version-check selenium
+
+      - name: Run Selenium smoke tests
+        run: python tests/full-stack/selenium_smoke.py --base-url "$FRONTEND_URL" --artifacts artifacts/selenium
+
+      - name: Upload full-stack evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-stack-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/api.log
+            artifacts/frontend.log
+            artifacts/postman-selection.log
+            artifacts/postman-ci-collection.json
+            artifacts/newman-results.xml
+            artifacts/selenium/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop local processes
+        if: always()
+        run: |
+          if [ -f artifacts/frontend.pid ]; then kill "$(cat artifacts/frontend.pid)" 2>/dev/null || true; fi
+          if [ -f artifacts/api.pid ]; then kill "$(cat artifacts/api.pid)" 2>/dev/null || true; fi
