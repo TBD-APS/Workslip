@@ -52,62 +52,65 @@ public static class CustomerEndpoints
 
         adminGroup.MapPost("/", async (CreateCustomerRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotentMutationService idempotency, ICustomerService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             var execution = await idempotency.ExecuteAsync($"customers.create:{currentUser.OrganizationId}:{currentUser.UserId}", key, request, () => service.CreateAsync(request, cancellationToken), CustomerViewModelBuilder.ToDetail, cancellationToken);
-            
-            if (execution.IsReplay) 
-            return Results.Content(execution.ReplayJson!, "application/json", System.Text.Encoding.UTF8, execution.ReplayStatusCode!.Value);
-            
+
+            if (execution.IsReplay)
+                return Results.Content(execution.ReplayJson!, "application/json", System.Text.Encoding.UTF8, execution.ReplayStatusCode!.Value);
+
             if (execution.Conflict)
-             return Results.Conflict(new { error = "idempotency_key_reused_with_different_request" });
-            
-            if (execution.InProgress) return Results.Conflict(new { error = "request_with_idempotency_key_in_progress" });
-                return ResultExtensions.ToHttpResult(execution.Result!, CustomerViewModelBuilder.ToDetail);
-        
+                return Results.Conflict(new { error = "idempotency_key_reused_with_different_request" });
+
+            if (execution.InProgress)
+                return Results.Conflict(new { error = "request_with_idempotency_key_in_progress" });
+
+            return ResultExtensions.ToHttpResult(execution.Result!, CustomerViewModelBuilder.ToDetail);
         }).Produces<CustomerDetailViewModel>();
 
-        adminGroup.MapPut("/{id:guid}", async (Guid id, UpdateCustomerRequest request, ICustomerService service, CancellationToken cancellationToken) =>
+        adminGroup.MapPut("/{id:guid}", async (Guid id, UpdateCustomerRequest request, HttpContext httpContext, ICustomerService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, customer => CustomerViewModelBuilder.ToDetail(customer));
         }).Produces<CustomerDetailViewModel>();
 
-        adminGroup.MapPatch("/{id:guid}/top", async (Guid id, [FromBody] SetTopRequest request, ICustomerService service, CancellationToken cancellationToken) =>
+        adminGroup.MapPatch("/{id:guid}/top", async (Guid id, [FromBody] SetTopRequest request, HttpContext httpContext, ICustomerService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.SetTopAsync(id, request.IsTop, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
         });
 
-        adminGroup.MapDelete("/{id:guid}", async (Guid id, ICustomerService service, CancellationToken cancellationToken) =>
+        adminGroup.MapDelete("/{id:guid}", async (Guid id, HttpContext httpContext, ICustomerService service, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.DeleteAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
+            return result.IsSuccess
+                ? Results.NoContent()
+                : ResultExtensions.ToHttpResult(result);
         });
 
         adminGroup.MapPost("/import", async (
             IFormFile file,
+            HttpContext httpContext,
             ICustomerService service,
             ILoggerFactory loggerFactory,
             CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var logger = loggerFactory.CreateLogger("CustomerImport");
 
             if (file is null or { Length: 0 })
-            {
                 return Results.BadRequest(new { error = "No file uploaded." });
-            }
 
             if (file.Length > MaxUploadSize)
-            {
                 return Results.BadRequest(new { error = $"File too large. Maximum size is {MaxUploadSize / 1024 / 1024} MB." });
-            }
 
             if (!CustomerCsvParser.HasAllowedExtension(file.FileName) &&
                 !CustomerCsvParser.IsAllowedContentType(file.ContentType))
-            {
                 return Results.BadRequest(new { error = "Only .csv files are accepted." });
-            }
 
             IReadOnlyList<Application.Jobs.CustomerInfo> customers;
             int skipped;
