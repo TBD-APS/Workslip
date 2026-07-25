@@ -12,12 +12,7 @@ public sealed class CustomerImportServiceTests
     public async Task Import_skips_existing_and_file_duplicate_customer_numbers()
     {
         var repository = new FakeCustomerRepository(["200"]);
-        var service = new CustomerService(
-            repository,
-            new FakeCurrentUserContext(),
-            new CreateCustomerRequestValidator(),
-            new UpdateCustomerRequestValidator(),
-            NullLogger<CustomerService>.Instance);
+        var service = CreateService(repository);
         var rows = new[]
         {
             Row(2, "100", "First"),
@@ -37,6 +32,33 @@ public sealed class CustomerImportServiceTests
             customer => Assert.Null(customer.CustomerNumber));
     }
 
+    [Fact]
+    public async Task Import_reports_customer_number_that_conflicts_during_insert()
+    {
+        var repository = new FakeCustomerRepository([], ["300"]);
+        var service = CreateService(repository);
+        var rows = new[]
+        {
+            Row(2, "300", "Concurrent duplicate"),
+            Row(3, "400", "Imported")
+        };
+
+        var result = await service.ImportAsync(rows, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Value.Imported);
+        Assert.Equal(1, result.Value.Duplicates);
+        Assert.Single(repository.Imported);
+        Assert.Equal("400", repository.Imported[0].CustomerNumber);
+    }
+
+    private static CustomerService CreateService(ICustomerRepository repository) => new(
+        repository,
+        new FakeCurrentUserContext(),
+        new CreateCustomerRequestValidator(),
+        new UpdateCustomerRequestValidator(),
+        NullLogger<CustomerService>.Instance);
+
     private static ImportCustomerRow Row(int rowNumber, string? number, string name) =>
         new(rowNumber, number, name, null, null, null, null, null, null, null);
 
@@ -47,18 +69,23 @@ public sealed class CustomerImportServiceTests
         public string? Role { get; } = "Admin";
     }
 
-    private sealed class FakeCustomerRepository(IEnumerable<string> existingNumbers) : ICustomerRepository
+    private sealed class FakeCustomerRepository(
+        IEnumerable<string> existingNumbers,
+        IEnumerable<string>? conflictingNumbers = null) : ICustomerRepository
     {
         private readonly HashSet<string> _existingNumbers = existingNumbers.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _conflictingNumbers = (conflictingNumbers ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
         public IReadOnlyList<CustomerData> Imported { get; private set; } = [];
 
         public Task<IReadOnlySet<string>> GetExistingCustomerNumbersAsync(Guid organizationId, IReadOnlyCollection<string> customerNumbers, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlySet<string>>(customerNumbers.Where(_existingNumbers.Contains).ToHashSet(StringComparer.OrdinalIgnoreCase));
 
-        public Task<int> BulkCreateAsync(Guid organizationId, IReadOnlyList<CustomerData> customers, CancellationToken cancellationToken)
+        public Task<CustomerBulkCreateResult> BulkCreateAsync(Guid organizationId, IReadOnlyList<CustomerData> customers, CancellationToken cancellationToken)
         {
-            Imported = customers;
-            return Task.FromResult(customers.Count);
+            Imported = customers
+                .Where(customer => customer.CustomerNumber is null || !_conflictingNumbers.Contains(customer.CustomerNumber))
+                .ToArray();
+            return Task.FromResult(new CustomerBulkCreateResult(Imported.Count, _conflictingNumbers));
         }
 
         public Task<Guid> CreateCustomerAsync(Guid organizationId, CustomerData customer, CancellationToken cancellationToken) => throw new NotImplementedException();
