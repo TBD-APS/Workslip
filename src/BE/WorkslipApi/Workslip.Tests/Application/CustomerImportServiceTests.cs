@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Workslip.Application.Auth;
 using Workslip.Application.Customers;
 using Workslip.Application.Customers.Validators;
+using Xunit;
 
 namespace Workslip.Tests.Application;
 
