@@ -11,8 +11,9 @@ public static class UserEndpoints
     {
         var group = app.MapAdminGroup("/api/users", "users");
 
-        group.MapPost("/", async (CreateUserRequest request, IUserService service, CancellationToken cancellationToken) =>
+        group.MapPost("/", async (CreateUserRequest request, IUserService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.CreateAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
         }).Produces<UserViewModel>();
@@ -30,14 +31,16 @@ public static class UserEndpoints
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUserList);
         }).Produces<UserListViewModel>();
 
-        group.MapPatch("/{id}", async (Guid id, UpdateUserRequest request, IUserService service, CancellationToken cancellationToken) =>
+        group.MapPatch("/{id}", async (Guid id, UpdateUserRequest request, IUserService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
-        }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireUser); 
+        }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireUser);
 
-        group.MapDelete("/{id}", async (Guid id, IUserService service, CancellationToken cancellationToken) =>
+        group.MapDelete("/{id}", async (Guid id, IUserService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.DeleteAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
         });
