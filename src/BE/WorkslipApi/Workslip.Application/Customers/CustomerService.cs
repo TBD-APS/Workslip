@@ -243,15 +243,16 @@ public sealed class CustomerService(
             ? 0
             : await customerRepository.BulkCreateAsync(organizationId.Value, validCustomers, cancellationToken);
 
+        var failed = errors.Select(x => x.RowNumber).Distinct().Count();
         logger.LogInformation(
             "Customer import completed for org {OrgId}: {Imported} imported, {Duplicates} duplicates, {Failed} failed",
-            organizationId, imported, duplicates, errors.Count);
+            organizationId, imported, duplicates, failed);
 
         return Result<ImportCustomerResponse>.Success(new ImportCustomerResponse(
             imported,
             duplicates,
             0,
-            errors.Select(x => x.RowNumber).Distinct().Count(),
+            failed,
             errors));
     }
 
