@@ -2266,7 +2266,7 @@ public sealed class AuditInterceptorTests
             .ToListAsync();
 
         Assert.Equal(4, summaries.Count);
-        Assert.Contains("Status ændret: 'Draft' → 'InReview'", summaries);
+        Assert.Contains("Status, SubmittedAt ændret", summaries);
         Assert.Contains("TaskDescription ændret: '(tom)' → 'Efter review'", summaries);
         Assert.Contains("Installationstype Gasinstallation tilføjet", summaries);
         Assert.Contains("Afslutning af sag Færdigmeldt tilføjet", summaries);
