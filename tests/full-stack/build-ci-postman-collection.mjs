@@ -77,10 +77,6 @@ function setTests(item, lines) {
   testEvent(item).script = { type: 'text/javascript', exec: lines };
 }
 
-function appendTests(item, lines) {
-  testEvent(item).script.exec.push(...lines);
-}
-
 function addIdempotencyHeader(item) {
   const method = String(item.request?.method ?? '').toUpperCase();
   const url = rawUrl(item.request);
@@ -92,30 +88,11 @@ function addIdempotencyHeader(item) {
   if (requiresKey) setHeader(item.request, 'Idempotency-Key', 'ci-{{$guid}}');
 }
 
-function patchReferenceData(item) {
-  appendTests(item, [
-    'const ciReferenceData = pm.response.json();',
-    'const ciInstallation = ciReferenceData.installationTypes.find(type =>',
-    '  Array.isArray(type.categories) && type.categories.some(category => Array.isArray(category.controlPoints) && category.controlPoints.length > 0));',
-    "pm.test('reference data can seed job selections', function () { pm.expect(ciInstallation).to.exist; });",
-    'if (ciInstallation) {',
-    '  const ciCategory = ciInstallation.categories.find(category => Array.isArray(category.controlPoints) && category.controlPoints.length > 0);',
-    "  pm.collectionVariables.set('vandInstallationId', ciInstallation.id);",
-    "  pm.collectionVariables.set('vandCategoryId', ciCategory.id);",
-    "  pm.collectionVariables.set('vandControlPointId', ciCategory.controlPoints[0].id);",
-    '}',
-  ]);
-}
-
 function patchRequest(item, fullName) {
   const method = String(item.request?.method ?? '').toUpperCase();
   const url = rawUrl(item.request);
   normalizeUrl(item.request);
   addIdempotencyHeader(item);
-
-  if (fullName === 'Reference Data / /api/reference-data' && method === 'GET') {
-    patchReferenceData(item);
-  }
 
   if (fullName === 'Customers / /api/customers' && method === 'GET') {
     setTests(item, [
@@ -252,12 +229,29 @@ function prepareCustomers(folder) {
   folder.item.sort((left, right) => rank(left) - rank(right));
 }
 
+function makeJobCreateWithoutReferenceSelections(item) {
+  const body = JSON.parse(item.request.body.raw);
+  body.work = null;
+  item.request.body.raw = JSON.stringify(body, null, 2);
+  setTests(item, [
+    "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+    'const json = pm.response.json();',
+    "pm.test('job has id', function () { pm.expect(json.id).to.be.a('string').and.not.empty; });",
+    "pm.test('job summary hides internal timestamps', function () { ['createdAt', 'updatedAt', 'submittedAt', 'deletionScheduledAt'].forEach(field => pm.expect(json).to.not.have.property(field)); });",
+    "pm.test('job is active draft', function () { pm.expect(json.softDeleted).to.eql(false); });",
+    "pm.test('customer email echoed', function () { pm.expect(json.customer.email).to.eql(pm.variables.get('customerEmail')); });",
+    "pm.test('creator auto-assigned', function () { pm.expect(json.assignedUsers.map(user => user.id)).to.include(pm.variables.get('creatorUserId')); });",
+    "pm.collectionVariables.set('jobId', json.id);",
+  ]);
+}
+
 function prepareJobs(folder) {
   const create = folder.item.find(item => item.name === '/api/jobs' && item.request?.method === 'POST');
   if (create) {
+    makeJobCreateWithoutReferenceSelections(create);
     const target = clone(create);
     target.name = '/api/jobs target for links';
-    target.request.description = 'Creates a second isolated job used by link tests.';
+    target.request.description = 'Creates a second isolated draft job used by link tests.';
     target.request.body.raw = target.request.body.raw.replace('{{reportNumber}}', '{{targetReportNumber}}');
     setHeader(target.request, 'Idempotency-Key', 'ci-target-{{$guid}}');
     setTests(target, [
@@ -293,8 +287,13 @@ function prepareJobs(folder) {
   }
 
   const cleanup = [];
+  const deferred = [];
   folder.item = folder.item.filter(item => {
     const method = String(item.request?.method ?? '').toUpperCase();
+    if (method === 'POST' && item.name === '/api/jobs/{id}/status') {
+      deferred.push(item);
+      return false;
+    }
     if (method === 'DELETE' && item.name === '/api/jobs/{id}') {
       cleanup.push(item);
       return false;
@@ -320,24 +319,29 @@ function prepareJobs(folder) {
     if (name.includes('/report/pdf')) return 8;
     if (name.includes('with If-None-Match')) return 9;
     if (method === 'PATCH') return 10;
-    if (name.includes('/status')) return 11;
-    if (method === 'POST' && name === '/api/jobs/{id}/links') return 12;
-    if (method === 'DELETE' && name.includes('links batch delete')) return 13;
-    if (name.includes('/assign')) return 14;
-    if (name.includes('customerNameSearch')) return 15;
+    if (method === 'POST' && name === '/api/jobs/{id}/links') return 11;
+    if (method === 'DELETE' && name.includes('links batch delete')) return 12;
+    if (name.includes('/assign')) return 13;
+    if (name.includes('customerNameSearch')) return 14;
     return 30;
   };
   folder.item.sort((left, right) => rank(left) - rank(right));
-  return cleanup;
+  return { cleanup, deferred };
 }
 
 prepareCollectionVariables();
 const filtered = filterItems(collection.item ?? []);
 let cleanupItems = [];
+let deferredItems = [];
 for (const folder of filtered) {
   if (folder.name === 'Customers') prepareCustomers(folder);
-  if (folder.name === 'Jobs') cleanupItems = prepareJobs(folder);
+  if (folder.name === 'Jobs') {
+    const prepared = prepareJobs(folder);
+    cleanupItems = prepared.cleanup;
+    deferredItems = prepared.deferred;
+  }
 }
+if (deferredItems.length > 0) filtered.push({ name: 'Deferred mutations', item: deferredItems });
 if (cleanupItems.length > 0) filtered.push({ name: 'Cleanup', item: cleanupItems });
 
 const preferredFolderOrder = [
@@ -353,6 +357,7 @@ const preferredFolderOrder = [
   'Notifications and push',
   'Invites',
   'Operations',
+  'Deferred mutations',
   'Cleanup',
 ];
 const folderRank = new Map(preferredFolderOrder.map((name, index) => [name.toLowerCase(), index]));
