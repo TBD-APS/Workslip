@@ -69,13 +69,34 @@ jobs:
         run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --nologo
 
       - name: Run full backend test suite
-        run: >-
-          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
-          --configuration Release
-          --nologo
-          --logger "console;verbosity=normal"
+        id: backend_tests
+        shell: bash
+        run: |
+          set +e
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj \
+            --configuration Release \
+            --nologo \
+            --logger "console;verbosity=normal" \
+            > backend-repair-tests.log 2>&1
+          status=$?
+          cat backend-repair-tests.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload backend test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-repair-test-log
+          path: backend-repair-tests.log
+          if-no-files-found: error
+
+      - name: Fail when tests are red
+        if: steps.backend_tests.outputs.status != '0'
+        run: exit 1
 
       - name: Commit repaired tests and remove temporary workflow
+        if: steps.backend_tests.outputs.status == '0'
         shell: bash
         run: |
           rm .github/workflows/temporary-fix-backend-baseline-tests.yml
