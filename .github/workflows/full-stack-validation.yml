@@ -100,6 +100,13 @@ jobs:
           Azure__AdOAuth__TenantId: common
           Azure__AdOAuth__ClientId: 00000000-0000-0000-0000-000000000001
           Cors__AllowedOrigins__0: ${{ env.FRONTEND_URL }}
+          Authorization__Policies__RequireSuperAdmin: Superadmin
+          Authorization__Policies__RequireAdmin: Admin
+          Authorization__Policies__RequireAuditor: Auditor
+          Authorization__Policies__RequireReadAccess: User|Auditor
+          Authorization__Policies__RequireUser: User
+          Authorization__RoleHierarchy__Superadmin__0: Admin
+          Authorization__RoleHierarchy__Admin__0: User
         run: |
           set -euo pipefail
           dotnet run \
