@@ -1,6 +1,6 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-23  
+**Contract build reviewed:** 2026-07-25  
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
@@ -80,7 +80,7 @@ Job status values implemented by the current domain are `Draft`, `InReview`, `Ap
 | GET | `/api/customers/{id}` | User | Customer detail |
 | POST | `/api/customers/` | Admin | Requires `Idempotency-Key`; create → detail |
 | PUT | `/api/customers/{id}` | Admin | Update → detail |
-| PATCH | `/api/customers/{id}/top` | Admin | `{ "isTop": true|false }` |
+| PATCH | `/api/customers/{id}/top` | Admin | `{ "isTop": true or false }` |
 | DELETE | `/api/customers/{id}` | Admin | `204` or mapped error |
 | POST | `/api/customers/import` | Admin | Multipart CSV, max 10 MB, rate limited → imported/skipped counts |
 
@@ -107,6 +107,7 @@ Job status values implemented by the current domain are `Draft`, `InReview`, `Ap
 | GET | `/api/notifications/` | User | `limit`, `offset` → notification history |
 | PATCH | `/api/notifications/{id}/read` | User | Marks one notification read → `204` |
 | POST | `/api/notifications/read-all` | User | Marks all read → `204` |
+| DELETE | `/api/notifications/{id}` | User | Deletes one owned notification → mapped result |
 
 ## Operations
 
