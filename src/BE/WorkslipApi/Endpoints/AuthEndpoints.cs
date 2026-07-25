@@ -18,8 +18,9 @@ public static class AuthEndpoints
             return Results.Ok(UserViewModelBuilder.ToUser(me));
         }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireReadAccess);
 
-        group.MapPatch("/me", async (UpdateUserRequest request, IAuthService service, CancellationToken cancellationToken) =>
+        group.MapPatch("/me", async (UpdateUserRequest request, IAuthService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.UpdateCurrentUserAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
         }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireUser);
