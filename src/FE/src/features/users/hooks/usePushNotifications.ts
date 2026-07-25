@@ -3,19 +3,19 @@ import { useMutation } from '@tanstack/react-query';
 import { postApiPushSubscriptions } from '../../../api/generated/push-subscriptions/push-subscriptions';
 import type { RegisterPushSubscriptionRequest } from '../../../api/generated/models';
 
-function urlBase64ToUint8Array(base64String : string) {
+function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding)
-    .replace(/\-/g, '+')
-    .replace(/_/g, '/')
-  ;
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
   const rawData = window.atob(base64);
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-// Konverter nøglen ÉN gang herude, hvis den eksisterer
-const VAPID_PUBLIC_KEY_ARRAY = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+const VAPID_PUBLIC_KEY_ARRAY = VAPID_PUBLIC_KEY
+  ? urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+  : null;
 
 export function usePushNotifications() {
   const mutation = useMutation({
@@ -25,7 +25,7 @@ export function usePushNotifications() {
 
   const register = useCallback(async () => {
     if (!VAPID_PUBLIC_KEY_ARRAY) {
-      console.error('VAPID_PUBLIC_KEY is not defined or invalid in environment variables.');
+      console.warn('Push notifications are disabled because VITE_VAPID_PUBLIC_KEY is not configured.');
       return;
     }
 
