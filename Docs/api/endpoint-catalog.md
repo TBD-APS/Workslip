@@ -109,6 +109,7 @@ Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/ci
 | GET | `/api/notifications/` | User | `limit`, `offset` → notification history |
 | PATCH | `/api/notifications/{id}/read` | User | Marks one notification read → `204` |
 | POST | `/api/notifications/read-all` | User | Marks all read → `204` |
+| DELETE | `/api/notifications/{id}` | User | Deletes one owned notification → mapped result |
 
 ## Operations
 
