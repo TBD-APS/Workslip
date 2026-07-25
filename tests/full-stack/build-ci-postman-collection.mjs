@@ -20,6 +20,17 @@ const excluded = [
   { method: 'POST', pattern: /\/api\/auth\/invite\/[^/]+\/open(?:\?|$)/i, reason: 'requires a real invitation token' },
   { method: 'POST', pattern: /\/api\/push-subscriptions\/?(?:\?|$)/i, reason: 'requires a browser push subscription' },
   { method: 'POST', pattern: /\/api\/admin\/cache\/clear(?:\?|$)/i, reason: 'may call external cache invalidation' },
+  {
+    method: 'POST',
+    pattern: /\/api\/users\/?(?:\?|$)/i,
+    namePattern: /^Users \/ \/api\/users$/i,
+    reason: 'valid user provisioning requires Microsoft Graph',
+  },
+  {
+    method: 'DELETE',
+    pattern: /\/api\/users\//i,
+    reason: 'requires a separately provisioned disposable user rather than deleting the test actor',
+  },
 ];
 
 function rawUrl(request) {
@@ -38,9 +49,13 @@ function filterItems(items, parents = []) {
     if (item.request) {
       const method = String(item.request.method ?? 'GET').toUpperCase();
       const url = rawUrl(item.request);
-      const rule = excluded.find(entry => entry.method === method && entry.pattern.test(url));
+      const fullName = [...parents, item.name].join(' / ');
+      const rule = excluded.find(entry =>
+        entry.method === method &&
+        entry.pattern.test(url) &&
+        (!entry.namePattern || entry.namePattern.test(fullName)));
       if (rule) {
-        skipped.push({ name: [...parents, item.name].join(' / '), method, url, reason: rule.reason });
+        skipped.push({ name: fullName, method, url, reason: rule.reason });
         continue;
       }
       retainedRequests += 1;
