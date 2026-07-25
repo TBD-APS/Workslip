@@ -11,6 +11,16 @@ public sealed record CustomerData(
     string? ContactPerson,
     string? Phone);
 
+public sealed record CustomerBulkCreateResult(
+    int Imported,
+    IReadOnlySet<string> ConflictingCustomerNumbers);
+
+public sealed class CustomerNumberConflictException(IReadOnlySet<string> customerNumbers)
+    : Exception("Et eller flere kundenumre findes allerede.")
+{
+    public IReadOnlySet<string> CustomerNumbers { get; } = customerNumbers;
+}
+
 public sealed record CustomerListItemResponse(
     Guid Id,
     string? CustomerNumber,
