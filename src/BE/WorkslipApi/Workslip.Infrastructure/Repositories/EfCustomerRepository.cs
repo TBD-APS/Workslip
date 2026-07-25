@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Customers;
 using Workslip.Domain.Models;
@@ -8,6 +9,8 @@ namespace Workslip.Infrastructure.Repositories;
 
 public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy) : ICustomerRepository
 {
+    private const string CustomerNumberIndexName = "UX_Customers_Organization_CustomerNumber";
+
     public Task<Guid> CreateCustomerAsync(Guid organizationId, CustomerData customer, CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync("customers.create", token => CreateCustomerCoreAsync(organizationId, customer, token), cancellationToken);
 
@@ -38,14 +41,24 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
     public Task<IReadOnlySet<string>> GetExistingCustomerNumbersAsync(Guid organizationId, IReadOnlyCollection<string> customerNumbers, CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync("customers.existing-numbers", token => GetExistingCustomerNumbersCoreAsync(organizationId, customerNumbers, token), cancellationToken);
 
-    public Task<int> BulkCreateAsync(Guid organizationId, IReadOnlyList<CustomerData> customers, CancellationToken cancellationToken) =>
+    public Task<CustomerBulkCreateResult> BulkCreateAsync(Guid organizationId, IReadOnlyList<CustomerData> customers, CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync("customers.bulk-create", token => BulkCreateCoreAsync(organizationId, customers, token), cancellationToken);
 
     private async Task<Guid> CreateCustomerCoreAsync(Guid organizationId, CustomerData customer, CancellationToken cancellationToken)
     {
         var row = ToRow(organizationId, customer, DateTimeOffset.UtcNow);
         dbContext.Customers.Add(row);
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (customer.CustomerNumber is not null && IsCustomerNumberConflict(exception))
+        {
+            dbContext.ChangeTracker.Clear();
+            throw CreateConflictException(customer.CustomerNumber);
+        }
+
         return row.Id;
     }
 
@@ -149,17 +162,11 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
     private async Task<IReadOnlyList<CustomerSearchResponse>> SearchCoreAsync(Guid organizationId, string query, int limit, CancellationToken cancellationToken)
     {
         var term = query.Trim();
-        return await dbContext.Customers
-            .AsNoTracking()
-            .Where(c => c.OrganizationId == organizationId)
-            .Where(c =>
-                (c.CustomerNumber != null && c.CustomerNumber.Contains(term)) ||
-                c.Name.Contains(term) ||
-                (c.Email != null && c.Email.Contains(term)) ||
-                (c.Phone != null && c.Phone.Contains(term)) ||
-                (c.Address != null && c.Address.Contains(term)) ||
-                (c.ZipCode != null && c.ZipCode.Contains(term)) ||
-                (c.City != null && c.City.Contains(term)))
+        var customers = ApplySearch(
+            dbContext.Customers.AsNoTracking().Where(c => c.OrganizationId == organizationId),
+            term);
+
+        return await customers
             .OrderBy(c => c.IsTop ? 0 : 1)
             .ThenBy(c => c.Name.StartsWith(term) ? 0 : 1)
             .ThenBy(c => c.Name)
@@ -199,7 +206,16 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
         dbContext.Entry(row).Property(x => x.ContactPerson).CurrentValue = customer.ContactPerson;
         dbContext.Entry(row).Property(x => x.Phone).CurrentValue = customer.Phone;
         dbContext.Entry(row).Property(x => x.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (customer.CustomerNumber is not null && IsCustomerNumberConflict(exception))
+        {
+            dbContext.ChangeTracker.Clear();
+            throw CreateConflictException(customer.CustomerNumber);
+        }
     }
 
     private async Task SetTopCoreAsync(Guid organizationId, Guid id, bool isTop, CancellationToken cancellationToken)
@@ -250,13 +266,51 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
         return matches.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private async Task<int> BulkCreateCoreAsync(Guid organizationId, IReadOnlyList<CustomerData> customers, CancellationToken cancellationToken)
+    private async Task<CustomerBulkCreateResult> BulkCreateCoreAsync(Guid organizationId, IReadOnlyList<CustomerData> customers, CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
-        var rows = customers.Select(customer => ToRow(organizationId, customer, now)).ToArray();
-        dbContext.Customers.AddRange(rows);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return rows.Length;
+        var pending = customers.ToList();
+        var conflictingNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        while (pending.Count > 0)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var rows = pending.Select(customer => ToRow(organizationId, customer, now)).ToArray();
+            dbContext.Customers.AddRange(rows);
+
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return new CustomerBulkCreateResult(rows.Length, conflictingNumbers);
+            }
+            catch (DbUpdateException exception) when (IsCustomerNumberConflict(exception))
+            {
+                dbContext.ChangeTracker.Clear();
+                var candidateNumbers = pending
+                    .Select(customer => customer.CustomerNumber)
+                    .Where(number => number is not null)
+                    .Cast<string>()
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var existingNumbers = await GetExistingCustomerNumbersCoreAsync(
+                    organizationId,
+                    candidateNumbers,
+                    cancellationToken);
+                var newlyConflicting = existingNumbers
+                    .Where(conflictingNumbers.Add)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (newlyConflicting.Count == 0)
+                {
+                    throw;
+                }
+
+                pending = pending
+                    .Where(customer => customer.CustomerNumber is null || !existingNumbers.Contains(customer.CustomerNumber))
+                    .ToList();
+            }
+        }
+
+        return new CustomerBulkCreateResult(0, conflictingNumbers);
     }
 
     private static CustomerRow ToRow(Guid organizationId, CustomerData customer, DateTimeOffset now) => new()
@@ -294,4 +348,12 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
             (c.ContactPerson != null && c.ContactPerson.Contains(term)) ||
             (c.Phone != null && c.Phone.Contains(term)));
     }
+
+    private static bool IsCustomerNumberConflict(DbUpdateException exception) =>
+        exception.InnerException is SqlException sqlException &&
+        sqlException.Number is 2601 or 2627 &&
+        sqlException.Message.Contains(CustomerNumberIndexName, StringComparison.OrdinalIgnoreCase);
+
+    private static CustomerNumberConflictException CreateConflictException(string customerNumber) =>
+        new(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { customerNumber });
 }
