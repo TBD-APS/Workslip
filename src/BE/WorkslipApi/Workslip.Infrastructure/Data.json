@@ -164,8 +164,8 @@
           "categoryKey": "forundersoegelse",
           "controlPoints": [
             {
-              "key": "varme-forundersoegelse-ansoegning-paa-gas",
-              "label": "Ansøgning på gas",
+              "key": "varme-forundersoegelse-ansoegning-paa-varme",
+              "label": "Ansøgning på varme",
               "sortOrder": 1,
               "isRequired": true
             }
@@ -292,8 +292,8 @@
           "categoryKey": "forundersoegelse",
           "controlPoints": [
             {
-              "key": "ventilation-forundersoegelse-ansoegning-paa-gas",
-              "label": "Ansøgning på gas",
+              "key": "ventilation-forundersoegelse-ansoegning-paa-ventilation",
+              "label": "Ansøgning på ventilation",
               "sortOrder": 1,
               "isRequired": true
             }

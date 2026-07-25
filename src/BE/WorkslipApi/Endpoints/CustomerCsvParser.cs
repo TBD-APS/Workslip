@@ -55,7 +55,7 @@ public static class CustomerCsvParser
         while (csv.Read())
         {
             var row = CustomerImportRowFactory.Create(
-                csv.Context.Parser.Row,
+                csv.Context.Parser?.Row ?? 0,
                 headers,
                 index => csv.GetField(index));
 

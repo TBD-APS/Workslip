@@ -115,6 +115,59 @@ See the root `AGENTS.md` before changing service or endpoint patterns.
 
 The pipeline assigns/logs correlation identifiers. Frontend mutations send `X-Correlation-ID` and `Idempotency-Key`; only endpoints/services that explicitly use the idempotency infrastructure should be described as idempotent. A header alone is not proof of durable retry safety.
 
+## Endpoint file conventions
+
+Each `Endpoints/*Endpoints.cs` file is a single static class with one `MapXxxEndpoints` extension method. The goal is **minimal handler bodies** — business logic lives in services, parsing/validation lives in private helpers.
+
+### Rules
+
+1. **One handler = one expression or a small block.** Call the service, pipe through `ResultExtensions.ToHttpResult`, done. No inline business logic.
+2. **Extract complex handlers into private static helpers.** File uploads, multi-step validation, or format detection that doesn't belong in the service layer goes into a private method in the same file.
+3. **Never duplicate `ToHttpResult` mapping.** Use the mapper overload — `ResultExtensions.ToHttpResult(result, ViewModelBuilder.ToXxx)`. Do not inline `Results.Ok(...)` / `Results.NotFound(...)` etc.
+4. **Idempotent endpoints use `IdempotentMutationService`.** The service handles reservation start/complete/abort. The endpoint only maps `IsReplay` / `Conflict` / `InProgress` to HTTP responses.
+5. **Group setup is one line per auth level.** Use `MapReadGroup`, `MapUserGroup`, `MapAdminGroup`, or `MapReadUserGroups`. Do not add manual `.RequireAuthorization(...)` unless the endpoint differs from its group default.
+6. **Keep using statements minimal.** Only import what the file actually references.
+
+### Example — simple CRUD endpoint
+
+```csharp
+adminGroup.MapPut("/{id:guid}", async (Guid id, UpdateRequest request, IService service, CancellationToken ct) =>
+{
+    var result = await service.UpdateAsync(id, request, ct);
+    return ResultExtensions.ToHttpResult(result, ViewModelBuilder.ToDetail);
+});
+```
+
+### Example — endpoint with extracted helper
+
+```csharp
+adminGroup.MapPost("/import", async (IFormFile file, IService service, ILoggerFactory logFactory, CancellationToken ct) =>
+{
+    var logger = logFactory.CreateLogger("Import");
+    var parse = ParseImportFile(file, logger);
+    if (parse.Error is not null) return parse.Error;
+
+    var result = await service.ImportAsync(parse.Parsed!.Rows, ct);
+    return ResultExtensions.ToHttpResult(result, MapImportResponse);
+})
+.DisableAntiforgery()
+.RequireRateLimiting("import-rate-limit");
+
+private static (IResult? Error, ParseResult? Parsed) ParseImportFile(IFormFile file, ILogger logger)
+{
+    // validation, format detection, try/catch parsing — returns tuple
+}
+```
+
+### Anti-patterns
+
+- `Results.Ok(result.Value)` inside an endpoint — use `ToHttpResult`.
+- Inline validation/parsing exceeding ~10 lines — extract to a private helper or move to the service layer.
+- Duplicating the same handler body across two routes — extract to a shared private method.
+- `async` lambda with expression body when the mapper needs `.Select().ToArray()` — use a block body.
+
+See `UserEndpoints.cs` (47 lines, 5 routes) and `CustomerEndpoints.cs` for reference implementations.
+
 ## Database lifecycle
 
 The application initializes schema at startup through `DatabaseSchemaInitializer`, then verifies connectivity. Treat schema initialization and EF migrations as production-impacting operations:

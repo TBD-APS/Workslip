@@ -1,12 +1,18 @@
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Clock, Hash, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
+import { ArrowLeft, Clock, Hash, Loader2, Mail, MapPin, MoreHorizontal, Phone, Plus, Upload, Users } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
-import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
+import { useGetApiCustomersId, getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
+import { apiClient } from '../../../lib/axios';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
 import { useCustomerActions } from '../components/CustomerActions';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
+import { notify } from '../../../lib/toast';
 import type { CustomerListItemViewModel } from '../../../api/generated/models';
 
 type ExtendedCustomerFields = {
@@ -21,8 +27,34 @@ export const CustomerDetail = () => {
   const navigate = useNavigate();
   const query = useGetApiCustomersId(id!);
   const customer = query.data;
+  const queryClient = useQueryClient();
+  const isDesktop = useMediaQuery('(min-width: 768px)');
+
+  const [pendingImport, setPendingImport] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useScrollRestore(`customer:${id}`);
+
+  const handleImport = async () => {
+    if (!pendingImport) return;
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', pendingImport);
+      const result = await apiClient.post('/api/customers/import', formData) as { imported: number; duplicates: number; skipped: number; failed: number };
+      await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
+      notify.success(
+        `${result.imported} importeret, ${result.duplicates} dubletter, ${result.skipped} sprunget over, ${result.failed} med fejl.`,
+      );
+      setPendingImport(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch {
+      // Toast handled by axios interceptor.
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   const listCustomer = customer as (typeof customer & ExtendedCustomerFields) | undefined;
   const listItems: CustomerListItemViewModel[] = customer
@@ -139,6 +171,26 @@ export const CustomerDetail = () => {
         </div>
       </section>
 
+      {isDesktop && (
+        <Can permission="customer:edit">
+          <section className="detail-section">
+            <h3>Importér kunder</h3>
+            <p className="subtitle">Understøtter .xlsx og .csv. Eksisterende kundenumre importeres ikke igen.</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+              hidden
+              onChange={(event) => setPendingImport(event.target.files?.[0] ?? null)}
+            />
+            <button type="button" className="btn btn-secondary" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={16} />
+              <span>Vælg importfil</span>
+            </button>
+          </section>
+        </Can>
+      )}
+
       <div className="job-list">
         {customer.jobs.map((job) => (
           <button
@@ -166,6 +218,34 @@ export const CustomerDetail = () => {
 
       {ActionMenuPortal}
       {DeleteDialog}
+      {pendingImport && (
+        <CustomerImportConfirmDialog
+          file={pendingImport}
+          isImporting={isImporting}
+          onConfirm={() => void handleImport()}
+          onClose={() => setPendingImport(null)}
+        />
+      )}
     </div>
   );
 };
+
+function CustomerImportConfirmDialog({ file, isImporting, onConfirm, onClose }: { file: File; isImporting: boolean; onConfirm: () => void; onClose: () => void }) {
+  return createPortal(
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="customer-import-title">
+      <div className="modal-card">
+        <h3 id="customer-import-title">Godkend kundeimport</h3>
+        <p>Importér kunder fra <strong>{file.name}</strong>?</p>
+        <p className="subtitle">Rækker med eksisterende kundenummer springes over. Importen kan ikke fortrydes samlet.</p>
+        <div className="modal-actions">
+          <button className="btn btn-primary" type="button" onClick={onConfirm} disabled={isImporting}>
+            {isImporting && <Loader2 className="animate-spin" size={16} />}
+            <span>{isImporting ? 'Importerer...' : 'Importér'}</span>
+          </button>
+          <button className="btn btn-secondary" type="button" onClick={onClose} disabled={isImporting}>Annuller</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
