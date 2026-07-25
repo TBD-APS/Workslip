@@ -84,25 +84,9 @@ jobs:
           dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
           dotnet build src/BE/WorkslipApi/Workslip.Api.csproj --configuration Release --no-restore --nologo
 
-      - name: Install and build frontend runtime
+      - name: Install frontend dependencies
         working-directory: src/FE
-        env:
-          VITE_API_BASE_URL: ${{ env.API_URL }}
-          VITE_ENABLE_DEV_LOGIN: 'true'
-        run: |
-          set -euo pipefail
-          npm ci
-
-          set +e
-          npm run build > ../../artifacts/frontend-typecheck.log 2>&1
-          typecheck_status=$?
-          set -e
-          cat ../../artifacts/frontend-typecheck.log
-          if [ "$typecheck_status" -ne 0 ]; then
-            echo "::warning::The repository's strict TypeScript build currently has baseline errors. Runtime Vite build and browser validation will continue."
-          fi
-
-          npx vite build
+        run: npm ci
 
       - name: Start isolated API
         env:
@@ -141,6 +125,16 @@ jobs:
           cat artifacts/api.log
           echo "::error::API did not become healthy."
           exit 1
+
+      - name: Generate API client and build frontend
+        working-directory: src/FE
+        env:
+          VITE_API_BASE_URL: ${{ env.API_URL }}
+          VITE_ENABLE_DEV_LOGIN: 'true'
+        run: |
+          set -euo pipefail
+          npx orval --config orval.config.ts
+          npm run build
 
       - name: Bootstrap isolated organization
         run: |
@@ -256,7 +250,6 @@ jobs:
           path: |
             artifacts/api.log
             artifacts/frontend.log
-            artifacts/frontend-typecheck.log
             artifacts/postman-selection.log
             artifacts/postman-ci-collection.json
             artifacts/newman-results.xml
