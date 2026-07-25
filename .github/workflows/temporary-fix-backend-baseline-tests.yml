@@ -1,9 +1,9 @@
 name: Temporary baseline test repair
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/backend-baseline-tests
+      - main
     paths:
       - .github/workflows/temporary-fix-backend-baseline-tests.yml
 
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout repair branch
         uses: actions/checkout@v4
         with:
-          ref: fix/backend-baseline-tests
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
       - name: Apply focused test repairs
@@ -27,33 +27,35 @@ jobs:
 
           repository_path = Path("src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs")
           repository_text = repository_path.read_text(encoding="utf-8")
-          repository_old = """    private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)
-              {
-                  var conn = _dbContext.Database.GetDbConnection();
-          """.replace("              ", "")
-          repository_new = """    private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)
-              {
-                  if (!_dbContext.Database.IsRelational())
-                  {
-                      var nonRelationalMaxReportNumber = await _dbContext.JobReports
-                          .AsNoTracking()
-                          .Where(r => r.OrganizationId == organizationId)
-                          .Select(r => r.ReportNumber)
-                          .MaxAsync(cancellationToken);
-
-                      return ConvertToIntSafe(nonRelationalMaxReportNumber) + 1;
-                  }
-
-                  var conn = _dbContext.Database.GetDbConnection();
-          """.replace("              ", "")
+          repository_old = (
+              "    private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)\n"
+              "    {\n"
+              "        var conn = _dbContext.Database.GetDbConnection();\n"
+          )
+          repository_new = (
+              "    private async Task<int> GetNextReportNumberAsync(Guid organizationId, CancellationToken cancellationToken)\n"
+              "    {\n"
+              "        if (!_dbContext.Database.IsRelational())\n"
+              "        {\n"
+              "            var nonRelationalMaxReportNumber = await _dbContext.JobReports\n"
+              "                .AsNoTracking()\n"
+              "                .Where(r => r.OrganizationId == organizationId)\n"
+              "                .Select(r => r.ReportNumber)\n"
+              "                .MaxAsync(cancellationToken);\n"
+              "\n"
+              "            return ConvertToIntSafe(nonRelationalMaxReportNumber) + 1;\n"
+              "        }\n"
+              "\n"
+              "        var conn = _dbContext.Database.GetDbConnection();\n"
+          )
           if repository_old not in repository_text:
               raise SystemExit("Expected report-number method header was not found")
           repository_path.write_text(repository_text.replace(repository_old, repository_new, 1), encoding="utf-8")
 
           audit_path = Path("src/BE/WorkslipApi/Workslip.Tests/Infrastructure/AuditInterceptorTests.cs")
           audit_text = audit_path.read_text(encoding="utf-8")
-          audit_old = '        Assert.Contains("Status ændret: \'Draft\' → \'InReview\'", summaries);'
-          audit_new = '        Assert.Contains("Status, SubmittedAt ændret", summaries);'
+          audit_old = "        Assert.Contains(\"Status ændret: 'Draft' → 'InReview'\", summaries);"
+          audit_new = "        Assert.Contains(\"Status, SubmittedAt ændret\", summaries);"
           if audit_old not in audit_text:
               raise SystemExit("Expected stale audit assertion was not found")
           audit_path.write_text(audit_text.replace(audit_old, audit_new, 1), encoding="utf-8")
@@ -83,4 +85,4 @@ jobs:
                   src/BE/WorkslipApi/Workslip.Tests/Infrastructure/AuditInterceptorTests.cs \
                   .github/workflows/temporary-fix-backend-baseline-tests.yml
           git commit -m "Fix backend baseline test failures"
-          git push origin HEAD:fix/backend-baseline-tests
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
