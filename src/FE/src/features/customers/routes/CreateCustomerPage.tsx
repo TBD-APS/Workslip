@@ -7,13 +7,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
 import type { CustomerDetailViewModel } from '../../../api/generated/models';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
+import { AddressAutocomplete } from '../../jobs/components/AddressAutocomplete';
+import type { AddressSuggestion } from '../../jobs/hooks/useAddressAutocomplete';
 
 export const CreateCustomerPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [customerNumber, setCustomerNumber] = useState('');
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
+  const [zipCode, setZipCode] = useState('');
+  const [city, setCity] = useState('');
   const [email, setEmail] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
@@ -50,11 +55,13 @@ export const CreateCustomerPage = () => {
     }
 
     setIsSaving(true);
-
     try {
       const created = await apiClient.post('/api/customers', {
         name: name.trim(),
+        customerNumber: customerNumber.trim() || null,
         address: address.trim() || null,
+        zipCode: zipCode.trim() || null,
+        city: city.trim() || null,
         email: email.trim() || null,
         contactPerson: contactPerson.trim() || null,
         phone: phone.trim() || null,
@@ -63,15 +70,18 @@ export const CreateCustomerPage = () => {
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
       setCreatedId(created.id);
     } catch {
-      // toast handled by axios interceptor
+      // Toast handled by axios interceptor.
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleCreateAnother = () => {
+    setCustomerNumber('');
     setName('');
     setAddress('');
+    setZipCode('');
+    setCity('');
     setEmail('');
     setContactPerson('');
     setPhone('');
@@ -94,6 +104,18 @@ export const CreateCustomerPage = () => {
 
       <div className="customer-edit-form">
         <div className="form-group">
+          <label className="form-label" htmlFor="create-customer-number">Kundenummer</label>
+          <input
+            id="create-customer-number"
+            className="form-input"
+            type="text"
+            value={customerNumber}
+            onChange={(e) => setCustomerNumber(e.target.value)}
+            maxLength={80}
+            placeholder="Indtast kundenummer"
+          />
+        </div>
+        <div className="form-group">
           <label className="form-label" htmlFor="create-customer-name">Kundenavn *</label>
           <input
             ref={nameRef}
@@ -108,15 +130,16 @@ export const CreateCustomerPage = () => {
           {fieldErrors.name && <p className="form-error-text">{fieldErrors.name}</p>}
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="create-customer-address">Adresse</label>
-          <input
-            id="create-customer-address"
-            className="form-input"
-            type="text"
+          <label className="form-label">Adresse</label>
+          <AddressAutocomplete
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            maxLength={500}
-            placeholder="Indtast adresse"
+            onTextChange={setAddress}
+            onSelectSuggestion={(s: AddressSuggestion) => {
+              setAddress(s.street);
+              setZipCode(s.zipCode);
+              setCity(s.city);
+            }}
+            onClear={() => { setAddress(''); setZipCode(''); setCity(''); }}
           />
         </div>
         <div className="form-group">
@@ -134,15 +157,7 @@ export const CreateCustomerPage = () => {
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="create-customer-contact">Kontaktperson</label>
-          <input
-            id="create-customer-contact"
-            className="form-input"
-            type="text"
-            value={contactPerson}
-            onChange={(e) => setContactPerson(e.target.value)}
-            maxLength={200}
-            placeholder="Indtast kontaktperson"
-          />
+          <input id="create-customer-contact" className="form-input" type="text" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} maxLength={200} />
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="create-customer-phone">Telefon</label>
@@ -161,42 +176,19 @@ export const CreateCustomerPage = () => {
       </div>
 
       <div className="modal-actions">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void handleSave()}
-          disabled={isSaving}
-        >
+        <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
           {isSaving && <Loader2 className="animate-spin" size={16} />}
           <span>{isSaving ? 'Opretter...' : 'Opret'}</span>
         </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => navigate('/app/customers')}
-          disabled={isSaving}
-        >
-          Annuller
-        </button>
+        <button type="button" className="btn btn-secondary" onClick={() => navigate('/app/customers')} disabled={isSaving}>Annuller</button>
       </div>
 
-      {createdId && (
-        <CreateCustomerSuccessDialog
-          onCreateAnother={handleCreateAnother}
-          onGoToCustomerList={() => navigate('/app/customers')}
-        />
-      )}
+      {createdId && <CreateCustomerSuccessDialog onCreateAnother={handleCreateAnother} onGoToCustomerList={() => navigate('/app/customers')} />}
     </div>
   );
 };
 
-function CreateCustomerSuccessDialog({
-  onCreateAnother,
-  onGoToCustomerList,
-}: {
-  onCreateAnother: () => void;
-  onGoToCustomerList: () => void;
-}) {
+function CreateCustomerSuccessDialog({ onCreateAnother, onGoToCustomerList }: { onCreateAnother: () => void; onGoToCustomerList: () => void }) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') onGoToCustomerList();
@@ -210,12 +202,8 @@ function CreateCustomerSuccessDialog({
       <div className="modal-card">
         <h3 id="create-customer-success-title">Kunden er oprettet</h3>
         <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={onCreateAnother}>
-            Opret en mere
-          </button>
-          <button className="btn btn-primary" onClick={onGoToCustomerList}>
-            Til kundelisten
-          </button>
+          <button className="btn btn-secondary" onClick={onCreateAnother}>Opret en mere</button>
+          <button className="btn btn-primary" onClick={onGoToCustomerList}>Til kundelisten</button>
         </div>
       </div>
     </div>,

@@ -1,5 +1,4 @@
 using Ardalis.Result;
-using Workslip.Application.Jobs;
 
 namespace Workslip.Application.Customers;
 
@@ -13,6 +12,5 @@ public interface ICustomerService
     Task<Result<CustomerDetailResponse>> UpdateAsync(Guid id, UpdateCustomerRequest request, CancellationToken cancellationToken);
     Task<Result> SetTopAsync(Guid id, bool isTop, CancellationToken cancellationToken);
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken);
-
-    Task<Result<ImportCustomerResponse>> ImportAsync(IReadOnlyList<CustomerInfo> customers, CancellationToken cancellationToken);
+    Task<Result<ImportCustomerResponse>> ImportAsync(IReadOnlyList<ImportCustomerRow> customers, CancellationToken cancellationToken);
 }

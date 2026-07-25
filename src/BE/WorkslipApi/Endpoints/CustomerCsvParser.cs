@@ -1,8 +1,6 @@
 using System.Globalization;
 using CsvHelper;
 using CsvHelper.Configuration;
-using Microsoft.Extensions.Logging;
-using Workslip.Application.Jobs;
 
 namespace Workslip.Api.Endpoints;
 
@@ -22,65 +20,67 @@ public static class CustomerCsvParser
     public static bool HasAllowedExtension(string? fileName) =>
         fileName is not null && fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
 
-    public static (IReadOnlyList<CustomerInfo> Customers, int Skipped, List<string> Errors) Parse(Stream stream, ILogger logger)
+    public static CustomerImportParseResult Parse(Stream stream, ILogger logger)
     {
-        using var reader = new StreamReader(stream, leaveOpen: true);
+        using var input = new StreamReader(stream, leaveOpen: true);
+        var content = input.ReadToEnd();
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new CustomerImportFormatException("CSV-filen er tom.");
+        }
+
+        using var reader = new StringReader(content);
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
         {
+            Delimiter = DetectDelimiter(content),
             HasHeaderRecord = true,
             HeaderValidated = null,
             MissingFieldFound = null,
-            BadDataFound = args =>
-            {
-                logger.LogWarning("Bad CSV data at row {RawRecord}: {Context}", args.Context.Parser?.Row, args.RawRecord);
-            }
+            BadDataFound = args => logger.LogWarning(
+                "Bad CSV data at row {Row}: {RawRecord}",
+                args.Context.Parser?.Row,
+                args.RawRecord)
         });
 
-        csv.Context.RegisterClassMap<CustomerCsvRowMap>();
-
-        var allRows = csv.GetRecords<CustomerCsvRow>().ToList();
-        var errors = new List<string>();
-        var customers = new List<CustomerInfo>();
-        var skipped = 0;
-
-        foreach (var row in allRows)
+        if (!csv.Read())
         {
-            if (string.IsNullOrWhiteSpace(row.Name))
-            {
-                skipped++;
-                continue;
-            }
-
-            customers.Add(new CustomerInfo(
-                null,
-                row.Name.Trim(),
-                row.Address?.Trim(),
-                row.Email?.Trim(),
-                row.ContactPerson?.Trim(),
-                row.Phone?.Trim()));
+            throw new CustomerImportFormatException("CSV-filen mangler en overskriftsrække.");
         }
 
-        return (customers, skipped, errors);
+        csv.ReadHeader();
+
+        var headers = CustomerImportHeaderMap.Create(csv.HeaderRecord ?? []);
+        var customers = new List<Application.Customers.ImportCustomerRow>();
+
+        while (csv.Read())
+        {
+            var row = CustomerImportRowFactory.Create(
+                csv.Context.Parser?.Row ?? 0,
+                headers,
+                index => csv.GetField(index));
+
+            if (row is not null)
+            {
+                customers.Add(row);
+            }
+        }
+
+        // Empty rows and rows containing values only in deliberately ignored columns
+        // are structural noise, not customer records, and are therefore not reported.
+        return new CustomerImportParseResult(customers, 0);
     }
-}
 
-public sealed class CustomerCsvRow
-{
-    public string? Name { get; set; }
-    public string? Address { get; set; }
-    public string? Email { get; set; }
-    public string? ContactPerson { get; set; }
-    public string? Phone { get; set; }
-}
-
-public sealed class CustomerCsvRowMap : ClassMap<CustomerCsvRow>
-{
-    public CustomerCsvRowMap()
+    private static string DetectDelimiter(string content)
     {
-        Map(m => m.Name).Name("Name", "Navn");
-        Map(m => m.Address).Name("Address", "Adresse");
-        Map(m => m.Email).Name("Email", "E-mail", "E-mailadresse");
-        Map(m => m.ContactPerson).Name("ContactPerson", "Kontaktperson");
-        Map(m => m.Phone).Name("Phone", "Telefon", "Telefonnummer");
+        var header = content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+        var semicolons = header.Count(c => c == ';');
+        var tabs = header.Count(c => c == '\t');
+        var commas = header.Count(c => c == ',');
+        if (tabs > semicolons && tabs > commas)
+        {
+            return "\t";
+        }
+
+        return semicolons > commas ? ";" : ",";
     }
 }

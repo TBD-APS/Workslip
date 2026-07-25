@@ -2,7 +2,6 @@ using Ardalis.Result;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
-using Workslip.Application.Jobs;
 
 namespace Workslip.Application.Customers;
 
@@ -41,12 +40,9 @@ public sealed class CustomerService(
         }
 
         var customer = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
-        if (customer is null)
-        {
-            return Result<CustomerDetailResponse>.NotFound();
-        }
-
-        return Result<CustomerDetailResponse>.Success(customer);
+        return customer is null
+            ? Result<CustomerDetailResponse>.NotFound()
+            : Result<CustomerDetailResponse>.Success(customer);
     }
 
     public async Task<Result<IReadOnlyList<CustomerSearchResponse>>> SearchAsync(string? query, int? limit, CancellationToken cancellationToken)
@@ -94,26 +90,25 @@ public sealed class CustomerService(
         var validationResult = await createValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            var errors = validationResult.Errors
+            return Result<CustomerDetailResponse>.Invalid(validationResult.Errors
                 .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
-                .ToList();
-            return Result<CustomerDetailResponse>.Invalid(errors);
+                .ToList());
         }
 
-        var customerInfo = new CustomerInfo(
-            Guid.Empty,
-            request.Name!.Trim(),
-            request.Address?.Trim(),
-            request.Email?.Trim(),
-            request.ContactPerson?.Trim(),
-            request.Phone?.Trim());
+        var customer = ToCustomerData(request);
+        logger.LogInformation("Creating customer {CustomerName} in org {OrgId}", customer.Name, organizationId);
 
-        logger.LogInformation("Creating customer {CustomerName} in org {OrgId}", customerInfo.Name, organizationId);
-
-        var id = await customerRepository.CreateCustomerAsync(organizationId.Value, customerInfo, cancellationToken);
-
-        var created = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
-        return Result<CustomerDetailResponse>.Success(created!);
+        try
+        {
+            var id = await customerRepository.CreateCustomerAsync(organizationId.Value, customer, cancellationToken);
+            var created = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
+            return Result<CustomerDetailResponse>.Success(created!);
+        }
+        catch (CustomerNumberConflictException)
+        {
+            logger.LogWarning("Customer create conflict. CustomerNumber: {CustomerNumber}. OrgId: {OrgId}", customer.CustomerNumber, organizationId);
+            return Result<CustomerDetailResponse>.Conflict("customer_number_exists");
+        }
     }
 
     public async Task<Result<CustomerDetailResponse>> UpdateAsync(Guid id, UpdateCustomerRequest request, CancellationToken cancellationToken)
@@ -128,10 +123,9 @@ public sealed class CustomerService(
         var validationResult = await updateValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
-            var errors = validationResult.Errors
+            return Result<CustomerDetailResponse>.Invalid(validationResult.Errors
                 .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
-                .ToList();
-            return Result<CustomerDetailResponse>.Invalid(errors);
+                .ToList());
         }
 
         var existing = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
@@ -140,20 +134,20 @@ public sealed class CustomerService(
             return Result<CustomerDetailResponse>.NotFound();
         }
 
-        var updatedCustomer = new CustomerInfo(
-            id,
-            request.Name!.Trim(),
-            request.Address?.Trim(),
-            request.Email?.Trim(),
-            request.ContactPerson?.Trim(),
-            request.Phone?.Trim());
+        var customer = ToCustomerData(request);
+        logger.LogInformation("Updating customer {CustomerId} in org {OrgId}", id, organizationId);
 
-        logger.LogInformation("Updating customer {CustomerId} with new values: {@UpdatedCustomer} in org {OrgId}", id, updatedCustomer, organizationId);
-
-        await customerRepository.UpdateAsync(organizationId.Value, id, updatedCustomer, cancellationToken);
-
-        var updated = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
-        return Result<CustomerDetailResponse>.Success(updated!);
+        try
+        {
+            await customerRepository.UpdateAsync(organizationId.Value, id, customer, cancellationToken);
+            var updated = await customerRepository.GetByIdAsync(organizationId.Value, id, cancellationToken);
+            return Result<CustomerDetailResponse>.Success(updated!);
+        }
+        catch (CustomerNumberConflictException)
+        {
+            logger.LogWarning("Customer update conflict. CustomerId: {CustomerId}. CustomerNumber: {CustomerNumber}. OrgId: {OrgId}", id, customer.CustomerNumber, organizationId);
+            return Result<CustomerDetailResponse>.Conflict("customer_number_exists");
+        }
     }
 
     public async Task<Result> SetTopAsync(Guid id, bool isTop, CancellationToken cancellationToken)
@@ -171,7 +165,6 @@ public sealed class CustomerService(
             return Result.NotFound();
         }
 
-        logger.LogInformation("Setting customer {CustomerId} IsTop={IsTop} in org {OrgId}", id, isTop, organizationId);
         await customerRepository.SetTopAsync(organizationId.Value, id, isTop, cancellationToken);
         return Result.Success();
     }
@@ -191,13 +184,11 @@ public sealed class CustomerService(
             return Result.NotFound();
         }
 
-        logger.LogInformation("Customer {CustomerId} is about to be deleted in org {OrgId}", id, organizationId);
         await customerRepository.DeleteAsync(organizationId.Value, id, cancellationToken);
-        logger.LogInformation("Customer {CustomerId} deleted successfully in org {OrgId}", id, organizationId);
         return Result.Success();
     }
 
-    public async Task<Result<ImportCustomerResponse>> ImportAsync(IReadOnlyList<CustomerInfo> customers, CancellationToken cancellationToken)
+    public async Task<Result<ImportCustomerResponse>> ImportAsync(IReadOnlyList<ImportCustomerRow> customers, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -210,7 +201,7 @@ public sealed class CustomerService(
         {
             return Result<ImportCustomerResponse>.Invalid(new List<ValidationError>
             {
-                new() { Identifier = "Csv", ErrorMessage = $"Too many rows. Maximum allowed is {MaxImportRows}." }
+                new() { Identifier = "File", ErrorMessage = $"For mange rækker. Maksimum er {MaxImportRows}." }
             });
         }
 
@@ -218,14 +209,93 @@ public sealed class CustomerService(
         {
             return Result<ImportCustomerResponse>.Invalid(new List<ValidationError>
             {
-                new() { Identifier = "Csv", ErrorMessage = "No valid rows to import." }
+                new() { Identifier = "File", ErrorMessage = "Filen indeholder ingen kunder, der kan importeres." }
             });
         }
 
-        logger.LogInformation("Importing {Count} customers for org {OrgId}", customers.Count, organizationId);
+        var numbers = customers
+            .Select(x => Clean(x.CustomerNumber))
+            .Where(x => x is not null)
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var existingNumbers = await customerRepository.GetExistingCustomerNumbersAsync(organizationId.Value, numbers, cancellationToken);
 
-        var imported = await customerRepository.BulkCreateAsync(organizationId.Value, customers, cancellationToken);
+        var seenNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var validCustomers = new List<CustomerData>();
+        var errors = new List<ImportCustomerError>();
+        var duplicates = 0;
 
-        return Result<ImportCustomerResponse>.Success(new ImportCustomerResponse(imported, 0));
+        foreach (var row in customers)
+        {
+            var request = new CreateCustomerRequest(
+                Clean(row.Name) ?? string.Empty,
+                Clean(row.CustomerNumber),
+                Clean(row.Address),
+                Clean(row.ZipCode),
+                Clean(row.City),
+                "Danmark",
+                Clean(row.Email),
+                Clean(row.ContactPerson),
+                Clean(row.Phone));
+
+            var validationResult = await createValidator.ValidateAsync(request, cancellationToken);
+            if (!validationResult.IsValid)
+            {
+                errors.AddRange(validationResult.Errors.Select(error =>
+                    new ImportCustomerError(row.RowNumber, error.PropertyName, error.ErrorMessage)));
+                continue;
+            }
+
+            if (request.CustomerNumber is not null &&
+                (!seenNumbers.Add(request.CustomerNumber) || existingNumbers.Contains(request.CustomerNumber)))
+            {
+                duplicates++;
+                continue;
+            }
+
+            validCustomers.Add(ToCustomerData(request));
+        }
+
+        var bulkResult = validCustomers.Count == 0
+            ? new CustomerBulkCreateResult(0, new HashSet<string>(StringComparer.OrdinalIgnoreCase))
+            : await customerRepository.BulkCreateAsync(organizationId.Value, validCustomers, cancellationToken);
+        duplicates += bulkResult.ConflictingCustomerNumbers.Count;
+
+        var failed = errors.Select(x => x.RowNumber).Distinct().Count();
+        logger.LogInformation(
+            "Customer import completed for org {OrgId}: {Imported} imported, {Duplicates} duplicates, {Failed} failed",
+            organizationId, bulkResult.Imported, duplicates, failed);
+
+        return Result<ImportCustomerResponse>.Success(new ImportCustomerResponse(
+            bulkResult.Imported,
+            duplicates,
+            0,
+            failed,
+            errors));
     }
+
+    private static CustomerData ToCustomerData(CreateCustomerRequest request) => new(
+        Clean(request.CustomerNumber),
+        request.Name.Trim(),
+        Clean(request.Address),
+        Clean(request.ZipCode),
+        Clean(request.City),
+        "Danmark",
+        Clean(request.Email),
+        Clean(request.ContactPerson),
+        Clean(request.Phone));
+
+    private static CustomerData ToCustomerData(UpdateCustomerRequest request) => new(
+        Clean(request.CustomerNumber),
+        request.Name.Trim(),
+        Clean(request.Address),
+        Clean(request.ZipCode),
+        Clean(request.City),
+        "Danmark",
+        Clean(request.Email),
+        Clean(request.ContactPerson),
+        Clean(request.Phone));
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
