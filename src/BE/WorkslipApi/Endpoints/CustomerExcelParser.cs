@@ -28,7 +28,6 @@ public static class CustomerExcelParser
         var headers = CustomerImportHeaderMap.Create(headerValues);
         var lastRowNumber = worksheet.LastRowUsed()?.RowNumber() ?? headerRow.RowNumber();
         var customers = new List<Application.Customers.ImportCustomerRow>();
-        var skipped = 0;
 
         for (var rowNumber = headerRow.RowNumber() + 1; rowNumber <= lastRowNumber; rowNumber++)
         {
@@ -43,6 +42,8 @@ public static class CustomerExcelParser
             }
         }
 
-        return new CustomerImportParseResult(customers, skipped);
+        // Empty formatted rows and rows containing values only in deliberately ignored
+        // source columns are not customer records and are intentionally not reported.
+        return new CustomerImportParseResult(customers, 0);
     }
 }
