@@ -35,5 +35,6 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
             IF COL_LENGTH(N'dbo.NotificationQueue', N'ReadUtc') IS NULL
                 ALTER TABLE [dbo].[NotificationQueue] ADD [ReadUtc] datetimeoffset NULL;
             """, cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(DatabaseIntegrityConstraintsSql.Apply, cancellationToken);
     }
 }
