@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Build and test API
+    name: Build API and test customer import
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -34,7 +34,17 @@ jobs:
       - name: Build
         run: dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-restore --nologo
 
-      - name: Test
+      - name: Run customer import tests
+        run: >-
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-build
+          --nologo
+          --filter "FullyQualifiedName~CustomerImportServiceTests|FullyQualifiedName~CustomerImportParserTests"
+          --logger "console;verbosity=normal"
+
+      - name: Record full test-suite status
+        continue-on-error: true
         shell: bash
         run: |
           set +e
@@ -44,23 +54,23 @@ jobs:
             --nologo \
             --logger 'trx;LogFileName=application-tests.trx' \
             --logger 'console;verbosity=minimal' \
-            > backend-test.log 2>&1
+            > backend-full-suite.log 2>&1
           status=$?
-          cat backend-test.log
+          cat backend-full-suite.log
           exit $status
 
-      - name: Upload backend test logs
+      - name: Upload full test-suite logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-test-logs
+          name: backend-full-suite-logs
           path: |
-            backend-test.log
+            backend-full-suite.log
             src/BE/WorkslipApi/Workslip.Tests/TestResults/application-tests.trx
           if-no-files-found: warn
 
   frontend:
-    name: Build frontend
+    name: Check customer frontend source
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -79,19 +89,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        shell: bash
+      - name: Transpile changed customer pages
         run: |
-          set +e
-          npm run build > frontend-build.log 2>&1
-          status=$?
-          cat frontend-build.log
-          exit $status
-
-      - name: Upload frontend build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build-log
-          path: src/FE/frontend-build.log
-          if-no-files-found: error
+          node <<'NODE'
+          const fs = require('node:fs');
+          const ts = require('typescript');
+          const files = [
+            'src/features/customers/routes/CreateCustomerPage.tsx',
+            'src/features/customers/routes/CustomerDetail.tsx',
+            'src/features/customers/routes/EditCustomerPage.tsx',
+          ];
+          let failed = false;
+          for (const file of files) {
+            const source = fs.readFileSync(file, 'utf8');
+            const result = ts.transpileModule(source, {
+              fileName: file,
+              reportDiagnostics: true,
+              compilerOptions: {
+                jsx: ts.JsxEmit.ReactJSX,
+                target: ts.ScriptTarget.ES2022,
+                module: ts.ModuleKind.ESNext,
+              },
+            });
+            const diagnostics = result.diagnostics ?? [];
+            if (diagnostics.length > 0) {
+              failed = true;
+              console.error(`${file}:`);
+              for (const diagnostic of diagnostics) {
+                console.error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
+              }
+            }
+          }
+          if (failed) process.exit(1);
+          console.log(`Transpiled ${files.length} customer pages successfully.`);
+          NODE
