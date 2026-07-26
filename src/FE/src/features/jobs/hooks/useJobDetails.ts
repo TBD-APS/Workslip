@@ -106,6 +106,14 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         const currentDraft = draftRef.current;
         if (currentDraft && !sameFormWithoutWork(newInitialForm, currentDraft.form)) {
           setDraft(currentDraft);
+        } else if (currentDraft?.form.editSnapshot) {
+          setDraft({
+            jobId: currentDraft.jobId,
+            form: {
+              ...newInitialForm,
+              editSnapshot: true,
+            },
+          });
         } else {
           setDraft(null);
         }
@@ -320,13 +328,18 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   // takes a fully-formed form. Bridge them so the snapshot logic
   // stays shared with useJobCreate.
   const setCustomerForm = useCallback(
-    <S extends { customerId: string | null; customerSnapshot: CustomerSnapshotData | null; editSnapshot: boolean }>(
+    <S extends {
+      customerId: string | null;
+      customerSnapshot: CustomerSnapshotData | null;
+      editSnapshot: boolean;
+      createCustomer: boolean;
+    }>(
       updater: (prev: S) => S,
     ) => updateDraft(updater(form as unknown as S) as unknown as JobForm),
     [form, updateDraft],
   );
 
-  const { selectCustomer, updateSnapshotField, updateEditSnapshot, hasCustomerChanges } = useCustomerSnapshot(setCustomerForm);
+  const { selectCustomer, updateSnapshotField, updateEditSnapshot } = useCustomerSnapshot(setCustomerForm);
 
   const updateDestinationAddress = (value: string) => {
     updateForm((prev) => ({ ...prev, destinationAddress: value }));
@@ -647,7 +660,6 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateSnapshotField,
     updateEditSnapshot,
     updateCreateCustomer,
-    hasCustomerChanges,
     updateDestinationAddress,
     updateDestinationZipCode,
     updateDestinationCity,

@@ -45,7 +45,6 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
             editSnapshot={create.form.editSnapshot}
             createCustomer={create.form.createCustomer}
             onCreateCustomerChange={create.updateCreateCustomer}
-            hasCustomerChanges={create.hasCustomerChanges}
             onCustomerSelect={create.selectCustomer}
             onCreateNewCustomer={create.createNewCustomer}
             onSnapshotFieldChange={create.updateSnapshotField}

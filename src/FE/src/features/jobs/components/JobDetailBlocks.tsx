@@ -26,7 +26,6 @@ type CustomerBlockProps = {
   editSnapshot: boolean;
   createCustomer?: boolean;
   onCreateCustomerChange?: (value: boolean) => void;
-  hasCustomerChanges?: (snapshot: CustomerSnapshotData | null) => boolean;
   onCustomerSelect?: (customer: CustomerSearchViewModel) => void;
   onCreateNewCustomer?: () => void;
   onSnapshotFieldChange?: (field: keyof CustomerSnapshotData, value: string) => void;
@@ -136,7 +135,6 @@ export function CustomerDetailsBlock({
   editSnapshot,
   createCustomer,
   onCreateCustomerChange,
-  hasCustomerChanges,
   onCustomerSelect,
   onCreateNewCustomer,
   onSnapshotFieldChange,
@@ -150,7 +148,11 @@ export function CustomerDetailsBlock({
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const showPicker = !hasExistingCustomer || editSnapshot;
   const showCreateCustomerCheckbox =
-    hasExistingCustomer && editSnapshot && hasCustomerChanges && hasCustomerChanges(customerSnapshot);
+    Boolean(onCreateCustomerChange) && (!hasExistingCustomer || editSnapshot);
+
+  function handleEditSnapshotChange(checked: boolean) {
+    onEditSnapshotChange?.(checked);
+  }
 
   function displayValue(field: keyof CustomerSnapshotData): string {
     const snapshotVal = customerSnapshot?.[field];
@@ -247,15 +249,17 @@ export function CustomerDetailsBlock({
          {hasExistingCustomer && showEditCheckbox && (
             <EditCustomerCheckbox
               checked={editSnapshot}
-              onChange={onEditSnapshotChange ?? (() => {})}
+              onChange={handleEditSnapshotChange}
             />
           )}
           {showCreateCustomerCheckbox && (
             <label className="attestation-confirm-row">
               <span className="attestation-confirm-copy">
-                <span className="attestation-confirm-label">Gem som ny kunde</span>
+                <span className="attestation-confirm-label">Opret kunde</span>
                 <span className="attestation-confirm-description">
-                  Opret en ny kunde i databasen med de ændrede oplysninger
+                  {hasExistingCustomer
+                    ? 'Opret en ny kunde i databasen med de ændrede oplysninger'
+                    : 'Gem kunden i kundekartoteket, når sagen oprettes'}
                 </span>
               </span>
               <input
