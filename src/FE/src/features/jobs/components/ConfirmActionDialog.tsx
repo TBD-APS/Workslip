@@ -1,16 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 
 type ConfirmActionDialogProps = {
-  action: 'approve' | 'reject';
+  action: 'approve' | 'reject' | 'undo-reject';
   reportNumber: string;
   isPending: boolean;
-  onConfirm: () => void;
+  onConfirm: (rejectionNote?: string) => void;
   onClose: () => void;
 };
 
 export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm, onClose }: ConfirmActionDialogProps) {
+  const [rejectionNote, setRejectionNote] = useState('');
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -20,6 +22,7 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
   }, [onClose]);
 
   const isApprove = action === 'approve';
+  const isUndoReject = action === 'undo-reject';
 
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
@@ -27,22 +30,36 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
         className="modal-card"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label={isApprove ? 'Godkend sag' : 'Afvis sag'}
+        aria-label={isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : 'Afvis sag'}
       >
-        <h3>{isApprove ? 'Godkend sag' : 'Afvis sag'}</h3>
+        <h3>{isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : 'Afvis sag'}</h3>
         <p>
-          Er du sikker på, du vil {isApprove ? 'godkende' : 'afvise'} sagen <strong>{reportNumber}</strong>?
+          Er du sikker på, du vil {isUndoReject ? 'fortryde afvisningen af' : isApprove ? 'godkende' : 'afvise'} sagen <strong>{reportNumber}</strong>?
         </p>
+
+        {action === 'reject' && (
+          <div className="form-group" style={{ marginTop: '1rem' }}>
+            <label className="form-label" htmlFor="rejection-note">Begrundelse for afvisning</label>
+            <textarea
+              id="rejection-note"
+              className="form-input form-textarea"
+              value={rejectionNote}
+              onChange={(e) => setRejectionNote(e.target.value)}
+              placeholder="Angiv årsagen til afvisningen..."
+              rows={3}
+            />
+          </div>
+        )}
 
         <div className="modal-actions modal-actions--double">
           <button
             type="button"
             className={isApprove ? 'btn btn-primary' : 'btn btn-danger'}
-            onClick={onConfirm}
-            disabled={isPending}
+            onClick={() => onConfirm(rejectionNote)}
+            disabled={isPending || (action === 'reject' && !rejectionNote.trim())}
           >
             {isPending && <Loader2 className="animate-spin" size={16} />}
-            <span>{isPending ? (isApprove ? 'Godkender...' : 'Afviser...') : (isApprove ? 'Godkend' : 'Afvis')}</span>
+            <span>{isPending ? (isApprove ? 'Godkender...' : 'Afviser...') : (isApprove ? 'Godkend' : isUndoReject ? 'Fortryd afvisning' : 'Afvis')}</span>
           </button>
           <button
             type="button"

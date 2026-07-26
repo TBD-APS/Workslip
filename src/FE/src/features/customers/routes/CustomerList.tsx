@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ChevronRight, Loader2, Mail, MapPin, MoreHorizontal, Phone, Plus, Star, TrendingUp, Upload, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Heart, Loader2, Mail, MapPin, MoreHorizontal, Phone, Plus, TrendingUp, Upload, Users } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
 import { Can } from '../../../providers/permissions/Can';
@@ -13,7 +13,7 @@ import { usePaginatedList } from '../../../hooks/usePaginatedList';
 import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useCustomerActions } from '../components/CustomerActions';
-import { getApiCustomersTop, patchApiCustomersIdTop } from '../../jobs/customerApi';
+import { getApiCustomersFavorite } from '../../jobs/customerApi';
 import { getGetApiCustomersQueryKey } from '../../../api/generated/customers/customers';
 import { notify } from '../../../lib/toast';
 
@@ -105,18 +105,9 @@ export const CustomerList = () => {
 
   const { handleMouseDown } = useColumnResize();
 
-  const { data: topCustomers = [] } = useQuery({
-    queryKey: ['customers', 'top', 5],
-    queryFn: () => getApiCustomersTop({ limit: 5 }),
-  });
-
-  const toggleTopMutation = useMutation({
-    mutationFn: ({ id, isTop }: { id: string; isTop: boolean }) =>
-      patchApiCustomersIdTop(id, { isTop }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['customers'] });
-      void queryClient.invalidateQueries({ queryKey: ['customers', 'top'] });
-    },
+  const { data: favoriteCustomers = [] } = useQuery({
+    queryKey: ['customers', 'favorite', 5],
+    queryFn: () => getApiCustomersFavorite({ limit: 5 }),
   });
 
   const showLoadingSkeleton = isLoading && customers.length === 0;
@@ -167,24 +158,23 @@ export const CustomerList = () => {
 
       <SearchBar value={search} onChange={handleSearchChange} placeholder="Søg kunder..." />
 
-      {topCustomers.length > 0 && !search && (
-        <div className="top-customers-section">
-          <div className="top-customers-header">
+      {favoriteCustomers.length > 0 && !search && (
+        <div className="favorite-customers-section">
+          <div className="favorite-customers-header">
             <TrendingUp size={16} />
-            <span>Mest aktive kunder</span>
+            <span>Favoritkunder</span>
           </div>
-          <div className="top-customers-grid">
-            {topCustomers.map((customer) => (
+          <div className="favorite-customers-grid">
+            {favoriteCustomers.map((customer) => (
               <button
                 key={customer.id}
-                className="top-customer-card"
+                className="favorite-customer-card"
                 onClick={() => navigate(`/app/customers/${customer.id}`)}
                 type="button"
               >
-                <Building2 size={16} className="top-customer-icon" />
-                <span className="top-customer-name">{customer.name}</span>
+                <span className="favorite-customer-name">{customer.name}</span>
                 {customer.contactPerson && (
-                  <span className="top-customer-contact">{customer.contactPerson}</span>
+                  <span className="favorite-customer-contact">{customer.contactPerson}</span>
                 )}
               </button>
             ))}
@@ -294,7 +284,6 @@ export const CustomerList = () => {
               >
                 <td>
                   <div className="flex-row-center">
-                    <Building2 size={16} className="text-muted flex-shrink-0" />
                     <span>{customer.name}</span>
                   </div>
                 </td>
@@ -306,27 +295,9 @@ export const CustomerList = () => {
                 <td className="cell-number">{customer.jobCount}</td>
                 <td className="col-actions">
                   <div className="flex-row-end">
-                    <Can
-                      permission="customer:edit"
-                      fallback={
-                        <span className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`} title={customer.isTop ? 'Top kunde' : ''}>
-                          <Star size={16} fill={customer.isTop ? 'currentColor' : 'none'} />
-                        </span>
-                      }
-                    >
-                      <button
-                        type="button"
-                        className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleTopMutation.mutate({ id: customer.id, isTop: !customer.isTop });
-                        }}
-                        aria-label={customer.isTop ? 'Fjern fra top' : 'Tilføj til top'}
-                        title={customer.isTop ? 'Fjern fra top' : 'Tilføj til top'}
-                      >
-                        <Star size={16} fill={customer.isTop ? 'currentColor' : 'none'} />
-                      </button>
-                    </Can>
+                    <span className={`btn-icon ${customer.isFavorite ? 'text-red' : 'opacity-30'}`} title={customer.isFavorite ? 'Favorit' : ''}>
+                        <Heart size={16} fill={customer.isFavorite ? 'currentColor' : 'none'} />
+                      </span>
                     <Can permission="customer:edit">
                       <button
                         type="button"
@@ -370,11 +341,12 @@ export const CustomerList = () => {
                 type="button"
               >
                 <div className="job-card-top job-card-top-center">
-                  <Building2 size={20} className="customer-icon" />
-                  <h3 className="customer-name">{customer.name}</h3>
-                  {customer.customerNumber && (
-                    <span className="job-number">{customer.customerNumber}</span>
-                  )}
+                  <div className="customer-card-identity">
+                    <h3 className="customer-name">{customer.name}</h3>
+                    {customer.customerNumber && (
+                      <span className="text-muted customer-number">#{customer.customerNumber}</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="job-card-body">
@@ -408,27 +380,9 @@ export const CustomerList = () => {
                 </div>
 
                 <div className="job-card-footer">
-                  <Can
-                    permission="customer:edit"
-                    fallback={
-                      <span className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`} title={customer.isTop ? 'Top kunde' : ''}>
-                        <Star size={18} fill={customer.isTop ? 'currentColor' : 'none'} />
-                      </span>
-                    }
-                  >
-                    <button
-                      type="button"
-                      className={`btn-icon ${customer.isTop ? 'text-amber' : 'opacity-30'}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleTopMutation.mutate({ id: customer.id, isTop: !customer.isTop });
-                      }}
-                      aria-label={customer.isTop ? 'Fjern fra top' : 'Tilføj til top'}
-                      title={customer.isTop ? 'Fjern fra top' : 'Tilføj til top'}
-                    >
-                      <Star size={18} fill={customer.isTop ? 'currentColor' : 'none'} />
-                    </button>
-                  </Can>
+                  <span className={`btn-icon ${customer.isFavorite ? 'text-red' : 'opacity-30'}`} title={customer.isFavorite ? 'Favorit' : ''}>
+                    <Heart size={18} fill={customer.isFavorite ? 'currentColor' : 'none'} />
+                  </span>
                   <span className="btn-icon" aria-label="Se kunde">
                     <ChevronRight size={20} />
                   </span>

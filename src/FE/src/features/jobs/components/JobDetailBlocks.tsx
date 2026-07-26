@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Building2, FileText, Link2, Lock, Navigation, Star, Users } from 'lucide-react';
+import { Building2, FileText, Heart, Link2, Lock, Navigation, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown, type SingleSelectOption } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
 import { useCan, useIsAdmin } from '../../../providers/permissions';
-import { useGetApiCustomersSuggest } from '../../../api/generated/customers/customers';
-import { getApiCustomersTop } from '../customerApi';
+import { useGetApiCustomersSearch } from '../../../api/generated/customers/customers';
+import { getApiCustomersFavorite } from '../customerApi';
 import type { CustomerSearchViewModel, CustomerSnapshotData, UserViewModel } from '../../../api/generated/models';
 import type { LinkableJob } from '../types';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -389,21 +389,21 @@ function CustomerSearchDropdown({ selectedId, onSelect, onCreateNew }: CustomerS
   const debouncedQuery = useDebounce(inputValue, 300);
   const isSearching = debouncedQuery.length >= 2;
 
-  const { data: searchResults = [], isLoading: isSearchingLoading } = useGetApiCustomersSuggest(
+  const { data: searchResults = [], isLoading: isSearchingLoading } = useGetApiCustomersSearch(
     { query: debouncedQuery, limit: 10 },
     { query: { enabled: isSearching } }
   );
 
-  const { data: topCustomers = [], isLoading: isTopLoading } = useQuery({
-    queryKey: ['customers', 'top'],
-    queryFn: () => getApiCustomersTop({ limit: 10 }),
+  const { data: favoriteCustomers = [], isLoading: isFavoriteLoading } = useQuery({
+    queryKey: ['customers', 'favorite'],
+    queryFn: () => getApiCustomersFavorite({ limit: 10 }),
   });
 
   const results: CustomerSearchViewModel[] = useMemo(() => {
-    if (!isSearching) return topCustomers;
+    if (!isSearching) return favoriteCustomers;
 
     const seen = new Set<string>();
-    const sorted = [...searchResults].sort((a, b) => (a.isTop === b.isTop ? 0 : a.isTop ? -1 : 1));
+    const sorted = [...searchResults].sort((a, b) => (a.isFavorite === b.isFavorite ? 0 : a.isFavorite ? -1 : 1));
     const merged: CustomerSearchViewModel[] = [];
 
     for (const c of sorted) {
@@ -413,7 +413,7 @@ function CustomerSearchDropdown({ selectedId, onSelect, onCreateNew }: CustomerS
       }
     }
 
-    for (const c of topCustomers) {
+    for (const c of favoriteCustomers) {
       if (!seen.has(c.id)) {
         seen.add(c.id);
         merged.push(c);
@@ -421,15 +421,15 @@ function CustomerSearchDropdown({ selectedId, onSelect, onCreateNew }: CustomerS
     }
 
     return merged;
-  }, [isSearching, searchResults, topCustomers]);
-  const isLoading = isSearching ? isSearchingLoading : isTopLoading;
+  }, [isSearching, searchResults, favoriteCustomers]);
+  const isLoading = isSearching ? isSearchingLoading : isFavoriteLoading;
 
   const options = useMemo(() => {
     const list: SingleSelectOption[] = results.map((c: CustomerSearchViewModel) => ({
       id: c.id ?? '',
       label: c.name ?? '',
       description: c.address ?? undefined,
-      icon: c.isTop ? <Star size={14} className="top-customer-icon" /> : undefined,
+      icon: c.isFavorite ? <Heart size={14} className="favorite-customer-icon" fill="#ef4444" /> : undefined,
     }));
 
     if (!isSearching) {

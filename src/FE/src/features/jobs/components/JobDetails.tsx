@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, History, Loader2, AlertTriangle } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import type { AxiosError } from 'axios';
 import type { useJobDetails } from '../hooks/useJobDetails';
 import type { SaveStatus } from '../types';
 import { useDeleteApiJobsId, getGetApiJobsQueryKey } from '../../../api/generated/jobs/jobs';
+import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { DeleteButton } from '../../../components/common/DeleteButton';
 import { ConfirmDeleteDialog } from '../../../components/common/ConfirmDeleteDialog';
 import { useCan, useIsAdmin } from '../../../providers/permissions';
@@ -178,6 +179,16 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         onStepChange={handleStepChange} 
         completedSteps={completedSteps} 
       />
+
+      {details.job.status === JobStatus.Rejected && details.job.rejectionNote && (
+        <div className="rejection-note-banner">
+          <AlertTriangle size={16} />
+          <div>
+            <strong>Afvisningsgrund</strong>
+            <p>{details.job.rejectionNote}</p>
+          </div>
+        </div>
+      )}
 
       <div className="job-details-content">
         {details.currentStep === 0 && (

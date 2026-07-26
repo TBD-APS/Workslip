@@ -1,19 +1,44 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Clock, Hash, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Clock, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
-import { useGetApiCustomersId } from '../../../api/generated/customers/customers';
+import {
+  getGetApiCustomersIdQueryKey,
+  getGetApiCustomersQueryKey,
+  useGetApiCustomersId,
+} from '../../../api/generated/customers/customers';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
+import { patchApiCustomersIdFavorite } from '../../jobs/customerApi';
 import { useCustomerActions } from '../components/CustomerActions';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
 import type { CustomerListItemViewModel } from '../../../api/generated/models';
+import { notify } from '../../../lib/toast';
+
+type CustomerFavoriteState = {
+  isFavorite?: boolean;
+};
 
 export const CustomerDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const query = useGetApiCustomersId(id!);
   const customer = query.data;
+  const isFavorite = (customer as CustomerFavoriteState | undefined)?.isFavorite ?? false;
+
+  const favoriteMutation = useMutation({
+    mutationFn: (nextIsFavorite: boolean) => patchApiCustomersIdFavorite(id!, { isFavorite: nextIsFavorite }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetApiCustomersIdQueryKey(id!) }),
+        queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: ['customers', 'favorite'] }),
+      ]);
+    },
+    onError: () => notify.error('Kunne ikke opdatere favoritstatus. Prøv igen.'),
+  });
 
   useScrollRestore(`customer:${id}`);
 
@@ -30,7 +55,7 @@ export const CustomerDetail = () => {
         contactPerson: customer.contactPerson ?? null,
         phone: customer.phone ?? null,
         jobCount: customer.jobCount,
-        isTop: false,
+        isFavorite,
       }]
     : [];
 
@@ -74,6 +99,19 @@ export const CustomerDetail = () => {
           <h2>{customer.name}</h2>
           <p className="subtitle">{customer.customerNumber ? `${customer.customerNumber} · ` : ''}{customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}</p>
         </div>
+        <Can permission="customer:edit">
+          <button
+            type="button"
+            className={`btn-icon ${isFavorite ? 'text-red' : 'opacity-30'}`}
+            onClick={() => favoriteMutation.mutate(!isFavorite)}
+            disabled={favoriteMutation.isPending}
+            aria-label={isFavorite ? 'Fjern kunde fra favoritter' : 'Tilføj kunde til favoritter'}
+            aria-pressed={isFavorite}
+            title={isFavorite ? 'Fjern fra favoritter' : 'Tilføj til favoritter'}
+          >
+            <Heart size={20} fill={isFavorite ? 'currentColor' : 'none'} />
+          </button>
+        </Can>
         <button
           type="button"
           className="btn btn-primary"
