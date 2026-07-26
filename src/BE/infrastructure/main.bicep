@@ -519,31 +519,23 @@ list_existing() {
   az_with_retry sql server firewall-rule list \
     --resource-group "$RESOURCE_GROUP" \
     --server "$SQL_SERVER_NAME" \
-    --query "[?starts_with(name, 'AllowWebApi') || name == 'AllowAzureServices' || name == 'AllowDeveloperIP'].[name,startIpAddress,endIpAddress]" \
+    --query "[?starts_with(name, 'AllowWebApi') || name == 'AllowAzureServices' || name == 'AllowDeveloperIP'].name" \
     --output tsv
 }
 
-upsert_rule() {
+create_rule() {
   local name="$1"
   local ip="$2"
 
-  if [ -n "${existing_names[$name]:-}" ]; then
-    az_with_retry sql server firewall-rule update \
-      --resource-group "$RESOURCE_GROUP" \
-      --server "$SQL_SERVER_NAME" \
-      --name "$name" \
-      --start-ip-address "$ip" \
-      --end-ip-address "$ip" \
-      --output none
-  else
-    az_with_retry sql server firewall-rule create \
-      --resource-group "$RESOURCE_GROUP" \
-      --server "$SQL_SERVER_NAME" \
-      --name "$name" \
-      --start-ip-address "$ip" \
-      --end-ip-address "$ip" \
-      --output none
-  fi
+  # Azure CLI's create command is backed by create_or_update, making the
+  # deterministic IP-derived rule idempotent on later deployments.
+  az_with_retry sql server firewall-rule create \
+    --resource-group "$RESOURCE_GROUP" \
+    --server "$SQL_SERVER_NAME" \
+    --name "$name" \
+    --start-ip-address "$ip" \
+    --end-ip-address "$ip" \
+    --output none
 }
 
 valid_ips=()
@@ -579,17 +571,6 @@ if [ "${#valid_ips[@]}" -eq 0 ]; then
 fi
 
 existing_raw=$(list_existing)
-declare -A existing_names=()
-if [ -n "$existing_raw" ]; then
-  while IFS=$'\t' read -r name _; do
-    case "$name" in
-      AllowWebApi*|AllowAzureServices|AllowDeveloperIP)
-        existing_names["$name"]=1 ;;
-      *)
-        echo "skipping unexpected firewall-rule value: $name" >&2 ;;
-    esac
-  done <<< "$existing_raw"
-fi
 
 # Use IP-derived names so a changed allowlist can be created completely before
 # obsolete access is removed. A partial failure therefore keeps the previous
@@ -597,14 +578,14 @@ fi
 declare -A desired_names=()
 for ip in "${valid_ips[@]}"; do
   name="AllowWebApi-${ip//./-}"
-  upsert_rule "$name" "$ip"
+  create_rule "$name" "$ip"
   desired_names["$name"]=1
 done
 
 # Replacements are now confirmed. Remove obsolete managed rules and the two
 # legacy broad-access rules. Deliberately configured unrelated rules remain.
 if [ -n "$existing_raw" ]; then
-  while IFS=$'\t' read -r name _; do
+  while IFS= read -r name; do
     case "$name" in
       AllowWebApi*|AllowAzureServices|AllowDeveloperIP)
         if [ -z "${desired_names[$name]:-}" ]; then
