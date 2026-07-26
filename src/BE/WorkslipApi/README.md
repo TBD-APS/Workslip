@@ -218,8 +218,16 @@ GitHub `prod` environment:
 - `AZURE_SUBSCRIPTION_ID`: target Azure subscription ID
 
 They are identifiers, not passwords. Do not add an Azure client secret,
-`AZURE_CREDENTIALS` JSON or an App Service publish profile. Configure `prod` with
-a required reviewer, then verify the manual workflow path before relying on the
-automatic `main` deployment.
+`AZURE_CREDENTIALS` JSON or an App Service publish profile.
+
+Use this two-phase rollout so GitHub deployment access is never interrupted:
+
+1. Run `deploy.ps1` without the cleanup switch and copy the printed
+   `GITHUB_DEPLOYMENT_CLIENT_ID`.
+2. Update the `prod` environment, configure its required reviewer and verify a
+   manual workflow deployment.
+3. Rerun `deploy.ps1` with `-RemoveLegacyGitHubDeploymentAccess` to remove the
+   old federated credential and `Website Contributor` role from the API runtime
+   identity.
 
 Workflow definitions are evidence of intended automation, not evidence that a deployment or rollback has succeeded. Record actual release validation separately.
