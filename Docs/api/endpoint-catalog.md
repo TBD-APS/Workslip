@@ -1,6 +1,6 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-25  
+**Contract build reviewed:** 2026-07-26  
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
@@ -74,13 +74,12 @@ Job status values implemented by the current domain are `Draft`, `InReview`, `Ap
 | Method | Path | Access | Notes |
 |---|---|---|---|
 | GET | `/api/customers/search` | Read | `query`, `limit` → search results |
-| GET | `/api/customers/suggest` | Read | Alias-style suggestion search |
-| GET | `/api/customers/top` | Read | Top customers |
+| GET | `/api/customers/favorite` | Read | Optional `limit`, default `3` → favorite customer search results |
 | GET | `/api/customers/` | User | Paginated customer list |
 | GET | `/api/customers/{id}` | User | Customer detail including `customerNumber`, address, ZIP, city and country |
 | POST | `/api/customers/` | Admin | Requires `Idempotency-Key`; create → detail |
 | PUT | `/api/customers/{id}` | Admin | Update → detail |
-| PATCH | `/api/customers/{id}/top` | Admin | `{ "isTop": true or false }` |
+| PATCH | `/api/customers/{id}/favorite` | Admin | `{ "isFavorite": true or false }` → mapped result |
 | DELETE | `/api/customers/{id}` | Admin | `204` or mapped error |
 | POST | `/api/customers/import` | Admin | Multipart `.xlsx`/`.csv`, max 10 MB, rate limited → imported/duplicate/skipped/failed counts and row errors |
 
