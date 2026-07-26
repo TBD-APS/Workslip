@@ -203,6 +203,61 @@ function Add-GraphGroupMember {
     throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
 }
 
+function Remove-LegacyGitHubDeploymentAccess {
+    param(
+        [Parameter(Mandatory=$true)] [string]$RuntimeIdentityName,
+        [Parameter(Mandatory=$true)] [string]$RuntimeIdentityPrincipalId,
+        [Parameter(Mandatory=$true)] [string]$WebApiResourceId
+    )
+
+    $LegacyFederatedCredentialName = "github-$($Environment.ToLowerInvariant())"
+    Write-Host "Removing legacy GitHub access from the API runtime identity…" -ForegroundColor Cyan
+
+    az identity federated-credential show `
+        --resource-group $RESOURCE_GROUP `
+        --identity-name $RuntimeIdentityName `
+        --name $LegacyFederatedCredentialName `
+        -o none 2>$null
+
+    if ($LASTEXITCODE -eq 0) {
+        az identity federated-credential delete `
+            --resource-group $RESOURCE_GROUP `
+            --identity-name $RuntimeIdentityName `
+            --name $LegacyFederatedCredentialName `
+            --yes `
+            -o none
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not remove legacy federated credential '$LegacyFederatedCredentialName' from runtime identity '$RuntimeIdentityName'."
+        }
+    }
+
+    $LegacyRoleAssignmentIds = az role assignment list `
+        --assignee-object-id $RuntimeIdentityPrincipalId `
+        --scope $WebApiResourceId `
+        --role "Website Contributor" `
+        --fill-principal-name false `
+        --query "[].id" `
+        -o tsv
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not inspect legacy Website Contributor assignments for runtime identity '$RuntimeIdentityName'."
+    }
+
+    foreach ($RoleAssignmentId in @($LegacyRoleAssignmentIds)) {
+        if ([string]::IsNullOrWhiteSpace($RoleAssignmentId)) {
+            continue
+        }
+
+        az role assignment delete --ids $RoleAssignmentId -o none
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not remove legacy Website Contributor assignment '$RoleAssignmentId' from runtime identity '$RuntimeIdentityName'."
+        }
+    }
+
+    Write-Host "   Runtime identity has no GitHub federation or Web App deployment role." -ForegroundColor Green
+}
+
 $DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false -SqlAdminPassword $SqlAdminPassword
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
@@ -224,6 +279,11 @@ Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $DeploymentIdentityPrin
 $SqlAccessDeploymentName = "$DEPLOY_NAME-sql"
 $DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true -SqlAdminPassword $SqlAdminPassword
 $DeploymentOutputs = $DeploymentResult.properties.outputs
+
+Remove-LegacyGitHubDeploymentAccess `
+    -RuntimeIdentityName $DeploymentOutputs.MANAGED_IDENTITY_NAME.value `
+    -RuntimeIdentityPrincipalId $DeploymentOutputs.MANAGED_IDENTITY_PRINCIPAL_ID.value `
+    -WebApiResourceId $DeploymentOutputs.WEB_API_RESOURCE_ID.value
 
 Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
 
