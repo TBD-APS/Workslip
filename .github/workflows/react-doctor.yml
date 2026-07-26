@@ -27,6 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: millionco/react-doctor@v1
+      - uses: millionco/react-doctor@v2
         with:
           directory: src/FE
