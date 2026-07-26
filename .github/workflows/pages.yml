@@ -20,9 +20,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: site
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -30,9 +27,11 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
           working-directory: site
-      - uses: actions/configure-pages@v5
-      - run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
-        id: build
+      - id: pages
+        uses: actions/configure-pages@v5
+      - name: Build Jekyll site
+        working-directory: site
+        run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
         env:
           JEKYLL_ENV: production
       - uses: actions/upload-pages-artifact@v4
