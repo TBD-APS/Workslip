@@ -874,15 +874,12 @@ resource senderUsername 'Microsoft.Communication/emailServices/domains/senderUse
 output STORAGE_ACCOUNT_NAME string             = storageAccount.name
 output LOGIC_APP_NAME string                   = logicAppName
 output WEB_API_NAME string                     = webApi.name
-output WEB_API_RESOURCE_ID string              = webApi.id
 output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName
 output WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'
 output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
-output MANAGED_IDENTITY_NAME string            = identity.name
 output GITHUB_DEPLOYMENT_CLIENT_ID string      = githubDeploymentIdentity.properties.clientId
-output GITHUB_DEPLOYMENT_PRINCIPAL_ID string   = githubDeploymentIdentity.properties.principalId
 output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
 output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
