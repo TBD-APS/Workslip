@@ -54,7 +54,7 @@ jobs:
         run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output "${{ env.PUBLISH_DIR }}" --nologo
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: workslip-api
           path: ${{ env.PUBLISH_DIR }}
