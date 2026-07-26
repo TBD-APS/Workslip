@@ -15,6 +15,10 @@ The implementation is the source of truth. Until WOR-142 is completed, use the b
 - `domain-and-dataflows.md` — organization/tenant ownership, jobs, worksheets and central flows.
 - `adr/` — accepted technical decisions with context, alternatives and consequences.
 
+## Accepted ADRs
+
+- [`ADR 0001: Azure SQL managed identity and App Service IP allowlist`](adr/0001-azure-sql-managed-identity-and-network-allowlist.md)
+
 ## ADR state
 
 An ADR may be `Proposed`, `Accepted`, `Superseded` or `Rejected`. A proposed ADR is not evidence that its behaviour is implemented.

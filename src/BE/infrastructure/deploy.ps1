@@ -4,49 +4,9 @@ param(
     [string]$Location = "westeurope",
     [string]$COMPANY_NAME = "npteknik",
     [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",
-    [string]$VercelToken = ""
+    [string]$VercelToken = "",
+    [switch]$FinalizeDeploymentIdentitySeparation
 )
-
-# ── SQL admin password ────────────────────────────────────────────────────────
-# Source of truth for the SQL admin password is the Key Vault secret
-# 'Azure--Sql--AdminPassword'. The first deployment creates the secret with a
-# randomly generated strong password; subsequent deployments read it back so
-# the password never changes after first set.
-#
-# Override with $env:WORKSLIP_SQL_ADMIN_PASSWORD if you need a deterministic
-# password (e.g. for an existing Azure SQL Server you are re-deploying into
-# without access to the Key Vault).
-$SQL_ADMIN_PWD_SECRET='Azure-...word'
-
-function New-RandomSqlPassword {
-    $rand = New-Object System.Random
-    $alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    $chars = @()
-    for ($i = 0; $i -lt 24; $i++) {
-        $chars += $alphabet[$rand.Next(0, $alphabet.Length)]
-    }
-    return -join $chars
-}
-
-if ($env:WORKSLIP_SQL_ADMIN_PASSWORD) {
-    $SqlAdminPassword = $env:WORKSLIP_SQL_ADMIN_PASSWORD
-} else {
-    # Try to read existing secret from Key Vault. The vault is created as part
-    # of the main deployment below, so the first run will fail this lookup and
-    # fall through to generating a new password.
-    $keyVaultName = "kv-${COMPANY_NAME}${Environment.ToLowerInvariant()}"
-    $existingPwd = az keyvault secret show --name $SQL_ADMIN_PWD_SECRET --vault-name $keyVaultName --query "value" -o tsv 2>$null
-    if ($existingPwd) {
-        $SqlAdminPassword = $existingPwd
-        Write-Host "Reusing existing SQL admin password from Key Vault secret '$SQL_ADMIN_PWD_SECRET'." -ForegroundColor DarkGray
-    } else {
-        $SqlAdminPassword = New-RandomSqlPassword
-        Write-Host "Generated new SQL admin password (24 chars)." -ForegroundColor DarkGray
-        # Flag for post-deploy block to persist the password once the main
-        # deployment has created the Key Vault.
-        $script:STORE_SQL_PWD_AFTER_DEPLOY = $true
-    }
-}
 
 $ErrorActionPreference = "Stop"
 
@@ -114,8 +74,7 @@ if ($exists -eq "false") {
 function Invoke-BicepDeployment {
     param(
         [Parameter(Mandatory=$true)] [string]$DeploymentName,
-        [Parameter(Mandatory=$true)] [bool]$ProvisionWebApiSqlAccess,
-        [Parameter(Mandatory=$true)] [string]$SqlAdminPassword
+        [Parameter(Mandatory=$true)] [bool]$ProvisionWebApiSqlAccess
     )
 
     $ProvisionWebApiSqlAccessValue = $ProvisionWebApiSqlAccess.ToString().ToLowerInvariant()
@@ -131,7 +90,6 @@ function Invoke-BicepDeployment {
        --parameters environment=$Environment `
        --parameters globalAdminId=$GlobalAdminId `
        --parameters provisionWebApiSqlAccess=$ProvisionWebApiSqlAccessValue `
-       --parameters sqlAdminPassword="$SqlAdminPassword" `
        --parameters vercelToken="$VercelToken" `
        -o json
 
@@ -170,9 +128,6 @@ function Add-GraphGroupMember {
     Wait-GraphDirectoryObject -ObjectId $GroupId -Description "SQL admin group"
     Wait-GraphDirectoryObject -ObjectId $MemberId -Description $Description
 
-    
-    #$Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json -Compress
-    
     $BodyObject = @{
         '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId"
     }
@@ -182,39 +137,144 @@ function Add-GraphGroupMember {
             ConvertTo-Json -Depth 10 -Compress |
             Set-Content -Path $TempBodyFile -Encoding utf8
 
-    $AddMemberOutput = az rest `
-          --method POST `
-          --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
-          --headers "Content-Type=application/json" `
-          --body "@$TempBodyFile" `
-          -o none 2>&1
+    try {
+        $AddMemberOutput = az rest `
+              --method POST `
+              --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
+              --headers "Content-Type=application/json" `
+              --body "@$TempBodyFile" `
+              -o none 2>&1
 
-    if ($LASTEXITCODE -eq 0) {
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Added SQL admin group member: $Description"
+            return
+        }
+
+        if (($AddMemberOutput | Out-String) -match "already exist") {
+            Write-Host "SQL admin group member already exists: $Description"
+            return
+        }
+
+        throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
+    }
+    finally {
         Remove-Item $TempBodyFile -ErrorAction SilentlyContinue
-        Write-Host "Added SQL admin group member: $Description"
-        return
     }
-
-    if (($AddMemberOutput | Out-String) -match "already exist") {
-        Write-Host "SQL admin group member already exists: $Description"
-        return
-    }
-
-    throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
 }
 
-$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false -SqlAdminPassword $SqlAdminPassword
+function Remove-GraphGroupMember {
+    param(
+        [Parameter(Mandatory=$true)] [string]$GroupId,
+        [Parameter(Mandatory=$true)] [string]$MemberId,
+        [Parameter(Mandatory=$true)] [string]$Description
+    )
+
+    $RemoveMemberOutput = az rest `
+      --method DELETE `
+      --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/$MemberId/`$ref" `
+      -o none 2>&1
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Removed SQL admin group member: $Description"
+        return
+    }
+
+    if (($RemoveMemberOutput | Out-String) -match "404|Request_ResourceNotFound|does not exist") {
+        Write-Host "SQL admin group member already absent: $Description"
+        return
+    }
+
+    throw "Could not remove SQL admin group member '$Description' ($MemberId): $RemoveMemberOutput"
+}
+
+function Remove-LegacyRuntimeDeploymentAccess {
+    param(
+        [Parameter(Mandatory=$true)] [string]$SubscriptionId,
+        [Parameter(Mandatory=$true)] [string]$ResourceGroupName,
+        [Parameter(Mandatory=$true)] [string]$RuntimeIdentityName,
+        [Parameter(Mandatory=$true)] [string]$RuntimeIdentityPrincipalId,
+        [Parameter(Mandatory=$true)] [string]$WebApiName,
+        [Parameter(Mandatory=$true)] [string]$SqlServerName
+    )
+
+    $FederatedCredentialName = "github-$($Environment.ToLowerInvariant())"
+    $CredentialLookupOutput = az identity federated-credential show `
+      --resource-group $ResourceGroupName `
+      --identity-name $RuntimeIdentityName `
+      --name $FederatedCredentialName `
+      --query name `
+      -o tsv 2>&1
+    $CredentialLookupExitCode = $LASTEXITCODE
+
+    if ($CredentialLookupExitCode -eq 0 -and $CredentialLookupOutput) {
+        az identity federated-credential delete `
+          --resource-group $ResourceGroupName `
+          --identity-name $RuntimeIdentityName `
+          --name $FederatedCredentialName `
+          --yes
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not remove the legacy GitHub federated credential from runtime identity '$RuntimeIdentityName'."
+        }
+    } elseif (
+        $CredentialLookupExitCode -ne 0 -and
+        ($CredentialLookupOutput | Out-String) -notmatch "404|ResourceNotFound|not found"
+    ) {
+        throw "Could not verify the legacy GitHub federated credential on runtime identity '$RuntimeIdentityName': $CredentialLookupOutput"
+    }
+
+    $WebsiteScope = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Web/sites/$WebApiName"
+    $SqlServerScope = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Sql/servers/$SqlServerName"
+    $LegacyAssignments = @(
+        @{
+            RoleDefinitionId = "de139f84-1756-47ae-9be6-808fbbe84772"
+            Scope = $WebsiteScope
+            Description = "Website Contributor"
+        },
+        @{
+            RoleDefinitionId = "056cd41c-7e88-42e1-933e-88ba6a50c9c3"
+            Scope = $SqlServerScope
+            Description = "SQL Security Manager"
+        }
+    )
+
+    foreach ($Assignment in $LegacyAssignments) {
+        az role assignment delete `
+          --assignee-object-id $RuntimeIdentityPrincipalId `
+          --role $Assignment.RoleDefinitionId `
+          --scope $Assignment.Scope
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not remove legacy $($Assignment.Description) access from runtime identity '$RuntimeIdentityName'."
+        }
+    }
+
+    Write-Host "Legacy GitHub federation and deployment RBAC removed from runtime identity." -ForegroundColor Green
+}
+
+$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
 $SqlAdminGroupId = $DeploymentOutputs.SQL_ADMIN_GROUP_ID.value
-$DeploymentIdentityPrincipalId = $DeploymentOutputs.MANAGED_IDENTITY_PRINCIPAL_ID.value
+$RuntimeIdentityPrincipalId = $DeploymentOutputs.MANAGED_IDENTITY_PRINCIPAL_ID.value
+$DeploymentIdentityPrincipalId = $DeploymentOutputs.DEPLOYMENT_IDENTITY_PRINCIPAL_ID.value
+$DeploymentIdentityClientId = $DeploymentOutputs.DEPLOYMENT_IDENTITY_CLIENT_ID.value
+$WebApiName = $DeploymentOutputs.WEB_API_NAME.value
 
 if ([string]::IsNullOrWhiteSpace($SqlAdminGroupId)) {
     throw "Deployment output SQL_ADMIN_GROUP_ID was empty."
 }
 
-if ([string]::IsNullOrWhiteSpace($DeploymentIdentityPrincipalId)) {
+if ([string]::IsNullOrWhiteSpace($RuntimeIdentityPrincipalId)) {
     throw "Deployment output MANAGED_IDENTITY_PRINCIPAL_ID was empty."
+}
+
+if ([string]::IsNullOrWhiteSpace($DeploymentIdentityPrincipalId)) {
+    throw "Deployment output DEPLOYMENT_IDENTITY_PRINCIPAL_ID was empty."
+}
+
+if ([string]::IsNullOrWhiteSpace($DeploymentIdentityClientId)) {
+    throw "Deployment output DEPLOYMENT_IDENTITY_CLIENT_ID was empty."
 }
 
 Write-Host "Ensuring SQL admin group membership…" -ForegroundColor Cyan
@@ -222,29 +282,26 @@ Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $GlobalAdminId -Descrip
 Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $DeploymentIdentityPrincipalId -Description "deployment managed identity"
 
 $SqlAccessDeploymentName = "$DEPLOY_NAME-sql"
-$DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true -SqlAdminPassword $SqlAdminPassword
+$DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
-Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
+Remove-GraphGroupMember `
+  -GroupId $SqlAdminGroupId `
+  -MemberId $RuntimeIdentityPrincipalId `
+  -Description "runtime managed identity"
 
-# If we generated a new password this run (no existing Key Vault secret),
-# store it now so subsequent deploys reuse it instead of generating a new one
-# that would break the existing SQL Server login.
-if ($script:STORE_SQL_PWD_AFTER_DEPLOY) {
-    Write-Host "Storing SQL admin password in Key Vault secret '$SQL_ADMIN_PWD_SECRET' for future deploys..." -ForegroundColor Cyan
-    az keyvault secret set `
-        --vault-name $keyVaultName `
-        --name $SQL_ADMIN_PWD_SECRET `
-        --value $SqlAdminPassword `
-        -o none
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to store SQL admin password in Key Vault. Next deployment will generate a new password and may break the existing SQL Server login. Store it manually with: az keyvault secret set --vault-name $keyVaultName --name $SQL_ADMIN_PWD_SECRET --value '<current-password>'"
-    } else {
-        Write-Host "   Stored." -ForegroundColor Green
-    }
-    # Wipe from in-memory so it doesn't linger past the script (defence in depth).
-    $SqlAdminPassword = $null
+if ($FinalizeDeploymentIdentitySeparation) {
+    Remove-LegacyRuntimeDeploymentAccess `
+      -SubscriptionId $account `
+      -ResourceGroupName $RESOURCE_GROUP `
+      -RuntimeIdentityName "id-$COMPANY_NAME-$Environment" `
+      -RuntimeIdentityPrincipalId $RuntimeIdentityPrincipalId `
+      -WebApiName $WebApiName `
+      -SqlServerName "db-$COMPANY_NAME-$Environment-server"
 }
+
+Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
+Write-Host "GitHub environment AZURE_CLIENT_ID must be: $DeploymentIdentityClientId" -ForegroundColor Yellow
 
 
 # ─── Add Graph roles to Managed Identity ───────────────────────────────────────────

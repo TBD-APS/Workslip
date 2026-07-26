@@ -21,6 +21,8 @@ env:
   DOTNET_VERSION: '10.0.x'
   API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish/api
+  DEPLOY_ENVIRONMENT: ${{ inputs.environment || 'prod' }}
+  WEB_APP_NAME: ${{ inputs.app_name || 'api-npteknik-prod' }}
 
 permissions:
   id-token: write
@@ -64,8 +66,11 @@ jobs:
     name: Deploy API
     runs-on: ubuntu-latest
     needs: build
-    environment: ${{ github.event.inputs.environment }}
+    environment: ${{ inputs.environment || 'prod' }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
@@ -82,6 +87,23 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: api-npteknik-${{ github.event.inputs.environment }}
+          app-name: ${{ env.WEB_APP_NAME }}
           package: ${{ env.PUBLISH_DIR }}
 
+      - name: Install sqlcmd 18
+        shell: bash
+        run: |
+          source /etc/os-release
+          curl -fsSL "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/packages-microsoft-prod.deb" -o /tmp/packages-microsoft-prod.deb
+          sudo dpkg -i /tmp/packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo env ACCEPT_EULA=Y apt-get install -y mssql-tools18
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+
+      - name: Validate Azure SQL identity and network controls
+        shell: pwsh
+        run: >-
+          ./src/BE/infrastructure/Test-AzureSqlSecurity.ps1
+          -Environment '${{ env.DEPLOY_ENVIRONMENT }}'
+          -CompanyName 'npteknik'
+          -ApiUrl 'https://${{ env.WEB_APP_NAME }}.azurewebsites.net'
