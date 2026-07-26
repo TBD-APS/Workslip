@@ -47,12 +47,28 @@ def is_external(destination: str) -> bool:
     return bool(parsed.scheme or destination.startswith("//"))
 
 
-def resolve_local_target(root: Path, source: Path, destination: str) -> Path | None:
+def strip_baseurl(local_path: str, baseurl: str) -> str:
+    normalized = "/" + baseurl.strip("/") if baseurl.strip("/") else ""
+    if not normalized:
+        return local_path
+    if local_path == normalized:
+        return "/"
+    if local_path.startswith(f"{normalized}/"):
+        return local_path[len(normalized) :]
+    return local_path
+
+
+def resolve_local_target(
+    root: Path,
+    source: Path,
+    destination: str,
+    baseurl: str,
+) -> Path | None:
     if not destination or destination.startswith("#") or is_external(destination):
         return None
 
     parsed = urlsplit(destination)
-    local_path = unquote(parsed.path)
+    local_path = strip_baseurl(unquote(parsed.path), baseurl)
     if not local_path:
         return None
 
@@ -73,7 +89,7 @@ def resolve_local_target(root: Path, source: Path, destination: str) -> Path | N
     return candidate
 
 
-def validate_page(root: Path, page: Path) -> list[str]:
+def validate_page(root: Path, page: Path, baseurl: str) -> list[str]:
     parser = PageParser()
     parser.feed(page.read_text(encoding="utf-8"))
     relative = page.relative_to(root).as_posix()
@@ -87,7 +103,7 @@ def validate_page(root: Path, page: Path) -> list[str]:
         )
 
     for destination in parser.links:
-        target = resolve_local_target(root, page, destination)
+        target = resolve_local_target(root, page, destination, baseurl)
         if target is not None and not target.exists():
             failures.append(f"{relative}: broken local reference {destination!r}")
 
@@ -96,6 +112,7 @@ def validate_page(root: Path, page: Path) -> list[str]:
 
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else "_site").resolve()
+    baseurl = sys.argv[2] if len(sys.argv) > 2 else ""
     failures: list[str] = []
 
     if not root.is_dir():
@@ -107,7 +124,7 @@ def main() -> int:
             failures.append(f"missing required output: {relative}")
 
     for page in sorted(root.rglob("*.html")):
-        failures.extend(validate_page(root, page))
+        failures.extend(validate_page(root, page, baseurl))
 
     if failures:
         for failure in failures:
