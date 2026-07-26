@@ -225,6 +225,13 @@ $SqlAccessDeploymentName = "$DEPLOY_NAME-sql"
 $DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true -SqlAdminPassword $SqlAdminPassword
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
+$GitHubDeploymentClientId = $DeploymentOutputs.GITHUB_DEPLOYMENT_CLIENT_ID.value
+if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
+    throw "Deployment output GITHUB_DEPLOYMENT_CLIENT_ID was empty."
+}
+
+Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green
+
 Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
 
 # If we generated a new password this run (no existing Key Vault secret),

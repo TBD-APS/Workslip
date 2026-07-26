@@ -1,21 +1,22 @@
 ---
 title: Demo
-description: Prøv Workslips centrale arbejdsgange direkte i browseren.
+description: Se hvordan Workslip kan prøves i et sikkert, isoleret demomiljø.
 permalink: /demo/
 ---
 
 <section class="section">
-  <div class="container">
+  <div class="container narrow">
     <p class="eyebrow">Interaktiv demo</p>
     <h1>Se Workslip i praksis</h1>
-    <p class="lead">Demoen bliver koblet til et isoleret miljø med fiktive data. Den fulde demo åbner direkte på demo-domænet, mens denne side senere kan vise en begrænset preview i en iframe.</p>
+    <p class="lead">En offentlig demo bliver åbnet, når den kan køre med fiktive data, korte sessioner og uden forbindelse til produktionsdata eller privilegerede integrationer.</p>
 
     <div class="notice">
-      <strong>Status:</strong> Demo-miljø, persona-login og sikker reset leveres under WOR-125 til WOR-128. Denne side aktiverer ikke en iframe, før miljøet er isoleret og valideret.
+      <strong>Status:</strong> Den isolerede demo er ikke offentlig endnu. Denne side indlejrer derfor ikke produktionsapplikationen og lover ikke adgang til ufærdige demo-funktioner.
     </div>
 
     <div class="actions">
-      <a class="button" href="https://workslip-v2-0.vercel.app/app">Åbn nuværende applikation</a>
+      <a class="button" href="https://workslip-v2-0.vercel.app/app">Åbn den nuværende applikation</a>
+      <a class="button secondary" href="{{ '/features/' | relative_url }}">Se funktionerne</a>
     </div>
   </div>
 </section>
