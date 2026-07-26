@@ -994,9 +994,9 @@
                 "exec": [
                   "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.test('customers list returned', function () { pm.expect(json).to.be.an('array'); });",
-                  "pm.test('customer view model hides internal timestamps', function () { if (json.length > 0) ['createdAt', 'updatedAt'].forEach(field => pm.expect(json[0]).to.not.have.property(field)); });",
-                  "if (json.length > 0) { pm.collectionVariables.set('customerId', json[0].id); }"
+                  "pm.test('paginated customer list returned', function () { pm.expect(json.items).to.be.an('array'); pm.expect(json.totalCount).to.be.a('number'); });",
+                  "pm.test('customer view model hides internal timestamps', function () { if (json.items.length > 0) ['createdAt', 'updatedAt'].forEach(field => pm.expect(json.items[0]).to.not.have.property(field)); });",
+                  "if (json.items.length > 0) { pm.collectionVariables.set('customerId', json.items[0].id); }"
                 ]
               }
             }
@@ -1079,95 +1079,9 @@
                   "pm.test('returns an array', function () { pm.expect(json).to.be.an('array'); });",
                   "if (json.length > 0) {",
                   "  pm.test('search result has expected fields', function () {",
-                  "    pm.expect(json[0]).to.have.all.keys('id', 'name', 'email', 'phone', 'address', 'contactPerson');",
+                  "    pm.expect(json[0]).to.include.all.keys('id', 'customerNumber', 'name', 'email', 'phone', 'address', 'zipCode', 'city', 'country', 'contactPerson', 'isFavorite');",
                   "  });",
                   "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "/api/customers/suggest",
-          "request": {
-            "description": "Returns customer suggestions for autocomplete - same shape as /search but intended for on-the-fly dropdown queries.",
-            "method": "GET",
-            "url": {
-              "path": [
-                "api",
-                "customers",
-                "suggest"
-              ],
-              "query": [
-                {
-                  "description": "Optional prefix search term",
-                  "value": "",
-                  "key": "query"
-                },
-                {
-                  "description": "Max suggestions (default 5)",
-                  "value": "5",
-                  "key": "limit"
-                }
-              ],
-              "raw": "{{baseUrl}}/api/customers/suggest?query=&limit=5",
-              "host": [
-                "{{baseUrl}}"
-              ]
-            },
-            "header": []
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "pm.test('returns an array', function () { pm.expect(json).to.be.an('array'); });"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "/api/customers/top",
-          "request": {
-            "description": "Returns the top N customers (by job count) for the organization. Used to pre-populate the autosuggestion dropdown with defaults.",
-            "method": "GET",
-            "url": {
-              "path": [
-                "api",
-                "customers",
-                "top"
-              ],
-              "query": [
-                {
-                  "description": "Number of top customers (default 3)",
-                  "value": "3",
-                  "key": "limit"
-                }
-              ],
-              "raw": "{{baseUrl}}/api/customers/top?limit=3",
-              "host": [
-                "{{baseUrl}}"
-              ]
-            },
-            "header": []
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "const json = pm.response.json();",
-                  "pm.test('returns an array', function () { pm.expect(json).to.be.an('array'); });",
-                  "pm.test('returns at most limit items', function () { pm.expect(json.length).to.be.at.most(3); });"
                 ],
                 "type": "text/javascript"
               }
@@ -1225,6 +1139,96 @@
           ]
         },
         {
+          "name": "/api/customers/{id}/favorite",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}/favorite",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}",
+                "favorite"
+              ]
+            },
+            "description": "Marks the captured customer as a favorite. Requires admin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isFavorite\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('mutation response is not stored', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/customers/favorite",
+          "request": {
+            "description": "Returns favorite customers for the organization, falling back to recent customers when none are marked.",
+            "method": "GET",
+            "url": {
+              "path": [
+                "api",
+                "customers",
+                "favorite"
+              ],
+              "query": [
+                {
+                  "description": "Max results (default 3, maximum 25)",
+                  "value": "25",
+                  "key": "limit"
+                }
+              ],
+              "raw": "{{baseUrl}}/api/customers/favorite?limit=25",
+              "host": [
+                "{{baseUrl}}"
+              ]
+            },
+            "header": []
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('returns an array', function () { pm.expect(json).to.be.an('array'); });",
+                  "pm.test('returns at most limit items', function () { pm.expect(json.length).to.be.at.most(25); });",
+                  "pm.test('favorite response shape is current', function () { if (json.length > 0) pm.expect(json[0]).to.include.all.keys('id', 'customerNumber', 'name', 'email', 'phone', 'address', 'zipCode', 'city', 'country', 'contactPerson', 'isFavorite'); });",
+                  "pm.test('favorites are marked', function () { pm.expect(json).to.not.be.empty; pm.expect(json.every(customer => customer.isFavorite === true)).to.eql(true); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
           "name": "/api/customers/{id} (update)",
           "request": {
             "method": "PUT",
@@ -1237,7 +1241,7 @@
             "url": {
               "raw": "{{baseUrl}}/api/customers/{{customerId}}",
               "host": [
-                "{{baseUrl}"
+                "{{baseUrl}}"
               ],
               "path": [
                 "api",

@@ -200,8 +200,8 @@ function prepareCustomers(folder) {
     if (method === 'GET' && item.name === '/api/customers') return 1;
     if (method === 'GET' && item.name === '/api/customers/{id}') return 2;
     if (method === 'GET' && item.name === '/api/customers/search') return 3;
-    if (method === 'GET' && item.name === '/api/customers/suggest') return 4;
-    if (method === 'GET' && item.name === '/api/customers/top') return 5;
+    if (method === 'PATCH' && item.name === '/api/customers/{id}/favorite') return 4;
+    if (method === 'GET' && item.name === '/api/customers/favorite') return 5;
     if (method === 'PUT') return 6;
     if (method === 'POST' && item.name === '/api/customers/import') return 7;
     if (method === 'DELETE') return 8;
