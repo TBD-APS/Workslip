@@ -104,7 +104,7 @@ public sealed class CustomerService(
             Guid.Empty,
             request.Name!.Trim(),
             request.Address?.Trim(),
-            request.Email?.Trim(),
+            request.Email?.Trim().ToLowerInvariant(),
             request.ContactPerson?.Trim(),
             request.Phone?.Trim());
 
@@ -144,7 +144,7 @@ public sealed class CustomerService(
             id,
             request.Name!.Trim(),
             request.Address?.Trim(),
-            request.Email?.Trim(),
+            request.Email?.Trim().ToLowerInvariant(),
             request.ContactPerson?.Trim(),
             request.Phone?.Trim());
 
@@ -224,7 +224,8 @@ public sealed class CustomerService(
 
         logger.LogInformation("Importing {Count} customers for org {OrgId}", customers.Count, organizationId);
 
-        var imported = await customerRepository.BulkCreateAsync(organizationId.Value, customers, cancellationToken);
+        var normalizedCustomers = customers.Select(c => c with { Email = c.Email?.Trim().ToLowerInvariant() }).ToList();
+        var imported = await customerRepository.BulkCreateAsync(organizationId.Value, normalizedCustomers, cancellationToken);
 
         return Result<ImportCustomerResponse>.Success(new ImportCustomerResponse(imported, 0));
     }

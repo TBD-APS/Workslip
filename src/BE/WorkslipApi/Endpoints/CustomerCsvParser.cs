@@ -55,7 +55,7 @@ public static class CustomerCsvParser
                 null,
                 row.Name.Trim(),
                 row.Address?.Trim(),
-                row.Email?.Trim(),
+                row.Email?.Trim().ToLowerInvariant(),
                 row.ContactPerson?.Trim(),
                 row.Phone?.Trim()));
         }

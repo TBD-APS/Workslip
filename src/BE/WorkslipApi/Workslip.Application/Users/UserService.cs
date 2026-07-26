@@ -27,16 +27,18 @@ public sealed class UserService(
             return Result<UserResponse>.Invalid(errors);
         }
 
-        var existing = await repository.GetByEmailAsync(request.Email, cancellationToken);
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+        var existing = await repository.GetByEmailAsync(normalizedEmail, cancellationToken);
         if (existing != null)
         {
-            logger.LogWarning("User create conflict: email already in use. Email: {Email}", request.Email);
+            logger.LogWarning("User create conflict: email already in use. Email: {Email}", normalizedEmail);
             return Result<UserResponse>.Conflict("email_in_use");
         }
 
-        var entraUser = await entraService.CreateUserAsync(request.Email, request.DisplayName, cancellationToken);
+        var entraUser = await entraService.CreateUserAsync(normalizedEmail, request.DisplayName, cancellationToken);
 
-        var user = BuildUserRow(request, entraUser, currentUser.OrganizationId.GetValueOrDefault());
+        var user = BuildUserRow(normalizedEmail, request, entraUser, currentUser.OrganizationId.GetValueOrDefault());
         var userId = await repository.CreateAsync(user, cancellationToken);
         user.Id = userId;
 
@@ -215,12 +217,12 @@ public sealed class UserService(
             .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
             .ToList();
 
-    private static UserDataRow BuildUserRow(CreateUserRequest request, CreateEntraUserResult entraUser, Guid organizationId) =>
+    private static UserDataRow BuildUserRow(string normalizedEmail, CreateUserRequest request, CreateEntraUserResult entraUser, Guid organizationId) =>
         new()
         {
             Id = Guid.NewGuid(),
             OrganizationId = organizationId,
-            Email = request.Email,
+            Email = normalizedEmail,
             DisplayName = request.DisplayName,
             EntraEmail = entraUser.EntraMail,
             EntraId = entraUser.EntraUserId,

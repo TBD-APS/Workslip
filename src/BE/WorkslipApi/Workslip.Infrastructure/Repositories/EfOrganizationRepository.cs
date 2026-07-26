@@ -64,7 +64,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository
             Id = userId,
             OrganizationId = organizationId,
             DisplayName = request.AdminDisplayName.Trim(),
-            Email = NullIfWhiteSpace(request.AdminEmail) ?? "",
+            Email = NullIfWhiteSpace(request.AdminEmail)?.ToLowerInvariant() ?? "",
             Phone = NullIfWhiteSpace(request.AdminPhone) ?? "",
             Role = Roles.Admin,
             CreatedAt = now,

@@ -145,10 +145,12 @@ public sealed class InvitationService(
         if (string.IsNullOrWhiteSpace(email))
             return new InviteUserResult(email, false, "Email address is empty.", null);
 
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
         try
         {
             var token = Guid.NewGuid().ToString("N");
-            var existingInvite = await inviteRepository.GetInviteByEmailAsync(organizationId, email, cancellationToken);
+            var existingInvite = await inviteRepository.GetInviteByEmailAsync(organizationId, normalizedEmail, cancellationToken);
 
             if(existingInvite == null)
             {
@@ -156,7 +158,7 @@ public sealed class InvitationService(
                 {
                     Id = Guid.NewGuid(),
                     OrganizationId = organizationId,
-                    Email = email,
+                    Email = normalizedEmail,
                     Token = token,
                     Role = role,
                     ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
@@ -174,14 +176,14 @@ public sealed class InvitationService(
                 await inviteRepository.UpdateAsync(existingInvite, cancellationToken);
             }
 
-            await emailService.SendInviteEmailAsync(email, token, cancellationToken);
-            logger.LogInformation("Invite sent to {Email}. Token: {Token}", email, token);
-            return new InviteUserResult(email, true, null, token);
+                await emailService.SendInviteEmailAsync(normalizedEmail, token, cancellationToken);
+                logger.LogInformation("Invite sent to {Email}. Token: {Token}", normalizedEmail, token);
+                return new InviteUserResult(normalizedEmail, true, null, token);
         }
         catch (InvalidOperationException ex)
         {
-            logger.LogError(ex, "Failed to send invite to {Email}.", email);
-            return new InviteUserResult(email, false, "Failed to send invite email.", null);
+            logger.LogError(ex, "Failed to send invite to {Email}.", normalizedEmail);
+            return new InviteUserResult(normalizedEmail, false, "Failed to send invite email.", null);
         }
     }
 
@@ -332,7 +334,7 @@ public sealed class InvitationService(
         {
             Id = Guid.NewGuid(),
             OrganizationId = invite.OrganizationId,
-            Email = invite.Email,
+            Email = invite.Email.Trim().ToLowerInvariant(),
             DisplayName = displayName,
             Phone = phone ?? string.Empty,
             EntraEmail = invite.EntraEmail ?? invite.Email,

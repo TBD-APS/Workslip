@@ -51,7 +51,9 @@ public sealed class EfJobRepository : IJobRepository
         var nextSequenceNumber = await GetNextReportNumberAsync(organizationId, cancellationToken);
         var reportNumber = nextSequenceNumber.ToString("D4");
 
-        var customerSnapshot = request.CustomerSnapshot;
+        var customerSnapshot = request.CustomerSnapshot is null
+            ? null
+            : request.CustomerSnapshot with { Email = request.CustomerSnapshot.Email?.Trim().ToLowerInvariant() };
 
         Guid? customerId = null;
         if (customerSnapshot is not null && (request.CustomerId is null || request.CreateCustomerFromSnapshot == true))
@@ -383,8 +385,9 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
 
         if (request.CustomerSnapshot is not null)
         {
+            var normalizedEmail = request.CustomerSnapshot.Email?.Trim().ToLowerInvariant();
             entry.Property(e => e.CustomerName).CurrentValue = ValueOrNull(request.CustomerSnapshot.Name);
-            entry.Property(e => e.CustomerEmail).CurrentValue = ValueOrNull(request.CustomerSnapshot.Email);
+            entry.Property(e => e.CustomerEmail).CurrentValue = ValueOrNull(normalizedEmail);
             entry.Property(e => e.CustomerPhone).CurrentValue = ValueOrNull(request.CustomerSnapshot.Phone);
             entry.Property(e => e.CustomerAddress).CurrentValue = ValueOrNull(request.CustomerSnapshot.Address);
             entry.Property(e => e.CustomerContactPerson).CurrentValue = ValueOrNull(request.CustomerSnapshot.ContactPerson);
@@ -394,7 +397,7 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 var customerInfo = new CustomerInfo(Guid.NewGuid(),
                     request.CustomerSnapshot.Name,
                     request.CustomerSnapshot.Address,
-                    request.CustomerSnapshot.Email,
+                    normalizedEmail,
                     request.CustomerSnapshot.ContactPerson,
                     request.CustomerSnapshot.Phone);
 
