@@ -1,19 +1,19 @@
 import { customAxiosInstance } from '../../api/fetcherOrval';
 import type { CustomerSearchViewModel } from '../../api/generated/models';
 
-export function getApiCustomersTop(
+export function getApiCustomersFavorite(
   params?: { limit?: number | string },
 ) {
   return customAxiosInstance<CustomerSearchViewModel[]>(
-    { url: `/api/customers/top`, method: 'GET', params },
+    { url: `/api/customers/favorite`, method: 'GET', params },
   );
 }
 
-export function patchApiCustomersIdTop(
+export function patchApiCustomersIdFavorite(
   id: string,
-  data: { isTop: boolean },
+  data: { isFavorite: boolean },
 ) {
   return customAxiosInstance<void>(
-    { url: `/api/customers/${id}/top`, method: 'PATCH', data },
+    { url: `/api/customers/${id}/favorite`, method: 'PATCH', data },
   );
 }

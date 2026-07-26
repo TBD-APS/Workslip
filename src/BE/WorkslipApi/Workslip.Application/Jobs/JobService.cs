@@ -333,10 +333,10 @@ public sealed class JobService(
             return isValidResponse;
         }
 
-        return await TransitionAsync(id, request.Status, cancellationToken);
+        return await TransitionAsync(id, request.Status, request.RejectionNote, cancellationToken);
     }
 
-    private async Task<Result<JobReportSummaryResponse>> TransitionAsync(Guid id, JobStatus targetStatus, CancellationToken cancellationToken)
+    private async Task<Result<JobReportSummaryResponse>> TransitionAsync(Guid id, JobStatus targetStatus, string? rejectionNote, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -345,7 +345,7 @@ public sealed class JobService(
         }
 
         var actorId = currentUser.UserId;
-        var transition = await _jobRepository.TransitionAsync(id, organizationId.Value, targetStatus, actorId, cancellationToken);
+        var transition = await _jobRepository.TransitionAsync(id, organizationId.Value, targetStatus, actorId, rejectionNote, cancellationToken);
         if (transition is null)
         {
             logger.LogWarning("Job transition returned not found. JobId: {JobId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",
@@ -413,7 +413,7 @@ public sealed class JobService(
             foreach (var assignedUser in report.AssignedUsers)
             {
                 if (assignedUser.Id == currentUser.UserId) continue;
-                await notificationService.QueueJobDeniedAsync(assignedUser.Id, assignedUser.DisplayName, report.Id, reportNumber, address, cancellationToken);
+                await notificationService.QueueJobDeniedAsync(assignedUser.Id, assignedUser.DisplayName, report.Id, reportNumber, address, rejectionNote, cancellationToken);
             }
         }
         else if (targetStatus == JobStatus.Approved)
@@ -716,7 +716,8 @@ public sealed class JobService(
             filteredWorksheets,
             totalHours,
             totalOverLay,
-            report.SoftDeleted);
+            report.SoftDeleted,
+            report.RejectionNote);
     }
 
     private async Task<List<ValidationError>> ValidateDraftWorkAsync(Guid organizationId, CreateJobWorkRequest? workind, CancellationToken cancellationToken)

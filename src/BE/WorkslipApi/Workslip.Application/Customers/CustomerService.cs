@@ -64,17 +64,17 @@ public sealed class CustomerService(
         return Result<IReadOnlyList<CustomerSearchResponse>>.Success(customers);
     }
 
-    public async Task<Result<IReadOnlyList<CustomerSearchResponse>>> GetTopAsync(int limit, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<CustomerSearchResponse>>> GetFavoriteAsync(int limit, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            logger.LogWarning("Top customers requested without OrganizationId in claims.");
+            logger.LogWarning("Favorite customers requested without OrganizationId in claims.");
             return Result<IReadOnlyList<CustomerSearchResponse>>.Unauthorized();
         }
 
         var normalizedLimit = Math.Clamp(limit, 1, 25);
-        var customers = await customerRepository.GetTopCustomersAsync(organizationId.Value, normalizedLimit, cancellationToken);
+        var customers = await customerRepository.GetFavoriteCustomersAsync(organizationId.Value, normalizedLimit, cancellationToken);
         return Result<IReadOnlyList<CustomerSearchResponse>>.Success(customers);
     }
 
@@ -150,12 +150,12 @@ public sealed class CustomerService(
         }
     }
 
-    public async Task<Result> SetTopAsync(Guid id, bool isTop, CancellationToken cancellationToken)
+    public async Task<Result> SetFavoriteAsync(Guid id, bool isFavorite, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
         {
-            logger.LogWarning("Customer SetTop requested without OrganizationId in claims.");
+            logger.LogWarning("Customer SetFavorite requested without OrganizationId in claims.");
             return Result.Unauthorized();
         }
 
@@ -165,7 +165,7 @@ public sealed class CustomerService(
             return Result.NotFound();
         }
 
-        await customerRepository.SetTopAsync(organizationId.Value, id, isTop, cancellationToken);
+        await customerRepository.SetFavoriteAsync(organizationId.Value, id, isFavorite, cancellationToken);
         return Result.Success();
     }
 

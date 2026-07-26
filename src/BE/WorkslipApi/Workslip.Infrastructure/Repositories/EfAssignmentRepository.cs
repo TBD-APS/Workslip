@@ -138,7 +138,8 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 r.CreatedAt,
                 r.UpdatedAt,
                 r.IsSoftDeleted,
-                r.DeletionScheduledAt
+                r.DeletionScheduledAt,
+                r.RejectionNote
             }).ToListAsync(cancellationToken);
 
         var reportIds = projected.Select(x => x.Id).ToArray();
@@ -200,7 +201,8 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 assignedDictionary.GetValueOrDefault(x.Id) ?? [],
                 x.IsSoftDeleted, x.DeletionScheduledAt,
                 totalHoursByJob.GetValueOrDefault(x.Id),
-                seenSet.Contains(x.Id));
+                seenSet.Contains(x.Id),
+                x.RejectionNote);
         }).ToArray();
     }
 

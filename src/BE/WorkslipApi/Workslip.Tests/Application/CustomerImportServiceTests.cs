@@ -93,9 +93,9 @@ public sealed class CustomerImportServiceTests
         public Task<int> GetCustomerCountAsync(Guid organizationId, string? search, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<CustomerDetailResponse?> GetByIdAsync(Guid organizationId, Guid id, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task UpdateAsync(Guid organizationId, Guid id, CustomerData customer, CancellationToken cancellationToken) => throw new NotImplementedException();
-        public Task SetTopAsync(Guid organizationId, Guid id, bool isTop, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task SetFavoriteAsync(Guid organizationId, Guid id, bool isFavorite, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task DeleteAsync(Guid organizationId, Guid id, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<IReadOnlyList<CustomerSearchResponse>> SearchAsync(Guid organizationId, string query, int limit, CancellationToken cancellationToken) => throw new NotImplementedException();
-        public Task<IReadOnlyList<CustomerSearchResponse>> GetTopCustomersAsync(Guid organizationId, int limit, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<IReadOnlyList<CustomerSearchResponse>> GetFavoriteCustomersAsync(Guid organizationId, int limit, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 }

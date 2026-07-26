@@ -6,5 +6,6 @@ public sealed record NotificationPayload(
     string CustomerAddress,
     string NotificationType,
     string RecipientName,
-    string Url = "/app"
+    string Url = "/app",
+    string? RejectionNote = null
 );

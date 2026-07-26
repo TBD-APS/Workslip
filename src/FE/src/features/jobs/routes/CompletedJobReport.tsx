@@ -50,7 +50,7 @@ export const CompletedJobReport = () => {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | 'undo-reject' | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [worksheetOpen, setWorksheetOpen] = useState(true);
   const previewUrlRef = useRef<string | null>(null);
@@ -165,23 +165,41 @@ export const CompletedJobReport = () => {
     setConfirmAction('reject');
   };
 
-  const executeConfirmAction = async () => {
+  const handleUndoRejection = () => {
+    setConfirmAction('undo-reject');
+  };
+
+  const executeConfirmAction = async (rejectionNote?: string) => {
     if (!job || !confirmAction) return;
-    const targetStatus = confirmAction === 'approve' ? JobStatus.Approved : JobStatus.Rejected;
+
+    let targetStatus: JobStatus;
+    let note: string | null = null;
+
+    if (confirmAction === 'undo-reject') {
+      targetStatus = JobStatus.InReview;
+    } else {
+      targetStatus = confirmAction === 'approve' ? JobStatus.Approved : JobStatus.Rejected;
+      note = rejectionNote ?? null;
+    }
+
     try {
-      const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: targetStatus } });
+      const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: targetStatus, rejectionNote: note } });
       queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), updatedJob);
       await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-      const message = confirmAction === 'approve'
-        ? `Sagen ${details.form.reportNumber} er godkendt`
-        : `Sagen ${details.form.reportNumber} er afvist`;
+      const message = confirmAction === 'undo-reject'
+        ? `Sagen ${details.form.reportNumber} er sendt til gennemgang igen`
+        : confirmAction === 'approve'
+          ? `${details.form.reportNumber} er godkendt`
+          : `${details.form.reportNumber} er afvist`;
       notify.success(message);
       setConfirmAction(null);
       navigate(from);
     } catch {
-      const message = confirmAction === 'approve'
-        ? `Kunne ikke godkende sagen ${details.form.reportNumber}. Prøv igen.`
-        : `Kunne ikke afvise sagen ${details.form.reportNumber}. Prøv igen.`;
+      const message = confirmAction === 'undo-reject'
+        ? `Kunne ikke fortryde afvisningen. Prøv igen.`
+        : confirmAction === 'approve'
+          ? `Kunne ikke godkende ${details.form.reportNumber}. Prøv igen.`
+          : `Kunne ikke afvise ${details.form.reportNumber}. Prøv igen.`;
       notify.error(message);
       setConfirmAction(null);
     }
@@ -238,6 +256,7 @@ export const CompletedJobReport = () => {
     { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Destination', value: job.destinationAddress },
     { label: 'Afslutning', value: formatClosureFlags(job) },
+    { label: 'Afvisningsgrund', value: job.status === JobStatus.Rejected ? job.rejectionNote : undefined },
   ]);
   const customerPairs = compactPairs([
     { label: 'Kunde', value: job.customerSnapshot.name },
@@ -326,6 +345,14 @@ export const CompletedJobReport = () => {
             <button className="btn btn-primary" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
               {statusMutation.isPending ? <Loader2 size={16} className="spin" /> : <CheckCircle2 size={16} />}
               <span>{statusMutation.isPending ? 'Godkender...' : 'Godkend'}</span>
+            </button>
+          </div>
+        )}
+        {isDesktop && job.status === JobStatus.Rejected && isAdmin && !readOnly && !isEditing && (
+          <div className="report-overview-actions report-overview-actions--right">
+            <button className="btn btn-secondary" type="button" onClick={handleUndoRejection} disabled={statusMutation.isPending}>
+              <X size={16} />
+              <span>Fortryd afvisning</span>
             </button>
           </div>
         )}
@@ -459,6 +486,21 @@ export const CompletedJobReport = () => {
               </div>
             </section>
           )}
+
+          {!isDesktop && job.status === JobStatus.Rejected && isAdmin && !readOnly && !isEditing && (
+            <section className="detail-section">
+              <div className="section-header-row">
+                <ShieldCheck size={18} />
+                <h3>Godkendelse</h3>
+              </div>
+              <div className="edit-form-bottom-actions">
+                <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleUndoRejection} disabled={statusMutation.isPending}>
+                  <X size={18} />
+                  Fortryd afvisning
+                </button>
+              </div>
+            </section>
+          )}
         </>
       )}
 
@@ -473,7 +515,7 @@ export const CompletedJobReport = () => {
           action={confirmAction}
           reportNumber={details.form.reportNumber}
           isPending={statusMutation.isPending}
-          onConfirm={() => void executeConfirmAction()}
+          onConfirm={(note) => void executeConfirmAction(note)}
           onClose={() => setConfirmAction(null)}
         />
       )}

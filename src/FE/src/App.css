@@ -333,11 +333,11 @@
 }
 
 /* Top Customers Section */
-.top-customers-section {
+.favorite-customers-section {
   margin-bottom: 1.5rem;
 }
 
-.top-customers-header {
+.favorite-customers-header {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -346,13 +346,13 @@
   margin-bottom: 0.65rem;
 }
 
-.top-customers-grid {
+.favorite-customers-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 0.5rem;
 }
 
-.top-customer-card {
+.favorite-customer-card {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -367,22 +367,22 @@
 }
 
 @media (hover: hover) {
-  .top-customer-card:hover {
+  .favorite-customer-card:hover {
     background: var(--surface-raised);
     border-color: var(--border-strong);
   }
 }
 
-.top-customer-card:active {
+.favorite-customer-card:active {
   transform: scale(0.98);
 }
 
-.top-customer-icon {
-  color: var(--text-muted);
+.favorite-customer-icon {
+  color: #ef4444;
   flex-shrink: 0;
 }
 
-.top-customer-name {
+.favorite-customer-name {
   font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text);
@@ -391,7 +391,7 @@
   white-space: nowrap;
 }
 
-.top-customer-contact {
+.favorite-customer-contact {
   font-size: var(--fs-xs);
   color: var(--text-muted);
   overflow: hidden;
@@ -844,6 +844,17 @@
 .job-card-top-center {
   align-items: center;
   gap: 0.5rem;
+}
+
+.customer-card-identity {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.customer-card-identity .customer-number {
+  font-size: var(--fs-xs);
 }
 
 .job-card-top .customer-name {
@@ -3601,6 +3612,31 @@
   margin-bottom: var(--section-header-margin);
 }
 
+.rejection-note-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: var(--section-gap);
+  border-radius: var(--radius-lg);
+  background: var(--status-red-bg);
+  color: var(--status-red-text);
+  font-size: var(--fs-sm);
+}
+
+.rejection-note-banner strong {
+  color: var(--text);
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: var(--fs-body);
+}
+
+.rejection-note-banner p {
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.45;
+}
+
 .worksheet-list-section {
   display: flex;
   flex-direction: column;
@@ -6119,6 +6155,9 @@
 }
 .text-amber {
   color: #f59e0b;
+}
+.text-red {
+  color: #ef4444;
 }
 .opacity-50 {
   opacity: 0.5;

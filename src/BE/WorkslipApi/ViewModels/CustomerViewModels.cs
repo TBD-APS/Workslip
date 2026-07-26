@@ -14,7 +14,7 @@ public sealed record CustomerListItemViewModel(
     string? ContactPerson,
     string? Phone,
     int JobCount,
-    bool IsTop);
+    bool IsFavorite);
 
 public sealed record CustomerJobViewModel(
     Guid Id,
@@ -53,7 +53,7 @@ public sealed record CustomerSearchViewModel(
     string? City,
     string? Country,
     string? ContactPerson,
-    bool IsTop);
+    bool IsFavorite);
 
 public sealed record CustomerImportErrorViewModel(int RowNumber, string Field, string Message);
 
@@ -82,7 +82,7 @@ public static class CustomerViewModelBuilder
         customer.ContactPerson,
         customer.Phone,
         customer.JobCount,
-        customer.IsTop);
+        customer.IsFavorite);
 
     public static CustomerDetailViewModel ToDetail(CustomerDetailResponse customer) => new(
         customer.Id,
@@ -109,7 +109,7 @@ public static class CustomerViewModelBuilder
         customer.City,
         customer.Country,
         customer.ContactPerson,
-        customer.IsTop);
+        customer.IsFavorite);
 
     private static CustomerJobViewModel ToJob(CustomerJobResponse job) => new(
         job.Id,

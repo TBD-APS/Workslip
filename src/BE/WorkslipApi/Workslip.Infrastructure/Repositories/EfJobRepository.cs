@@ -228,7 +228,8 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 job.CreatedAt,
                 job.UpdatedAt,
                 job.IsSoftDeleted,
-                job.DeletionScheduledAt
+                job.DeletionScheduledAt,
+                job.RejectionNote
             };
 
         var totalCount = await baseQuery.CountAsync(cancellationToken);
@@ -299,7 +300,8 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 assignedUsersByReport.GetValueOrDefault(x.Id) ?? [],
                 x.IsSoftDeleted, x.DeletionScheduledAt,
                 totalHoursByJob.GetValueOrDefault(x.Id),
-                seenJobIds.Contains(x.Id));
+                seenJobIds.Contains(x.Id),
+                x.RejectionNote);
         }).ToArray();
 
         return new JobListResponse(items, totalCount);
@@ -463,10 +465,10 @@ if (request.Work.ClosureFlags is not null)
         return await GetSingleJobAsync(id, organizationId, cancellationToken);
     }
 
-    public Task<JobTransitionResult?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync("jobs.transition", token => TransitionAsyncCoreAsync(id, organizationId, nextStatus, actorId, token), cancellationToken);
+    public Task<JobTransitionResult?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, string? rejectionNote, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("jobs.transition", token => TransitionAsyncCoreAsync(id, organizationId, nextStatus, actorId, rejectionNote, token), cancellationToken);
 
-    private async Task<JobTransitionResult?> TransitionAsyncCoreAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, CancellationToken cancellationToken)
+    private async Task<JobTransitionResult?> TransitionAsyncCoreAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, string? rejectionNote, CancellationToken cancellationToken)
     {
         _dbContext.ChangeTracker.Clear();
 
@@ -497,6 +499,8 @@ if (request.Work.ClosureFlags is not null)
         {
             entry.Property(e => e.SubmittedAt).CurrentValue = now;
         }
+
+        entry.Property(e => e.RejectionNote).CurrentValue = nextStatus == JobStatus.Rejected ? rejectionNote : null;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
