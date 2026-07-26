@@ -22,9 +22,9 @@ public static class CustomerEndpoints
             return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToSearch).ToArray());
         }).Produces<List<CustomerSearchViewModel>>();
 
-        searchGroup.MapGet("/top", async (int? limit, ICustomerService service, CancellationToken cancellationToken) =>
+        searchGroup.MapGet("/favorite", async (int? limit, ICustomerService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.GetTopAsync(limit ?? 3, cancellationToken);
+            var result = await service.GetFavoriteAsync(limit ?? 3, cancellationToken);
             return ResultExtensions.ToHttpResult(result, customers => customers.Select(CustomerViewModelBuilder.ToSearch).ToArray());
         }).Produces<List<CustomerSearchViewModel>>();
 
@@ -72,10 +72,10 @@ public static class CustomerEndpoints
             return ResultExtensions.ToHttpResult(result, CustomerViewModelBuilder.ToDetail);
         }).Produces<CustomerDetailViewModel>();
 
-        adminGroup.MapPatch("/{id:guid}/top", async (Guid id, [FromBody] SetTopRequest request, HttpContext httpContext, ICustomerService service, CancellationToken cancellationToken) =>
+        adminGroup.MapPatch("/{id:guid}/favorite", async (Guid id, [FromBody] SetFavoriteRequest request, HttpContext httpContext, ICustomerService service, CancellationToken cancellationToken) =>
         {
             HttpCacheHeaders.SetNoStore(httpContext);
-            var result = await service.SetTopAsync(id, request.IsTop, cancellationToken);
+            var result = await service.SetFavoriteAsync(id, request.IsFavorite, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
         });
 

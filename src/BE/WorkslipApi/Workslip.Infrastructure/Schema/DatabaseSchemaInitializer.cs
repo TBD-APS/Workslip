@@ -52,6 +52,9 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
             ELSE IF COL_LENGTH(N'dbo.Customers', N'Country') = -1
                 ALTER TABLE [dbo].[Customers] ALTER COLUMN [Country] nvarchar(120) NULL;
 
+            IF COL_LENGTH(N'dbo.Customers', N'IsTop') IS NOT NULL AND COL_LENGTH(N'dbo.Customers', N'IsFavorite') IS NULL
+                EXEC sp_rename N'dbo.Customers.IsTop', N'IsFavorite', N'COLUMN';
+
             IF NOT EXISTS (
                 SELECT 1
                 FROM sys.indexes

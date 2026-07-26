@@ -33,7 +33,7 @@ public sealed record CustomerListItemResponse(
     string? ContactPerson,
     string? Phone,
     int JobCount,
-    bool IsTop);
+    bool IsFavorite);
 
 public sealed record CustomerJobResponse(
     Guid Id,
@@ -72,7 +72,7 @@ public sealed record CustomerSearchResponse(
     string? City,
     string? Country,
     string? ContactPerson,
-    bool IsTop);
+    bool IsFavorite);
 
 public sealed record UpdateCustomerRequest(
     string Name,
@@ -117,4 +117,4 @@ public sealed record ImportCustomerResponse(
     int Failed,
     IReadOnlyList<ImportCustomerError> Errors);
 
-public sealed record SetTopRequest(bool IsTop);
+public sealed record SetFavoriteRequest(bool IsFavorite);

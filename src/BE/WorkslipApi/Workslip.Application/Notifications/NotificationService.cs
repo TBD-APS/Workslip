@@ -23,9 +23,9 @@ public sealed class NotificationService : INotificationService
         await QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobReadyForReview, cancellationToken);
     }
 
-    public async Task QueueJobDeniedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken)
+    public async Task QueueJobDeniedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, string? rejectionNote, CancellationToken cancellationToken)
     {
-        await QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobDenied, cancellationToken);
+        await QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobDenied, cancellationToken, rejectionNote);
     }
 
     public async Task QueueJobCompletedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken)
@@ -44,14 +44,14 @@ public sealed class NotificationService : INotificationService
         return deleted ? Result.NoContent() : Result.NotFound();
     }
 
-    private async Task QueueNotificationInternalAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, NotificationType type, CancellationToken cancellationToken)
+    private async Task QueueNotificationInternalAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, NotificationType type, CancellationToken cancellationToken, string? rejectionNote = null)
     {
         var url = type switch
         {
             NotificationType.JobReadyForReview or NotificationType.JobCompleted => $"/app/completed/{jobId}",
             _ => $"/app/job/{jobId}"
         };
-        var payload = new NotificationPayload(jobId, jobNumber, customerAddress, type.ToString(), recipientName, url);
+        var payload = new NotificationPayload(jobId, jobNumber, customerAddress, type.ToString(), recipientName, url, rejectionNote);
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
         var row = new NotificationQueueRow
@@ -69,7 +69,7 @@ public sealed class NotificationService : INotificationService
         await _notificationRepository.QueueNotificationAsync(row, cancellationToken);
     }
 
-    public (string Title, string Body) GetLocalizedText(NotificationType notificationType, string jobNumber, string customerAddress, string recipientName)
+    public (string Title, string Body) GetLocalizedText(NotificationType notificationType, string jobNumber, string customerAddress, string recipientName, string? rejectionNote = null)
     {
         return notificationType switch
         {
@@ -83,7 +83,9 @@ public sealed class NotificationService : INotificationService
             ),
             NotificationType.JobDenied => (
                 $"SAG-{jobNumber} afvist",
-                $"{recipientName}, SAG-{jobNumber} er blevet afvist og kræver ændringer.\nAdresse: {customerAddress}"
+                string.IsNullOrWhiteSpace(rejectionNote)
+                    ? $"{recipientName}, SAG-{jobNumber} er blevet afvist og kræver ændringer.\nAdresse: {customerAddress}"
+                    : $"{recipientName}, SAG-{jobNumber} er blevet afvist og kræver ændringer.\nÅrsag: {rejectionNote}\nAdresse: {customerAddress}"
             ),
             NotificationType.JobCompleted => (
                 $"SAG-{jobNumber} afsluttet",
