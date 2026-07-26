@@ -7,3 +7,6 @@ pull_request_rules:
     actions:
       merge:
         method: squash
+merge_queue:
+  status_comments: outcomes
+  max_parallel_checks: 3
