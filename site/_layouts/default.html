@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#17324d">
+    <meta name="color-scheme" content="light">
     {% seo %}
     <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}">
     {% feed_meta %}
@@ -16,8 +17,8 @@
         <nav aria-label="Primær navigation">
           <a href="{{ '/features/' | relative_url }}">Funktioner</a>
           <a href="{{ '/demo/' | relative_url }}">Demo</a>
+          <a href="{{ '/status/' | relative_url }}">Driftstatus</a>
           <a href="{{ '/security/' | relative_url }}">Sikkerhed</a>
-          <a href="{{ '/privacy/' | relative_url }}">Privatliv</a>
         </nav>
       </div>
     </header>
@@ -27,8 +28,17 @@
     </main>
 
     <footer class="site-footer">
-      <div class="container">
-        <p>Workslip — digital arbejdsseddel og projektstyring.</p>
+      <div class="container footer-grid">
+        <div>
+          <p class="footer-title">Workslip</p>
+          <p>Digital arbejdsseddel og projektstyring.</p>
+        </div>
+        <nav aria-label="Sekundær navigation">
+          <a href="{{ '/privacy/' | relative_url }}">Privatliv</a>
+          <a href="{{ '/terms/' | relative_url }}">Vilkår</a>
+          <a href="{{ '/changelog/' | relative_url }}">Ændringer</a>
+          <a href="{{ '/status/' | relative_url }}">Driftstatus</a>
+        </nav>
       </div>
     </footer>
   </body>
