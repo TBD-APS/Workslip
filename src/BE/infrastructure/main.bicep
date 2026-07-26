@@ -512,53 +512,62 @@ az_with_retry() {
   done
 }
 
-# Remove the managed App Service rules and the two legacy broad-access rules.
-# Other deliberately configured firewall rules are left untouched.
-delete_existing() {
-  local raw
-  raw=$(az_with_retry sql server firewall-rule list \
+# Read every rule owned by this script plus the two legacy broad-access rules.
+# Listing must succeed before any mutation so a control-plane failure cannot be
+# mistaken for an empty ruleset.
+list_existing() {
+  az_with_retry sql server firewall-rule list \
     --resource-group "$RESOURCE_GROUP" \
     --server "$SQL_SERVER_NAME" \
-    --query "[?starts_with(name, 'AllowWebApiOutbound') || name == 'AllowAzureServices' || name == 'AllowDeveloperIP'].name" \
-    --output tsv)
-
-  if [ -z "$raw" ]; then
-    return 0
-  fi
-
-  local rule
-  while IFS= read -r rule; do
-    case "$rule" in
-      AllowWebApiOutbound*|AllowAzureServices|AllowDeveloperIP)
-az_with_retry sql server firewall-rule delete \
-  --resource-group "$RESOURCE_GROUP" \
-  --server "$SQL_SERVER_NAME" \
-  --name "$rule" --output none ;;
-      *)
-        echo "skipping unexpected firewall-rule value: $rule" >&2 ;;
-    esac
-  done <<< "$raw"
+    --query "[?starts_with(name, 'AllowWebApi') || name == 'AllowAzureServices' || name == 'AllowDeveloperIP'].[name,startIpAddress,endIpAddress]" \
+    --output tsv
 }
 
-create_rule() {
-  local index="$1"
+upsert_rule() {
+  local name="$1"
   local ip="$2"
 
-  az_with_retry sql server firewall-rule create \
-    --resource-group "$RESOURCE_GROUP" \
-    --server "$SQL_SERVER_NAME" \
-    --name "AllowWebApiOutbound${index}" \
-    --start-ip-address "$ip" \
-    --end-ip-address "$ip" \
-    --output none
+  if [ -n "${existing_names[$name]:-}" ]; then
+    az_with_retry sql server firewall-rule update \
+      --resource-group "$RESOURCE_GROUP" \
+      --server "$SQL_SERVER_NAME" \
+      --name "$name" \
+      --start-ip-address "$ip" \
+      --end-ip-address "$ip" \
+      --output none
+  else
+    az_with_retry sql server firewall-rule create \
+      --resource-group "$RESOURCE_GROUP" \
+      --server "$SQL_SERVER_NAME" \
+      --name "$name" \
+      --start-ip-address "$ip" \
+      --end-ip-address "$ip" \
+      --output none
+  fi
 }
 
 valid_ips=()
+declare -A seen_ips=()
 IFS=',' read -ra candidate_ips <<< "$OUTBOUND_IPS"
 for ip in "${candidate_ips[@]}"; do
   trimmed_ip=$(echo "$ip" | xargs)
-  if [[ "$trimmed_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    valid_ips+=("$trimmed_ip")
+  valid=false
+  if [[ "$trimmed_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    IFS='.' read -ra octets <<< "$trimmed_ip"
+    valid=true
+    for octet in "${octets[@]}"; do
+      if (( 10#$octet > 255 )); then
+        valid=false
+        break
+      fi
+    done
+  fi
+
+  if [ "$valid" = true ]; then
+    if [ -z "${seen_ips[$trimmed_ip]:-}" ]; then
+      valid_ips+=("$trimmed_ip")
+      seen_ips["$trimmed_ip"]=1
+    fi
   elif [ -n "$trimmed_ip" ]; then
     echo "skipping non-IPv4 value: $trimmed_ip" >&2
   fi
@@ -569,13 +578,45 @@ if [ "${#valid_ips[@]}" -eq 0 ]; then
   exit 1
 fi
 
-delete_existing
+existing_raw=$(list_existing)
+declare -A existing_names=()
+if [ -n "$existing_raw" ]; then
+  while IFS=$'\t' read -r name _; do
+    case "$name" in
+      AllowWebApi*|AllowAzureServices|AllowDeveloperIP)
+        existing_names["$name"]=1 ;;
+      *)
+        echo "skipping unexpected firewall-rule value: $name" >&2 ;;
+    esac
+  done <<< "$existing_raw"
+fi
 
-index=0
+# Use IP-derived names so a changed allowlist can be created completely before
+# obsolete access is removed. A partial failure therefore keeps the previous
+# working rules in place.
+declare -A desired_names=()
 for ip in "${valid_ips[@]}"; do
-  create_rule "$index" "$ip"
-  index=$((index + 1))
+  name="AllowWebApi-${ip//./-}"
+  upsert_rule "$name" "$ip"
+  desired_names["$name"]=1
 done
+
+# Replacements are now confirmed. Remove obsolete managed rules and the two
+# legacy broad-access rules. Deliberately configured unrelated rules remain.
+if [ -n "$existing_raw" ]; then
+  while IFS=$'\t' read -r name _; do
+    case "$name" in
+      AllowWebApi*|AllowAzureServices|AllowDeveloperIP)
+        if [ -z "${desired_names[$name]:-}" ]; then
+          az_with_retry sql server firewall-rule delete \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$SQL_SERVER_NAME" \
+            --name "$name" \
+            --output none
+        fi ;;
+    esac
+  done <<< "$existing_raw"
+fi
 '''
   }
   dependsOn: [

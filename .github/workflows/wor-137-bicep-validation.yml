@@ -1,0 +1,28 @@
+name: WOR-137 Bicep Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/BE/infrastructure/main.bicep'
+      - '.github/workflows/wor-137-bicep-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile exact Bicep template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Bicep
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            set -euo pipefail
+            az bicep install
+            az bicep build --file src/BE/infrastructure/main.bicep --stdout > /tmp/workslip-main.json
+            test -s /tmp/workslip-main.json
