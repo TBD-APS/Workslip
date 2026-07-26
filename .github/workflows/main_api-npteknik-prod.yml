@@ -21,13 +21,14 @@ env:
   DOTNET_VERSION: '10.0.x'
   API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish/api
+  AZURE_WEBAPP_NAME: ${{ inputs.app_name || 'api-npteknik-prod' }}
 
 permissions:
   id-token: write
   contents: read
 
 concurrency:
-  group: azure-api-${{ github.event.inputs.environment || 'prod' }}
+  group: azure-api-${{ inputs.environment || 'prod' }}
   cancel-in-progress: false
 
 jobs:
