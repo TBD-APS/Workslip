@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import type { CustomerSnapshotData } from '../../../api/generated/models/customerSnapshotData';
 import type { CustomerSearchViewModel } from '../../../api/generated/models/customerSearchViewModel';
 
@@ -24,26 +24,14 @@ export function trimSnapshot(snapshot: CustomerSnapshotData | null | undefined):
   };
 }
 
-function snapshotMatches(
-  a: CustomerSnapshotData | null | undefined,
-  b: CustomerSnapshotData | null | undefined,
-): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  return (
-    a.name === b.name &&
-    a.email === b.email &&
-    a.phone === b.phone &&
-    a.address === b.address &&
-    a.contactPerson === b.contactPerson
-  );
-}
-
-export function useCustomerSnapshot<T extends { customerId: string | null; customerSnapshot: CustomerSnapshotData | null; editSnapshot: boolean }>(
+export function useCustomerSnapshot<T extends {
+  customerId: string | null;
+  customerSnapshot: CustomerSnapshotData | null;
+  editSnapshot: boolean;
+  createCustomer: boolean;
+}>(
   setForm: React.Dispatch<React.SetStateAction<T>> | ((updater: (prev: T) => T) => void),
 ) {
-  const originalRef = useRef<CustomerSnapshotData | null>(null);
-
   const selectCustomer = useCallback(
     (customer: CustomerSearchViewModel) => {
       const snapshot: CustomerSnapshotData = {
@@ -53,12 +41,12 @@ export function useCustomerSnapshot<T extends { customerId: string | null; custo
         address: customer.address,
         contactPerson: customer.contactPerson,
       };
-      originalRef.current = { ...snapshot };
       setForm((prev) => ({
         ...prev,
         customerId: customer.id,
         customerSnapshot: snapshot,
         editSnapshot: false,
+        createCustomer: false,
       }));
     },
     [setForm],
@@ -89,17 +77,11 @@ export function useCustomerSnapshot<T extends { customerId: string | null; custo
       setForm((prev) => ({
         ...prev,
         editSnapshot: edit,
+        createCustomer: edit ? prev.createCustomer : false,
       }));
     },
     [setForm],
   );
 
-  const hasCustomerChanges = useCallback(
-    (currentSnapshot: CustomerSnapshotData | null) => {
-      return !snapshotMatches(originalRef.current, currentSnapshot);
-    },
-    [],
-  );
-
-  return { selectCustomer, updateSnapshotField, updateEditSnapshot, hasCustomerChanges };
+  return { selectCustomer, updateSnapshotField, updateEditSnapshot };
 }

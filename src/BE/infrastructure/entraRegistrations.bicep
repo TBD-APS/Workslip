@@ -58,7 +58,7 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
     {
       id: guid('Auditor', environment)
       allowedMemberTypes: [
-        'Auditor'
+        'User'
       ]
       displayName: 'Auditor'
       description: 'External temporary user'

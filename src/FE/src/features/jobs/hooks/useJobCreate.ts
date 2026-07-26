@@ -94,7 +94,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     request: { skipGlobalErrorToast: true },
   });
 
-  const { selectCustomer, updateEditSnapshot, hasCustomerChanges } = useCustomerSnapshot(setForm);
+  const { selectCustomer, updateEditSnapshot } = useCustomerSnapshot(setForm);
 
   const createNewCustomer = () => {
     setForm((prev) => ({
@@ -102,6 +102,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       customerId: null,
       customerSnapshot: { name: null, email: null, phone: null, address: null, contactPerson: null },
       editSnapshot: true,
+      createCustomer: false,
     }));
   };
 
@@ -292,7 +293,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   };
 
   const reset = (preserve?: { customerId?: string | null; customerSnapshot?: CustomerSnapshotData | null }) => {
-    setForm(_ => ({
+    setForm(() => ({
       ...emptyForm,
       customerId: preserve?.customerId ?? emptyForm.customerId,
       customerSnapshot: preserve?.customerSnapshot ?? emptyForm.customerSnapshot,
@@ -321,7 +322,6 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     updateSnapshotField,
     updateEditSnapshot,
     updateCreateCustomer,
-    hasCustomerChanges,
     updateDestinationAddress,
     updateDestinationZipCode,
     updateDestinationCity,

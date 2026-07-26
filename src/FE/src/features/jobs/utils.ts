@@ -209,7 +209,8 @@ export function toWorkRequest(
 }
 
 export function sameForm(left: JobForm, right: JobForm) {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return JSON.stringify({ ...left, editSnapshot: false }) ===
+    JSON.stringify({ ...right, editSnapshot: false });
 }
 
 export function sameFormWithoutWork(left: JobForm, right: JobForm) {
