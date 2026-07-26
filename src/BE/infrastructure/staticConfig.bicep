@@ -74,11 +74,9 @@ var appConfigValues = {
 
   // Push Notifications
   'Vapid:PublicKey': 'BK5wzcorbTV2rLqLYyPdWYMXmtY0Vr5xLzW4suFnbZH3bdvYM8Ddp_XqEFh8dwRwdEtNlO3YMMZe3ZQTOZVVLgY'
-  'Vapid:PrivateKey': '4eJ5_bcufexYURqE3vKJJEzuzkmgFzaaj8AftPrdqOg'
+  // Vapid:PrivateKey is managed separately as a secret in Azure App Configuration.
 
   //Vercel
   'Vercel:ProjectId': 'prj_eIy6jy8lbxQSpuzJsvzhurAivAaX'
   'Vercel:Token': vercelToken
 }
-
-
