@@ -34,6 +34,35 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
             END
             IF COL_LENGTH(N'dbo.NotificationQueue', N'ReadUtc') IS NULL
                 ALTER TABLE [dbo].[NotificationQueue] ADD [ReadUtc] datetimeoffset NULL;
+
+            IF COL_LENGTH(N'dbo.Customers', N'CustomerNumber') IS NULL
+                ALTER TABLE [dbo].[Customers] ADD [CustomerNumber] nvarchar(80) NULL;
+            ELSE IF COL_LENGTH(N'dbo.Customers', N'CustomerNumber') = -1
+                ALTER TABLE [dbo].[Customers] ALTER COLUMN [CustomerNumber] nvarchar(80) NULL;
+            IF COL_LENGTH(N'dbo.Customers', N'ZipCode') IS NULL
+                ALTER TABLE [dbo].[Customers] ADD [ZipCode] nvarchar(20) NULL;
+            ELSE IF COL_LENGTH(N'dbo.Customers', N'ZipCode') = -1
+                ALTER TABLE [dbo].[Customers] ALTER COLUMN [ZipCode] nvarchar(20) NULL;
+            IF COL_LENGTH(N'dbo.Customers', N'City') IS NULL
+                ALTER TABLE [dbo].[Customers] ADD [City] nvarchar(120) NULL;
+            ELSE IF COL_LENGTH(N'dbo.Customers', N'City') = -1
+                ALTER TABLE [dbo].[Customers] ALTER COLUMN [City] nvarchar(120) NULL;
+            IF COL_LENGTH(N'dbo.Customers', N'Country') IS NULL
+                ALTER TABLE [dbo].[Customers] ADD [Country] nvarchar(120) NULL;
+            ELSE IF COL_LENGTH(N'dbo.Customers', N'Country') = -1
+                ALTER TABLE [dbo].[Customers] ALTER COLUMN [Country] nvarchar(120) NULL;
+
+            IF NOT EXISTS (
+                SELECT 1
+                FROM sys.indexes
+                WHERE [name] = N'UX_Customers_Organization_CustomerNumber'
+                  AND [object_id] = OBJECT_ID(N'dbo.Customers'))
+            BEGIN
+                CREATE UNIQUE INDEX [UX_Customers_Organization_CustomerNumber]
+                    ON [dbo].[Customers] ([OrganizationId], [CustomerNumber])
+                    WHERE [CustomerNumber] IS NOT NULL;
+            END
             """, cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(DatabaseIntegrityConstraintsSql.Apply, cancellationToken);
     }
 }

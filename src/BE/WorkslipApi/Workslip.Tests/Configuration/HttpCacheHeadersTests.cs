@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Workslip.Api.Endpoints;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
@@ -7,6 +8,18 @@ namespace Workslip.Tests.Configuration;
 
 public sealed class HttpCacheHeadersTests
 {
+    [Fact]
+    public void SetNoStore_sets_all_mutation_cache_headers()
+    {
+        var context = new DefaultHttpContext();
+
+        HttpCacheHeaders.SetNoStore(context);
+
+        Assert.Equal("no-store", context.Response.Headers.CacheControl.ToString());
+        Assert.Equal("no-cache", context.Response.Headers.Pragma.ToString());
+        Assert.Equal("0", context.Response.Headers.Expires.ToString());
+    }
+
     [Fact]
     public void JobReportEtag_changes_when_links_change()
     {

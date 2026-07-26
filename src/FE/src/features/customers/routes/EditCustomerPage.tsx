@@ -8,6 +8,14 @@ import { getGetApiCustomersQueryKey, getGetApiCustomersIdQueryKey } from '../../
 import { notify } from '../../../lib/toast';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { validateCustomer, type CustomerFieldErrors } from '../validation';
+import { AddressAutocomplete } from '../../jobs/components/AddressAutocomplete';
+import type { AddressSuggestion } from '../../jobs/hooks/useAddressAutocomplete';
+
+type ExtendedCustomerFields = {
+  customerNumber?: string | null;
+  zipCode?: string | null;
+  city?: string | null;
+};
 
 export const EditCustomerPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,8 +24,11 @@ export const EditCustomerPage = () => {
   const query = useGetApiCustomersId(id!);
   const customer = query.data;
 
+  const [customerNumber, setCustomerNumber] = useState('');
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
+  const [zipCode, setZipCode] = useState('');
+  const [city, setCity] = useState('');
   const [email, setEmail] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
@@ -44,8 +55,12 @@ export const EditCustomerPage = () => {
 
   useEffect(() => {
     if (customer) {
+      const extended = customer as typeof customer & ExtendedCustomerFields;
+      setCustomerNumber(extended.customerNumber ?? '');
       setName(customer.name);
       setAddress(customer.address ?? '');
+      setZipCode(extended.zipCode ?? '');
+      setCity(extended.city ?? '');
       setEmail(customer.email ?? '');
       setContactPerson(customer.contactPerson ?? '');
       setPhone(customer.phone ?? '');
@@ -68,9 +83,7 @@ export const EditCustomerPage = () => {
     return (
       <div className="page-container">
         <ErrorState message="Kunne ikke hente kundeoplysninger.">
-          <button className="btn btn-primary" onClick={() => navigate('/app/customers')}>
-            Tilbage til kunder
-          </button>
+          <button className="btn btn-primary" onClick={() => navigate('/app/customers')}>Tilbage til kunder</button>
         </ErrorState>
       </div>
     );
@@ -87,11 +100,13 @@ export const EditCustomerPage = () => {
     }
 
     setIsSaving(true);
-
     try {
       await apiClient.put(`/api/customers/${customer.id}`, {
         name: name.trim(),
+        customerNumber: customerNumber.trim() || null,
         address: address.trim() || null,
+        zipCode: zipCode.trim() || null,
+        city: city.trim() || null,
         email: email.trim() || null,
         contactPerson: contactPerson.trim() || null,
         phone: phone.trim() || null,
@@ -122,6 +137,10 @@ export const EditCustomerPage = () => {
 
       <div className="customer-edit-form">
         <div className="form-group">
+          <label className="form-label" htmlFor="edit-customer-number">Kundenummer</label>
+          <input id="edit-customer-number" className="form-input" type="text" value={customerNumber} onChange={(e) => setCustomerNumber(e.target.value)} maxLength={80} />
+        </div>
+        <div className="form-group">
           <label className="form-label" htmlFor="edit-customer-name">Kundenavn *</label>
           <input
             ref={nameRef}
@@ -136,15 +155,16 @@ export const EditCustomerPage = () => {
           {fieldErrors.name && <p className="form-error-text">{fieldErrors.name}</p>}
         </div>
         <div className="form-group">
-          <label className="form-label" htmlFor="edit-customer-address">Adresse</label>
-          <input
-            id="edit-customer-address"
-            className="form-input"
-            type="text"
+          <label className="form-label">Adresse</label>
+          <AddressAutocomplete
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            maxLength={500}
-            placeholder="Indtast adresse"
+            onTextChange={setAddress}
+            onSelectSuggestion={(s: AddressSuggestion) => {
+              setAddress(s.street);
+              setZipCode(s.zipCode);
+              setCity(s.city);
+            }}
+            onClear={() => { setAddress(''); setZipCode(''); setCity(''); }}
           />
         </div>
         <div className="form-group">
@@ -156,21 +176,12 @@ export const EditCustomerPage = () => {
             type="email"
             value={email}
             onChange={(e) => { setEmail(e.target.value); clearError('email'); }}
-            placeholder="Indtast e-mail"
           />
           {fieldErrors.email && <p className="form-error-text">{fieldErrors.email}</p>}
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="edit-customer-contact">Kontaktperson</label>
-          <input
-            id="edit-customer-contact"
-            className="form-input"
-            type="text"
-            value={contactPerson}
-            onChange={(e) => setContactPerson(e.target.value)}
-            maxLength={200}
-            placeholder="Indtast kontaktperson"
-          />
+          <input id="edit-customer-contact" className="form-input" type="text" value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} maxLength={200} />
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="edit-customer-phone">Telefon</label>
@@ -182,30 +193,17 @@ export const EditCustomerPage = () => {
             value={phone}
             onChange={(e) => { setPhone(e.target.value); clearError('phone'); }}
             maxLength={80}
-            placeholder="Indtast telefonnummer"
           />
           {fieldErrors.phone && <p className="form-error-text">{fieldErrors.phone}</p>}
         </div>
       </div>
 
       <div className="modal-actions">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void handleSave()}
-          disabled={isSaving}
-        >
+        <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
           {isSaving && <div className="animate-spin spinner-white" />}
           <span>{isSaving ? 'Gemmer...' : 'Gem'}</span>
         </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => navigate(`/app/customers/${customer.id}`)}
-          disabled={isSaving}
-        >
-          Annuller
-        </button>
+        <button type="button" className="btn btn-secondary" onClick={() => navigate(`/app/customers/${customer.id}`)} disabled={isSaving}>Annuller</button>
       </div>
     </div>
   );
