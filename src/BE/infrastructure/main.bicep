@@ -22,7 +22,10 @@ param keyVaultName string             = take('kv-${companyName}-${toLower(enviro
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
 param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
-param githubRepository string         = 'rasm105k/Workslip-v2.0'
+param githubOwner string            = 'rasm105k'
+param githubOwnerId string          = '31623093'
+param githubRepository string       = 'Workslip-v2.0'
+param githubRepositoryId string     = '1245555609'
 param githubEnvironment string        = environment
 param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}group'
 param provisionWebApiSqlAccess bool   = false
@@ -94,7 +97,7 @@ resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdenti
       'api://AzureADTokenExchange'
     ]
     issuer: 'https://token.actions.githubusercontent.com'
-    subject: 'repo:${githubRepository}:environment:${githubEnvironment}'
+    subject: 'repo:${githubOwner}@${githubOwnerId}/${githubRepository}@${githubRepositoryId}:environment:${githubEnvironment}'
   }
 }
 
