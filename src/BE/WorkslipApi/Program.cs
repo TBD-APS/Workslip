@@ -18,13 +18,7 @@ try
         x.AddPolicy("Frontend", policy =>
         {
             var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                                 ?? new[]
-                                 {
-                                     "https://app.workslip.dk",
-                                     "https://workslip-v2-0.vercel.app",
-                                     "http://localhost:5270",
-                                     "http://localhost:4173"
-                                 };
+                                 ?? new[] { "https://workslip-v2-0.vercel.app", "http://localhost:5270", "http://localhost:4173"};
 
             policy.WithOrigins(allowedOrigins)
                   .AllowAnyMethod()
