@@ -75,6 +75,7 @@ public sealed class HttpCacheHeadersTests
             [],
             null,
             null,
-            false);
+            false,
+            null);
     }
 }
