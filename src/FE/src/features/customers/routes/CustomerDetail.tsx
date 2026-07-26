@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Clock, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, Plus, Users } from 'lucide-react';
+import { ArrowLeft, Clock, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle, Users } from 'lucide-react';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
 import {
@@ -112,26 +112,6 @@ export const CustomerDetail = () => {
             <Heart size={20} fill={isFavorite ? 'currentColor' : 'none'} />
           </button>
         </Can>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => navigate('/app/job/new', {
-            state: {
-              fromCustomer: true,
-              customerId: customer.id,
-              customerSnapshot: {
-                name: customer.name,
-                email: customer.email,
-                phone: customer.phone,
-                address: fullAddress || null,
-                contactPerson: customer.contactPerson,
-              },
-            },
-          })}
-        >
-          <Plus size={16} />
-          <span>Ny sag</span>
-        </button>
         <Can permission="user:manage">
           <div className="worksheet-actions-menu-root">
             <button
@@ -147,6 +127,30 @@ export const CustomerDetail = () => {
           </div>
         </Can>
       </div>
+
+      <Can permission="job:create">
+        <button
+          type="button"
+          className="fab-create"
+          onClick={() => navigate('/app/job/new', {
+            state: {
+              fromCustomer: true,
+              customerId: customer.id,
+              customerSnapshot: {
+                name: customer.name,
+                email: customer.email,
+                phone: customer.phone,
+                address: fullAddress || null,
+                contactPerson: customer.contactPerson,
+              },
+            },
+          })}
+          aria-label="Opret ny KLS-sag for kunde"
+          title="Opret ny KLS-sag"
+        >
+          <PlusCircle size={22} />
+        </button>
+      </Can>
 
       <section className="detail-section">
         <div className="customer-detail-info">
