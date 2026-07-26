@@ -17,6 +17,7 @@ param appConfigurationName string     = take('appcs-${companyName}-${toLower(env
 ])
 param appConfigurationCreateMode string = 'Default'
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
+param githubDeploymentIdentityName string = take('id-${companyName}-${toLower(environment)}-github', 128)
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
@@ -66,8 +67,8 @@ var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
 var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
 
 // ──────────────────────────────────────────────────────────────────────────────
-// User-Assigned Managed Identity
-// One identity, shared by all resources. All RBAC is granted to this identity.
+// Runtime identity
+// Used only by the API and Azure-side deployment scripts.
 // ──────────────────────────────────────────────────────────────────────────────
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -76,8 +77,17 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
   tags: tags
 }
 
+// GitHub deployment identity
+// GitHub may exchange an OIDC token only for the configured repository
+// environment. This identity has no runtime, data-plane or Graph permissions.
+resource githubDeploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: githubDeploymentIdentityName
+  location: location
+  tags: tags
+}
+
 resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
-  parent: identity
+  parent: githubDeploymentIdentity
   name: 'github-${toLower(environment)}'
   properties: {
     audiences: [
@@ -238,10 +248,10 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(webApi.id, identity.id, roles.websiteContributor)
+  name: guid(webApi.id, githubDeploymentIdentity.id, roles.websiteContributor)
   scope: webApi
   properties: {
-    principalId: identity.properties.principalId
+    principalId: githubDeploymentIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.websiteContributor)
   }
@@ -864,11 +874,15 @@ resource senderUsername 'Microsoft.Communication/emailServices/domains/senderUse
 output STORAGE_ACCOUNT_NAME string             = storageAccount.name
 output LOGIC_APP_NAME string                   = logicAppName
 output WEB_API_NAME string                     = webApi.name
+output WEB_API_RESOURCE_ID string              = webApi.id
 output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName
 output WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'
 output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
+output MANAGED_IDENTITY_NAME string            = identity.name
+output GITHUB_DEPLOYMENT_CLIENT_ID string      = githubDeploymentIdentity.properties.clientId
+output GITHUB_DEPLOYMENT_PRINCIPAL_ID string   = githubDeploymentIdentity.properties.principalId
 output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
 output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
