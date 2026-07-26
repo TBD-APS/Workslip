@@ -202,4 +202,24 @@ The host registers ASP.NET Core OpenAPI and Scalar. These surfaces must be treat
 
 The API deployment workflow is `.github/workflows/main_api-npteknik-prod.yml`. It builds and publishes the .NET project, authenticates to Azure through OIDC and deploys to an Azure Web App.
 
+Production uses the protected GitHub environment `prod`. The Azure infrastructure
+creates a dedicated GitHub deployment managed identity with `Website Contributor`
+limited to the API App Service and a federated credential restricted to:
+
+```text
+repo:rasm105k/Workslip-v2.0:environment:prod
+```
+
+After deploying the infrastructure, configure these environment secrets in the
+GitHub `prod` environment:
+
+- `AZURE_CLIENT_ID`: deployment output `GITHUB_DEPLOYMENT_CLIENT_ID`
+- `AZURE_TENANT_ID`: Microsoft Entra tenant ID
+- `AZURE_SUBSCRIPTION_ID`: target Azure subscription ID
+
+They are identifiers, not passwords. Do not add an Azure client secret,
+`AZURE_CREDENTIALS` JSON or an App Service publish profile. Configure `prod` with
+a required reviewer, then verify the manual workflow path before relying on the
+automatic `main` deployment.
+
 Workflow definitions are evidence of intended automation, not evidence that a deployment or rollback has succeeded. Record actual release validation separately.
