@@ -65,7 +65,7 @@ jobs:
     name: Deploy API
     runs-on: ubuntu-latest
     needs: build
-    environment: ${{ inputs.environment || 'prod' }}
+    environment: ${{ github.event.inputs.environment || 'prod' }}
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
@@ -83,5 +83,11 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          app-name: ${{ github.event.inputs.app_name || 'api-npteknik-prod' }}
           package: ${{ env.PUBLISH_DIR }}
+
+  clear-caches:
+    name: Clear caches after deployment
+    needs: deploy
+    uses: ./.github/workflows/post-deploy-cache.yml
+    secrets: inherit

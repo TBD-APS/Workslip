@@ -2,9 +2,11 @@ name: Post Deploy – Clear Caches
 
 on:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   clear-caches:
+    name: Clear application caches
     runs-on: ubuntu-latest
     steps:
       - name: Get admin token
