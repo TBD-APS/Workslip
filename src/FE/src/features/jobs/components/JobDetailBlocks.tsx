@@ -172,7 +172,7 @@ export function CustomerDetailsBlock({
   return (
 
     <section className="detail-section">
-      <div className="detail-form">
+      <div className={`detail-form customer-details-form ${isFieldReadOnly() ? 'is-readonly' : 'is-editable'}`}>
 
     <div className="section-header-row">
         <Building2 size={18} />
@@ -253,7 +253,7 @@ export function CustomerDetailsBlock({
             />
           )}
           {showCreateCustomerCheckbox && (
-            <label className="attestation-confirm-row">
+            <label className="attestation-confirm-row customer-create-option">
               <span className="attestation-confirm-copy">
                 <span className="attestation-confirm-label">Opret kunde</span>
                 <span className="attestation-confirm-description">

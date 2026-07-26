@@ -1635,23 +1635,119 @@
 }
 
 .customer-search-slot {
-  overflow: visible;
-  transition: max-height 0.2s ease;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateY(-0.4rem) scale(0.985);
+  transform-origin: top center;
+  visibility: hidden;
+  will-change: max-height, opacity, transform;
+  transition:
+    max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    margin-bottom 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease,
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.3s;
 }
 
 .customer-search-slot:not(.is-open) {
-  max-height: 0;
-  overflow: hidden;
+  margin-bottom: -1rem;
 }
 
 .customer-search-slot.is-open {
-  max-height: 200px;
+  max-height: 5rem;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.customer-details-form .form-group {
+  transform-origin: center top;
+}
+
+.customer-details-form.is-editable .form-group {
+  animation: customer-fields-unlock 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.customer-details-form.is-readonly .form-group {
+  animation: customer-fields-lock 0.24s ease-out;
+}
+
+.customer-details-form.is-readonly .form-input {
+  transform: scale(0.995);
+}
+
+.customer-create-option {
+  animation: customer-option-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .readonly-indicator {
   color: var(--text-muted);
   opacity: 0.5;
   flex-shrink: 0;
+  animation: customer-lock-enter 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes customer-fields-unlock {
+  from {
+    opacity: 0.72;
+    transform: translateY(-0.2rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes customer-fields-lock {
+  from {
+    opacity: 0.82;
+    transform: translateY(0.1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes customer-option-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes customer-lock-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-0.25rem) scale(0.8);
+  }
+  to {
+    opacity: 0.5;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .customer-search-slot {
+    transform: none;
+    transition-duration: 0.01ms;
+    transition-delay: 0s;
+  }
+
+  .customer-details-form .form-group,
+  .customer-create-option,
+  .readonly-indicator {
+    animation: none;
+  }
 }
 
 .required-asterisk {
