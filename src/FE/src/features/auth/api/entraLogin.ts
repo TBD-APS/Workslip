@@ -2,6 +2,7 @@ import { apiClient } from '../../../lib/axios';
 import type { AuthTokenResponse } from '../../../api/generated/models';
 
 const PKCE_KEY = 'workslip.loginPkce';
+const pkceStateStore = new Map<string, PkceState>();
 
 interface PkceState {
   state: string;
@@ -107,7 +108,9 @@ export const startEntraLogin = async (options: StartEntraLoginOptions = {}) => {
   const returnTo = options.returnTo ?? '/app';
 
   const pkce: PkceState = { state, codeVerifier, redirectUri, returnTo };
-  sessionStorage.setItem(PKCE_KEY, JSON.stringify(pkce));
+  const pkceRef = randomUrlSafe(24);
+  pkceStateStore.set(pkceRef, pkce);
+  sessionStorage.setItem(PKCE_KEY, pkceRef);
 
   const authorizeUrl = new URL(`https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize`);
   authorizeUrl.searchParams.set('client_id', config.clientId);
