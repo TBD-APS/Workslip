@@ -89,6 +89,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test Vercel build policy
+        run: npm run test:vercel-policy
+
       - name: Transpile changed customer pages
         run: |
           node <<'NODE'
