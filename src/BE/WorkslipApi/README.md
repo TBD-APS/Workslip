@@ -220,14 +220,10 @@ GitHub `prod` environment:
 They are identifiers, not passwords. Do not add an Azure client secret,
 `AZURE_CREDENTIALS` JSON or an App Service publish profile.
 
-Use this two-phase rollout so GitHub deployment access is never interrupted:
+After recreating the Azure resource group:
 
-1. Run `deploy.ps1` without the cleanup switch and copy the printed
-   `GITHUB_DEPLOYMENT_CLIENT_ID`.
-2. Update the `prod` environment, configure its required reviewer and verify a
-   manual workflow deployment.
-3. Rerun `deploy.ps1` with `-RemoveLegacyGitHubDeploymentAccess` to remove the
-   old federated credential and `Website Contributor` role from the API runtime
-   identity.
+1. Run `deploy.ps1` and copy the printed `GITHUB_DEPLOYMENT_CLIENT_ID`.
+2. Set the three `prod` environment secrets above and configure the required reviewer.
+3. Run the workflow manually once to verify the OIDC deployment.
 
 Workflow definitions are evidence of intended automation, not evidence that a deployment or rollback has succeeded. Record actual release validation separately.
