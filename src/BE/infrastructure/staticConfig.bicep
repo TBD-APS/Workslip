@@ -19,7 +19,9 @@ resource staticConfigValues 'Microsoft.AppConfiguration/configurationStores/keyV
 var appConfigValues = {
 
   //urls
-  'Azure:Domain:BaseUrl': 'https://workslip-v2-0.vercel.app'
+  'Azure:Domain:BaseUrl': 'https://app.workslip.dk'
+  'Cors:AllowedOrigins:0': 'https://app.workslip.dk'
+  'Cors:AllowedOrigins:1': 'https://workslip-v2-0.vercel.app'
 
   //OAuth
   'Azure:AdOAuth:TenantId': az.tenant().tenantId
@@ -45,7 +47,7 @@ var appConfigValues = {
   'Authorization:RoleHierarchy:Admin:0': 'User'
   
   //Email
-  'Azure:Acs:InviteBaseUrl': 'https://workslip-v2-0.vercel.app/invite'
+  'Azure:Acs:InviteBaseUrl': 'https://app.workslip.dk/invite'
   'Azure:Acs:PLainHeaderText': 'Du er blevet inviteret til Workslip'
 
   'Azure:Acs:HtmlInviteText': '''
