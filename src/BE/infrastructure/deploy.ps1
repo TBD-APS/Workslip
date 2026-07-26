@@ -4,8 +4,7 @@ param(
     [string]$Location = "westeurope",
     [string]$COMPANY_NAME = "npteknik",
     [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",
-    [string]$VercelToken = "",
-    [switch]$RemoveLegacyGitHubDeploymentAccess
+    [string]$VercelToken = ""
 )
 
 # ── SQL admin password ────────────────────────────────────────────────────────
@@ -204,65 +203,6 @@ function Add-GraphGroupMember {
     throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
 }
 
-function Remove-LegacyGitHubDeploymentAccess {
-    param(
-        [Parameter(Mandatory=$true)] [string]$RuntimeIdentityName,
-        [Parameter(Mandatory=$true)] [string]$RuntimeIdentityPrincipalId,
-        [Parameter(Mandatory=$true)] [string]$WebApiResourceId
-    )
-
-    $LegacyFederatedCredentialName = "github-$($Environment.ToLowerInvariant())"
-    Write-Host "Removing legacy GitHub access from the API runtime identity…" -ForegroundColor Cyan
-
-    $LegacyFederatedCredential = az identity federated-credential list `
-        --resource-group $RESOURCE_GROUP `
-        --identity-name $RuntimeIdentityName `
-        --query "[?name == '$LegacyFederatedCredentialName'].name" `
-        -o tsv
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not inspect federated credentials on runtime identity '$RuntimeIdentityName'."
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($LegacyFederatedCredential)) {
-        az identity federated-credential delete `
-            --resource-group $RESOURCE_GROUP `
-            --identity-name $RuntimeIdentityName `
-            --name $LegacyFederatedCredentialName `
-            --yes `
-            -o none
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Could not remove legacy federated credential '$LegacyFederatedCredentialName' from runtime identity '$RuntimeIdentityName'."
-        }
-    }
-
-    $LegacyRoleAssignmentIds = az role assignment list `
-        --assignee-object-id $RuntimeIdentityPrincipalId `
-        --scope $WebApiResourceId `
-        --role "Website Contributor" `
-        --fill-principal-name false `
-        --query "[].id" `
-        -o tsv
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not inspect legacy Website Contributor assignments for runtime identity '$RuntimeIdentityName'."
-    }
-
-    foreach ($RoleAssignmentId in @($LegacyRoleAssignmentIds)) {
-        if ([string]::IsNullOrWhiteSpace($RoleAssignmentId)) {
-            continue
-        }
-
-        az role assignment delete --ids $RoleAssignmentId -o none
-        if ($LASTEXITCODE -ne 0) {
-            throw "Could not remove legacy Website Contributor assignment '$RoleAssignmentId' from runtime identity '$RuntimeIdentityName'."
-        }
-    }
-
-    Write-Host "   Runtime identity has no GitHub federation or Web App deployment role." -ForegroundColor Green
-}
-
 $DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false -SqlAdminPassword $SqlAdminPassword
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
@@ -291,15 +231,6 @@ if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
 }
 
 Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green
-
-if ($RemoveLegacyGitHubDeploymentAccess) {
-    Remove-LegacyGitHubDeploymentAccess `
-        -RuntimeIdentityName $DeploymentOutputs.MANAGED_IDENTITY_NAME.value `
-        -RuntimeIdentityPrincipalId $DeploymentOutputs.MANAGED_IDENTITY_PRINCIPAL_ID.value `
-        -WebApiResourceId $DeploymentOutputs.WEB_API_RESOURCE_ID.value
-} else {
-    Write-Warning "Legacy GitHub access remains on the API runtime identity. Update AZURE_CLIENT_ID in the GitHub environment, verify a manual OIDC deployment, then rerun with -RemoveLegacyGitHubDeploymentAccess."
-}
 
 Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
 
