@@ -4,7 +4,8 @@ param(
     [string]$Location = "westeurope",
     [string]$COMPANY_NAME = "npteknik",
     [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",
-    [string]$VercelToken = ""
+    [string]$VercelToken = "",
+    [switch]$RemoveLegacyGitHubDeploymentAccess
 )
 
 # ── SQL admin password ────────────────────────────────────────────────────────
@@ -284,10 +285,21 @@ $SqlAccessDeploymentName = "$DEPLOY_NAME-sql"
 $DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true -SqlAdminPassword $SqlAdminPassword
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
-Remove-LegacyGitHubDeploymentAccess `
-    -RuntimeIdentityName $DeploymentOutputs.MANAGED_IDENTITY_NAME.value `
-    -RuntimeIdentityPrincipalId $DeploymentOutputs.MANAGED_IDENTITY_PRINCIPAL_ID.value `
-    -WebApiResourceId $DeploymentOutputs.WEB_API_RESOURCE_ID.value
+$GitHubDeploymentClientId = $DeploymentOutputs.GITHUB_DEPLOYMENT_CLIENT_ID.value
+if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
+    throw "Deployment output GITHUB_DEPLOYMENT_CLIENT_ID was empty."
+}
+
+Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green
+
+if ($RemoveLegacyGitHubDeploymentAccess) {
+    Remove-LegacyGitHubDeploymentAccess `
+        -RuntimeIdentityName $DeploymentOutputs.MANAGED_IDENTITY_NAME.value `
+        -RuntimeIdentityPrincipalId $DeploymentOutputs.MANAGED_IDENTITY_PRINCIPAL_ID.value `
+        -WebApiResourceId $DeploymentOutputs.WEB_API_RESOURCE_ID.value
+} else {
+    Write-Warning "Legacy GitHub access remains on the API runtime identity. Update AZURE_CLIENT_ID in the GitHub environment, verify a manual OIDC deployment, then rerun with -RemoveLegacyGitHubDeploymentAccess."
+}
 
 Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
 
