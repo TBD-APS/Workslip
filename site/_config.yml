@@ -1,0 +1,30 @@
+title: Workslip
+description: Digital planlægning, registrering og godkendelse af arbejde.
+url: "https://workslip.dk"
+baseurl: ""
+lang: da-DK
+timezone: Europe/Copenhagen
+repository: rasm105k/Workslip-v2.0
+
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-feed
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - vendor
+
+collections:
+  pages:
+    output: true
+    permalink: /:name/
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+      image: /assets/images/workslip-social.png
