@@ -1,0 +1,78 @@
+name: WOR-167 OIDC validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/main_api-npteknik-prod.yml'
+      - 'src/BE/infrastructure/main.bicep'
+      - 'src/BE/infrastructure/deploy.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile Bicep
+        run: |
+          az bicep install
+          az bicep build --file src/BE/infrastructure/main.bicep --stdout > /dev/null
+
+      - name: Parse PowerShell
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'src/BE/infrastructure/deploy.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+
+      - name: Validate workflow YAML and OIDC contract
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund yaml@2.8.1
+          node <<'NODE'
+          const fs = require('fs');
+          const YAML = require('yaml');
+          const path = '.github/workflows/main_api-npteknik-prod.yml';
+          const workflow = YAML.parse(fs.readFileSync(path, 'utf8'));
+          const fail = message => { throw new Error(message); };
+
+          if (!workflow.on?.push || !workflow.on?.workflow_dispatch) {
+            fail('Both push and workflow_dispatch triggers are required');
+          }
+          if (workflow.permissions?.['id-token'] !== 'write') {
+            fail('id-token permission must be write');
+          }
+          const expectedEnvironment = '$' + "{{ inputs.environment || 'prod' }}";
+          if (workflow.jobs?.deploy?.environment !== expectedEnvironment) {
+            fail('Production environment fallback is missing');
+          }
+
+          const steps = workflow.jobs?.deploy?.steps || [];
+          const login = steps.find(step => step.uses?.startsWith('azure/login@'));
+          if (login?.uses !== 'azure/login@v3') {
+            fail('azure/login@v3 is required');
+          }
+
+          const serialized = JSON.stringify(workflow);
+          for (const forbidden of [
+            'AZURE_CLIENT_SECRET',
+            'AZURE_CREDENTIALS',
+            'publish-profile'
+          ]) {
+            if (serialized.includes(forbidden)) {
+              fail(`Long-lived Azure credential is forbidden: ${forbidden}`);
+            }
+          }
+          NODE
