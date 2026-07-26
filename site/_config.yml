@@ -1,6 +1,6 @@
 title: Workslip
 description: Digital planlægning, registrering og godkendelse af arbejde.
-url: "https://workslip.dk"
+url: "https://rasm105k.github.io"
 baseurl: ""
 lang: da-DK
 timezone: Europe/Copenhagen
@@ -27,4 +27,3 @@ defaults:
       path: ""
     values:
       layout: default
-      image: /assets/images/workslip-social.png

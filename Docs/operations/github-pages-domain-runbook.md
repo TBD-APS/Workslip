@@ -4,22 +4,40 @@ Status: Active rollout runbook; Pages and domain state need verification
 Owner: Workslip  
 Source of truth: GitHub repository settings, DNS provider configuration and `.github/workflows/pages.yml`  
 Review cadence: before each domain or Pages configuration change  
-Linear: WOR-168, WOR-169
+Linear: WOR-168, WOR-169, WOR-172
 
 ## Decision
 
 The public marketing site is built with Jekyll from `site/` and deployed through GitHub Actions to GitHub Pages. It remains separate from the React/Vite application under `src/FE`.
 
-Target domain layout:
+The current safe canonical origin is the GitHub Pages fallback:
 
-| Host | Purpose |
+`https://rasm105k.github.io/Workslip-v2.0`
+
+The following hostnames are candidates, not approved or activated configuration:
+
+| Candidate host | Intended purpose |
 |---|---|
-| `workslip.dk` | Canonical public marketing site |
-| `www.workslip.dk` | Redirect to canonical host |
-| `app.workslip.dk` | Production application |
-| `demo.workslip.dk` | Isolated interactive demo |
+| `workslip.dk` | Public marketing site, pending ownership and brand clearance |
+| `www.workslip.dk` | Redirect to an approved canonical host |
+| `app.workslip.dk` | Production application, only after hosting and auth verification |
+| `demo.workslip.dk` | Isolated interactive demo, only after demo security gates |
 
 Repository changes do not prove that Pages settings, domain ownership or DNS have been configured. Those settings must be verified directly during rollout.
+
+## Brand and domain decision gate
+
+Do not buy, verify, advertise or activate `workslip.dk` solely because the repository uses the Workslip project name.
+
+Before custom-domain rollout, record all of the following in Linear:
+
+1. Result of the authoritative Punktum dk domain search and proof of the account that will own the domain.
+2. A deliberate product-name decision after checking relevant company names, app stores, domains and trademark registers.
+3. Review of the active field-service product operating as Workslip at `getworkslip.com`, including whether the products, markets and branding could be confused.
+4. Approved canonical hostname and responsible owner.
+5. Redirect and migration plan if the product name or domain changes later.
+
+This runbook does not provide legal clearance. Obtain qualified advice before relying on the name commercially where the collision risk is material.
 
 ## Code readiness gate
 
@@ -32,10 +50,11 @@ Before changing repository settings or DNS, require all of the following:
 - Required outputs include home, features, demo, security, privacy, terms, status, changelog, 404, robots and sitemap.
 - Public content contains no production secret, private operational detail or unverified product claim.
 - The GitHub Pages deployment workflow uses only `contents: read`, `pages: write` and `id-token: write`.
+- Canonical and social metadata reference only verified hosts and existing assets.
 
 ## Initial GitHub configuration
 
-These steps require repository-administrator access and must be recorded as completed in WOR-169 or a successor rollout issue.
+These steps require repository-administrator access and must be recorded as completed in WOR-169, WOR-172 or a successor rollout issue.
 
 1. Open **Settings → Pages**.
 2. Set the publishing source to **GitHub Actions**.
@@ -43,14 +62,16 @@ These steps require repository-administrator access and must be recorded as comp
 4. Restrict deployment to `main` and configure appropriate production protection.
 5. Run the Pages workflow manually before adding a custom domain.
 6. Record the workflow run URL and deployed `github.io` URL.
-7. Verify navigation, mobile layout, 404 behavior, robots, sitemap and HTTPS on the fallback URL.
+7. Verify navigation, mobile layout, 404 behavior, robots, sitemap, canonical URLs and HTTPS on the fallback URL.
 8. Confirm that a failed deployment does not alter the currently served artifact.
 
 Do not mark Pages as active based only on the presence of `.github/workflows/pages.yml`.
 
 ## Domain verification
 
-1. Confirm ownership of the selected domain at the DNS provider.
+Start this section only after the brand and domain decision gate is complete.
+
+1. Confirm ownership of the approved domain at the DNS provider.
 2. Capture a zone export or screenshots of the current records and TTL values.
 3. Add the GitHub-provided TXT verification record for the exact domain.
 4. Wait for DNS propagation and verify from more than one resolver.
@@ -62,15 +83,16 @@ Do not copy DNS values from an old guide. Use the values shown by GitHub when th
 ## DNS rollout
 
 1. Lower relevant TTL values in advance when practical.
-2. Configure the apex records using GitHub's current Pages addresses.
-3. Configure `www` as a CNAME to the GitHub Pages hostname shown for the account.
+2. Configure the approved apex records using GitHub's current Pages addresses.
+3. Configure the approved `www` host as a CNAME to the GitHub Pages hostname shown for the account.
 4. Keep `app` and `demo` separate from Pages and pointed at their actual hosting providers.
 5. Validate DNS from more than one resolver.
-6. Add `workslip.dk` as the Pages custom domain.
-7. Wait for GitHub's certificate provisioning.
-8. Enable **Enforce HTTPS** only after the certificate is active.
-9. Verify canonical redirect behavior between apex and `www`.
-10. Re-run smoke checks against both the canonical domain and the GitHub Pages fallback.
+6. Add the approved canonical hostname as the Pages custom domain.
+7. Update `site.url` in the same controlled rollout so generated canonical metadata matches the approved host.
+8. Wait for GitHub's certificate provisioning.
+9. Enable **Enforce HTTPS** only after the certificate is active.
+10. Verify redirect behavior between the approved apex and `www` hosts.
+11. Re-run smoke checks against both the canonical domain and the GitHub Pages fallback.
 
 ## Demo rollout boundary
 
@@ -78,7 +100,7 @@ The marketing page may link to the current application, but it must not embed th
 
 A future iframe requires all of the following:
 
-- an isolated `demo.workslip.dk` deployment with no production connectivity;
+- an isolated demo deployment with no production connectivity;
 - explicit `frame-ancestors` and marketing-site `frame-src` restrictions;
 - short-lived demo sessions and deterministic reset;
 - no registration, billing, destructive settings or privileged integrations;
@@ -103,9 +125,11 @@ Until WOR-125 through WOR-128 satisfy those gates, the demo page remains an expl
 - Navigation works with keyboard and visible focus.
 - Mobile layout has no horizontal overflow.
 - Sitemap and SEO metadata are generated.
+- Canonical URLs match the currently verified origin and Pages base path.
+- No Open Graph or social metadata points to a missing asset.
 - `robots.txt` references the canonical sitemap.
 - HTTPS is valid and mixed content is absent.
-- Apex and `www` canonical behavior is correct.
+- Approved apex and `www` redirect behavior is correct.
 - `app` and `demo` hosts still resolve to their intended platforms.
 - No private repository data appears in generated HTML.
 
@@ -122,19 +146,21 @@ If custom-domain activation causes an outage:
 
 1. Remove the custom domain from GitHub Pages.
 2. Restore the previous DNS records from the captured zone snapshot.
-3. Verify the `github.io` fallback site.
-4. Do not retry until DNS values, ownership verification and certificate state are understood.
+3. Restore `site.url` to `https://rasm105k.github.io` if the custom host is no longer authoritative.
+4. Verify the `github.io` fallback site.
+5. Do not retry until DNS values, ownership verification and certificate state are understood.
 
 If `app` or `demo` is affected, treat that as a separate hosting incident; do not repoint those hosts to GitHub Pages as a shortcut.
 
 ## Completion evidence
 
-WOR-169 can complete the repository portion when the hardening PR is merged and CI is green. Full domain rollout requires separate evidence:
+The repository portion is complete when the site, dependency and metadata checks are green. Full domain rollout requires separate evidence:
 
 - GitHub Pages source screenshot or recorded setting;
 - protected `github-pages` environment configuration;
 - successful deployment workflow URL;
 - verified fallback URL;
+- completed brand/domain decision record;
 - domain ownership verification;
 - DNS record snapshot;
 - active certificate and enforced HTTPS;
