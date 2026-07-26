@@ -20,14 +20,19 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
           working-directory: site
+      - name: Compile output validator
+        run: python -m py_compile site/scripts/validate_output.py
       - name: Build site with strict front matter
         working-directory: site
         run: bundle exec jekyll build --strict_front_matter
         env:
           JEKYLL_ENV: production
-      - name: Verify required output
-        run: |
-          test -f site/_site/index.html
-          test -f site/_site/demo/index.html
-          test -f site/_site/security/index.html
-          test -f site/_site/privacy/index.html
+      - name: Validate generated site
+        run: python site/scripts/validate_output.py site/_site
+      - name: Upload generated dependency lock
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-gemfile-lock
+          path: site/Gemfile.lock
+          if-no-files-found: error
+          retention-days: 1
