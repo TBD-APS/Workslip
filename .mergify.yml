@@ -1,0 +1,9 @@
+pull_request_rules:
+  - name: Squash-merge reviewed pull requests into main
+    conditions:
+      - base = main
+      - -draft
+      - "#approved-reviews-by >= 1"
+    actions:
+      merge:
+        method: squash
