@@ -520,7 +520,7 @@ delete_existing() {
     --resource-group "$RESOURCE_GROUP" \
     --server "$SQL_SERVER_NAME" \
     --query "[?starts_with(name, 'AllowWebApiOutbound') || name == 'AllowAzureServices' || name == 'AllowDeveloperIP'].name" \
-    --output tsv 2>/dev/null) || raw=""
+    --output tsv)
 
   if [ -z "$raw" ]; then
     return 0
@@ -544,11 +544,6 @@ create_rule() {
   local index="$1"
   local ip="$2"
 
-  if ! [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "skipping non-IPv4 value: $ip" >&2
-    return 0
-  fi
-
   az_with_retry sql server firewall-rule create \
     --resource-group "$RESOURCE_GROUP" \
     --server "$SQL_SERVER_NAME" \
@@ -557,9 +552,6 @@ create_rule() {
     --end-ip-address "$ip" \
     --output none
 }
-
-export -f create_rule
-export RESOURCE_GROUP SQL_SERVER_NAME
 
 valid_ips=()
 IFS=',' read -ra candidate_ips <<< "$OUTBOUND_IPS"
@@ -581,16 +573,9 @@ delete_existing
 
 index=0
 for ip in "${valid_ips[@]}"; do
-  create_rule "$index" "$ip" &
+  create_rule "$index" "$ip"
   index=$((index + 1))
-
-  # Cap concurrency so we don't hammer the SQL control plane with
-  # dozens of simultaneous writes.
-  if (( index % 8 == 0 )); then
-    wait
-  fi
 done
-wait
 '''
   }
   dependsOn: [
