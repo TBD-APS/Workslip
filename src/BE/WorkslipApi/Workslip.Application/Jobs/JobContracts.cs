@@ -181,7 +181,8 @@ public sealed record AssignJobRequest(
     IReadOnlyList<Guid> UserIds);
 
 public sealed record ChangeJobStatusRequest(
-    JobStatus Status);
+    JobStatus Status,
+    string? RejectionNote = null);
 
 public sealed record CustomerInfo(
     Guid? CustomerId,
@@ -217,7 +218,7 @@ public sealed record JobListItemResponse(
     string? ReportNumber,
     JobStatus Status,
     DateOnly? ReportDate,
-    Workslip.Domain.JobType JobType,
+    JobType JobType,
     string? DestinationAddress,
     string? DestinationZipCode,
     string? DestinationCity,
@@ -230,7 +231,8 @@ public sealed record JobListItemResponse(
     bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt,
     decimal? TotalHours,
-    bool IsSeenByCurrentUser);
+    bool IsSeenByCurrentUser,
+    string? RejectionNote);
 
 public sealed record JobReportResponse(
     Guid Id,
@@ -260,7 +262,8 @@ public sealed record JobReportResponse(
     IReadOnlyList<WorksheetUserGroupResponse> Worksheets,
     bool SoftDeleted,
     DateTimeOffset? DeletionScheduledAt,
-    decimal? TotalHours);
+    decimal? TotalHours,
+    string? RejectionNote);
 
 public sealed record JobTransitionResult(JobReportResponse Report, bool Changed);
 
@@ -331,7 +334,8 @@ public sealed record JobReportSummaryResponse(
     IReadOnlyList<WorksheetResponse> Worksheets,
     decimal? TotalHours,
     int? TotalOutlay,
-    bool SoftDeleted);
+    bool SoftDeleted,
+    string? RejectionNote);
 
 public sealed record JobReportSummaryWorkResponse(
     JobWorkKindResponse? WorkKind,

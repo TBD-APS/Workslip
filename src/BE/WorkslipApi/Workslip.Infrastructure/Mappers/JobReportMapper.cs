@@ -60,7 +60,7 @@ public static class JobReportMapper
             row.Remarks, closureFlags, links,
             row.CreatedAt, row.UpdatedAt, row.SubmittedAt,
             assignedUsers, worksheetEntries,
-            row.IsSoftDeleted, row.DeletionScheduledAt, totalHours);
+            row.IsSoftDeleted, row.DeletionScheduledAt, totalHours, row.RejectionNote);
     }
 
     public static JobHistoryResponse ToHistoryResponse(JobEventRow row, string? actorName)

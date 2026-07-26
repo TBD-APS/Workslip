@@ -129,7 +129,7 @@ public sealed class PushNotificationWorker : BackgroundService
             return;
         }
 
-        var (title, body) = notificationService.GetLocalizedText(type, payload.JobNumber, payload.CustomerAddress, payload.RecipientName);
+        var (title, body) = notificationService.GetLocalizedText(type, payload.JobNumber, payload.CustomerAddress, payload.RecipientName, payload.RejectionNote);
 
         var devicePayload = new
         {

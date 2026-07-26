@@ -26,14 +26,14 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
     public Task<IReadOnlyList<CustomerSearchResponse>> SearchAsync(Guid organizationId, string query, int limit, CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync("customers.search", token => SearchCoreAsync(organizationId, query, limit, token), cancellationToken);
 
-    public Task<IReadOnlyList<CustomerSearchResponse>> GetTopCustomersAsync(Guid organizationId, int limit, CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("customers.top", token => GetTopCustomersCoreAsync(organizationId, limit, token), cancellationToken);
+    public Task<IReadOnlyList<CustomerSearchResponse>> GetFavoriteCustomersAsync(Guid organizationId, int limit, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("customers.favorite", token => GetFavoriteCustomersCoreAsync(organizationId, limit, token), cancellationToken);
 
     public Task UpdateAsync(Guid organizationId, Guid id, CustomerData customer, CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync("customers.update", token => UpdateCoreAsync(organizationId, id, customer, token), cancellationToken);
 
-    public Task SetTopAsync(Guid organizationId, Guid id, bool isTop, CancellationToken cancellationToken) =>
-        retryPolicy.ExecuteAsync("customers.set-top", token => SetTopCoreAsync(organizationId, id, isTop, token), cancellationToken);
+    public Task SetFavoriteAsync(Guid organizationId, Guid id, bool isFavorite, CancellationToken cancellationToken) =>
+        retryPolicy.ExecuteAsync("customers.set-favorite", token => SetFavoriteCoreAsync(organizationId, id, isFavorite, token), cancellationToken);
 
     public Task DeleteAsync(Guid organizationId, Guid id, CancellationToken cancellationToken) =>
         retryPolicy.ExecuteAsync("customers.delete", token => DeleteCoreAsync(organizationId, id, token), cancellationToken);
@@ -98,14 +98,14 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
                 c.Email,
                 c.ContactPerson,
                 c.Phone,
-                c.IsTop,
+                c.IsFavorite,
                 JobCount = dbContext.JobReports.Count(r => r.OrganizationId == organizationId && r.CustomerId == c.Id && !r.IsSoftDeleted)
             })
             .ToListAsync(cancellationToken);
 
         return customers.Select(c => new CustomerListItemResponse(
             c.Id, c.CustomerNumber, c.Name, c.Address, c.ZipCode, c.City, c.Country,
-            c.Email, c.ContactPerson, c.Phone, c.JobCount, c.IsTop)).ToArray();
+            c.Email, c.ContactPerson, c.Phone, c.JobCount, c.IsFavorite)).ToArray();
     }
 
     private Task<int> GetCustomerCountCoreAsync(Guid organizationId, string? search, CancellationToken cancellationToken) =>
@@ -167,26 +167,41 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
             term);
 
         return await customers
-            .OrderBy(c => c.IsTop ? 0 : 1)
+            .OrderBy(c => c.IsFavorite ? 0 : 1)
             .ThenBy(c => c.Name.StartsWith(term) ? 0 : 1)
             .ThenBy(c => c.Name)
             .Take(limit)
             .Select(c => new CustomerSearchResponse(
                 c.Id, c.CustomerNumber, c.Name, c.Email, c.Phone, c.Address,
-                c.ZipCode, c.City, c.Country, c.ContactPerson, c.IsTop))
+                c.ZipCode, c.City, c.Country, c.ContactPerson, c.IsFavorite))
             .ToListAsync(cancellationToken);
     }
 
-    private async Task<IReadOnlyList<CustomerSearchResponse>> GetTopCustomersCoreAsync(Guid organizationId, int limit, CancellationToken cancellationToken) =>
-        await dbContext.Customers
+    private async Task<IReadOnlyList<CustomerSearchResponse>> GetFavoriteCustomersCoreAsync(Guid organizationId, int limit, CancellationToken cancellationToken)
+    {
+        var favoriteCustomers = await dbContext.Customers
             .AsNoTracking()
-            .Where(c => c.OrganizationId == organizationId && c.IsTop)
+            .Where(c => c.OrganizationId == organizationId && c.IsFavorite)
             .OrderBy(c => c.Name)
             .Take(limit)
             .Select(c => new CustomerSearchResponse(
                 c.Id, c.CustomerNumber, c.Name, c.Email, c.Phone, c.Address,
-                c.ZipCode, c.City, c.Country, c.ContactPerson, c.IsTop))
+                c.ZipCode, c.City, c.Country, c.ContactPerson, c.IsFavorite))
             .ToListAsync(cancellationToken);
+
+        if (favoriteCustomers.Count > 0)
+            return favoriteCustomers;
+
+        return await dbContext.Customers
+            .AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId)
+            .OrderByDescending(c => c.CreatedAt)
+            .Take(limit)
+            .Select(c => new CustomerSearchResponse(
+                c.Id, c.CustomerNumber, c.Name, c.Email, c.Phone, c.Address,
+                c.ZipCode, c.City, c.Country, c.ContactPerson, c.IsFavorite))
+            .ToListAsync(cancellationToken);
+    }
 
     private async Task UpdateCoreAsync(Guid organizationId, Guid id, CustomerData customer, CancellationToken cancellationToken)
     {
@@ -218,7 +233,7 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
         }
     }
 
-    private async Task SetTopCoreAsync(Guid organizationId, Guid id, bool isTop, CancellationToken cancellationToken)
+    private async Task SetFavoriteCoreAsync(Guid organizationId, Guid id, bool isFavorite, CancellationToken cancellationToken)
     {
         var row = await dbContext.Customers.FirstOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, cancellationToken);
         if (row is null)
@@ -226,7 +241,7 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
             return;
         }
 
-        dbContext.Entry(row).Property(x => x.IsTop).CurrentValue = isTop;
+        dbContext.Entry(row).Property(x => x.IsFavorite).CurrentValue = isFavorite;
         dbContext.Entry(row).Property(x => x.UpdatedAt).CurrentValue = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
     }

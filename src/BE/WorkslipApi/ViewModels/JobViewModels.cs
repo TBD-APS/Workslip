@@ -37,7 +37,8 @@ public sealed record JobListItemViewModel(
     string? DestinationZipCode,
     string? DestinationCity,
     string? TaskDescription,
-    bool IsSeen);
+    bool IsSeen,
+    string? RejectionNote);
 
 public sealed record JobReportSummaryViewModel(
     Guid Id,
@@ -57,7 +58,8 @@ public sealed record JobReportSummaryViewModel(
     decimal? TotalHours, 
     int? TotalOutlay,
     bool SoftDeleted,
-    string JobType);
+    string JobType,
+    string? RejectionNote);
 
 public sealed record JobLinkViewModel(
     Guid Id,
@@ -87,7 +89,8 @@ public static class JobViewModelBuilder
         job.DestinationZipCode,
         job.DestinationCity,
         job.TaskDescription,
-        job.IsSeenByCurrentUser);
+        job.IsSeenByCurrentUser,
+        job.RejectionNote);
 
     public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
         summary.Id,
@@ -112,7 +115,8 @@ public static class JobViewModelBuilder
         summary.TotalHours,
         summary.TotalOutlay,
         summary.SoftDeleted,
-        summary.JobType);
+        summary.JobType,
+        summary.RejectionNote);
 
     public static JobLinkViewModel ToLink(JobLinkResponse link) => new(
         link.Id,

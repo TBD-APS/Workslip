@@ -16,19 +16,23 @@ type ActionMenuState = {
 
 type CustomerDraft = {
   name: string;
+  customerNumber: string;
   address: string;
   email: string;
   contactPerson: string;
   phone: string;
+  isFavorite: boolean;
 };
 
 function toDraft(customer: CustomerListItemViewModel | CustomerDetailViewModel): CustomerDraft {
   return {
     name: customer.name ?? '',
+    customerNumber: customer.customerNumber ?? '',
     address: customer.address ?? '',
     email: customer.email ?? '',
     contactPerson: customer.contactPerson ?? '',
     phone: customer.phone ?? '',
+    isFavorite: 'isFavorite' in customer ? customer.isFavorite : false,
   };
 }
 
@@ -85,7 +89,7 @@ type EditCustomerDialogProps = {
 
 function EditCustomerDialog({ customer, onClose }: EditCustomerDialogProps) {
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<CustomerDraft>({ name: '', address: '', email: '', contactPerson: '', phone: '' });
+  const [draft, setDraft] = useState<CustomerDraft>({ name: '', customerNumber: '', address: '', email: '', contactPerson: '', phone: '', isFavorite: false });
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -123,11 +127,17 @@ function EditCustomerDialog({ customer, onClose }: EditCustomerDialogProps) {
     try {
       await apiClient.put(`/api/customers/${customer.id}`, {
         name: draft.name.trim(),
+        customerNumber: draft.customerNumber.trim() || null,
         address: draft.address.trim() || null,
         email: draft.email.trim() || null,
         contactPerson: draft.contactPerson.trim() || null,
         phone: draft.phone.trim() || null,
       });
+
+      const originalFavorite = 'isFavorite' in customer ? customer.isFavorite : false;
+      if (draft.isFavorite !== originalFavorite) {
+        await apiClient.patch(`/api/customers/${customer.id}/favorite`, { isFavorite: draft.isFavorite });
+      }
 
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getGetApiCustomersIdQueryKey(customer.id) });
@@ -160,6 +170,17 @@ function EditCustomerDialog({ customer, onClose }: EditCustomerDialogProps) {
               value={draft.name}
               onChange={(e) => updateDraft({ name: e.target.value })}
               maxLength={240}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="edit-customer-number">Kundenummer</label>
+            <input
+              id="edit-customer-number"
+              className="form-input"
+              type="text"
+              value={draft.customerNumber}
+              onChange={(e) => updateDraft({ customerNumber: e.target.value })}
+              maxLength={80}
             />
           </div>
           <div className="form-group">
@@ -205,6 +226,18 @@ function EditCustomerDialog({ customer, onClose }: EditCustomerDialogProps) {
               maxLength={80}
             />
           </div>
+        </div>
+
+        <div className="form-group">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              className="checkbox-input"
+              checked={draft.isFavorite}
+              onChange={(e) => updateDraft({ isFavorite: e.target.checked })}
+            />
+            <span>Favorit</span>
+          </label>
         </div>
 
         {error && <p className="form-error-text">{error}</p>}

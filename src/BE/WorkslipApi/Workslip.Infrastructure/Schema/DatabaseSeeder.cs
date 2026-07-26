@@ -519,12 +519,6 @@ public static class DatabaseSeeder
     {
         var seedFilePath = Path.Combine(AppContext.BaseDirectory, "customerdata.csv");
 
-        var topCustomerNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            // Add customer numbers (Nr.) here to mark as top customers.
-            // Example: "28405769", "830",
-        };
-
         using var reader = new StreamReader(seedFilePath);
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
         {
@@ -561,7 +555,7 @@ public static class DatabaseSeeder
                 Email = record.Email?.Trim(),
                 ContactPerson = record.Attention?.Trim(),
                 Phone = record.TelefonFax?.Trim(),
-                IsTop = nr is not null && topCustomerNumbers.Contains(nr),
+                IsFavorite = false,
                 CreatedAt = now,
                 UpdatedAt = now,
             });

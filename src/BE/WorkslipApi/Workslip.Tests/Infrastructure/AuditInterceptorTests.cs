@@ -2233,7 +2233,7 @@ public sealed class AuditInterceptorTests
         context.IsSeeding = false;
 
         var repository = CreateJobRepository(context, actorId, orgId);
-        await repository.TransitionAsync(jobId, orgId, JobStatus.InReview, actorId, CancellationToken.None);
+        await repository.TransitionAsync(jobId, orgId, JobStatus.InReview, actorId, null, CancellationToken.None);
 
         var request = new UpdateJobRequest(
             Work: new CreateJobWorkRequest(

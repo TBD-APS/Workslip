@@ -304,7 +304,7 @@ public sealed class SqlDbContext : DbContext
 
         entity.Property(e => e.Phone).HasMaxLength(80);
 
-        entity.Property(e => e.IsTop).HasDefaultValue(false);
+        entity.Property(e => e.IsFavorite).HasDefaultValue(false);
 
 
 
@@ -582,6 +582,7 @@ entity.Property(e => e.Status)
 
         entity.Property(e => e.DeletionScheduledAt).HasColumnType("datetimeoffset");
 
+        entity.Property(e => e.RejectionNote).HasColumnType("nvarchar(max)");
 
 
         entity.HasOne(x => x.OrganizationRow)
