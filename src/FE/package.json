@@ -14,6 +14,7 @@
     "build:local": "npm run generate:api:local && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test:vercel-policy": "node --test scripts/vercel-build-policy.test.mjs",
     "generate:api:watch": "orval --watch",
     "doctor": "npx react-doctor@latest"
   },

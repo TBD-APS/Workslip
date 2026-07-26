@@ -1,4 +1,11 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "rbj--*": false
+    }
+  },
+  "ignoreCommand": "node scripts/vercel-build-policy.mjs",
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],
