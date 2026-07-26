@@ -19,6 +19,7 @@ This directory separates maintained product documentation from historical implem
 | Architecture and ADRs | [`architecture/README.md`](architecture/README.md) | Draft | Architecture owner | Monthly and on boundary changes | Deployed code, infrastructure and accepted ADRs |
 | API and integrations | [`api/README.md`](api/README.md) | Draft | API owner | On contract changes | Runtime OpenAPI, endpoint code and Postman suite |
 | Pages and domain operations | [`operations/github-pages-domain-runbook.md`](operations/github-pages-domain-runbook.md) | Active | Repository owner | Before Pages or DNS changes | GitHub Pages settings, DNS and Pages workflow |
+| Application subdomain cutover | [`operations/app-subdomain-cutover.md`](operations/app-subdomain-cutover.md) | Active | Repository owner | Before production-domain or auth-origin changes | Vercel, DNS, Entra, API configuration and frontend auth code |
 | CI quality gates | [`operations/ci-quality-gates.md`](operations/ci-quality-gates.md) | Active | Repository owner | Monthly and on required-check changes | Workflows, rulesets and successful runs |
 | Agent conventions | [`../AGENTS.md`](../AGENTS.md) | Active | Repository owner | On engineering-policy changes | Approved repository rules |
 
