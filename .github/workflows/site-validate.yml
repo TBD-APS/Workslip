@@ -1,0 +1,33 @@
+name: Validate Jekyll site
+
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - ".github/workflows/site-validate.yml"
+      - ".github/workflows/pages.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: site
+      - name: Build site with strict front matter
+        working-directory: site
+        run: bundle exec jekyll build --strict_front_matter
+        env:
+          JEKYLL_ENV: production
+      - name: Verify required output
+        run: |
+          test -f site/_site/index.html
+          test -f site/_site/demo/index.html
+          test -f site/_site/security/index.html
+          test -f site/_site/privacy/index.html
