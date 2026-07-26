@@ -5,7 +5,11 @@ on:
     branches: [main]
     paths:
       - 'src/BE/WorkslipApi/**'
+      - 'src/BE/infrastructure/**'
       - 'src/FE/**'
+      - 'Docs/operations/azure-github-oidc.md'
+      - 'tools/ci/check_azure_oidc_contract.py'
+      - '.github/workflows/main_api-npteknik-prod.yml'
       - '.github/workflows/pr-application-validation.yml'
 
 permissions:
@@ -16,6 +20,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deployment-contract:
+    name: Validate Azure OIDC contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment contract
+        run: python tools/ci/check_azure_oidc_contract.py
+
   backend:
     name: Build API and test customer import
     runs-on: ubuntu-latest
