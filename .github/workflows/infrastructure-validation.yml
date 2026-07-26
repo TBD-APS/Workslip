@@ -60,13 +60,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          if rg -n -i \
+          if grep -Eni \
             'administratorLogin|administratorLoginPassword|AllowAzureServices|AllowDeveloperIP|0\.0\.0\.0|Password=' \
             src/BE/infrastructure/*.bicep; then
             echo "Azure SQL password authentication or broad firewall access was reintroduced." >&2
             exit 1
           fi
 
-          rg -n 'azureADOnlyAuthentication: true' src/BE/infrastructure/main.bicep
-          rg -n 'Authentication=Active Directory Managed Identity' src/BE/infrastructure/main.bicep
-          rg -n 'possibleOutboundIpAddresses' src/BE/infrastructure/main.bicep
+          grep -En 'azureADOnlyAuthentication: true' src/BE/infrastructure/main.bicep
+          grep -En 'Authentication=Active Directory Managed Identity' src/BE/infrastructure/main.bicep
+          grep -En 'possibleOutboundIpAddresses' src/BE/infrastructure/main.bicep
