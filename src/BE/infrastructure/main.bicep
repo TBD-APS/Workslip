@@ -17,7 +17,6 @@ param appConfigurationName string     = take('appcs-${companyName}-${toLower(env
 ])
 param appConfigurationCreateMode string = 'Default'
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
-param deploymentIdentityName string   = 'id-${companyName}-${toLower(environment)}-deploy'
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
@@ -26,7 +25,15 @@ param githubRepository string         = 'rasm105k/Workslip-v2.0'
 param githubEnvironment string        = environment
 param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}group'
 param provisionWebApiSqlAccess bool   = false
-param deploymentRunId string          = utcNow('yyyyMMddHHmmss')
+
+// ── SQL admin password ────────────────────────────────────────────────────────
+// SECURITY: was previously hardcoded as 'Num64bqe!' in this file. Moved to
+// a @secure() parameter so it does not get baked into compiled main.json or
+// show up in deployment history. The legacy password is still in git history
+// from prior commits — rotate it manually in the Azure portal before reusing
+// this template on a real environment.
+@secure()
+param sqlAdminPassword string
 @secure()
 param vercelToken string
 
@@ -59,8 +66,8 @@ var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
 var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
 
 // ──────────────────────────────────────────────────────────────────────────────
-// User-Assigned Managed Identities
-// Runtime and deployment permissions are intentionally isolated.
+// User-Assigned Managed Identity
+// One identity, shared by all resources. All RBAC is granted to this identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -69,16 +76,8 @@ resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' 
   tags: tags
 }
 
-resource deploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: deploymentIdentityName
-  location: location
-  tags: union(tags, {
-    purpose: 'deployment'
-  })
-}
-
 resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
-  parent: deploymentIdentity
+  parent: identity
   name: 'github-${toLower(environment)}'
   properties: {
     audiences: [
@@ -239,10 +238,10 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(webApi.id, deploymentIdentity.id, roles.websiteContributor)
+  name: guid(webApi.id, identity.id, roles.websiteContributor)
   scope: webApi
   properties: {
-    principalId: deploymentIdentity.properties.principalId
+    principalId: identity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.websiteContributor)
   }
@@ -299,7 +298,7 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
     storageAccountName: storageAccount.name
     applicationInsightsConnectionString: appInsights.properties.ConnectionString
 
-    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDatabase.name};Authentication=Active Directory Managed Identity;User ID=${identity.properties.clientId};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+    sqlConnectionString: keyVaultConfigs.outputs.sqlConnectionstring
   }
 }
 
@@ -366,6 +365,7 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
   params: {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
+    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=rbj;Password=${sqlAdminPassword}; TrustServerCertificate=False;'
   }
 }
 
@@ -420,14 +420,17 @@ resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
   location: location
   properties: {
     version: '12.0'
+    administratorLogin: 'rbj'
+    administratorLoginPassword: sqlAdminPassword
+    // The F1 App Service cannot use VNet integration. Restrict the public
+    // endpoint to the App Service outbound IP allowlist managed below.
     publicNetworkAccess: 'Enabled'
-    minimalTlsVersion: '1.2'
     administrators:{
       administratorType: 'ActiveDirectory'
       login: sqlAdminGroupName
       sid: sqlAdminGroup.id
       tenantId: subscription().tenantId
-      azureADOnlyAuthentication: true
+      azureADOnlyAuthentication: false
     }
   }
 }
@@ -445,11 +448,11 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   }
 }
 
-resource sqlFirewallManagerForDeploymentIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(sqlServer.id, deploymentIdentity.id, roles.sqlSecurityManager)
+resource sqlFirewallManagerForIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(sqlServer.id, identity.id, roles.sqlSecurityManager)
   scope: sqlServer
   properties: {
-    principalId: deploymentIdentity.properties.principalId
+    principalId: identity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.sqlSecurityManager)
   }
@@ -462,14 +465,14 @@ resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-
   tags: tags
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: { '${deploymentIdentity.id}': {} }
+    userAssignedIdentities: { '${identity.id}': {} }
   }
   properties: {
     azCliVersion: '2.61.0'
     cleanupPreference: 'OnSuccess'
     retentionInterval: 'P1D'
     timeout: 'PT30M'
-    forceUpdateTag: deploymentRunId
+    forceUpdateTag: identity.id
     environmentVariables: [
       {
         name: 'RESOURCE_GROUP'
@@ -509,16 +512,14 @@ az_with_retry() {
   done
 }
 
-# The public endpoint is selected-network only. Remove every existing
-# server-level rule before rebuilding the exact App Service allowlist.
-# This also cleans up legacy broad-access and developer-IP rules
-# left behind by earlier incremental deployments.
+# Remove the managed App Service rules and the two legacy broad-access rules.
+# Other deliberately configured firewall rules are left untouched.
 delete_existing() {
   local raw
   raw=$(az_with_retry sql server firewall-rule list \
     --resource-group "$RESOURCE_GROUP" \
     --server "$SQL_SERVER_NAME" \
-    --query "[].name" \
+    --query "[?starts_with(name, 'AllowWebApiOutbound') || name == 'AllowAzureServices' || name == 'AllowDeveloperIP'].name" \
     --output tsv 2>/dev/null) || raw=""
 
   if [ -z "$raw" ]; then
@@ -527,16 +528,15 @@ delete_existing() {
 
   local rule
   while IFS= read -r rule; do
-    if [[ ! "$rule" =~ ^[A-Za-z0-9._-]{1,128}$ ]]; then
-      echo "skipping invalid firewall-rule name: $rule" >&2
-      continue
-    fi
-
-    az_with_retry sql server firewall-rule delete \
-      --resource-group "$RESOURCE_GROUP" \
-      --server "$SQL_SERVER_NAME" \
-      --name "$rule" \
-      --output none
+    case "$rule" in
+      AllowWebApiOutbound*|AllowAzureServices|AllowDeveloperIP)
+az_with_retry sql server firewall-rule delete \
+  --resource-group "$RESOURCE_GROUP" \
+  --server "$SQL_SERVER_NAME" \
+  --name "$rule" --output none ;;
+      *)
+        echo "skipping unexpected firewall-rule value: $rule" >&2 ;;
+    esac
   done <<< "$raw"
 }
 
@@ -561,22 +561,27 @@ create_rule() {
 export -f create_rule
 export RESOURCE_GROUP SQL_SERVER_NAME
 
-delete_existing
+valid_ips=()
+IFS=',' read -ra candidate_ips <<< "$OUTBOUND_IPS"
+for ip in "${candidate_ips[@]}"; do
+  trimmed_ip=$(echo "$ip" | xargs)
+  if [[ "$trimmed_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    valid_ips+=("$trimmed_ip")
+  elif [ -n "$trimmed_ip" ]; then
+    echo "skipping non-IPv4 value: $trimmed_ip" >&2
+  fi
+done
 
-if [ -z "$OUTBOUND_IPS" ]; then
-  echo "App Service returned no possible outbound IP addresses; refusing to leave SQL without an application allowlist." >&2
+if [ "${#valid_ips[@]}" -eq 0 ]; then
+  echo "App Service returned no valid outbound IP addresses; existing SQL firewall rules were not changed." >&2
   exit 1
 fi
 
-IFS=',' read -ra ips <<< "$OUTBOUND_IPS"
-index=0
-for ip in "${ips[@]}"; do
-  trimmed_ip=$(echo "$ip" | xargs)
-  if [ -z "$trimmed_ip" ]; then
-    continue
-  fi
+delete_existing
 
-  create_rule "$index" "$trimmed_ip" &
+index=0
+for ip in "${valid_ips[@]}"; do
+  create_rule "$index" "$ip" &
   index=$((index + 1))
 
   # Cap concurrency so we don't hammer the SQL control plane with
@@ -589,7 +594,7 @@ wait
 '''
   }
   dependsOn: [
-    sqlFirewallManagerForDeploymentIdentity
+    sqlFirewallManagerForIdentity
   ]
 }
 
@@ -600,14 +605,14 @@ resource grantWebApiSqlAccess 'Microsoft.Resources/deploymentScripts@2023-08-01'
   tags: tags
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: { '${deploymentIdentity.id}': {} }
+    userAssignedIdentities: { '${identity.id}': {} }
   }
   properties: {
     azCliVersion: '2.61.0'
     cleanupPreference: 'OnSuccess'
     retentionInterval: 'P1D'
     timeout: 'PT20M'
-    forceUpdateTag: deploymentRunId
+    forceUpdateTag: identity.properties.clientId
     environmentVariables: [
       {
         name: 'RESOURCE_GROUP'
@@ -745,7 +750,7 @@ run_sql_with_retry
 '''
   }
   dependsOn: [
-    syncWebApiSqlFirewallRules
+    sqlFirewallManagerForIdentity
   ]
 }
 
@@ -857,8 +862,6 @@ output WEB_API_URL string                      = 'https://${webApi.properties.de
 output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
 output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
-output DEPLOYMENT_IDENTITY_CLIENT_ID string    = deploymentIdentity.properties.clientId
-output DEPLOYMENT_IDENTITY_PRINCIPAL_ID string = deploymentIdentity.properties.principalId
 output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
 output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString

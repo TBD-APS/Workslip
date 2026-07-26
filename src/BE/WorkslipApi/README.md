@@ -39,16 +39,6 @@ Health check:
 curl http://localhost:5262/health
 ```
 
-Database readiness check:
-
-```bash
-curl http://localhost:5262/health/ready
-```
-
-`/health` proves that the HTTP process responds and may be cached briefly. `/health/ready` actively checks database connectivity, returns `503` when SQL is unavailable and is never cached.
-
-Production receives `Azure:Sql:ConnectionString` from App Configuration. It uses the API's user-assigned managed identity and contains no SQL password. Local development may override the same key with a development-only SQL connection string.
-
 ## Solution structure
 
 ```text
@@ -82,7 +72,6 @@ Persistence uses EF Core `SqlDbContext` with SQL Server, repository implementati
 `Configuration/EndpointConfiguration.cs` maps:
 
 - `GET /health`
-- `GET /health/ready`
 - organizations
 - authentication/current user
 - users and invitations

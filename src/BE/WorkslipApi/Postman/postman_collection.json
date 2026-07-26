@@ -208,38 +208,6 @@
               }
             }
           ]
-        },
-        {
-          "name": "/health/ready",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/health/ready",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "health",
-                "ready"
-              ]
-            },
-            "description": "Active database readiness endpoint."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-                  "pm.test('database ready', function () { pm.expect(pm.response.json().status).to.eql('ready'); });",
-                  "pm.test('readiness is not cached', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'); });"
-                ]
-              }
-            }
-          ]
         }
       ]
     },

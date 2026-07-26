@@ -9,6 +9,7 @@ param acsSenderAddress string
 param acsConnectionString string
 param storageAccountName string
 param applicationInsightsConnectionString string
+@secure()
 param sqlConnectionString string
 @secure()
 param jwtSigninKey string
@@ -105,11 +106,12 @@ resource acsConnectionStringSecret 'Microsoft.AppConfiguration/configurationStor
   }
 }
 
-resource sqlConnectionStringValue 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+resource SqlConnectionString 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
   name: 'Azure:Sql:ConnectionString'
   properties: {
-    value: sqlConnectionString
+    value: string({ uri: sqlConnectionString })
+    contentType: keyVaultReferenceContentType
   }
 }
 

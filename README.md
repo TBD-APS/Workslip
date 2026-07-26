@@ -58,12 +58,6 @@ Health check:
 curl http://localhost:5262/health
 ```
 
-Database readiness:
-
-```bash
-curl http://localhost:5262/health/ready
-```
-
 ### Frontend
 
 ```bash

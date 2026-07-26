@@ -1,6 +1,6 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-26
+**Contract build reviewed:** 2026-07-25  
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
@@ -11,7 +11,6 @@ The Postman item with the same route is the maintained request/response example.
 | Method | Path | Access | Typical response |
 |---|---|---|---|
 | GET | `/health` | Anonymous | `200 { "status": "ok" }` |
-| GET | `/health/ready` | Anonymous | `200 { "status": "ready" }` or `503 { "status": "not_ready" }` |
 | GET | `/openapi/v1.json` | Currently mapped by startup | OpenAPI JSON for the running build |
 | GET | Scalar UI path | Currently mapped by startup | Interactive API reference |
 

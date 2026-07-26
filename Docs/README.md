@@ -17,7 +17,6 @@ This directory separates maintained product documentation from historical implem
 | Frontend development | [`../src/FE/README.md`](../src/FE/README.md) | Active | Frontend owner | On frontend tooling/config changes | `package.json`, Vite config and frontend source |
 | Backend development | [`../src/BE/WorkslipApi/README.md`](../src/BE/WorkslipApi/README.md) | Active | Backend owner | On API/persistence/config changes | Backend source, configuration and workflows |
 | Architecture and ADRs | [`architecture/README.md`](architecture/README.md) | Draft | Architecture owner | Monthly and on boundary changes | Deployed code, infrastructure and accepted ADRs |
-| Azure SQL operations | [`runbooks/azure-sql-access.md`](runbooks/azure-sql-access.md) | Active | Workslip maintainers | Before go-live and on identity/network changes | Bicep, deployment and security validation scripts |
 | API and integrations | [`api/README.md`](api/README.md) | Draft | API owner | On contract changes | Runtime OpenAPI, endpoint code and Postman suite |
 | Agent conventions | [`../AGENTS.md`](../AGENTS.md) | Active | Repository owner | On engineering-policy changes | Approved repository rules |
 
