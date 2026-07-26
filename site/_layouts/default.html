@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="{{ site.lang | default: 'da-DK' }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#17324d">
+    {% seo %}
+    <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}">
+    {% feed_meta %}
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Spring til indhold</a>
+    <header class="site-header">
+      <div class="container navigation">
+        <a class="brand" href="{{ '/' | relative_url }}" aria-label="Workslip forside">Workslip</a>
+        <nav aria-label="Primær navigation">
+          <a href="{{ '/features/' | relative_url }}">Funktioner</a>
+          <a href="{{ '/demo/' | relative_url }}">Demo</a>
+          <a href="{{ '/security/' | relative_url }}">Sikkerhed</a>
+          <a href="{{ '/privacy/' | relative_url }}">Privatliv</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      {{ content }}
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>Workslip — digital arbejdsseddel og projektstyring.</p>
+      </div>
+    </footer>
+  </body>
+</html>
