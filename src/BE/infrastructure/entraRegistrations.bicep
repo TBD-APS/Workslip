@@ -95,6 +95,8 @@ resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
     redirectUris: [
       'http://localhost:5270/login'
       'http://localhost:5270/invite/callback'
+      'https://app.workslip.dk/login'
+      'https://app.workslip.dk/invite/callback'
       'https://workslip-v2-0.vercel.app/login'
       'https://workslip-v2-0.vercel.app/invite/callback'
     ]
