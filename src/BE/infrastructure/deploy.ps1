@@ -213,13 +213,17 @@ function Remove-LegacyGitHubDeploymentAccess {
     $LegacyFederatedCredentialName = "github-$($Environment.ToLowerInvariant())"
     Write-Host "Removing legacy GitHub access from the API runtime identity…" -ForegroundColor Cyan
 
-    az identity federated-credential show `
+    $LegacyFederatedCredential = az identity federated-credential list `
         --resource-group $RESOURCE_GROUP `
         --identity-name $RuntimeIdentityName `
-        --name $LegacyFederatedCredentialName `
-        -o none 2>$null
+        --query "[?name == '$LegacyFederatedCredentialName'].name" `
+        -o tsv
 
-    if ($LASTEXITCODE -eq 0) {
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not inspect federated credentials on runtime identity '$RuntimeIdentityName'."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($LegacyFederatedCredential)) {
         az identity federated-credential delete `
             --resource-group $RESOURCE_GROUP `
             --identity-name $RuntimeIdentityName `
