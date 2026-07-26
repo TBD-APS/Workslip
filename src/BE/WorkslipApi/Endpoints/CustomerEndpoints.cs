@@ -47,6 +47,7 @@ public static class CustomerEndpoints
         adminGroup.MapPost("/", async (CreateCustomerRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotentMutationService idempotency, ICustomerService service, CancellationToken cancellationToken) =>
         {
             HttpCacheHeaders.SetNoStore(httpContext);
+            HttpCacheHeaders.SetNoStore(httpContext);
             if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
 

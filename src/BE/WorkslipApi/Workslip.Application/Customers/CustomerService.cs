@@ -235,7 +235,7 @@ public sealed class CustomerService(
                 Clean(row.ZipCode),
                 Clean(row.City),
                 "Danmark",
-                Clean(row.Email),
+                Clean(row.Email?.ToLowerInvariant()),
                 Clean(row.ContactPerson),
                 Clean(row.Phone));
 
@@ -282,7 +282,7 @@ public sealed class CustomerService(
         Clean(request.ZipCode),
         Clean(request.City),
         "Danmark",
-        Clean(request.Email),
+        Clean(request.Email?.ToLowerInvariant()),
         Clean(request.ContactPerson),
         Clean(request.Phone));
 
@@ -293,7 +293,7 @@ public sealed class CustomerService(
         Clean(request.ZipCode),
         Clean(request.City),
         "Danmark",
-        Clean(request.Email),
+        Clean(request.Email?.ToLower()),
         Clean(request.ContactPerson),
         Clean(request.Phone));
 
