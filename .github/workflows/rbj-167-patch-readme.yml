@@ -1,0 +1,44 @@
+name: RBJ-167 patch deployment documentation
+
+on:
+  push:
+    branches:
+      - rbj--167-fix-oidc-subject-defaults-v2
+    paths:
+      - '.github/workflows/rbj-167-patch-readme.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--167-fix-oidc-subject-defaults-v2
+
+      - name: Update documented OIDC subject
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/BE/WorkslipApi/README.md')
+          text = path.read_text(encoding='utf-8')
+          legacy = 'repo:rasm105k/Workslip-v2.0:environment:prod'
+          immutable = 'repo:rasm105k@31623093/Workslip-v2.0@1245555609:environment:prod'
+
+          if legacy not in text:
+              raise SystemExit('Legacy OIDC subject was not found in README.')
+
+          text = text.replace(legacy, immutable, 1)
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit README correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/BE/WorkslipApi/README.md
+          git diff --cached --check
+          git commit -m "RBJ-167: Document immutable GitHub OIDC subject"
+          git push origin HEAD:rbj--167-fix-oidc-subject-defaults-v2
