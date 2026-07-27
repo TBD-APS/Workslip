@@ -84,6 +84,14 @@ Common runtime configuration includes:
 - `VITE_API_BASE_URL` — optional API base URL; blank uses the current origin and local Vite proxy.
 - Entra/Application Insights settings referenced by frontend source — treat these as public client configuration, not secrets.
 
+## Microsoft login callback state
+
+The browser PKCE flow stores the complete temporary login state in `sessionStorage` under `workslip.loginPkce` before navigating to Microsoft. The stored object includes the OAuth state value, PKCE verifier, redirect URI and return target.
+
+Do not replace this with an in-memory map or store only an opaque reference. Microsoft login performs a full-page navigation, which destroys module memory before the callback is processed. Invalid or legacy stored values must be discarded rather than used for token exchange.
+
+The login route clears the PKCE state after success, cancellation or callback failure. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters.
+
 ## PWA caution
 
 The application uses `vite-plugin-pwa` with an injected service worker. Changes to update/reload, caching, offline drafts or synchronization must be validated against long dirty forms and documented conservatively. A PWA cache is not proof that mutations work offline.
