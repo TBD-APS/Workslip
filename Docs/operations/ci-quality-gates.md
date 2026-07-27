@@ -4,18 +4,32 @@ Status: Active
 Owner: Workslip repository owner  
 Source of truth: `.github/workflows/`, repository rulesets and current successful workflow runs  
 Review cadence: monthly and whenever a workflow or required check changes  
-Linear: WOR-170, WOR-171
+Linear: WOR-170, WOR-171, WOR-188
 
 ## Principle
 
-A required or routinely triggered check must be configured, actionable and owned. Placeholder workflows that fail on every pull request reduce trust in CI and must not remain active.
+A required or routinely triggered check must be configured, actionable and owned. Placeholder, overlapping or routinely ignored workflows reduce trust in CI and must not remain active.
 
 ## Current expectations
 
 - Documentation Quality validates maintained Markdown, local links and API endpoint-catalog drift.
-- Jekyll site validation builds the public site with frozen dependencies and validates generated output.
-- Pages deployment builds and validates the site before uploading the Pages artifact.
-- Existing functioning code, security and review checks remain governed by repository rulesets and their own configuration.
+- Pages deployment builds and validates the Jekyll site before deploying changes from `main`; there is no separate pull-request Jekyll workflow.
+- API deployment restores, builds, publishes and deploys the backend artifact for relevant changes on `main` or an explicit manual run.
+- API deployment does not invoke the post-deploy cache workflow.
+- Vercel production deployment and build filtering are controlled by the repository's frontend/Vercel configuration rather than a GitHub Actions application workflow.
+- Existing security and review checks supplied outside these workflow files remain governed by repository rulesets and their own configuration.
+
+## Removed workflow decisions
+
+The following workflows were removed under WOR-188:
+
+- `Full Stack Validation`: expensive SQL/API/frontend/Postman/Selenium execution on routine application pull requests.
+- `React Doctor`: broad third-party analysis triggered for unrelated repository changes.
+- `Application Validation`: overlapping partial checks that did not provide a reliable general application gate.
+- `Validate Jekyll site`: duplicated the build and generated-output validation performed by the Pages deployment workflow.
+- `Linear Release`: automatic release synchronization on every push to `main` was not required.
+
+The post-deploy cache workflow remains available for explicit manual execution, but it is not part of the production API deployment chain.
 
 ## SonarCloud decision
 
@@ -44,4 +58,4 @@ When adding, renaming or removing a workflow check:
 4. Document ownership and remediation steps.
 5. Remove obsolete workflow files and stale required-check references together.
 
-A workflow file change alone does not prove that GitHub rulesets were updated.
+A workflow file change alone does not prove that GitHub rulesets were updated. After merging WOR-188, remove stale required checks for `Full Stack Validation`, `React Doctor`, `Application Validation` and `Validate Jekyll site` if they exist.
