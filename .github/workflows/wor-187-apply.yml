@@ -20,8 +20,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply and validate patch
+      - name: Apply patch
         run: python tools/ci/apply_wor_187.py
+
+      - name: Build Bicep
+        run: az bicep build --file src/BE/infrastructure/main.bicep --outfile /tmp/main.json
+
+      - name: Validate diff
+        run: git diff --check
 
       - name: Commit final branch state
         run: |
