@@ -27,33 +27,10 @@ if ([string]::IsNullOrWhiteSpace($EntraStatePath)) {
     $EntraStatePath = Join-Path $PSScriptRoot "entra.$NormalizedEnvironment.local.json"
 }
 
-if (-not (Test-Path $EntraStatePath)) {
-    throw "Entra state file not found: $EntraStatePath`nRun '.\deploy-entra.ps1 $Environment' once before deploying infrastructure."
-}
-
-try {
-    $EntraState = Get-Content -Path $EntraStatePath -Raw | ConvertFrom-Json
-}
-catch {
-    throw "Entra state file is not valid JSON: $EntraStatePath`n$($_.Exception.Message)"
-}
-
-if ($EntraState.environment -ne $NormalizedEnvironment) {
-    throw "Entra state file is for environment '$($EntraState.environment)', not '$NormalizedEnvironment'."
-}
-
-$RequiredStateProperties = @(
-    'oauthClientId',
-    'oauthAppObjectId',
-    'clientAppId',
-    'clientAppObjectId'
-)
-
-foreach ($propertyName in $RequiredStateProperties) {
-    if ([string]::IsNullOrWhiteSpace([string]$EntraState.$propertyName)) {
-        throw "Entra state file is missing '$propertyName': $EntraStatePath"
-    }
-}
+$AppConfigurationName = "appcs-$COMPANY_NAME-$NormalizedEnvironment"
+$OAuthUniqueName = "workslip-oauth-server-$NormalizedEnvironment"
+$ClientUniqueName = "workslip-client-$NormalizedEnvironment"
+$GraphRoot = 'https://graph.microsoft.com/v1.0'
 
 $ExpectedVaultName = "kv-$COMPANY_NAME-$NormalizedEnvironment"
 $LegacyVaultName = "kv-$COMPANY_NAME$NormalizedEnvironment"
@@ -157,6 +134,11 @@ function Write-Utf8JsonFile {
         [object]$Value
     )
 
+    $directory = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path $directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
     $json = $Value | ConvertTo-Json -Depth 20
     [System.IO.File]::WriteAllText(
         $Path,
@@ -165,8 +147,242 @@ function Write-Utf8JsonFile {
     )
 }
 
+function Invoke-AzureCliCapture {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = @(
+            & $AzureCli @Arguments 2>&1 |
+                ForEach-Object { $_.ToString() }
+        )
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Output = ($output -join [Environment]::NewLine).Trim()
+    }
+}
+
+function Get-AppConfigurationValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Key
+    )
+
+    $result = Invoke-AzureCliCapture -Arguments @(
+        'appconfig', 'kv', 'show',
+        '--name', $AppConfigurationName,
+        '--key', $Key,
+        '--auth-mode', 'login',
+        '--query', 'value',
+        '--only-show-errors',
+        '-o', 'tsv'
+    )
+
+    if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Output)) {
+        return $null
+    }
+
+    return $result.Output.Trim()
+}
+
+function Get-AzureAdApplicationById {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ApplicationId
+    )
+
+    $result = Invoke-AzureCliCapture -Arguments @(
+        'ad', 'app', 'show',
+        '--id', $ApplicationId,
+        '--query', '{id:id,appId:appId,displayName:displayName}',
+        '--only-show-errors',
+        '-o', 'json'
+    )
+
+    if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Output)) {
+        return $null
+    }
+
+    try {
+        $application = $result.Output | ConvertFrom-Json
+    }
+    catch {
+        return $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$application.id) -or
+        [string]::IsNullOrWhiteSpace([string]$application.appId)) {
+        return $null
+    }
+
+    return $application
+}
+
+function Get-GraphApplicationByUniqueName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$UniqueName
+    )
+
+    $uri = "$GraphRoot/applications(uniqueName='$UniqueName')?`$select=id,appId,displayName"
+    $result = Invoke-AzureCliCapture -Arguments @(
+        'rest',
+        '--method', 'GET',
+        '--uri', $uri,
+        '--only-show-errors',
+        '-o', 'json'
+    )
+
+    if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Output)) {
+        return $null
+    }
+
+    try {
+        $application = $result.Output | ConvertFrom-Json
+    }
+    catch {
+        return $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$application.id) -or
+        [string]::IsNullOrWhiteSpace([string]$application.appId)) {
+        return $null
+    }
+
+    return $application
+}
+
+function New-EntraState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$OAuthApplication,
+        [Parameter(Mandatory = $true)]
+        [object]$ClientApplication,
+        [Parameter(Mandatory = $true)]
+        [string]$TenantId,
+        [Parameter(Mandatory = $true)]
+        [string]$Source
+    )
+
+    return [ordered]@{
+        environment = $NormalizedEnvironment
+        tenantId = $TenantId
+        generatedAtUtc = [DateTime]::UtcNow.ToString('o')
+        source = $Source
+        oauthClientId = [string]$OAuthApplication.appId
+        oauthAppObjectId = [string]$OAuthApplication.id
+        clientAppId = [string]$ClientApplication.appId
+        clientAppObjectId = [string]$ClientApplication.id
+    }
+}
+
+function Resolve-ExistingEntraState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$TenantId
+    )
+
+    Write-Host 'Entra state file not found. Discovering existing registrations without modifying Entra...' -ForegroundColor Cyan
+
+    $oauthClientId = Get-AppConfigurationValue -Key 'Azure:AdOAuth:ClientId'
+    $clientAppId = Get-AppConfigurationValue -Key 'Azure:AdOAuth:ClientAppId'
+
+    if (-not [string]::IsNullOrWhiteSpace($oauthClientId) -and
+        -not [string]::IsNullOrWhiteSpace($clientAppId)) {
+        $oauthApplication = Get-AzureAdApplicationById -ApplicationId $oauthClientId
+        $clientApplication = Get-AzureAdApplicationById -ApplicationId $clientAppId
+
+        if ($null -ne $oauthApplication -and $null -ne $clientApplication) {
+            Write-Host "Resolved Entra IDs from App Configuration '$AppConfigurationName'." -ForegroundColor DarkGray
+            return New-EntraState `
+                -OAuthApplication $oauthApplication `
+                -ClientApplication $clientApplication `
+                -TenantId $TenantId `
+                -Source 'app-configuration'
+        }
+    }
+
+    $oauthApplication = Get-GraphApplicationByUniqueName -UniqueName $OAuthUniqueName
+    $clientApplication = Get-GraphApplicationByUniqueName -UniqueName $ClientUniqueName
+
+    if ($null -ne $oauthApplication -and $null -ne $clientApplication) {
+        Write-Host 'Resolved Entra IDs from stable Microsoft Graph unique names.' -ForegroundColor DarkGray
+        return New-EntraState `
+            -OAuthApplication $oauthApplication `
+            -ClientApplication $clientApplication `
+            -TenantId $TenantId `
+            -Source 'graph-unique-name'
+    }
+
+    throw @"
+Could not resolve the existing OAuth and client app registrations without modifying Entra.
+Checked App Configuration '$AppConfigurationName' and stable Graph names '$OAuthUniqueName' / '$ClientUniqueName'.
+Run '.\deploy-entra.ps1 $Environment' to create or reconcile the registrations, then retry infrastructure deployment.
+"@
+}
+
+function Read-EntraState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    try {
+        return Get-Content -Path $Path -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "Entra state file is not valid JSON: $Path`n$($_.Exception.Message)"
+    }
+}
+
+function Assert-EntraState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$State
+    )
+
+    if ($State.environment -ne $NormalizedEnvironment) {
+        throw "Entra state file is for environment '$($State.environment)', not '$NormalizedEnvironment'."
+    }
+
+    $requiredStateProperties = @(
+        'oauthClientId',
+        'oauthAppObjectId',
+        'clientAppId',
+        'clientAppObjectId'
+    )
+
+    foreach ($propertyName in $requiredStateProperties) {
+        if ([string]::IsNullOrWhiteSpace([string]$State.$propertyName)) {
+            throw "Entra state file is missing '$propertyName': $EntraStatePath"
+        }
+    }
+}
+
 try {
     $CurrentTenantId = Ensure-AzureLogin
+
+    if (Test-Path $EntraStatePath) {
+        $EntraState = Read-EntraState -Path $EntraStatePath
+    }
+    else {
+        $EntraState = Resolve-ExistingEntraState -TenantId $CurrentTenantId
+        Write-Utf8JsonFile -Path $EntraStatePath -Value $EntraState
+        Write-Host "Cached read-only Entra state: $EntraStatePath" -ForegroundColor Green
+    }
+
+    Assert-EntraState -State $EntraState
+
     if (-not [string]::IsNullOrWhiteSpace([string]$EntraState.tenantId) -and
         $EntraState.tenantId -ne $CurrentTenantId) {
         throw "Entra state belongs to tenant '$($EntraState.tenantId)', but Azure CLI is signed into '$CurrentTenantId'."
