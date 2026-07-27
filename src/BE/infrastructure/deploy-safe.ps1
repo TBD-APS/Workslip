@@ -21,12 +21,32 @@ if ([string]::IsNullOrWhiteSpace($AzureCli)) {
 
 $ExpectedVaultName = "kv-$COMPANY_NAME-$($Environment.ToLowerInvariant())"
 $LegacyVaultName = "kv-$COMPANY_NAME$($Environment.ToLowerInvariant())"
+$MalformedVaultName = "kv-$COMPANY_NAME"
+
+function Invoke-AzureCliRaw {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.Generic.List[string]]$CliArguments
+    )
+
+    # Windows PowerShell converts native stderr to PowerShell error records.
+    # Keep those records non-terminating so callers can intentionally suppress
+    # expected lookup failures and inspect $LASTEXITCODE themselves.
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $AzureCli @CliArguments
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
 
 function global:az {
     $cliArguments = [System.Collections.Generic.List[string]]::new()
     foreach ($argument in $args) {
         $value = [string]$argument
-        if ($value -eq $LegacyVaultName) {
+        if ($value -eq $LegacyVaultName -or $value -eq $MalformedVaultName) {
             $value = $ExpectedVaultName
         }
         $cliArguments.Add($value)
@@ -39,7 +59,7 @@ function global:az {
     $valueIndex = $cliArguments.IndexOf('--value')
 
     if (-not $isSecretSet -or $valueIndex -lt 0) {
-        & $AzureCli @cliArguments
+        Invoke-AzureCliRaw -CliArguments $cliArguments
         return
     }
 
@@ -67,7 +87,7 @@ function global:az {
         $cliArguments.Insert($valueIndex + 2, '--encoding')
         $cliArguments.Insert($valueIndex + 3, 'utf-8')
 
-        & $AzureCli @cliArguments
+        Invoke-AzureCliRaw -CliArguments $cliArguments
     }
     finally {
         Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
@@ -85,4 +105,5 @@ try {
 }
 finally {
     Remove-Item Function:\global:az -ErrorAction SilentlyContinue
+    Remove-Item Function:\Invoke-AzureCliRaw -ErrorAction SilentlyContinue
 }
