@@ -1,5 +1,5 @@
 {
-  "environment": "__run_deploy_safe__",
+  "environment": "__run_deploy_infrastructure__",
   "oauthClientId": "",
   "oauthAppObjectId": "",
   "clientAppId": "",
