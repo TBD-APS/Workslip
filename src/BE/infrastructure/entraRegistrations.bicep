@@ -1,6 +1,9 @@
 extension microsoftGraphV1
 
 param environment string
+// Retained for module compatibility. Application ownership is intentionally not
+// mutated through Graph Bicep because relationship updates are non-atomic and
+// have caused otherwise idempotent deployments to fail.
 param globalAdminId string
 
 // Microsoft Graph applications are upserted by immutable uniqueName. Keep these
@@ -20,11 +23,6 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
   publicClient: {
     redirectUris: [
       'nativepasskeydemo://auth'
-    ]
-  }
-  owners: {
-    relationships: [
-      globalAdminId
     ]
   }
 
@@ -113,11 +111,6 @@ resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
       enableAccessTokenIssuance: false
       enableIdTokenIssuance: true
     }
-  }
-  owners: {
-    relationships: [
-      globalAdminId
-    ]
   }
 
   requiredResourceAccess: [
