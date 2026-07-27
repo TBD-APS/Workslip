@@ -23,7 +23,7 @@ entra.{environment}.local.json
 
 The signed-in Azure CLI user must be allowed to manage application registrations and service principals. Graph write failures are reported immediately with the original Graph diagnostic instead of being retried as if they were replication delays.
 
-The script preserves existing unmanaged app roles and permission scopes. This avoids deleting active legacy roles or scopes while the registration is being reconciled.
+The script preserves existing IDs for managed roles and scopes. It also preserves unmanaged legacy roles and scopes as writable projections, avoiding accidental deletion of active entitlements while the registration is reconciled.
 
 ## Azure infrastructure only
 
