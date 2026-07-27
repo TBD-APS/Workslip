@@ -3,13 +3,17 @@ extension microsoftGraphV1
 param environment string
 param globalAdminId string
 
-var uniqueSuffix = substring(uniqueString(subscription().id, resourceGroup().id, environment), 0, 5)
+// Microsoft Graph applications are upserted by immutable uniqueName. Keep these
+// keys independent of resource group and subscription identifiers so renaming
+// or recreating Azure infrastructure cannot create duplicate app registrations.
+var oauthServerUniqueName = 'workslip-oauth-server-${toLower(environment)}'
+var workslipClientUniqueName = 'workslip-client-${toLower(environment)}'
 
 // Fast defineret GUID til API-scopet, så det ikke ændrer sig på tværs af miljøer
 var apiScopeId = 'c2e2bf46-f94d-4c3e-86d7-ca425e4c6e2a'
 
 resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
-  uniqueName: 'Oauth-server-${environment}-${uniqueSuffix}'
+  uniqueName: oauthServerUniqueName
   displayName: 'Oauth server ${environment}'
   signInAudience: 'AzureADandPersonalMicrosoftAccount'
   
@@ -85,7 +89,7 @@ resource OAuthServerApp 'Microsoft.Graph/applications@v1.0' = {
 }
 
 resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' = {
-  uniqueName: 'Workslip-client-${environment}-${uniqueSuffix}'
+  uniqueName: workslipClientUniqueName
   displayName: 'Workslip App'
   signInAudience: 'AzureADandPersonalMicrosoftAccount'
   api:{
