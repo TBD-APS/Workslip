@@ -3,13 +3,13 @@ param environment string
 // outside Bicep because Microsoft Graph relationship updates are non-atomic.
 param globalAdminId string
 
-// deploy-safe.ps1 reconciles the applications and service principals through
-// Microsoft Graph using the signed-in administrator, waits for concrete IDs,
-// and writes this compile-time handoff file before invoking main.bicep.
+// deploy-entra.ps1 writes persistent environment-specific local state.
+// deploy-infrastructure.ps1 validates that state and writes this temporary
+// compile-time handoff before invoking main.bicep.
 var provisionedValues = loadJsonContent('./entra-provisioned.json')
 var validatedValues = provisionedValues.environment == toLower(environment)
   ? provisionedValues
-  : fail('Entra values were not provisioned for this environment. Run deploy-safe.ps1 instead of deploying main.bicep directly.')
+  : fail('Entra values were not loaded for this environment. Run deploy-entra.ps1, then deploy-infrastructure.ps1.')
 
 output OAuthClientId string = validatedValues.oauthClientId
 // Existing callers use OAuthAppId as the API audience application/client ID.
