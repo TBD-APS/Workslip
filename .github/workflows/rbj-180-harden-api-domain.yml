@@ -22,6 +22,10 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          from textwrap import dedent
+
+          def block(value: str) -> str:
+              return dedent(value).lstrip('\n')
 
           def replace_once(path: str, old: str, new: str) -> None:
               file = Path(path)
@@ -33,13 +37,59 @@ jobs:
           deploy = 'src/BE/infrastructure/deploy.ps1'
           replace_once(
               deploy,
-              '$DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format \'yyyyMMddHHmmss\')"\n$EnableApiCustomDomainValue = $EnableApiCustomDomain.IsPresent.ToString().ToLowerInvariant()\n\nif ($EnableApiCustomDomain) {\n    Write-Warning "API custom-domain mode upgrades the Azure App Service plan from Free F1 to paid Basic B1."\n}\n',
-              '$DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format \'yyyyMMddHHmmss\')"\n\nif ($EnableApiCustomDomain) {\n    Write-Warning "API custom-domain mode upgrades the Azure App Service plan from Free F1 to paid Basic B1."\n}\n',
+              block('''
+              $DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format 'yyyyMMddHHmmss')"
+              $EnableApiCustomDomainValue = $EnableApiCustomDomain.IsPresent.ToString().ToLowerInvariant()
+
+              if ($EnableApiCustomDomain) {
+                  Write-Warning "API custom-domain mode upgrades the Azure App Service plan from Free F1 to paid Basic B1."
+              }
+              '''),
+              block('''
+              $DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format 'yyyyMMddHHmmss')"
+
+              if ($EnableApiCustomDomain) {
+                  Write-Warning "API custom-domain mode upgrades the Azure App Service plan from Free F1 to paid Basic B1."
+              }
+              '''),
           )
           replace_once(
               deploy,
-              'if ($exists -eq "false") {\n    az group create --name $RESOURCE_GROUP --location $Location\n    Write-Host "   Created $RESOURCE_GROUP"\n} else {\n    Write-Host "   $RESOURCE_GROUP ✅"\n}\n\n# ─── deploy azure ressources',
-              'if ($exists -eq "false") {\n    az group create --name $RESOURCE_GROUP --location $Location\n    Write-Host "   Created $RESOURCE_GROUP"\n} else {\n    Write-Host "   $RESOURCE_GROUP ✅"\n}\n\n$WebApiPlanName = "plan-$COMPANY_NAME-$Environment"\n$ExistingWebApiPlanTier = az appservice plan show `\n    --resource-group $RESOURCE_GROUP `\n    --name $WebApiPlanName `\n    --query sku.tier `\n    -o tsv 2>$null\n\n$UseApiCustomDomainPlan = $EnableApiCustomDomain.IsPresent -or `\n    (-not [string]::IsNullOrWhiteSpace($ExistingWebApiPlanTier) -and $ExistingWebApiPlanTier -ne "Free")\n$EnableApiCustomDomainValue = $UseApiCustomDomainPlan.ToString().ToLowerInvariant()\n\nif ($UseApiCustomDomainPlan -and -not $EnableApiCustomDomain) {\n    Write-Host "Preserving the existing paid API App Service tier used by the custom domain." -ForegroundColor DarkGray\n}\n\n# ─── deploy azure ressources',
+              block('''
+              if ($exists -eq "false") {
+                  az group create --name $RESOURCE_GROUP --location $Location
+                  Write-Host "   Created $RESOURCE_GROUP"
+              } else {
+                  Write-Host "   $RESOURCE_GROUP ✅"
+              }
+
+              # ─── deploy azure ressources
+              '''),
+              block('''
+              if ($exists -eq "false") {
+                  az group create --name $RESOURCE_GROUP --location $Location
+                  Write-Host "   Created $RESOURCE_GROUP"
+              } else {
+                  Write-Host "   $RESOURCE_GROUP ✅"
+              }
+
+              $WebApiPlanName = "plan-$COMPANY_NAME-$Environment"
+              $ExistingWebApiPlanTier = az appservice plan show `
+                  --resource-group $RESOURCE_GROUP `
+                  --name $WebApiPlanName `
+                  --query sku.tier `
+                  -o tsv 2>$null
+
+              $UseApiCustomDomainPlan = $EnableApiCustomDomain.IsPresent -or `
+                  (-not [string]::IsNullOrWhiteSpace($ExistingWebApiPlanTier) -and $ExistingWebApiPlanTier -ne "Free")
+              $EnableApiCustomDomainValue = $UseApiCustomDomainPlan.ToString().ToLowerInvariant()
+
+              if ($UseApiCustomDomainPlan -and -not $EnableApiCustomDomain) {
+                  Write-Host "Preserving the existing paid API App Service tier used by the custom domain." -ForegroundColor DarkGray
+              }
+
+              # ─── deploy azure ressources
+              '''),
           )
           replace_once(
               deploy,
@@ -49,12 +99,17 @@ jobs:
 
           script_path = Path('src/BE/infrastructure/configure-api-custom-domain.ps1')
           script = script_path.read_text(encoding='utf-8')
+          hostname_old = '$HostnameExists = $HostnameBindings | Where-Object { $_.name -eq $ApiHostname }'
+          if hostname_old not in script:
+              raise SystemExit('Expected hostname binding lookup not found')
           script = script.replace(
-              '$HostnameExists = $HostnameBindings | Where-Object { $_.name -eq $ApiHostname }',
+              hostname_old,
               '$HostnameExists = $HostnameBindings | Where-Object { $_.name -eq $ApiHostname -or $_.hostName -eq $ApiHostname }',
               1,
           )
-          old_cert = '''$CertificatesJson = az webapp config ssl list `
+
+          old_cert = block('''
+          $CertificatesJson = az webapp config ssl list `
               --resource-group $ResourceGroup `
               --name $WebAppName `
               -o json
@@ -84,8 +139,9 @@ jobs:
                   Where-Object { $_.hostNames -contains $ApiHostname } |
                   Select-Object -First 1
           }
-'''
-          new_cert = '''function Get-ApiManagedCertificate {
+          ''')
+          new_cert = block('''
+          function Get-ApiManagedCertificate {
               $CertificatesJson = az webapp config ssl list `
                   --resource-group $ResourceGroup `
                   --name $WebAppName `
@@ -121,19 +177,22 @@ jobs:
                   Start-Sleep -Seconds 10
               }
           }
-'''
+          ''')
           if old_cert not in script:
               raise SystemExit('Expected certificate block not found')
           script = script.replace(old_cert, new_cert, 1)
-          old_health = '''$Health = Invoke-RestMethod -Uri "https://$ApiHostname/health" -Method Get -TimeoutSec 30
+
+          old_health = block('''
+          $Health = Invoke-RestMethod -Uri "https://$ApiHostname/health" -Method Get -TimeoutSec 30
           if ($Health.status -ne "ok") {
               throw "API health check returned an unexpected response."
           }
 
           Write-Host "API custom domain is active: https://$ApiHostname" -ForegroundColor Green
           Write-Host "Health check passed: https://$ApiHostname/health" -ForegroundColor Green
-'''
-          new_health = '''$HealthPassed = $false
+          ''')
+          new_health = block('''
+          $HealthPassed = $false
           for ($Attempt = 1; $Attempt -le 12; $Attempt++) {
               try {
                   $Health = Invoke-RestMethod -Uri "https://$ApiHostname/health" -Method Get -TimeoutSec 30
@@ -155,7 +214,7 @@ jobs:
 
           Write-Host "API custom domain is active: https://$ApiHostname" -ForegroundColor Green
           Write-Host "Health check passed: https://$ApiHostname/health" -ForegroundColor Green
-'''
+          ''')
           if old_health not in script:
               raise SystemExit('Expected health block not found')
           script_path.write_text(script.replace(old_health, new_health, 1), encoding='utf-8')
