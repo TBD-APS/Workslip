@@ -19,8 +19,8 @@ resource staticConfigValues 'Microsoft.AppConfiguration/configurationStores/keyV
 var appConfigValues = {
 
   //urls
-  'Azure:Domain:BaseUrl': 'https://app.workslip.dk'
-  'Cors:AllowedOrigins:0': 'https://app.workslip.dk'
+  'Azure:Domain:BaseUrl': 'https://app.mrsoftware.dk'
+  'Cors:AllowedOrigins:0': 'https://app.mrsoftware.dk'
   'Cors:AllowedOrigins:1': 'https://workslip-v2-0.vercel.app'
 
   //OAuth
@@ -47,7 +47,7 @@ var appConfigValues = {
   'Authorization:RoleHierarchy:Admin:0': 'User'
   
   //Email
-  'Azure:Acs:InviteBaseUrl': 'https://app.workslip.dk/invite'
+  'Azure:Acs:InviteBaseUrl': 'https://app.mrsoftware.dk/invite'
   'Azure:Acs:PLainHeaderText': 'Du er blevet inviteret til Workslip'
 
   'Azure:Acs:HtmlInviteText': '''
