@@ -1,0 +1,86 @@
+name: WOR-165 one-time branch patch
+
+on:
+  push:
+    branches:
+      - rbj--wor-165-fix-timer-dark-mode
+    paths:
+      - .github/workflows/wor-165-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--wor-165-fix-timer-dark-mode
+          fetch-depth: 0
+
+      - name: Remove forced Timer theme
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          app_css = Path('src/FE/src/App.css')
+          data = app_css.read_bytes()
+          bom = b'\xef\xbb\xbf' if data.startswith(b'\xef\xbb\xbf') else b''
+          text = data[len(bom):].decode('utf-8')
+
+          forced_theme = '''/* ── Admin Timer — forced white theme ── */
+          .time-overview-page--admin {
+            --bg: #ffffff;
+            --text: #18181b;
+            --text-muted: #6b7280;
+            --text-dim: rgba(0, 0, 0, 0.4);
+            --surface: #f8f9fa;
+            --surface-raised: #f1f3f5;
+            --surface-elevated: #e9ecef;
+            --surface-input: #ffffff;
+            --border: #dee2e6;
+            --border-strong: #ced4da;
+            --primary: #2c54ac;
+            --primary-rgb: 44, 84, 172;
+            --focus-ring: rgba(44, 84, 172, 0.3);
+            background: var(--bg);
+            color: var(--text);
+          }
+
+          '''
+
+          if forced_theme not in text:
+              raise SystemExit('Expected forced Timer theme block was not found')
+
+          app_css.write_bytes(bom + text.replace(forced_theme, '', 1).encode('utf-8'))
+
+          temporary_stylesheet = Path('src/FE/src/features/worksheets/timerTheme.css')
+          if temporary_stylesheet.exists():
+              temporary_stylesheet.unlink()
+
+          Path('.github/workflows/wor-165-patch.yml').unlink()
+          PY
+
+      - name: Verify focused change
+        shell: bash
+        run: |
+          if grep -q "Admin Timer — forced white theme" src/FE/src/App.css; then
+            echo "Forced Timer theme block still exists" >&2
+            exit 1
+          fi
+          if grep -q "timerTheme.css" src/FE/src/App.tsx; then
+            echo "App.tsx still imports timerTheme.css" >&2
+            exit 1
+          fi
+          test ! -e src/FE/src/features/worksheets/timerTheme.css
+
+      - name: Commit corrected implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "WOR-165: inherit active theme in timer overview"
+          git push origin HEAD:rbj--wor-165-fix-timer-dark-mode
