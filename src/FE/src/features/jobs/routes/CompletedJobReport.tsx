@@ -55,13 +55,16 @@ export const CompletedJobReport = () => {
   const [worksheetOpen, setWorksheetOpen] = useState(true);
   const previewUrlRef = useRef<string | null>(null);
 
+  const job = details.job;
+  const isDiverseInReview = job?.jobType === 'Diverse' && job?.status === JobStatus.InReview;
+
   useEffect(() => {
     if (!id) return;
     markJobAsSeen(id, queryClient);
-  }, [id]);
-
-  const job = details.job;
-  const isDiverseInReview = job?.jobType === 'Diverse' && job?.status === JobStatus.InReview;
+    if (job?.status === JobStatus.Rejected) {
+      markJobAsSeen(id, queryClient, 'RejectedAssignment');
+    }
+  }, [id, job?.status]);
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);

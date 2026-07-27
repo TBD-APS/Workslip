@@ -38,6 +38,7 @@ public sealed record JobListItemViewModel(
     string? DestinationCity,
     string? TaskDescription,
     bool IsSeen,
+    bool IsNewRejection,
     string? RejectionNote);
 
 public sealed record JobReportSummaryViewModel(
@@ -90,6 +91,7 @@ public static class JobViewModelBuilder
         job.DestinationCity,
         job.TaskDescription,
         job.IsSeenByCurrentUser,
+        job.IsNewRejection,
         job.RejectionNote);
 
     public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(

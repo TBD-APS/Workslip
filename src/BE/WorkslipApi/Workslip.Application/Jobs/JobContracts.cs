@@ -232,6 +232,7 @@ public sealed record JobListItemResponse(
     DateTimeOffset? DeletionScheduledAt,
     decimal? TotalHours,
     bool IsSeenByCurrentUser,
+    bool IsNewRejection,
     string? RejectionNote);
 
 public sealed record JobReportResponse(

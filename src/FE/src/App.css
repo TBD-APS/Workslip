@@ -910,7 +910,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #ef4444;
+  background: #3b82f6;
   margin-left: 6px;
   vertical-align: middle;
   position: relative;
@@ -935,6 +935,18 @@
   height: 8px;
   border-radius: 50%;
   background: #22c55e;
+  margin-left: 6px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+.rejected-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
   margin-left: 6px;
   vertical-align: middle;
   position: relative;

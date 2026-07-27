@@ -36,14 +36,14 @@ public sealed class EfJobViewRepository(ILogger<EfJobViewRepository> logger, Sql
         }
     }
 
-    public async Task<IReadOnlyList<Guid>> GetViewedJobIdsAsync(Guid userId, IReadOnlyList<Guid> jobIds, string viewType, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Guid>> GetViewedJobIdsAsync(Guid userId, IReadOnlyList<Guid> jobIds, IReadOnlyList<string> viewTypes, CancellationToken cancellationToken)
     {
         if (jobIds.Count == 0)
             return [];
 
         return await dbContext.JobViews
             .AsNoTracking()
-            .Where(v => v.UserId == userId && v.ViewType == viewType && jobIds.Contains(v.JobId))
+            .Where(v => v.UserId == userId && viewTypes.Contains(v.ViewType) && jobIds.Contains(v.JobId))
             .Select(v => v.JobId)
             .ToListAsync(cancellationToken);
     }
