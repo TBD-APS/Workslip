@@ -32,6 +32,7 @@ appsettings.Development.json
 appsettings.Local.json
 appsettings.*.local.json
 secrets.json
+src/BE/infrastructure/entra.*.local.json
 
 # IDE / editor local state
 .vs/
