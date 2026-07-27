@@ -5,7 +5,6 @@
       "rbj--*": false
     }
   },
-  "ignoreCommand": "node scripts/vercel-build-policy.mjs",
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],

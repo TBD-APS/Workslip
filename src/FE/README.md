@@ -27,7 +27,6 @@ To call a different API, set `VITE_API_BASE_URL` in an uncommitted environment f
 | `npm run lint` | Run ESLint |
 | `npm run build` | Type-check and create a production build |
 | `npm run preview` | Preview the production build |
-| `npm run test:vercel-policy` | Test automatic Vercel build/skip decisions |
 | `npm run generate:api:local` | Generate the API client using `.env.local` |
 | `npm run generate:api:dev` | Generate the API client using `.env.dev` |
 | `npm run generate:api:prod` | Generate the API client using `.env.production` |
@@ -59,7 +58,6 @@ Follow the repository `AGENTS.md` rules:
 npm ci
 npm run lint
 npm run build
-npm run test:vercel-policy
 ```
 
 There is currently no general `npm test` script in `package.json`. Do not claim broad frontend test coverage from isolated test files. Add a documented test command when the test runner is standardized.
@@ -70,14 +68,12 @@ The Vercel project root must remain `src/FE`.
 
 - Standard `rbj--*` work branches do not create automatic preview deployments.
 - Production deployments come from `main`.
-- A `main` deployment builds only when `src/FE` changed since the last successful production deployment.
-- Missing Git SHAs, unavailable history or a failed comparison builds production fail-open.
+- Every push or merge to `main` is eligible for a normal production deployment.
+- Manual production redeploys are not filtered by a repository `ignoreCommand`.
 
-The policy lives in `vercel.json` and `scripts/vercel-build-policy.mjs`. Vercel interprets exit code `0` as skip and exit code `1` as build. Run `npm run test:vercel-policy` after changing either file.
+Preview suppression is configured through `git.deploymentEnabled` in `vercel.json`. There is no repository-level ignored-build command.
 
-When a preview is explicitly needed, create it manually from `src/FE` through the Vercel dashboard or CLI. A manual production redeploy can bypass the ignored-build decision in Vercel. Do not weaken the repository policy for a one-off preview.
-
-Rollback is limited to removing `git.deploymentEnabled` and `ignoreCommand` from `vercel.json`; no application or Azure state is involved.
+When a preview is explicitly needed, create it manually from `src/FE` through the Vercel dashboard or CLI. To restore automatic preview deployments for standard work branches, remove the `git.deploymentEnabled` rule from `vercel.json`.
 
 ## Environment and secrets
 
