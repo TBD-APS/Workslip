@@ -4805,25 +4805,6 @@
   padding: 0 1rem;
 }
 
-/* â”€â”€ Admin Timer â€” forced white theme â”€â”€ */
-.time-overview-page--admin {
-  --bg: #ffffff;
-  --text: #18181b;
-  --text-muted: #6b7280;
-  --text-dim: rgba(0, 0, 0, 0.4);
-  --surface: #f8f9fa;
-  --surface-raised: #f1f3f5;
-  --surface-elevated: #e9ecef;
-  --surface-input: #ffffff;
-  --border: #dee2e6;
-  --border-strong: #ced4da;
-  --primary: #2c54ac;
-  --primary-rgb: 44, 84, 172;
-  --focus-ring: rgba(44, 84, 172, 0.3);
-  background: var(--bg);
-  color: var(--text);
-}
-
 .time-overview-header {
   display: flex;
   align-items: flex-start;

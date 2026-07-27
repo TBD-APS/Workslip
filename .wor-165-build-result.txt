@@ -1,0 +1,184 @@
+npm_ci_status=0
+build_status=2
+
+--- npm ci (last 80 lines) ---
+npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+
+added 664 packages, and audited 665 packages in 15s
+
+195 packages are looking for funding
+  run `npm fund` for details
+
+10 high severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm warn allow-scripts 2 packages have install scripts not yet covered by allowScripts:
+npm warn allow-scripts   esbuild@0.28.1 (postinstall: node install.js)
+npm warn allow-scripts   msgpackr-extract@3.0.4 (install: node-gyp-build-optional-packages)
+npm warn allow-scripts
+npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+
+--- npm run build (last 160 lines) ---
+
+> fe@0.0.0 build
+> tsc -b && vite build
+
+src/features/auditor/routes/AuditorReportList.tsx(5,43): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/auditor/routes/AuditorReportList.tsx(6,27): error TS2307: Cannot find module '../../../api/generated/models/jobStatus' or its corresponding type declarations.
+src/features/auditor/routes/AuditorReportList.tsx(125,33): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/features/auditor/routes/AuditorReportList.tsx(386,31): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/features/auditor/routes/AuditorReportList.tsx(415,19): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/features/auth/api/devToken.ts(2,40): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/auth/api/entraInviteEnrollment.ts(2,40): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/auth/api/entraLogin.ts(2,40): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/customers/components/CustomerActions.tsx(6,73): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/customers/components/CustomerActions.tsx(7,74): error TS2307: Cannot find module '../../../api/generated/customers/customers' or its corresponding type declarations.
+src/features/customers/routes/CreateCustomerPage.tsx(7,44): error TS2307: Cannot find module '../../../api/generated/customers/customers' or its corresponding type declarations.
+src/features/customers/routes/CreateCustomerPage.tsx(8,46): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/customers/routes/CustomerDetail.tsx(10,8): error TS2307: Cannot find module '../../../api/generated/customers/customers' or its corresponding type declarations.
+src/features/customers/routes/CustomerDetail.tsx(16,48): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/customers/routes/CustomerDetail.tsx(176,29): error TS7006: Parameter 'job' implicitly has an 'any' type.
+src/features/customers/routes/CustomerList.tsx(6,48): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/customers/routes/CustomerList.tsx(17,44): error TS2307: Cannot find module '../../../api/generated/customers/customers' or its corresponding type declarations.
+src/features/customers/routes/EditCustomerPage.tsx(4,38): error TS2307: Cannot find module '../../../api/generated/customers/customers' or its corresponding type declarations.
+src/features/customers/routes/EditCustomerPage.tsx(7,74): error TS2307: Cannot find module '../../../api/generated/customers/customers' or its corresponding type declarations.
+src/features/jobs/components/AssignedUsers.tsx(2,48): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/AssignedUsers.tsx(11,19): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/features/jobs/components/ControlPointOverview.tsx(2,47): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/ControlPointOverview.tsx(8,42): error TS7006: Parameter 'category' implicitly has an 'any' type.
+src/features/jobs/components/ControlPointOverview.tsx(10,18): error TS7006: Parameter 'controlPoint' implicitly has an 'any' type.
+src/features/jobs/components/ControlPointOverview.tsx(11,15): error TS7006: Parameter 'controlPoint' implicitly has an 'any' type.
+src/features/jobs/components/ControlPointOverview.tsx(24,16): error TS7006: Parameter 'category' implicitly has an 'any' type.
+src/features/jobs/components/ControlPointOverview.tsx(25,13): error TS7006: Parameter 'category' implicitly has an 'any' type.
+src/features/jobs/components/JobDetailBlocks.tsx(8,42): error TS2307: Cannot find module '../../../api/generated/customers/customers' or its corresponding type declarations.
+src/features/jobs/components/JobDetailBlocks.tsx(10,83): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/JobDetails.tsx(10,59): error TS2307: Cannot find module '../../../api/generated/jobs/jobs' or its corresponding type declarations.
+src/features/jobs/components/JobDetails.tsx(11,27): error TS2307: Cannot find module '../../../api/generated/models/jobStatus' or its corresponding type declarations.
+src/features/jobs/components/JobDetails.tsx(62,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/features/jobs/components/JobHistoryDrawer.tsx(3,40): error TS2307: Cannot find module '../../../api/generated/jobs/jobs' or its corresponding type declarations.
+src/features/jobs/components/JobHistoryDrawer.tsx(4,41): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/JobHistoryDrawer.tsx(36,29): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/features/jobs/components/JobHistoryDrawer.tsx(97,35): error TS7006: Parameter 'change' implicitly has an 'any' type.
+src/features/jobs/components/JobHistoryDrawer.tsx(97,43): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+src/features/jobs/components/LinkedJobs.tsx(1,42): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/WorksheetActionMenuPortal.tsx(3,40): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/WorksheetDetailList.tsx(2,40): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/WorksheetList.tsx(2,40): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/WorksheetsSection.tsx(2,40): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/steps/ControlPointsStep.tsx(5,44): error TS2307: Cannot find module '../../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/steps/ControlPointsStep.tsx(44,65): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/features/jobs/components/steps/ControlPointsStep.tsx(71,45): error TS7006: Parameter 'instType' implicitly has an 'any' type.
+src/features/jobs/components/steps/ControlPointsStep.tsx(77,55): error TS7006: Parameter 'cat' implicitly has an 'any' type.
+src/features/jobs/components/steps/ControlPointsStep.tsx(101,86): error TS7006: Parameter 'cp' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(3,27): error TS2307: Cannot find module '../../../../api/generated/models/jobStatus' or its corresponding type declarations.
+src/features/jobs/components/steps/JobAttestationStep.tsx(33,69): error TS7006: Parameter 'installationType' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(34,42): error TS7006: Parameter 'category' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(36,18): error TS7006: Parameter 'controlPoint' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(37,15): error TS7006: Parameter 'controlPoint' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(45,68): error TS7006: Parameter 'installationType' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(47,16): error TS7006: Parameter 'category' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(48,13): error TS7006: Parameter 'category' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(55,11): error TS7006: Parameter 'installationType' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(151,40): error TS7006: Parameter 'flag' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(185,43): error TS7006: Parameter 'controlPoint' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobAttestationStep.tsx(202,44): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/features/jobs/components/steps/JobCompletionStep.tsx(3,44): error TS2307: Cannot find module '../../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/steps/JobWorksheetsStep.tsx(4,55): error TS2307: Cannot find module '../../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/steps/JobWorksheetsStep.tsx(5,32): error TS2307: Cannot find module '../../../../api/generated/users/users' or its corresponding type declarations.
+src/features/jobs/components/steps/WorkCategoryStep.tsx(4,44): error TS2307: Cannot find module '../../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/steps/controlPointsValidation.ts(1,44): error TS2307: Cannot find module '../../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/components/steps/controlPointsValidation.ts(9,78): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/features/jobs/components/steps/controlPointsValidation.ts(20,12): error TS7006: Parameter 'cp' implicitly has an 'any' type.
+src/features/jobs/customerApi.ts(2,46): error TS2307: Cannot find module '../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/hooks/useCustomerSnapshot.ts(2,43): error TS2307: Cannot find module '../../../api/generated/models/customerSnapshotData' or its corresponding type declarations.
+src/features/jobs/hooks/useCustomerSnapshot.ts(3,46): error TS2307: Cannot find module '../../../api/generated/models/customerSearchViewModel' or its corresponding type declarations.
+src/features/jobs/hooks/useJobCreate.ts(10,8): error TS2307: Cannot find module '../../../api/generated/jobs/jobs' or its corresponding type declarations.
+src/features/jobs/hooks/useJobCreate.ts(11,32): error TS2307: Cannot find module '../../../api/generated/users/users' or its corresponding type declarations.
+src/features/jobs/hooks/useJobCreate.ts(12,40): error TS2307: Cannot find module '../../../api/generated/reference-data/reference-data' or its corresponding type declarations.
+src/features/jobs/hooks/useJobCreate.ts(18,39): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/hooks/useJobCreate.ts(19,43): error TS2307: Cannot find module '../../../api/generated/models/customerSnapshotData' or its corresponding type declarations.
+src/features/jobs/hooks/useJobCreate.ts(36,66): error TS7006: Parameter 'candidate' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobCreate.ts(48,19): error TS7006: Parameter 'response' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobCreate.ts(75,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobCreate.ts(168,23): error TS2345: Argument of type 'string | number | symbol' is not assignable to parameter of type 'string'.
+  Type 'number' is not assignable to type 'string'.
+src/features/jobs/hooks/useJobCreate.ts(189,61): error TS7006: Parameter 'kind' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(14,8): error TS2307: Cannot find module '../../../api/generated/jobs/jobs' or its corresponding type declarations.
+src/features/jobs/hooks/useJobDetails.ts(15,43): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/hooks/useJobDetails.ts(16,27): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/hooks/useJobDetails.ts(21,8): error TS2307: Cannot find module '../../../api/generated/worksheet/worksheet' or its corresponding type declarations.
+src/features/jobs/hooks/useJobDetails.ts(22,32): error TS2307: Cannot find module '../../../api/generated/users/users' or its corresponding type declarations.
+src/features/jobs/hooks/useJobDetails.ts(23,40): error TS2307: Cannot find module '../../../api/generated/reference-data/reference-data' or its corresponding type declarations.
+src/features/jobs/hooks/useJobDetails.ts(40,43): error TS2307: Cannot find module '../../../api/generated/models/customerSnapshotData' or its corresponding type declarations.
+src/features/jobs/hooks/useJobDetails.ts(82,66): error TS7006: Parameter 'candidate' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(92,33): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(96,25): error TS7006: Parameter 'link' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(100,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(122,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(145,48): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(146,47): error TS7006: Parameter 'ws' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(163,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(180,19): error TS7006: Parameter '_data' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(180,26): error TS7006: Parameter 'variables' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(192,17): error TS7006: Parameter '_error' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(192,25): error TS7006: Parameter 'variables' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(205,19): error TS7006: Parameter '_data' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(205,26): error TS7006: Parameter 'variables' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(216,17): error TS7006: Parameter '_error' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(216,25): error TS7006: Parameter 'variables' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(229,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(236,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(245,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(252,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(261,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(269,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(377,61): error TS7006: Parameter 'kind' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(422,70): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(423,59): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(448,46): error TS7006: Parameter 'link' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(456,8): error TS7006: Parameter 'link' implicitly has an 'any' type.
+src/features/jobs/hooks/useJobDetails.ts(471,41): error TS7006: Parameter 'link' implicitly has an 'any' type.
+src/features/jobs/routes/CompletedJobReport.tsx(7,88): error TS2307: Cannot find module '../../../api/generated/jobs/jobs' or its corresponding type declarations.
+src/features/jobs/routes/CompletedJobReport.tsx(8,27): error TS2307: Cannot find module '../../../api/generated/models/jobStatus' or its corresponding type declarations.
+src/features/jobs/routes/CompletedJobReport.tsx(70,46): error TS7006: Parameter 'ws' implicitly has an 'any' type.
+src/features/jobs/routes/JobCreate.tsx(6,39): error TS2307: Cannot find module '../../../api/generated/jobs/jobs' or its corresponding type declarations.
+src/features/jobs/routes/JobCreate.tsx(12,43): error TS2307: Cannot find module '../../../api/generated/models/customerSnapshotData' or its corresponding type declarations.
+src/features/jobs/routes/JobCreate.tsx(13,43): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/routes/JobCreate.tsx(14,27): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/routes/JobList.tsx(4,81): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/routes/JobList.tsx(127,63): error TS7006: Parameter 'au' implicitly has an 'any' type.
+src/features/jobs/routes/SimpleJobCreate.tsx(6,63): error TS2307: Cannot find module '../../../api/generated/jobs/jobs' or its corresponding type declarations.
+src/features/jobs/routes/SimpleJobCreate.tsx(11,43): error TS2307: Cannot find module '../../../api/generated/models/customerSnapshotData' or its corresponding type declarations.
+src/features/jobs/routes/SimpleJobCreate.tsx(12,43): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/routes/SimpleJobCreate.tsx(13,27): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/statusLabels.test.ts(1,27): error TS2307: Cannot find module '../../api/generated/models/jobStatus' or its corresponding type declarations.
+src/features/jobs/statusLabels.ts(1,32): error TS2307: Cannot find module '../../api/generated/models/jobStatus' or its corresponding type declarations.
+src/features/jobs/types.ts(1,43): error TS2307: Cannot find module '../../api/generated/models/customerSnapshotData' or its corresponding type declarations.
+src/features/jobs/utils.ts(8,8): error TS2307: Cannot find module '../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/utils.ts(11,43): error TS2307: Cannot find module '../../api/generated/models/customerSnapshotData' or its corresponding type declarations.
+src/features/jobs/utils.ts(87,42): error TS7006: Parameter 'ws' implicitly has an 'any' type.
+src/features/jobs/utils.ts(113,52): error TS7006: Parameter 'installationType' implicitly has an 'any' type.
+src/features/jobs/utils.ts(118,72): error TS7006: Parameter 'flag' implicitly has an 'any' type.
+src/features/jobs/utils.ts(188,14): error TS7006: Parameter 'type' implicitly has an 'any' type.
+src/features/jobs/utils.ts(191,43): error TS7006: Parameter 'type' implicitly has an 'any' type.
+src/features/jobs/utils.ts(193,40): error TS7006: Parameter 'cat' implicitly has an 'any' type.
+src/features/jobs/utils.ts(195,47): error TS7006: Parameter 'cp' implicitly has an 'any' type.
+src/features/jobs/utils.ts(299,6): error TS7006: Parameter 'kind' implicitly has an 'any' type.
+src/features/jobs/utils/completedJobFormatters.ts(1,74): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/jobs/utils/completedJobFormatters.ts(21,45): error TS7006: Parameter 'flag' implicitly has an 'any' type.
+src/features/jobs/utils/markJobSeen.ts(3,39): error TS2307: Cannot find module '../../../api/generated/jobs/jobs' or its corresponding type declarations.
+src/features/settings/routes/Profile.tsx(7,60): error TS2307: Cannot find module '../../../api/generated/auth/auth' or its corresponding type declarations.
+src/features/settings/routes/Settings.tsx(19,38): error TS2307: Cannot find module '../../../api/generated/auth/auth' or its corresponding type declarations.
+src/features/users/hooks/usePushNotifications.ts(3,42): error TS2307: Cannot find module '../../../api/generated/push-subscriptions/push-subscriptions' or its corresponding type declarations.
+src/features/users/hooks/usePushNotifications.ts(4,54): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/users/routes/UserDetail.tsx(22,60): error TS2307: Cannot find module '../../../api/generated/users/users' or its corresponding type declarations.
+src/features/users/routes/UserDetail.tsx(23,55): error TS2307: Cannot find module '../../../api/generated/jobs/jobs' or its corresponding type declarations.
+src/features/users/routes/UserDetail.tsx(24,27): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/features/users/routes/UserDetail.tsx(325,33): error TS7006: Parameter 'job' implicitly has an 'any' type.
+src/features/users/routes/UserList.tsx(4,60): error TS2307: Cannot find module '../../../api/generated/models' or its corresponding type declarations.
+src/providers/AuthContext.tsx(5,58): error TS2307: Cannot find module '../api/generated/auth/auth' or its corresponding type declarations.
+src/providers/AuthContext.tsx(6,36): error TS2307: Cannot find module '../api/generated/models' or its corresponding type declarations.
+src/providers/authContextValue.ts(2,36): error TS2307: Cannot find module '../api/generated/models' or its corresponding type declarations.
