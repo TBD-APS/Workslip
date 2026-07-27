@@ -114,11 +114,9 @@ if ($exists -eq "false") {
 function Invoke-BicepDeployment {
     param(
         [Parameter(Mandatory=$true)] [string]$DeploymentName,
-        [Parameter(Mandatory=$true)] [bool]$ProvisionWebApiSqlAccess,
         [Parameter(Mandatory=$true)] [string]$SqlAdminPassword
     )
 
-    $ProvisionWebApiSqlAccessValue = $ProvisionWebApiSqlAccess.ToString().ToLowerInvariant()
 
     Write-Host "Deploying Bicep template: $DeploymentName" -ForegroundColor Cyan
 
@@ -130,7 +128,6 @@ function Invoke-BicepDeployment {
        --parameters companyName=$COMPANY_NAME `
        --parameters environment=$Environment `
        --parameters globalAdminId=$GlobalAdminId `
-       --parameters provisionWebApiSqlAccess=$ProvisionWebApiSqlAccessValue `
        --parameters sqlAdminPassword="$SqlAdminPassword" `
        --parameters vercelToken="$VercelToken" `
        -o json
@@ -203,7 +200,7 @@ function Add-GraphGroupMember {
     throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
 }
 
-$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false -SqlAdminPassword $SqlAdminPassword
+$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -SqlAdminPassword $SqlAdminPassword
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
 $SqlAdminGroupId = $DeploymentOutputs.SQL_ADMIN_GROUP_ID.value
@@ -221,9 +218,20 @@ Write-Host "Ensuring SQL admin group membership…" -ForegroundColor Cyan
 Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $GlobalAdminId -Description "global administrator"
 Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $DeploymentIdentityPrincipalId -Description "deployment managed identity"
 
-$SqlAccessDeploymentName = "$DEPLOY_NAME-sql"
-$DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true -SqlAdminPassword $SqlAdminPassword
-$DeploymentOutputs = $DeploymentResult.properties.outputs
+$SqlAccessScript = Join-Path $INFRA_DIR "grant-web-api-sql-access.ps1"
+if (-not (Test-Path $SqlAccessScript)) {
+    throw "SQL access provisioning script not found at $SqlAccessScript"
+}
+
+Write-Host "Provisioning managed identity SQL access..." -ForegroundColor Cyan
+& $SqlAccessScript `
+    -Environment $Environment `
+    -CompanyName $COMPANY_NAME `
+    -SqlAdminPassword $SqlAdminPassword
+
+if (-not $?) {
+    throw "Managed identity SQL access provisioning failed."
+}
 
 $GitHubDeploymentClientId = $DeploymentOutputs.GITHUB_DEPLOYMENT_CLIENT_ID.value
 if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
@@ -231,8 +239,7 @@ if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
 }
 
 Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green
-
-Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
+Write-Host "Deployment complete: $DEPLOY_NAME" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
 
 # If we generated a new password this run (no existing Key Vault secret),
 # store it now so subsequent deploys reuse it instead of generating a new one
