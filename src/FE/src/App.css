@@ -929,6 +929,18 @@
   top: -1px;
 }
 
+.approved-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  margin-left: 6px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
 .job-customer {
   font-family: var(--font-heading);
   font-size: var(--fs-lg);

@@ -2,7 +2,7 @@ param(
     [Parameter(Position=0)]
     [string]$Environment = "prod",
     [string]$Location = "westeurope",
-    [string]$COMPANY_NAME = "npteknik",
+    [string]$COMPANY_NAME = "mrsolutions",
     [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",
     [string]$VercelToken = ""
 )
