@@ -15,7 +15,7 @@ permalink: /demo/
     </div>
 
     <div class="actions">
-      <a class="button" href="https://app.workslip.dk/app">Åbn den nuværende applikation</a>
+      <a class="button" href="https://app.mrsoftware.dk/app">Åbn den nuværende applikation</a>
       <a class="button secondary" href="{{ '/features/' | relative_url }}">Se funktionerne</a>
     </div>
   </div>
