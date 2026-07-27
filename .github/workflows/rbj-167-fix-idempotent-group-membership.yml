@@ -1,0 +1,109 @@
+name: RBJ-167 fix idempotent group membership
+
+on:
+  push:
+    branches:
+      - rbj--167-fix-oidc-subject-defaults-v2
+    paths:
+      - '.github/workflows/rbj-167-fix-idempotent-group-membership.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--167-fix-oidc-subject-defaults-v2
+
+      - name: Make group membership idempotent
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/BE/infrastructure/deploy.ps1')
+          text = path.read_text(encoding='utf-8')
+          old = '''    
+    #$Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json -Compress
+    
+    $BodyObject = @{
+        '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId"
+    }
+    $TempBodyFile = New-TemporaryFile
+    
+    $BodyObject |
+            ConvertTo-Json -Depth 10 -Compress |
+            Set-Content -Path $TempBodyFile -Encoding utf8
+
+    $AddMemberOutput = az rest `
+          --method POST `
+          --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
+          --headers "Content-Type=application/json" `
+          --body "@$TempBodyFile" `
+          -o none 2>&1
+
+    if ($LASTEXITCODE -eq 0) {
+        Remove-Item $TempBodyFile -ErrorAction SilentlyContinue
+        Write-Host "Added SQL admin group member: $Description"
+        return
+    }
+
+    if (($AddMemberOutput | Out-String) -match "already exist") {
+        Write-Host "SQL admin group member already exists: $Description"
+        return
+    }
+
+    throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
+'''
+          new = '''    $ExistingMemberId = az rest `
+        --method GET `
+        --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members?`$select=id" `
+        --query "value[?id=='$MemberId'].id | [0]" `
+        -o tsv 2>$null
+
+    if ($ExistingMemberId -eq $MemberId) {
+        Write-Host "SQL admin group member already exists: $Description"
+        return
+    }
+
+    $BodyObject = @{
+        '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId"
+    }
+    $TempBodyFile = New-TemporaryFile
+
+    try {
+        $BodyObject |
+            ConvertTo-Json -Depth 10 -Compress |
+            Set-Content -Path $TempBodyFile -Encoding utf8
+
+        az rest `
+            --method POST `
+            --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
+            --headers "Content-Type=application/json" `
+            --body "@$TempBodyFile" `
+            -o none
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Microsoft Graph returned exit code $LASTEXITCODE."
+        }
+
+        Write-Host "Added SQL admin group member: $Description"
+    }
+    finally {
+        Remove-Item $TempBodyFile -ErrorAction SilentlyContinue
+    }
+'''
+          if old not in text:
+              raise SystemExit('Expected Add-GraphGroupMember implementation was not found.')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/BE/infrastructure/deploy.ps1
+          git diff --cached --check
+          git commit -m "RBJ-167: Make SQL admin membership idempotent"
+          git push origin HEAD:rbj--167-fix-oidc-subject-defaults-v2
