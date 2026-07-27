@@ -78,7 +78,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Could not list hostname bindings for '$WebAppName'."
 }
 $HostnameBindings = $HostnameBindingsJson | ConvertFrom-Json
-$HostnameExists = $HostnameBindings | Where-Object { $_.name -eq $ApiHostname }
+$HostnameExists = $HostnameBindings | Where-Object {
+    $_.name -eq $ApiHostname -or $_.hostName -eq $ApiHostname
+}
 
 if (-not $HostnameExists) {
     az webapp config hostname add `
@@ -91,17 +93,21 @@ if (-not $HostnameExists) {
     }
 }
 
-$CertificatesJson = az webapp config ssl list `
-    --resource-group $ResourceGroup `
-    --name $WebAppName `
-    -o json
-if ($LASTEXITCODE -ne 0) {
-    throw "Could not list App Service certificates."
-}
-$Certificate = ($CertificatesJson | ConvertFrom-Json) |
-    Where-Object { $_.hostNames -contains $ApiHostname } |
-    Select-Object -First 1
+function Get-ApiManagedCertificate {
+    $CertificatesJson = az webapp config ssl list `
+        --resource-group $ResourceGroup `
+        --name $WebAppName `
+        -o json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not list App Service certificates."
+    }
 
+    return ($CertificatesJson | ConvertFrom-Json) |
+        Where-Object { $_.hostNames -contains $ApiHostname } |
+        Select-Object -First 1
+}
+
+$Certificate = Get-ApiManagedCertificate
 if (-not $Certificate) {
     az webapp config ssl create `
         --resource-group $ResourceGroup `
@@ -110,21 +116,23 @@ if (-not $Certificate) {
         --certificate-name $ApiHostname `
         -o none
     if ($LASTEXITCODE -ne 0) {
-        throw "Could not create the App Service managed certificate for '$ApiHostname'."
+        throw "Could not request the App Service managed certificate for '$ApiHostname'."
     }
 
-    $CertificatesJson = az webapp config ssl list `
-        --resource-group $ResourceGroup `
-        --name $WebAppName `
-        -o json
-    $Certificate = ($CertificatesJson | ConvertFrom-Json) |
-        Where-Object { $_.hostNames -contains $ApiHostname } |
-        Select-Object -First 1
+    for ($Attempt = 1; $Attempt -le 30; $Attempt++) {
+        $Certificate = Get-ApiManagedCertificate
+        if ($Certificate -and -not [string]::IsNullOrWhiteSpace([string]$Certificate.thumbprint)) {
+            break
+        }
+
+        Write-Host "Waiting for managed certificate issuance ($Attempt/30)..." -ForegroundColor DarkGray
+        Start-Sleep -Seconds 10
+    }
 }
 
 $Thumbprint = [string]$Certificate.thumbprint
 if ([string]::IsNullOrWhiteSpace($Thumbprint)) {
-    throw "The managed certificate for '$ApiHostname' has no thumbprint."
+    throw "The managed certificate for '$ApiHostname' was not issued within the expected time. Rerun this script after Azure completes certificate issuance."
 }
 
 az webapp config ssl bind `
@@ -138,9 +146,24 @@ if ($LASTEXITCODE -ne 0) {
     throw "Could not bind the managed certificate to '$ApiHostname'."
 }
 
-$Health = Invoke-RestMethod -Uri "https://$ApiHostname/health" -Method Get -TimeoutSec 30
-if ($Health.status -ne "ok") {
-    throw "API health check returned an unexpected response."
+$HealthPassed = $false
+for ($Attempt = 1; $Attempt -le 12; $Attempt++) {
+    try {
+        $Health = Invoke-RestMethod -Uri "https://$ApiHostname/health" -Method Get -TimeoutSec 30
+        if ($Health.status -eq "ok") {
+            $HealthPassed = $true
+            break
+        }
+    }
+    catch {
+        Write-Host "Waiting for DNS/TLS propagation ($Attempt/12): $($_.Exception.Message)" -ForegroundColor DarkGray
+    }
+
+    Start-Sleep -Seconds 10
+}
+
+if (-not $HealthPassed) {
+    throw "API health check did not succeed after the hostname and TLS binding were created."
 }
 
 Write-Host "API custom domain is active: https://$ApiHostname" -ForegroundColor Green
