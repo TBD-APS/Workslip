@@ -1,6 +1,6 @@
 # Workslip public site
 
-Status: Active foundation, pre-domain rollout  
+Status: Active foundation, mrsoftware.dk rollout  
 Owner: Workslip  
 Source of truth: this directory for public-site implementation; root repository documentation for architecture and operations  
 Review cadence: each public-site release
@@ -37,7 +37,9 @@ The validator checks required pages, one H1 and one `main-content` landmark per 
 
 Pull requests run `.github/workflows/site-validate.yml`. Merges to `main` that change `site/**` run `.github/workflows/pages.yml` and deploy through the protected `github-pages` environment.
 
-GitHub Pages must be configured to use **GitHub Actions** as its source. Do not activate `workslip.dk` until ownership, DNS records, HTTPS and rollback have been verified according to `Docs/operations/github-pages-domain-runbook.md`.
+The canonical marketing-site domain is `https://mrsoftware.dk`. GitHub Pages must use **GitHub Actions** as its source, and the repository Pages setting must use `mrsoftware.dk` as the custom domain. DNS, HTTPS and rollback steps are documented in `Docs/operations/github-pages-domain-runbook.md`.
+
+The production application is hosted separately at `https://app.mrsoftware.dk`. The marketing site must not call the production API directly unless that origin is deliberately added to the API CORS configuration.
 
 ## Public-content rules
 
