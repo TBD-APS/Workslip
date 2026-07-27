@@ -1,7 +1,7 @@
 {
-  "environment": "__run_deploy_infrastructure__",
-  "oauthClientId": "",
-  "oauthAppObjectId": "",
-  "clientAppId": "",
-  "clientAppObjectId": ""
+    "environment":  "prod",
+    "oauthClientId":  "82f28716-9a19-49b7-ba97-1296d1f6e6af",
+    "oauthAppObjectId":  "f2f478aa-7368-416f-a0be-af67abb4f3ad",
+    "clientAppId":  "861d7808-d94b-4221-be41-e73950601e56",
+    "clientAppObjectId":  "328dbef1-d437-4cff-9c03-662ebaf70da1"
 }
