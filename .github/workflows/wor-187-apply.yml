@@ -1,0 +1,33 @@
+name: Apply WOR-187 patch
+
+on:
+  push:
+    branches:
+      - rbj--wor-187-acs-custom-email-domain
+    paths:
+      - tools/ci/apply_wor_187.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Apply custom ACS domain patch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply and validate patch
+        run: python tools/ci/apply_wor_187.py
+
+      - name: Commit final branch state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/BE/infrastructure/main.bicep Docs/acs-email-setup.md
+          git add -u .github/workflows/wor-187-apply.yml tools/ci/apply_wor_187.py
+          git commit -m "RBJ-187: Configure custom ACS email domain"
+          git push
