@@ -11,7 +11,7 @@ description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
       <p class="lead">Workslip samler opgaver, timer, materialer og godkendelser i én arbejdsgang for medarbejdere, ledere og administration.</p>
       <div class="actions">
         <a class="button" href="{{ '/demo/' | relative_url }}">Se demo</a>
-        <a class="button secondary" href="https://workslip-v2-0.vercel.app/app">Åbn Workslip</a>
+        <a class="button secondary" href="https://app.mrsoftware.dk/app">Åbn Workslip</a>
       </div>
     </div>
     <div class="card">
