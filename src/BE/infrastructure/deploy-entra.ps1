@@ -6,12 +6,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$AzureCliCommand = Get-Command az -CommandType Application -ErrorAction Stop | Select-Object -First 1
-$AzureCli = $AzureCliCommand.Source
-if ([string]::IsNullOrWhiteSpace($AzureCli)) {
-    throw 'Could not resolve a single Azure CLI executable path.'
-}
-
 $NormalizedEnvironment = $Environment.ToLowerInvariant()
 if ([string]::IsNullOrWhiteSpace($StatePath)) {
     $StatePath = Join-Path $PSScriptRoot "entra.$NormalizedEnvironment.local.json"
@@ -23,18 +17,52 @@ $ClientUniqueName = "workslip-client-$NormalizedEnvironment"
 $ApiScopeId = 'c2e2bf46-f94d-4c3e-86d7-ca425e4c6e2a'
 $ManagedRoleValues = @('Superadmin', 'Admin', 'User', 'Auditor')
 
-function Invoke-AzureCliCommand {
+function Initialize-AzureCliInvocation {
+    $azureCliCommand = Get-Command az -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
+
+    if ($null -eq $azureCliCommand -or [string]::IsNullOrWhiteSpace($azureCliCommand.Source)) {
+        throw 'Could not resolve Azure CLI.'
+    }
+
+    $script:AzureCliExecutable = $azureCliCommand.Source
+    $script:AzureCliPrefix = @()
+
+    $isWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+    if (-not $isWindows) {
+        return
+    }
+
+    # az.cmd forwards arguments through cmd.exe. Alternate-key Graph URLs contain
+    # parentheses and query strings that cmd.exe parses before Azure CLI receives
+    # them. Invoke the Azure CLI Python entry point directly instead.
+    $azureCliDirectory = Split-Path -Parent $azureCliCommand.Source
+    $pythonCandidate = [System.IO.Path]::GetFullPath(
+        (Join-Path $azureCliDirectory '..\python.exe')
+    )
+
+    if (-not (Test-Path $pythonCandidate)) {
+        throw "Azure CLI Python runtime not found: $pythonCandidate"
+    }
+
+    $script:AzureCliExecutable = $pythonCandidate
+    $script:AzureCliPrefix = @('-IBm', 'azure.cli')
+}
+
+function Invoke-AzureCli {
     param(
         [Parameter(Mandatory = $true)]
         [string[]]$Arguments,
         [switch]$AllowFailure
     )
 
+    $commandArguments = @($script:AzureCliPrefix) + @($Arguments)
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
+
     try {
         $output = @(
-            & $AzureCli @Arguments 2>&1 |
+            & $script:AzureCliExecutable @commandArguments 2>&1 |
                 ForEach-Object { $_.ToString() }
         )
         $exitCode = $LASTEXITCODE
@@ -59,15 +87,23 @@ function Invoke-AzureCliCommand {
 }
 
 function Ensure-AzureLogin {
-    $accountResult = Invoke-AzureCliCommand `
-        -Arguments @('account', 'show', '--query', '{subscriptionId:id,tenantId:tenantId}', '-o', 'json') `
+    $accountResult = Invoke-AzureCli `
+        -Arguments @(
+            'account', 'show',
+            '--query', '{subscriptionId:id,tenantId:tenantId}',
+            '-o', 'json'
+        ) `
         -AllowFailure
 
     if ($accountResult.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($accountResult.Output)) {
         Write-Host 'Azure login required. Starting device login...' -ForegroundColor Cyan
-        Invoke-AzureCliCommand -Arguments @('login', '--use-device-code', '-o', 'none') | Out-Null
-        $accountResult = Invoke-AzureCliCommand `
-            -Arguments @('account', 'show', '--query', '{subscriptionId:id,tenantId:tenantId}', '-o', 'json')
+        Invoke-AzureCli -Arguments @('login', '--use-device-code', '-o', 'none') | Out-Null
+        $accountResult = Invoke-AzureCli `
+            -Arguments @(
+                'account', 'show',
+                '--query', '{subscriptionId:id,tenantId:tenantId}',
+                '-o', 'json'
+            )
     }
 
     return $accountResult.Output | ConvertFrom-Json
@@ -106,15 +142,21 @@ function Get-GraphApplication {
     $lastDiagnostic = ''
 
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        $result = Invoke-AzureCliCommand `
-            -Arguments @('rest', '--method', 'GET', '--uri', $uri, '-o', 'json') `
+        $result = Invoke-AzureCli `
+            -Arguments @(
+                'rest',
+                '--method', 'GET',
+                '--uri', $uri,
+                '--only-show-errors',
+                '-o', 'json'
+            ) `
             -AllowFailure
 
         if ($result.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($result.Output)) {
             try {
                 $application = $result.Output | ConvertFrom-Json
-                if (-not [string]::IsNullOrWhiteSpace($application.id) -and
-                    -not [string]::IsNullOrWhiteSpace($application.appId)) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$application.id) -and
+                    -not [string]::IsNullOrWhiteSpace([string]$application.appId)) {
                     return $application
                 }
             }
@@ -135,11 +177,11 @@ function Get-GraphApplication {
         }
     }
 
-    if ($AllowMissing -and [string]::IsNullOrWhiteSpace($lastDiagnostic)) {
+    if ($AllowMissing) {
         return $null
     }
 
-    throw "Microsoft Graph did not expose application '$UniqueName'.`n$lastDiagnostic"
+    throw "Microsoft Graph did not expose application '$UniqueName' after $MaxAttempts attempts.`n$lastDiagnostic"
 }
 
 function Get-ExistingRoleId {
@@ -156,7 +198,7 @@ function Get-ExistingRoleId {
             Where-Object { $_.value -eq $Value } |
             Select-Object -First 1
 
-        if ($null -ne $existingRole -and -not [string]::IsNullOrWhiteSpace($existingRole.id)) {
+        if ($null -ne $existingRole -and -not [string]::IsNullOrWhiteSpace([string]$existingRole.id)) {
             return [string]$existingRole.id
         }
     }
@@ -174,7 +216,7 @@ function Get-UnmanagedExistingRoles {
     return @(
         @($Application.appRoles) |
             Where-Object {
-                -not [string]::IsNullOrWhiteSpace($_.value) -and
+                -not [string]::IsNullOrWhiteSpace([string]$_.value) -and
                 $ManagedRoleValues -notcontains [string]$_.value
             } |
             ForEach-Object {
@@ -206,7 +248,7 @@ function Get-ExistingScopeId {
             Where-Object { $_.value -eq $Value } |
             Select-Object -First 1
 
-        if ($null -ne $existingScope -and -not [string]::IsNullOrWhiteSpace($existingScope.id)) {
+        if ($null -ne $existingScope -and -not [string]::IsNullOrWhiteSpace([string]$existingScope.id)) {
             return [string]$existingScope.id
         }
     }
@@ -226,7 +268,7 @@ function Get-UnmanagedExistingScopes {
     return @(
         @($Application.api.oauth2PermissionScopes) |
             Where-Object {
-                -not [string]::IsNullOrWhiteSpace($_.value) -and
+                -not [string]::IsNullOrWhiteSpace([string]$_.value) -and
                 $_.value -ne 'access_as_user'
             } |
             ForEach-Object {
@@ -258,13 +300,14 @@ function Invoke-GraphUpsert {
     try {
         Write-Utf8JsonFile -Path $tempFile.FullName -Value $Body
 
-        $result = Invoke-AzureCliCommand `
+        $result = Invoke-AzureCli `
             -Arguments @(
                 'rest',
                 '--method', 'PATCH',
                 '--uri', $Uri,
                 '--headers', 'Content-Type=application/json', 'Prefer=create-if-missing',
                 '--body', "@$($tempFile.FullName)",
+                '--only-show-errors',
                 '-o', 'none'
             ) `
             -AllowFailure
@@ -295,14 +338,20 @@ function Wait-GraphServicePrincipal {
     $lastDiagnostic = ''
 
     for ($attempt = 1; $attempt -le 18; $attempt++) {
-        $result = Invoke-AzureCliCommand `
-            -Arguments @('rest', '--method', 'GET', '--uri', $uri, '-o', 'json') `
+        $result = Invoke-AzureCli `
+            -Arguments @(
+                'rest',
+                '--method', 'GET',
+                '--uri', $uri,
+                '--only-show-errors',
+                '-o', 'json'
+            ) `
             -AllowFailure
 
         if ($result.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($result.Output)) {
             try {
                 $servicePrincipal = $result.Output | ConvertFrom-Json
-                if (-not [string]::IsNullOrWhiteSpace($servicePrincipal.id) -and
+                if (-not [string]::IsNullOrWhiteSpace([string]$servicePrincipal.id) -and
                     $servicePrincipal.appId -eq $AppId) {
                     return $servicePrincipal
                 }
@@ -343,11 +392,18 @@ function New-ManagedRole {
     }
 }
 
+Initialize-AzureCliInvocation
 $account = Ensure-AzureLogin
 
 Write-Host 'Checking Microsoft Graph application access...' -ForegroundColor Cyan
-$accessResult = Invoke-AzureCliCommand `
-    -Arguments @('rest', '--method', 'GET', '--uri', "$GraphRoot/applications?`$top=1", '-o', 'none') `
+$accessResult = Invoke-AzureCli `
+    -Arguments @(
+        'rest',
+        '--method', 'GET',
+        '--uri', "$GraphRoot/applications?`$top=1",
+        '--only-show-errors',
+        '-o', 'none'
+    ) `
     -AllowFailure
 
 if ($accessResult.ExitCode -ne 0) {
@@ -378,14 +434,12 @@ $managedRoles = @(
         -Description 'External temporary user')
 )
 
-$unmanagedRoles = Get-UnmanagedExistingRoles -Application $existingOAuthApplication
-$oauthRoles = @($managedRoles) + @($unmanagedRoles)
-
+$oauthRoles = @($managedRoles) + @(Get-UnmanagedExistingRoles -Application $existingOAuthApplication)
 $apiScopeId = Get-ExistingScopeId `
     -Application $existingOAuthApplication `
     -Value 'access_as_user' `
     -FallbackId $ApiScopeId
-$unmanagedScopes = Get-UnmanagedExistingScopes -Application $existingOAuthApplication
+
 $managedScope = [ordered]@{
     id = $apiScopeId
     adminConsentDescription = 'Access Workslip API as the signed-in user'
@@ -396,7 +450,7 @@ $managedScope = [ordered]@{
     type = 'User'
     isEnabled = $true
 }
-$oauthScopes = @($managedScope) + @($unmanagedScopes)
+$oauthScopes = @($managedScope) + @(Get-UnmanagedExistingScopes -Application $existingOAuthApplication)
 
 $oauthBody = [ordered]@{
     displayName = "Oauth server $Environment"
