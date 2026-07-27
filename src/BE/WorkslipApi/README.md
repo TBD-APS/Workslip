@@ -1,25 +1,29 @@
 # Workslip API
 
-ASP.NET Core .NET 10 API for Workslip.
+**Status:** Active  
+**Owner:** Backend owner  
+**Source of truth:** backend source, executable tests, runtime OpenAPI and `../infrastructure/`  
+**Review cadence:** on API, persistence, authentication or deployment changes
 
-The solution is split into `Workslip.Domain`, `Workslip.Application`, `Workslip.Infrastructure`, the API host and tests. Current code and executable tests take precedence over dated plans.
+ASP.NET Core .NET 10 API for Workslip. The solution is split into domain, application, infrastructure, API host and tests. Current code and executable tests take precedence over dated plans.
 
 ## Prerequisites
 
 - .NET SDK 10
 - SQL Server-compatible database
-- Azure credentials when configuration enables Azure App Configuration, Key Vault, Microsoft Graph, Application Insights or Azure-hosted integrations
+- Azure credentials only when configuration enables Azure App Configuration, Key Vault, Microsoft Graph or Azure-hosted integrations
 
 ## Local start
 
 ```bash
+cd src/BE/WorkslipApi
 dotnet restore
 dotnet run --launch-profile http
 ```
 
 The HTTP profile listens on `http://localhost:5262`.
 
-Required database configuration:
+Local database configuration uses:
 
 ```text
 Azure:Sql:ConnectionString
@@ -46,184 +50,88 @@ WorkslipApi/
 ├── Workslip.slnx
 ├── Workslip.Api.csproj
 ├── Program.cs
-├── Configuration/                 # host, auth, pipeline, services and endpoints
-├── Endpoints/                     # minimal API route registration
-├── Workslip.Domain/               # domain enums and data models
-├── Workslip.Application/          # services, contracts, validators and ports
-├── Workslip.Infrastructure/       # EF Core, repositories, integrations and workers
-├── Workslip.Tests/                # automated tests
-└── Postman/                       # non-production integration suite
+├── Configuration/
+├── Endpoints/
+├── Workslip.Domain/
+├── Workslip.Application/
+├── Workslip.Infrastructure/
+├── Workslip.Tests/
+└── Postman/
 ```
 
 ## Runtime composition
 
-`Program.cs` performs these steps:
+`Program.cs` currently:
 
-1. Load infrastructure configuration, including optional Azure App Configuration and Key Vault references.
-2. Configure CORS, authentication, logging, application and infrastructure services.
-3. Initialize the database schema and verify connectivity.
-4. Seed development data only when `ASPNETCORE_ENVIRONMENT=Development`.
-5. Configure middleware and map endpoints.
+1. loads local and Azure configuration;
+2. configures CORS, authentication, logging and services;
+3. initializes and verifies the database schema;
+4. seeds only in Development;
+5. configures middleware and maps endpoints.
 
-Persistence uses EF Core `SqlDbContext` with SQL Server, repository implementations and an audit interceptor. Migrations are configured in the API assembly. Hosted services currently include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
+Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
 
-## API areas
+Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
 
-`Configuration/EndpointConfiguration.cs` maps:
-
-- `GET /health`
-- organizations
-- authentication/current user
-- users and invitations
-- jobs and job links
-- customers
-- worksheets
-- reference data
-- push notifications
-- cache operations
-
-Use the runtime OpenAPI document and endpoint files for exact routes, request/response models and permissions. Do not use this README as a frozen endpoint list.
+Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
 
 ## Authentication and authorization
 
-The API selects between a local JWT scheme and Microsoft Entra JWT based on the bearer-token issuer. Authorization is enforced server-side through ASP.NET Core policies and Workslip's dynamic role/permission handling.
+The API selects local Workslip JWT or Microsoft Entra JWT validation from the bearer-token issuer. The public browser flow uses authorization code + PKCE. The API does not require an OAuth application client secret for that flow.
 
-Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend route guards are not security boundaries.
+API runtime Microsoft Graph permissions are declared once in `../infrastructure/main.bicep`. They support user invitation/lifecycle and app-role assignment. Do not assign a competing permission set from deployment scripts.
 
-Developer token/debug endpoints are intended only for Development. Their environment guard is security-sensitive and must remain covered by review/tests.
+Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
 
-## Result and error conventions
+Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
 
-Application services return `Ardalis.Result`. Endpoints use `ResultExtensions.ToHttpResult` rather than defining custom wrappers or inline HTTP mappings.
+## Result and endpoint conventions
 
-Common mapping:
-
-| Result | HTTP |
-|---|---:|
-| Success | 200 |
-| Invalid | 400 validation problem |
-| Unauthorized | 401 |
-| Forbidden | 403 |
-| Not found | 404 |
-| Conflict | 409 |
-| No content | 204 |
-| Unexpected result | 500 |
-
-See the root `AGENTS.md` before changing service or endpoint patterns.
-
-## Correlation and idempotency
-
-The pipeline assigns/logs correlation identifiers. Frontend mutations send `X-Correlation-ID` and `Idempotency-Key`; only endpoints/services that explicitly use the idempotency infrastructure should be described as idempotent. A header alone is not proof of durable retry safety.
-
-## Endpoint file conventions
-
-Each `Endpoints/*Endpoints.cs` file is a single static class with one `MapXxxEndpoints` extension method. The goal is **minimal handler bodies** — business logic lives in services, parsing/validation lives in private helpers.
-
-### Rules
-
-1. **One handler = one expression or a small block.** Call the service, pipe through `ResultExtensions.ToHttpResult`, done. No inline business logic.
-2. **Extract complex handlers into private static helpers.** File uploads, multi-step validation, or format detection that doesn't belong in the service layer goes into a private method in the same file.
-3. **Never duplicate `ToHttpResult` mapping.** Use the mapper overload — `ResultExtensions.ToHttpResult(result, ViewModelBuilder.ToXxx)`. Do not inline `Results.Ok(...)` / `Results.NotFound(...)` etc.
-4. **Idempotent endpoints use `IdempotentMutationService`.** The service handles reservation start/complete/abort. The endpoint only maps `IsReplay` / `Conflict` / `InProgress` to HTTP responses.
-5. **Group setup is one line per auth level.** Use `MapReadGroup`, `MapUserGroup`, `MapAdminGroup`, or `MapReadUserGroups`. Do not add manual `.RequireAuthorization(...)` unless the endpoint differs from its group default.
-6. **Keep using statements minimal.** Only import what the file actually references.
-
-### Example — simple CRUD endpoint
-
-```csharp
-adminGroup.MapPut("/{id:guid}", async (Guid id, UpdateRequest request, IService service, CancellationToken ct) =>
-{
-    var result = await service.UpdateAsync(id, request, ct);
-    return ResultExtensions.ToHttpResult(result, ViewModelBuilder.ToDetail);
-});
-```
-
-### Example — endpoint with extracted helper
-
-```csharp
-adminGroup.MapPost("/import", async (IFormFile file, IService service, ILoggerFactory logFactory, CancellationToken ct) =>
-{
-    var logger = logFactory.CreateLogger("Import");
-    var parse = ParseImportFile(file, logger);
-    if (parse.Error is not null) return parse.Error;
-
-    var result = await service.ImportAsync(parse.Parsed!.Rows, ct);
-    return ResultExtensions.ToHttpResult(result, MapImportResponse);
-})
-.DisableAntiforgery()
-.RequireRateLimiting("import-rate-limit");
-
-private static (IResult? Error, ParseResult? Parsed) ParseImportFile(IFormFile file, ILogger logger)
-{
-    // validation, format detection, try/catch parsing — returns tuple
-}
-```
-
-### Anti-patterns
-
-- `Results.Ok(result.Value)` inside an endpoint — use `ToHttpResult`.
-- Inline validation/parsing exceeding ~10 lines — extract to a private helper or move to the service layer.
-- Duplicating the same handler body across two routes — extract to a shared private method.
-- `async` lambda with expression body when the mapper needs `.Select().ToArray()` — use a block body.
-
-See `UserEndpoints.cs` (47 lines, 5 routes) and `CustomerEndpoints.cs` for reference implementations.
-
-## Database lifecycle
-
-The application initializes schema at startup through `DatabaseSchemaInitializer`, then verifies connectivity. Treat schema initialization and EF migrations as production-impacting operations:
-
-- inspect generated SQL and migration history;
-- use an isolated environment first;
-- define rollback/roll-forward before deployment;
-- never run destructive database actions without explicit approval.
+Application services return `Ardalis.Result`. Endpoints map through `ResultExtensions.ToHttpResult`; do not introduce custom wrappers or duplicate result-to-HTTP mapping. See the root `AGENTS.md` before changing service or endpoint patterns.
 
 ## Build and tests
 
 ```bash
+cd src/BE/WorkslipApi
 dotnet build Workslip.slnx
 dotnet test Workslip.slnx
 ```
 
-Integration tests use Postman/Newman and must target localhost, test or staging:
+Postman/Newman verification must target localhost or an isolated test/staging API:
 
 ```bash
 Postman/run-integration-tests.sh https://<test-or-staging-api>
 ```
 
-The script rejects URLs that do not look non-production unless `ALLOW_PRODUCTION_INTEGRATION_TESTS=true` is explicitly set. Do not bypass that protection during ordinary validation.
-
-GitHub workflow: `.github/workflows/integration-tests.yml`.
+There is no active GitHub Actions integration-test workflow. Run the executable suite deliberately against an isolated environment; do not use production mutation tests in ordinary validation.
 
 ## OpenAPI and Scalar
 
-The host registers ASP.NET Core OpenAPI and Scalar. These surfaces must be treated as non-production developer/integration tooling unless production exposure is explicitly approved and protected. The maintained contract guide lives in `../../../Docs/api/README.md`.
+The host registers ASP.NET Core OpenAPI and Scalar. Treat these as development/integration tooling unless production exposure is explicitly approved and protected. Runtime endpoint registrations are the API contract source; Postman is verification material.
 
 ## Deployment
 
-The API deployment workflow is `.github/workflows/main_api-npteknik-prod.yml`. It builds and publishes the .NET project, authenticates to Azure through OIDC and deploys to an Azure Web App.
+Azure infrastructure and Entra registrations are deployed separately. See `../infrastructure/README.md`.
 
-Production uses the protected GitHub environment `prod`. The Azure infrastructure
-creates a dedicated GitHub deployment managed identity with `Website Contributor`
-limited to the API App Service and a federated credential restricted to:
+The production API workflow is:
 
 ```text
-repo:rasm105k@31623093/Workslip-v2.0@1245555609:environment:prod
+.github/workflows/main_api-mrsoftware-prod.yml
 ```
 
-After deploying the infrastructure, configure these environment secrets in the
-GitHub `prod` environment:
+It builds and publishes the API, authenticates to Azure through GitHub OIDC and deploys to `api-mrsoftware-prod`. Production uses GitHub environment `prod` with:
 
-- `AZURE_CLIENT_ID`: deployment output `GITHUB_DEPLOYMENT_CLIENT_ID`
-- `AZURE_TENANT_ID`: Microsoft Entra tenant ID
-- `AZURE_SUBSCRIPTION_ID`: target Azure subscription ID
+- `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
+- `AZURE_TENANT_ID`: target Entra tenant ID
+- `AZURE_SUBSCRIPTION_ID`: target subscription ID
 
-They are identifiers, not passwords. Do not add an Azure client secret,
-`AZURE_CREDENTIALS` JSON or an App Service publish profile.
+Do not add an Azure client secret, `AZURE_CREDENTIALS` JSON or App Service publish profile.
 
-After recreating the Azure resource group:
+After infrastructure recreation:
 
-1. Run `deploy.ps1` and copy the printed `GITHUB_DEPLOYMENT_CLIENT_ID`.
-2. Set the three `prod` environment secrets above and configure the required reviewer.
-3. Run the workflow manually once to verify the OIDC deployment.
+1. run `../infrastructure/deploy-safe.ps1 prod`;
+2. set the three GitHub `prod` environment identifiers from the deployment output;
+3. run the API workflow manually;
+4. verify `/health`, Microsoft login and one authenticated API request.
 
-Workflow definitions are evidence of intended automation, not evidence that a deployment or rollback has succeeded. Record actual release validation separately.
+Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
