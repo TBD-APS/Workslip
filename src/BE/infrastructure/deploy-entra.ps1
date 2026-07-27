@@ -176,6 +176,16 @@ function Get-UnmanagedExistingRoles {
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace($_.value) -and
                 $ManagedRoleValues -notcontains [string]$_.value
+            } |
+            ForEach-Object {
+                [ordered]@{
+                    id = [string]$_.id
+                    allowedMemberTypes = @($_.allowedMemberTypes)
+                    displayName = [string]$_.displayName
+                    description = [string]$_.description
+                    value = [string]$_.value
+                    isEnabled = [bool]$_.isEnabled
+                }
             }
     )
 }
@@ -218,6 +228,18 @@ function Get-UnmanagedExistingScopes {
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace($_.value) -and
                 $_.value -ne 'access_as_user'
+            } |
+            ForEach-Object {
+                [ordered]@{
+                    id = [string]$_.id
+                    adminConsentDescription = [string]$_.adminConsentDescription
+                    adminConsentDisplayName = [string]$_.adminConsentDisplayName
+                    userConsentDescription = [string]$_.userConsentDescription
+                    userConsentDisplayName = [string]$_.userConsentDisplayName
+                    value = [string]$_.value
+                    type = [string]$_.type
+                    isEnabled = [bool]$_.isEnabled
+                }
             }
     )
 }
@@ -357,11 +379,24 @@ $managedRoles = @(
 )
 
 $unmanagedRoles = Get-UnmanagedExistingRoles -Application $existingOAuthApplication
+$oauthRoles = @($managedRoles) + @($unmanagedRoles)
+
 $apiScopeId = Get-ExistingScopeId `
     -Application $existingOAuthApplication `
     -Value 'access_as_user' `
     -FallbackId $ApiScopeId
 $unmanagedScopes = Get-UnmanagedExistingScopes -Application $existingOAuthApplication
+$managedScope = [ordered]@{
+    id = $apiScopeId
+    adminConsentDescription = 'Access Workslip API as the signed-in user'
+    adminConsentDisplayName = 'Access Workslip API'
+    userConsentDescription = 'Access Workslip API on your behalf'
+    userConsentDisplayName = 'Access Workslip API'
+    value = 'access_as_user'
+    type = 'User'
+    isEnabled = $true
+}
+$oauthScopes = @($managedScope) + @($unmanagedScopes)
 
 $oauthBody = [ordered]@{
     displayName = "Oauth server $Environment"
@@ -369,23 +404,10 @@ $oauthBody = [ordered]@{
     publicClient = [ordered]@{
         redirectUris = @('nativepasskeydemo://auth')
     }
-    appRoles = @($managedRoles + $unmanagedRoles)
+    appRoles = $oauthRoles
     api = [ordered]@{
         requestedAccessTokenVersion = 2
-        oauth2PermissionScopes = @(
-            @(
-                [ordered]@{
-                    id = $apiScopeId
-                    adminConsentDescription = 'Access Workslip API as the signed-in user'
-                    adminConsentDisplayName = 'Access Workslip API'
-                    userConsentDescription = 'Access Workslip API on your behalf'
-                    userConsentDisplayName = 'Access Workslip API'
-                    value = 'access_as_user'
-                    type = 'User'
-                    isEnabled = $true
-                }
-            ) + $unmanagedScopes
-        )
+        oauth2PermissionScopes = $oauthScopes
     }
 }
 
