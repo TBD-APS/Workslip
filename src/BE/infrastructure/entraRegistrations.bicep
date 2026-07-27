@@ -1,7 +1,4 @@
 param environment string
-// Retained for compatibility with main.bicep. Application ownership is managed
-// outside Bicep because Microsoft Graph relationship updates are non-atomic.
-param globalAdminId string
 
 // deploy-safe.ps1 reconciles the applications and service principals through
 // Microsoft Graph using the signed-in administrator, waits for concrete IDs,

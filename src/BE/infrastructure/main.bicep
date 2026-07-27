@@ -404,7 +404,6 @@ module EntraAppRegistrations './entraRegistrations.bicep' = {
   name: 'entraApps'
   params: {
     environment: environment
-    globalAdminId: globalAdminId
   }
 }
 

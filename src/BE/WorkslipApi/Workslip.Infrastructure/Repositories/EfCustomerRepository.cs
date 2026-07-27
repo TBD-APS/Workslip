@@ -129,6 +129,7 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
                 c.Email,
                 c.ContactPerson,
                 c.Phone,
+                c.IsFavorite,
                 JobCount = dbContext.JobReports.Count(r => r.OrganizationId == organizationId && r.CustomerId == c.Id && !r.IsSoftDeleted),
                 Jobs = dbContext.JobReports
                     .Where(r => r.OrganizationId == organizationId && r.CustomerId == c.Id && !r.IsSoftDeleted)
@@ -155,6 +156,7 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
             customer.ContactPerson,
             customer.Phone,
             customer.JobCount,
+            customer.IsFavorite,
             customer.Jobs.Select(j => new CustomerJobResponse(
                 j.Id, j.ReportNumber, j.Status, j.UpdatedAt, customer.ContactPerson, customer.Phone)).ToArray());
     }
