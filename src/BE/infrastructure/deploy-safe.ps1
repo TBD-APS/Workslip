@@ -18,13 +18,8 @@ $ExpectedVaultName = "kv-$COMPANY_NAME-$($Environment.ToLowerInvariant())"
 $LegacyVaultName = "kv-$COMPANY_NAME$($Environment.ToLowerInvariant())"
 
 function global:az {
-    param(
-        [Parameter(ValueFromRemainingArguments = $true)]
-        [object[]]$Arguments
-    )
-
     $cliArguments = [System.Collections.Generic.List[string]]::new()
-    foreach ($argument in $Arguments) {
+    foreach ($argument in $args) {
         $value = [string]$argument
         if ($value -eq $LegacyVaultName) {
             $value = $ExpectedVaultName
