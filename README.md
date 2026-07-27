@@ -11,6 +11,7 @@ Workslip is a React PWA and ASP.NET Core API for jobs, digital worksheets, custo
 | Documentation map and lifecycle | [`Docs/README.md`](Docs/README.md) |
 | Frontend setup and validation | [`src/FE/README.md`](src/FE/README.md) |
 | Backend setup, persistence and tests | [`src/BE/WorkslipApi/README.md`](src/BE/WorkslipApi/README.md) |
+| Infrastructure deployment | [`src/BE/infrastructure/README.md`](src/BE/infrastructure/README.md) |
 | Agent and implementation conventions | [`AGENTS.md`](AGENTS.md) |
 | Current implementation | Source code and configuration in `src/` |
 | API contract | Runtime OpenAPI document and endpoint code; see [`Docs/api/README.md`](Docs/api/README.md) |
@@ -26,9 +27,10 @@ Workslip is a React PWA and ASP.NET Core API for jobs, digital worksheets, custo
 ├── Docs/                         # maintained documentation and historical plans
 ├── src/
 │   ├── BE/WorkslipApi/           # .NET 10 API, application, domain and infrastructure
+│   ├── BE/infrastructure/        # Azure, Entra and SQL deployment source
 │   ├── FE/                       # React 19 + TypeScript + Vite PWA
 │   └── docs/                     # dated product and implementation plans
-└── .github/workflows/            # CI, integration tests and deployment workflows
+└── .github/workflows/            # documentation, Pages and API deployment workflows
 ```
 
 ## Local development
@@ -50,7 +52,7 @@ dotnet restore
 dotnet run --launch-profile http
 ```
 
-The HTTP launch profile listens on `http://localhost:5262`. Configure the database connection through .NET configuration key `Azure:Sql:ConnectionString`; environment variables use `Azure__Sql__ConnectionString`.
+The HTTP launch profile listens on `http://localhost:5262`. Configure the database connection through `Azure:Sql:ConnectionString`; environment variables use `Azure__Sql__ConnectionString`.
 
 Health check:
 
@@ -88,6 +90,8 @@ Postman/Newman verification must target an isolated non-production environment:
 ```bash
 src/BE/WorkslipApi/Postman/run-integration-tests.sh https://<test-or-staging-api>
 ```
+
+There is no active full-stack or integration-test GitHub Actions workflow. Run integration verification deliberately against an isolated environment.
 
 ## Change discipline
 
