@@ -2,7 +2,6 @@ import { apiClient } from '../../../lib/axios';
 import type { AuthTokenResponse } from '../../../api/generated/models';
 
 const PKCE_KEY = 'workslip.loginPkce';
-const pkceStateStore = new Map<string, PkceState>();
 
 interface PkceState {
   state: string;
@@ -108,9 +107,7 @@ export const startEntraLogin = async (options: StartEntraLoginOptions = {}) => {
   const returnTo = options.returnTo ?? '/app';
 
   const pkce: PkceState = { state, codeVerifier, redirectUri, returnTo };
-  const pkceRef = randomUrlSafe(24);
-  pkceStateStore.set(pkceRef, pkce);
-  sessionStorage.setItem(PKCE_KEY, pkceRef);
+  sessionStorage.setItem(PKCE_KEY, JSON.stringify(pkce));
 
   const authorizeUrl = new URL(`https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize`);
   authorizeUrl.searchParams.set('client_id', config.clientId);
@@ -188,8 +185,25 @@ const loadPkceState = (): PkceState | null => {
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as PkceState;
+    const parsed = JSON.parse(raw) as Partial<PkceState>;
+    if (
+      typeof parsed.state !== 'string' || !parsed.state ||
+      typeof parsed.codeVerifier !== 'string' || !parsed.codeVerifier ||
+      typeof parsed.redirectUri !== 'string' || !parsed.redirectUri ||
+      (parsed.returnTo !== undefined && typeof parsed.returnTo !== 'string')
+    ) {
+      sessionStorage.removeItem(PKCE_KEY);
+      return null;
+    }
+
+    return {
+      state: parsed.state,
+      codeVerifier: parsed.codeVerifier,
+      redirectUri: parsed.redirectUri,
+      ...(parsed.returnTo !== undefined ? { returnTo: parsed.returnTo } : {}),
+    };
   } catch {
+    sessionStorage.removeItem(PKCE_KEY);
     return null;
   }
 };
