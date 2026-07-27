@@ -13,7 +13,12 @@ if (-not (Test-Path $DeployScript)) {
     throw "Deployment script not found: $DeployScript"
 }
 
-$AzureCli = (Get-Command az -CommandType Application -ErrorAction Stop).Source
+$AzureCliCommand = Get-Command az -CommandType Application -ErrorAction Stop | Select-Object -First 1
+$AzureCli = $AzureCliCommand.Source
+if ([string]::IsNullOrWhiteSpace($AzureCli)) {
+    throw 'Could not resolve a single Azure CLI executable path.'
+}
+
 $ExpectedVaultName = "kv-$COMPANY_NAME-$($Environment.ToLowerInvariant())"
 $LegacyVaultName = "kv-$COMPANY_NAME$($Environment.ToLowerInvariant())"
 
