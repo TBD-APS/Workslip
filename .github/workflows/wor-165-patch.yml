@@ -83,11 +83,33 @@ jobs:
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
 
-      - name: Build frontend
-        working-directory: src/FE
+      - name: Build frontend and capture result
+        shell: bash
         run: |
-          npm ci
-          npm run build
+          set +e
+          cd src/FE
+          npm ci > /tmp/wor-165-npm-ci.log 2>&1
+          install_status=$?
+
+          build_status=not_run
+          if [ "$install_status" -eq 0 ]; then
+            npm run build > /tmp/wor-165-build.log 2>&1
+            build_status=$?
+          fi
+
+          cd ../..
+          {
+            echo "npm_ci_status=$install_status"
+            echo "build_status=$build_status"
+            echo
+            echo "--- npm ci (last 80 lines) ---"
+            tail -n 80 /tmp/wor-165-npm-ci.log
+            if [ -f /tmp/wor-165-build.log ]; then
+              echo
+              echo "--- npm run build (last 160 lines) ---"
+              tail -n 160 /tmp/wor-165-build.log
+            fi
+          } > .wor-165-build-result.txt
 
       - name: Commit corrected implementation
         shell: bash
