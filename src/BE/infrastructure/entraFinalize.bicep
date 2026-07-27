@@ -13,6 +13,9 @@ resource WorkslipClientApp 'Microsoft.Graph/applications@v1.0' existing = {
   uniqueName: workslipClientUniqueName
 }
 
+// Service principals are upserted by appId after both applications exist. This
+// phase reads appId through existing Graph resources instead of relying on the
+// partial response returned by an application upsert.
 resource OAuthServerServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' = {
   appId: OAuthServerApp.appId
   tags: [
@@ -28,8 +31,8 @@ resource WorkslipClientServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0'
 }
 
 // OAuthClientId and OAuthAppId are both the application/client ID because the
-// runtime audience is api://{appId}. The application object ID is not required
-// by Bicep consumers; deploy.ps1 can resolve the app by client ID.
+// runtime audience is api://{appId}. deploy.ps1 can resolve the application by
+// this ID when managing credentials.
 output OAuthClientId string = OAuthServerApp.appId
 output OAuthAppId string = OAuthServerApp.appId
 output ClientAppId string = WorkslipClientApp.appId
