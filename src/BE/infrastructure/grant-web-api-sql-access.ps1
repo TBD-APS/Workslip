@@ -57,21 +57,31 @@ try {
 
     @"
 DECLARE @userName sysname = N'$identityName';
+DECLARE @sql nvarchar(max);
 
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @userName)
 BEGIN
-    DECLARE @createUserSql nvarchar(max) = N'CREATE USER ' + QUOTENAME(@userName) + N' WITH SID = $sid, TYPE = E;';
-    EXEC sp_executesql @createUserSql;
+    SET @sql = N'CREATE USER ' + QUOTENAME(@userName) + N' WITH SID = $sid, TYPE = E;';
+    EXEC sp_executesql @sql;
 END;
 
 IF IS_ROLEMEMBER(N'db_datareader', @userName) <> 1
-    EXEC(N'ALTER ROLE db_datareader ADD MEMBER ' + QUOTENAME(@userName));
+BEGIN
+    SET @sql = N'ALTER ROLE db_datareader ADD MEMBER ' + QUOTENAME(@userName) + N';';
+    EXEC sp_executesql @sql;
+END;
 
 IF IS_ROLEMEMBER(N'db_datawriter', @userName) <> 1
-    EXEC(N'ALTER ROLE db_datawriter ADD MEMBER ' + QUOTENAME(@userName));
+BEGIN
+    SET @sql = N'ALTER ROLE db_datawriter ADD MEMBER ' + QUOTENAME(@userName) + N';';
+    EXEC sp_executesql @sql;
+END;
 
 IF IS_ROLEMEMBER(N'db_ddladmin', @userName) <> 1
-    EXEC(N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName));
+BEGIN
+    SET @sql = N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName) + N';';
+    EXEC sp_executesql @sql;
+END;
 "@ | Set-Content -Path $sqlFile -Encoding utf8
 
     $env:SQLCMDPASSWORD = $SqlAdminPassword
