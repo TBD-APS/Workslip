@@ -207,7 +207,7 @@ creates a dedicated GitHub deployment managed identity with `Website Contributor
 limited to the API App Service and a federated credential restricted to:
 
 ```text
-repo:rasm105k/Workslip-v2.0:environment:prod
+repo:rasm105k@31623093/Workslip-v2.0@1245555609:environment:prod
 ```
 
 After deploying the infrastructure, configure these environment secrets in the

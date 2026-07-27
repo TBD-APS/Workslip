@@ -317,6 +317,7 @@ export const JobList = () => {
                 <td>
                   <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
                   {isAdmin && job.status === JobStatus.InReview && <span className="review-dot" />}
+                  {job.status === JobStatus.Approved && <span className="approved-dot" />}
                   {!job.isSeen && <span className="unread-dot" />}
                   {isAdmin && job.assignedUsers.length === 0 && <span className="unassigned-dot" />}
                 </td>
@@ -428,6 +429,7 @@ function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: 
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span>{formatJobType(job.jobType)}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span></span>
           {isAdmin && job.status === JobStatus.InReview && <span className="review-dot" />}
+          {job.status === JobStatus.Approved && <span className="approved-dot" />}
           {!job.isSeen && <span className="unread-dot" />}
           {isAdmin && job.assignedUsers.length === 0 && <span className="unassigned-dot" />}
           <h3 className="job-customer">{job.customer?.name || job.taskDescription}</h3>
