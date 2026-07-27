@@ -1,0 +1,267 @@
+name: RBJ-180 patch API custom domain
+
+on:
+  push:
+    branches:
+      - rbj--wor-180-app-subdomain-cutover
+    paths:
+      - '.github/workflows/rbj-180-patch-api-domain.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--wor-180-app-subdomain-cutover
+
+      - name: Patch API custom-domain support
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Expected text not found in {path}: {old[:120]!r}')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          main = 'src/BE/infrastructure/main.bicep'
+          replace_once(
+              main,
+              "param provisionWebApiSqlAccess bool   = false\n\n// ── SQL admin password",
+              "param provisionWebApiSqlAccess bool   = false\n@description('Set true only for an approved API custom-domain rollout. This changes the App Service plan from Free F1 to paid Basic B1.')\nparam enableApiCustomDomain bool      = false\n\n// ── SQL admin password",
+          )
+          replace_once(
+              main,
+              "var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)\n",
+              "var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)\nvar webApiSku = enableApiCustomDomain\n  ? {\n      name: 'B1'\n      tier: 'Basic'\n      capacity: 1\n    }\n  : {\n      name: 'F1'\n      tier: 'Free'\n      capacity: 1\n    }\n",
+          )
+          replace_once(
+              main,
+              "// Free App Service tier with shared user-assigned managed identity.\n// The API reads App Configuration + Key Vault references through that identity.",
+              "// Free F1 by default; paid Basic B1 only when API custom-domain rollout is explicitly enabled.\n// Azure App Service requires a paid plan for custom domains and Basic or higher for a managed certificate.\n// The API reads App Configuration + Key Vault references through the shared user-assigned identity.",
+          )
+          replace_once(
+              main,
+              "  sku: {\n    name: 'F1'\n    tier: 'Free'\n    capacity: 1\n  }",
+              "  sku: webApiSku",
+          )
+          replace_once(
+              main,
+              "output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName\noutput WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'",
+              "output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName\noutput WEB_API_CUSTOM_DOMAIN_VERIFICATION_ID string = webApi.properties.customDomainVerificationId\noutput WEB_API_CUSTOM_DOMAIN_ENABLED bool      = enableApiCustomDomain\noutput WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'",
+          )
+
+          deploy = 'src/BE/infrastructure/deploy.ps1'
+          replace_once(
+              deploy,
+              '    [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",\n    [string]$VercelToken = ""\n)',
+              '    [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",\n    [string]$VercelToken = "",\n    [switch]$EnableApiCustomDomain\n)',
+          )
+          replace_once(
+              deploy,
+              '$DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format \'yyyyMMddHHmmss\')"\n',
+              '$DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format \'yyyyMMddHHmmss\')"\n$EnableApiCustomDomainValue = $EnableApiCustomDomain.IsPresent.ToString().ToLowerInvariant()\n\nif ($EnableApiCustomDomain) {\n    Write-Warning "API custom-domain mode upgrades the Azure App Service plan from Free F1 to paid Basic B1."\n}\n',
+          )
+          replace_once(
+              deploy,
+              '       --parameters provisionWebApiSqlAccess=$ProvisionWebApiSqlAccessValue `\n       --parameters sqlAdminPassword="$SqlAdminPassword" `',
+              '       --parameters provisionWebApiSqlAccess=$ProvisionWebApiSqlAccessValue `\n       --parameters enableApiCustomDomain=$EnableApiCustomDomainValue `\n       --parameters sqlAdminPassword="$SqlAdminPassword" `',
+          )
+          replace_once(
+              deploy,
+              'Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green\n\nWrite-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green',
+              'Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green\n\nif ($EnableApiCustomDomain) {\n    $WebApiDefaultHostname = $DeploymentOutputs.WEB_API_DEFAULT_HOSTNAME.value\n    $WebApiVerificationId = $DeploymentOutputs.WEB_API_CUSTOM_DOMAIN_VERIFICATION_ID.value\n\n    if ([string]::IsNullOrWhiteSpace($WebApiDefaultHostname) -or [string]::IsNullOrWhiteSpace($WebApiVerificationId)) {\n        throw "API custom-domain deployment outputs were incomplete."\n    }\n\n    Write-Host "API custom-domain DNS values:" -ForegroundColor Cyan\n    Write-Host "  CNAME api -> $WebApiDefaultHostname"\n    Write-Host "  TXT asuid.api -> $WebApiVerificationId"\n    Write-Host "After DNS resolves, run configure-api-custom-domain.ps1." -ForegroundColor Yellow\n}\n\nWrite-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green',
+          )
+
+          custom_domain_script = r'''param(
+              [string]$Environment = "prod",
+              [string]$CompanyName = "npteknik",
+              [string]$ApiHostname = "api.mrsoftware.dk"
+          )
+
+          $ErrorActionPreference = "Stop"
+
+          if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+              throw "Azure CLI is required."
+          }
+
+          if (-not (Get-Command Resolve-DnsName -ErrorAction SilentlyContinue)) {
+              throw "Resolve-DnsName is required to verify public DNS before binding the hostname."
+          }
+
+          $ResourceGroup = "rg-$CompanyName-$Environment"
+          $WebAppName = "api-$CompanyName-$Environment"
+          $PlanName = "plan-$CompanyName-$Environment"
+          $TxtHostname = "asuid.$ApiHostname"
+
+          $SubscriptionId = az account show --query id -o tsv 2>$null
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($SubscriptionId)) {
+              throw "Azure CLI is not logged in. Run 'az login' first."
+          }
+
+          $WebAppJson = az webapp show `
+              --resource-group $ResourceGroup `
+              --name $WebAppName `
+              -o json
+          if ($LASTEXITCODE -ne 0 -or -not $WebAppJson) {
+              throw "Could not read Azure Web App '$WebAppName' in '$ResourceGroup'."
+          }
+          $WebApp = $WebAppJson | ConvertFrom-Json
+
+          $PlanJson = az appservice plan show `
+              --resource-group $ResourceGroup `
+              --name $PlanName `
+              -o json
+          if ($LASTEXITCODE -ne 0 -or -not $PlanJson) {
+              throw "Could not read App Service plan '$PlanName'."
+          }
+          $Plan = $PlanJson | ConvertFrom-Json
+
+          if ($Plan.sku.tier -eq "Free") {
+              throw "Azure App Service Free F1 cannot use a custom domain. Run './deploy.ps1 -EnableApiCustomDomain' first and explicitly accept the paid Basic B1 tier."
+          }
+
+          $DefaultHostname = [string]$WebApp.defaultHostName
+          $VerificationId = [string]$WebApp.customDomainVerificationId
+          if ([string]::IsNullOrWhiteSpace($DefaultHostname) -or [string]::IsNullOrWhiteSpace($VerificationId)) {
+              throw "Azure did not return the default hostname or custom-domain verification ID."
+          }
+
+          Write-Host "Required public DNS records:" -ForegroundColor Cyan
+          Write-Host "  CNAME api -> $DefaultHostname"
+          Write-Host "  TXT asuid.api -> $VerificationId"
+          Write-Host "Keep the CNAME as DNS only in Cloudflare until Azure validation and TLS binding are complete." -ForegroundColor Yellow
+
+          $CnameAnswer = Resolve-DnsName -Name $ApiHostname -Type CNAME -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+          $ResolvedCname = if ($CnameAnswer) { ([string]$CnameAnswer.NameHost).TrimEnd('.').ToLowerInvariant() } else { "" }
+          if ($ResolvedCname -ne $DefaultHostname.TrimEnd('.').ToLowerInvariant()) {
+              throw "CNAME validation failed. '$ApiHostname' currently resolves to '$ResolvedCname'; expected '$DefaultHostname'."
+          }
+
+          $TxtValues = Resolve-DnsName -Name $TxtHostname -Type TXT -ErrorAction SilentlyContinue |
+              ForEach-Object { $_.Strings -join "" }
+          if ($TxtValues -notcontains $VerificationId) {
+              throw "TXT validation failed. '$TxtHostname' must contain Azure verification ID '$VerificationId'."
+          }
+
+          $HostnameBindingsJson = az webapp config hostname list `
+              --resource-group $ResourceGroup `
+              --webapp-name $WebAppName `
+              -o json
+          if ($LASTEXITCODE -ne 0) {
+              throw "Could not list hostname bindings for '$WebAppName'."
+          }
+          $HostnameBindings = $HostnameBindingsJson | ConvertFrom-Json
+          $HostnameExists = $HostnameBindings | Where-Object { $_.name -eq $ApiHostname }
+
+          if (-not $HostnameExists) {
+              az webapp config hostname add `
+                  --resource-group $ResourceGroup `
+                  --webapp-name $WebAppName `
+                  --hostname $ApiHostname `
+                  -o none
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Azure rejected the hostname binding for '$ApiHostname'."
+              }
+          }
+
+          $CertificatesJson = az webapp config ssl list `
+              --resource-group $ResourceGroup `
+              --name $WebAppName `
+              -o json
+          if ($LASTEXITCODE -ne 0) {
+              throw "Could not list App Service certificates."
+          }
+          $Certificate = ($CertificatesJson | ConvertFrom-Json) |
+              Where-Object { $_.hostNames -contains $ApiHostname } |
+              Select-Object -First 1
+
+          if (-not $Certificate) {
+              az webapp config ssl create `
+                  --resource-group $ResourceGroup `
+                  --name $WebAppName `
+                  --hostname $ApiHostname `
+                  --certificate-name $ApiHostname `
+                  -o none
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Could not create the App Service managed certificate for '$ApiHostname'."
+              }
+
+              $CertificatesJson = az webapp config ssl list `
+                  --resource-group $ResourceGroup `
+                  --name $WebAppName `
+                  -o json
+              $Certificate = ($CertificatesJson | ConvertFrom-Json) |
+                  Where-Object { $_.hostNames -contains $ApiHostname } |
+                  Select-Object -First 1
+          }
+
+          $Thumbprint = [string]$Certificate.thumbprint
+          if ([string]::IsNullOrWhiteSpace($Thumbprint)) {
+              throw "The managed certificate for '$ApiHostname' has no thumbprint."
+          }
+
+          az webapp config ssl bind `
+              --resource-group $ResourceGroup `
+              --name $WebAppName `
+              --hostname $ApiHostname `
+              --certificate-thumbprint $Thumbprint `
+              --ssl-type SNI `
+              -o none
+          if ($LASTEXITCODE -ne 0) {
+              throw "Could not bind the managed certificate to '$ApiHostname'."
+          }
+
+          $Health = Invoke-RestMethod -Uri "https://$ApiHostname/health" -Method Get -TimeoutSec 30
+          if ($Health.status -ne "ok") {
+              throw "API health check returned an unexpected response."
+          }
+
+          Write-Host "API custom domain is active: https://$ApiHostname" -ForegroundColor Green
+          Write-Host "Health check passed: https://$ApiHostname/health" -ForegroundColor Green
+          '''
+          Path('src/BE/infrastructure/configure-api-custom-domain.ps1').write_text(
+              '\n'.join(line[10:] if line.startswith('          ') else line for line in custom_domain_script.splitlines()) + '\n',
+              encoding='utf-8',
+          )
+
+          fe_readme = 'src/FE/README.md'
+          replace_once(
+              fe_readme,
+              "- `VITE_API_BASE_URL` — optional API base URL; blank uses the current origin and local Vite proxy.\n- Entra/Application Insights settings referenced by frontend source — treat these as public client configuration, not secrets.",
+              "- `VITE_API_BASE_URL` — optional API base URL; blank uses the current origin and local Vite proxy. Production must use `https://api.mrsoftware.dk` without a trailing `/api`.\n- Entra/Application Insights settings referenced by frontend source — treat these as public client configuration, not secrets.\n\nProduction Vercel values for the domain cutover are:\n\n```text\nVITE_API_BASE_URL=https://api.mrsoftware.dk\nVITE_AZURE_AD_LOGIN_REDIRECT_URI=https://app.mrsoftware.dk/login\nVITE_AZURE_AD_REDIRECT_URI=https://app.mrsoftware.dk/invite/callback\n```",
+          )
+
+          be_readme = 'src/BE/WorkslipApi/README.md'
+          replace_once(
+              be_readme,
+              "They are identifiers, not passwords. Do not add an Azure client secret,\n`AZURE_CREDENTIALS` JSON or an App Service publish profile.\n\nAfter recreating the Azure resource group:",
+              "They are identifiers, not passwords. Do not add an Azure client secret,\n`AZURE_CREDENTIALS` JSON or an App Service publish profile.\n\n### Production API custom domain\n\nThe official production API origin is planned as `https://api.mrsoftware.dk`. The existing Azure default hostname remains the rollback origin during cutover.\n\nAzure App Service custom domains are not supported on the current Free F1 plan. The infrastructure therefore stays on F1 by default and changes to paid Basic B1 only when `deploy.ps1` is run with `-EnableApiCustomDomain`. Do not use that switch without explicit approval of the recurring Azure cost.\n\nCutover sequence:\n\n1. Register and control `mrsoftware.dk`.\n2. Run `./deploy.ps1 -EnableApiCustomDomain`; record the printed default API hostname and verification ID.\n3. In Cloudflare, create `CNAME api` to the printed `*.azurewebsites.net` hostname and `TXT asuid.api` to the printed verification ID. Keep the CNAME as DNS only while Azure validates it.\n4. After public DNS resolves, run `./configure-api-custom-domain.ps1`. The script verifies DNS, adds the Azure hostname, creates an App Service managed certificate, binds SNI TLS and checks `/health`.\n5. Set Vercel `VITE_API_BASE_URL` to `https://api.mrsoftware.dk` and redeploy the frontend.\n6. Smoke-test login, invitation enrollment and authenticated API requests before removing the Azure default hostname from rollback documentation.\n\nThe domain script is idempotent for an existing hostname and certificate. It intentionally does not create Cloudflare records or change Vercel settings.\n\nAfter recreating the Azure resource group:",
+          )
+
+      - name: Validate Bicep and PowerShell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep version >/dev/null 2>&1 || az bicep install
+          az bicep build --file src/BE/infrastructure/main.bicep --stdout >/dev/null
+          pwsh -NoProfile -Command '$ErrorActionPreference = "Stop"; [void][scriptblock]::Create((Get-Content -Raw "src/BE/infrastructure/deploy.ps1")); [void][scriptblock]::Create((Get-Content -Raw "src/BE/infrastructure/configure-api-custom-domain.ps1"))'
+          git diff --check
+
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/rbj-180-patch-api-domain.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "RBJ-180: Add api.mrsoftware.dk cutover support"
+          git push origin HEAD:rbj--wor-180-app-subdomain-cutover
