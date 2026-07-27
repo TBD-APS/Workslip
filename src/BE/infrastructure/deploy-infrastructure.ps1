@@ -196,7 +196,15 @@ function Get-AppConfigurationValue {
         ) `
         -AllowFailure
 
-    if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Output)) {
+    if ($result.ExitCode -ne 0) {
+        if ($result.Output -match '(?i)(KeyNotFound|ResourceNotFound|not found|does not exist|404)') {
+            return $null
+        }
+
+        throw "Could not read App Configuration key '$Key'.`n$($result.Output)"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($result.Output)) {
         return $null
     }
 
@@ -217,7 +225,15 @@ function Get-KeyVaultSecretValue {
         ) `
         -AllowFailure
 
-    if ($result.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.Output)) {
+    if ($result.ExitCode -ne 0) {
+        if ($result.Output -match '(?i)(SecretNotFound|VaultNotFound|ResourceNotFound|not found|does not exist|404)') {
+            return $null
+        }
+
+        throw "Could not read Key Vault secret '$SecretName'.`n$($result.Output)"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($result.Output)) {
         return $null
     }
 
@@ -320,7 +336,7 @@ function Remove-AppConfigurationKeyIfPresent {
         ) `
         -AllowFailure
 
-    if ($result.ExitCode -ne 0 -and $result.Output -notmatch '(?i)(not found|does not exist|404)') {
+    if ($result.ExitCode -ne 0 -and $result.Output -notmatch '(?i)(KeyNotFound|ResourceNotFound|not found|does not exist|404)') {
         throw "Could not remove obsolete App Configuration key '$Key'.`n$($result.Output)"
     }
 }
@@ -339,7 +355,7 @@ function Disable-KeyVaultSecretIfPresent {
         ) `
         -AllowFailure
 
-    if ($result.ExitCode -ne 0 -and $result.Output -notmatch '(?i)(not found|does not exist|404)') {
+    if ($result.ExitCode -ne 0 -and $result.Output -notmatch '(?i)(SecretNotFound|VaultNotFound|ResourceNotFound|not found|does not exist|404)') {
         throw "Could not disable obsolete Key Vault secret '$SecretName'.`n$($result.Output)"
     }
 }
@@ -633,6 +649,9 @@ try {
         -not [string]::IsNullOrWhiteSpace($env:WORKSLIP_SQL_ADMIN_PASSWORD)
 
     $existingVercelToken = Get-KeyVaultSecretValue -SecretName $VercelTokenSecretName
+    if (-not [string]::IsNullOrWhiteSpace($VercelToken)) {
+        Write-Warning 'The -VercelToken parameter is retained for compatibility. Prefer WORKSLIP_VERCEL_TOKEN to avoid shell-history exposure.'
+    }
     $requestedVercelToken = if (-not [string]::IsNullOrWhiteSpace($VercelToken)) {
         $VercelToken
     } elseif (-not [string]::IsNullOrWhiteSpace($env:WORKSLIP_VERCEL_TOKEN)) {
