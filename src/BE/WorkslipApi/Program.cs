@@ -21,9 +21,7 @@ try
                                  ?? new[]
                                  {
                                      "https://app.mrsoftware.dk",
-                                     "https://workslip-v2-0.vercel.app",
-                                     "http://localhost:5270",
-                                     "http://localhost:4173"
+                                     "http://localhost:5270"
                                  };
 
             policy.WithOrigins(allowedOrigins)

@@ -55,6 +55,7 @@ public sealed record CustomerDetailResponse(
     string? ContactPerson,
     string? Phone,
     int JobCount,
+    bool IsFavorite,
     IReadOnlyList<CustomerJobResponse> Jobs);
 
 public sealed record CustomerListResponse(

@@ -36,6 +36,7 @@ public sealed record CustomerDetailViewModel(
     string? ContactPerson,
     string? Phone,
     int JobCount,
+    bool IsFavorite,
     IReadOnlyList<CustomerJobViewModel> Jobs);
 
 public sealed record CustomerListViewModel(
@@ -96,6 +97,7 @@ public static class CustomerViewModelBuilder
         customer.ContactPerson,
         customer.Phone,
         customer.JobCount,
+        customer.IsFavorite,
         customer.Jobs.Select(ToJob).ToArray());
 
     public static CustomerSearchViewModel ToSearch(CustomerSearchResponse customer) => new(
