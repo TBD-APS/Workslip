@@ -6,7 +6,6 @@ import { router } from './routes';
 
 import './index.css';
 import './App.css';
-import './features/worksheets/timerTheme.css';
 
 function App() {
   return (
