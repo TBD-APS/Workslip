@@ -17,7 +17,7 @@ namespace Workslip.Application.Jobs
         Task<Result> DeleteLinksAsync(Guid reportId, DeleteJobLinksRequest request, CancellationToken cancellationToken);
         Task<Result<JobDeleteErrorResponse>> DeleteAsync(Guid id, CancellationToken cancellationToken);
         Task<Result<JobReportSummaryResponse>> RestoreDeletionAsync(Guid id, CancellationToken cancellationToken);
-        Task<Result> MarkJobAsSeenAsync(Guid id, CancellationToken cancellationToken);
+        Task<Result> MarkJobAsSeenAsync(Guid id, string? viewType, CancellationToken cancellationToken);
         Task InvalidateJobDetailCacheAsync(Guid id, Guid organizationId, CancellationToken cancellationToken);
     }
 

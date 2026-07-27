@@ -151,9 +151,9 @@ public static class JobEndpoints
             }
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
-        userGroup.MapPost("/{id:guid}/seen", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        readGroup.MapPost("/{id:guid}/seen", async (Guid id, string? viewType, IJobService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.MarkJobAsSeenAsync(id, cancellationToken);
+            var result = await service.MarkJobAsSeenAsync(id, viewType, cancellationToken);
             return ResultExtensions.ToHttpResult(result);
         }).Produces(StatusCodes.Status204NoContent);
 

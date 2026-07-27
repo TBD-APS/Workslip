@@ -178,8 +178,11 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
 
         var totalHoursByJob = await _worksheetRepo.GetTotalHoursByJobAsync(reportIds, cancellationToken);
 
-        var seenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(userId, reportIds, "New", cancellationToken);
+        var seenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(userId, reportIds, ["New"], cancellationToken);
         var seenSet = new HashSet<Guid>(seenJobIds);
+
+        var rejectedSeenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(userId, reportIds, ["RejectedAssignment"], cancellationToken);
+        var rejectedSeenSet = new HashSet<Guid>(rejectedSeenJobIds);
 
         return projected.Select(x =>
         {
@@ -187,10 +190,13 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 ? new CustomerInfo(x.CustId.Value, x.CustName ?? "", x.CustAddress, x.CustEmail, x.CustContactPerson, x.CustPhone)
                 : null;
 
+            var status = Enum.Parse<JobStatus>(x.Status, ignoreCase: true);
+            var isNewRejection = status == JobStatus.Rejected && !rejectedSeenSet.Contains(x.Id);
+
             return new JobListItemResponse(
                 x.Id, x.OrganizationId,
                 customerInfo,
-                x.ReportNumber, Enum.Parse<JobStatus>(x.Status, ignoreCase: true), JobReportMapper.ToDateOnly(x.ReportDate),
+                x.ReportNumber, status, JobReportMapper.ToDateOnly(x.ReportDate),
                 x.JobType,
                 x.DestinationAddress,
                 x.DestinationZipCode,
@@ -202,6 +208,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 x.IsSoftDeleted, x.DeletionScheduledAt,
                 totalHoursByJob.GetValueOrDefault(x.Id),
                 seenSet.Contains(x.Id),
+                isNewRejection,
                 x.RejectionNote);
         }).ToArray();
     }
