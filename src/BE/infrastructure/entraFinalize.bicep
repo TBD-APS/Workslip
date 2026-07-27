@@ -27,7 +27,10 @@ resource WorkslipClientServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0'
   ]
 }
 
+// OAuthClientId and OAuthAppId are both the application/client ID because the
+// runtime audience is api://{appId}. The application object ID is not required
+// by Bicep consumers; deploy.ps1 can resolve the app by client ID.
 output OAuthClientId string = OAuthServerApp.appId
-output OAuthAppId string = OAuthServerApp.id
+output OAuthAppId string = OAuthServerApp.appId
 output ClientAppId string = WorkslipClientApp.appId
 output ClientAppObjectId string = WorkslipClientApp.id
