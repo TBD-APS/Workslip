@@ -14,14 +14,15 @@ if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
 }
 
 if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
-    throw 'sqlcmd is required to provision SQL access. Install Microsoft sqlcmd, then rerun deploy.ps1.'
+    throw 'sqlcmd is required to provision SQL access. Install Microsoft sqlcmd, then rerun deploy-infrastructure.ps1.'
 }
 
-$resourceGroup = "rg-$CompanyName-$Environment"
-$sqlServerName = "db-$CompanyName-$Environment-server"
+$normalizedEnvironment = $Environment.ToLowerInvariant()
+$resourceGroup = "rg-$CompanyName-$normalizedEnvironment"
+$sqlServerName = "db-$CompanyName-$normalizedEnvironment-server"
 $sqlServerFqdn = "$sqlServerName.database.windows.net"
-$sqlDatabaseName = "db-$CompanyName-$Environment"
-$identityName = "id-$CompanyName-$Environment"
+$sqlDatabaseName = "db-$CompanyName-$normalizedEnvironment"
+$identityName = "id-$CompanyName-$normalizedEnvironment"
 $firewallRuleName = 'AllowSqlProvisioningScript'
 $sqlFile = New-TemporaryFile
 
@@ -36,6 +37,7 @@ try {
         throw "Could not resolve client ID for managed identity '$identityName'."
     }
 
+    $clientId = $clientId.Trim()
     $sid = '0x' + (([Guid]::Parse($clientId).ToByteArray() | ForEach-Object { $_.ToString('X2') }) -join '')
     $provisioningIp = (Invoke-RestMethod -Uri 'https://api.ipify.org').Trim()
 
@@ -57,7 +59,22 @@ try {
 
     @"
 DECLARE @userName sysname = N'$identityName';
+DECLARE @expectedSid varbinary(16) = $sid;
+DECLARE @currentSid varbinary(85) = (
+    SELECT sid
+    FROM sys.database_principals
+    WHERE name = @userName
+);
 DECLARE @sql nvarchar(max);
+
+-- A recreated user-assigned identity has a new client ID. Replace a stale
+-- contained user before granting roles so runtime login cannot silently target
+-- the previous identity.
+IF @currentSid IS NOT NULL AND @currentSid <> @expectedSid
+BEGIN
+    SET @sql = N'DROP USER ' + QUOTENAME(@userName) + N';';
+    EXEC sp_executesql @sql;
+END;
 
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @userName)
 BEGIN
@@ -77,12 +94,14 @@ BEGIN
     EXEC sp_executesql @sql;
 END;
 
+-- Temporary while DatabaseSchemaInitializer still mutates schema at API startup.
+-- Remove this role together with WOR-136 when migrations move to deployment.
 IF IS_ROLEMEMBER(N'db_ddladmin', @userName) <> 1
 BEGIN
     SET @sql = N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName) + N';';
     EXEC sp_executesql @sql;
 END;
-"@ | Set-Content -Path $sqlFile -Encoding utf8
+"@ | Set-Content -Path $sqlFile.FullName -Encoding utf8
 
     $env:SQLCMDPASSWORD = $SqlAdminPassword
     & sqlcmd `
@@ -92,7 +111,7 @@ END;
         -b `
         -l 30 `
         -N `
-        -i $sqlFile
+        -i $sqlFile.FullName
 
     if ($LASTEXITCODE -ne 0) {
         throw 'SQL access provisioning failed.'
@@ -102,7 +121,8 @@ END;
 }
 finally {
     $env:SQLCMDPASSWORD = $null
-    Remove-Item $sqlFile -ErrorAction SilentlyContinue
+    $SqlAdminPassword = $null
+    Remove-Item $sqlFile.FullName -Force -ErrorAction SilentlyContinue
 
     az sql server firewall-rule delete `
         --resource-group $resourceGroup `
