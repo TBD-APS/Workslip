@@ -2,7 +2,7 @@ param(
     [Parameter(Position=0)]
     [string]$Environment = "prod",
     [string]$Location = "westeurope",
-    [string]$COMPANY_NAME = "npteknik",
+    [string]$COMPANY_NAME = "mrsoftwareprod",
     [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",
     [string]$VercelToken = ""
 )
@@ -114,11 +114,9 @@ if ($exists -eq "false") {
 function Invoke-BicepDeployment {
     param(
         [Parameter(Mandatory=$true)] [string]$DeploymentName,
-        [Parameter(Mandatory=$true)] [bool]$ProvisionWebApiSqlAccess,
         [Parameter(Mandatory=$true)] [string]$SqlAdminPassword
     )
 
-    $ProvisionWebApiSqlAccessValue = $ProvisionWebApiSqlAccess.ToString().ToLowerInvariant()
 
     Write-Host "Deploying Bicep template: $DeploymentName" -ForegroundColor Cyan
 
@@ -130,7 +128,6 @@ function Invoke-BicepDeployment {
        --parameters companyName=$COMPANY_NAME `
        --parameters environment=$Environment `
        --parameters globalAdminId=$GlobalAdminId `
-       --parameters provisionWebApiSqlAccess=$ProvisionWebApiSqlAccessValue `
        --parameters sqlAdminPassword="$SqlAdminPassword" `
        --parameters vercelToken="$VercelToken" `
        -o json
@@ -170,60 +167,76 @@ function Add-GraphGroupMember {
     Wait-GraphDirectoryObject -ObjectId $GroupId -Description "SQL admin group"
     Wait-GraphDirectoryObject -ObjectId $MemberId -Description $Description
 
-    
-    #$Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json -Compress
-    
-    $BodyObject = @{
-        '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId"
-    }
-    $TempBodyFile = New-TemporaryFile
-    
-    $BodyObject |
-            ConvertTo-Json -Depth 10 -Compress |
-            Set-Content -Path $TempBodyFile -Encoding utf8
+    $ExistingMemberId = az rest `
+        --method GET `
+        --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members?`$select=id" `
+        --query "value[?id=='$MemberId'].id | [0]" `
+        -o tsv 2>$null
 
-    $AddMemberOutput = az rest `
-          --method POST `
-          --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
-          --headers "Content-Type=application/json" `
-          --body "@$TempBodyFile" `
-          -o none 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Remove-Item $TempBodyFile -ErrorAction SilentlyContinue
-        Write-Host "Added SQL admin group member: $Description"
-        return
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not inspect SQL admin group membership for '$Description' ($MemberId)."
     }
 
-    if (($AddMemberOutput | Out-String) -match "already exist") {
+    if ($ExistingMemberId -eq $MemberId) {
         Write-Host "SQL admin group member already exists: $Description"
         return
     }
 
-    throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
+    $BodyObject = @{
+        '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId"
+    }
+    $TempBodyFile = New-TemporaryFile
+
+    try {
+        $BodyObject |
+            ConvertTo-Json -Depth 10 -Compress |
+            Set-Content -Path $TempBodyFile -Encoding utf8
+
+        az rest `
+            --method POST `
+            --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
+            --headers "Content-Type=application/json" `
+            --body "@$TempBodyFile" `
+            -o none
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Microsoft Graph returned exit code $LASTEXITCODE while adding '$Description' ($MemberId) to SQL admin group."
+        }
+
+        Write-Host "Added SQL admin group member: $Description"
+    }
+    finally {
+        Remove-Item $TempBodyFile -ErrorAction SilentlyContinue
+    }
 }
 
-$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false -SqlAdminPassword $SqlAdminPassword
+$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -SqlAdminPassword $SqlAdminPassword
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
 $SqlAdminGroupId = $DeploymentOutputs.SQL_ADMIN_GROUP_ID.value
-$DeploymentIdentityPrincipalId = $DeploymentOutputs.MANAGED_IDENTITY_PRINCIPAL_ID.value
 
 if ([string]::IsNullOrWhiteSpace($SqlAdminGroupId)) {
     throw "Deployment output SQL_ADMIN_GROUP_ID was empty."
 }
 
-if ([string]::IsNullOrWhiteSpace($DeploymentIdentityPrincipalId)) {
-    throw "Deployment output MANAGED_IDENTITY_PRINCIPAL_ID was empty."
-}
 
 Write-Host "Ensuring SQL admin group membership…" -ForegroundColor Cyan
 Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $GlobalAdminId -Description "global administrator"
-Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $DeploymentIdentityPrincipalId -Description "deployment managed identity"
 
-$SqlAccessDeploymentName = "$DEPLOY_NAME-sql"
-$DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true -SqlAdminPassword $SqlAdminPassword
-$DeploymentOutputs = $DeploymentResult.properties.outputs
+$SqlAccessScript = Join-Path $INFRA_DIR "grant-web-api-sql-access.ps1"
+if (-not (Test-Path $SqlAccessScript)) {
+    throw "SQL access provisioning script not found at $SqlAccessScript"
+}
+
+Write-Host "Provisioning managed identity SQL access..." -ForegroundColor Cyan
+& $SqlAccessScript `
+    -Environment $Environment `
+    -CompanyName $COMPANY_NAME `
+    -SqlAdminPassword $SqlAdminPassword
+
+if (-not $?) {
+    throw "Managed identity SQL access provisioning failed."
+}
 
 $GitHubDeploymentClientId = $DeploymentOutputs.GITHUB_DEPLOYMENT_CLIENT_ID.value
 if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
@@ -231,8 +244,7 @@ if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
 }
 
 Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green
-
-Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
+Write-Host "Deployment complete: $DEPLOY_NAME" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
 
 # If we generated a new password this run (no existing Key Vault secret),
 # store it now so subsequent deploys reuse it instead of generating a new one
