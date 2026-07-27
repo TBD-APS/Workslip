@@ -167,37 +167,47 @@ function Add-GraphGroupMember {
     Wait-GraphDirectoryObject -ObjectId $GroupId -Description "SQL admin group"
     Wait-GraphDirectoryObject -ObjectId $MemberId -Description $Description
 
-    
-    #$Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json -Compress
-    
-    $BodyObject = @{
-        '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId"
-    }
-    $TempBodyFile = New-TemporaryFile
-    
-    $BodyObject |
-            ConvertTo-Json -Depth 10 -Compress |
-            Set-Content -Path $TempBodyFile -Encoding utf8
+    $ExistingMemberId = az rest `
+        --method GET `
+        --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members?`$select=id" `
+        --query "value[?id=='$MemberId'].id | [0]" `
+        -o tsv 2>$null
 
-    $AddMemberOutput = az rest `
-          --method POST `
-          --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
-          --headers "Content-Type=application/json" `
-          --body "@$TempBodyFile" `
-          -o none 2>&1
-
-    if ($LASTEXITCODE -eq 0) {
-        Remove-Item $TempBodyFile -ErrorAction SilentlyContinue
-        Write-Host "Added SQL admin group member: $Description"
-        return
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not inspect SQL admin group membership for '$Description' ($MemberId)."
     }
 
-    if (($AddMemberOutput | Out-String) -match "already exist") {
+    if ($ExistingMemberId -eq $MemberId) {
         Write-Host "SQL admin group member already exists: $Description"
         return
     }
 
-    throw "Could not add SQL admin group member '$Description' ($MemberId): $AddMemberOutput"
+    $BodyObject = @{
+        '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId"
+    }
+    $TempBodyFile = New-TemporaryFile
+
+    try {
+        $BodyObject |
+            ConvertTo-Json -Depth 10 -Compress |
+            Set-Content -Path $TempBodyFile -Encoding utf8
+
+        az rest `
+            --method POST `
+            --uri "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref" `
+            --headers "Content-Type=application/json" `
+            --body "@$TempBodyFile" `
+            -o none
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Microsoft Graph returned exit code $LASTEXITCODE while adding '$Description' ($MemberId) to SQL admin group."
+        }
+
+        Write-Host "Added SQL admin group member: $Description"
+    }
+    finally {
+        Remove-Item $TempBodyFile -ErrorAction SilentlyContinue
+    }
 }
 
 $DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -SqlAdminPassword $SqlAdminPassword
