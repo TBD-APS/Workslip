@@ -204,19 +204,14 @@ $DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -SqlAdmi
 $DeploymentOutputs = $DeploymentResult.properties.outputs
 
 $SqlAdminGroupId = $DeploymentOutputs.SQL_ADMIN_GROUP_ID.value
-$DeploymentIdentityPrincipalId = $DeploymentOutputs.MANAGED_IDENTITY_PRINCIPAL_ID.value
 
 if ([string]::IsNullOrWhiteSpace($SqlAdminGroupId)) {
     throw "Deployment output SQL_ADMIN_GROUP_ID was empty."
 }
 
-if ([string]::IsNullOrWhiteSpace($DeploymentIdentityPrincipalId)) {
-    throw "Deployment output MANAGED_IDENTITY_PRINCIPAL_ID was empty."
-}
 
 Write-Host "Ensuring SQL admin group membership…" -ForegroundColor Cyan
 Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $GlobalAdminId -Description "global administrator"
-Add-GraphGroupMember -GroupId $SqlAdminGroupId -MemberId $DeploymentIdentityPrincipalId -Description "deployment managed identity"
 
 $SqlAccessScript = Join-Path $INFRA_DIR "grant-web-api-sql-access.ps1"
 if (-not (Test-Path $SqlAccessScript)) {
