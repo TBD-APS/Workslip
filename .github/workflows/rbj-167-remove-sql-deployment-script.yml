@@ -1,0 +1,102 @@
+name: RBJ-167 remove SQL deployment script
+
+on:
+  push:
+    branches:
+      - rbj--167-fix-oidc-subject-defaults-v2
+    paths:
+      - '.github/workflows/rbj-167-remove-sql-deployment-script.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--167-fix-oidc-subject-defaults-v2
+
+      - name: Remove container-based SQL provisioning
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          bicep_path = Path('src/BE/infrastructure/main.bicep')
+          bicep = bicep_path.read_text(encoding='utf-8')
+          bicep = bicep.replace("param provisionWebApiSqlAccess bool   = false\n", '', 1)
+          pattern = re.compile(
+              r"\nresource grantWebApiSqlAccess 'Microsoft\.Resources/deploymentScripts@2023-08-01' = if \(provisionWebApiSqlAccess\) \{.*?\n\}\n\n(?=// ─+\n// Storage Account)",
+              re.DOTALL,
+          )
+          bicep, count = pattern.subn('\n', bicep, count=1)
+          if count != 1:
+              raise SystemExit('Expected SQL deployment-script resource was not found exactly once.')
+          bicep_path.write_text(bicep, encoding='utf-8')
+
+          deploy_path = Path('src/BE/infrastructure/deploy.ps1')
+          deploy = deploy_path.read_text(encoding='utf-8')
+          deploy = deploy.replace(
+              "        [Parameter(Mandatory=$true)] [bool]$ProvisionWebApiSqlAccess,\n        [Parameter(Mandatory=$true)] [string]$SqlAdminPassword\n",
+              "        [Parameter(Mandatory=$true)] [string]$SqlAdminPassword\n",
+              1,
+          )
+          deploy = deploy.replace("\n    $ProvisionWebApiSqlAccessValue = $ProvisionWebApiSqlAccess.ToString().ToLowerInvariant()\n", "\n", 1)
+          deploy = deploy.replace("       --parameters provisionWebApiSqlAccess=$ProvisionWebApiSqlAccessValue `\n", '', 1)
+          deploy = deploy.replace(
+              "$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -ProvisionWebApiSqlAccess $false -SqlAdminPassword $SqlAdminPassword",
+              "$DeploymentResult = Invoke-BicepDeployment -DeploymentName $DEPLOY_NAME -SqlAdminPassword $SqlAdminPassword",
+              1,
+          )
+
+          old = '''$SqlAccessDeploymentName = "$DEPLOY_NAME-sql"
+          $DeploymentResult = Invoke-BicepDeployment -DeploymentName $SqlAccessDeploymentName -ProvisionWebApiSqlAccess $true -SqlAdminPassword $SqlAdminPassword
+          $DeploymentOutputs = $DeploymentResult.properties.outputs
+
+          $GitHubDeploymentClientId = $DeploymentOutputs.GITHUB_DEPLOYMENT_CLIENT_ID.value
+          if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
+              throw "Deployment output GITHUB_DEPLOYMENT_CLIENT_ID was empty."
+          }
+
+          Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green
+
+          Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
+          '''
+          new = '''$SqlAccessScript = Join-Path $INFRA_DIR "grant-web-api-sql-access.ps1"
+          if (-not (Test-Path $SqlAccessScript)) {
+              throw "SQL access provisioning script not found at $SqlAccessScript"
+          }
+
+          Write-Host "Provisioning managed identity SQL access..." -ForegroundColor Cyan
+          & $SqlAccessScript `
+              -Environment $Environment `
+              -CompanyName $COMPANY_NAME `
+              -SqlAdminPassword $SqlAdminPassword
+
+          if (-not $?) {
+              throw "Managed identity SQL access provisioning failed."
+          }
+
+          $GitHubDeploymentClientId = $DeploymentOutputs.GITHUB_DEPLOYMENT_CLIENT_ID.value
+          if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
+              throw "Deployment output GITHUB_DEPLOYMENT_CLIENT_ID was empty."
+          }
+
+          Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green
+          Write-Host "Deployment complete: $DEPLOY_NAME" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
+          '''
+          if old not in deploy:
+              raise SystemExit('Expected second SQL Bicep deployment block was not found.')
+          deploy = deploy.replace(old, new, 1)
+          deploy_path.write_text(deploy, encoding='utf-8')
+
+      - name: Commit refactor
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/BE/infrastructure/main.bicep src/BE/infrastructure/deploy.ps1
+          git diff --cached --check
+          git commit -m "RBJ-167: Move SQL access provisioning out of Bicep"
+          git push origin HEAD:rbj--167-fix-oidc-subject-defaults-v2
