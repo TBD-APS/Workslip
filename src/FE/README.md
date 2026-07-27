@@ -85,16 +85,8 @@ Only variables prefixed with `VITE_` can be embedded into the browser bundle. Ne
 
 Common runtime configuration includes:
 
-- `VITE_API_BASE_URL` — optional API base URL; blank uses the current origin and local Vite proxy. Production must use `https://api.mrsoftware.dk` without a trailing `/api`.
+- `VITE_API_BASE_URL` — optional API base URL; blank uses the current origin and local Vite proxy.
 - Entra/Application Insights settings referenced by frontend source — treat these as public client configuration, not secrets.
-
-Production Vercel values for the domain cutover are:
-
-```text
-VITE_API_BASE_URL=https://api.mrsoftware.dk
-VITE_AZURE_AD_LOGIN_REDIRECT_URI=https://app.mrsoftware.dk/login
-VITE_AZURE_AD_REDIRECT_URI=https://app.mrsoftware.dk/invite/callback
-```
 
 ## PWA caution
 

@@ -220,23 +220,6 @@ GitHub `prod` environment:
 They are identifiers, not passwords. Do not add an Azure client secret,
 `AZURE_CREDENTIALS` JSON or an App Service publish profile.
 
-### Production API custom domain
-
-The official production API origin is planned as `https://api.mrsoftware.dk`. The existing Azure default hostname remains the rollback origin during cutover.
-
-Azure App Service custom domains are not supported on the current Free F1 plan. The infrastructure therefore stays on F1 by default and changes to paid Basic B1 only when `deploy.ps1` is run with `-EnableApiCustomDomain`. Do not use that switch without explicit approval of the recurring Azure cost.
-
-Cutover sequence:
-
-1. Register and control `mrsoftware.dk`.
-2. Run `./deploy.ps1 -EnableApiCustomDomain`; record the printed default API hostname and verification ID.
-3. In Cloudflare, create `CNAME api` to the printed `*.azurewebsites.net` hostname and `TXT asuid.api` to the printed verification ID. Keep the CNAME as DNS only while Azure validates it.
-4. After public DNS resolves, run `./configure-api-custom-domain.ps1`. The script verifies DNS, adds the Azure hostname, creates an App Service managed certificate, binds SNI TLS and checks `/health`.
-5. Set Vercel `VITE_API_BASE_URL` to `https://api.mrsoftware.dk` and redeploy the frontend.
-6. Smoke-test login, invitation enrollment and authenticated API requests before removing the Azure default hostname from rollback documentation.
-
-The domain script is idempotent for an existing hostname and certificate. It intentionally does not create Cloudflare records or change Vercel settings.
-
 After recreating the Azure resource group:
 
 1. Run `deploy.ps1` and copy the printed `GITHUB_DEPLOYMENT_CLIENT_ID`.

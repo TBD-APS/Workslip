@@ -26,8 +26,6 @@ param githubRepository string         = 'rasm105k/Workslip-v2.0'
 param githubEnvironment string        = environment
 param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}group'
 param provisionWebApiSqlAccess bool   = false
-@description('Set true only for an approved API custom-domain rollout. This changes the App Service plan from Free F1 to paid Basic B1.')
-param enableApiCustomDomain bool      = false
 
 // ── SQL admin password ────────────────────────────────────────────────────────
 // SECURITY: was previously hardcoded as 'Num64bqe!' in this file. Moved to
@@ -67,17 +65,6 @@ var tags = {
 var appInsightsConnectionString = appInsights.properties.ConnectionString
 var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
 var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
-var webApiSku = enableApiCustomDomain
-  ? {
-      name: 'B1'
-      tier: 'Basic'
-      capacity: 1
-    }
-  : {
-      name: 'F1'
-      tier: 'Free'
-      capacity: 1
-    }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Runtime identity
@@ -172,16 +159,19 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Web API hosting
-// Free F1 by default; paid Basic B1 only when API custom-domain rollout is explicitly enabled.
-// Azure App Service requires a paid plan for custom domains and Basic or higher for a managed certificate.
-// The API reads App Configuration + Key Vault references through the shared user-assigned identity.
+// Free App Service tier with shared user-assigned managed identity.
+// The API reads App Configuration + Key Vault references through that identity.
 // ──────────────────────────────────────────────────────────────────────────────
 
 resource webApiServer 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: webApiServerName
   location: location
   tags: tags
-  sku: webApiSku
+  sku: {
+    name: 'F1'
+    tier: 'Free'
+    capacity: 1
+  }
   properties: {}
 }
 
@@ -885,8 +875,6 @@ output STORAGE_ACCOUNT_NAME string             = storageAccount.name
 output LOGIC_APP_NAME string                   = logicAppName
 output WEB_API_NAME string                     = webApi.name
 output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName
-output WEB_API_CUSTOM_DOMAIN_VERIFICATION_ID string = webApi.properties.customDomainVerificationId
-output WEB_API_CUSTOM_DOMAIN_ENABLED bool      = enableApiCustomDomain
 output WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'
 output WEB_API_SERVER_NAME string              = webApiServer.name
 output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId

@@ -4,8 +4,7 @@ param(
     [string]$Location = "westeurope",
     [string]$COMPANY_NAME = "npteknik",
     [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",
-    [string]$VercelToken = "",
-    [switch]$EnableApiCustomDomain
+    [string]$VercelToken = ""
 )
 
 # ── SQL admin password ────────────────────────────────────────────────────────
@@ -55,11 +54,6 @@ $RESOURCE_GROUP = "rg-$COMPANY_NAME-$Environment"
 $INFRA_DIR = Split-Path -Parent $PSCommandPath
 $TEMPLATE = Join-Path $INFRA_DIR "main.bicep"
 $DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format 'yyyyMMddHHmmss')"
-$EnableApiCustomDomainValue = $EnableApiCustomDomain.IsPresent.ToString().ToLowerInvariant()
-
-if ($EnableApiCustomDomain) {
-    Write-Warning "API custom-domain mode upgrades the Azure App Service plan from Free F1 to paid Basic B1."
-}
 
 # ─── checks ───────────────────────────────────────────
 if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
@@ -137,7 +131,6 @@ function Invoke-BicepDeployment {
        --parameters environment=$Environment `
        --parameters globalAdminId=$GlobalAdminId `
        --parameters provisionWebApiSqlAccess=$ProvisionWebApiSqlAccessValue `
-       --parameters enableApiCustomDomain=$EnableApiCustomDomainValue `
        --parameters sqlAdminPassword="$SqlAdminPassword" `
        --parameters vercelToken="$VercelToken" `
        -o json
@@ -238,20 +231,6 @@ if ([string]::IsNullOrWhiteSpace($GitHubDeploymentClientId)) {
 }
 
 Write-Host "GitHub OIDC deployment client ID: $GitHubDeploymentClientId" -ForegroundColor Green
-
-if ($EnableApiCustomDomain) {
-    $WebApiDefaultHostname = $DeploymentOutputs.WEB_API_DEFAULT_HOSTNAME.value
-    $WebApiVerificationId = $DeploymentOutputs.WEB_API_CUSTOM_DOMAIN_VERIFICATION_ID.value
-
-    if ([string]::IsNullOrWhiteSpace($WebApiDefaultHostname) -or [string]::IsNullOrWhiteSpace($WebApiVerificationId)) {
-        throw "API custom-domain deployment outputs were incomplete."
-    }
-
-    Write-Host "API custom-domain DNS values:" -ForegroundColor Cyan
-    Write-Host "  CNAME api -> $WebApiDefaultHostname"
-    Write-Host "  TXT asuid.api -> $WebApiVerificationId"
-    Write-Host "After DNS resolves, run configure-api-custom-domain.ps1." -ForegroundColor Yellow
-}
 
 Write-Host "Deployment complete: $SqlAccessDeploymentName" "Resource group: $RESOURCE_GROUP" -ForegroundColor Green
 
