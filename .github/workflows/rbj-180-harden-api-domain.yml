@@ -1,0 +1,188 @@
+name: RBJ-180 harden API domain
+
+on:
+  push:
+    branches:
+      - rbj--wor-180-app-subdomain-cutover
+    paths:
+      - '.github/workflows/rbj-180-harden-api-domain.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--wor-180-app-subdomain-cutover
+
+      - name: Harden API custom-domain rollout
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Expected text not found in {path}: {old[:160]!r}')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          deploy = 'src/BE/infrastructure/deploy.ps1'
+          replace_once(
+              deploy,
+              '$DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format \'yyyyMMddHHmmss\')"\n$EnableApiCustomDomainValue = $EnableApiCustomDomain.IsPresent.ToString().ToLowerInvariant()\n\nif ($EnableApiCustomDomain) {\n    Write-Warning "API custom-domain mode upgrades the Azure App Service plan from Free F1 to paid Basic B1."\n}\n',
+              '$DEPLOY_NAME = "$COMPANY_NAME-$Environment-$(Get-Date -Format \'yyyyMMddHHmmss\')"\n\nif ($EnableApiCustomDomain) {\n    Write-Warning "API custom-domain mode upgrades the Azure App Service plan from Free F1 to paid Basic B1."\n}\n',
+          )
+          replace_once(
+              deploy,
+              'if ($exists -eq "false") {\n    az group create --name $RESOURCE_GROUP --location $Location\n    Write-Host "   Created $RESOURCE_GROUP"\n} else {\n    Write-Host "   $RESOURCE_GROUP ✅"\n}\n\n# ─── deploy azure ressources',
+              'if ($exists -eq "false") {\n    az group create --name $RESOURCE_GROUP --location $Location\n    Write-Host "   Created $RESOURCE_GROUP"\n} else {\n    Write-Host "   $RESOURCE_GROUP ✅"\n}\n\n$WebApiPlanName = "plan-$COMPANY_NAME-$Environment"\n$ExistingWebApiPlanTier = az appservice plan show `\n    --resource-group $RESOURCE_GROUP `\n    --name $WebApiPlanName `\n    --query sku.tier `\n    -o tsv 2>$null\n\n$UseApiCustomDomainPlan = $EnableApiCustomDomain.IsPresent -or `\n    (-not [string]::IsNullOrWhiteSpace($ExistingWebApiPlanTier) -and $ExistingWebApiPlanTier -ne "Free")\n$EnableApiCustomDomainValue = $UseApiCustomDomainPlan.ToString().ToLowerInvariant()\n\nif ($UseApiCustomDomainPlan -and -not $EnableApiCustomDomain) {\n    Write-Host "Preserving the existing paid API App Service tier used by the custom domain." -ForegroundColor DarkGray\n}\n\n# ─── deploy azure ressources',
+          )
+          replace_once(
+              deploy,
+              'if ($EnableApiCustomDomain) {\n    $WebApiDefaultHostname = $DeploymentOutputs.WEB_API_DEFAULT_HOSTNAME.value',
+              'if ($UseApiCustomDomainPlan) {\n    $WebApiDefaultHostname = $DeploymentOutputs.WEB_API_DEFAULT_HOSTNAME.value',
+          )
+
+          script_path = Path('src/BE/infrastructure/configure-api-custom-domain.ps1')
+          script = script_path.read_text(encoding='utf-8')
+          script = script.replace(
+              '$HostnameExists = $HostnameBindings | Where-Object { $_.name -eq $ApiHostname }',
+              '$HostnameExists = $HostnameBindings | Where-Object { $_.name -eq $ApiHostname -or $_.hostName -eq $ApiHostname }',
+              1,
+          )
+          old_cert = '''$CertificatesJson = az webapp config ssl list `
+              --resource-group $ResourceGroup `
+              --name $WebAppName `
+              -o json
+          if ($LASTEXITCODE -ne 0) {
+              throw "Could not list App Service certificates."
+          }
+          $Certificate = ($CertificatesJson | ConvertFrom-Json) |
+              Where-Object { $_.hostNames -contains $ApiHostname } |
+              Select-Object -First 1
+
+          if (-not $Certificate) {
+              az webapp config ssl create `
+                  --resource-group $ResourceGroup `
+                  --name $WebAppName `
+                  --hostname $ApiHostname `
+                  --certificate-name $ApiHostname `
+                  -o none
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Could not create the App Service managed certificate for '$ApiHostname'."
+              }
+
+              $CertificatesJson = az webapp config ssl list `
+                  --resource-group $ResourceGroup `
+                  --name $WebAppName `
+                  -o json
+              $Certificate = ($CertificatesJson | ConvertFrom-Json) |
+                  Where-Object { $_.hostNames -contains $ApiHostname } |
+                  Select-Object -First 1
+          }
+'''
+          new_cert = '''function Get-ApiManagedCertificate {
+              $CertificatesJson = az webapp config ssl list `
+                  --resource-group $ResourceGroup `
+                  --name $WebAppName `
+                  -o json
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Could not list App Service certificates."
+              }
+
+              return ($CertificatesJson | ConvertFrom-Json) |
+                  Where-Object { $_.hostNames -contains $ApiHostname } |
+                  Select-Object -First 1
+          }
+
+          $Certificate = Get-ApiManagedCertificate
+          if (-not $Certificate) {
+              az webapp config ssl create `
+                  --resource-group $ResourceGroup `
+                  --name $WebAppName `
+                  --hostname $ApiHostname `
+                  --certificate-name $ApiHostname `
+                  -o none
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Could not request the App Service managed certificate for '$ApiHostname'."
+              }
+
+              for ($Attempt = 1; $Attempt -le 30; $Attempt++) {
+                  $Certificate = Get-ApiManagedCertificate
+                  if ($Certificate -and -not [string]::IsNullOrWhiteSpace([string]$Certificate.thumbprint)) {
+                      break
+                  }
+
+                  Write-Host "Waiting for managed certificate issuance ($Attempt/30)..." -ForegroundColor DarkGray
+                  Start-Sleep -Seconds 10
+              }
+          }
+'''
+          if old_cert not in script:
+              raise SystemExit('Expected certificate block not found')
+          script = script.replace(old_cert, new_cert, 1)
+          old_health = '''$Health = Invoke-RestMethod -Uri "https://$ApiHostname/health" -Method Get -TimeoutSec 30
+          if ($Health.status -ne "ok") {
+              throw "API health check returned an unexpected response."
+          }
+
+          Write-Host "API custom domain is active: https://$ApiHostname" -ForegroundColor Green
+          Write-Host "Health check passed: https://$ApiHostname/health" -ForegroundColor Green
+'''
+          new_health = '''$HealthPassed = $false
+          for ($Attempt = 1; $Attempt -le 12; $Attempt++) {
+              try {
+                  $Health = Invoke-RestMethod -Uri "https://$ApiHostname/health" -Method Get -TimeoutSec 30
+                  if ($Health.status -eq "ok") {
+                      $HealthPassed = $true
+                      break
+                  }
+              }
+              catch {
+                  Write-Host "Waiting for DNS/TLS propagation ($Attempt/12): $($_.Exception.Message)" -ForegroundColor DarkGray
+              }
+
+              Start-Sleep -Seconds 10
+          }
+
+          if (-not $HealthPassed) {
+              throw "API health check did not succeed after the hostname and TLS binding were created."
+          }
+
+          Write-Host "API custom domain is active: https://$ApiHostname" -ForegroundColor Green
+          Write-Host "Health check passed: https://$ApiHostname/health" -ForegroundColor Green
+'''
+          if old_health not in script:
+              raise SystemExit('Expected health block not found')
+          script_path.write_text(script.replace(old_health, new_health, 1), encoding='utf-8')
+
+          readme = 'src/BE/WorkslipApi/README.md'
+          replace_once(
+              readme,
+              'Azure App Service custom domains are not supported on the current Free F1 plan. The infrastructure therefore stays on F1 by default and changes to paid Basic B1 only when `deploy.ps1` is run with `-EnableApiCustomDomain`. Do not use that switch without explicit approval of the recurring Azure cost.',
+              'Azure App Service custom domains are not supported on the current Free F1 plan. The infrastructure therefore stays on F1 until `deploy.ps1` is first run with `-EnableApiCustomDomain`. Do not use that switch without explicit approval of the recurring Azure cost. After the upgrade, later deployments detect and preserve the existing paid tier so they do not accidentally downgrade the live custom-domain setup.',
+          )
+
+      - name: Validate Bicep and PowerShell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep version >/dev/null 2>&1 || az bicep install
+          az bicep build --file src/BE/infrastructure/main.bicep --stdout >/dev/null
+          pwsh -NoProfile -Command '$ErrorActionPreference = "Stop"; [void][scriptblock]::Create((Get-Content -Raw "src/BE/infrastructure/deploy.ps1")); [void][scriptblock]::Create((Get-Content -Raw "src/BE/infrastructure/configure-api-custom-domain.ps1"))'
+          git diff --check
+
+      - name: Commit hardening and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/rbj-180-harden-api-domain.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "RBJ-180: Harden API custom domain rollout"
+          git push origin HEAD:rbj--wor-180-app-subdomain-cutover
