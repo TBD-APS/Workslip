@@ -36,7 +36,6 @@ jobs:
     name: Build API
     runs-on: ubuntu-latest
     steps:
-        
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -72,7 +71,7 @@ jobs:
         with:
           name: workslip-api
           path: ${{ env.PUBLISH_DIR }}
-          
+
       - name: Azure login
         uses: azure/login@v3
         with:
@@ -85,9 +84,3 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: ${{ env.PUBLISH_DIR }}
-
-  clear-caches:
-    name: Clear caches after deployment
-    needs: deploy
-    uses: ./.github/workflows/post-deploy-cache.yml
-    secrets: inherit
