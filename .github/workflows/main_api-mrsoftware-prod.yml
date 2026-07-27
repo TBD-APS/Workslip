@@ -6,7 +6,7 @@ on:
       app_name:
         description: 'Azure Web App name'
         required: false
-        default: 'api-npteknik-prod'
+        default: 'api-mrsoftware-prod'
       environment:
         description: 'GitHub environment name'
         required: false
@@ -15,13 +15,13 @@ on:
     branches: [main]
     paths:
       - 'src/BE/WorkslipApi/**'
-      - '.github/workflows/main_api-npteknik-prod.yml'
+      - '.github/workflows/main_api-mrsoftware-prod.yml'
 
 env:
   DOTNET_VERSION: '10.0.x'
   API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish/api
-  AZURE_WEBAPP_NAME: ${{ inputs.app_name || 'api-npteknik-prod' }}
+  AZURE_WEBAPP_NAME: ${{ inputs.app_name || 'api-mrsoftware-prod' }}
 
 permissions:
   id-token: write
