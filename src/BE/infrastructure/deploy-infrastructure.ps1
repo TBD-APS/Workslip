@@ -4,7 +4,6 @@ param(
     [string]$Location = 'westeurope',
     [string]$COMPANY_NAME = 'mrsoftware',
     [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
-    [string]$VercelToken = '',
     [Nullable[bool]]$ActivateCustomEmailDomain = $null,
     [string]$EntraStatePath = ''
 )
@@ -25,7 +24,6 @@ $OAuthUniqueName = "workslip-oauth-server-$NormalizedEnvironment"
 $ClientUniqueName = "workslip-client-$NormalizedEnvironment"
 $SqlAdminPasswordSecretName = 'Azure--Sql--AdminPassword'
 $JwtSigningKeySecretName = 'Jwt--SigningKey'
-$VercelTokenSecretName = 'Vercel--Token'
 $SqlConnectionSecretName = 'Azure--Sql--ConnectionString'
 $LegacyOAuthClientSecretName = 'Azure--AdOAuth--ClientSecret'
 
@@ -648,32 +646,6 @@ try {
     $mustStoreSqlAdminPassword = [string]::IsNullOrWhiteSpace($existingSqlAdminPassword) -or
         -not [string]::IsNullOrWhiteSpace($env:WORKSLIP_SQL_ADMIN_PASSWORD)
 
-    $existingVercelToken = Get-KeyVaultSecretValue -SecretName $VercelTokenSecretName
-    if (-not [string]::IsNullOrWhiteSpace($VercelToken)) {
-        Write-Warning 'The -VercelToken parameter is retained for compatibility. Prefer WORKSLIP_VERCEL_TOKEN to avoid shell-history exposure.'
-    }
-    $requestedVercelToken = if (-not [string]::IsNullOrWhiteSpace($VercelToken)) {
-        $VercelToken
-    } elseif (-not [string]::IsNullOrWhiteSpace($env:WORKSLIP_VERCEL_TOKEN)) {
-        $env:WORKSLIP_VERCEL_TOKEN
-    } else {
-        $null
-    }
-
-    if ([string]::IsNullOrWhiteSpace($existingVercelToken) -and
-        [string]::IsNullOrWhiteSpace($requestedVercelToken)) {
-        $legacyVercelValue = Get-AppConfigurationValue -Key 'Vercel:Token'
-        if (-not [string]::IsNullOrWhiteSpace($legacyVercelValue) -and
-            $legacyVercelValue -notmatch '^\s*\{\s*"uri"\s*:') {
-            $requestedVercelToken = $legacyVercelValue
-        }
-    }
-
-    if ([string]::IsNullOrWhiteSpace($existingVercelToken) -and
-        [string]::IsNullOrWhiteSpace($requestedVercelToken)) {
-        throw 'Vercel token is missing. Set WORKSLIP_VERCEL_TOKEN for the first hardened deployment.'
-    }
-
     $existingJwtSigningKey = Get-KeyVaultSecretValue -SecretName $JwtSigningKeySecretName
     $requestedJwtSigningKey = if (-not [string]::IsNullOrWhiteSpace($env:WORKSLIP_JWT_SIGNING_KEY)) {
         $env:WORKSLIP_JWT_SIGNING_KEY
@@ -703,7 +675,6 @@ try {
             globalAdminId = @{ value = $GlobalAdminId }
             location = @{ value = $Location }
             sqlAdminPassword = @{ value = $sqlAdminPassword }
-            vercelToken = @{ value = '' }
             activateCustomEmailDomain = @{ value = $activateEmailDomain }
         }
     }
@@ -728,16 +699,11 @@ try {
         Set-KeyVaultSecretFromMemory -SecretName $SqlAdminPasswordSecretName -SecretValue $sqlAdminPassword
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($requestedVercelToken)) {
-        Set-KeyVaultSecretFromMemory -SecretName $VercelTokenSecretName -SecretValue $requestedVercelToken
-    }
-
     if (-not [string]::IsNullOrWhiteSpace($requestedJwtSigningKey)) {
         Set-KeyVaultSecretFromMemory -SecretName $JwtSigningKeySecretName -SecretValue $requestedJwtSigningKey
         Write-Host 'JWT signing key created or rotated. Existing local JWTs are invalidated.' -ForegroundColor Yellow
     }
 
-    Set-AppConfigurationKeyVaultReference -Key 'Vercel:Token' -SecretName $VercelTokenSecretName
     Set-AppConfigurationKeyVaultReference -Key 'Jwt:SigningKey' -SecretName $JwtSigningKeySecretName
 
     $managedIdentityClientId = [string]$outputs.MANAGED_IDENTITY_CLIENT_ID.value
@@ -786,8 +752,6 @@ finally {
     }
 
     $sqlAdminPassword = $null
-    $requestedVercelToken = $null
-    $existingVercelToken = $null
     $requestedJwtSigningKey = $null
     $existingJwtSigningKey = $null
     $managedIdentitySqlConnectionString = $null
