@@ -1,42 +1,47 @@
 /// <reference types="vite-plugin-pwa/client" />
 import { registerSW } from 'virtual:pwa-register';
 
-const updateSW = registerSW({
-  onNeedRefresh() {
-    console.log('[PWA] New update available — activating');
-    updateSW();
-  },
+const UPDATE_INTERVAL_MS = 60 * 60 * 1000;
+
+async function checkForServiceWorkerUpdate(
+  swUrl: string,
+  registration: ServiceWorkerRegistration,
+) {
+  if (!navigator.onLine || registration.installing || registration.waiting) return;
+
+  try {
+    const response = await fetch(swUrl, {
+      cache: 'no-store',
+      headers: {
+        'cache': 'no-store',
+        'cache-control': 'no-cache',
+      },
+    });
+
+    if (response.status === 200) {
+      await registration.update();
+    }
+  } catch {
+    // Offline or update check failed. The next interval/visibility change retries.
+  }
+}
+
+registerSW({
   onOfflineReady() {
     console.log('[PWA] App is ready for offline use');
   },
   onRegisteredSW(swUrl, registration) {
     if (!registration) return;
 
-    // Check for updates every minute with cache-busting fetch
-    setInterval(async () => {
-      if (!navigator.onLine) return;
+    const requestUpdate = () => {
+      void checkForServiceWorkerUpdate(swUrl, registration);
+    };
 
-      try {
-        const resp = await fetch(swUrl, {
-          cache: 'no-store',
-          headers: {
-            'cache': 'no-store',
-            'cache-control': 'no-cache',
-          },
-        });
+    window.setInterval(requestUpdate, UPDATE_INTERVAL_MS);
 
-        if (resp?.status === 200) {
-          await registration.update();
-        }
-      } catch {
-        // Offline or fetch failed — skip
-      }
-    }, 60 * 1000);
-
-    // Also check when app becomes visible (switching back from another app)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && navigator.onLine) {
-        registration.update();
+      if (document.visibilityState === 'visible') {
+        requestUpdate();
       }
     });
   },
