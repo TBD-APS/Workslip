@@ -27,14 +27,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = hasAuthToken && Boolean(user);
   const isLoading = hasAuthToken && meQuery.isPending;
 
-  // Register push notifications when the user becomes authenticated
+  // Register push notifications when the user becomes authenticated. The push
+  // hook currently returns a function tied to its mutation object, so adding it
+  // to this dependency list would re-run registration on every provider render.
   useEffect(() => {
     if (isAuthenticated) {
       registerPush().catch((err) => {
         console.error('[Auth] Failed to register push notifications:', err);
       });
     }
-  }, [isAuthenticated, registerPush]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   const login = useCallback(
     async (email: string, code: string): Promise<boolean> => {
