@@ -24,7 +24,7 @@ public static class JobInstallationSelectionValidator
                 errors.Add(new ValidationError
                 {
                     Identifier = $"Work.InstallationTypes[{installationIndex}]",
-                    ErrorMessage = "Installation type selection is required."
+                    ErrorMessage = "Der skal vælges en installationstype."
                 });
                 continue;
             }
@@ -34,7 +34,7 @@ public static class JobInstallationSelectionValidator
                 errors.Add(new ValidationError
                 {
                     Identifier = $"Work.InstallationTypes[{installationIndex}].Id",
-                    ErrorMessage = $"Unknown installation type '{selectedInstallation.Id}'."
+                    ErrorMessage = $"Ukendt installationstype '{selectedInstallation.Id}'."
                 });
                 continue;
             }
@@ -52,7 +52,7 @@ public static class JobInstallationSelectionValidator
                     errors.Add(new ValidationError
                     {
                         Identifier = $"Work.InstallationTypes[{installationIndex}].Categories[{categoryIndex}]",
-                        ErrorMessage = "Category selection is required."
+                        ErrorMessage = "Der skal vælges en kategori."
                     });
                     continue;
                 }
@@ -64,7 +64,7 @@ public static class JobInstallationSelectionValidator
                     errors.Add(new ValidationError
                     {
                         Identifier = $"Work.InstallationTypes[{installationIndex}].Categories[{categoryIndex}].Id",
-                        ErrorMessage = $"Category '{selectedCategory.Id}' is not allowed for installation type '{selectedInstallation.Id}'."
+                        ErrorMessage = $"Kategorien '{selectedCategory.Id}' er ikke tilladt for installationstypen '{selectedInstallation.Id}'."
                     });
                 }
 
@@ -76,7 +76,7 @@ public static class JobInstallationSelectionValidator
                         errors.Add(new ValidationError
                         {
                             Identifier = $"Work.InstallationTypes[{installationIndex}].Categories[{categoryIndex}].ControlPoints[{controlPointIndex}]",
-                            ErrorMessage = "Control point selection is required."
+                            ErrorMessage = "Der skal vælges et kontrolpunkt."
                         });
                         continue;
                     }
@@ -86,7 +86,7 @@ public static class JobInstallationSelectionValidator
                         errors.Add(new ValidationError
                         {
                             Identifier = $"Work.InstallationTypes[{installationIndex}].Categories[{categoryIndex}].ControlPoints[{controlPointIndex}].Id",
-                            ErrorMessage = $"Control point '{selectedControlPoint.Id}' is not allowed for category '{selectedCategory.Id}' on installation type '{selectedInstallation.Id}'."
+                            ErrorMessage = $"Kontrolpunktet '{selectedControlPoint.Id}' er ikke tilladt for kategorien '{selectedCategory.Id}' på installationstypen '{selectedInstallation.Id}'."
                         });
                     }
                 }
