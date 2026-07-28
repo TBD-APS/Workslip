@@ -6,6 +6,7 @@ on:
       - rbj--190-infrastructure-deployment-hardening
     paths:
       - .github/workflows/patch-wor-190-optional-vercel-token.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,8 +20,10 @@ jobs:
           ref: rbj--190-infrastructure-deployment-hardening
 
       - name: Apply focused patch
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python - <<'PY'
           from pathlib import Path
 
           script_path = Path('src/BE/infrastructure/deploy-infrastructure.ps1')
@@ -93,6 +96,7 @@ jobs:
               raise SystemExit('Expected ADR secret-lifecycle decision was not found')
           adr = adr.replace(old_decision, new_decision, 1)
           adr_path.write_text(adr, encoding='utf-8', newline='\n')
+          PY
 
       - name: Commit patch and remove temporary workflow
         shell: bash
