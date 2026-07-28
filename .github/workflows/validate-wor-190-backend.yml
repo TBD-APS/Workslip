@@ -1,0 +1,43 @@
+name: Validate WOR-190 backend startup fix
+
+on:
+  push:
+    branches:
+      - rbj--190-infrastructure-deployment-hardening
+    paths:
+      - .github/workflows/validate-wor-190-backend.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--190-infrastructure-deployment-hardening
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        working-directory: src/BE/WorkslipApi
+        run: dotnet restore Workslip.slnx
+
+      - name: Build
+        working-directory: src/BE/WorkslipApi
+        run: dotnet build Workslip.slnx --configuration Release --no-restore
+
+      - name: Remove temporary workflow
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/validate-wor-190-backend.yml
+          git commit -m "RBJ-190 remove temporary backend validation"
+          git push origin HEAD:rbj--190-infrastructure-deployment-hardening
