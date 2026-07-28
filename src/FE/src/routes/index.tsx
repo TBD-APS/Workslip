@@ -41,7 +41,7 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
       <div className="login-card-header">
         <h2>Forbindelsen tager længere tid end normalt</h2>
         <p>
-          Serveren kan være ved at starte efter en genstart eller deployment. Din session er bevaret.
+          Serveren kan være ved at starte efter en genstart eller deployment. Dit gemte login er ikke blevet slettet.
         </p>
       </div>
       <div className="login-email-step">
@@ -108,6 +108,9 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     try {
       await meQuery.refetch();
+    } catch {
+      // The query state keeps the recovery screen visible. Avoid an unhandled
+      // rejection if a future query configuration enables throwOnError.
     } finally {
       setIsRetrying(false);
     }
