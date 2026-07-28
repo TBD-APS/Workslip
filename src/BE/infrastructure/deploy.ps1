@@ -4,7 +4,6 @@ param(
     [string]$Location = 'westeurope',
     [string]$COMPANY_NAME = 'mrsoftware',
     [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
-    [Nullable[bool]]$ActivateCustomEmailDomain = $null,
     [string]$EntraStatePath = ''
 )
 
@@ -37,7 +36,6 @@ Write-Host 'Phase 3/3: deploying Azure infrastructure...' -ForegroundColor Cyan
     -Location $Location `
     -COMPANY_NAME $COMPANY_NAME `
     -GlobalAdminId $GlobalAdminId `
-    -ActivateCustomEmailDomain $ActivateCustomEmailDomain `
     -EntraStatePath $EntraStatePath
 
 Write-Host 'Full deployment completed.' -ForegroundColor Green
