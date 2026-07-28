@@ -17,7 +17,7 @@ ACS provides outbound delivery only. This setup does not require a mailbox, mail
 
 ## Deployment model
 
-Every Azure infrastructure deployment provisions and configures:
+Every supported Azure infrastructure deployment provisions and configures:
 
 - the Communication Services resource `acs-<company>-<environment>`;
 - the Email Communication Service `email-<company>-<environment>`;
@@ -26,7 +26,9 @@ Every Azure infrastructure deployment provisions and configures:
 - the custom-domain link on Communication Services;
 - `Azure:Acs:SenderAddress = noreply@mrsoftware.dk` in Azure App Configuration.
 
-There is no custom-domain activation parameter and no Azure-managed sender fallback in the deployment scripts. The domain configuration is permanent production infrastructure.
+There is no operator activation parameter. The supported deployment scripts always select the custom domain and sender.
+
+The Azure-managed domain remains linked as an emergency rollback resource, but it is not selected by the normal deployment path.
 
 For the production defaults:
 
@@ -114,9 +116,9 @@ https://app.mrsoftware.dk/invite/
 
 ## Failure and rollback policy
 
-A broken DNS verification state is a production configuration fault, not a deployment mode. Repair the DNS records and re-run deployment. Do not reintroduce an activation toggle or manually make an Azure-managed sender the permanent configuration.
+A broken DNS verification state is a production configuration fault, not a deployment mode. Repair the DNS records and re-run deployment. Do not reintroduce an operator activation toggle.
 
-An emergency sender change requires a dedicated reviewed infrastructure change and matching documentation update.
+An emergency switch to the Azure-managed sender requires a dedicated reviewed infrastructure change and matching documentation update.
 
 ## Troubleshooting
 
