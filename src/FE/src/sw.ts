@@ -22,8 +22,7 @@ const MAX_ROUTE_ASSET_ENTRIES = 100;
 cleanupOutdatedCaches();
 precacheAndRoute(PRECACHE_MANIFEST);
 
-// This remains aligned with registerType: 'autoUpdate'. WOR-114 owns the
-// separate change to prompt-based, dirty-form-safe activation.
+// Immediate activation is the accepted product policy in ADR 0002.
 self.skipWaiting();
 clientsClaim();
 
