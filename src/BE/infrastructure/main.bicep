@@ -22,12 +22,10 @@ param keyVaultName string             = take('kv-${companyName}-${toLower(enviro
 param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
 param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
-@description('Customer-managed ACS email domain. Keep activation disabled until Domain, SPF, DKIM and DKIM2 are verified.')
+@description('Verified customer-managed ACS email domain used by every deployment.')
 param customEmailDomainName string = 'mrsoftware.dk'
 @description('Sender username used on the verified customer-managed email domain.')
 param customEmailSenderUsername string = 'noreply'
-@description('Links the customer-managed domain and switches Azure:Acs:SenderAddress to it. Enable only after DNS verification succeeds.')
-param activateCustomEmailDomain bool = false
 param githubOwner string            = 'rasm105k'
 param githubOwnerId string          = '31623093'
 param githubRepository string       = 'Workslip-v2.0'
@@ -308,9 +306,7 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
     oauthServerAppId: EntraAppRegistrations.outputs.OAuthAppId
 
     acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
-    acsSenderAddress: activateCustomEmailDomain
-      ? '${customEmailSenderUsername}@${customEmailDomainName}'
-      : '${azureManagedSenderUsername.properties.username}@${azureManagedEmailDomain.properties.fromSenderDomain}'
+    acsSenderAddress: '${customEmailSenderUsername}@${customEmailDomainName}'
 
     storageAccountName: storageAccount.name
     applicationInsightsConnectionString: appInsights.properties.ConnectionString
@@ -684,14 +680,10 @@ resource communicationService 'Microsoft.Communication/communicationServices@202
   }
   properties: {
     dataLocation: 'europe'
-    linkedDomains: activateCustomEmailDomain
-      ? [
-          azureManagedEmailDomain.id
-          customEmailDomain.id
-        ]
-      : [
-          azureManagedEmailDomain.id
-        ]
+    linkedDomains: [
+      azureManagedEmailDomain.id
+      customEmailDomain.id
+    ]
   }
 }
 
@@ -704,7 +696,7 @@ resource emailService 'Microsoft.Communication/emailServices@2023-04-01' = {
   }
 }
 
-// Keep the Azure-managed domain linked as a rollback sender during rollout.
+// Keep the Azure-managed domain linked as an emergency rollback sender.
 resource azureManagedEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = {
   name: 'AzureManagedDomain'
   parent: emailService
@@ -724,9 +716,8 @@ resource azureManagedSenderUsername 'Microsoft.Communication/emailServices/domai
   }
 }
 
-// The domain is provisioned before activation so Azure can expose its unique DNS
-// verification records. Linking and sender creation remain gated until all four
-// verification states are successful.
+// Production DNS verification is complete. The custom domain and sender are
+// unconditional parts of every infrastructure deployment.
 resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = {
   name: customEmailDomainName
   parent: emailService
@@ -738,7 +729,7 @@ resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-0
   }
 }
 
-resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (activateCustomEmailDomain) {
+resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = {
   parent: customEmailDomain
   name: customEmailSenderUsername
   properties: {
@@ -746,6 +737,7 @@ resource customEmailSender 'Microsoft.Communication/emailServices/domains/sender
     username: customEmailSenderUsername
   }
 }
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Outputs
 // ──────────────────────────────────────────────────────────────────────────────
@@ -769,7 +761,5 @@ output AZURE_AD_OAUTH_APP_OBJECT_ID string      = EntraAppRegistrations.outputs.
 output AZURE_AD_OAUTH_APP_CLIENT_ID string      = EntraAppRegistrations.outputs.OAuthAppId
 output ACS_ENDPOINT string                     = 'https://${communicationService.properties.hostName}'
 output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = customEmailDomain.id
-output ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE bool      = activateCustomEmailDomain
-output ACS_SENDER_ADDRESS string                = activateCustomEmailDomain
-  ? '${customEmailSenderUsername}@${customEmailDomainName}'
-  : '${azureManagedSenderUsername.properties.username}@${azureManagedEmailDomain.properties.mailFromSenderDomain}'
+output ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE bool      = true
+output ACS_SENDER_ADDRESS string                = '${customEmailSenderUsername}@${customEmailDomainName}'
