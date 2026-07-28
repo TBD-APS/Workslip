@@ -54,7 +54,7 @@ public static class InfrastructureConfiguration
     {
         // Azure App Configuration supplies shared environment defaults. Local
         // development settings, environment variables and command-line values
-        // must retain the normal ASP.NET Core higher-precedence override behavior.
+        // retain the normal ASP.NET Core higher-precedence override behavior.
         if (environment.IsDevelopment())
         {
             configuration.AddJsonFile(
@@ -80,17 +80,17 @@ public static class InfrastructureConfiguration
         if (string.IsNullOrWhiteSpace(connectionString))
             return;
 
-        SqlConnectionStringBuilder builder;
+        SqlConnectionStringBuilder connectionStringBuilder;
         try
         {
-            builder = new SqlConnectionStringBuilder(connectionString);
+            connectionStringBuilder = new SqlConnectionStringBuilder(connectionString);
         }
         catch (ArgumentException)
         {
             return;
         }
 
-        if (builder.Authentication != SqlAuthenticationMethod.ActiveDirectoryManagedIdentity)
+        if (connectionStringBuilder.Authentication != SqlAuthenticationMethod.ActiveDirectoryManagedIdentity)
             return;
 
         throw new InvalidOperationException(
