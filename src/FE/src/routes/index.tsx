@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet, createBrowserRouter } from 'react-router-dom';
+import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../providers/ErrorFallback';
 import { useAuth } from '../providers/useAuth';
@@ -26,45 +26,139 @@ import { Profile } from '../features/settings/routes/Profile';
 import { LegalPage } from '../features/legal';
 import { reportFrontendError } from '../applicationInsights';
 
+const AUTH_STARTUP_GRACE_MS = 15_000;
+
+interface StartupRecoveryProps {
+  isRetrying: boolean;
+  onRetry: () => void;
+  onReload: () => void;
+  onLogin: () => void;
+}
+
+const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupRecoveryProps) => (
+  <div className="app-container app-container-center" role="alert" aria-live="polite">
+    <div className="login-card">
+      <div className="login-card-header">
+        <h2>Forbindelsen tager længere tid end normalt</h2>
+        <p>
+          Serveren kan være ved at starte efter en genstart eller deployment. Din session er bevaret.
+        </p>
+      </div>
+      <div className="login-email-step">
+        <button
+          type="button"
+          className="btn btn-primary login-submit-btn"
+          onClick={onRetry}
+          disabled={isRetrying}
+        >
+          {isRetrying ? 'Prøver igen...' : 'Prøv igen'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary login-submit-btn"
+          onClick={onReload}
+          disabled={isRetrying}
+        >
+          Genindlæs appen
+        </button>
+        <button
+          type="button"
+          className="login-back-btn"
+          onClick={onLogin}
+          disabled={isRetrying}
+        >
+          Log ind igen
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 /**
- * Wraps every authenticated route. Waits through one short retry on a
- * transient `meQuery` failure (e.g. service-worker swap right after a deploy,
- * brief network blip) before declaring the user signed out. Without this, a
- * single failed `/api/auth/me` call logs the user out.
+ * Wraps every authenticated route. A stored token and a loaded user are
+ * intentionally treated as separate states: temporary API unavailability must
+ * not be interpreted as a logout. Startup is bounded and transitions to an
+ * explicit recovery screen instead of an endless spinner.
  */
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, isLoading, meQuery } = useAuth();
-  const [retryUsed, setRetryUsed] = useState(false);
+  const { hasAuthToken, isAuthenticated, isLoading, logout, meQuery } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [startupTimedOut, setStartupTimedOut] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const returnTo = `${location.pathname}${location.search}${location.hash}`;
+  const loginUrl = `/login?returnTo=${encodeURIComponent(returnTo)}`;
 
   useEffect(() => {
-    if (retryUsed || !meQuery?.isError || meQuery.isPending) return undefined;
-    const timer = setTimeout(() => {
-      setRetryUsed(true);
-      void meQuery.refetch();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [meQuery?.isError, meQuery?.isPending, meQuery, retryUsed]);
+    if (!hasAuthToken || isAuthenticated) {
+      setStartupTimedOut(false);
+      return undefined;
+    }
 
-  // Only show the "Tjekker login status..." spinner on the very first auth
-  // check (no token yet, fetching /api/auth/me). If the user already has a
-  // token and meQuery fails transiently, keep rendering the protected page
-  // while the retry fires in the background — otherwise the user sees a
-  // jarring flash of "logging in" text during a normal reauth flow.
-  if (isLoading) {
-    return <div className="protected-route-loading">Tjekker login status...</div>;
+    const timer = window.setTimeout(() => {
+      setStartupTimedOut(true);
+    }, AUTH_STARTUP_GRACE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [hasAuthToken, isAuthenticated, retryAttempt]);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    setStartupTimedOut(false);
+    setRetryAttempt((attempt) => attempt + 1);
+
+    try {
+      await meQuery.refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const handleLogin = () => {
+    logout();
+    navigate(loginUrl, { replace: true });
+  };
+
+  if (isAuthenticated) {
+    return <>{children}</>;
   }
 
-  // Prevent redirecting while a retry is pending
-  const isRetrying = meQuery?.isError && !retryUsed;
-  if (isRetrying) {
-    return <div className="protected-route-loading">Genforbinder til serveren...</div>;
+  if (!hasAuthToken) {
+    return <Navigate to={loginUrl} replace />;
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+  if (startupTimedOut || meQuery.isError) {
+    return (
+      <StartupRecovery
+        isRetrying={isRetrying}
+        onRetry={() => { void handleRetry(); }}
+        onReload={() => window.location.reload()}
+        onLogin={handleLogin}
+      />
+    );
   }
 
-  return <>{children}</>;
+  if (isLoading || meQuery.isPending) {
+    return (
+      <div className="protected-route-loading" role="status" aria-live="polite">
+        Tjekker login status...
+      </div>
+    );
+  }
+
+  // Defensive fallback for an impossible token-without-user query state. Never
+  // leave authenticated routes blank or redirect away from a potentially valid
+  // session without an explicit user action.
+  return (
+    <StartupRecovery
+      isRetrying={isRetrying}
+      onRetry={() => { void handleRetry(); }}
+      onReload={() => window.location.reload()}
+      onLogin={handleLogin}
+    />
+  );
 };
 
 function RootErrorBoundary() {
@@ -104,7 +198,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <JobList /> },
           { path: 'timer', element: <MyWorksheets /> },
-          { path: 'create', element: <Create /> }, //"BIG BLUE BUTTON"
+          { path: 'create', element: <Create /> }, // "BIG BLUE BUTTON"
           { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
           { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
           { path: 'job/:id', element: <JobDetail /> },
@@ -112,13 +206,13 @@ export const router = createBrowserRouter([
           { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
           { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
           { path: 'customers', element: <RoleGuard permission="customer:view"><CustomerList /></RoleGuard> },
-          { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /> </RoleGuard> },
-          { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /> </RoleGuard>},
+          { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /></RoleGuard> },
+          { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /></RoleGuard> },
           { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
-            { path: 'legal/:type', element: <LegalPage /> },
+          { path: 'legal/:type', element: <LegalPage /> },
         ],
       },
       {
