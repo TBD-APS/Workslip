@@ -142,6 +142,54 @@ public sealed class DatabaseIntegrityConstraintTests
     }
 
     [Fact]
+    public async Task Installation_category_rejects_cross_tenant_control_category_reference()
+    {
+        await using var database = await RelationalTestDatabase.CreateAsync();
+        var firstTenant = await SeedTenantAsync(database.Context);
+        var secondTenant = await SeedTenantAsync(database.Context);
+
+        var firstTenantCategory = new ControlCategoryRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = firstTenant.OrganizationId,
+            Name = "Category A",
+            SortOrder = 1
+        };
+        var secondTenantCategory = new ControlCategoryRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = secondTenant.OrganizationId,
+            Name = "Category B",
+            SortOrder = 1
+        };
+        database.Context.ControlCategoryRow.AddRange(firstTenantCategory, secondTenantCategory);
+
+        var installation = new JobReportInstallationRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = firstTenant.OrganizationId,
+            JobReportId = firstTenant.Id,
+            InstallationTypeDefinitionId = Guid.NewGuid(),
+            SortOrder = 1
+        };
+        database.Context.JobReportInstallations.Add(installation);
+
+        await database.Context.SaveChangesAsync();
+
+        database.Context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = firstTenant.OrganizationId,
+            JobReportInstallationId = installation.Id,
+            ControlCategoryId = secondTenantCategory.Id,
+            SortOrder = 1
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            () => database.Context.SaveChangesAsync());
+    }
+
+    [Fact]
     public async Task Valid_same_tenant_references_continue_to_persist()
     {
         await using var database = await RelationalTestDatabase.CreateAsync();

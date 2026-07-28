@@ -15,7 +15,7 @@
 | Jobs | Belong to exactly one organization. A linked customer must have the same `OrganizationId`; the customer snapshot columns are independent value copies and may exist without `CustomerId`. |
 | Worksheets | `OrganizationId`, `JobId` and `UserId` must resolve to one organization through composite foreign keys. |
 | Job installations | The selected job and installation definition are tenant-scoped through composite foreign keys. |
-| Installation category/control-point snapshots | The nested snapshot rows do not currently carry `OrganizationId`, so their category and control-point references cannot yet be tenant-enforced. This is tracked in [WOR-160](https://linear.app/workslip/issue/WOR-160/tenant-sikr-installationssnapshot-kategorier-og-kontrolpunkter). |
+| Installation category snapshots | `OrganizationId` is denormalized onto category rows. The composite FK `(OrganizationId, ControlCategoryId)` → `ControlCategories(OrganizationId, Id)` enforces tenant ownership at the database level. Control-point snapshots are protected transitively through the tenant-scoped category FK. |
 | Push subscriptions, notification queue and job views | `UserId` must resolve to an existing user. These tables do not currently duplicate `OrganizationId`; tenant authorization is enforced before their rows are written or queried. |
 
 ## Foreign-key deletion behavior
@@ -30,6 +30,8 @@
 | `JobReports -> Customers` | Restrict / no action | Customer deletion first clears the optional link in the repository; job snapshot values remain unchanged. |
 | `JobReportInstallations -> JobReports` | Cascade | Installation selections are owned by the job. |
 | `JobReportInstallations -> InstallationTypeDefinitions` | Restrict / no action | Referenced definitions cannot be removed while used by a job. |
+| `JobReportInstallationCategories -> JobReportInstallations` | Cascade | Category snapshots are owned by the installation. |
+| `JobReportInstallationCategories -> ControlCategories` | Restrict / no action | Referenced control categories cannot be removed while snapshots reference them. |
 
 ## WOR-150 schema upgrade
 

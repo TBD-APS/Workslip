@@ -816,6 +816,7 @@ if (request.Work.ClosureFlags is not null)
                 category = new JobReportInstallationCategoryRow
                 {
                     Id = Guid.NewGuid(),
+                    OrganizationId = installation.OrganizationId,
                     JobReportInstallationId = installation.Id,
                     ControlCategoryId = categoryRequest.Id,
                     JobReportInstallation = installation
@@ -983,6 +984,7 @@ if (request.Work.ClosureFlags is not null)
                 var selectedCategory = new JobReportInstallationCategoryRow
                 {
                     Id = Guid.NewGuid(),
+                    OrganizationId = organizationId,
                     JobReportInstallationId = selectedInstallation.Id,
                     ControlCategoryId = categoryRequest.Id,
                     SortOrder = categoryIndex + 1,

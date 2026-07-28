@@ -412,6 +412,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = categoryJoinId,
+            OrganizationId = orgId,
             JobReportInstallationId = installationId,
             ControlCategoryId = categoryId,
             SortOrder = 1,
@@ -610,6 +611,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = installationCategoryId,
+            OrganizationId = orgId,
             JobReportInstallationId = installationId,
             ControlCategoryId = categoryId,
             SortOrder = 1
@@ -1068,6 +1070,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = categoryJoinId,
+            OrganizationId = orgId,
             JobReportInstallationId = installationId,
             ControlCategoryId = categoryId,
             SortOrder = 1,
@@ -1147,6 +1150,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = categoryJoinId,
+            OrganizationId = orgId,
             JobReportInstallationId = installationId,
             ControlCategoryId = categoryId,
             SortOrder = 1,
@@ -1208,6 +1212,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = categoryJoinId,
+            OrganizationId = orgId,
             JobReportInstallationId = installationId,
             ControlCategoryId = categoryId,
             SortOrder = 1,
@@ -1333,6 +1338,7 @@ public sealed class AuditInterceptorTests
             new JobReportInstallationCategoryRow
             {
                 Id = catJoin1Id,
+                OrganizationId = orgId,
                 JobReportInstallationId = installationId,
                 ControlCategoryId = cat1Id,
                 SortOrder = 1,
@@ -1341,6 +1347,7 @@ public sealed class AuditInterceptorTests
             new JobReportInstallationCategoryRow
             {
                 Id = catJoin2Id,
+                OrganizationId = orgId,
                 JobReportInstallationId = installationId,
                 ControlCategoryId = cat2Id,
                 SortOrder = 2,
@@ -1423,6 +1430,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = categoryJoinId,
+            OrganizationId = orgId,
             JobReportInstallationId = installationId,
             ControlCategoryId = categoryId,
             SortOrder = 1,
@@ -1482,6 +1490,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = categoryJoinId,
+            OrganizationId = orgId,
             JobReportInstallationId = installationId,
             ControlCategoryId = categoryId,
             SortOrder = 1,
@@ -1545,6 +1554,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = categoryJoinId,
+            OrganizationId = orgId,
             JobReportInstallationId = installationId,
             ControlCategoryId = categoryId,
             SortOrder = 1,
@@ -1614,6 +1624,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = categoryJoinId,
+            OrganizationId = orgId,
             JobReportInstallationId = installationId,
             ControlCategoryId = categoryId,
             SortOrder = 1,
@@ -1689,6 +1700,7 @@ public sealed class AuditInterceptorTests
             new JobReportInstallationCategoryRow
             {
                 Id = catJoinA1Id,
+                OrganizationId = orgId,
                 JobReportInstallationId = instAId,
                 ControlCategoryId = cat1Id,
                 SortOrder = 1,
@@ -1697,6 +1709,7 @@ public sealed class AuditInterceptorTests
             new JobReportInstallationCategoryRow
             {
                 Id = catJoinA2Id,
+                OrganizationId = orgId,
                 JobReportInstallationId = instAId,
                 ControlCategoryId = cat2Id,
                 SortOrder = 2,
@@ -1749,6 +1762,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = Guid.NewGuid(),
+            OrganizationId = orgId,
             JobReportInstallationId = instBId,
             ControlCategoryId = cat1Id,
             SortOrder = 1,
@@ -1805,8 +1819,8 @@ public sealed class AuditInterceptorTests
             new JobReportInstallationRow { Id = instAId, OrganizationId = orgId, JobReportId = jobId, InstallationTypeDefinitionId = instTypeAId, SortOrder = 1 },
             new JobReportInstallationRow { Id = instBId, OrganizationId = orgId, JobReportId = jobId, InstallationTypeDefinitionId = instTypeBId, SortOrder = 2 });
         context.JobReportInstallationCategories.AddRange(
-            new JobReportInstallationCategoryRow { Id = catJoinA1Id, JobReportInstallationId = instAId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false },
-            new JobReportInstallationCategoryRow { Id = catJoinB1Id, JobReportInstallationId = instBId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false });
+            new JobReportInstallationCategoryRow { Id = catJoinA1Id, OrganizationId = orgId, JobReportInstallationId = instAId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false },
+            new JobReportInstallationCategoryRow { Id = catJoinB1Id, OrganizationId = orgId, JobReportInstallationId = instBId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false });
         context.JobReportInstallationControlPoints.AddRange(
             new JobReportInstallationControlPointRow { JobReportInstallationCategoryId = catJoinA1Id, ControlPointId = cp1Id, SortOrder = 1, IsRequired = true, IsChecked = true },
             new JobReportInstallationControlPointRow { JobReportInstallationCategoryId = catJoinA1Id, ControlPointId = cp2Id, SortOrder = 2, IsRequired = false, IsChecked = false },
@@ -1877,8 +1891,8 @@ public sealed class AuditInterceptorTests
             new JobReportInstallationRow { Id = instAId, OrganizationId = orgId, JobReportId = jobId, InstallationTypeDefinitionId = instTypeAId, SortOrder = 1 },
             new JobReportInstallationRow { Id = instCId, OrganizationId = orgId, JobReportId = jobId, InstallationTypeDefinitionId = instTypeCId, SortOrder = 2 });
         context.JobReportInstallationCategories.AddRange(
-            new JobReportInstallationCategoryRow { Id = catJoinA1Id, JobReportInstallationId = instAId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false },
-            new JobReportInstallationCategoryRow { Id = catJoinC1Id, JobReportInstallationId = instCId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false });
+            new JobReportInstallationCategoryRow { Id = catJoinA1Id, OrganizationId = orgId, JobReportInstallationId = instAId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false },
+            new JobReportInstallationCategoryRow { Id = catJoinC1Id, OrganizationId = orgId, JobReportInstallationId = instCId, ControlCategoryId = cat1Id, SortOrder = 1, IsIrrelevant = false });
         context.JobReportInstallationControlPoints.AddRange(
             new JobReportInstallationControlPointRow { JobReportInstallationCategoryId = catJoinA1Id, ControlPointId = cp1Id, SortOrder = 1, IsRequired = true, IsChecked = true },
             new JobReportInstallationControlPointRow { JobReportInstallationCategoryId = catJoinC1Id, ControlPointId = cp1Id, SortOrder = 1, IsRequired = true, IsChecked = true });
@@ -1910,6 +1924,7 @@ public sealed class AuditInterceptorTests
         context.JobReportInstallationCategories.Add(new JobReportInstallationCategoryRow
         {
             Id = Guid.NewGuid(),
+            OrganizationId = orgId,
             JobReportInstallationId = newInstBId,
             ControlCategoryId = cat1Id,
             SortOrder = 1,

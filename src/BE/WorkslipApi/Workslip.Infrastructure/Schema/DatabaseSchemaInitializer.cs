@@ -67,5 +67,6 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
             END
             """, cancellationToken);
         await db.Database.ExecuteSqlRawAsync(DatabaseIntegrityConstraintsSql.Apply, cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(Wor160SchemaMigrationSql.Apply, cancellationToken);
     }
 }

@@ -65,9 +65,29 @@ public sealed class JobInstallationModelTests
         Assert.Contains(entity!.GetIndexes(), index =>
             index.IsUnique &&
             index.Properties.Select(property => property.Name).SequenceEqual([
+                nameof(JobReportInstallationCategoryRow.OrganizationId),
                 nameof(JobReportInstallationCategoryRow.JobReportInstallationId),
                 nameof(JobReportInstallationCategoryRow.ControlCategoryId)
             ]));
+    }
+
+    [Fact]
+    public void JobReportInstallationCategories_use_tenant_scoped_control_category_foreign_key()
+    {
+        using var context = CreateContext();
+        var entity = context.Model.FindEntityType(typeof(JobReportInstallationCategoryRow));
+
+        Assert.NotNull(entity);
+        var foreignKey = Assert.Single(entity!.GetForeignKeys(), key =>
+            key.PrincipalEntityType.ClrType == typeof(ControlCategoryRow));
+        Assert.Equal([
+            nameof(JobReportInstallationCategoryRow.OrganizationId),
+            nameof(JobReportInstallationCategoryRow.ControlCategoryId)
+        ], foreignKey.Properties.Select(property => property.Name).ToArray());
+        Assert.Equal([
+            nameof(ControlCategoryRow.OrganizationId),
+            nameof(ControlCategoryRow.Id)
+        ], foreignKey.PrincipalKey.Properties.Select(property => property.Name).ToArray());
     }
 
     private static SqlDbContext CreateContext()

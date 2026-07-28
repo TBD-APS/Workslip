@@ -1289,11 +1289,15 @@ entity.Property(e => e.Status)
 
             .HasDefaultValue(false);
 
+        entity.HasAlternateKey(x => new { x.OrganizationId, x.Id });
+
         entity.HasOne(x => x.JobReportInstallation)
 
             .WithMany(x => x.Categories)
 
-            .HasForeignKey(x => x.JobReportInstallationId)
+            .HasForeignKey(x => new { x.OrganizationId, x.JobReportInstallationId })
+
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id })
 
             .OnDelete(DeleteBehavior.Cascade);
 
@@ -1303,13 +1307,15 @@ entity.Property(e => e.Status)
 
             .WithMany(x => x.JobReportInstallationCategories)
 
-            .HasForeignKey(x => x.ControlCategoryId)
+            .HasForeignKey(x => new { x.OrganizationId, x.ControlCategoryId })
+
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id })
 
             .OnDelete(DeleteBehavior.Restrict);
 
 
 
-        entity.HasIndex(x => new { x.JobReportInstallationId, x.ControlCategoryId })
+        entity.HasIndex(x => new { x.OrganizationId, x.JobReportInstallationId, x.ControlCategoryId })
 
             .IsUnique();
 

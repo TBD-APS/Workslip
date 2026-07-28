@@ -81,6 +81,7 @@ namespace Workslip.Infrastructure.Schema
                         var selectedCategory = new JobReportInstallationCategoryRow
                         {
                             Id = Guid.NewGuid(),
+                            OrganizationId = organizationId,
                             JobReportInstallationId = selectedInstallation.Id,
                             ControlCategoryId = categoryGroup.Key,
                             SortOrder = categorySortOrder++,
