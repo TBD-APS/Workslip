@@ -52,7 +52,7 @@ public sealed class InvitationService(
             return Result<AuthUserInfo>.Invalid(new ValidationError
             {
                 Identifier = string.IsNullOrWhiteSpace(token) ? nameof(EntraEnrollRequest.Token) : nameof(EntraEnrollRequest.DisplayName),
-                ErrorMessage = "Invite token and display name are required."
+                ErrorMessage = "Invitationstoken og visningsnavn er påkrævet."
             });
         }
 
@@ -64,7 +64,7 @@ public sealed class InvitationService(
         }
 
         var validationError = await ValidateInviteAsync(invite, cancellationToken);
-        if (validationError is not null) 
+        if (validationError is not null)
             return validationError;
 
         if (string.IsNullOrWhiteSpace(invite.EntraUserId))
@@ -143,7 +143,7 @@ public sealed class InvitationService(
     private async Task<InviteUserResult> ProcessInviteEmailAsync(string email, Guid organizationId, string? role, string inviteBaseUrl, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(email))
-            return new InviteUserResult(email, false, "Email address is empty.", null);
+            return new InviteUserResult(email, false, "E-mailadressen er tom.", null);
 
         var normalizedEmail = email.Trim().ToLowerInvariant();
 
@@ -152,7 +152,7 @@ public sealed class InvitationService(
             var token = Guid.NewGuid().ToString("N");
             var existingInvite = await inviteRepository.GetInviteByEmailAsync(organizationId, normalizedEmail, cancellationToken);
 
-            if(existingInvite == null)
+            if (existingInvite == null)
             {
                 var newInviteRow = new InviteTokenRow
                 {
@@ -176,14 +176,14 @@ public sealed class InvitationService(
                 await inviteRepository.UpdateAsync(existingInvite, cancellationToken);
             }
 
-                await emailService.SendInviteEmailAsync(normalizedEmail, token, cancellationToken);
-                logger.LogInformation("Invite sent to {Email}. Token: {Token}", normalizedEmail, token);
-                return new InviteUserResult(normalizedEmail, true, null, token);
+            await emailService.SendInviteEmailAsync(normalizedEmail, token, cancellationToken);
+            logger.LogInformation("Invite sent to {Email}. Token: {Token}", normalizedEmail, token);
+            return new InviteUserResult(normalizedEmail, true, null, token);
         }
         catch (InvalidOperationException ex)
         {
             logger.LogError(ex, "Failed to send invite to {Email}.", normalizedEmail);
-            return new InviteUserResult(normalizedEmail, false, "Failed to send invite email.", null);
+            return new InviteUserResult(normalizedEmail, false, "Invitationen kunne ikke sendes.", null);
         }
     }
 
@@ -293,7 +293,6 @@ public sealed class InvitationService(
 
         return null;
     }
-
 
     public async Task<int> CleanupStaleEntraInvitesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken)
     {
