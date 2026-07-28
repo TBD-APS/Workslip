@@ -1,9 +1,9 @@
 name: RBJ-164 temporary validation
 
 on:
-  push:
+  pull_request:
     branches:
-      - rbj--164-backend-translations
+      - main
 
 permissions:
   contents: read
