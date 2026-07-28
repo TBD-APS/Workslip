@@ -160,7 +160,7 @@ public class WorksheetService : IWorksheetService
 
         var weekStart = StartOfWeek(monthStart);
         var lastWeekStart = StartOfWeek(monthEnd);
-        var weeks = new List<MyWorksheetsWeekResponse>();
+        var weeks = new List<MyWorksheetWeekResponse>();
 
         for (var start = weekStart; start <= lastWeekStart; start = start.AddDays(7))
         {
@@ -168,7 +168,7 @@ public class WorksheetService : IWorksheetService
                 .Select(offset => BuildDayResponse(start.AddDays(offset), entriesByDate))
                 .ToArray();
 
-            weeks.Add(new MyWorksheetsWeekResponse(
+            weeks.Add(new MyWorksheetWeekResponse(
                 start,
                 start.AddDays(6),
                 days.Sum(d => d.TotalHours),
