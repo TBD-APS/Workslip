@@ -92,6 +92,20 @@ Do not replace this with an in-memory map or store only an opaque reference. Mic
 
 The login route clears the PKCE state after success, cancellation or callback failure. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters.
 
+## Authenticated startup recovery
+
+A stored JWT and a successfully loaded `/api/auth/me` user are separate states. Temporary API unavailability after an App Service restart or deployment must not be treated as logout.
+
+- `/api/auth/me` has a dedicated 12-second request timeout. Other API requests keep their existing timeout behaviour.
+- React Query performs one short automatic retry.
+- `/app` and all nested authenticated routes transition from the startup spinner to an explicit recovery screen after 15 seconds or after the auth query fails.
+- The recovery screen can cancel/restart the auth query, reload the current route, or deliberately clear the local session and return to login.
+- Startup timeout and network errors do not clear the stored JWT automatically.
+
+Vite `vite:preloadError` events receive one automatic reload for the current build. The guard is stored in `sessionStorage` and keyed by `__BUILD_TIME__`, so a persistent failure cannot create an infinite reload loop while a later deployment can recover independently.
+
+This does not replace the PWA update policy in WOR-114. Service-worker activation and dirty-form-safe user prompts remain separate work.
+
 ## PWA caution
 
 The application uses `vite-plugin-pwa` with an injected service worker. Changes to update/reload, caching, offline drafts or synchronization must be validated against long dirty forms and documented conservatively. A PWA cache is not proof that mutations work offline.
