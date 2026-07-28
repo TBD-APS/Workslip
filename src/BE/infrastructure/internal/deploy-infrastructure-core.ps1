@@ -668,7 +668,6 @@ try {
             globalAdminId = @{ value = $GlobalAdminId }
             location = @{ value = $Location }
             sqlAdminPassword = @{ value = $sqlAdminPassword }
-            activateCustomEmailDomain = @{ value = $true }
         }
     }
     Write-Utf8JsonFile -Path $parameterFile.FullName -Value $deploymentParameters
