@@ -89,6 +89,7 @@ export interface AuthMeQuery {
 }
 
 export interface AuthContextType {
+  hasAuthToken: boolean;
   isAuthenticated: boolean;
   user: UserViewModel | null;
   isLoading: boolean;
