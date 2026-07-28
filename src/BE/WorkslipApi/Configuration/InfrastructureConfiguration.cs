@@ -7,13 +7,15 @@ namespace Workslip.Api.Configuration;
 
 public static class InfrastructureConfiguration
 {
+    private const string SqlConnectionStringKey = "Azure:Sql:ConnectionString";
+
     public static WebApplicationBuilder ConfigureInfrastructure(this WebApplicationBuilder builder, string[] args)
     {
         var configuration = builder.Configuration;
         var azureCredential = CreateAzureCredential(configuration);
         AddAzureAppConfiguration(configuration, azureCredential);
         RestoreOperatorOverrides(builder.Environment, configuration, args);
-        ValidateDevelopmentSqlConfiguration(builder.Environment, configuration);
+        ConfigureDevelopmentSqlAuthentication(builder.Environment, configuration);
 
         builder.Services.AddSingleton<TokenCredential>(azureCredential);
 
@@ -69,14 +71,14 @@ public static class InfrastructureConfiguration
             configuration.AddCommandLine(args);
     }
 
-    private static void ValidateDevelopmentSqlConfiguration(
+    private static void ConfigureDevelopmentSqlAuthentication(
         IHostEnvironment environment,
-        IConfiguration configuration)
+        ConfigurationManager configuration)
     {
         if (!environment.IsDevelopment())
             return;
 
-        var connectionString = configuration["Azure:Sql:ConnectionString"];
+        var connectionString = configuration[SqlConnectionStringKey];
         if (string.IsNullOrWhiteSpace(connectionString))
             return;
 
@@ -93,9 +95,16 @@ public static class InfrastructureConfiguration
         if (connectionStringBuilder.Authentication != SqlAuthenticationMethod.ActiveDirectoryManagedIdentity)
             return;
 
-        throw new InvalidOperationException(
-            "Development resolved Azure:Sql:ConnectionString to Active Directory Managed Identity, " +
-            "which only works inside Azure. Configure a local connection string in " +
-            "appsettings.Development.json or Azure__Sql__ConnectionString.");
+        // App Configuration and Key Vault still own the server/database connection
+        // details. Only the Azure-host-only authentication mode is adapted locally.
+        // Active Directory Default uses the developer's Azure CLI/Visual Studio
+        // identity and does not require a local SQL connection string or password.
+        connectionStringBuilder.Authentication = SqlAuthenticationMethod.ActiveDirectoryDefault;
+        connectionStringBuilder.Remove("User ID");
+
+        configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [SqlConnectionStringKey] = connectionStringBuilder.ConnectionString
+        });
     }
 }
