@@ -1,7 +1,4 @@
 param appConfigurationName string
-@secure()
-@description('Retained for main.bicep compatibility. The value is stored in Key Vault by deploy-infrastructure.ps1 and is never written here.')
-param vercelToken string
 
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
   name: appConfigurationName
@@ -67,6 +64,4 @@ var appConfigValues = {
   '''
 
   'Vapid:PublicKey': 'BK5wzcorbTV2rLqLYyPdWYMXmtY0Vr5xLzW4suFnbZH3bdvYM8Ddp_XqEFh8dwRwdEtNlO3YMMZe3ZQTOZVVLgY'
-
-  'Vercel:ProjectId': 'prj_eIy6jy8lbxQSpuzJsvzhurAivAaX'
 }
