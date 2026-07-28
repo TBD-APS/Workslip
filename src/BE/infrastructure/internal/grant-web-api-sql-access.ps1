@@ -113,7 +113,7 @@ try {
 
     $sid = '0x' + (($parsedClientId.ToByteArray() | ForEach-Object { $_.ToString('X2') }) -join '')
     $provisioningIp = ([string](Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 30)).Trim()
-    $parsedIp = $null
+    [System.Net.IPAddress]$parsedIp = $null
 
     if (-not [System.Net.IPAddress]::TryParse($provisioningIp, [ref]$parsedIp) -or
         $parsedIp.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) {
@@ -212,7 +212,6 @@ finally {
             '--resource-group', $resourceGroup,
             '--server', $sqlServerName,
             '--name', $firewallRuleName,
-            '--yes',
             '--only-show-errors',
             '--output', 'none'
         ) -AllowFailure
