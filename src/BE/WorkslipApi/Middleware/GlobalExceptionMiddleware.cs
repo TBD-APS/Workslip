@@ -53,8 +53,8 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
         var problem = new ProblemDetails
         {
             Status = StatusCodes.Status500InternalServerError,
-            Title = "An unexpected error occurred.",
-            Detail = "The request could not be completed. Contact support with the correlationId or traceId.",
+            Title = "Der opstod en uventet fejl.",
+            Detail = "Anmodningen kunne ikke gennemføres. Oplys correlationId eller traceId til support.",
             Instance = context.Request.Path
         };
         problem.Extensions["traceId"] = traceId;

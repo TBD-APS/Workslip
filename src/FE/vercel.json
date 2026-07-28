@@ -5,8 +5,18 @@
       "rbj--*": false
     }
   },
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/app",
+      "permanent": false
+    }
+  ],
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!assets/).*)", 
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {

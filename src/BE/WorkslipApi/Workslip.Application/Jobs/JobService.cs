@@ -932,7 +932,7 @@ public sealed class JobService(
         await InvalidateJobCachesAsync(id, organizationId, cancellationToken);
     }
 
-    public async Task<Result> MarkJobAsSeenAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<Result> MarkJobAsSeenAsync(Guid id, string? viewType, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         var userId = currentUser.UserId;
@@ -949,7 +949,7 @@ public sealed class JobService(
             return Result.NotFound();
         }
 
-        await _jobViewRepository.MarkAsViewedAsync(id, userId.Value, "New", cancellationToken);
+        await _jobViewRepository.MarkAsViewedAsync(id, userId.Value, viewType ?? "New", cancellationToken);
         await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
 
         logger.LogInformation("Job marked as seen. JobId: {JobId}. UserId: {UserId}. ReportNumber: {ReportNumber}", id, userId.Value, job.ReportNumber);

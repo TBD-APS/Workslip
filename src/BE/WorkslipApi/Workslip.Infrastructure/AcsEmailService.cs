@@ -51,17 +51,23 @@ public sealed class AcsEmailService(
             new EmailRecipients([new EmailAddress(toEmail)]),
             emailContent);
 
-        var startTime = DateTimeOffset.UtcNow;
-        logger.LogInformation("ACS sending invite email. CorrelationId={CorrelationId} To={Email} Sender={Sender}", correlationIdAccessor.CorrelationId, toEmail, _senderAddress);
+        logger.LogInformation("ACS sending invite email. CorrelationId={CorrelationId}", correlationIdAccessor.CorrelationId);
 
         try
         {
             var result = await emailClient.SendAsync(WaitUntil.Completed, message, cancellationToken);
-            logger.LogInformation("ACS invite email sent. CorrelationId={CorrelationId} To={Email} Status={Status}", correlationIdAccessor.CorrelationId, toEmail, result.Value.Status);
+            logger.LogInformation(
+                "ACS invite email sent. CorrelationId={CorrelationId} Status={Status}",
+                correlationIdAccessor.CorrelationId,
+                result.Value.Status);
         }
         catch (RequestFailedException ex)
         {
-            logger.LogError(ex, "ACS invite email failed. CorrelationId={CorrelationId} To={Email} ErrorCode={ErrorCode}", correlationIdAccessor.CorrelationId, toEmail, ex.ErrorCode);
+            logger.LogError(
+                ex,
+                "ACS invite email failed. CorrelationId={CorrelationId} ErrorCode={ErrorCode}",
+                correlationIdAccessor.CorrelationId,
+                ex.ErrorCode);
             throw;
         }
     }
@@ -99,16 +105,23 @@ public sealed class AcsEmailService(
             new EmailRecipients([new EmailAddress(toEmail)]),
             emailContent);
 
-        logger.LogInformation("ACS sending OTC email. CorrelationId={CorrelationId} To={Email} Sender={Sender}",correlationIdAccessor.CorrelationId, toEmail, _senderAddress);
+        logger.LogInformation("ACS sending OTC email. CorrelationId={CorrelationId}", correlationIdAccessor.CorrelationId);
 
         try
         {
             var result = await emailClient.SendAsync(WaitUntil.Completed, message, cancellationToken);
-            logger.LogInformation("ACS OTC email sent. CorrelationId={CorrelationId} To={Email} Status={Status}", correlationIdAccessor.CorrelationId, toEmail, result.Value.Status);
+            logger.LogInformation(
+                "ACS OTC email sent. CorrelationId={CorrelationId} Status={Status}",
+                correlationIdAccessor.CorrelationId,
+                result.Value.Status);
         }
         catch (RequestFailedException ex)
         {
-            logger.LogError(ex,"ACS OTC email failed. CorrelationId={CorrelationId} To={Email} ErrorCode={ErrorCode}", correlationIdAccessor.CorrelationId, toEmail, ex.ErrorCode);
+            logger.LogError(
+                ex,
+                "ACS OTC email failed. CorrelationId={CorrelationId} ErrorCode={ErrorCode}",
+                correlationIdAccessor.CorrelationId,
+                ex.ErrorCode);
             throw;
         }
     }

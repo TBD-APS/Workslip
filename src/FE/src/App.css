@@ -910,7 +910,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #ef4444;
+  background: #3b82f6;
   margin-left: 6px;
   vertical-align: middle;
   position: relative;
@@ -935,6 +935,18 @@
   height: 8px;
   border-radius: 50%;
   background: #22c55e;
+  margin-left: 6px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+.rejected-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
   margin-left: 6px;
   vertical-align: middle;
   position: relative;
@@ -1882,7 +1894,11 @@
 }
 
 .modal-actions--triple {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
+}
+
+.modal-actions--triple > :last-child {
+  grid-column: 1 / -1;
 }
 
 .work-category-form {
@@ -4803,25 +4819,6 @@
 .time-overview-page {
   max-width: 1100px;
   padding: 0 1rem;
-}
-
-/* â”€â”€ Admin Timer â€” forced white theme â”€â”€ */
-.time-overview-page--admin {
-  --bg: #ffffff;
-  --text: #18181b;
-  --text-muted: #6b7280;
-  --text-dim: rgba(0, 0, 0, 0.4);
-  --surface: #f8f9fa;
-  --surface-raised: #f1f3f5;
-  --surface-elevated: #e9ecef;
-  --surface-input: #ffffff;
-  --border: #dee2e6;
-  --border-strong: #ced4da;
-  --primary: #2c54ac;
-  --primary-rgb: 44, 84, 172;
-  --focus-ring: rgba(44, 84, 172, 0.3);
-  background: var(--bg);
-  color: var(--text);
 }
 
 .time-overview-header {

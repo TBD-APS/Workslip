@@ -5,6 +5,7 @@ import { JobDetailsPage } from '../components/JobDetails';
 import { useJobDetails } from '../hooks/useJobDetails';
 import { markJobAsSeen } from '../utils/markJobSeen';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
+import { JobStatus } from '../../../api/generated/models';
 
 export const JobDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,7 +20,10 @@ export const JobDetail = () => {
   useEffect(() => {
     if (!id) return;
     markJobAsSeen(id, queryClient);
-  }, [id]);
+    if (details.job?.status === JobStatus.Rejected) {
+      markJobAsSeen(id, queryClient, 'RejectedAssignment');
+    }
+  }, [id, details.job?.status]);
 
   return (
     <JobDetailsPage
