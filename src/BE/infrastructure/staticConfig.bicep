@@ -1,7 +1,4 @@
 param appConfigurationName string
-@secure()
-@description('Deprecated compatibility parameter. Azure infrastructure does not configure or invoke Vercel cache purge.')
-param vercelToken string
 
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
   name: appConfigurationName
