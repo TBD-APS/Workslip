@@ -13,7 +13,7 @@ The API already has a user-assigned managed identity. The browser uses authoriza
 
 Vercel cache purge is an external frontend-hosting operation. It is not part of Azure resource provisioning and must not make an infrastructure deployment depend on Vercel credentials.
 
-Multiple overlapping wrapper scripts also made it unclear which deployment command an operator should run.
+Multiple overlapping wrapper scripts also made it unclear which deployment command an operator should run. The production ACS custom domain is fully verified, so a deployment-time activation toggle would preserve obsolete rollout state and create configuration drift.
 
 ## Decision
 
@@ -27,6 +27,7 @@ Multiple overlapping wrapper scripts also made it unclear which deployment comma
 8. Vercel cache-purge credentials and project configuration remain outside the Azure infrastructure deployment boundary.
 9. JWT signing material is generated with a cryptographic random-number generator and rotated explicitly or when the legacy deterministic value is detected.
 10. The deployment-created OAuth application client secret is removed. Future server-side confidential-client flows require a separate ADR and scoped credential lifecycle.
+11. Every Azure infrastructure deployment links the verified `mrsoftware.dk` ACS email domain, provisions `noreply`, and writes `noreply@mrsoftware.dk` to App Configuration. No activation parameter or Azure-managed sender fallback is retained.
 
 ## Required Graph permissions
 
@@ -49,6 +50,7 @@ Deployment scripts do not assign a second competing set.
 - Operators must preserve access to the deployment-only SQL administrator secret and install `sqlcmd`.
 - `db_ddladmin` remains temporarily assigned because schema mutation still occurs during API startup. WOR-136 must remove startup migration and then remove this role.
 - Vercel cache purge must be configured and operated separately from Azure infrastructure deployment.
+- The production custom email domain must remain verified; deployment no longer offers a fallback sender toggle.
 - Production execution, secret migration and smoke-test evidence remain operator responsibilities after merge.
 
 ## Rejected alternatives
@@ -57,5 +59,6 @@ Deployment scripts do not assign a second competing set.
 - Store JWT values directly in App Configuration: rejected because App Configuration is the non-secret configuration layer.
 - Make Azure infrastructure deployment require a Vercel token: rejected because cache purge is an optional external operation with a separate lifecycle.
 - Keep `deploy-safe.ps1` as a second full-deployment wrapper: rejected because overlapping entry points create operator ambiguity.
+- Keep an ACS custom-domain activation parameter after DNS verification: rejected because permanent production configuration should be declarative and identical on every deployment.
 - Keep a long-lived OAuth client secret “for later”: rejected because no implemented confidential-client flow consumes it.
 - Assign Graph permissions from both Bicep and PowerShell: rejected because drift and partial deployment make the effective permission set unclear.
