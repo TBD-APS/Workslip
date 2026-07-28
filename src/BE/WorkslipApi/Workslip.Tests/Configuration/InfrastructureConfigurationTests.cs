@@ -23,7 +23,7 @@ public sealed class InfrastructureConfigurationTests
         var connectionString = new SqlConnectionStringBuilder(builder.Configuration[SqlConnectionStringKey]);
         Assert.Equal(SqlAuthenticationMethod.ActiveDirectoryDefault, connectionString.Authentication);
         Assert.True(string.IsNullOrWhiteSpace(connectionString.UserID));
-        Assert.Equal("db-mrsoftware-prod-server.database.windows.net,1433", connectionString.DataSource);
+        Assert.Equal("tcp:db-mrsoftware-prod-server.database.windows.net,1433", connectionString.DataSource);
         Assert.Equal("db-mrsoftware-prod", connectionString.InitialCatalog);
     }
 
