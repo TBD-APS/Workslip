@@ -8,28 +8,6 @@
   "redirects": [
     {
       "source": "/",
-      "has": [
-        {
-          "type": "host",
-          "value": "workslip-v2-0.vercel.app"
-        }
-      ],
-      "destination": "https://app.mrsoftware.dk/app",
-      "permanent": true
-    },
-    {
-      "source": "/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "workslip-v2-0.vercel.app"
-        }
-      ],
-      "destination": "https://app.mrsoftware.dk/:path*",
-      "permanent": true
-    },
-    {
-      "source": "/",
       "destination": "/app",
       "permanent": false
     }
