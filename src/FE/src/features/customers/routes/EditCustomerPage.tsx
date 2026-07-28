@@ -126,7 +126,7 @@ export const EditCustomerPage = () => {
   return (
     <div className="page-container">
       <div className="detail-header">
-        <button className="btn-icon-back" onClick={() => navigate('/app/customers')} aria-label="Tilbage">
+        <button className="btn-icon-back" onClick={() => navigate(`/app/customers/${customer.id}`)} aria-label="Tilbage">
           <ArrowLeft size={20} />
         </button>
         <div>
