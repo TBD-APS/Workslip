@@ -10,8 +10,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$InternalScriptDirectory = Join-Path $PSScriptRoot 'internal'
 $EntraScript = Join-Path $PSScriptRoot 'deploy-entra.ps1'
-$CredentialCleanupScript = Join-Path $PSScriptRoot 'internal\remove-legacy-oauth-client-secret.ps1'
+$CredentialCleanupScript = Join-Path $InternalScriptDirectory 'remove-legacy-oauth-client-secret.ps1'
 $InfrastructureScript = Join-Path $PSScriptRoot 'deploy-infrastructure.ps1'
 
 foreach ($scriptPath in @($EntraScript, $CredentialCleanupScript, $InfrastructureScript)) {
