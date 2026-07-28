@@ -4,7 +4,8 @@ param(
     [string]$Location = "westeurope",
     [string]$COMPANY_NAME = "mrsoftware",
     [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",
-    [string]$VercelToken = ""
+    [string]$VercelToken = "",
+    [switch]$ActivateCustomEmailDomain
 )
 
 # ── SQL admin password ────────────────────────────────────────────────────────
@@ -119,6 +120,7 @@ function Invoke-BicepDeployment {
 
 
     Write-Host "Deploying Bicep template: $DeploymentName" -ForegroundColor Cyan
+    $ActivateCustomEmailDomainValue = $ActivateCustomEmailDomain.IsPresent.ToString().ToLowerInvariant()
 
     $DeploymentJson = az deployment group create `
        --resource-group $RESOURCE_GROUP `
@@ -130,6 +132,7 @@ function Invoke-BicepDeployment {
        --parameters globalAdminId=$GlobalAdminId `
        --parameters sqlAdminPassword="$SqlAdminPassword" `
        --parameters vercelToken="$VercelToken" `
+       --parameters activateCustomEmailDomain=$ActivateCustomEmailDomainValue `
        -o json
 
     if ($LASTEXITCODE -ne 0 -or -not $DeploymentJson) {

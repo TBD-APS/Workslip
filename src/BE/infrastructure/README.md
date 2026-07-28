@@ -33,6 +33,14 @@ Deploy or debug Azure infrastructure without modifying the registrations:
 .\deploy-infrastructure.ps1 prod
 ```
 
+After Azure verifies Domain, SPF, DKIM, and DKIM2, activate the custom sender explicitly:
+
+```powershell
+.\deploy-infrastructure.ps1 prod -ActivateCustomEmailDomain
+```
+
+Omitting the switch keeps the Azure-managed sender active and is the rollback path.
+
 The infrastructure command uses the local state file when it exists. When the file is missing, it performs read-only discovery in this order:
 
 1. Read the existing OAuth and client IDs from Azure App Configuration and resolve their application object IDs through Entra.
@@ -47,6 +55,12 @@ To run both phases in order:
 
 ```powershell
 .\deploy-safe.ps1 prod
+```
+
+To reconcile Entra and activate the verified custom email domain in the same run:
+
+```powershell
+.\deploy-safe.ps1 prod -ActivateCustomEmailDomain
 ```
 
 This is equivalent to running `deploy-entra.ps1` followed by `deploy-infrastructure.ps1`.

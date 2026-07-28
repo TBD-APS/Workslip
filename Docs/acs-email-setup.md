@@ -103,13 +103,13 @@ Do not activate the custom sender until `Domain`, `SPF`, `DKIM`, and `DKIM2` all
 
 ## Phase 3: activate the sender
 
-After all verification gates pass, change the production value to:
+After all verification gates pass, activate the sender through the infrastructure entry point:
 
-```bicep
-param activateCustomEmailDomain bool = true
+```powershell
+.\deploy-infrastructure.ps1 prod -ActivateCustomEmailDomain
 ```
 
-Then deploy the same Bicep template again. The deployment must result in:
+Use `deploy-safe.ps1` with the same switch only when Entra reconciliation is also required. The deployment must result in:
 
 ```text
 ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE = true
@@ -158,7 +158,7 @@ After activation:
 
 ## Rollback
 
-Set `activateCustomEmailDomain` back to `false` and redeploy. This restores the Azure-managed sender in App Configuration and removes the custom domain from the active linked-domain set without deleting the verified custom domain.
+Redeploy without `-ActivateCustomEmailDomain`. This restores the Azure-managed sender in App Configuration and removes the custom domain from the active linked-domain set without deleting the verified custom domain.
 
 Do not delete `mrsoftware.dk` or its DNS records as part of a normal rollback.
 
