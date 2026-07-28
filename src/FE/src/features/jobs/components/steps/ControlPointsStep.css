@@ -1,20 +1,12 @@
-.control-point-category-header .control-point-category-label {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 0.4rem 0.75rem;
-  border-radius: var(--radius-pill);
+.control-point-category-header {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
   background: var(--primary);
-  color: white;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  box-shadow: var(--shadow-sm);
 }
 
+.control-point-category-header .control-point-category-label,
 .control-point-category-group.irrelevant .control-point-category-label {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  box-shadow: none;
+  color: white;
+  font-weight: 600;
 }
