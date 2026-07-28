@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Clock, Mail, Shield } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Clock, Mail } from 'lucide-react';
 import { type UserListViewModel, type UserViewModel } from '../../../api/generated/models';
 import { ErrorState } from '../../../components/ErrorState';
 import { SearchBar } from '../../../components/filters/SearchBar';
@@ -10,9 +10,18 @@ import { PaginationControls } from '../../../components/pagination/PaginationCon
 import { usePaginatedList } from '../../../hooks/usePaginatedList';
 import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
+import { UserRoleBadge } from '../components/UserRoleBadge';
 
 const PAGE_SIZE = 20;
 const SHOW_SEARCH = false;
+
+type UserListItem = UserViewModel & {
+  roleDisplayName?: string | null;
+};
+
+type UserListResponse = Omit<UserListViewModel, 'users'> & {
+  users: UserListItem[];
+};
 
 function formatHours(value: number | string | null): string {
   if (value == null) return '\u2013';
@@ -37,7 +46,7 @@ export const UserList = () => {
   const fetchUsersPage = useCallback(async ({ limit, offset, search, sortBy, sortDirection }: { limit: number; offset: number; search?: string; sortBy?: string; sortDirection?: string }) => {
     const response = (await apiClient.get('/api/users', {
       params: { limit, offset, search, sortBy, sortDirection },
-    })) as UserListViewModel;
+    })) as UserListResponse;
 
     return { items: response.users, totalCount: Number(response.total) };
   }, []);
@@ -61,7 +70,7 @@ export const UserList = () => {
     pageItems,
     sentinelRef,
     isDesktop,
-  } = usePaginatedList<UserViewModel>({
+  } = usePaginatedList<UserListItem>({
     queryKey: ['/api/users', 'list'],
     fetchPage: fetchUsersPage,
     pageSize: PAGE_SIZE,
@@ -178,10 +187,7 @@ export const UserList = () => {
                   </span>
                 </td>
                 <td>
-                  <span className="inline-flex-center">
-                    <Shield size={14} className="text-muted" />
-                    {user.role}
-                  </span>
+                  <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
                 </td>
                 <td className="col-hours">{formatHours(user.hoursThisWeek)}</td>
                 <td className="col-actions">
@@ -223,10 +229,7 @@ export const UserList = () => {
                   <Mail size={14} />
                   <span>{user.email}</span>
                 </span>
-                <span className="meta-item">
-                  <Shield size={14} />
-                  <span>{user.role}</span>
-                </span>
+                <UserRoleBadge role={user.role} displayName={user.roleDisplayName} />
               </div>
 
               <div className="user-hours-row">
