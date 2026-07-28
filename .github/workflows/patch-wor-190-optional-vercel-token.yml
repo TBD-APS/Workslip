@@ -1,0 +1,106 @@
+name: Patch WOR-190 optional Vercel token
+
+on:
+  push:
+    branches:
+      - rbj--190-infrastructure-deployment-hardening
+    paths:
+      - .github/workflows/patch-wor-190-optional-vercel-token.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--190-infrastructure-deployment-hardening
+
+      - name: Apply focused patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          script_path = Path('src/BE/infrastructure/deploy-infrastructure.ps1')
+          script = script_path.read_text(encoding='utf-8')
+
+          old_required = """    if ([string]::IsNullOrWhiteSpace($existingVercelToken) -and
+              [string]::IsNullOrWhiteSpace($requestedVercelToken)) {
+              throw 'Vercel token is missing. Set WORKSLIP_VERCEL_TOKEN for the first hardened deployment.'
+          }
+          """
+          new_optional = """    $hasVercelToken = -not [string]::IsNullOrWhiteSpace($existingVercelToken) -or
+              -not [string]::IsNullOrWhiteSpace($requestedVercelToken)
+          if (-not $hasVercelToken) {
+              Write-Warning 'Vercel token is not configured. Infrastructure deployment will continue and Vercel CDN cache purge will remain disabled.'
+          }
+          """
+          if old_required not in script:
+              raise SystemExit('Expected mandatory Vercel-token block was not found')
+          script = script.replace(old_required, new_optional, 1)
+
+          old_reference = """    Set-AppConfigurationKeyVaultReference -Key 'Vercel:Token' -SecretName $VercelTokenSecretName
+              Set-AppConfigurationKeyVaultReference -Key 'Jwt:SigningKey' -SecretName $JwtSigningKeySecretName
+          """
+          new_reference = """    if ($hasVercelToken) {
+              Set-AppConfigurationKeyVaultReference -Key 'Vercel:Token' -SecretName $VercelTokenSecretName
+          }
+          else {
+              Remove-AppConfigurationKeyIfPresent -Key 'Vercel:Token'
+          }
+          Set-AppConfigurationKeyVaultReference -Key 'Jwt:SigningKey' -SecretName $JwtSigningKeySecretName
+          """
+          if old_reference not in script:
+              raise SystemExit('Expected Vercel Key Vault reference block was not found')
+          script = script.replace(old_reference, new_reference, 1)
+
+          old_cleanup = """    $requestedVercelToken = $null
+              $existingVercelToken = $null
+              $requestedJwtSigningKey = $null
+          """
+          new_cleanup = """    $requestedVercelToken = $null
+              $existingVercelToken = $null
+              $hasVercelToken = $null
+              $requestedJwtSigningKey = $null
+          """
+          if old_cleanup not in script:
+              raise SystemExit('Expected Vercel cleanup block was not found')
+          script = script.replace(old_cleanup, new_cleanup, 1)
+          script_path.write_text(script, encoding='utf-8', newline='\n')
+
+          readme_path = Path('src/BE/infrastructure/README.md')
+          readme = readme_path.read_text(encoding='utf-8')
+          old_table = "| `Vercel:Token` | `Vercel--Token` | Reuses the existing secret, migrates the prior plain App Configuration value, or accepts `WORKSLIP_VERCEL_TOKEN` / `-VercelToken` for first setup or rotation. Omitted input never blanks the secret. |"
+          new_table = "| `Vercel:Token` | `Vercel--Token` | Optional. Reuses the existing secret, migrates the prior plain App Configuration value, or accepts `WORKSLIP_VERCEL_TOKEN` / `-VercelToken` for setup or rotation. If no token exists, deployment leaves Vercel CDN purge disabled and removes any stale App Configuration entry. Omitted input never blanks an existing secret. |"
+          if old_table not in readme:
+              raise SystemExit('Expected Vercel README table row was not found')
+          readme = readme.replace(old_table, new_table, 1)
+
+          old_verify = "1. `Azure:Sql:ConnectionString`, `Jwt:SigningKey` and `Vercel:Token` are Key Vault references in App Configuration."
+          new_verify = "1. `Azure:Sql:ConnectionString` and `Jwt:SigningKey` are Key Vault references in App Configuration. When the optional Vercel cache-purge integration is configured, `Vercel:Token` is also a Key Vault reference; otherwise the key is absent."
+          if old_verify not in readme:
+              raise SystemExit('Expected Vercel verification text was not found')
+          readme = readme.replace(old_verify, new_verify, 1)
+          readme_path.write_text(readme, encoding='utf-8', newline='\n')
+
+          adr_path = Path('Docs/architecture/adr/0001-managed-identity-runtime-and-secret-lifecycle.md')
+          adr = adr_path.read_text(encoding='utf-8')
+          old_decision = "5. App Configuration contains versionless Key Vault references for JWT signing material, Vercel credentials and the SQL connection string."
+          new_decision = "5. App Configuration contains versionless Key Vault references for JWT signing material and the SQL connection string. When the optional Vercel cache-purge integration is configured, its credential is also exposed only through a versionless Key Vault reference; otherwise the configuration key is absent."
+          if old_decision not in adr:
+              raise SystemExit('Expected ADR secret-lifecycle decision was not found')
+          adr = adr.replace(old_decision, new_decision, 1)
+          adr_path.write_text(adr, encoding='utf-8', newline='\n')
+
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/patch-wor-190-optional-vercel-token.yml
+          git add src/BE/infrastructure/deploy-infrastructure.ps1 src/BE/infrastructure/README.md Docs/architecture/adr/0001-managed-identity-runtime-and-secret-lifecycle.md
+          git commit -m "RBJ-190 make Vercel cache purge optional"
+          git push origin HEAD:rbj--190-infrastructure-deployment-hardening
