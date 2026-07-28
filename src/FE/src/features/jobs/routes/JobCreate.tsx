@@ -66,6 +66,11 @@ export const JobCreate = () => {
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleGoToCreatedJob = () => {
+    if (!createdJobId) return;
+    navigate(`/app/job/${createdJobId}`, { replace: true, state: { from: '/app' } });
+  };
+
   const hasUnsavedChanges = createdJobId === null && (!sameForm(create.form, initialFormRef.current) || create.linkedJobIds.length > 0);
 
   return (
@@ -104,6 +109,7 @@ export const JobCreate = () => {
         <CreateSuccessDialog
           onCreateAnother={handleCreateAnother}
           onGoToJobList={() => navigate('/app')}
+          onGoToJob={handleGoToCreatedJob}
         />
       )}
     </div>
@@ -113,20 +119,25 @@ export const JobCreate = () => {
 function CreateSuccessDialog({
   onCreateAnother,
   onGoToJobList,
+  onGoToJob,
 }: {
   onCreateAnother: () => void;
   onGoToJobList: () => void;
+  onGoToJob: () => void;
 }) {
   return createPortal(
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-success-title">
       <div className="modal-card">
         <h3 id="create-success-title">Sagen er oprettet</h3>
-        <div className="modal-actions">
+        <div className="modal-actions modal-actions--triple">
           <button className="btn btn-secondary" onClick={onCreateAnother}>
             Opret en mere
           </button>
-          <button className="btn btn-primary" onClick={onGoToJobList}>
+          <button className="btn btn-secondary" onClick={onGoToJobList}>
             Til sagslisten
+          </button>
+          <button className="btn btn-primary" onClick={onGoToJob}>
+            Til sagen
           </button>
         </div>
       </div>
