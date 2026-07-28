@@ -1,0 +1,256 @@
+name: Patch WOR-190 remove Vercel infrastructure coupling
+
+on:
+  push:
+    branches:
+      - rbj--190-infrastructure-deployment-hardening
+    paths:
+      - .github/workflows/patch-wor-190-remove-vercel-infra.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--190-infrastructure-deployment-hardening
+          fetch-depth: 0
+
+      - name: Remove Vercel purge configuration from infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def read(path: str) -> str:
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path: str, value: str) -> None:
+              Path(path).write_text(value, encoding='utf-8', newline='\n')
+
+          def replace_once(value: str, old: str, new: str, label: str) -> str:
+              if value.count(old) != 1:
+                  raise SystemExit(f"Expected exactly one {label}; found {value.count(old)}")
+              return value.replace(old, new, 1)
+
+          infrastructure_path = 'src/BE/infrastructure/deploy-infrastructure.ps1'
+          infrastructure = read(infrastructure_path)
+          infrastructure = replace_once(
+              infrastructure,
+              "    [string]$VercelToken = '',\n",
+              '',
+              'deploy-infrastructure VercelToken parameter',
+          )
+          infrastructure = replace_once(
+              infrastructure,
+              "$VercelTokenSecretName = 'Vercel--Token'\n",
+              '',
+              'Vercel token secret constant',
+          )
+          infrastructure = replace_once(
+              infrastructure,
+              """    $existingVercelToken = Get-KeyVaultSecretValue -SecretName $VercelTokenSecretName
+    if (-not [string]::IsNullOrWhiteSpace($VercelToken)) {
+        Write-Warning 'The -VercelToken parameter is retained for compatibility. Prefer WORKSLIP_VERCEL_TOKEN to avoid shell-history exposure.'
+    }
+    $requestedVercelToken = if (-not [string]::IsNullOrWhiteSpace($VercelToken)) {
+        $VercelToken
+    } elseif (-not [string]::IsNullOrWhiteSpace($env:WORKSLIP_VERCEL_TOKEN)) {
+        $env:WORKSLIP_VERCEL_TOKEN
+    } else {
+        $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($existingVercelToken) -and
+        [string]::IsNullOrWhiteSpace($requestedVercelToken)) {
+        $legacyVercelValue = Get-AppConfigurationValue -Key 'Vercel:Token'
+        if (-not [string]::IsNullOrWhiteSpace($legacyVercelValue) -and
+            $legacyVercelValue -notmatch '^\s*\{\s*"uri"\s*:') {
+            $requestedVercelToken = $legacyVercelValue
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($existingVercelToken) -and
+        [string]::IsNullOrWhiteSpace($requestedVercelToken)) {
+        throw 'Vercel token is missing. Set WORKSLIP_VERCEL_TOKEN for the first hardened deployment.'
+    }
+
+""",
+              '',
+              'Vercel token discovery and migration block',
+          )
+          infrastructure = replace_once(
+              infrastructure,
+              "            vercelToken = @{ value = '' }\n",
+              '',
+              'Bicep Vercel token deployment parameter',
+          )
+          infrastructure = replace_once(
+              infrastructure,
+              """    if (-not [string]::IsNullOrWhiteSpace($requestedVercelToken)) {
+        Set-KeyVaultSecretFromMemory -SecretName $VercelTokenSecretName -SecretValue $requestedVercelToken
+    }
+
+""",
+              '',
+              'Vercel token Key Vault write',
+          )
+          infrastructure = replace_once(
+              infrastructure,
+              "    Set-AppConfigurationKeyVaultReference -Key 'Vercel:Token' -SecretName $VercelTokenSecretName\n",
+              '',
+              'Vercel App Configuration Key Vault reference',
+          )
+          infrastructure = replace_once(
+              infrastructure,
+              "    $requestedVercelToken = $null\n    $existingVercelToken = $null\n",
+              '',
+              'Vercel cleanup variables',
+          )
+          write(infrastructure_path, infrastructure)
+
+          for path in ('src/BE/infrastructure/deploy-safe.ps1', 'src/BE/infrastructure/deploy.ps1'):
+              value = read(path)
+              value = replace_once(
+                  value,
+                  "    [string]$VercelToken = '',\n",
+                  '',
+                  f'{path} VercelToken parameter',
+              )
+              value = replace_once(
+                  value,
+                  "    -VercelToken $VercelToken `\n",
+                  '',
+                  f'{path} VercelToken forwarding',
+              )
+              write(path, value)
+
+          main_path = 'src/BE/infrastructure/main.bicep'
+          main = read(main_path)
+          main = replace_once(
+              main,
+              "@secure()\nparam vercelToken string\n",
+              '',
+              'main.bicep Vercel token parameter',
+          )
+          main = replace_once(
+              main,
+              "    appConfigurationName: appConfiguration.name\n    vercelToken: vercelToken\n",
+              "    appConfigurationName: appConfiguration.name\n",
+              'staticConfig Vercel parameter forwarding',
+          )
+          write(main_path, main)
+
+          static_path = 'src/BE/infrastructure/staticConfig.bicep'
+          static = read(static_path)
+          static = replace_once(
+              static,
+              "@secure()\n@description('Retained for main.bicep compatibility. The value is stored in Key Vault by deploy-infrastructure.ps1 and is never written here.')\nparam vercelToken string\n\n",
+              '',
+              'staticConfig Vercel token compatibility parameter',
+          )
+          static = replace_once(
+              static,
+              "\n  'Vercel:ProjectId': 'prj_eIy6jy8lbxQSpuzJsvzhurAivAaX'",
+              '',
+              'Vercel project configuration',
+          )
+          write(static_path, static)
+
+          readme_path = 'src/BE/infrastructure/README.md'
+          readme = read(readme_path)
+          readme = replace_once(
+              readme,
+              "| `Vercel:Token` | `Vercel--Token` | Reuses the existing secret, migrates the prior plain App Configuration value, or accepts `WORKSLIP_VERCEL_TOKEN` / `-VercelToken` for first setup or rotation. Omitted input never blanks the secret. |\n",
+              '',
+              'README Vercel secret row',
+          )
+          readme = replace_once(
+              readme,
+              "Secrets are written through temporary files and cleared from script variables during cleanup. A JWT signing-key rotation invalidates outstanding local Workslip JWTs.\n",
+              "Secrets are written through temporary files and cleared from script variables during cleanup. A JWT signing-key rotation invalidates outstanding local Workslip JWTs. Vercel CDN purge configuration is outside the infrastructure deployment boundary.\n",
+              'README infrastructure boundary text',
+          )
+          readme = replace_once(
+              readme,
+              "1. `Azure:Sql:ConnectionString`, `Jwt:SigningKey` and `Vercel:Token` are Key Vault references in App Configuration.\n",
+              "1. `Azure:Sql:ConnectionString` and `Jwt:SigningKey` are Key Vault references in App Configuration.\n",
+              'README post-deployment verification',
+          )
+          write(readme_path, readme)
+
+          adr_path = 'Docs/architecture/adr/0001-managed-identity-runtime-and-secret-lifecycle.md'
+          adr = read(adr_path)
+          adr = replace_once(
+              adr,
+              "That script duplicated Graph permission assignment, provisioned an unused OAuth client secret, exposed a Vercel token as ordinary App Configuration and configured the API to use the SQL administrator password at runtime.",
+              "That script duplicated Graph permission assignment, provisioned an unused OAuth client secret and configured the API to use the SQL administrator password at runtime.",
+              'ADR context Vercel reference',
+          )
+          adr = replace_once(
+              adr,
+              "5. App Configuration contains versionless Key Vault references for JWT signing material, Vercel credentials and the SQL connection string.\n6. JWT signing material is generated with a cryptographic random-number generator and rotated explicitly or when the legacy deterministic value is detected.\n7. The deployment-created OAuth application client secret is removed. Future server-side confidential-client flows require a separate ADR and scoped credential lifecycle.\n8. `deploy.ps1` remains temporarily as a compatibility shim that delegates to `deploy-safe.ps1`.\n",
+              "5. App Configuration contains versionless Key Vault references for JWT signing material and the SQL connection string.\n6. Vercel CDN purge configuration is outside the Azure infrastructure deployment boundary.\n7. JWT signing material is generated with a cryptographic random-number generator and rotated explicitly or when the legacy deterministic value is detected.\n8. The deployment-created OAuth application client secret is removed. Future server-side confidential-client flows require a separate ADR and scoped credential lifecycle.\n9. `deploy.ps1` remains temporarily as a compatibility shim that delegates to `deploy-safe.ps1`.\n",
+              'ADR decision block',
+          )
+          adr = replace_once(
+              adr,
+              "- Store Vercel/JWT values directly in App Configuration: rejected because App Configuration is the non-secret configuration layer.\n",
+              "- Store JWT values directly in App Configuration: rejected because App Configuration is the non-secret configuration layer.\n",
+              'ADR rejected alternative',
+          )
+          write(adr_path, adr)
+
+          forbidden = (
+              'VercelToken',
+              'WORKSLIP_VERCEL_TOKEN',
+              'Vercel--Token',
+              'Vercel:Token',
+              'Vercel:ProjectId',
+          )
+          checked = [
+              infrastructure_path,
+              'src/BE/infrastructure/deploy-safe.ps1',
+              'src/BE/infrastructure/deploy.ps1',
+              main_path,
+              static_path,
+              readme_path,
+              adr_path,
+          ]
+          remaining = []
+          for path in checked:
+              value = read(path)
+              for token in forbidden:
+                  if token in value:
+                      remaining.append(f'{path}: {token}')
+          if remaining:
+              raise SystemExit('Vercel infrastructure coupling remains:\n' + '\n'.join(remaining))
+          PY
+
+          git diff --check
+
+          if command -v pwsh >/dev/null 2>&1; then
+            pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("src/BE/infrastructure/deploy-infrastructure.ps1", [ref]$null, [ref]$errors) > $null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }'
+          fi
+
+      - name: Commit focused correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/patch-wor-190-remove-vercel-infra.yml
+          git add \
+            src/BE/infrastructure/deploy-infrastructure.ps1 \
+            src/BE/infrastructure/deploy-safe.ps1 \
+            src/BE/infrastructure/deploy.ps1 \
+            src/BE/infrastructure/main.bicep \
+            src/BE/infrastructure/staticConfig.bicep \
+            src/BE/infrastructure/README.md \
+            Docs/architecture/adr/0001-managed-identity-runtime-and-secret-lifecycle.md
+          git commit -m "RBJ-190 remove Vercel purge from infrastructure"
+          git push origin HEAD:rbj--190-infrastructure-deployment-hardening
