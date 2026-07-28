@@ -266,7 +266,6 @@ public sealed class InvitationEnrollmentTests
             invites,
             entra,
             transactionFactory,
-            new FakeOrganizationRepository(),
             new FakeEmailService(),
             new FakeCurrentUserContext(),
             NullLogger<InvitationService>.Instance);

@@ -2,7 +2,6 @@ using Ardalis.Result;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Application.Common;
-using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 using Workslip.Domain.Models;
 using Workslip.Domain;
@@ -14,7 +13,6 @@ public sealed class InvitationService(
     IInviteRepository inviteRepository,
     IUserEntraService entraService,
     IApplicationTransactionFactory transactionFactory,
-    IOrganizationRepository organizationRepository,
     IEmailService emailService,
     ICurrentUserContext currentUser,
     ILogger<InvitationService> logger) : IInvitationService

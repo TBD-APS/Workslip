@@ -1,6 +1,4 @@
 param appConfigurationName string
-@secure()
-param vercelToken string
 
 resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
   name: appConfigurationName
@@ -17,39 +15,31 @@ resource staticConfigValues 'Microsoft.AppConfiguration/configurationStores/keyV
 ]
 
 var appConfigValues = {
-
-  //urls
   'Azure:Domain:BaseUrl': 'https://app.mrsoftware.dk'
   'Cors:AllowedOrigins:0': 'https://app.mrsoftware.dk'
   'Cors:AllowedOrigins:1': 'https://workslip-v2-0.vercel.app'
 
-  //OAuth
   'Azure:AdOAuth:TenantId': az.tenant().tenantId
   'Azure:AdOAuth:Instance': az.environment().authentication.loginEndpoint
-  
-  //LocalJwt
+
   'Jwt:Issuer': 'WorkslipApi'
   'Jwt:Audience': 'WorkslipClient'
   'Jwt:ExpiryMinutes': '60'
-  // Authorization policies
+
   'Authorization:Policies:RequireSuperadmin': 'Superadmin'
   'Authorization:Policies:RequireAdmin': 'Admin'
   'Authorization:Policies:RequireAuditor': 'Auditor'
   'Authorization:Policies:RequireReadAccess': 'User|Auditor'
   'Authorization:Policies:RequireUser': 'User'
 
-  //Storage account
-  'Azure:DocumentFileStorage:ContainerName': 'report-attachments' //fix
-  'Azure:DocumentFileStorage:LocalRootPath': 'UploadedFiles' //fix
-  
-  // Role hierarchy
+  'Azure:DocumentFileStorage:ContainerName': 'report-attachments'
+  'Azure:DocumentFileStorage:LocalRootPath': 'UploadedFiles'
+
   'Authorization:RoleHierarchy:Superadmin:0': 'Admin'
   'Authorization:RoleHierarchy:Admin:0': 'User'
-  
-  //Email
+
   'Azure:Acs:InviteBaseUrl': 'https://app.mrsoftware.dk/invite'
   'Azure:Acs:PLainHeaderText': 'Du er blevet inviteret til Workslip'
-
   'Azure:Acs:HtmlInviteText': '''
   <html>
   <body style="font-family: Arial, sans-serif; padding: 24px;">
@@ -66,7 +56,6 @@ var appConfigValues = {
     <p style="color: #666; font-size: 12px;">Workslip – automatisk invitation</p>
   </body>
   </html>'''
-
   'Azure:Acs:PlainInviteText': '''
     Du er blevet inviteret til Workslip.
     Klik på følgende link for at acceptere invitationen:
@@ -74,11 +63,5 @@ var appConfigValues = {
     Linket udløber om 7 dage.
   '''
 
-  // Push Notifications
   'Vapid:PublicKey': 'BK5wzcorbTV2rLqLYyPdWYMXmtY0Vr5xLzW4suFnbZH3bdvYM8Ddp_XqEFh8dwRwdEtNlO3YMMZe3ZQTOZVVLgY'
-  // Vapid:PrivateKey is managed separately as a secret in Azure App Configuration.
-
-  //Vercel
-  'Vercel:ProjectId': 'prj_eIy6jy8lbxQSpuzJsvzhurAivAaX'
-  'Vercel:Token': vercelToken
 }

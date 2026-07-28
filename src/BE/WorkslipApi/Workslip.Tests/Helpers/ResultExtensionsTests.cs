@@ -2,7 +2,7 @@ using System.Text.Json;
 using Ardalis.Result;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Workslip.Api.Helpers;
+using ApiResultExtensions = Workslip.Api.Helpers.ResultExtensions;
 using Xunit;
 
 namespace Workslip.Tests.Helpers;
@@ -16,7 +16,7 @@ public sealed class ResultExtensionsTests
         var result = Result.Error(technicalMessage);
 
         var context = CreateHttpContext();
-        await ResultExtensions.ToHttpResult(result).ExecuteAsync(context);
+        await ApiResultExtensions.ToHttpResult(result).ExecuteAsync(context);
 
         var root = await ReadResponseAsync(context);
 
@@ -31,7 +31,7 @@ public sealed class ResultExtensionsTests
         var result = Result.Conflict("email_in_use");
 
         var context = CreateHttpContext();
-        await ResultExtensions.ToHttpResult(result).ExecuteAsync(context);
+        await ApiResultExtensions.ToHttpResult(result).ExecuteAsync(context);
 
         var root = await ReadResponseAsync(context);
 
@@ -52,7 +52,7 @@ public sealed class ResultExtensionsTests
         ]);
 
         var context = CreateHttpContext();
-        await ResultExtensions.ToHttpResult(result).ExecuteAsync(context);
+        await ApiResultExtensions.ToHttpResult(result).ExecuteAsync(context);
 
         var root = await ReadResponseAsync(context);
         var error = root.GetProperty("errors").GetProperty("WorkKind")[0].GetString();

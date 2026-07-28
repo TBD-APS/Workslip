@@ -1,55 +1,19 @@
 # Isolated full-stack validation
 
-`Full Stack Validation` is a GitHub Actions workflow for exercising Workslip without using the production Azure deployment or database.
+**Status:** Historical  
+**Owner:** Workslip repository owner  
+**Source of truth:** Git history and WOR-188  
+**Review cadence:** None unless an isolated integration gate is reintroduced
 
-## What it starts
+The former `Full Stack Validation` GitHub Actions workflow started disposable SQL Server, API and frontend processes, then ran Postman and Selenium checks. It was removed under WOR-188 because it was expensive and ran for routine application pull requests regardless of the actual risk.
 
-Each workflow run receives fresh, disposable resources:
+This document no longer describes active automation. There is no manually runnable workflow with that name.
 
-1. SQL Server 2022 Developer container.
-2. Workslip API running with `ASPNETCORE_ENVIRONMENT=Development`.
-3. Development seed data and local JWT authentication.
-4. Vite frontend configured to use the local API.
-5. Headless Chrome controlled through Selenium.
+Reusable principles retained from the removed workflow:
 
-All resources are destroyed when the GitHub-hosted runner finishes.
+- integration tests must use isolated synthetic data;
+- production Azure, SQL and credentials must not be used;
+- external-provider flows require separate controlled smoke tests;
+- useful failure artifacts include API logs, browser console output and screenshots.
 
-## Validation stages
-
-The workflow:
-
-- restores and builds the .NET API;
-- installs and builds the frontend;
-- waits for SQL Server and API health;
-- creates a unique isolated organization;
-- runs a generated CI-safe subset of the maintained Postman collection through Newman;
-- starts the frontend and performs Selenium smoke tests for development login, customer listing and customer creation navigation;
-- uploads API logs, frontend logs, Newman JUnit output, the generated CI collection, screenshots, page HTML and browser-console output.
-
-## External-provider exclusions
-
-The generated Newman collection excludes requests that require services unavailable inside the disposable stack:
-
-- email one-time-code delivery and verification;
-- Microsoft Entra login and enrollment;
-- invitation delivery and invitation-token callbacks;
-- browser push-subscription creation;
-- external cache invalidation.
-
-These endpoints remain in the maintained Postman collection. The workflow filters them only for the isolated run and prints every exclusion in its log.
-
-## Separation from deployment
-
-The workflow does not:
-
-- call `azure/login`;
-- use an Azure GitHub environment;
-- read production SQL or integration secrets;
-- deploy an API or frontend;
-- invoke `.github/workflows/main_api-npteknik-prod.yml`.
-
-It can run automatically for relevant pull requests or manually through **Actions → Full Stack Validation → Run workflow**.
-
-## Test-data policy
-
-The database is ephemeral and uses synthetic seed data plus a unique organization generated for the workflow run. Production customer data, uploaded customer workbooks and production credentials must not be added to this workflow or its artifacts.
+Current validation commands are documented in the root, frontend and backend READMEs. The maintained Postman runner can be executed deliberately against localhost or a dedicated test/staging environment.

@@ -16,6 +16,7 @@ This directory separates maintained product documentation from historical implem
 | Repository entrypoint | [`../README.md`](../README.md) | Active | Workslip maintainers | Monthly and on setup changes | Repository structure and current commands |
 | Frontend development | [`../src/FE/README.md`](../src/FE/README.md) | Active | Frontend owner | On frontend tooling/config changes | `package.json`, Vite config and frontend source |
 | Backend development | [`../src/BE/WorkslipApi/README.md`](../src/BE/WorkslipApi/README.md) | Active | Backend owner | On API/persistence/config changes | Backend source, configuration and workflows |
+| Infrastructure deployment | [`../src/BE/infrastructure/README.md`](../src/BE/infrastructure/README.md) | Active | Repository owner | On Azure, Entra, SQL or secret changes | Bicep, deployment scripts and accepted ADRs |
 | Architecture and ADRs | [`architecture/README.md`](architecture/README.md) | Draft | Architecture owner | Monthly and on boundary changes | Deployed code, infrastructure and accepted ADRs |
 | API and integrations | [`api/README.md`](api/README.md) | Draft | API owner | On contract changes | Runtime OpenAPI, endpoint code and Postman suite |
 | Pages and domain operations | [`operations/github-pages-domain-runbook.md`](operations/github-pages-domain-runbook.md) | Active | Repository owner | Before Pages or DNS changes | GitHub Pages settings, DNS and Pages workflow |
@@ -32,8 +33,9 @@ The following locations contain useful context but are not automatically current
 - `Docs/superpowers/specs/` — dated feature specifications.
 - `.hermes/specs/` — historical agent-generated specifications.
 - `src/docs/` — product and implementation plans, including proposed future behaviour.
+- `Docs/testing/full-stack-validation.md` — historical description of the workflow removed under WOR-188.
 
-A historical document should retain its original content. Add or preserve a visible status/date header rather than silently rewriting its claims as current implementation.
+A historical document should retain its original context or carry a visible historical status. Do not treat it as active automation.
 
 ## Source-of-truth precedence
 

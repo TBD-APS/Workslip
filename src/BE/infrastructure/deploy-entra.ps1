@@ -28,8 +28,8 @@ function Initialize-AzureCliInvocation {
     $script:AzureCliExecutable = $azureCliCommand.Source
     $script:AzureCliPrefix = @()
 
-    $isWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
-    if (-not $isWindows) {
+    $runningOnWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+    if (-not $runningOnWindows) {
         return
     }
 

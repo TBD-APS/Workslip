@@ -14,7 +14,9 @@ param sqlConnectionString string
 @secure()
 param jwtSigninKey string
 
-// ... (existing resources) ...
+resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
+  name: appConfigurationName
+}
 
 resource configClientAppId 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
@@ -22,10 +24,6 @@ resource configClientAppId 'Microsoft.AppConfiguration/configurationStores/keyVa
   properties: {
     value: clientAppId
   }
-}
-
-resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' existing = {
-  name: appConfigurationName
 }
 
 resource configManagedIdentityClientId 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
@@ -60,7 +58,6 @@ resource configAdOAuthAudience 'Microsoft.AppConfiguration/configurationStores/k
   }
 }
 
-
 resource configOAuthServerAppId 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
   name: 'Azure:GraphApp:OAuthAppId'
@@ -93,8 +90,6 @@ resource configApplicationInsightsConnectionString 'Microsoft.AppConfiguration/c
   }
 }
 
-//KEY VAULT REFERENCES
-
 var keyVaultReferenceContentType = 'application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8'
 
 resource acsConnectionStringSecret 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
@@ -106,7 +101,7 @@ resource acsConnectionStringSecret 'Microsoft.AppConfiguration/configurationStor
   }
 }
 
-resource SqlConnectionString 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+resource sqlConnectionStringSecret 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
   name: 'Azure:Sql:ConnectionString'
   properties: {
@@ -115,7 +110,7 @@ resource SqlConnectionString 'Microsoft.AppConfiguration/configurationStores/key
   }
 }
 
-resource JwtSigninKeySecret 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
+resource jwtSigningKeySecret 'Microsoft.AppConfiguration/configurationStores/keyValues@2024-05-01' = {
   parent: appConfiguration
   name: 'Jwt:SigningKey'
   properties: {
