@@ -8,7 +8,6 @@ using Workslip.Application.Jobs;
 namespace Workslip.Application.Worksheets;
 
 public class WorksheetService : IWorksheetService
-
 {
     private readonly IWorksheetRepository _repository;
     private readonly IJobService _jobService;
@@ -29,7 +28,6 @@ public class WorksheetService : IWorksheetService
         _currentUserContext = currentUserContext;
         _logger = logger;
     }
-
 
     public async Task<Result<MyWorksheetsMonthResponse>> GetWorksheetsForUserAsync(int? year, int? month, CancellationToken cancellationToken)
     {
@@ -112,16 +110,15 @@ public class WorksheetService : IWorksheetService
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning(ex, "Worksheet upsert failed due to business rule violation. JobId: {JobId}", request.JobId);
-            return Result<JobReportSummaryResponse>.Conflict(ex.Message);
+            return Result<JobReportSummaryResponse>.Conflict("worksheet_rule_violation");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error during worksheet upsert. JobId: {JobId}", request.JobId);
-            return Result<JobReportSummaryResponse>.Error(ex.Message);
+            return Result<JobReportSummaryResponse>.Error("worksheet_unexpected_error");
         }
 
-        if (organizationId.HasValue)
-            await _jobService.InvalidateJobDetailCacheAsync(request.JobId, organizationId.Value, cancellationToken);
+        await _jobService.InvalidateJobDetailCacheAsync(request.JobId, organizationId.Value, cancellationToken);
 
         return await _jobService.GetSingleJobAsync(request.JobId, cancellationToken);
     }
@@ -141,7 +138,7 @@ public class WorksheetService : IWorksheetService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error during worksheet deletion. WorksheetId: {WorksheetId}, JobId: {JobId}", worksheetId, jobId);
-            return Result<JobReportSummaryResponse>.Error(ex.Message);
+            return Result<JobReportSummaryResponse>.Error("worksheet_unexpected_error");
         }
 
         if (_currentUserContext.OrganizationId.HasValue)
@@ -163,7 +160,7 @@ public class WorksheetService : IWorksheetService
 
         var weekStart = StartOfWeek(monthStart);
         var lastWeekStart = StartOfWeek(monthEnd);
-        var weeks = new List<MyWorksheetWeekResponse>();
+        var weeks = new List<MyWorksheetsWeekResponse>();
 
         for (var start = weekStart; start <= lastWeekStart; start = start.AddDays(7))
         {
@@ -171,7 +168,7 @@ public class WorksheetService : IWorksheetService
                 .Select(offset => BuildDayResponse(start.AddDays(offset), entriesByDate))
                 .ToArray();
 
-            weeks.Add(new MyWorksheetWeekResponse(
+            weeks.Add(new MyWorksheetsWeekResponse(
                 start,
                 start.AddDays(6),
                 days.Sum(d => d.TotalHours),
@@ -228,5 +225,4 @@ public class WorksheetService : IWorksheetService
         result.Errors
             .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
             .ToList();
-
 }
