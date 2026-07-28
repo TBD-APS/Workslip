@@ -4,7 +4,7 @@ function Replace-Exact {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Old,
-        [Parameter(Mandatory = $true)][string]$New
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$New
     )
 
     $content = [System.IO.File]::ReadAllText($Path)
