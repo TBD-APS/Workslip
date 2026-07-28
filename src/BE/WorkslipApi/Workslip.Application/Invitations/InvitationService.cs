@@ -2,7 +2,6 @@ using Ardalis.Result;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
 using Workslip.Application.Common;
-using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 using Workslip.Domain.Models;
 using Workslip.Domain;
@@ -14,7 +13,6 @@ public sealed class InvitationService(
     IInviteRepository inviteRepository,
     IUserEntraService entraService,
     IApplicationTransactionFactory transactionFactory,
-    IOrganizationRepository organizationRepository,
     IEmailService emailService,
     ICurrentUserContext currentUser,
     ILogger<InvitationService> logger) : IInvitationService
@@ -30,7 +28,7 @@ public sealed class InvitationService(
         var results = new List<InviteUserResult>();
         foreach (var email in request.Emails)
         {
-            var result = await ProcessInviteEmailAsync(email, organizationId.Value, request.Role, request.InviteBaseUrl, cancellationToken);
+            var result = await ProcessInviteEmailAsync(email, organizationId.Value, request.Role, cancellationToken);
             results.Add(result);
         }
 
@@ -69,7 +67,7 @@ public sealed class InvitationService(
 
         if (string.IsNullOrWhiteSpace(invite.EntraUserId))
         {
-            logger.LogWarning("Invite enrollment failed: Entra user not pre-provisioned. Token: {Token}", invite.Token);
+            logger.LogWarning("Invite enrollment failed: Entra user not pre-provisioned. InviteId: {InviteId}", invite.Id);
             return Result<AuthUserInfo>.Conflict("entra_user_not_provisioned");
         }
 
@@ -90,9 +88,7 @@ public sealed class InvitationService(
                 userRole = existingUser.Role;
                 userDisplayName = existingUser.DisplayName;
 
-                // Optionally update existing user with provided info if they haven't set it?
-                // For now, just proceed with existing user.
-                logger.LogInformation("Invite accepted for existing user. UserId: {UserId}. Email: {Email}. Token: {Token}", userId, invite.Email, invite.Token);
+                logger.LogInformation("Invite accepted for existing user. UserId: {UserId}. InviteId: {InviteId}", userId, invite.Id);
             }
             else
             {
@@ -106,16 +102,19 @@ public sealed class InvitationService(
             await inviteRepository.MarkConsumedAsync(invite, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            var org = await organizationRepository.GetByIdAsync(organizationId, cancellationToken);
-            logger.LogInformation("Invite enrollment complete. UserId: {UserId}. Organization: {Org}. Email: {Email}. Role: {Role}.",
-                userId, org?.Name ?? organizationId.ToString(), invite.Email, userRole);
+            logger.LogInformation(
+                "Invite enrollment complete. UserId: {UserId}. OrganizationId: {OrganizationId}. InviteId: {InviteId}. Role: {Role}.",
+                userId,
+                organizationId,
+                invite.Id,
+                userRole);
 
             return Result<AuthUserInfo>.Success(new AuthUserInfo(userId, organizationId, invite.Email, userDisplayName, userRole));
         }
         catch (Exception ex)
         {
             await RollbackTransactionAsync(transaction, cancellationToken);
-            logger.LogError(ex, "Invite enrollment failed. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
+            logger.LogError(ex, "Invite enrollment failed. InviteId: {InviteId}", invite.Id);
             throw;
         }
     }
@@ -140,7 +139,11 @@ public sealed class InvitationService(
             : Result<AuthUserInfo>.Conflict(validationError);
     }
 
-    private async Task<InviteUserResult> ProcessInviteEmailAsync(string email, Guid organizationId, string? role, string inviteBaseUrl, CancellationToken cancellationToken)
+    private async Task<InviteUserResult> ProcessInviteEmailAsync(
+        string email,
+        Guid organizationId,
+        string? role,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(email))
             return new InviteUserResult(email, false, "E-mailadressen er tom.", null);
@@ -151,12 +154,14 @@ public sealed class InvitationService(
         {
             var token = Guid.NewGuid().ToString("N");
             var existingInvite = await inviteRepository.GetInviteByEmailAsync(organizationId, normalizedEmail, cancellationToken);
+            Guid inviteId;
 
             if (existingInvite == null)
             {
+                inviteId = Guid.NewGuid();
                 var newInviteRow = new InviteTokenRow
                 {
-                    Id = Guid.NewGuid(),
+                    Id = inviteId,
                     OrganizationId = organizationId,
                     Email = normalizedEmail,
                     Token = token,
@@ -170,6 +175,7 @@ public sealed class InvitationService(
             }
             else
             {
+                inviteId = existingInvite.Id;
                 existingInvite.ExpiresAt = DateTimeOffset.UtcNow.AddDays(7);
                 existingInvite.Token = token;
                 existingInvite.Consumed = false;
@@ -177,12 +183,14 @@ public sealed class InvitationService(
             }
 
             await emailService.SendInviteEmailAsync(normalizedEmail, token, cancellationToken);
-            logger.LogInformation("Invite sent to {Email}. Token: {Token}", normalizedEmail, token);
-            return new InviteUserResult(normalizedEmail, true, null, token);
+            logger.LogInformation("Invite sent. InviteId: {InviteId}. OrganizationId: {OrganizationId}", inviteId, organizationId);
+
+            // The token is delivered only to the recipient by email and must not be returned by the API.
+            return new InviteUserResult(normalizedEmail, true, null, null);
         }
         catch (InvalidOperationException ex)
         {
-            logger.LogError(ex, "Failed to send invite to {Email}.", normalizedEmail);
+            logger.LogError(ex, "Failed to send invite. OrganizationId: {OrganizationId}", organizationId);
             return new InviteUserResult(normalizedEmail, false, "Invitationen kunne ikke sendes.", null);
         }
     }
@@ -220,15 +228,17 @@ public sealed class InvitationService(
 
         if (invite is null)
         {
-            logger.LogWarning("Unable to open invite because token was not found. Token: {Token}", token);
+            logger.LogWarning("Unable to open invite because token was not found.");
             return Result<InviteOpenResponse>.NotFound();
         }
 
         if (invite.Consumed)
         {
             var consumedUser = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
-            logger.LogInformation("Invite re-opened after consumption. Token: {Token}. Email: {Email}. UserExists: {UserExists}",
-                token, invite.Email, consumedUser is not null);
+            logger.LogInformation(
+                "Invite re-opened after consumption. InviteId: {InviteId}. UserExists: {UserExists}",
+                invite.Id,
+                consumedUser is not null);
             return Result<InviteOpenResponse>.Success(new InviteOpenResponse(invite.Email, consumedUser is not null, Consumed: true));
         }
 
@@ -251,17 +261,17 @@ public sealed class InvitationService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Invite open failed during Entra guest pre-creation. Email: {Email}. Token: {Token}", invite.Email, invite.Token);
+                logger.LogError(ex, "Invite open failed during Entra guest pre-creation. InviteId: {InviteId}", invite.Id);
                 throw;
             }
         }
         else
         {
-            logger.LogError("Invite open reusing cached EntraUserId. Email: {Email}. Token: {Token}. EntraUserId: {EntraUserId}", invite.Email, invite.Token, invite.EntraUserId);
+            logger.LogDebug("Invite open reused provisioned Entra user. InviteId: {InviteId}", invite.Id);
         }
 
         await inviteRepository.MarkOpenedAsync(invite, cancellationToken);
-        logger.LogInformation("Invite opened and Entra guest ensured. Token: {Token}. Email: {Email}", token, invite.Email);
+        logger.LogInformation("Invite opened and Entra guest ensured. InviteId: {InviteId}", invite.Id);
 
         var user = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
         var userExists = user is not null;
@@ -277,21 +287,21 @@ public sealed class InvitationService(
             : Result.Conflict(validationError);
     }
 
-    private async Task<string?> GetInviteValidationErrorAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    private Task<string?> GetInviteValidationErrorAsync(InviteTokenRow invite, CancellationToken cancellationToken)
     {
         if (invite.Consumed)
         {
-            logger.LogWarning("Invite verification failed: already consumed. Token: {Token}", invite.Token);
-            return "invite_consumed";
+            logger.LogWarning("Invite verification failed: already consumed. InviteId: {InviteId}", invite.Id);
+            return Task.FromResult<string?>("invite_consumed");
         }
 
         if (DateTimeOffset.UtcNow > invite.ExpiresAt)
         {
-            logger.LogWarning("Invite verification failed: expired. Token: {Token}", invite.Token);
-            return "invite_expired";
+            logger.LogWarning("Invite verification failed: expired. InviteId: {InviteId}", invite.Id);
+            return Task.FromResult<string?>("invite_expired");
         }
 
-        return null;
+        return Task.FromResult<string?>(null);
     }
 
     public async Task<int> CleanupStaleEntraInvitesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken)
@@ -315,7 +325,7 @@ public sealed class InvitationService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to clean stale invite-owned Entra user. InviteId: {InviteId}. EntraUserId: {EntraUserId}", invite.Id, invite.EntraUserId);
+                logger.LogError(ex, "Failed to clean stale invite-owned Entra user. InviteId: {InviteId}", invite.Id);
             }
         }
 
