@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { JobDetailsPage } from '../components/JobDetails';
@@ -14,8 +14,13 @@ export const JobDetail = () => {
   const queryClient = useQueryClient();
   const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
   const details = useJobDetails(id);
+  const rejectedLandingHandledRef = useRef(false);
 
   useScrollRestore(`job:${id}`);
+
+  useEffect(() => {
+    rejectedLandingHandledRef.current = false;
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -24,6 +29,14 @@ export const JobDetail = () => {
       markJobAsSeen(id, queryClient, 'RejectedAssignment');
     }
   }, [id, details.job?.status]);
+
+  useEffect(() => {
+    if (details.job?.status !== JobStatus.Rejected || rejectedLandingHandledRef.current) return;
+
+    rejectedLandingHandledRef.current = true;
+    details.setCurrentStep(0);
+    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
+  }, [details.job?.status, details.setCurrentStep]);
 
   return (
     <JobDetailsPage
