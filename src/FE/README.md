@@ -7,6 +7,7 @@ React 19, TypeScript and Vite PWA for Workslip.
 - Node.js 22
 - npm
 - Workslip API running locally on `http://localhost:5262`, or an explicit API base URL
+- outbound access to the pinned Fontsource files on `cdn.jsdelivr.net` when fonts are not already present locally
 
 ## Install and run
 
@@ -17,15 +18,18 @@ npm run dev
 
 The development server listens on `http://127.0.0.1:5270`. Requests to `/api` are proxied to `http://localhost:5262` by `vite.config.ts`.
 
-To call a different API, set `VITE_API_BASE_URL` in an uncommitted environment file such as `.env.local`.
+To call a different API locally, set `VITE_API_BASE_URL` in an uncommitted environment file such as `.env.local`.
+
+`npm run dev` and production builds run `scripts/sync-fonts.mjs`. The script downloads the pinned Inter and Outfit variable WOFF2 files into `public/fonts/` only when valid local copies are missing. The generated binaries are ignored by Git; the license notice remains tracked.
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Start Vite development server |
+| `npm run dev` | Synchronize fonts and start the Vite development server |
+| `npm run sync:fonts` | Download and validate the pinned local font assets |
 | `npm run lint` | Run ESLint |
-| `npm run build` | Type-check and create a production build |
+| `npm run build` | Synchronize fonts, type-check and create a production build |
 | `npm run preview` | Preview the production build |
 | `npm run generate:api:local` | Generate the API client using `.env.local` |
 | `npm run generate:api:dev` | Generate the API client using `.env.dev` |
@@ -40,8 +44,11 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `src/features/` contains feature-oriented UI, hooks and API usage.
 - `src/components/` contains shared UI and form components.
 - `src/lib/axios.ts` configures the API client, auth header, correlation ID and mutation idempotency header.
+- `src/fonts.css` defines the same-origin Inter and Outfit font faces.
+- `scripts/sync-fonts.mjs` materializes pinned WOFF2 files before development and production builds.
 - `src/sw.ts` and `src/registerSW.ts` contain service-worker behaviour.
 - `vite.config.ts` defines the local proxy and PWA manifest/build settings.
+- `vercel.json` defines production redirects, the external API rewrite and response-cache policy.
 
 ## Form conventions
 
@@ -56,6 +63,7 @@ Follow the repository `AGENTS.md` rules:
 
 ```bash
 npm ci
+npm run sync:fonts
 npm run lint
 npm run build
 ```
@@ -70,10 +78,36 @@ The Vercel project root must remain `src/FE`.
 - Production deployments come from `main`.
 - Every push or merge to `main` is eligible for a normal production deployment.
 - Manual production redeploys are not filtered by a repository `ignoreCommand`.
+- `https://app.mrsoftware.dk` is the canonical production frontend origin.
+- `/` is temporarily redirected to `/app` at the Vercel edge before React starts.
 
 Preview suppression is configured through `git.deploymentEnabled` in `vercel.json`. There is no repository-level ignored-build command.
 
 When a preview is explicitly needed, create it manually from `src/FE` through the Vercel dashboard or CLI. To restore automatic preview deployments for standard work branches, remove the `git.deploymentEnabled` rule from `vercel.json`.
+
+### DNS
+
+Cloudflare remains the authoritative DNS provider. The `app.mrsoftware.dk` CNAME must point to the Vercel-provided target and remain **DNS only**. Cloudflare must not proxy the app in front of Vercel.
+
+### Production API route
+
+Browsers running on `app.mrsoftware.dk` or a `*.vercel.app` preview deployment use relative `/api/*` URLs regardless of an embedded `VITE_API_BASE_URL`. Vercel rewrites those requests to:
+
+```text
+https://api-mrsoftware-prod.azurewebsites.net/api/*
+```
+
+The browser therefore keeps a single origin and avoids browser CORS preflight for Workslip API requests. Vercel rewrite caching is explicitly disabled for `/api/*`; authenticated API responses must not be stored at the edge.
+
+The rewrite target is production-specific. A future separate frontend environment must define its own Vercel project configuration or make the upstream target environment-aware before it is enabled.
+
+### Cache policy
+
+- SPA HTML: `public, max-age=0, must-revalidate`
+- service worker: `public, max-age=0, must-revalidate`
+- hashed Vite assets: `public, max-age=31536000, immutable`
+- versioned self-hosted fonts: `public, max-age=31536000, immutable`
+- API rewrite: CDN caching disabled
 
 ## Environment and secrets
 
@@ -81,7 +115,7 @@ Only variables prefixed with `VITE_` can be embedded into the browser bundle. Ne
 
 Common runtime configuration includes:
 
-- `VITE_API_BASE_URL` — optional API base URL; blank uses the current origin and local Vite proxy.
+- `VITE_API_BASE_URL` — optional local/non-Vercel API base URL and OpenAPI-generation source. Vercel-hosted runtime traffic uses the same-origin `/api` rewrite instead.
 - Entra/Application Insights settings referenced by frontend source — treat these as public client configuration, not secrets.
 
 ## Microsoft login callback state
@@ -94,4 +128,4 @@ The login route clears the PKCE state after success, cancellation or callback fa
 
 ## PWA caution
 
-The application uses `vite-plugin-pwa` with an injected service worker. Changes to update/reload, caching, offline drafts or synchronization must be validated against long dirty forms and documented conservatively. A PWA cache is not proof that mutations work offline.
+The application uses `vite-plugin-pwa` with an injected service worker. Changes to update/reload, caching, offline drafts or synchronization must be validated against long dirty forms and documented conservatively. The self-hosted WOFF2 files are included in the precache manifest, but a PWA cache is not proof that API mutations work offline.

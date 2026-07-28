@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './registerSW'
+import './fonts.css'
 import './index.css'
 import App from './App.tsx'
 import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';

@@ -29,7 +29,10 @@ import {
   setReauthInFlight,
 } from '../providers/authContextValue';
 
-const apiUrl = import.meta.env.VITE_API_BASE_URL ?? '';
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? '';
+const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
+const isVercelHosted = hostname === 'app.mrsoftware.dk' || hostname.endsWith('.vercel.app');
+const apiUrl = isVercelHosted ? '' : configuredApiUrl;
 
 export const apiClient = axios.create({
   baseURL: apiUrl,
