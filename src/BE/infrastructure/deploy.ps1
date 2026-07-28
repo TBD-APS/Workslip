@@ -9,18 +9,34 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$SafeDeployScript = Join-Path $PSScriptRoot 'deploy-safe.ps1'
 
-if (-not (Test-Path $SafeDeployScript)) {
-    throw "Deployment orchestrator not found: $SafeDeployScript"
+$EntraScript = Join-Path $PSScriptRoot 'deploy-entra.ps1'
+$CredentialCleanupScript = Join-Path $PSScriptRoot 'internal\remove-legacy-oauth-client-secret.ps1'
+$InfrastructureScript = Join-Path $PSScriptRoot 'deploy-infrastructure.ps1'
+
+foreach ($scriptPath in @($EntraScript, $CredentialCleanupScript, $InfrastructureScript)) {
+    if (-not (Test-Path $scriptPath)) {
+        throw "Deployment script not found: $scriptPath"
+    }
 }
 
-Write-Warning 'deploy.ps1 is a compatibility entry point. Use deploy-entra.ps1 and deploy-infrastructure.ps1 directly, or deploy-safe.ps1 for both phases.'
+Write-Host 'Phase 1/3: reconciling Microsoft Entra applications...' -ForegroundColor Cyan
+& $EntraScript `
+    -Environment $Environment `
+    -StatePath $EntraStatePath
 
-& $SafeDeployScript `
+Write-Host 'Phase 2/3: removing obsolete OAuth deployment credentials...' -ForegroundColor Cyan
+& $CredentialCleanupScript `
+    -Environment $Environment `
+    -StatePath $EntraStatePath
+
+Write-Host 'Phase 3/3: deploying Azure infrastructure...' -ForegroundColor Cyan
+& $InfrastructureScript `
     -Environment $Environment `
     -Location $Location `
     -COMPANY_NAME $COMPANY_NAME `
     -GlobalAdminId $GlobalAdminId `
     -ActivateCustomEmailDomain $ActivateCustomEmailDomain `
     -EntraStatePath $EntraStatePath
+
+Write-Host 'Full deployment completed.' -ForegroundColor Green
