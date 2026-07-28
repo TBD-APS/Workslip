@@ -48,7 +48,7 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `scripts/sync-fonts.mjs` materializes pinned WOFF2 files before development and production builds.
 - `src/sw.ts` and `src/registerSW.ts` contain service-worker behaviour.
 - `vite.config.ts` defines the local proxy and PWA manifest/build settings.
-- `vercel.json` defines production redirects, the external API rewrite and response-cache policy.
+- `vercel.json` defines the Git deployment policy, production redirects, external API rewrite and response-cache policy.
 
 ## Form conventions
 
@@ -74,16 +74,16 @@ There is currently no general `npm test` script in `package.json`. Do not claim 
 
 The Vercel project root must remain `src/FE`.
 
-- Standard `rbj--*` work branches do not create automatic preview deployments.
+- Automatic Git deployments are disabled for every branch except `main`.
 - Production deployments come from `main`.
 - Every push or merge to `main` is eligible for a normal production deployment.
 - Manual production redeploys are not filtered by a repository `ignoreCommand`.
 - `https://app.mrsoftware.dk` is the canonical production frontend origin.
 - `/` is temporarily redirected to `/app` at the Vercel edge before React starts.
 
-Preview suppression is configured through `git.deploymentEnabled` in `vercel.json`. There is no repository-level ignored-build command.
+Branch suppression is configured through `git.deploymentEnabled` in `vercel.json` with a wildcard deny and an explicit `main` allow. There is no repository-level ignored-build command.
 
-When a preview is explicitly needed, create it manually from `src/FE` through the Vercel dashboard or CLI. To restore automatic preview deployments for standard work branches, remove the `git.deploymentEnabled` rule from `vercel.json`.
+A preview can still be created deliberately through the Vercel dashboard or CLI, but branch pushes do not create previews automatically. A manually created preview uses the production-specific API rewrite in this configuration and must therefore be treated as production-connected. To restore automatic previews, add a reviewed explicit allow rule for the intended branches rather than removing the wildcard deny accidentally.
 
 ### DNS
 
@@ -91,7 +91,7 @@ Cloudflare remains the authoritative DNS provider. The `app.mrsoftware.dk` CNAME
 
 ### Production API route
 
-Browsers running on `app.mrsoftware.dk` or a `*.vercel.app` preview deployment use relative `/api/*` URLs regardless of an embedded `VITE_API_BASE_URL`. Vercel rewrites those requests to:
+Browsers running on `app.mrsoftware.dk` or a deliberately created `*.vercel.app` deployment use relative `/api/*` URLs regardless of an embedded `VITE_API_BASE_URL`. Vercel rewrites those requests to:
 
 ```text
 https://api-mrsoftware-prod.azurewebsites.net/api/*
