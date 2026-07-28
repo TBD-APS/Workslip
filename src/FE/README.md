@@ -54,6 +54,8 @@ API generation uses Orval. Generated output must be regenerated from the current
 
 Authenticated feature routes are loaded through dynamic imports. The login and invite routes remain in the initial application shell; `/app` layout and feature pages are downloaded only after they are rendered. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
 
+A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a 12-second request timeout, and authenticated routing transitions to an explicit retry/reload/login recovery screen rather than clearing a potentially valid token or showing an endless spinner.
+
 ## Form conventions
 
 Follow the repository `AGENTS.md` rules:
@@ -81,6 +83,8 @@ For routing or PWA cache changes, also validate with a clean browser profile:
 3. A route visited once online must remain available on an offline revisit under the supported PWA flow.
 4. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
 5. Service-worker update checks must not overlap while another worker is installing or waiting.
+6. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
+7. A temporary `/api/auth/me` outage must retain the stored token and show bounded startup recovery.
 
 ## Vercel deployment policy
 
@@ -113,7 +117,7 @@ The browser therefore keeps a single origin and avoids browser CORS preflight fo
 
 The rewrite target is production-specific. A future separate frontend environment must define its own Vercel project configuration or make the upstream target environment-aware before it is enabled.
 
-### Cache policy
+### Cache and update policy
 
 - SPA HTML: `public, max-age=0, must-revalidate`
 - service worker: `public, max-age=0, must-revalidate`
@@ -122,6 +126,8 @@ The rewrite target is production-specific. A future separate frontend environmen
 - API rewrite: CDN caching disabled
 
 The service worker precaches the public bootstrap shell and static assets, but not authenticated route bundles under `assets/chunks/`. Hashed JavaScript and CSS for lazy routes are cached after their first successful request in a stable runtime cache capped at 100 entries. Keeping content-hashed route assets across deployments reduces version-skew failures for routes that were previously visited; a route that has never been visited is not guaranteed to work offline.
+
+Update discovery runs when the service worker registers, when the browser regains connectivity, whenever the app returns to the foreground, and once per minute while the app remains open. Checks are serialized and skipped while another worker is already installing or waiting. `autoUpdate`, `skipWaiting()` and immediate client claiming intentionally activate a discovered deployment without user confirmation.
 
 Vite dynamic-import preload failures trigger one automatic reload per build. Repeated failure in the same build falls through to the normal React error boundary instead of creating a reload loop.
 
@@ -146,4 +152,4 @@ The login route clears the PKCE state after success, cancellation or callback fa
 
 The application uses `vite-plugin-pwa` with an injected service worker. The custom service worker is type-checked separately and must not be excluded through `@ts-nocheck` again.
 
-The current `autoUpdate` activation policy can still replace an open application while a long form is dirty. Prompt-based, dirty-form-safe activation is tracked in WOR-114 and remains a prerequisite before the update flow can be considered safe for unsaved long forms. A PWA cache is not proof that API mutations work offline.
+Immediate activation is an accepted product decision recorded in ADR 0002. A deployment may replace an open client without waiting for dirty-form state or explicit confirmation. Runtime chunk retention and one-shot stale-build recovery reduce version-skew failures, but do not make API mutations offline-capable.
