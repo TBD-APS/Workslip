@@ -79,7 +79,6 @@ The Vercel project root must remain `src/FE`.
 - Every push or merge to `main` is eligible for a normal production deployment.
 - Manual production redeploys are not filtered by a repository `ignoreCommand`.
 - `https://app.mrsoftware.dk` is the canonical production frontend origin.
-- Requests to the public production alias `https://workslip-v2-0.vercel.app` are permanently redirected to the equivalent path on the canonical origin.
 - `/` is temporarily redirected to `/app` at the Vercel edge before React starts.
 
 Preview suppression is configured through `git.deploymentEnabled` in `vercel.json`. There is no repository-level ignored-build command.
@@ -92,7 +91,7 @@ Cloudflare remains the authoritative DNS provider. The `app.mrsoftware.dk` CNAME
 
 ### Production API route
 
-Browsers running on `app.mrsoftware.dk` or a `*.vercel.app` deployment use relative `/api/*` URLs regardless of an embedded `VITE_API_BASE_URL`. Vercel rewrites those requests to:
+Browsers running on `app.mrsoftware.dk` or a `*.vercel.app` preview deployment use relative `/api/*` URLs regardless of an embedded `VITE_API_BASE_URL`. Vercel rewrites those requests to:
 
 ```text
 https://api-mrsoftware-prod.azurewebsites.net/api/*
