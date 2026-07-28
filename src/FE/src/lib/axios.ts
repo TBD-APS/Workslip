@@ -30,6 +30,16 @@ import {
 } from '../providers/authContextValue';
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL ?? '';
+const AUTH_ME_TIMEOUT_MS = 12_000;
+
+const isAuthMeRequest = (url: string | undefined): boolean => {
+  const normalizedUrl = (url ?? '')
+    .split('?')[0]
+    .toLowerCase()
+    .replace(/\/+$/, '');
+
+  return normalizedUrl.endsWith('/api/auth/me');
+};
 
 export const apiClient = axios.create({
   baseURL: apiUrl,
@@ -58,6 +68,13 @@ function releaseKey(config: InternalAxiosRequestConfig): void {
 const DUPLICATE_REQUEST_ERROR = '__DUPLICATE_REQUEST__';
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Bound only the startup identity request. A global short timeout would also
+  // abort legitimate long-running reports and mutations.
+  if (isAuthMeRequest(config.url) && (!config.timeout || config.timeout <= 0)) {
+    config.timeout = AUTH_ME_TIMEOUT_MS;
+    config.skipGlobalErrorToast = true;
+  }
+
   // Attach auth token from AuthStorage (localStorage; survives PWA eviction).
   const token = AuthStorage.getItem(AUTH_TOKEN_KEY);
   if (token && !config.headers.Authorization) {
@@ -146,13 +163,13 @@ apiClient.interceptors.response.use(
     }
 
     const message = error.response?.data?.message || error.message;
+    const requestUrl = (error.config?.url ?? '').toLowerCase();
+    const isAuthApi = requestUrl.includes('/api/auth/');
+    const isAuthRoute = window.location.pathname.includes('/login') || window.location.pathname.includes('/invite');
+    const isMeEndpoint = isAuthMeRequest(error.config?.url);
 
     // Handle specific backend error patterns (from AGENTS.md rules)
     if (error.response?.status === 401) {
-      const requestUrl = (error.config?.url ?? '').toLowerCase();
-      const isAuthApi = requestUrl.includes('/api/auth/');
-      const isAuthRoute = window.location.pathname.includes('/login') || window.location.pathname.includes('/invite');
-
       // /api/auth/* failures (e.g. /api/auth/entra-login with a bad Microsoft token)
       // must NOT trigger a reauth redirect — that would loop forever.
       if (!isAuthApi && !isAuthRoute) {
@@ -175,19 +192,16 @@ apiClient.interceptors.response.use(
         }
       }
 
-      // Always purge stale token + email so the next render knows we are unauthenticated.
-      // However, skip purging for /api/auth/me – a transient 401 here (e.g. clock
-      // skew, delayed JWT propagation) should not destroy a valid token. The meQuery
-      // will retry automatically, and if it still fails the user will be redirected to
-      // login by ProtectedRoute.
-      const isMeEndpoint = requestUrl.endsWith('/api/auth/me') || requestUrl.endsWith('/api/auth/me/');
+      // Do not destroy the stored session for /api/auth/me. ProtectedRoute
+      // presents an explicit retry/reload/login recovery state after the query
+      // has exhausted its retry instead of treating API unavailability as logout.
       if (!isMeEndpoint) {
         AuthStorage.removeItem(AUTH_TOKEN_KEY);
         AuthStorage.removeItem(USER_EMAIL_KEY);
       }
-    } else if (error.config?.skipGlobalErrorToast) {
-      // Caller handles (and translates) this error locally. Suppress the global
-      // toast so the raw backend message is not shown alongside the friendly one.
+    } else if (isMeEndpoint || error.config?.skipGlobalErrorToast) {
+      // Startup identity failures are rendered by ProtectedRoute. Suppress raw
+      // timeout/network toasts so the recovery UI remains the single message.
     } else if (error.response?.status === 403) {
       notify.error('Du har ikke adgang til denne handling');
     } else if (error.response?.status === 400 && error.response?.data?.errors) {
