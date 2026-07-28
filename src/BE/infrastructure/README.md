@@ -6,7 +6,15 @@
 **Review cadence:** whenever Azure, Entra, SQL, GitHub OIDC or secret handling changes  
 **Linear:** WOR-190
 
-Workslip separates Microsoft Entra application reconciliation from Azure resource deployment. Do not add application-registration writes back into the infrastructure phase.
+Workslip has exactly three supported deployment entry points:
+
+| Script | Purpose |
+|---|---|
+| `deploy.ps1` | Reconcile Entra, remove the obsolete deployment-created OAuth credential and deploy Azure infrastructure. |
+| `deploy-entra.ps1` | Reconcile only the Microsoft Entra application registrations and service principals. |
+| `deploy-infrastructure.ps1` | Deploy only Azure resources using existing Entra state or read-only Entra discovery. |
+
+Do not add another public deployment wrapper. Helper scripts are implementation details and must not be presented as operator entry points.
 
 ## Prerequisites
 
@@ -17,7 +25,27 @@ Workslip separates Microsoft Entra application reconciliation from Azure resourc
 
 Production defaults are `mrsoftware`, `prod` and `westeurope`. Pass explicit values for another environment.
 
-## Entra application registrations
+## Full deployment
+
+Run both phases through the primary entry point:
+
+```powershell
+.\deploy.ps1 prod
+```
+
+The sequence is:
+
+1. `deploy-entra.ps1` reconciles the two Entra applications and service principals.
+2. The internal credential-cleanup step removes the exact obsolete `workslip-deploy-{environment}-oauth-client-secret` credential when present.
+3. `deploy-infrastructure.ps1` deploys and reconciles Azure resources.
+
+Custom ACS sender activation can be passed through the full deployment:
+
+```powershell
+.\deploy.ps1 prod -ActivateCustomEmailDomain $true
+```
+
+## Entra only
 
 Run this phase when creating an environment or changing application-registration settings:
 
@@ -59,7 +87,11 @@ The infrastructure phase:
 
 Vercel cache-purge credentials and project configuration are outside the Azure infrastructure deployment boundary. The infrastructure scripts neither require nor reconcile them.
 
-### Runtime SQL authentication
+## Internal helpers
+
+`grant-web-api-sql-access.ps1` and files under `internal/` are called by the supported entry points. They are not standalone deployment commands and must not be referenced as startup scripts in automation or operator documentation.
+
+## Runtime SQL authentication
 
 Production API connections use the user-assigned managed identity:
 
@@ -71,7 +103,7 @@ Authentication=Active Directory Managed Identity;User Id=<managed-identity-clien
 
 The identity currently receives `db_datareader`, `db_datawriter` and `db_ddladmin`. `db_ddladmin` is temporary while schema initialization still runs at API startup; remove it with WOR-136 when migrations move to deployment.
 
-### Secret lifecycle
+## Secret lifecycle
 
 The infrastructure script owns these versionless Key Vault references:
 
@@ -82,7 +114,7 @@ The infrastructure script owns these versionless Key Vault references:
 
 Secrets are written through temporary files and cleared from script variables during cleanup. A JWT signing-key rotation invalidates outstanding local Workslip JWTs.
 
-### Microsoft Graph permissions
+## Microsoft Graph permissions
 
 `main.bicep` is the single source of truth for API runtime Graph app-role assignments:
 
@@ -93,25 +125,9 @@ Secrets are written through temporary files and cleared from script variables du
 
 These permissions support external-user lookup/invitation/deletion, API service-principal lookup and app-role assignment. Deployment scripts must not duplicate this assignment set.
 
-## Full deployment
-
-Run both phases and remove the exact obsolete deployment-created OAuth credential:
-
-```powershell
-.\deploy-safe.ps1 prod
-```
-
-The sequence is:
-
-1. `deploy-entra.ps1`
-2. `remove-legacy-oauth-client-secret.ps1`
-3. `deploy-infrastructure.ps1`
-
-`deploy.ps1` remains only as a compatibility entry point and delegates to `deploy-safe.ps1`. New automation and documentation must use the explicit phase scripts.
-
 ## ACS custom sender activation
 
-Custom-domain activation is preserved across deployments when no value is supplied. To change it explicitly:
+Custom-domain activation is preserved across deployments when no value is supplied. To change it explicitly for infrastructure only:
 
 ```powershell
 .\deploy-infrastructure.ps1 prod -ActivateCustomEmailDomain $true
@@ -127,7 +143,7 @@ A successful script exit is not sufficient release evidence. Verify:
 2. The SQL connection secret uses managed identity and contains no `Password=` or SQL user ID.
 3. The API managed identity can connect and `/health` returns successfully after API deployment.
 4. Microsoft login and one authenticated API request succeed.
-5. The legacy OAuth credential display name is absent from the OAuth application.
+5. The legacy OAuth credential display name is absent from the OAuth application after a full deployment.
 6. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
 
 Production Azure execution, DNS changes and secret rotation are explicit operator actions; repository changes alone do not prove they succeeded.
