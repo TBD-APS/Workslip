@@ -1,4 +1,4 @@
-﻿using Ardalis.Result;
+using Ardalis.Result;
 using Microsoft.Extensions.Logging;
 using Workslip.Domain;
 
@@ -35,12 +35,12 @@ namespace Workslip.Application.Jobs
                 return errors;
             }
 
-            AddRequired(errors, nameof(JobReportResponse.ReportNumber), report.ReportNumber, "Report number is required.");
-            AddRequired(errors, $"{nameof(JobReportResponse.Customer)}.{nameof(CustomerInfo.Name)}", report.Customer?.Name, "Customer name is required.");
+            AddRequired(errors, nameof(JobReportResponse.ReportNumber), report.ReportNumber, "Rapportnummer er påkrævet.");
+            AddRequired(errors, $"{nameof(JobReportResponse.Customer)}.{nameof(CustomerInfo.Name)}", report.Customer?.Name, "Kundenavn er påkrævet.");
 
             if (report.InstallationTypes.Count == 0)
             {
-                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.InstallationTypes), ErrorMessage = "Select at least one installation type." });
+                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.InstallationTypes), ErrorMessage = "Vælg mindst én installationstype." });
             }
 
             var workKindsByLabel = referenceData.WorkKinds
@@ -48,19 +48,19 @@ namespace Workslip.Application.Jobs
 
             if (report.WorkKind is null)
             {
-                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Work kind is required." });
+                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Arbejdstype er påkrævet." });
             }
             else if (!workKindsByLabel.TryGetValue(report.WorkKind.NormalizedLabel, out var workKind))
             {
-                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = $"Unknown work kind '{report.WorkKind.NormalizedLabel}'." });
+                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = $"Ukendt arbejdstype '{report.WorkKind.NormalizedLabel}'." });
             }
             else if (workKind.RequiresCustomWorkKind && string.IsNullOrWhiteSpace(report.WorkKind.CustomWorkKind))
             {
-                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Custom work kind is required for this work kind." });
+                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Denne arbejdstype kræver en brugerdefineret tekst." });
             }
             else if (!workKind.RequiresCustomWorkKind && !string.IsNullOrWhiteSpace(report.WorkKind.CustomWorkKind))
             {
-                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Custom work kind is only allowed for work kinds that require custom text." });
+                errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = "Brugerdefineret tekst er kun tilladt for arbejdstyper, der kræver det." });
             }
 
             return errors;
