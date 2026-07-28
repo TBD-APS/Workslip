@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[Auth] Failed to register push notifications:', err);
       });
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, registerPush]);
 
   const login = useCallback(
     async (email: string, code: string): Promise<boolean> => {
@@ -88,8 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const retryMe = useCallback(async (): Promise<unknown> => {
-    // Cancel a hung startup request before starting a fresh one. The generated
-    // query receives React Query's abort signal through the shared API client.
+    // Clear the existing query state before starting a fresh request. The
+    // request-level timeout still bounds clients that cannot abort immediately.
     await queryClient.cancelQueries({ queryKey: getGetApiAuthMeQueryKey() });
     return meQuery.refetch();
   }, [meQuery.refetch, queryClient]);
