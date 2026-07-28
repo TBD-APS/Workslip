@@ -1,0 +1,67 @@
+name: Validate WOR-190 backend startup fix rerun
+
+on:
+  push:
+    branches:
+      - rbj--190-infrastructure-deployment-hardening
+    paths:
+      - .github/workflows/validate-wor-190-backend-2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--190-infrastructure-deployment-hardening
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Update invitation test and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('src/BE/WorkslipApi/Workslip.Tests/Invitations/InvitationEnrollmentTests.cs')
+          content = path.read_text(encoding='utf-8')
+          old = '            new FakeOrganizationRepository(),\n'
+          if content.count(old) != 1:
+              raise SystemExit(f'Expected one obsolete constructor argument, found {content.count(old)}')
+          path.write_text(content.replace(old, '', 1), encoding='utf-8', newline='\n')
+          PY
+
+          set +e
+          cd src/BE/WorkslipApi
+          dotnet restore Workslip.slnx > ../../../backend-validation.log 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            dotnet build Workslip.slnx --configuration Release --no-restore >> ../../../backend-validation.log 2>&1
+            status=$?
+          fi
+          cd ../../..
+          {
+            echo "exit_code=$status"
+            echo
+            tail -n 250 backend-validation.log
+          } > .github/WOR-190-backend-validation.txt
+          exit 0
+
+      - name: Publish validation result and remove workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/validate-wor-190-backend-2.yml
+          git add \
+            .github/WOR-190-backend-validation.txt \
+            src/BE/WorkslipApi/Workslip.Tests/Invitations/InvitationEnrollmentTests.cs
+          git commit -m "RBJ-190 validate backend startup fix"
+          git push origin HEAD:rbj--190-infrastructure-deployment-hardening
