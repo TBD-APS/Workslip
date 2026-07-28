@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ArrowLeft, CheckCircle2, History, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
+import { StatusBanner } from '../../../components/StatusBanner';
 import { useQueryClient } from '@tanstack/react-query';
 import { notify } from '../../../lib/toast';
 import type { AxiosError } from 'axios';
@@ -181,13 +182,9 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
       />
 
       {details.job.status === JobStatus.Rejected && details.job.rejectionNote && (
-        <div className="rejection-note-banner">
-          <AlertTriangle size={16} />
-          <div>
-            <strong>Afvisningsgrund</strong>
-            <p>{details.job.rejectionNote}</p>
-          </div>
-        </div>
+        <StatusBanner variant="warning" title="Afvisningsgrund">
+          <p>{details.job.rejectionNote}</p>
+        </StatusBanner>
       )}
 
       <div className="job-details-content">

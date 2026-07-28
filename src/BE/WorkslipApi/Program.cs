@@ -9,7 +9,7 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.ConfigureInfrastructure();
+    builder.ConfigureInfrastructure(args);
 
     var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
@@ -43,7 +43,7 @@ try
         await scope.ServiceProvider.GetRequiredService<DatabaseSchemaInitializer>().InitializeAsync();
         await db.Database.CanConnectAsync();
 
-        if(app.Environment.IsDevelopment())
+        if (app.Environment.IsDevelopment())
             await DatabaseSeeder.Seed(db);
     }
 

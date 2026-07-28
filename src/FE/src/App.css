@@ -3739,26 +3739,34 @@
   margin-bottom: var(--section-header-margin);
 }
 
-.rejection-note-banner {
+.status-banner {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.85rem 1rem;
   margin-bottom: var(--section-gap);
   border-radius: var(--radius-lg);
-  background: var(--status-red-bg);
-  color: var(--status-red-text);
   font-size: var(--fs-sm);
 }
 
-.rejection-note-banner strong {
+.status-banner--warning {
+  background: var(--status-red-bg);
+  color: var(--status-red-text);
+}
+
+.status-banner--info {
+  background: var(--status-blue-bg, #eff6ff);
+  color: var(--status-blue-text, #1e40af);
+}
+
+.status-banner strong {
   color: var(--text);
   display: block;
   margin-bottom: 0.2rem;
   font-size: var(--fs-body);
 }
 
-.rejection-note-banner p {
+.status-banner p {
   color: var(--text-muted);
   margin: 0;
   line-height: 1.45;

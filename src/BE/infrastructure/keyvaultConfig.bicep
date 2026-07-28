@@ -1,6 +1,9 @@
 param keyVaultName string
 param communicationServiceName string
+@secure()
+@description('Retained for main.bicep compatibility. Runtime SQL uses managed identity and this value is not persisted by this module.')
 param sqlConnectionString string
+
 resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
   name: keyVaultName
 }
@@ -17,23 +20,11 @@ resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01
   }
 }
 
-resource sqlConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVault
-  name: 'Azure--Sql--ConnectionString'
-  properties: {
-    value: sqlConnectionString
-  }
-}
-
-var generatedSigningKey = guid(subscription().id, resourceGroup().id, 'verysecretkeyformylocaljwt')
-resource localJwtSigninKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVault
-  name: 'Jwt--SigningKey'
-  properties: {
-    value: generatedSigningKey
-  }
-}
+// These secrets are reconciled by deploy-infrastructure.ps1. Versionless URIs
+// keep App Configuration references stable across secure rotations.
+var sqlConnectionStringSecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/Azure--Sql--ConnectionString'
+var jwtSigningKeySecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/Jwt--SigningKey'
 
 output acsConnectionStringSecretUri string = acsConnectionStringSecret.properties.secretUri
-output sqlConnectionstring string = sqlConnectionStringSecret.properties.secretUri
-output jwtSigninKey string = localJwtSigninKey.properties.secretUri
+output sqlConnectionstring string = sqlConnectionStringSecretUri
+output jwtSigninKey string = jwtSigningKeySecretUri
