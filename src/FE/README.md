@@ -28,8 +28,9 @@ To call a different API locally, set `VITE_API_BASE_URL` in an uncommitted envir
 |---|---|
 | `npm run dev` | Synchronize fonts and start the Vite development server |
 | `npm run sync:fonts` | Download and validate the pinned local font assets |
+| `npm run typecheck:sw` | Type-check the custom service worker with Web Worker types |
 | `npm run lint` | Run ESLint |
-| `npm run build` | Synchronize fonts, type-check and create a production build |
+| `npm run build` | Synchronize fonts, type-check the app and service worker, and create a production build |
 | `npm run preview` | Preview the production build |
 | `npm run generate:api:local` | Generate the API client using `.env.local` |
 | `npm run generate:api:dev` | Generate the API client using `.env.dev` |
@@ -47,10 +48,11 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `src/fonts.css` defines the same-origin Inter and Outfit font faces.
 - `scripts/sync-fonts.mjs` materializes pinned WOFF2 files before development and production builds.
 - `src/sw.ts` and `src/registerSW.ts` contain service-worker behaviour.
+- `tsconfig.sw.json` isolates Web Worker types from the browser application type environment.
 - `vite.config.ts` defines the local proxy and PWA manifest/build settings.
 - `vercel.json` defines the Git deployment policy, production redirects, external API rewrite and response-cache policy.
 
-Authenticated feature routes are loaded through dynamic imports. The login and invite routes remain in the initial application shell; `/app` layout and feature pages are downloaded only after they are rendered.
+Authenticated feature routes are loaded through dynamic imports. The login and invite routes remain in the initial application shell; `/app` layout and feature pages are downloaded only after they are rendered. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
 
 ## Form conventions
 
@@ -76,8 +78,9 @@ For routing or PWA cache changes, also validate with a clean browser profile:
 
 1. `/login` and invite routes must not request authenticated feature chunks.
 2. A representative `/app` route must load its JavaScript and CSS on demand.
-3. A route visited once online must remain available on an offline reload under the supported PWA flow.
-4. A service-worker update must remove route-asset caches from the previous build and recover from a failed chunk load through the existing error screen.
+3. A route visited once online must remain available on an offline revisit under the supported PWA flow.
+4. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
+5. Service-worker update checks must not overlap while another worker is installing or waiting.
 
 ## Vercel deployment policy
 
@@ -118,7 +121,9 @@ The rewrite target is production-specific. A future separate frontend environmen
 - versioned self-hosted fonts: `public, max-age=31536000, immutable`
 - API rewrite: CDN caching disabled
 
-The service worker precaches the public bootstrap shell and static assets, but not every authenticated route bundle. Hashed JavaScript and CSS for lazy routes are runtime-cached after their first successful request. A route that has never been visited is therefore not guaranteed to work offline. Activating a new build removes runtime route-asset caches from older builds before clients reload.
+The service worker precaches the public bootstrap shell and static assets, but not authenticated route bundles under `assets/chunks/`. Hashed JavaScript and CSS for lazy routes are cached after their first successful request in a stable runtime cache capped at 100 entries. Keeping content-hashed route assets across deployments reduces version-skew failures for routes that were previously visited; a route that has never been visited is not guaranteed to work offline.
+
+Vite dynamic-import preload failures trigger one automatic reload per build. Repeated failure in the same build falls through to the normal React error boundary instead of creating a reload loop.
 
 ## Environment and secrets
 
@@ -139,4 +144,6 @@ The login route clears the PKCE state after success, cancellation or callback fa
 
 ## PWA caution
 
-The application uses `vite-plugin-pwa` with an injected service worker. Changes to update/reload, caching, offline drafts or synchronization must be validated against long dirty forms and documented conservatively. The self-hosted WOFF2 files are included in the precache manifest, but a PWA cache is not proof that API mutations work offline.
+The application uses `vite-plugin-pwa` with an injected service worker. The custom service worker is type-checked separately and must not be excluded through `@ts-nocheck` again.
+
+The current `autoUpdate` activation policy can still replace an open application while a long form is dirty. Prompt-based, dirty-form-safe activation is tracked in WOR-114 and remains a prerequisite before the update flow can be considered safe for unsaved long forms. A PWA cache is not proof that API mutations work offline.
