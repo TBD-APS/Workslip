@@ -1894,7 +1894,11 @@
 }
 
 .modal-actions--triple {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
+}
+
+.modal-actions--triple > :last-child {
+  grid-column: 1 / -1;
 }
 
 .work-category-form {

@@ -8,7 +8,7 @@ public static class SharedJobRequestRules
     public static bool BeValidJobType(string? jobType)
     {
         return Enum.TryParse<JobType>(jobType, out var _);
-    }   
+    }
 
     public static void AddCommonRules(AbstractValidator<CreateJobRequest> validator)
     {
@@ -38,7 +38,7 @@ public static class SharedJobRequestRules
         Func<T, string?> getJobType) where T : class
     {
         validator.RuleFor(x => getJobType(x))
-            .Must(BeValidJobType).WithMessage("JobType must be 'KLS' or 'Diverse'.")
+            .Must(BeValidJobType).WithMessage("Sagstypen skal være 'KLS' eller 'Diverse'.")
             .When(x => !string.IsNullOrWhiteSpace(getJobType(x)));
     }
 
@@ -50,45 +50,45 @@ public static class SharedJobRequestRules
         {
             validator.RuleFor(x => getWork(x)!.InstallationTypes)
                 .Must(JobRequestValidationRules.HaveNoDuplicateInstallations)
-                .WithMessage("Duplicate installation type is not allowed.");
+                .WithMessage("Den samme installationstype må ikke vælges flere gange.");
 
             validator.RuleForEach(x => getWork(x)!.InstallationTypes)
                 .ChildRules(installation =>
                 {
                     installation.RuleFor(x => x.Id)
-                        .NotEmpty().WithMessage("Installation type id is required.");
+                        .NotEmpty().WithMessage("Installationstype-id er påkrævet.");
 
                     installation.RuleFor(x => x.Categories)
                         .Must(JobRequestValidationRules.HaveNoDuplicateCategories)
-                        .WithMessage("Duplicate category is not allowed for an installation type.");
+                        .WithMessage("Den samme kategori må ikke vælges flere gange for en installationstype.");
 
                     installation.RuleForEach(x => x.Categories)
                         .ChildRules(category =>
                         {
                             category.RuleFor(x => x.Id)
-                                .NotEmpty().WithMessage("Category id is required.");
+                                .NotEmpty().WithMessage("Kategori-id er påkrævet.");
 
                             category.RuleFor(x => x.ControlPoints)
                                 .Must(JobRequestValidationRules.HaveNoDuplicateControlPoints)
-                                .WithMessage("Duplicate control point is not allowed for a category.");
+                                .WithMessage("Det samme kontrolpunkt må ikke vælges flere gange for en kategori.");
 
                             category.RuleForEach(x => x.ControlPoints)
                                 .ChildRules(controlPoint =>
                                 {
                                     controlPoint.RuleFor(x => x.Id)
-                                        .NotEmpty().WithMessage("Control point id is required.");
+                                        .NotEmpty().WithMessage("Kontrolpunkt-id er påkrævet.");
                                 });
                         });
                 });
 
             validator.RuleFor(x => getWork(x)!.WorkKind)
-                .MaximumLength(80).WithMessage("Work kind must not exceed 80 characters.");
+                .MaximumLength(80).WithMessage("Arbejdstypen må højst være 80 tegn.");
 
             validator.RuleFor(x => getWork(x)!.CustomWorkKind)
-                .MaximumLength(160).WithMessage("Custom work kind must not exceed 160 characters.");
+                .MaximumLength(160).WithMessage("Den brugerdefinerede arbejdstype må højst være 160 tegn.");
 
             validator.RuleFor(x => getWork(x)!.ClosureFlags)
-                .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Duplicate closure flag is not allowed.");
+                .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Det samme afslutningsflag må ikke vælges flere gange.");
         });
     }
 }
