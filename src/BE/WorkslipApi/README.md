@@ -29,11 +29,20 @@ Local database configuration uses:
 Azure:Sql:ConnectionString
 ```
 
-Environment-variable form:
+Configure it in the ignored `appsettings.Development.json` file or through the environment-variable form:
 
 ```text
 Azure__Sql__ConnectionString
 ```
+
+Example for the current PowerShell session:
+
+```powershell
+$env:Azure__Sql__ConnectionString = 'Server=localhost,1433;Initial Catalog=Workslip;User ID=<local-user>;Password=<local-password>;Encrypt=False;TrustServerCertificate=True'
+dotnet run --launch-profile http
+```
+
+Azure App Configuration supplies shared defaults, but Development JSON, environment variables and command-line values are applied afterward and therefore take precedence. `Authentication=Active Directory Managed Identity` is production-only because the credential endpoint exists inside Azure App Service, not on a developer workstation. Development startup fails with an actionable configuration error if that production SQL authentication mode remains selected.
 
 Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
 
