@@ -129,7 +129,7 @@ Do not add an Azure client secret, `AZURE_CREDENTIALS` JSON or App Service publi
 
 After infrastructure recreation:
 
-1. run `../infrastructure/deploy-safe.ps1 prod`;
+1. run `../infrastructure/deploy.ps1 prod`;
 2. set the three GitHub `prod` environment identifiers from the deployment output;
 3. run the API workflow manually;
 4. verify `/health`, Microsoft login and one authenticated API request.
