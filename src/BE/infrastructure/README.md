@@ -53,9 +53,11 @@ The infrastructure phase:
 1. validates the environment and tenant;
 2. writes a temporary compile-time Entra handoff;
 3. deploys `main.bicep` once;
-4. reconciles deployment secrets without exposing them on command lines;
+4. reconciles Azure-owned deployment secrets without exposing them on command lines;
 5. provisions the API user-assigned managed identity in Azure SQL;
 6. restores the committed handoff placeholder.
+
+Vercel cache-purge credentials and project configuration are outside the Azure infrastructure deployment boundary. The infrastructure scripts neither require nor reconcile them.
 
 ### Runtime SQL authentication
 
@@ -76,7 +78,6 @@ The infrastructure script owns these versionless Key Vault references:
 | Configuration key | Key Vault secret | Behaviour |
 |---|---|---|
 | `Jwt:SigningKey` | `Jwt--SigningKey` | Generates a cryptographically random key when missing or when the legacy short deterministic value is detected. `WORKSLIP_JWT_SIGNING_KEY` is an explicit rotation override. |
-| `Vercel:Token` | `Vercel--Token` | Reuses the existing secret, migrates the prior plain App Configuration value, or accepts `WORKSLIP_VERCEL_TOKEN` / `-VercelToken` for first setup or rotation. Omitted input never blanks the secret. |
 | `Azure:Sql:ConnectionString` | `Azure--Sql--ConnectionString` | Reconciled to a passwordless managed-identity connection string after Bicep returns the identity client ID. |
 
 Secrets are written through temporary files and cleared from script variables during cleanup. A JWT signing-key rotation invalidates outstanding local Workslip JWTs.
@@ -122,7 +123,7 @@ Do not activate until Domain, SPF, DKIM and DKIM2 are verified. See `../../../Do
 
 A successful script exit is not sufficient release evidence. Verify:
 
-1. `Azure:Sql:ConnectionString`, `Jwt:SigningKey` and `Vercel:Token` are Key Vault references in App Configuration.
+1. `Azure:Sql:ConnectionString` and `Jwt:SigningKey` are Key Vault references in App Configuration.
 2. The SQL connection secret uses managed identity and contains no `Password=` or SQL user ID.
 3. The API managed identity can connect and `/health` returns successfully after API deployment.
 4. Microsoft login and one authenticated API request succeed.
