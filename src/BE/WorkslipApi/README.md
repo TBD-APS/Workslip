@@ -23,26 +23,32 @@ dotnet run --launch-profile http
 
 The HTTP profile listens on `http://localhost:5262`.
 
-Local database configuration uses:
+Local development can use the production database location and passwordless connection details from Azure App Configuration and Key Vault. No SQL connection string or SQL password is required in local configuration.
+
+Authenticate the developer identity first:
+
+```powershell
+az login
+az account show
+```
+
+The configured identity must be permitted to connect to the Azure SQL database. Members of the configured Azure SQL administrator group can connect through their Entra identity.
+
+The Key Vault-backed value remains:
 
 ```text
 Azure:Sql:ConnectionString
 ```
 
-Configure it in the ignored `appsettings.Development.json` file or through the environment-variable form:
+Production keeps `Authentication=Active Directory Managed Identity` and the App Service managed-identity client ID. During Development, the API changes only the in-memory authentication fields to:
 
 ```text
-Azure__Sql__ConnectionString
+Authentication=Active Directory Default
 ```
 
-Example for the current PowerShell session:
+The managed-identity `User ID` is removed locally, allowing SqlClient to use the signed-in Azure CLI, Visual Studio or other `DefaultAzureCredential` developer identity. Server name, database name, encryption settings and the Key Vault/App Configuration ownership remain unchanged. Nothing is written back to Azure.
 
-```powershell
-$env:Azure__Sql__ConnectionString = 'Server=localhost,1433;Initial Catalog=Workslip;User ID=<local-user>;Password=<local-password>;Encrypt=False;TrustServerCertificate=True'
-dotnet run --launch-profile http
-```
-
-Azure App Configuration supplies shared defaults, but Development JSON, environment variables and command-line values are applied afterward and therefore take precedence. `Authentication=Active Directory Managed Identity` is production-only because the metadata credential endpoint exists inside Azure App Service, not on a developer workstation. Development startup fails with an actionable configuration error if that production SQL authentication mode remains selected.
+An ignored `appsettings.Development.json` value or `Azure__Sql__ConnectionString` environment variable can still override this behavior for isolated/offline database work, but neither is required for the normal Azure-backed development path.
 
 Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
 
