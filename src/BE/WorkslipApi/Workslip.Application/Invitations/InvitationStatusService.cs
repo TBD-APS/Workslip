@@ -1,5 +1,6 @@
 using Ardalis.Result;
 using Microsoft.Extensions.Logging;
+using Microsoft.Graph.Models.ODataErrors;
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
 
@@ -32,7 +33,17 @@ public sealed class InvitationStatusService(
                 && invite.EntraCleanedAt is null
                 && !string.IsNullOrWhiteSpace(invite.EntraUserId))
             {
-                await entraService.DeleteUserAsync(invite.EntraUserId, cancellationToken);
+                try
+                {
+                    await entraService.DeleteUserAsync(invite.EntraUserId, cancellationToken);
+                }
+                catch (ODataError error) when (error.ResponseStatusCode == StatusCodes.Status404NotFound)
+                {
+                    logger.LogInformation(
+                        "Invitation-owned Entra user was already removed. InviteId: {InviteId}. OrganizationId: {OrganizationId}",
+                        invite.Id,
+                        organizationId.Value);
+                }
             }
 
             await invitationRepository.DeleteAsync(invite, cancellationToken);
