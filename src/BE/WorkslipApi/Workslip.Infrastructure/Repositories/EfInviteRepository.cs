@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Workslip.Application.Invitations;
 using Workslip.Application.Users;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Resilience;
@@ -6,7 +7,7 @@ using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
 
-public sealed class EfInviteRepository : IInviteRepository
+public sealed class EfInviteRepository : IInviteRepository, IInvitationStatusRepository
 {
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
@@ -23,8 +24,14 @@ public sealed class EfInviteRepository : IInviteRepository
     public Task UpdateAsync(InviteTokenRow invite, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("invites.update", token => UpdateCoreAsync(invite, token), cancellationToken);
 
+    public Task DeleteAsync(InviteTokenRow invite, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("invites.delete", token => DeleteCoreAsync(invite, token), cancellationToken);
+
     public Task<InviteTokenRow?> GetInviteByEmailAsync(Guid organizationId, string email, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("invites.get-by-email", token => GetInviteByEmailCoreAsync(organizationId, email, token), cancellationToken);
+
+    public Task<InviteTokenRow?> GetByIdAsync(Guid organizationId, Guid inviteId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync("invites.get-by-id", token => GetByIdCoreAsync(organizationId, inviteId, token), cancellationToken);
 
     public Task<InviteTokenRow?> GetByTokenAsync(string token, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("invites.get-by-token", ct => GetByTokenCoreAsync(token, ct), cancellationToken);
@@ -53,10 +60,26 @@ public sealed class EfInviteRepository : IInviteRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    private async Task DeleteCoreAsync(InviteTokenRow invite, CancellationToken cancellationToken)
+    {
+        _dbContext.InviteTokens.Remove(invite);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
 
     private async Task<InviteTokenRow?> GetInviteByEmailCoreAsync(Guid organizationId, string email, CancellationToken cancellationToken)
     {
-        return await _dbContext.InviteTokens.FirstOrDefaultAsync(x => x.Email.Equals(email), cancellationToken);
+        return await _dbContext.InviteTokens
+            .FirstOrDefaultAsync(
+                invite => invite.OrganizationId == organizationId && invite.Email == email,
+                cancellationToken);
+    }
+
+    private async Task<InviteTokenRow?> GetByIdCoreAsync(Guid organizationId, Guid inviteId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.InviteTokens
+            .FirstOrDefaultAsync(
+                invite => invite.OrganizationId == organizationId && invite.Id == inviteId,
+                cancellationToken);
     }
 
     private async Task<InviteTokenRow?> GetByTokenCoreAsync(string token, CancellationToken cancellationToken)
