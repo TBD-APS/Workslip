@@ -39,12 +39,6 @@ The sequence is:
 2. The internal credential-cleanup step removes the exact obsolete `workslip-deploy-{environment}-oauth-client-secret` credential when present.
 3. `deploy-infrastructure.ps1` deploys and reconciles Azure resources.
 
-Custom ACS sender activation can be passed through the full deployment:
-
-```powershell
-.\deploy.ps1 prod -ActivateCustomEmailDomain $true
-```
-
 ## Entra only
 
 Run this phase when creating an environment or changing application-registration settings:
@@ -125,15 +119,11 @@ Secrets are written through temporary files and cleared from script variables du
 
 These permissions support external-user lookup/invitation/deletion, API service-principal lookup and app-role assignment. Deployment scripts must not duplicate this assignment set.
 
-## ACS custom sender activation
+## ACS custom sender
 
-Custom-domain activation is preserved across deployments when no value is supplied. To change it explicitly for infrastructure only:
+The verified `mrsoftware.dk` ACS email domain and `noreply@mrsoftware.dk` sender are part of every infrastructure deployment. There is no activation parameter or Azure-managed sender fallback in the deployment model.
 
-```powershell
-.\deploy-infrastructure.ps1 prod -ActivateCustomEmailDomain $true
-```
-
-Do not activate until Domain, SPF, DKIM and DKIM2 are verified. See `../../../Docs/acs-email-setup.md`.
+DNS verification must remain valid for Domain, SPF, DKIM and DKIM2. See `../../../Docs/acs-email-setup.md` for maintenance and smoke-test procedures.
 
 ## Required post-deployment verification
 
@@ -144,6 +134,7 @@ A successful script exit is not sufficient release evidence. Verify:
 3. The API managed identity can connect and `/health` returns successfully after API deployment.
 4. Microsoft login and one authenticated API request succeed.
 5. The legacy OAuth credential display name is absent from the OAuth application after a full deployment.
-6. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
+6. `Azure:Acs:SenderAddress` is `noreply@mrsoftware.dk` and the ACS domain verification states remain successful.
+7. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
 
 Production Azure execution, DNS changes and secret rotation are explicit operator actions; repository changes alone do not prove they succeeded.
