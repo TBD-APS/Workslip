@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, ChevronRight, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
 import { notify } from '../../../lib/toast';
 import { ErrorState } from '../../../components/ErrorState';
+import { StatusBanner } from '../../../components/StatusBanner';
 import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
@@ -357,6 +358,12 @@ export const CompletedJobReport = () => {
           </div>
         )}
       </div>
+
+      {isAdmin && job.status === JobStatus.InReview && !readOnly && (
+        <StatusBanner variant="info" title="Klar til review">
+          <p>Sagen er sendt til gennemgang og mangler din godkendelse.</p>
+        </StatusBanner>
+      )}
 
       {isEditing ? (
         <CompletedJobEditForm details={details} onCancel={handleCancelEdit} onSave={handleSaveEdit} />
