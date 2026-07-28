@@ -10,9 +10,6 @@ import {
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
-    // When true, the global response interceptor will not emit an error toast.
-    // Set this on requests whose callers handle (and translate) errors locally,
-    // to avoid stacking the raw backend message on top of the friendly message.
     skipGlobalErrorToast?: boolean;
     correlationId?: string;
     telemetryAction?: string;
@@ -33,6 +30,16 @@ const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? '';
 const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
 const isVercelHosted = hostname === 'app.mrsoftware.dk' || hostname.endsWith('.vercel.app');
 const apiUrl = isVercelHosted ? '' : configuredApiUrl;
+const AUTH_ME_TIMEOUT_MS = 12_000;
+
+const isAuthMeRequest = (url: string | undefined): boolean => {
+  const normalizedUrl = (url ?? '')
+    .split('?')[0]
+    .toLowerCase()
+    .replace(/\/+$/, '');
+
+  return normalizedUrl.endsWith('/api/auth/me');
+};
 
 export const apiClient = axios.create({
   baseURL: apiUrl,
@@ -61,7 +68,13 @@ function releaseKey(config: InternalAxiosRequestConfig): void {
 const DUPLICATE_REQUEST_ERROR = '__DUPLICATE_REQUEST__';
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Attach auth token from AuthStorage (localStorage; survives PWA eviction).
+  // Bound only the startup identity request. Other reports and mutations retain
+  // their existing timeout behaviour.
+  if (isAuthMeRequest(config.url) && (!config.timeout || config.timeout <= 0)) {
+    config.timeout = AUTH_ME_TIMEOUT_MS;
+    config.skipGlobalErrorToast = true;
+  }
+
   const token = AuthStorage.getItem(AUTH_TOKEN_KEY);
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -83,10 +96,6 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     trackUserInteraction(interaction.action, interaction.correlationId);
   }
 
-  // Deduplicate in-flight mutating requests (POST, PUT, PATCH, DELETE) by
-  // method + URL. If the same request is already in-flight, reject the
-  // duplicate silently. This prevents 404s from rapid double-clicks on
-  // delete/update buttons before React can re-render with disabled state.
   const requestMethod = (config.method ?? 'get').toLowerCase();
   if (mutatingMethods.has(requestMethod)) {
     const key = requestKey(config);
@@ -138,66 +147,43 @@ apiClient.interceptors.response.use(
       error?.code === 'ERR_CANCELED' ||
       error?.message === 'canceled';
 
-    // Silent fail for cancellations - this is normal behavior for React Query & unmounting
     if (isCanceled) {
       return Promise.reject(error);
     }
 
-    // Silent fail for deduplicated mutating requests (rapid double-clicks)
     if (error?.message === DUPLICATE_REQUEST_ERROR) {
       return Promise.reject(error);
     }
 
     const message = error.response?.data?.message || error.message;
+    const requestUrl = (error.config?.url ?? '').toLowerCase();
+    const isAuthApi = requestUrl.includes('/api/auth/');
+    const isAuthRoute = window.location.pathname.includes('/login') || window.location.pathname.includes('/invite');
+    const isMeEndpoint = isAuthMeRequest(error.config?.url);
 
-    // Handle specific backend error patterns (from AGENTS.md rules)
     if (error.response?.status === 401) {
-      const requestUrl = (error.config?.url ?? '').toLowerCase();
-      const isAuthApi = requestUrl.includes('/api/auth/');
-      const isAuthRoute = window.location.pathname.includes('/login') || window.location.pathname.includes('/invite');
-
-      // /api/auth/* failures (e.g. /api/auth/entra-login with a bad Microsoft token)
-      // must NOT trigger a reauth redirect — that would loop forever.
       if (!isAuthApi && !isAuthRoute) {
-        // Gate concurrent 401s so we redirect exactly once per expiry.
-        // Without this, every in-flight React Query mutation that fires
-        // a 401 within milliseconds would race to window.location.assign(...),
-        // producing multiple toasts and reloads. The flag is TTL-bounded
-        // (see setReauthInFlight) so a stuck redirect self-heals.
         if (!isReauthInFlight()) {
           setReauthInFlight();
           const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          // Dismiss any leftover toasts before the page navigation — Sonner
-          // toasts otherwise persist across navigations and can show stale
-          // errors from the previous page once the user returns from Microsoft.
           notify.dismiss();
-          // No toast: the Login page already shows its own "Genindlæser login..."
-          // spinner, and adding "Fornyer login..." here would leak into the
-          // user's view after they return from Microsoft.
           window.location.assign(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
         }
       }
 
-      // Always purge stale token + email so the next render knows we are unauthenticated.
-      // However, skip purging for /api/auth/me – a transient 401 here (e.g. clock
-      // skew, delayed JWT propagation) should not destroy a valid token. The meQuery
-      // will retry automatically, and if it still fails the user will be redirected to
-      // login by ProtectedRoute.
-      const isMeEndpoint = requestUrl.endsWith('/api/auth/me') || requestUrl.endsWith('/api/auth/me/');
+      // A failing identity bootstrap is not proof that the stored token is
+      // invalid. ProtectedRoute owns retry, reload and deliberate logout.
       if (!isMeEndpoint) {
         AuthStorage.removeItem(AUTH_TOKEN_KEY);
         AuthStorage.removeItem(USER_EMAIL_KEY);
       }
-    } else if (error.config?.skipGlobalErrorToast) {
-      // Caller handles (and translates) this error locally. Suppress the global
-      // toast so the raw backend message is not shown alongside the friendly one.
+    } else if (isMeEndpoint || error.config?.skipGlobalErrorToast) {
+      // ProtectedRoute renders the startup recovery state.
     } else if (error.response?.status === 403) {
       notify.error('Du har ikke adgang til denne handling');
     } else if (error.response?.status === 400 && error.response?.data?.errors) {
-      // ValidationProblem from backend
       notify.error('Ugyldig indtastning. Tjek venligst felterne.');
     } else if (error.response?.status === 409) {
-      // Conflict
       notify.error(`Konflikt: ${error.response.data.error || message}`);
     } else if (message) {
       notify.error(message);
