@@ -4,21 +4,21 @@ param(
     [string]$Location = 'westeurope',
     [string]$COMPANY_NAME = 'mrsoftware',
     [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
-    [Nullable[bool]]$ActivateCustomEmailDomain = $null,
     [string]$EntraStatePath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
+$InfrastructureRoot = Split-Path -Parent $PSScriptRoot
 $NormalizedEnvironment = $Environment.ToLowerInvariant()
 $ResourceGroup = "rg-$COMPANY_NAME-$NormalizedEnvironment"
 $AppConfigurationName = "appcs-$COMPANY_NAME-$NormalizedEnvironment"
 $KeyVaultName = "kv-$COMPANY_NAME-$NormalizedEnvironment"
 $SqlServerName = "db-$COMPANY_NAME-$NormalizedEnvironment-server"
 $SqlDatabaseName = "db-$COMPANY_NAME-$NormalizedEnvironment"
-$Template = Join-Path $PSScriptRoot 'main.bicep'
+$Template = Join-Path $InfrastructureRoot 'main.bicep'
 $SqlAccessScript = Join-Path $PSScriptRoot 'grant-web-api-sql-access.ps1'
-$ProvisionedValuesPath = Join-Path $PSScriptRoot 'entra-provisioned.json'
+$ProvisionedValuesPath = Join-Path $InfrastructureRoot 'entra-provisioned.json'
 $GraphRoot = 'https://graph.microsoft.com/v1.0'
 $OAuthUniqueName = "workslip-oauth-server-$NormalizedEnvironment"
 $ClientUniqueName = "workslip-client-$NormalizedEnvironment"
@@ -28,7 +28,7 @@ $SqlConnectionSecretName = 'Azure--Sql--ConnectionString'
 $LegacyOAuthClientSecretName = 'Azure--AdOAuth--ClientSecret'
 
 if ([string]::IsNullOrWhiteSpace($EntraStatePath)) {
-    $EntraStatePath = Join-Path $PSScriptRoot "entra.$NormalizedEnvironment.local.json"
+    $EntraStatePath = Join-Path $InfrastructureRoot "entra.$NormalizedEnvironment.local.json"
 }
 
 if (-not (Test-Path $Template)) {
@@ -659,13 +659,6 @@ try {
         throw 'WORKSLIP_JWT_SIGNING_KEY must contain at least 64 characters.'
     }
 
-    $existingSender = Get-AppConfigurationValue -Key 'Azure:Acs:SenderAddress'
-    $activateEmailDomain = if ($null -ne $ActivateCustomEmailDomain) {
-        [bool]$ActivateCustomEmailDomain
-    } else {
-        $existingSender -eq 'noreply@mrsoftware.dk'
-    }
-
     $deploymentParameters = [ordered]@{
         '$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
         contentVersion = '1.0.0.0'
@@ -675,7 +668,7 @@ try {
             globalAdminId = @{ value = $GlobalAdminId }
             location = @{ value = $Location }
             sqlAdminPassword = @{ value = $sqlAdminPassword }
-            activateCustomEmailDomain = @{ value = $activateEmailDomain }
+            activateCustomEmailDomain = @{ value = $true }
         }
     }
     Write-Utf8JsonFile -Path $parameterFile.FullName -Value $deploymentParameters
