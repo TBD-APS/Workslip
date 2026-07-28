@@ -1,7 +1,7 @@
 /// <reference types="vite-plugin-pwa/client" />
 import { registerSW } from 'virtual:pwa-register';
 
-const UPDATE_INTERVAL_MS = 60 * 60 * 1000;
+const UPDATE_INTERVAL_MS = 60 * 1000;
 
 async function checkForServiceWorkerUpdate(
   swUrl: string,
@@ -22,7 +22,7 @@ async function checkForServiceWorkerUpdate(
       await registration.update();
     }
   } catch {
-    // Offline or update check failed. The next interval/visibility change retries.
+    // Startup, visibility, online and interval checks all retry this path.
   }
 }
 
@@ -33,11 +33,21 @@ registerSW({
   onRegisteredSW(swUrl, registration) {
     if (!registration) return;
 
+    let updateCheck: Promise<void> | null = null;
     const requestUpdate = () => {
-      void checkForServiceWorkerUpdate(swUrl, registration);
+      if (updateCheck) return;
+
+      updateCheck = checkForServiceWorkerUpdate(swUrl, registration)
+        .finally(() => {
+          updateCheck = null;
+        });
     };
 
+    // Discover a deployment immediately when the app starts, returns to the
+    // foreground or regains connectivity, and at most one minute afterwards.
+    requestUpdate();
     window.setInterval(requestUpdate, UPDATE_INTERVAL_MS);
+    window.addEventListener('online', requestUpdate);
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
