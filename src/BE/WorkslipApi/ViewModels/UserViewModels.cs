@@ -1,4 +1,5 @@
 using Workslip.Application.Users;
+using Workslip.Domain;
 
 namespace Workslip.Api.ViewModels;
 
@@ -9,6 +10,7 @@ public sealed record UserViewModel(
     string DisplayName,
     string Phone,
     string Role,
+    string RoleDisplayName,
     decimal? HoursThisWeek,
     decimal? HoursThisMonth,
     decimal? HoursBiweekly);
@@ -33,6 +35,7 @@ public sealed record UserDetailViewModel(
     string DisplayName,
     string Phone,
     string Role,
+    string RoleDisplayName,
     IReadOnlyList<AssignedJobViewModel> AssignedJobs,
     decimal? TotalHours,
     decimal? HoursThisWeek,
@@ -48,6 +51,7 @@ public static class UserViewModelBuilder
         user.DisplayName,
         user.Phone,
         user.Role,
+        GetRoleDisplayName(user.Role),
         user.HoursThisWeek,
         user.HoursThisMonth,
         user.HoursBiweekly);
@@ -63,6 +67,7 @@ public static class UserViewModelBuilder
         detail.DisplayName,
         detail.Phone,
         detail.Role,
+        GetRoleDisplayName(detail.Role),
         detail.AssignedJobs.Select(j => new AssignedJobViewModel(
             j.ReportId,
             j.ReportNumber,
@@ -75,4 +80,13 @@ public static class UserViewModelBuilder
         detail.HoursThisWeek,
         detail.HoursThisMonth,
         detail.HoursBiweekly);
+
+    private static string GetRoleDisplayName(string role) => role switch
+    {
+        Roles.Superadmin => "Superadministrator",
+        Roles.Admin => "Administrator",
+        Roles.User => "Medarbejder",
+        Roles.Auditor => "Revisor",
+        _ => role
+    };
 }
