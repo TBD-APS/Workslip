@@ -92,10 +92,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const loginUrl = `/login?returnTo=${encodeURIComponent(returnTo)}`;
 
   useEffect(() => {
-    if (!hasAuthToken || isAuthenticated) {
-      setStartupTimedOut(false);
-      return undefined;
-    }
+    if (!hasAuthToken || isAuthenticated) return undefined;
 
     const timer = window.setTimeout(() => {
       setStartupTimedOut(true);
