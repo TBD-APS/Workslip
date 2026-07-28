@@ -17,7 +17,7 @@ public sealed class ChangeJobStatusRequestValidator : AbstractValidator<ChangeJo
     {
         RuleFor(x => x.Status)
             .Must(status => AllowedStatuses.Contains(status))
-            .WithMessage($"Status must be one of: {string.Join(", ", AllowedStatuses.Select(s => s.ToString()))}.");
+            .WithMessage($"Status skal være en af følgende: {string.Join(", ", AllowedStatuses.Select(s => s.ToString()))}.");
 
         RuleFor(x => x.RejectionNote)
             .NotEmpty()
