@@ -37,7 +37,7 @@ public sealed class InvitationStatusService(
                 {
                     await entraService.DeleteUserAsync(invite.EntraUserId, cancellationToken);
                 }
-                catch (ODataError error) when (error.ResponseStatusCode == StatusCodes.Status404NotFound)
+                catch (ODataError error) when (error.ResponseStatusCode == 404)
                 {
                     logger.LogInformation(
                         "Invitation-owned Entra user was already removed. InviteId: {InviteId}. OrganizationId: {OrganizationId}",
