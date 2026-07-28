@@ -11,6 +11,7 @@ The implementation is the source of truth. Until WOR-142 is completed, use backe
 ## Maintained decisions
 
 - [`adr/0001-managed-identity-runtime-and-secret-lifecycle.md`](adr/0001-managed-identity-runtime-and-secret-lifecycle.md) — accepted deployment, SQL identity, Graph permission and secret-lifecycle decision.
+- [`adr/0002-immediate-pwa-update-activation.md`](adr/0002-immediate-pwa-update-activation.md) — accepted immediate frontend update discovery and activation policy.
 
 ## Planned maintained documents
 
