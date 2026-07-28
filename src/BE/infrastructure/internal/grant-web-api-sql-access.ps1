@@ -20,8 +20,8 @@ function Initialize-AzureCliInvocation {
     $script:AzureCliExecutable = $azureCliCommand.Source
     $script:AzureCliPrefix = @()
 
-    $isWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
-    if (-not $isWindows) {
+    $runningOnWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+    if (-not $runningOnWindows) {
         return
     }
 
@@ -113,7 +113,7 @@ try {
 
     $sid = '0x' + (($parsedClientId.ToByteArray() | ForEach-Object { $_.ToString('X2') }) -join '')
     $provisioningIp = ([string](Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 30)).Trim()
-    [System.Net.IPAddress]$parsedIp = $null
+    $parsedIp = $null
 
     if (-not [System.Net.IPAddress]::TryParse($provisioningIp, [ref]$parsedIp) -or
         $parsedIp.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) {
@@ -212,6 +212,7 @@ finally {
             '--resource-group', $resourceGroup,
             '--server', $sqlServerName,
             '--name', $firewallRuleName,
+            '--yes',
             '--only-show-errors',
             '--output', 'none'
         ) -AllowFailure
