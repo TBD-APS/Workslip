@@ -8,18 +8,18 @@ public sealed class CreateWorksheetValidator : AbstractValidator<UpsertWorksheet
     public CreateWorksheetValidator()
     {
         RuleFor(x => x.JobId)
-            .NotEmpty().WithMessage("Job ID is required.");
+            .NotEmpty().WithMessage("Sag-id er påkrævet.");
 
         RuleFor(x => x.UserId)
-            .NotEmpty().WithMessage("User ID is required.");
+            .NotEmpty().WithMessage("Bruger-id er påkrævet.");
 
         RuleFor(x => x.WorkDate)
-            .NotEmpty().WithMessage("Work date is required.");
+            .NotEmpty().WithMessage("Arbejdsdato er påkrævet.");
 
         RuleFor(x => x.HoursWorked)
-            .GreaterThan(0).WithMessage("Hours worked must be greater than 0.")
-            .LessThanOrEqualTo(24).WithMessage("Hours worked cannot exceed 24 hours in a day.")
-            .Must(BeValidHourIncrement).WithMessage("Hours worked must be in increments of 0.25 (quarter, half, or whole hours).");
+            .GreaterThan(0).WithMessage("Antal timer skal være større end 0.")
+            .LessThanOrEqualTo(24).WithMessage("Antal timer må højst være 24 pr. dag.")
+            .Must(BeValidHourIncrement).WithMessage("Antal timer skal angives i intervaller på 0,25 time.");
     }
 
     private bool BeValidHourIncrement(decimal hours)
