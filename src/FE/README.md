@@ -50,6 +50,8 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `vite.config.ts` defines the local proxy and PWA manifest/build settings.
 - `vercel.json` defines the Git deployment policy, production redirects, external API rewrite and response-cache policy.
 
+Authenticated feature routes are loaded through dynamic imports. The login and invite routes remain in the initial application shell; `/app` layout and feature pages are downloaded only after they are rendered.
+
 ## Form conventions
 
 Follow the repository `AGENTS.md` rules:
@@ -69,6 +71,13 @@ npm run build
 ```
 
 There is currently no general `npm test` script in `package.json`. Do not claim broad frontend test coverage from isolated test files. Add a documented test command when the test runner is standardized.
+
+For routing or PWA cache changes, also validate with a clean browser profile:
+
+1. `/login` and invite routes must not request authenticated feature chunks.
+2. A representative `/app` route must load its JavaScript and CSS on demand.
+3. A route visited once online must remain available on an offline reload under the supported PWA flow.
+4. A service-worker update must remove route-asset caches from the previous build and recover from a failed chunk load through the existing error screen.
 
 ## Vercel deployment policy
 
@@ -108,6 +117,8 @@ The rewrite target is production-specific. A future separate frontend environmen
 - hashed Vite assets: `public, max-age=31536000, immutable`
 - versioned self-hosted fonts: `public, max-age=31536000, immutable`
 - API rewrite: CDN caching disabled
+
+The service worker precaches the public bootstrap shell and static assets, but not every authenticated route bundle. Hashed JavaScript and CSS for lazy routes are runtime-cached after their first successful request. A route that has never been visited is therefore not guaranteed to work offline. Activating a new build removes runtime route-asset caches from older builds before clients reload.
 
 ## Environment and secrets
 
