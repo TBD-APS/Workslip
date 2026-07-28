@@ -88,7 +88,7 @@ resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-0
 // Azure-managed domain and do not depend on production DNS ownership.
 resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = if (isProduction) {
 '@
-Replace-Exact $main "resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-03-31' = {" "resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-03-31' = if (isProduction) {"
+Replace-Exact $main "resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = {" "resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (isProduction) {"
 
 Replace-Exact $main "output LOGIC_APP_NAME string                   = logicAppName`n" ''
 Replace-Exact $main "output DOCUMENT_INTELLIGENCE_NAME string       = documentIntelligenceName`n" ''
