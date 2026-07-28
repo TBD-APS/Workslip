@@ -4,7 +4,6 @@ param(
     [string]$Location = 'westeurope',
     [string]$COMPANY_NAME = 'mrsoftware',
     [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
-    [string]$VercelToken = '',
     [Nullable[bool]]$ActivateCustomEmailDomain = $null,
     [string]$EntraStatePath = ''
 )
@@ -23,6 +22,5 @@ Write-Warning 'deploy.ps1 is a compatibility entry point. Use deploy-entra.ps1 a
     -Location $Location `
     -COMPANY_NAME $COMPANY_NAME `
     -GlobalAdminId $GlobalAdminId `
-    -VercelToken $VercelToken `
     -ActivateCustomEmailDomain $ActivateCustomEmailDomain `
     -EntraStatePath $EntraStatePath
