@@ -1,17 +1,17 @@
-exit_code=1
+exit_code=0
 
   Determining projects to restore...
-  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Domain/Workslip.Domain.csproj (in 136 ms).
-  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Application/Workslip.Application.csproj (in 9.24 sec).
-  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Api.csproj (in 9.45 sec).
-  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Infrastructure/Workslip.Infrastructure.csproj (in 9.29 sec).
+  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Domain/Workslip.Domain.csproj (in 248 ms).
+  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Application/Workslip.Application.csproj (in 5.34 sec).
+  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Infrastructure/Workslip.Infrastructure.csproj (in 6.67 sec).
+  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Api.csproj (in 6.86 sec).
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'SQLitePCLRaw.lib.e_sqlite3' 2.1.11 has a known high severity vulnerability, https://github.com/advisories/GHSA-2m69-gcr7-jv3q [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.slnx]
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-23rf-6693-g89p [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.slnx]
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-8q5v-6pqq-x66h [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.slnx]
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-cvvh-rhrc-wg4q [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.slnx]
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-g8r8-53c2-pm3f [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.slnx]
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-mmjf-rqrv-855v [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.slnx]
-  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj (in 9.57 sec).
+  Restored /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj (in 9.55 sec).
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'SQLitePCLRaw.lib.e_sqlite3' 2.1.11 has a known high severity vulnerability, https://github.com/advisories/GHSA-2m69-gcr7-jv3q
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-23rf-6693-g89p
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-8q5v-6pqq-x66h
@@ -22,12 +22,9 @@ exit_code=1
   Workslip.Application -> /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Application/bin/Release/net10.0/Workslip.Application.dll
   Workslip.Infrastructure -> /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Infrastructure/bin/Release/net10.0/Workslip.Infrastructure.dll
   Workslip.Api -> /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/bin/Release/net10.0/Workslip.Api.dll
-/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Helpers/ResultExtensionsTests.cs(19,15): error CS0104: 'ResultExtensions' is an ambiguous reference between 'Workslip.Api.Helpers.ResultExtensions' and 'Ardalis.Result.ResultExtensions' [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj]
-/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Helpers/ResultExtensionsTests.cs(34,15): error CS0104: 'ResultExtensions' is an ambiguous reference between 'Workslip.Api.Helpers.ResultExtensions' and 'Ardalis.Result.ResultExtensions' [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj]
-/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Helpers/ResultExtensionsTests.cs(55,15): error CS0104: 'ResultExtensions' is an ambiguous reference between 'Workslip.Api.Helpers.ResultExtensions' and 'Ardalis.Result.ResultExtensions' [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj]
-/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Invitations/InvitationEnrollmentTests.cs(264,9): error CS1729: 'InvitationService' does not contain a constructor that takes 8 arguments [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj]
+  Workslip.Tests -> /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/bin/Release/net10.0/Workslip.Tests.dll
 
-Build FAILED.
+Build succeeded.
 
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'SQLitePCLRaw.lib.e_sqlite3' 2.1.11 has a known high severity vulnerability, https://github.com/advisories/GHSA-2m69-gcr7-jv3q
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-23rf-6693-g89p
@@ -35,11 +32,7 @@ Build FAILED.
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-cvvh-rhrc-wg4q
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-g8r8-53c2-pm3f
 /home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj : warning NU1903: Package 'System.Security.Cryptography.Xml' 10.0.7 has a known high severity vulnerability, https://github.com/advisories/GHSA-mmjf-rqrv-855v
-/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Helpers/ResultExtensionsTests.cs(19,15): error CS0104: 'ResultExtensions' is an ambiguous reference between 'Workslip.Api.Helpers.ResultExtensions' and 'Ardalis.Result.ResultExtensions' [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj]
-/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Helpers/ResultExtensionsTests.cs(34,15): error CS0104: 'ResultExtensions' is an ambiguous reference between 'Workslip.Api.Helpers.ResultExtensions' and 'Ardalis.Result.ResultExtensions' [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj]
-/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Helpers/ResultExtensionsTests.cs(55,15): error CS0104: 'ResultExtensions' is an ambiguous reference between 'Workslip.Api.Helpers.ResultExtensions' and 'Ardalis.Result.ResultExtensions' [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj]
-/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Invitations/InvitationEnrollmentTests.cs(264,9): error CS1729: 'InvitationService' does not contain a constructor that takes 8 arguments [/home/runner/work/Workslip-v2.0/Workslip-v2.0/src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj]
     6 Warning(s)
-    4 Error(s)
+    0 Error(s)
 
-Time Elapsed 00:00:17.23
+Time Elapsed 00:00:18.16
