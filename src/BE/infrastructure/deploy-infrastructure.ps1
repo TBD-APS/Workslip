@@ -20,5 +20,4 @@ if (-not (Test-Path $InfrastructureScript)) {
     -Location $Location `
     -COMPANY_NAME $COMPANY_NAME `
     -GlobalAdminId $GlobalAdminId `
-    -ActivateCustomEmailDomain $true `
     -EntraStatePath $EntraStatePath
