@@ -54,6 +54,7 @@ const syncFont = async ({ name, source, filename }) => {
   const temporaryTarget = `${target}.tmp`;
   try {
     await writeFile(temporaryTarget, bytes);
+    await rm(target, { force: true });
     await rename(temporaryTarget, target);
   } catch (error) {
     await rm(temporaryTarget, { force: true });
