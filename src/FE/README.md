@@ -7,7 +7,7 @@ React 19, TypeScript and Vite PWA for Workslip.
 - Node.js 22
 - npm
 - Workslip API running locally on `http://localhost:5262`, or an explicit API base URL
-- outbound access to the pinned Fontsource files on `raw.githubusercontent.com` when fonts are not already present locally
+- outbound access to the pinned Fontsource files on `cdn.jsdelivr.net` when fonts are not already present locally
 
 ## Install and run
 
