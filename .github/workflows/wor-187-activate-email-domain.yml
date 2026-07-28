@@ -1,0 +1,209 @@
+name: WOR-187 activate custom email domain
+
+on:
+  push:
+    branches:
+      - rbj--wor-187-activate-custom-email-domain
+    paths:
+      - .github/workflows/wor-187-activate-email-domain.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--wor-187-activate-custom-email-domain
+          fetch-depth: 0
+
+      - name: Thread activation switch through deployment scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          function Replace-ExactlyOnce {
+            param(
+              [Parameter(Mandatory = $true)] [string]$Path,
+              [Parameter(Mandatory = $true)] [string]$Old,
+              [Parameter(Mandatory = $true)] [string]$New
+            )
+
+            $content = [System.IO.File]::ReadAllText($Path)
+            $first = $content.IndexOf($Old, [StringComparison]::Ordinal)
+            if ($first -lt 0) {
+              throw "Expected text was not found in $Path"
+            }
+            if ($content.IndexOf($Old, $first + $Old.Length, [StringComparison]::Ordinal) -ge 0) {
+              throw "Expected text appears more than once in $Path"
+            }
+
+            [System.IO.File]::WriteAllText(
+              $Path,
+              $content.Replace($Old, $New),
+              [System.Text.UTF8Encoding]::new($false)
+            )
+          }
+
+          $safe = 'src/BE/infrastructure/deploy-safe.ps1'
+          Replace-ExactlyOnce $safe @'
+              [string]$VercelToken = '',
+              [string]$EntraStatePath = ''
+          '@ @'
+              [string]$VercelToken = '',
+              [switch]$ActivateCustomEmailDomain,
+              [string]$EntraStatePath = ''
+          '@
+          Replace-ExactlyOnce $safe @'
+              -GlobalAdminId $GlobalAdminId `
+              -VercelToken $VercelToken `
+              -EntraStatePath $EntraStatePath
+          '@ @'
+              -GlobalAdminId $GlobalAdminId `
+              -VercelToken $VercelToken `
+              -ActivateCustomEmailDomain:$ActivateCustomEmailDomain `
+              -EntraStatePath $EntraStatePath
+          '@
+
+          $infrastructure = 'src/BE/infrastructure/deploy-infrastructure.ps1'
+          Replace-ExactlyOnce $infrastructure @'
+              [string]$VercelToken = '',
+              [string]$EntraStatePath = ''
+          '@ @'
+              [string]$VercelToken = '',
+              [switch]$ActivateCustomEmailDomain,
+              [string]$EntraStatePath = ''
+          '@
+          Replace-ExactlyOnce $infrastructure @'
+                  -GlobalAdminId $GlobalAdminId `
+                  -VercelToken $VercelToken
+          '@ @'
+                  -GlobalAdminId $GlobalAdminId `
+                  -VercelToken $VercelToken `
+                  -ActivateCustomEmailDomain:$ActivateCustomEmailDomain
+          '@
+
+          $deploy = 'src/BE/infrastructure/deploy.ps1'
+          Replace-ExactlyOnce $deploy @'
+              [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",
+              [string]$VercelToken = ""
+          '@ @'
+              [string]$GlobalAdminId = "9ea4bcd3-bf90-4249-93e0-f45070d140f7",
+              [string]$VercelToken = "",
+              [switch]$ActivateCustomEmailDomain
+          '@
+          Replace-ExactlyOnce $deploy @'
+              Write-Host "Deploying Bicep template: $DeploymentName" -ForegroundColor Cyan
+
+              $DeploymentJson = az deployment group create `
+          '@ @'
+              Write-Host "Deploying Bicep template: $DeploymentName" -ForegroundColor Cyan
+              $ActivateCustomEmailDomainValue = $ActivateCustomEmailDomain.IsPresent.ToString().ToLowerInvariant()
+
+              $DeploymentJson = az deployment group create `
+          '@
+          Replace-ExactlyOnce $deploy @'
+                 --parameters vercelToken="$VercelToken" `
+                 -o json
+          '@ @'
+                 --parameters vercelToken="$VercelToken" `
+                 --parameters activateCustomEmailDomain=$ActivateCustomEmailDomainValue `
+                 -o json
+          '@
+
+          $readme = 'src/BE/infrastructure/README.md'
+          Replace-ExactlyOnce $readme @'
+          ```powershell
+          .\deploy-infrastructure.ps1 prod
+          ```
+          '@ @'
+          ```powershell
+          .\deploy-infrastructure.ps1 prod
+          ```
+
+          After Azure verifies Domain, SPF, DKIM, and DKIM2, activate the custom sender explicitly:
+
+          ```powershell
+          .\deploy-infrastructure.ps1 prod -ActivateCustomEmailDomain
+          ```
+
+          Omitting the switch keeps the Azure-managed sender active and is the rollback path.
+          '@
+          Replace-ExactlyOnce $readme @'
+          ```powershell
+          .\deploy-safe.ps1 prod
+          ```
+          '@ @'
+          ```powershell
+          .\deploy-safe.ps1 prod
+          ```
+
+          To reconcile Entra and activate the verified custom email domain in the same run:
+
+          ```powershell
+          .\deploy-safe.ps1 prod -ActivateCustomEmailDomain
+          ```
+          '@
+
+          $acsDocs = 'Docs/acs-email-setup.md'
+          Replace-ExactlyOnce $acsDocs @'
+          After all verification gates pass, change the production value to:
+
+          ```bicep
+          param activateCustomEmailDomain bool = true
+          ```
+
+          Then deploy the same Bicep template again. The deployment must result in:
+          '@ @'
+          After all verification gates pass, activate the sender through the infrastructure entry point:
+
+          ```powershell
+          .\deploy-infrastructure.ps1 prod -ActivateCustomEmailDomain
+          ```
+
+          Use `deploy-safe.ps1` with the same switch only when Entra reconciliation is also required. The deployment must result in:
+          '@
+          Replace-ExactlyOnce $acsDocs @'
+          Set `activateCustomEmailDomain` back to `false` and redeploy. This restores the Azure-managed sender in App Configuration and removes the custom domain from the active linked-domain set without deleting the verified custom domain.
+          '@ @'
+          Redeploy without `-ActivateCustomEmailDomain`. This restores the Azure-managed sender in App Configuration and removes the custom domain from the active linked-domain set without deleting the verified custom domain.
+          '@
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $paths = @(
+            'src/BE/infrastructure/deploy-safe.ps1',
+            'src/BE/infrastructure/deploy-infrastructure.ps1',
+            'src/BE/infrastructure/deploy.ps1'
+          )
+
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.Message }
+              throw "PowerShell syntax validation failed for $path"
+            }
+          }
+
+      - name: Validate Bicep template
+        shell: bash
+        run: az bicep build --file src/BE/infrastructure/main.bicep --stdout > /dev/null
+
+      - name: Commit implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/BE/infrastructure/deploy-safe.ps1 \
+                  src/BE/infrastructure/deploy-infrastructure.ps1 \
+                  src/BE/infrastructure/deploy.ps1 \
+                  src/BE/infrastructure/README.md \
+                  Docs/acs-email-setup.md
+          git commit -m "RBJ-187: expose custom email domain activation"
+          git push origin HEAD:rbj--wor-187-activate-custom-email-domain
