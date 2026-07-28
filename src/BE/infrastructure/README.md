@@ -121,7 +121,9 @@ These permissions support external-user lookup/invitation/deletion, API service-
 
 ## ACS custom sender
 
-The verified `mrsoftware.dk` ACS email domain and `noreply@mrsoftware.dk` sender are part of every infrastructure deployment. There is no activation parameter or Azure-managed sender fallback in the deployment model.
+The verified `mrsoftware.dk` ACS email domain and `noreply@mrsoftware.dk` sender are selected by every supported infrastructure deployment. There is no operator activation parameter.
+
+The Azure-managed domain remains linked only as an emergency rollback resource; the supported deployment path always provisions the custom sender and writes `noreply@mrsoftware.dk` to App Configuration.
 
 DNS verification must remain valid for Domain, SPF, DKIM and DKIM2. See `../../../Docs/acs-email-setup.md` for maintenance and smoke-test procedures.
 
