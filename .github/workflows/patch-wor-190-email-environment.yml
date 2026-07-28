@@ -1,4 +1,4 @@
-name: Patch WOR-190 environment-safe ACS deployment
+name: Diagnose WOR-190 environment-safe ACS deployment
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  patch-and-validate:
+  diagnose:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Make ACS custom domain production-only
+      - name: Apply patch and capture Bicep output
         shell: bash
         run: |
           set -euo pipefail
@@ -35,26 +35,13 @@ jobs:
 
           path = Path('src/BE/infrastructure/main.bicep')
           text = path.read_text(encoding='utf-8')
-          text = replace_once(
-              text,
-              "var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)\n",
-              "var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)\nvar useCustomEmailDomain = toLower(environment) == 'prod'\n",
-              'ACS environment selector',
-          )
-          text = replace_once(
-              text,
-              "    acsSenderAddress: '${customEmailSenderUsername}@${customEmailDomainName}'\n",
-              "    acsSenderAddress: useCustomEmailDomain\n      ? '${customEmailSenderUsername}@${customEmailDomainName}'\n      : '${azureManagedSenderUsername.properties.username}@${azureManagedEmailDomain.properties.mailFromSenderDomain}'\n",
-              'App Configuration ACS sender',
-          )
-          text = replace_once(
-              text,
-              """    linkedDomains: [
+          text = replace_once(text, "var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)\n", "var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)\nvar useCustomEmailDomain = toLower(environment) == 'prod'\n", 'selector')
+          text = replace_once(text, "    acsSenderAddress: '${customEmailSenderUsername}@${customEmailDomainName}'\n", "    acsSenderAddress: useCustomEmailDomain\n      ? '${customEmailSenderUsername}@${customEmailDomainName}'\n      : '${azureManagedSenderUsername.properties.username}@${azureManagedEmailDomain.properties.mailFromSenderDomain}'\n", 'sender config')
+          text = replace_once(text, """    linkedDomains: [
       azureManagedEmailDomain.id
       customEmailDomain.id
     ]
-""",
-              """    linkedDomains: useCustomEmailDomain
+""", """    linkedDomains: useCustomEmailDomain
       ? [
           azureManagedEmailDomain.id
           customEmailDomain.id
@@ -62,119 +49,38 @@ jobs:
       : [
           azureManagedEmailDomain.id
         ]
-""",
-              'ACS linked domains',
-          )
-          text = replace_once(
-              text,
-              """// Production DNS verification is complete. The custom domain and sender are
+""", 'linked domains')
+          text = replace_once(text, """// Production DNS verification is complete. The custom domain and sender are
 // unconditional parts of every infrastructure deployment.
 resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = {
-""",
-              """// Production DNS verification is complete. Production always provisions the
+""", """// Production DNS verification is complete. Production always provisions the
 // custom domain; non-production environments use the Azure-managed sender.
 resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = if (useCustomEmailDomain) {
-""",
-              'custom email domain condition',
-          )
-          text = replace_once(
-              text,
-              "resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = {\n",
-              "resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (useCustomEmailDomain) {\n",
-              'custom email sender condition',
-          )
-          text = replace_once(
-              text,
-              """output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = customEmailDomain.id
+""", 'domain condition')
+          text = replace_once(text, "resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = {\n", "resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (useCustomEmailDomain) {\n", 'sender condition')
+          text = replace_once(text, """output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = customEmailDomain.id
 output ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE bool      = true
 output ACS_SENDER_ADDRESS string                = '${customEmailSenderUsername}@${customEmailDomainName}'
-""",
-              """output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = useCustomEmailDomain ? customEmailDomain.id : ''
+""", """output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = useCustomEmailDomain ? customEmailDomain.id : ''
 output ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE bool      = useCustomEmailDomain
 output ACS_SENDER_ADDRESS string                = useCustomEmailDomain
   ? '${customEmailSenderUsername}@${customEmailDomainName}'
   : '${azureManagedSenderUsername.properties.username}@${azureManagedEmailDomain.properties.mailFromSenderDomain}'
-""",
-              'ACS outputs',
-          )
-          path.write_text(text, encoding='utf-8', newline='\n')
-
-          path = Path('src/BE/infrastructure/README.md')
-          text = path.read_text(encoding='utf-8')
-          text = replace_once(
-              text,
-              """The verified `mrsoftware.dk` ACS email domain and `noreply@mrsoftware.dk` sender are selected by every supported infrastructure deployment. There is no operator activation parameter.
-
-The Azure-managed domain remains linked only as an emergency rollback resource; the supported deployment path always provisions the custom sender and writes `noreply@mrsoftware.dk` to App Configuration.
-
-DNS verification must remain valid for Domain, SPF, DKIM and DKIM2. See `../../../Docs/acs-email-setup.md` for maintenance and smoke-test procedures.
-""",
-              """Production infrastructure automatically selects the verified `mrsoftware.dk` ACS email domain and `noreply@mrsoftware.dk` sender. There is no operator activation parameter.
-
-Non-production environments automatically use their Azure-managed sender and do not provision or link the production customer-managed domain. This is derived from the environment name rather than an operator flag.
-
-Production DNS verification must remain valid for Domain, SPF, DKIM and DKIM2. See `../../../Docs/acs-email-setup.md` for maintenance and smoke-test procedures.
-""",
-              'infrastructure README ACS section',
-          )
-          path.write_text(text, encoding='utf-8', newline='\n')
-
-          path = Path('Docs/acs-email-setup.md')
-          text = path.read_text(encoding='utf-8')
-          text = replace_once(
-              text,
-              """Every supported Azure infrastructure deployment provisions and configures:
-
-- the Communication Services resource `acs-<company>-<environment>`;
-- the Email Communication Service `email-<company>-<environment>`;
-- the verified customer-managed domain `mrsoftware.dk`;
-- the `noreply` sender;
-- the custom-domain link on Communication Services;
-- `Azure:Acs:SenderAddress = noreply@mrsoftware.dk` in Azure App Configuration.
-
-There is no operator activation parameter. The supported deployment scripts always select the custom domain and sender.
-
-The Azure-managed domain remains linked as an emergency rollback resource, but it is not selected by the normal deployment path.
-""",
-              """Every Azure infrastructure deployment provisions the Communication Services resource, Email Communication Service and an Azure-managed sender for its environment.
-
-Production additionally and automatically provisions:
-
-- the verified customer-managed domain `mrsoftware.dk`;
-- the `noreply` sender;
-- the custom-domain link on Communication Services;
-- `Azure:Acs:SenderAddress = noreply@mrsoftware.dk` in Azure App Configuration.
-
-There is no operator activation parameter. Production always selects the custom domain, while non-production environments automatically retain their Azure-managed sender and do not depend on production DNS verification.
-""",
-              'ACS runbook deployment model',
-          )
-          path.write_text(text, encoding='utf-8', newline='\n')
-
-          path = Path('Docs/architecture/adr/0001-managed-identity-runtime-and-secret-lifecycle.md')
-          text = path.read_text(encoding='utf-8')
-          text = replace_once(
-              text,
-              "11. Every supported Azure infrastructure deployment selects the verified `mrsoftware.dk` ACS email domain, provisions `noreply`, and writes `noreply@mrsoftware.dk` to App Configuration. The deployment entry points expose no activation parameter. The Azure-managed domain remains linked only as an emergency rollback resource.\n",
-              "11. Production infrastructure always selects the verified `mrsoftware.dk` ACS email domain, provisions `noreply`, and writes `noreply@mrsoftware.dk` to App Configuration. Non-production environments automatically use their Azure-managed sender. The deployment entry points expose no activation parameter.\n",
-              'ADR ACS decision',
-          )
-          text = replace_once(
-              text,
-              "- The production custom email domain must remain verified; normal deployment no longer offers a sender-selection toggle.\n",
-              "- The production custom email domain must remain verified; normal deployment no longer offers a sender-selection toggle, while non-production does not depend on production DNS ownership.\n",
-              'ADR ACS consequence',
-          )
+""", 'outputs')
           path.write_text(text, encoding='utf-8', newline='\n')
           PY
 
-          git diff --check
+          set +e
+          az bicep build --file src/BE/infrastructure/main.bicep > bicep-validation.log 2>&1
+          status=$?
+          set -e
+          {
+            echo "exit_code=$status"
+            echo
+            cat bicep-validation.log
+          } > .github/WOR-190-bicep-validation.txt
 
-      - name: Build Bicep
-        shell: bash
-        run: az bicep build --file src/BE/infrastructure/main.bicep
-
-      - name: Commit focused correction
+      - name: Publish diagnostic and patched Bicep
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -183,10 +89,6 @@ There is no operator activation parameter. Production always selects the custom 
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git rm .github/workflows/patch-wor-190-email-environment.yml
-          git add \
-            src/BE/infrastructure/main.bicep \
-            src/BE/infrastructure/README.md \
-            Docs/acs-email-setup.md \
-            Docs/architecture/adr/0001-managed-identity-runtime-and-secret-lifecycle.md
-          git commit -m "RBJ-190 scope custom email domain to production"
+          git add src/BE/infrastructure/main.bicep .github/WOR-190-bicep-validation.txt
+          git commit -m "RBJ-190 capture ACS Bicep validation"
           git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:rbj--190-infrastructure-deployment-hardening
