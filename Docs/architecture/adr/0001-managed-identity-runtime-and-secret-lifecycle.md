@@ -13,17 +13,20 @@ The API already has a user-assigned managed identity. The browser uses authoriza
 
 Vercel cache purge is an external frontend-hosting operation. It is not part of Azure resource provisioning and must not make an infrastructure deployment depend on Vercel credentials.
 
+Multiple overlapping wrapper scripts also made it unclear which deployment command an operator should run.
+
 ## Decision
 
 1. `deploy-entra.ps1` is the only application-registration reconciliation phase.
 2. `deploy-infrastructure.ps1` deploys Azure resources directly and never invokes the legacy monolithic implementation.
-3. `main.bicep` is the single source of truth for API runtime Microsoft Graph app-role assignments.
-4. Production API SQL connections authenticate with the user-assigned managed identity and its client ID. SQL authentication remains only as a controlled deployment bootstrap for creating the contained database principal.
-5. App Configuration contains versionless Key Vault references for JWT signing material and the SQL connection string.
-6. Vercel cache-purge credentials and project configuration remain outside the Azure infrastructure deployment boundary.
-7. JWT signing material is generated with a cryptographic random-number generator and rotated explicitly or when the legacy deterministic value is detected.
-8. The deployment-created OAuth application client secret is removed. Future server-side confidential-client flows require a separate ADR and scoped credential lifecycle.
-9. `deploy.ps1` remains temporarily as a compatibility shim that delegates to `deploy-safe.ps1`.
+3. `deploy.ps1` is the single full-deployment entry point and runs Entra reconciliation, exact legacy OAuth credential cleanup and Azure infrastructure deployment in that order.
+4. No additional public deployment wrapper is retained. Helper scripts are internal implementation details.
+5. `main.bicep` is the single source of truth for API runtime Microsoft Graph app-role assignments.
+6. Production API SQL connections authenticate with the user-assigned managed identity and its client ID. SQL authentication remains only as a controlled deployment bootstrap for creating the contained database principal.
+7. App Configuration contains versionless Key Vault references for JWT signing material and the SQL connection string.
+8. Vercel cache-purge credentials and project configuration remain outside the Azure infrastructure deployment boundary.
+9. JWT signing material is generated with a cryptographic random-number generator and rotated explicitly or when the legacy deterministic value is detected.
+10. The deployment-created OAuth application client secret is removed. Future server-side confidential-client flows require a separate ADR and scoped credential lifecycle.
 
 ## Required Graph permissions
 
@@ -38,6 +41,7 @@ Deployment scripts do not assign a second competing set.
 
 ## Consequences
 
+- Operators have three supported commands: one full deployment and one command for each phase.
 - Runtime SQL access no longer depends on a long-lived SQL administrator password.
 - SqlClient Entra authentication requires `Microsoft.Data.SqlClient.Extensions.Azure` alongside SqlClient 7.x.
 - Recreating the managed identity changes its client ID; SQL provisioning must replace a stale contained user SID.
@@ -52,5 +56,6 @@ Deployment scripts do not assign a second competing set.
 - Keep SQL administrator credentials in the runtime connection string: rejected because it grants unnecessary standing privilege.
 - Store JWT values directly in App Configuration: rejected because App Configuration is the non-secret configuration layer.
 - Make Azure infrastructure deployment require a Vercel token: rejected because cache purge is an optional external operation with a separate lifecycle.
+- Keep `deploy-safe.ps1` as a second full-deployment wrapper: rejected because overlapping entry points create operator ambiguity.
 - Keep a long-lived OAuth client secret “for later”: rejected because no implemented confidential-client flow consumes it.
 - Assign Graph permissions from both Bicep and PowerShell: rejected because drift and partial deployment make the effective permission set unclear.
