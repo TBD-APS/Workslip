@@ -66,9 +66,6 @@ public static class InfrastructureConfiguration
         }
 
         configuration.AddEnvironmentVariables();
-
-        if (args.Length > 0)
-            configuration.AddCommandLine(args);
     }
 
     private static void ConfigureDevelopmentSqlAuthentication(
