@@ -12,20 +12,23 @@ import {
   MailPlus,
   Plus,
   Send,
+  Trash2,
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ErrorState } from '../../../components/ErrorState';
 import { usePostApiAuthInvite } from '../../../api/generated/auth/auth';
-import { useGetApiAuthInvites } from '../api';
+import { useDeleteApiAuthInvite, useGetApiAuthInvites, type InviteTokenResponse } from '../api';
 
 export const Settings = () => {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [emails, setEmails] = useState<string[]>([]);
+  const [clearingInviteId, setClearingInviteId] = useState<string | null>(null);
 
   const invitesQuery = useGetApiAuthInvites();
   const inviteMutation = usePostApiAuthInvite();
+  const clearInviteMutation = useDeleteApiAuthInvite();
 
   const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
@@ -74,6 +77,24 @@ export const Settings = () => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/invites'] });
     } catch {
       notify.error('Kunne ikke sende invitationer');
+    }
+  };
+
+  const handleClearInvite = async (invite: InviteTokenResponse) => {
+    const confirmed = window.confirm(
+      `Ryd invitationsstatus for ${invite.email}? En invitation, der ikke er accepteret, bliver samtidig ugyldig.`,
+    );
+    if (!confirmed) return;
+
+    setClearingInviteId(invite.id);
+    try {
+      await clearInviteMutation.mutateAsync(invite.id);
+      await queryClient.invalidateQueries({ queryKey: ['/api/auth/invites'] });
+      notify.success('Invitationsstatus er ryddet');
+    } catch {
+      notify.error('Kunne ikke rydde invitationsstatus');
+    } finally {
+      setClearingInviteId(null);
     }
   };
 
@@ -178,6 +199,7 @@ export const Settings = () => {
             {invitesQuery.data.invites.map((invite) => {
               const st = statusLabel(invite);
               const Icon = st.icon;
+              const isClearing = clearingInviteId === invite.id;
               return (
                 <div key={invite.id} className="invite-status-row">
                   <div className="invite-status-left">
@@ -187,13 +209,25 @@ export const Settings = () => {
                       {st.label}
                     </span>
                   </div>
-                  <span className="invite-status-date">
-                    {new Date(invite.createdAt).toLocaleDateString('da-DK', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span className="invite-status-date">
+                      {new Date(invite.createdAt).toLocaleDateString('da-DK', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-icon btn-icon-danger"
+                      onClick={() => void handleClearInvite(invite)}
+                      disabled={clearInviteMutation.isPending}
+                      aria-label={`Ryd invitationsstatus for ${invite.email}`}
+                      title="Ryd invitationsstatus"
+                    >
+                      {isClearing ? <Loader2 size={15} className="spin" /> : <Trash2 size={15} />}
+                    </button>
+                  </div>
                 </div>
               );
             })}
