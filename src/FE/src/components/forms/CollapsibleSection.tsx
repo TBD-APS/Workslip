@@ -12,8 +12,35 @@ type CollapsibleSectionProps = {
   scrollOnOpen?: boolean;
 };
 
+type CollapsibleHistoryState = {
+  __workslipCollapsibleSections?: Record<string, boolean>;
+};
+
+function getPersistedOpenState(key: string, fallback: boolean): boolean {
+  if (typeof window === 'undefined') return fallback;
+  const historyState = window.history.state as CollapsibleHistoryState | null;
+  return historyState?.__workslipCollapsibleSections?.[key] ?? fallback;
+}
+
+function persistOpenState(key: string, open: boolean) {
+  if (typeof window === 'undefined') return;
+
+  const historyState = (window.history.state ?? {}) as CollapsibleHistoryState & Record<string, unknown>;
+  window.history.replaceState(
+    {
+      ...historyState,
+      __workslipCollapsibleSections: {
+        ...historyState.__workslipCollapsibleSections,
+        [key]: open,
+      },
+    },
+    '',
+  );
+}
+
 export function CollapsibleSection({ icon, title, children, className, defaultOpen = true, open, onToggle, scrollOnOpen = true }: CollapsibleSectionProps) {
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const persistenceKey = className ?? title;
+  const [internalOpen, setInternalOpen] = useState(() => getPersistedOpenState(persistenceKey, defaultOpen));
   const isOpen = open ?? internalOpen;
   const isControlled = open !== undefined;
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -34,7 +61,11 @@ export function CollapsibleSection({ icon, title, children, className, defaultOp
     if (isControlled) {
       onToggle?.(!open);
     } else {
-      setInternalOpen((prev) => !prev);
+      setInternalOpen((previousOpen) => {
+        const nextOpen = !previousOpen;
+        persistOpenState(persistenceKey, nextOpen);
+        return nextOpen;
+      });
     }
   };
 
