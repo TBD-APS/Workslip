@@ -2,20 +2,20 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const FONT_SOURCE_COMMIT = '9c76865650f64dd9242db524070753930bc7685c';
+const FONT_SOURCE_VERSION = '5.3.0';
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outputDirectory = resolve(frontendRoot, 'public', 'fonts');
 
 const fonts = [
   {
     name: 'Inter Variable',
-    source: `https://raw.githubusercontent.com/fontsource/font-files/${FONT_SOURCE_COMMIT}/fonts/variable/inter/files/inter-latin-wght-normal.woff2`,
-    filename: 'inter-latin-wght-normal-v5.3.0.woff2',
+    source: `https://cdn.jsdelivr.net/fontsource/fonts/inter:vf@${FONT_SOURCE_VERSION}/latin-wght-normal.woff2`,
+    filename: `inter-latin-wght-normal-v${FONT_SOURCE_VERSION}.woff2`,
   },
   {
     name: 'Outfit Variable',
-    source: `https://raw.githubusercontent.com/fontsource/font-files/${FONT_SOURCE_COMMIT}/fonts/variable/outfit/files/outfit-latin-wght-normal.woff2`,
-    filename: 'outfit-latin-wght-normal-v5.3.0.woff2',
+    source: `https://cdn.jsdelivr.net/fontsource/fonts/outfit:vf@${FONT_SOURCE_VERSION}/latin-wght-normal.woff2`,
+    filename: `outfit-latin-wght-normal-v${FONT_SOURCE_VERSION}.woff2`,
   },
 ];
 
