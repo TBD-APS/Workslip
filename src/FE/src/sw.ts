@@ -1,8 +1,14 @@
-// @ts-nocheck — service worker types not in app tsconfig; built by Vite only
-import { precacheAndRoute } from 'workbox-precaching';
+import { clientsClaim } from 'workbox-core';
+import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
 
-declare const self: ServiceWorkerGlobalScope;
-declare const __BUILD_TIME__: string;
+type PrecacheManifestEntry = string | {
+  url: string;
+  revision?: string | null;
+};
+
+declare const self: ServiceWorkerGlobalScope & {
+  __WB_MANIFEST: PrecacheManifestEntry[];
+};
 
 const PRECACHE_MANIFEST = self.__WB_MANIFEST;
 const PRECACHED_URLS = new Set(
@@ -10,11 +16,16 @@ const PRECACHED_URLS = new Set(
     new URL(typeof entry === 'string' ? entry : entry.url, self.location.origin).href,
   ),
 );
-const BUILD_TIME = __BUILD_TIME__;
-const ROUTE_ASSET_CACHE_PREFIX = 'workslip-route-assets-';
-const ROUTE_ASSET_CACHE = `${ROUTE_ASSET_CACHE_PREFIX}${BUILD_TIME}`;
+const ROUTE_ASSET_CACHE = 'workslip-route-assets-v1';
+const MAX_ROUTE_ASSET_ENTRIES = 100;
 
+cleanupOutdatedCaches();
 precacheAndRoute(PRECACHE_MANIFEST);
+
+// This remains aligned with registerType: 'autoUpdate'. WOR-114 owns the
+// separate change to prompt-based, dirty-form-safe activation.
+self.skipWaiting();
+clientsClaim();
 
 function isLazyRouteAsset(request: Request) {
   if (request.method !== 'GET') return false;
@@ -22,45 +33,19 @@ function isLazyRouteAsset(request: Request) {
 
   const url = new URL(request.url);
   return url.origin === self.location.origin
-    && url.pathname.startsWith('/assets/')
+    && url.pathname.startsWith('/assets/chunks/')
     && !PRECACHED_URLS.has(url.href);
 }
 
-async function deleteOldRouteAssetCaches() {
-  const cacheNames = await caches.keys();
+async function trimRouteAssetCache(cache: Cache) {
+  const requests = await cache.keys();
+  const excessCount = requests.length - MAX_ROUTE_ASSET_ENTRIES;
+  if (excessCount <= 0) return;
+
   await Promise.all(
-    cacheNames
-      .filter((cacheName) => cacheName.startsWith(ROUTE_ASSET_CACHE_PREFIX) && cacheName !== ROUTE_ASSET_CACHE)
-      .map((cacheName) => caches.delete(cacheName)),
+    requests.slice(0, excessCount).map((request) => cache.delete(request)),
   );
 }
-
-self.addEventListener('install', () => {
-  console.log('[SW] Installing (build:', BUILD_TIME + ')');
-  self.skipWaiting();
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') {
-    console.log('[SW] SKIP_WAITING received — activating');
-    self.skipWaiting();
-  }
-});
-
-self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating (build:', BUILD_TIME + ')');
-  event.waitUntil((async () => {
-    await Promise.all([
-      self.clients.claim(),
-      deleteOldRouteAssetCaches(),
-    ]);
-
-    const clients = await self.clients.matchAll({ type: 'window' });
-    for (const client of clients) {
-      client.postMessage({ type: 'RELOAD' });
-    }
-  })());
-});
 
 self.addEventListener('fetch', (event) => {
   if (!isLazyRouteAsset(event.request)) return;
@@ -73,6 +58,7 @@ self.addEventListener('fetch', (event) => {
     const response = await fetch(event.request);
     if (response.ok) {
       await cache.put(event.request, response.clone());
+      await trimRouteAssetCache(cache);
     }
 
     return response;
@@ -96,8 +82,8 @@ self.addEventListener('push', (event) => {
   let payload;
   try {
     payload = event.data.json();
-  } catch (e) {
-    console.error('Failed to parse push payload:', e);
+  } catch (error) {
+    console.error('Failed to parse push payload:', error);
     return;
   }
 
@@ -111,8 +97,8 @@ self.addEventListener('push', (event) => {
       badge: options.badge || '/logo.png',
       tag: options.tag || '',
       data: options.data || {},
-    }).catch((err) => {
-      console.error('[SW] showNotification failed:', err);
+    }).catch((error) => {
+      console.error('[SW] showNotification failed:', error);
     })
   );
 });
