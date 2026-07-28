@@ -33,7 +33,13 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.ts',
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2}'],
+        // Precache only the public bootstrap shell. Authenticated route chunks
+        // are cached on first use by src/sw.ts instead of during SW install.
+        globPatterns: [
+          '**/*.{html,ico,png,svg,webmanifest,woff2}',
+          'assets/index-*.{js,css}',
+          'registerSW.js',
+        ],
       },
       manifest: {
         name: 'Workslip',
