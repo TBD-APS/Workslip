@@ -9,7 +9,7 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.ConfigureInfrastructure();
+    builder.ConfigureInfrastructure(args);
 
     var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
