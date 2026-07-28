@@ -57,10 +57,18 @@ public static class CustomerEndpoints
                 return Results.Content(execution.ReplayJson!, "application/json", System.Text.Encoding.UTF8, execution.ReplayStatusCode!.Value);
 
             if (execution.Conflict)
-                return Results.Conflict(new { error = "idempotency_key_reused_with_different_request" });
+                return Results.Conflict(new
+                {
+                    error = "idempotency_key_reused_with_different_request",
+                    message = "Idempotensnøglen er allerede brugt til en anden anmodning."
+                });
 
             if (execution.InProgress)
-                return Results.Conflict(new { error = "request_with_idempotency_key_in_progress" });
+                return Results.Conflict(new
+                {
+                    error = "request_with_idempotency_key_in_progress",
+                    message = "En anmodning med denne idempotensnøgle behandles allerede."
+                });
 
             return ResultExtensions.ToHttpResult(execution.Result!, CustomerViewModelBuilder.ToDetail);
         }).Produces<CustomerDetailViewModel>();
@@ -98,15 +106,15 @@ public static class CustomerEndpoints
             HttpCacheHeaders.SetNoStore(httpContext);
             var logger = loggerFactory.CreateLogger("CustomerImport");
             if (file is null or { Length: 0 })
-                return Results.BadRequest(new { error = "No file uploaded." });
+                return Results.BadRequest(new { error = "Der blev ikke uploadet en fil." });
 
             if (file.Length > MaxUploadSize)
-                return Results.BadRequest(new { error = $"File too large. Maximum size is {MaxUploadSize / 1024 / 1024} MB." });
+                return Results.BadRequest(new { error = $"Filen er for stor. Maksimal størrelse er {MaxUploadSize / 1024 / 1024} MB." });
 
             var isCsv = CustomerCsvParser.HasAllowedExtension(file.FileName) || CustomerCsvParser.IsAllowedContentType(file.ContentType);
             var isExcel = CustomerExcelParser.HasAllowedExtension(file.FileName) || CustomerExcelParser.IsAllowedContentType(file.ContentType);
             if (!isCsv && !isExcel)
-                return Results.BadRequest(new { error = "Only .csv and .xlsx files are accepted." });
+                return Results.BadRequest(new { error = "Kun .csv- og .xlsx-filer accepteres." });
 
             CustomerImportParseResult parsed;
             try

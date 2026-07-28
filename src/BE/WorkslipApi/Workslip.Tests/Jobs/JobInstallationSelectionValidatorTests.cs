@@ -110,7 +110,7 @@ public sealed class JobInstallationSelectionValidatorTests
 
         var errors = JobInstallationSelectionValidator.Validate(request, referenceData);
 
-        Assert.Contains(errors, e => e.Identifier == "Work.InstallationTypes[0].Id" && e.ErrorMessage.Contains("Unknown installation type"));
+        Assert.Contains(errors, e => e.Identifier == "Work.InstallationTypes[0].Id" && e.ErrorMessage.Contains("Ukendt installationstype"));
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public sealed class JobInstallationSelectionValidatorTests
 
         var errors = JobInstallationSelectionValidator.Validate(request, referenceData);
 
-        Assert.Contains(errors, e => e.Identifier == "Work.InstallationTypes[0].Categories[0].Id" && e.ErrorMessage.Contains("not allowed"));
+        Assert.Contains(errors, e => e.Identifier == "Work.InstallationTypes[0].Categories[0].Id" && e.ErrorMessage.Contains("ikke tilladt"));
     }
 
     [Fact]
@@ -230,6 +230,6 @@ public sealed class JobInstallationSelectionValidatorTests
 
         var errors = JobInstallationSelectionValidator.Validate(request, referenceData);
 
-        Assert.Contains(errors, e => e.Identifier == "Work.InstallationTypes[0].Categories[0].ControlPoints[0].Id" && e.ErrorMessage.Contains("not allowed"));
+        Assert.Contains(errors, e => e.Identifier == "Work.InstallationTypes[0].Categories[0].ControlPoints[0].Id" && e.ErrorMessage.Contains("ikke tilladt"));
     }
 }
