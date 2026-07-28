@@ -9,6 +9,15 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
+    rolldownOptions: {
+      output: {
+        // Keep the application bootstrap distinguishable from lazy route chunks
+        // so the service-worker glob cannot accidentally precache a route named
+        // index.tsx or another common chunk.
+        entryFileNames: 'assets/app-[hash].js',
+        chunkFileNames: 'assets/chunks/[name]-[hash].js',
+      },
+    },
   },
   server: {
     host: '127.0.0.1',
@@ -34,11 +43,10 @@ export default defineConfig({
       filename: 'sw.ts',
       injectManifest: {
         // Precache only the public bootstrap shell. Authenticated route chunks
-        // are cached on first use by src/sw.ts instead of during SW install.
+        // are emitted under assets/chunks and cached on first use by src/sw.ts.
         globPatterns: [
-          '**/*.{html,ico,png,svg,webmanifest,woff2}',
-          'assets/index-*.{js,css}',
-          'registerSW.js',
+          '**/*.{html,css,ico,png,svg,webmanifest,woff2}',
+          'assets/app-*.js',
         ],
       },
       manifest: {
