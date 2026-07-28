@@ -675,6 +675,7 @@ try {
             globalAdminId = @{ value = $GlobalAdminId }
             location = @{ value = $Location }
             sqlAdminPassword = @{ value = $sqlAdminPassword }
+            vercelToken = @{ value = '' }
             activateCustomEmailDomain = @{ value = $activateEmailDomain }
         }
     }
