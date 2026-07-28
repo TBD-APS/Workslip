@@ -8,17 +8,52 @@
   "redirects": [
     {
       "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "workslip-v2-0.vercel.app"
+        }
+      ],
+      "destination": "https://app.mrsoftware.dk/app",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "workslip-v2-0.vercel.app"
+        }
+      ],
+      "destination": "https://app.mrsoftware.dk/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/",
       "destination": "/app",
       "permanent": false
     }
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/).*)", 
+      "source": "/api/:path*",
+      "destination": "https://api-mrsoftware-prod.azurewebsites.net/api/:path*"
+    },
+    {
+      "source": "/((?!assets/).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "0"
+        }
+      ]
+    },
     {
       "source": "/sw.js",
       "headers": [
@@ -33,12 +68,21 @@
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     },
     {
       "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/fonts/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
