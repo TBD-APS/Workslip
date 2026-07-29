@@ -5,7 +5,7 @@ namespace Workslip.Api.ViewModels;
 
 public sealed record UserViewModel(
     Guid Id,
-    Guid OrganizationId,
+    Guid? OrganizationId,
     string Email,
     string DisplayName,
     string Phone,
@@ -30,7 +30,7 @@ public sealed record AssignedJobViewModel(
 
 public sealed record UserDetailViewModel(
     Guid Id,
-    Guid OrganizationId,
+    Guid? OrganizationId,
     string Email,
     string DisplayName,
     string Phone,
