@@ -8,23 +8,23 @@ public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserReq
 {
     public CreateUserRequestValidator()
     {
-        RuleFor(x => x.Email)
+        RuleFor(request => request.Email)
             .NotEmpty().WithMessage("E-mailadresse er påkrævet.")
             .EmailAddress().WithMessage("E-mailadressen er ugyldig.")
             .MaximumLength(256).WithMessage("E-mailadressen må højst være 256 tegn.");
 
-        RuleFor(x => x.DisplayName)
+        RuleFor(request => request.DisplayName)
             .NotEmpty().WithMessage("Visningsnavn er påkrævet.")
             .MaximumLength(256).WithMessage("Visningsnavn må højst være 256 tegn.");
 
-        RuleFor(x => x.Phone)
+        RuleFor(request => request.Phone)
             .MaximumLength(20).WithMessage("Telefonnummer må højst være 20 tegn.")
-            .When(x => !string.IsNullOrEmpty(x.Phone));
+            .When(request => !string.IsNullOrEmpty(request.Phone));
 
-        RuleFor(x => x.Role)
+        RuleFor(request => request.Role)
             .NotEmpty().WithMessage("Rolle er påkrævet.")
-            .Must(r => r is Roles.Superadmin or Roles.Admin or Roles.Auditor or Roles.User)
-            .WithMessage("Rollen skal være Superadmin, Admin, Auditor eller User.");
+            .Must(role => role is Roles.Admin or Roles.Auditor or Roles.User)
+            .WithMessage("Rollen skal være Admin, Auditor eller User. Superadmin oprettes kun gennem platformadministration.");
     }
 }
 
@@ -32,17 +32,17 @@ public sealed class UpdateUserRequestValidator : AbstractValidator<UpdateUserReq
 {
     public UpdateUserRequestValidator()
     {
-        RuleFor(x => x.DisplayName)
+        RuleFor(request => request.DisplayName)
             .MaximumLength(256).WithMessage("Visningsnavn må højst være 256 tegn.")
-            .When(x => !string.IsNullOrEmpty(x.DisplayName));
+            .When(request => !string.IsNullOrEmpty(request.DisplayName));
 
-        RuleFor(x => x.Phone)
+        RuleFor(request => request.Phone)
             .MaximumLength(20).WithMessage("Telefonnummer må højst være 20 tegn.")
-            .When(x => !string.IsNullOrEmpty(x.Phone));
+            .When(request => !string.IsNullOrEmpty(request.Phone));
 
-        RuleFor(x => x.Role)
-            .Must(r => r is Roles.Superadmin or Roles.Admin or Roles.Auditor or Roles.User)
-            .WithMessage("Rollen skal være Superadmin, Admin, Auditor eller User.")
-            .When(x => !string.IsNullOrEmpty(x.Role));
+        RuleFor(request => request.Role)
+            .Must(role => role is Roles.Admin or Roles.Auditor or Roles.User)
+            .WithMessage("Rollen skal være Admin, Auditor eller User. Superadmin administreres på platformniveau.")
+            .When(request => !string.IsNullOrEmpty(request.Role));
     }
 }
