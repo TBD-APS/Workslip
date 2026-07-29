@@ -31,7 +31,7 @@ public sealed class UserClaimsTransformation(
             return principal;
         }
 
-        if (HasClaim(principal, OrganizationIdClaim) && (HasClaim(principal, WorkslipUserIdClaim) || HasClaim(principal, ClaimTypes.Role)))
+        if (HasClaim(principal, WorkslipUserIdClaim) && HasClaim(principal, ClaimTypes.Role))
         {
             return principal;
         }
@@ -55,7 +55,8 @@ public sealed class UserClaimsTransformation(
             var row = await users.GetByExternalIdentityAsync(entraId, emailCandidates, CancellationToken.None);
             if (row is null)
             {
-                logger.LogWarning(                    "Authenticated Entra user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
+                logger.LogWarning(
+                    "Authenticated Entra user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
                     !string.IsNullOrWhiteSpace(entraId),
                     emailCandidates.Count);
                 return principal;
@@ -194,7 +195,10 @@ public sealed class UserClaimsTransformation(
         }
 
         identity.AddClaim(new Claim(WorkslipUserIdClaim, user.UserId.ToString()));
-        identity.AddClaim(new Claim(OrganizationIdClaim, user.OrganizationId.ToString()));
+        if (user.OrganizationId is Guid organizationId)
+        {
+            identity.AddClaim(new Claim(OrganizationIdClaim, organizationId.ToString()));
+        }
         identity.AddClaim(new Claim(ClaimTypes.Role, user.Role));
     }
 
@@ -204,5 +208,5 @@ public sealed class UserClaimsTransformation(
         || claim.Type == ClaimTypes.Role
         || claim.Type == RolesClaim;
 
-    private sealed record CachedWorkslipUser(Guid UserId, Guid OrganizationId, string Role);
+    private sealed record CachedWorkslipUser(Guid UserId, Guid? OrganizationId, string Role);
 }
