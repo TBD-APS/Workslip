@@ -11,8 +11,6 @@ interface UseInfiniteListOptions<TItem> {
   fetchPage: (params: { limit: number; offset: number }) => Promise<PageData<TItem>>;
   pageSize?: number;
   enabled?: boolean;
-  staleTime?: number;
-  gcTime?: number;
 }
 
 export function useInfiniteList<TItem>({
@@ -20,8 +18,6 @@ export function useInfiniteList<TItem>({
   fetchPage,
   pageSize = 50,
   enabled = true,
-  staleTime,
-  gcTime,
 }: UseInfiniteListOptions<TItem>) {
   const query = useInfiniteQuery({
     queryKey,
@@ -36,8 +32,6 @@ export function useInfiniteList<TItem>({
       return loadedCount;
     },
     enabled,
-    ...(staleTime === undefined ? {} : { staleTime }),
-    ...(gcTime === undefined ? {} : { gcTime }),
   });
 
   const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
