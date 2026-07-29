@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AUTH_TOKEN_KEY,
   AuthContext,
@@ -7,6 +7,7 @@ import {
   clearReauthInFlight,
   type AuthContextType,
 } from './authContextValue';
+import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
 
 const AuthenticatedAppProvider = lazy(() =>
   import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
@@ -21,6 +22,15 @@ const publicMeQuery: AuthContextType['meQuery'] = {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
+
+  useEffect(() => {
+    if (!authToken) return;
+
+    // Start the shell and jobs-route downloads alongside the authenticated
+    // provider and /api/auth/me request. Import failures still flow through the
+    // existing Vite stale-chunk recovery when the route is rendered.
+    void preloadPrimaryAppRoute().catch(() => undefined);
+  }, [authToken]);
 
   const clearSession = useCallback(() => {
     AuthStorage.removeItem(AUTH_TOKEN_KEY);
