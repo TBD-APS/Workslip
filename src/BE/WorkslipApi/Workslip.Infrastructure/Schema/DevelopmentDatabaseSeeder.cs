@@ -28,11 +28,11 @@ public sealed class DevelopmentDatabaseSeeder(
         try
         {
             var rasmus = await GetRequiredRasmusSuperadminAsync(cancellationToken);
+            await ReconcileSuperadminAsync(rasmus, rasmus.OrganizationId, cancellationToken);
+
             var mahad = await GetOrCreateMahadSuperadminAsync(
                 rasmus.OrganizationId,
                 cancellationToken);
-
-            await ReconcileSuperadminAsync(rasmus, rasmus.OrganizationId, cancellationToken);
             await ReconcileSuperadminAsync(mahad, rasmus.OrganizationId, cancellationToken);
         }
         finally
