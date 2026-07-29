@@ -1,8 +1,5 @@
 param keyVaultName string
 param communicationServiceName string
-@secure()
-@description('Retained for main.bicep compatibility. Runtime SQL uses managed identity and this value is not persisted by this module.')
-param sqlConnectionString string
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
   name: keyVaultName

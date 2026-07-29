@@ -17,18 +17,13 @@ ACS provides outbound delivery only. This setup does not require a mailbox, mail
 
 ## Deployment model
 
-Every supported Azure infrastructure deployment provisions and configures:
+Every supported Azure infrastructure deployment provisions the Communication Services resource, Email Communication Service, Azure-managed domain and `DoNotReply` sender.
 
-- the Communication Services resource `acs-<company>-<environment>`;
-- the Email Communication Service `email-<company>-<environment>`;
-- the verified customer-managed domain `mrsoftware.dk`;
-- the `noreply` sender;
-- the custom-domain link on Communication Services;
-- `Azure:Acs:SenderAddress = noreply@mrsoftware.dk` in Azure App Configuration.
+Production additionally provisions and links the verified `mrsoftware.dk` domain, provisions the `noreply` sender and writes `Azure:Acs:SenderAddress = noreply@mrsoftware.dk` to Azure App Configuration. The Azure-managed domain remains linked as an emergency rollback resource.
 
-There is no operator activation parameter. The supported deployment scripts always select the custom domain and sender.
+Non-production environments do not provision or link `mrsoftware.dk`; they write the generated Azure-managed `DoNotReply@<domain>.azurecomm.net` address instead.
 
-The Azure-managed domain remains linked as an emergency rollback resource, but it is not selected by the normal deployment path.
+There is no operator activation parameter. Sender selection is derived from `environment == prod`.
 
 For the production defaults:
 
@@ -92,11 +87,7 @@ Azure:Acs:PlainInviteText
 Azure:Acs:HtmlInviteText
 ```
 
-Bicep owns `Azure:Acs:SenderAddress`; manual App Configuration edits are overwritten by the next deployment. The required value is:
-
-```text
-noreply@mrsoftware.dk
-```
+Bicep owns `Azure:Acs:SenderAddress`; manual App Configuration edits are overwritten by the next deployment. Production uses `noreply@mrsoftware.dk`; non-production uses its generated Azure-managed sender address.
 
 The invitation base URL must continue to produce links under:
 
@@ -116,7 +107,7 @@ https://app.mrsoftware.dk/invite/
 
 ## Failure and rollback policy
 
-A broken DNS verification state is a production configuration fault, not a deployment mode. Repair the DNS records and re-run deployment. Do not reintroduce an operator activation toggle.
+A broken production DNS verification state is a production configuration fault. Repair the DNS records and re-run deployment. Non-production environments are unaffected because they use Azure-managed domains. Do not reintroduce an operator activation toggle.
 
 An emergency switch to the Azure-managed sender requires a dedicated reviewed infrastructure change and matching documentation update.
 
