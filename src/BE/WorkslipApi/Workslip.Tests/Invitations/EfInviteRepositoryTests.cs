@@ -12,7 +12,7 @@ namespace Workslip.Tests.Invitations;
 public sealed class EfInviteRepositoryTests
 {
     [Fact]
-    public async Task GetInviteByEmailAsync_WhenTenantsShareEmail_ReturnsOnlyRequestedTenantInvite()
+    public async Task TenantScopedLookups_WhenTenantsShareEmail_DoNotCrossOrganizationBoundary()
     {
         await using var database = await RelationalTestDatabase.CreateAsync();
         var firstOrganizationId = Guid.NewGuid();
@@ -29,14 +29,19 @@ public sealed class EfInviteRepositoryTests
 
         var repository = new EfInviteRepository(database.Context, new NoRetryPolicy());
 
-        var result = await repository.GetInviteByEmailAsync(
+        var emailResult = await repository.GetInviteByEmailAsync(
             secondOrganizationId,
             email,
             CancellationToken.None);
+        var crossTenantIdResult = await repository.GetByIdAsync(
+            firstOrganizationId,
+            secondInvite.Id,
+            CancellationToken.None);
 
-        Assert.NotNull(result);
-        Assert.Equal(secondInvite.Id, result.Id);
-        Assert.Equal(secondOrganizationId, result.OrganizationId);
+        Assert.NotNull(emailResult);
+        Assert.Equal(secondInvite.Id, emailResult.Id);
+        Assert.Equal(secondOrganizationId, emailResult.OrganizationId);
+        Assert.Null(crossTenantIdResult);
     }
 
     [Fact]
