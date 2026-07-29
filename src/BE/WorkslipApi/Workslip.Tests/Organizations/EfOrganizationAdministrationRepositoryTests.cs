@@ -83,7 +83,7 @@ public sealed class EfOrganizationAdministrationRepositoryTests
     {
         Id = Guid.NewGuid(),
         Name = "Test organization",
-        Cvr = Random.Shared.Next(10_000_000, 99_999_999).ToString(),
+        Cvr = "12345678",
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow
     };
@@ -153,18 +153,36 @@ public sealed class EfOrganizationAdministrationRepositoryTests
         internal static async Task<RelationalTestDatabase> CreateAsync()
         {
             var connection = new SqliteConnection("Data Source=:memory:");
-            connection.CreateFunction(
-                "sysutcdatetime",
-                () => DateTimeOffset.UtcNow.ToString("O"),
-                isDeterministic: false);
             await connection.OpenAsync();
 
             var options = new DbContextOptionsBuilder<SqlDbContext>()
                 .UseSqlite(connection)
                 .Options;
             var context = new SqlDbContext(options);
-            await context.Database.EnsureCreatedAsync();
-            await context.Database.ExecuteSqlRawAsync("PRAGMA ignore_check_constraints = ON;");
+
+            await context.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE Organizations (
+                    Id TEXT NOT NULL PRIMARY KEY,
+                    Name TEXT NOT NULL,
+                    Cvr TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL
+                );
+
+                CREATE TABLE Users (
+                    Id TEXT NOT NULL PRIMARY KEY,
+                    OrganizationId TEXT NOT NULL,
+                    Email TEXT NOT NULL,
+                    DisplayName TEXT NOT NULL,
+                    Phone TEXT NOT NULL,
+                    EntraEmail TEXT NOT NULL,
+                    EntraId TEXT NOT NULL,
+                    Role TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL,
+                    FOREIGN KEY (OrganizationId) REFERENCES Organizations (Id)
+                );
+                """);
 
             return new RelationalTestDatabase(connection, context);
         }
