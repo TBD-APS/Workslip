@@ -43,6 +43,7 @@ The following platform operations require `RequireSuperAdmin`:
 ```text
 GET  /api/organizations/
 POST /api/organizations/
+POST /api/organizations/{organizationId}/session
 PUT  /api/organizations/{organizationId}/admin
 ```
 
@@ -55,6 +56,26 @@ The admin response includes `entraInvitationSent`. It is `true` only when a new 
 Sequential upserts for the same organization and email are idempotent. An email already owned by another organization returns `email_in_use`, and an existing `Superadmin` account is never converted to `Admin` (`superadmin_role_protected`). Conditional writes reject stale concurrent changes with `admin_state_changed`; clients may reload and retry. If Workslip creates a new Entra guest but SQL persistence fails, it removes that guest only when no persisted user references the identity.
 
 Non-empty user emails are globally unique through the filtered SQL index `UX_Users_Email`, matching the identity lookup used by authentication. Schema initialization fails explicitly if legacy duplicate non-empty emails exist, because silently selecting one organization would violate tenant isolation.
+
+### Delegated organization sessions
+
+`POST /api/organizations/{organizationId}/session` validates that:
+
+- the authenticated claim role is `Superadmin`;
+- the current Workslip database row still has the `Superadmin` role;
+- the selected organization exists.
+
+On success it returns the standard `AuthTokenResponse` with a short-lived local Workslip token. The token keeps the real Superadmin user ID, email, display name and role, but its `organizationId` claim is the selected organization. It also contains:
+
+- `homeOrganizationId`: the Superadmin row's permanent organization;
+- `delegatedOrganizationSession=true`;
+- a unique `jti`.
+
+The delegated token expires after 15 minutes by default. `Jwt:OrganizationSessionExpiryMinutes` may configure a value from 1 through 30 minutes. It has no refresh flow. Selecting an organization does not update the user row, create a membership, modify Entra, or change any tenant service contract.
+
+The frontend preserves the original Superadmin token, clears tenant query state before entering or leaving an organization, displays the effective organization continuously, and restores the original token on explicit exit or delegated-token expiry. Superadmins cannot register tenant push subscriptions, and tenant notification/profile UI is hidden during delegated use.
+
+Ordinary repositories continue using the authenticated `organizationId` claim. Audit data therefore records the real Superadmin actor while operational reads and writes remain scoped to the selected organization.
 
 ## User role fields
 
