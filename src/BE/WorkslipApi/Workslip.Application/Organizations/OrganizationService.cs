@@ -172,39 +172,67 @@ public sealed class OrganizationService(
         }
 
         var now = DateTimeOffset.UtcNow;
-        var created = admin is null;
         if (admin is null)
         {
-            admin = new UserDataRow
-            {
-                Id = Guid.NewGuid(),
-                OrganizationId = organizationId,
-                CreatedAt = now
-            };
+            var createdAdmin = BuildAdmin(
+                Guid.NewGuid(),
+                organizationId,
+                normalizedEmail,
+                request,
+                entraUser,
+                now,
+                now);
+            createdAdmin.Id = await administrationRepository.CreateAdminAsync(createdAdmin, cancellationToken);
+            return AdminPersistenceResult.Success(createdAdmin, created: true);
         }
 
-        admin.Email = normalizedEmail;
-        admin.DisplayName = request.DisplayName.Trim();
-        admin.Phone = NullIfWhiteSpace(request.Phone) ?? string.Empty;
-        admin.EntraId = entraUser.EntraUserId;
-        admin.EntraEmail = entraUser.EntraMail;
-        admin.Role = Roles.Admin;
-        admin.UpdatedAt = now;
+        var expectedEmail = admin.Email;
+        var expectedEntraId = admin.EntraId;
+        var updatedAdmin = BuildAdmin(
+            admin.Id,
+            admin.OrganizationId,
+            normalizedEmail,
+            request,
+            entraUser,
+            admin.CreatedAt == default ? now : admin.CreatedAt,
+            now);
 
-        if (admin.CreatedAt == default)
-        {
-            admin.CreatedAt = now;
-        }
-
-        var updated = await administrationRepository.UpdateAdminAsync(admin, cancellationToken);
+        var updated = await administrationRepository.UpdateAdminAsync(
+            updatedAdmin,
+            expectedEmail,
+            expectedEntraId,
+            cancellationToken);
         if (!updated)
         {
-            admin.Id = await administrationRepository.CreateAdminAsync(admin, cancellationToken);
-            created = true;
+            var conflictingUser = await administrationRepository.GetUserByEmailAsync(normalizedEmail, cancellationToken);
+            var stateConflict = GetAdminConflict(conflictingUser, organizationId) ?? "admin_state_changed";
+            return AdminPersistenceResult.FromConflict(stateConflict, conflictingUser);
         }
 
-        return AdminPersistenceResult.Success(admin, created);
+        return AdminPersistenceResult.Success(updatedAdmin, created: false);
     }
+
+    private static UserDataRow BuildAdmin(
+        Guid id,
+        Guid organizationId,
+        string normalizedEmail,
+        UpsertOrganizationAdminRequest request,
+        CreateEntraUserResult entraUser,
+        DateTimeOffset createdAt,
+        DateTimeOffset updatedAt) =>
+        new()
+        {
+            Id = id,
+            OrganizationId = organizationId,
+            Email = normalizedEmail,
+            DisplayName = request.DisplayName.Trim(),
+            Phone = NullIfWhiteSpace(request.Phone) ?? string.Empty,
+            EntraId = entraUser.EntraUserId,
+            EntraEmail = entraUser.EntraMail,
+            Role = Roles.Admin,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt
+        };
 
     private async Task TryRollbackCreatedEntraUserAsync(CreateEntraUserResult entraUser, CancellationToken cancellationToken)
     {
