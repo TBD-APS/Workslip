@@ -234,7 +234,7 @@
                 "organizations"
               ]
             },
-            "description": "Creates organization and initial admin user. Saves organizationId + userId on 200.",
+            "description": "Superadmin-only organization creation. Creates the organization and initial local admin row, then saves organizationId and userId on 200.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"{{organizationName}}\",\n  \"cvr\": \"{{organizationCvr}}\",\n  \"adminDisplayName\": \"{{adminDisplayName}}\",\n  \"adminEmail\": \"{{testEmail}}\",\n  \"adminPhone\": \"{{adminPhone}}\"\n}",
@@ -311,6 +311,56 @@
                   "const errors = json.errors || {};",
                   "const keys = Object.keys(errors);",
                   "pm.test('organization validation fields returned', function () { pm.expect(keys).to.include.members(['Name', 'Cvr', 'AdminDisplayName', 'AdminEmail']); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/organizations/{organizationId}/admin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/admin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizations",
+                "{{organizationId}}",
+                "admin"
+              ]
+            },
+            "description": "Superadmin-only idempotent admin upsert. Ensures the Entra guest and creates or updates the selected organization's local Admin row.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"displayName\": \"{{adminDisplayName}}\",\n  \"phone\": \"{{adminPhone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('admin belongs to selected organization', function () { pm.expect(json.organizationId).to.eql(pm.collectionVariables.get('organizationId')); });",
+                  "pm.test('canonical Admin role returned', function () { pm.expect(json.role).to.eql('Admin'); });",
+                  "pm.collectionVariables.set('userId', json.id);"
                 ]
               }
             }
