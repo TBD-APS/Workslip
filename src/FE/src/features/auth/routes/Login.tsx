@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../providers/useAuth';
-import { notify } from '../../../lib/toast';
 import {
   AUTH_TOKEN_KEY,
   USER_EMAIL_KEY,
@@ -92,7 +91,6 @@ export const Login = () => {
           clearEntraLoginSession();
           const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
           setErrorMsg(message);
-          notify.error(message);
           setIsSubmitting(false);
         });
       return;
@@ -123,7 +121,6 @@ export const Login = () => {
     } catch (err: unknown) {
       const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
       setErrorMsg(message);
-      notify.error(message);
       setIsSubmitting(false);
     }
   };
