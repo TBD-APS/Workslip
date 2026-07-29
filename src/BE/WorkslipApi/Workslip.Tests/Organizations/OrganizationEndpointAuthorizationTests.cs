@@ -26,7 +26,7 @@ public sealed class OrganizationEndpointAuthorizationTests
             .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("/api/organizations", StringComparison.Ordinal) == true)
             .ToList();
 
-        Assert.Equal(2, organizationEndpoints.Count);
+        Assert.Equal(3, organizationEndpoints.Count);
         Assert.All(organizationEndpoints, endpoint =>
         {
             var policies = endpoint.Metadata
@@ -42,6 +42,9 @@ public sealed class OrganizationEndpointAuthorizationTests
 
     private sealed class StubOrganizationService : IOrganizationService
     {
+        public Task<Result<IReadOnlyList<OrganizationResponse>>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(Result<IReadOnlyList<OrganizationResponse>>.Success([]));
+
         public Task<Result<OrganizationOnboardingResponse>> CreateAsync(
             CreateOrganizationRequest request,
             CancellationToken cancellationToken) =>
