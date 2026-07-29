@@ -24,40 +24,40 @@ public sealed class InvitationStatusService(
 
         var inviteWasFound = false;
 
-        for (var attempt = 0; attempt < MaxStateTransitionAttempts; attempt++)
+        try
         {
-            var invite = await invitationRepository.GetByIdAsync(organizationId.Value, inviteId, cancellationToken);
-            if (invite is null)
+            for (var attempt = 0; attempt < MaxStateTransitionAttempts; attempt++)
             {
-                return inviteWasFound ? Result.Success() : Result.NotFound();
-            }
-
-            inviteWasFound = true;
-
-            if (!invite.Consumed && invite.RevokedAt is null)
-            {
-                var revokedAt = DateTimeOffset.UtcNow;
-                var replacementToken = Guid.NewGuid().ToString("N");
-                var claimed = await invitationRepository.TryRevokePendingAsync(
-                    organizationId.Value,
-                    invite.Id,
-                    invite.Token,
-                    revokedAt,
-                    replacementToken,
-                    cancellationToken);
-
-                if (!claimed)
+                var invite = await invitationRepository.GetByIdAsync(organizationId.Value, inviteId, cancellationToken);
+                if (invite is null)
                 {
-                    continue;
+                    return inviteWasFound ? Result.Success() : Result.NotFound();
                 }
 
-                invite.RevokedAt = revokedAt;
-                invite.ExpiresAt = revokedAt;
-                invite.Token = replacementToken;
-            }
+                inviteWasFound = true;
 
-            try
-            {
+                if (!invite.Consumed && invite.RevokedAt is null)
+                {
+                    var revokedAt = DateTimeOffset.UtcNow;
+                    var replacementToken = Guid.NewGuid().ToString("N");
+                    var claimed = await invitationRepository.TryRevokePendingAsync(
+                        organizationId.Value,
+                        invite.Id,
+                        invite.Token,
+                        revokedAt,
+                        replacementToken,
+                        cancellationToken);
+
+                    if (!claimed)
+                    {
+                        continue;
+                    }
+
+                    invite.RevokedAt = revokedAt;
+                    invite.ExpiresAt = revokedAt;
+                    invite.Token = replacementToken;
+                }
+
                 if (!invite.Consumed
                     && invite.EntraCreatedByInvite
                     && invite.EntraCleanedAt is null
@@ -96,22 +96,21 @@ public sealed class InvitationStatusService(
 
                 return Result.Success();
             }
-            catch (Exception exception)
-            {
-                logger.LogError(
-                    exception,
-                    "Invitation status clear failed. InviteId: {InviteId}. OrganizationId: {OrganizationId}. RevokedAt: {RevokedAt}",
-                    invite.Id,
-                    organizationId.Value,
-                    invite.RevokedAt);
-                return Result.Error("invite_status_clear_failed");
-            }
-        }
 
-        logger.LogWarning(
-            "Invitation status changed repeatedly while clearing. InviteId: {InviteId}. OrganizationId: {OrganizationId}",
-            inviteId,
-            organizationId.Value);
-        return Result.Conflict("invite_status_changed");
+            logger.LogWarning(
+                "Invitation status changed repeatedly while clearing. InviteId: {InviteId}. OrganizationId: {OrganizationId}",
+                inviteId,
+                organizationId.Value);
+            return Result.Conflict("invite_status_changed");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Invitation status clear failed. InviteId: {InviteId}. OrganizationId: {OrganizationId}",
+                inviteId,
+                organizationId.Value);
+            return Result.Error("invite_status_clear_failed");
+        }
     }
 }
