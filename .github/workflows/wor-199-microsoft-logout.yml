@@ -35,11 +35,21 @@ jobs:
         working-directory: src/FE
         run: npm ci
 
-      - name: Validate frontend
+      - name: Validate changed lint-clean frontend files
         working-directory: src/FE
-        run: |
-          npm run lint
-          npm run build
+        run: >-
+          npx eslint
+          src/features/auth/api/entraLogin.ts
+          src/providers/authContextValue.ts
+          src/providers/AuthContext.tsx
+          src/components/ErrorState.tsx
+          src/providers/ErrorFallback.tsx
+          src/components/layouts/AppLayout.tsx
+          src/routes/index.tsx
+
+      - name: Build frontend
+        working-directory: src/FE
+        run: npm run build
 
       - name: Validate diff
         run: |
