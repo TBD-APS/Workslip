@@ -36,8 +36,8 @@ export function useInfiniteList<TItem>({
       return loadedCount;
     },
     enabled,
-    staleTime,
-    gcTime,
+    ...(staleTime === undefined ? {} : { staleTime }),
+    ...(gcTime === undefined ? {} : { gcTime }),
   });
 
   const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
