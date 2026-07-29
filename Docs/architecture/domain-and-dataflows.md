@@ -18,6 +18,10 @@
 | Installation category/control-point snapshots | The nested snapshot rows do not currently carry `OrganizationId`, so their category and control-point references cannot yet be tenant-enforced. This is tracked in [WOR-160](https://linear.app/workslip/issue/WOR-160/tenant-sikr-installationssnapshot-kategorier-og-kontrolpunkter). |
 | Push subscriptions, notification queue and job views | `UserId` must resolve to an existing user. These tables do not currently duplicate `OrganizationId`; tenant authorization is enforced before their rows are written or queried. |
 
+Superadmins remain ordinary organization-bound user rows. Cross-organization operational access is not represented by moving the row, making `OrganizationId` nullable, or creating duplicate memberships. Instead, `/superadmin` may issue a short-lived delegated token after verifying the actor's current database role and the target organization. The token preserves the real actor ID and `Superadmin` role while replacing only the effective `organizationId` claim. Existing tenant repositories therefore retain their normal organization filters without a special bypass.
+
+The frontend stores the original Superadmin token separately, clears tenant query state when entering or leaving a delegated session, and displays the active organization. The delegated token expires after 15 minutes by default and has no refresh flow. Superadmins cannot register tenant push subscriptions during this flow.
+
 ## Foreign-key deletion behavior
 
 | Dependent relation | Delete behavior | Reason |
