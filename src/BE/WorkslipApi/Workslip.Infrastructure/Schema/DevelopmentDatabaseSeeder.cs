@@ -32,13 +32,16 @@ public sealed class DevelopmentDatabaseSeeder(
 
             await ReconcileSuperadminAsync(rasmus, cancellationToken);
 
-            var mahad = existingMahad ?? CreateMahadSuperadmin(rasmus.OrganizationId);
+            var mahad = existingMahad ?? CreateMahadSuperadmin();
             if (existingMahad is null)
             {
                 db.Users.Add(mahad);
             }
 
             await ReconcileSuperadminAsync(mahad, cancellationToken);
+            await DatabaseSchemaInitializer.EnsureUserRoleOrganizationScopeConstraintAsync(
+                db,
+                cancellationToken);
         }
         finally
         {
@@ -86,13 +89,13 @@ public sealed class DevelopmentDatabaseSeeder(
         return user;
     }
 
-    private static UserDataRow CreateMahadSuperadmin(Guid organizationId)
+    private static UserDataRow CreateMahadSuperadmin()
     {
         var timestamp = DateTimeOffset.UtcNow;
         return new UserDataRow
         {
             Id = CanonicalMahadSuperadminId,
-            OrganizationId = organizationId,
+            OrganizationId = null,
             DisplayName = CanonicalMahadDisplayName,
             Email = CanonicalMahadEmail,
             Phone = string.Empty,
@@ -131,6 +134,7 @@ public sealed class DevelopmentDatabaseSeeder(
 
         try
         {
+            user.OrganizationId = null;
             user.Email = normalizedEmail;
             user.Role = Roles.Superadmin;
             user.EntraId = entraUser.EntraUserId;
@@ -162,7 +166,7 @@ public sealed class DevelopmentDatabaseSeeder(
         }
 
         logger.LogInformation(
-            "Development superadmin reconciled. UserId: {UserId}. EntraUserId: {EntraUserId}. EntraIdentityCreated: {EntraIdentityCreated}.",
+            "Development platform Superadmin reconciled. UserId: {UserId}. EntraUserId: {EntraUserId}. EntraIdentityCreated: {EntraIdentityCreated}.",
             user.Id,
             entraUser.EntraUserId,
             entraUser.Created);
