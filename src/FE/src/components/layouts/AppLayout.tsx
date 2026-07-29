@@ -7,6 +7,8 @@ import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
 import { NotificationsDrawer } from '../common/NotificationsDrawer';
+import '../../authenticated-base.css';
+import '../../App.css';
 
 export const AppLayout = () => {
   const navigate = useNavigate();

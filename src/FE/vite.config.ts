@@ -37,15 +37,18 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.svg'],
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
       injectManifest: {
-        // Precache only the public bootstrap shell. Authenticated route chunks
-        // are emitted under assets/chunks and cached on first use by src/sw.ts.
+        // Install only the navigation shell and bootstrap JavaScript. CSS,
+        // fonts, images and lazy chunks are cached when the browser actually
+        // requests them, preventing service-worker installation from downloading
+        // the entire authenticated application during a public login visit.
         globPatterns: [
-          '**/*.{html,css,ico,png,svg,webmanifest,woff2}',
+          '**/*.html',
+          '**/*.webmanifest',
           'assets/app-*.js',
         ],
       },

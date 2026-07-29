@@ -1,39 +1,36 @@
-import React from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
 import { queryClient } from '../lib/react-query';
+import { scheduleDeferredTelemetry } from '../lib/scheduleAfterInitialLoad';
 import { AuthProvider } from './AuthContext';
-import { ThemeProvider, useTheme } from './ThemeProvider';
+import { ThemeProvider } from './ThemeProvider';
 
-const ToasterWithTheme = () => {
-  const { theme } = useTheme();
-  return (
-    <Toaster
-      theme={theme === 'night' ? 'dark' : 'light'}
-      position="top-center"
-      toastOptions={{
-        style: {
-          background: 'var(--surface-color)',
-          border: '1px solid var(--surface-border)',
-          backdropFilter: 'blur(20px)',
-          color: 'var(--text-primary)'
-        }
-      }}
-    />
+const ThemedToaster = lazy(() =>
+  import('../components/common/ThemedToaster').then((module) => ({ default: module.ThemedToaster })),
+);
+
+export const AppProvider = ({ children }: { children: ReactNode }) => {
+  const [toasterEnabled, setToasterEnabled] = useState(false);
+
+  useEffect(
+    () => scheduleDeferredTelemetry(() => setToasterEnabled(true)),
+    [],
   );
-};
 
-export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   return (
-    <React.Suspense fallback={<div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>Henter...</div>}>
+    <Suspense fallback={<div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>Henter...</div>}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>
             {children}
-            <ToasterWithTheme />
+            {toasterEnabled && (
+              <Suspense fallback={null}>
+                <ThemedToaster />
+              </Suspense>
+            )}
           </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>
-    </React.Suspense>
+    </Suspense>
   );
 };

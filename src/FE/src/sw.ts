@@ -16,8 +16,8 @@ const PRECACHED_URLS = new Set(
     new URL(typeof entry === 'string' ? entry : entry.url, self.location.origin).href,
   ),
 );
-const ROUTE_ASSET_CACHE = 'workslip-route-assets-v1';
-const MAX_ROUTE_ASSET_ENTRIES = 100;
+const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
+const MAX_RUNTIME_ASSET_ENTRIES = 150;
 
 cleanupOutdatedCaches();
 precacheAndRoute(PRECACHE_MANIFEST);
@@ -26,19 +26,19 @@ precacheAndRoute(PRECACHE_MANIFEST);
 self.skipWaiting();
 clientsClaim();
 
-function isLazyRouteAsset(request: Request) {
+function isRuntimeStaticAsset(request: Request) {
   if (request.method !== 'GET') return false;
-  if (request.destination !== 'script' && request.destination !== 'style') return false;
+  if (!['script', 'style', 'font', 'image'].includes(request.destination)) return false;
 
   const url = new URL(request.url);
-  return url.origin === self.location.origin
-    && url.pathname.startsWith('/assets/chunks/')
-    && !PRECACHED_URLS.has(url.href);
+  if (url.origin !== self.location.origin || PRECACHED_URLS.has(url.href)) return false;
+
+  return url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/');
 }
 
-async function trimRouteAssetCache(cache: Cache) {
+async function trimRuntimeAssetCache(cache: Cache) {
   const requests = await cache.keys();
-  const excessCount = requests.length - MAX_ROUTE_ASSET_ENTRIES;
+  const excessCount = requests.length - MAX_RUNTIME_ASSET_ENTRIES;
   if (excessCount <= 0) return;
 
   await Promise.all(
@@ -47,17 +47,17 @@ async function trimRouteAssetCache(cache: Cache) {
 }
 
 self.addEventListener('fetch', (event) => {
-  if (!isLazyRouteAsset(event.request)) return;
+  if (!isRuntimeStaticAsset(event.request)) return;
 
   event.respondWith((async () => {
-    const cache = await caches.open(ROUTE_ASSET_CACHE);
+    const cache = await caches.open(RUNTIME_ASSET_CACHE);
     const cachedResponse = await cache.match(event.request);
     if (cachedResponse) return cachedResponse;
 
     const response = await fetch(event.request);
     if (response.ok) {
       await cache.put(event.request, response.clone());
-      await trimRouteAssetCache(cache);
+      await trimRuntimeAssetCache(cache);
     }
 
     return response;
