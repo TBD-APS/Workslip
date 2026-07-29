@@ -11,7 +11,7 @@ public sealed class UserEntraService(
     ILogger<UserEntraService> logger,
     GraphServiceClient graphClient,
     IConfiguration configuration,
-    ICorrelationIdAccessor correlationIdAccessor) : IUserEntraService
+    ICorrelationIdAccessor correlationIdAccessor) : ISuperadminEntraService
 {
     public Task<CreateEntraUserResult> CreateUserAsync(string email, string displayName, CancellationToken ct) =>
         EnsureInvitedUserAsync(
@@ -30,6 +30,18 @@ public sealed class UserEntraService(
             sendInvitationMessage: true,
             redirectPath: "/login",
             ct);
+
+    public Task<CreateEntraUserResult> EnsureSuperadminAsync(
+        string email,
+        string displayName,
+        CancellationToken cancellationToken) =>
+        EnsureInvitedUserAsync(
+            email,
+            displayName,
+            Roles.Superadmin,
+            sendInvitationMessage: true,
+            redirectPath: "/login",
+            cancellationToken);
 
     public Task<CreateEntraUserResult> EnsureInvitedUserAsync(string email, CancellationToken ct) =>
         EnsureInvitedUserAsync(
