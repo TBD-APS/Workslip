@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { notify } from '../../../lib/toast';
 import {
   createOrganization,
@@ -21,7 +21,7 @@ import './SuperAdmin.css';
 
 export function SuperAdmin() {
   const queryClient = useQueryClient();
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState('');
+  const [requestedOrganizationId, setRequestedOrganizationId] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [lastAdminResult, setLastAdminResult] = useState<OrganizationAdmin | null>(null);
@@ -36,16 +36,11 @@ export function SuperAdmin() {
     [organizationsQuery.data],
   );
 
-  useEffect(() => {
-    if (organizations.length === 0) {
-      setSelectedOrganizationId('');
-      return;
-    }
-
-    if (!organizations.some((organization) => organization.id === selectedOrganizationId)) {
-      setSelectedOrganizationId(organizations[0].id);
-    }
-  }, [organizations, selectedOrganizationId]);
+  const selectedOrganizationId = organizations.some(
+    (organization) => organization.id === requestedOrganizationId,
+  )
+    ? requestedOrganizationId
+    : organizations[0]?.id ?? '';
 
   const createMutation = useMutation({
     mutationFn: createOrganization,
@@ -65,7 +60,7 @@ export function SuperAdmin() {
         const withoutCreated = current.filter((organization) => organization.id !== created.organization.id);
         return [...withoutCreated, created.organization];
       });
-      setSelectedOrganizationId(created.organization.id);
+      setRequestedOrganizationId(created.organization.id);
       notify.success(`${created.organization.name} er oprettet`);
     } catch (error) {
       const message = getSuperadminErrorMessage(error);
@@ -163,7 +158,7 @@ export function SuperAdmin() {
             selectedOrganizationId={selectedOrganizationId}
             isSubmitting={inviteMutation.isPending}
             onOrganizationChange={(organizationId) => {
-              setSelectedOrganizationId(organizationId);
+              setRequestedOrganizationId(organizationId);
               setInviteError(null);
               setLastAdminResult(null);
             }}
@@ -212,7 +207,7 @@ export function SuperAdmin() {
                   type="button"
                   className={`superadmin-organization-card${isSelected ? ' selected' : ''}`}
                   onClick={() => {
-                    setSelectedOrganizationId(organization.id);
+                    setRequestedOrganizationId(organization.id);
                     setInviteError(null);
                     setLastAdminResult(null);
                   }}
