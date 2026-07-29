@@ -3,7 +3,7 @@
 **State:** Maintained  
 **Owner:** Backend/API  
 **Review:** With every endpoint, auth or response-shape change  
-**Linear:** WOR-146, WOR-193
+**Linear:** WOR-107, WOR-146, WOR-193
 
 ## Source of truth
 
@@ -34,7 +34,20 @@ Policy meanings:
 | `RequireAdmin` | Admin or a higher configured role. |
 | `RequireSuperAdmin` | Superadmin only. |
 
-The API derives organization, user and role from authenticated claims. Integrations must not send or trust a client-selected organization ID as an authorization boundary.
+The API derives organization, user and role from authenticated claims. Integrations must not send or trust a client-selected organization ID as an authorization boundary except on explicitly Superadmin-only platform administration routes.
+
+## Organization administration
+
+The following platform operations require `RequireSuperAdmin`:
+
+```text
+POST /api/organizations/
+PUT  /api/organizations/{organizationId}/admin
+```
+
+Organization creation returns the organization and its initial local administrator row. The administrator upsert accepts `email`, `displayName` and optional `phone`, normalizes the email address, ensures the matching Entra guest, and creates or updates an `Admin` row in the selected organization.
+
+The upsert is idempotent for the same organization and email. It rejects an email already owned by another organization with `email_in_use`, and it never converts an existing `Superadmin` account to `Admin` (`superadmin_role_protected`). If Workslip creates a new Entra guest but SQL persistence fails, it removes that guest only when no persisted user references the identity.
 
 ## User role fields
 
