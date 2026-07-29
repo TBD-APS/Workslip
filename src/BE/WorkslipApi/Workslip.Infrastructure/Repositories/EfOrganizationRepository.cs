@@ -61,7 +61,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             token => IsEntraIdentityReferencedAsyncCoreAsync(entraUserId, token),
             cancellationToken);
 
-    public Task<Guid> CreateAdminAsync(UserDataRow admin, CancellationToken cancellationToken) =>
+    public Task<Guid?> CreateAdminAsync(UserDataRow admin, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync(
             "organization-admin.create",
             token => CreateAdminAsyncCoreAsync(admin, token),
@@ -211,11 +211,19 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             .AsNoTracking()
             .AnyAsync(user => user.EntraId == entraUserId, cancellationToken);
 
-    private async Task<Guid> CreateAdminAsyncCoreAsync(UserDataRow admin, CancellationToken cancellationToken)
+    private async Task<Guid?> CreateAdminAsyncCoreAsync(UserDataRow admin, CancellationToken cancellationToken)
     {
         _dbContext.Users.Add(admin);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return admin.Id;
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return admin.Id;
+        }
+        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+        {
+            _dbContext.Entry(admin).State = EntityState.Detached;
+            return null;
+        }
     }
 
     private async Task<bool> UpdateAdminAsyncCoreAsync(
