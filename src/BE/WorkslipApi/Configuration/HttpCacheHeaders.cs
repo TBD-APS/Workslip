@@ -84,7 +84,8 @@ public static class HttpCacheHeaders
         // and user-specific seen/rejection flags. Hash the complete mapped HTTP
         // representation so a 304 can never hide one of those changes.
         var representation = JsonSerializer.Serialize(response);
-        return ToWeakEtag($"jobs:list:{organizationId:N}:{currentUserId?.ToString("N") ?? "anon"}:{representation}");
+        var userKey = currentUserId?.ToString("N") ?? "anon";
+        return ToWeakEtag($"jobs:list:{organizationId:N}:{userKey}:{representation}");
     }
 
     public static string JobAssignedEtag(
@@ -93,7 +94,8 @@ public static class HttpCacheHeaders
         Guid? currentUserId)
     {
         var representation = JsonSerializer.Serialize(jobs);
-        return ToWeakEtag($"jobs:assigned:{organizationId:N}:{currentUserId?.ToString("N") ?? "anon"}:{representation}");
+        var userKey = currentUserId?.ToString("N") ?? "anon";
+        return ToWeakEtag($"jobs:assigned:{organizationId:N}:{userKey}:{representation}");
     }
 
     public static string JobHistoryEtag(Guid jobId, IEnumerable<JobHistoryResponse> events, int? limit, int? offset)
