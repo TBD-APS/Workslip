@@ -10,6 +10,16 @@ public static class OrganizationEndpoints
     {
         var group = app.MapSuperAdminGroup("/api/organizations", "organizations");
 
+        group.MapGet("/", async (
+            IOrganizationService service,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await service.ListAsync(cancellationToken);
+            return ResultExtensions.ToHttpResult(
+                result,
+                organizations => organizations.Select(OrganizationViewModelBuilder.ToOrganization).ToList());
+        }).Produces<IReadOnlyList<OrganizationViewModel>>();
+
         group.MapPost("/", async (
             CreateOrganizationRequest request,
             IOrganizationService service,
