@@ -217,6 +217,40 @@
         {
           "name": "/api/organizations",
           "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizations",
+                ""
+              ]
+            },
+            "description": "Superadmin-only list used by the /superadmin page."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('organization array returned', function () { pm.expect(json).to.be.an('array'); });",
+                  "pm.test('organization contract returned', function () { if (json.length > 0) { pm.expect(json[0]).to.include.all.keys('id', 'name', 'cvr'); } });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/organizations",
+          "request": {
             "method": "POST",
             "header": [
               {
@@ -338,7 +372,7 @@
                 "admin"
               ]
             },
-            "description": "Superadmin-only idempotent admin upsert. Ensures the Entra guest and creates or updates the selected organization's local Admin row.",
+            "description": "Superadmin-only administrator assignment. Sends a Microsoft Entra B2B invitation for a new identity, assigns the Entra Admin app role, and creates or updates the local Admin row.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"displayName\": \"{{adminDisplayName}}\",\n  \"phone\": \"{{adminPhone}}\"\n}",
@@ -360,6 +394,7 @@
                   "const json = pm.response.json();",
                   "pm.test('admin belongs to selected organization', function () { pm.expect(json.organizationId).to.eql(pm.collectionVariables.get('organizationId')); });",
                   "pm.test('canonical Admin role returned', function () { pm.expect(json.role).to.eql('Admin'); });",
+                  "pm.test('Entra invitation status returned', function () { pm.expect(json.entraInvitationSent).to.be.a('boolean'); });",
                   "pm.collectionVariables.set('userId', json.id);"
                 ]
               }
