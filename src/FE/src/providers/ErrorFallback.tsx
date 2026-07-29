@@ -15,6 +15,7 @@ export function ErrorFallback({ error, resetErrorBoundary }: { error: unknown; r
 
   const handleLogout = () => {
     logout();
+    navigate('/login', { replace: true });
   };
 
   return (

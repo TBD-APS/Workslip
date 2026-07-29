@@ -1,4 +1,5 @@
 import { AlertCircle, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../providers/useAuth';
 import type { ReactNode } from 'react';
 
@@ -9,10 +10,12 @@ interface ErrorStateProps {
 }
 
 export function ErrorState({ message, onRetry, children }: ErrorStateProps) {
+  const navigate = useNavigate();
   const { logout } = useAuth();
 
   const handleLogout = () => {
     logout();
+    navigate('/login', { replace: true });
   };
 
   return (

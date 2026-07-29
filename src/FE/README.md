@@ -45,6 +45,11 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `src/features/` contains feature-oriented UI, hooks and API usage.
 - `src/components/` contains shared UI and form components.
 - `src/lib/axios.ts` configures the API client, auth header, correlation ID and mutation idempotency header.
+- `src/providers/AuthContext.tsx` provides the lightweight public auth contract and loads login helpers only when used.
+- `src/providers/AuthenticatedAppProvider.tsx` owns React Query, the generated current-user client, push registration and authenticated auth state; it is loaded only when a stored token exists.
+- `src/routes/preloadPrimaryAppRoute.ts` warms the authenticated layout and default jobs route only after a token exists, allowing their code to download alongside session validation without affecting the anonymous login path.
+- `src/features/jobs/queries/jobListQuery.ts` owns the authenticated jobs prefetch request, cache lifetime and initial browser-state key.
+- `src/hooks/paginatedListState.ts` keeps paginated list storage and query-key construction consistent between prefetching and rendered lists.
 - `src/base.css` contains the small global reset, variables and shared public controls.
 - `src/public-*.css` contains only login, invitation, recovery, error and public paint/font rules.
 - `src/authenticated-base.css` defines authenticated-only globals and the Inter/Outfit font faces.
@@ -59,13 +64,17 @@ API generation uses Orval. Generated output must be regenerated from the current
 
 Authenticated feature routes and invitation enrollment are loaded through dynamic imports. The default passkey login remains in the initial application shell. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
 
-The public shell does not import the old marketing stylesheet, authenticated application CSS, branded web fonts, one-time-code form dependencies or the invitation flow. It uses the system font and static background effects. `App.css`, authenticated globals and Inter/Outfit load only with `AppLayout`.
+The public shell does not import the old marketing stylesheet, authenticated application CSS, branded web fonts, one-time-code form dependencies, invitation enrollment, React Query, generated authenticated clients or axios. It uses the system font and static background effects. A stored token loads `AuthenticatedAppProvider`, which installs QueryClient context and resolves `/api/auth/me`; at the same time, the authenticated layout and default jobs route are warmed in parallel. Optional one-time-code/dev-login actions load their API module only when invoked.
+
+When authentication resolves on `/`, `/login` or the `/app` home route, the default jobs query is prefetched with the same status, search and sort key used by the rendered list. Jobs data is fresh for 30 seconds and retained in memory for 30 minutes, so revisiting `/app` displays cached rows immediately and revalidates stale data in the background. This cache is not persisted to IndexedDB or local storage and is cleared on logout to prevent data crossing user sessions. Deep links to other authenticated sections do not speculatively request the jobs list.
+
+Explicit logout and internal session recovery are separate auth-context operations. Both clear local credentials and, while authenticated, clear React Query before removing the token. Invitation account switching and startup recovery use `clearLocalSession`; user-facing logout controls use `logout`. The current logout implementation is local-only and does not navigate through a Microsoft logout endpoint.
 
 The SPA root is served directly without a Vercel redirect. The client router renders login for unauthenticated users and moves an already authenticated user to `/app`.
 
 Service-worker registration is scheduled after the initial window load and an idle callback. Application Insights, Vercel Analytics, Speed Insights and the Sonner toaster are loaded after the first pointer/keyboard interaction or a ten-second fallback, then scheduled during idle time. The Application Insights SDK itself remains a dynamic import. Once the service worker registers, the accepted immediate update-discovery and activation policy remains unchanged.
 
-A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout. Timeouts, network failures and temporary server errors retain the stored token and show the retry/reload/login recovery screen after the same six-second grace period. A `401 Unauthorized` definitively rejects the stored token, starts reauthentication automatically and does not require recovery-button input. A terminal or cancelled Microsoft reauthentication exits the spinner and restores the normal login form automatically.
+A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout, and authenticated routing shows the explicit retry/reload/login recovery screen after the same six-second grace period rather than clearing a potentially valid token or showing an endless spinner.
 
 ## Form conventions
 
@@ -91,21 +100,23 @@ For routing, performance or PWA cache changes, also validate with a clean browse
 
 1. `/` must return the SPA document directly rather than redirecting to `/app`.
 2. `/robots.txt` must return plain text containing valid robots directives and must never return the SPA HTML document.
-3. `/login` must not request authenticated feature chunks, invitation enrollment, `App.css`, Inter/Outfit, React Hook Form, Zod, Sonner or telemetry SDK chunks before interaction.
-4. Opening the one-time-code option must load and render its isolated form chunk.
+3. An unauthenticated `/login` visit must not request authenticated feature chunks, invitation enrollment, `App.css`, Inter/Outfit, React Hook Form, Zod, Sonner, telemetry SDKs, React Query, generated authenticated clients or axios before interaction.
+4. Opening the one-time-code option must load and render its isolated form/API chunk.
 5. Invitation routes must load their isolated route chunk and remain fully styled.
-6. Login, invitation, startup recovery and public error states must remain fully styled and responsive.
-7. A representative `/app` route must load its JavaScript, authenticated CSS and branded fonts on demand.
-8. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
-9. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
-10. A route visited once online must remain available on an offline revisit under the supported PWA flow.
-11. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
-12. Service-worker update checks must not overlap while another worker is installing or waiting.
-13. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
-14. A timeout, network error or temporary server failure from `/api/auth/me` must retain the stored token and show recovery within six seconds.
-15. A `401` from `/api/auth/me` must clear the rejected stored token and begin reauthentication automatically without showing the startup recovery screen.
-16. A terminal or cancelled silent-reauthentication attempt must remove the reauthentication URL state and restore the normal login form without requiring a button click.
-17. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
+6. Login, invitation, startup recovery and public error states must remain fully styled and responsive without inherited color/background transitions on their root containers.
+7. A stored-token `/app` visit must start downloading `AuthenticatedAppProvider`, `AppLayout` and `JobList` in parallel with session validation, then load the existing jobs query without duplicate route downloads.
+8. After `/api/auth/me` succeeds on a primary jobs destination, the initial jobs query must use the exact key later consumed by `JobList`; an already-running request must be deduplicated.
+9. Revisiting Jobs within 30 minutes must show cached data immediately; after 30 seconds it must refresh in the background without replacing rows with the full-page skeleton.
+10. Explicit logout and internal session clearing during invitation account switching or startup recovery must clear React Query data before another user can authenticate in the same browser; explicit logout must remain on Workslip rather than visiting a provider logout endpoint.
+11. Login, dev login, user updates, push registration and current-user retry must retain their existing behaviour.
+12. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
+13. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
+14. A route visited once online must remain available on an offline revisit under the supported PWA flow.
+15. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
+16. Service-worker update checks must not overlap while another worker is installing or waiting.
+17. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
+18. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
+19. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
 
 ## Vercel deployment policy
 
@@ -146,6 +157,8 @@ The rewrite target is production-specific. A future separate frontend environmen
 - service worker: `public, max-age=0, must-revalidate`
 - hashed Vite assets: `public, max-age=31536000, immutable`
 - versioned self-hosted fonts: `public, max-age=31536000, immutable`
+- authenticated jobs HTTP responses: private browser revalidation through response-complete ETags; no CDN caching
+- jobs React Query data: 30-second freshness, 30-minute in-memory retention, clear on logout
 - API rewrite: CDN caching disabled
 
 The service worker precaches only the SPA document, web manifest and bootstrap JavaScript. CSS, fonts, images and lazy chunks are cached only after the browser requests them. Same-origin assets below `/assets/` and `/fonts/` use the stable capped runtime cache. This prevents a public login visit from downloading the authenticated application during service-worker installation while retaining offline revisits for resources that were actually used.
@@ -167,17 +180,9 @@ Common runtime configuration includes:
 
 The browser PKCE flow stores the complete temporary login state in `sessionStorage` under `workslip.loginPkce` before navigating to Microsoft. The stored object includes the OAuth state value, PKCE verifier, redirect URI and return target.
 
-Do not replace this with an in-memory map or store only an opaque reference. Microsoft login performs a full-page navigation, which destroys module memory before the callback is processed. Invalid or legacy stored values must be discarded rather than used for token exchange.
+Do not replace this with an in-memory map or store only an opaque reference. Microsoft login performs a full-page navigation, which destroys module memory before the callback is processed. Invalid or legacy stored values must be discarded rather than used.
 
 The login route clears the PKCE state after success, cancellation or callback failure. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters.
-
-## Microsoft logout
-
-Explicit user logout clears the Workslip JWT, saved email, authentication-provider marker, reauthentication state, PKCE state and authenticated query cache before navigation. Microsoft sign-in always adds the OIDC `openid profile` scopes, reads the opaque `login_hint` claim from the returned ID token, and stores only that hint. Microsoft logout sends it as `logout_hint`, which identifies the session without showing Microsoft's logout account picker, then returns to the current origin's `/login` route through `post_logout_redirect_uri`.
-
-One-time-code and development sessions clear only Workslip state. Internal account switching and startup recovery use `clearLocalSession` so they can discard an invalid or wrong Workslip identity without unexpectedly terminating the browser's Microsoft session. Existing sessions created before the authentication-provider marker was introduced are treated as Microsoft sessions on explicit logout.
-
-The Entra client registration must be single-tenant and expose the `login_hint` optional ID-token claim; `deploy-entra.ps1` reconciles both requirements. Invited external users remain supported as B2B guests in the Workslip tenant. Sessions created before that configuration is deployed and the user signs in again have no stored hint and can still see Microsoft's account picker once. Microsoft logout does not remove remembered account tiles from the operating system, Outlook, Authenticator or Microsoft's sign-in account chooser.
 
 ## PWA caution
 

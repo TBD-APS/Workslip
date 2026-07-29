@@ -57,7 +57,7 @@ Resolved object and client IDs are written to the ignored local state file:
 entra.{environment}.local.json
 ```
 
-The script preserves existing managed role/scope IDs and does not create an OAuth client secret. Both registrations are single-tenant (`AzureADMyOrg`): all member and invited B2B guest accounts in the Workslip tenant can sign in, while accounts that have not been invited into the tenant cannot. The browser authenticates with authorization code + PKCE; the API validates bearer tokens. The client registration requests the `login_hint` optional ID-token claim so explicit logout can identify the active Microsoft session and return directly to Workslip without a logout account picker. Microsoft does not support optional claims for registrations that combine Entra and direct personal Microsoft-account audiences, so do not restore `AzureADandPersonalMicrosoftAccount` without redesigning logout.
+The script preserves existing managed role/scope IDs and does not create an OAuth client secret. The browser authenticates with authorization code + PKCE; the API validates bearer tokens.
 
 ## Azure infrastructure only
 

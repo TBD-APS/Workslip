@@ -3,13 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, Loader2, LogIn, ArrowRight, User, Phone } from 'lucide-react';
 import { verifyInviteToken } from '../api/inviteAccept';
 import { useAuth } from '../../../providers/useAuth';
-import {
-  AUTH_PROVIDER_KEY,
-  AUTH_TOKEN_KEY,
-  ENTRA_LOGOUT_HINT_KEY,
-  USER_EMAIL_KEY,
-  AuthStorage,
-} from '../../../providers/authContextValue';
+import { AUTH_TOKEN_KEY, USER_EMAIL_KEY, AuthStorage } from '../../../providers/authContextValue';
 import {
   clearInviteEnrollmentSession,
   completeEntraInviteEnrollment,
@@ -55,16 +49,9 @@ export const InviteAccept = () => {
 
       setState({ status: 'enrolling' });
       completeEntraInviteEnrollment()
-        .then(result => {
-          const response = result.auth;
+        .then(response => {
           AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
           AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-          AuthStorage.setItem(AUTH_PROVIDER_KEY, 'microsoft');
-          if (result.logoutHint) {
-            AuthStorage.setItem(ENTRA_LOGOUT_HINT_KEY, result.logoutHint);
-          } else {
-            AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
-          }
           clearInviteEnrollmentSession();
           window.history.replaceState(null, '', window.location.pathname);
           setState({ status: 'success' });
@@ -111,10 +98,9 @@ export const InviteAccept = () => {
             return;
           }
 
-          // Logged in as a different identity. Drop the existing
-          // session and fall through to the un-authenticated flow so
-          // the new invite can be completed. Otherwise the next page
-          // (Login) would land as the wrong user.
+          // Logged in as a different identity. Drop only the local Workslip
+          // session and fall through to the un-authenticated flow. This must not
+          // acquire provider-specific logout side effects.
           clearLocalSession();
           if (res.userExists) {
             window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);

@@ -3,9 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../providers/useAuth';
 import {
-  AUTH_PROVIDER_KEY,
   AUTH_TOKEN_KEY,
-  ENTRA_LOGOUT_HINT_KEY,
   USER_EMAIL_KEY,
   AuthStorage,
   clearReauthInFlight,
@@ -57,14 +55,6 @@ export const Login = () => {
     reauthStartedRef.current = true;
 
     const returnTo = sanitizeReturnTo(params.get('returnTo'));
-    const recoverToLogin = (message: string) => {
-      clearReauthInFlight();
-      clearEntraLoginSession();
-      window.history.replaceState(null, '', '/login');
-      setErrorMsg(message);
-      setIsSubmitting(false);
-      setIsReauth(false);
-    };
 
     if (isCallback) {
       setIsSubmitting(true);
@@ -72,12 +62,6 @@ export const Login = () => {
         .then((result) => {
           AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
           AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
-          AuthStorage.setItem(AUTH_PROVIDER_KEY, 'microsoft');
-          if (result.logoutHint) {
-            AuthStorage.setItem(ENTRA_LOGOUT_HINT_KEY, result.logoutHint);
-          } else {
-            AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
-          }
           clearReauthInFlight();
           clearEntraLoginSession();
           window.history.replaceState(null, '', '/login');
@@ -89,16 +73,25 @@ export const Login = () => {
             clearEntraLoginSession();
             window.history.replaceState(null, '', '/login');
             startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
-              recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+              setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+              setIsSubmitting(false);
             });
             return;
           }
           if (err instanceof LoginCancelledError) {
-            recoverToLogin('Login afbrudt. Klik på knappen for at prøve igen.');
+            clearReauthInFlight();
+            clearEntraLoginSession();
+            window.history.replaceState(null, '', '/login');
+            setErrorMsg('Login afbrudt. Klik på knappen for at prøve igen.');
+            setIsSubmitting(false);
+            setIsReauth(false);
             return;
           }
+          window.history.replaceState(null, '', '/login');
+          clearEntraLoginSession();
           const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
-          recoverToLogin(message);
+          setErrorMsg(message);
+          setIsSubmitting(false);
         });
       return;
     }
@@ -108,11 +101,14 @@ export const Login = () => {
       if (err instanceof InteractiveLoginRequiredError) {
         clearReauthInFlight();
         startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
-          recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+          setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+          setIsSubmitting(false);
         });
         return;
       }
-      recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+      setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
+      setIsSubmitting(false);
+      setIsReauth(false);
     });
   }, []);
 

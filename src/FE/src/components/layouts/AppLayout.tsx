@@ -29,6 +29,11 @@ export const AppLayout = () => {
 
   const handleLogout = () => {
     logout();
+    // Navigate immediately rather than waiting for ProtectedRoute to render
+    // a <Navigate to="/login"> — avoids a single frame of protected content
+    // still being visible after the user clicked logout, and prevents a
+    // browser-back race where the protected URL is briefly visible again.
+    navigate('/login', { replace: true });
   };
 
   useEffect(() => {

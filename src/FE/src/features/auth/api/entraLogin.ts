@@ -1,11 +1,5 @@
 import { apiClient } from '../../../lib/axios';
 import type { AuthTokenResponse } from '../../../api/generated/models';
-import {
-  ensureOidcScopes,
-  extractEntraLogoutHint,
-  type EntraTokenExchangeResult,
-  type EntraTokenPayload,
-} from './entraOidc';
 
 const PKCE_KEY = 'workslip.loginPkce';
 
@@ -24,7 +18,6 @@ interface StartEntraLoginOptions {
 export interface CompleteEntraLoginResult {
   auth: AuthTokenResponse;
   returnTo: string;
-  logoutHint: string | null;
 }
 
 /**
@@ -164,46 +157,19 @@ export const completeEntraLogin = async (): Promise<CompleteEntraLoginResult> =>
   }
 
   const config = getOAuthConfig();
-  const tokenExchange = await exchangeCodeForToken(config, pkce, code);
+  const entraAccessToken = await exchangeCodeForToken(config, pkce, code);
 
   const auth = await apiClient.post('/api/auth/entra-login', undefined, {
     headers: {
-      Authorization: `Bearer ${tokenExchange.accessToken}`,
+      Authorization: `Bearer ${entraAccessToken}`,
     },
   }) as unknown as AuthTokenResponse;
 
-  return {
-    auth,
-    returnTo: sanitizeReturnTo(pkce.returnTo),
-    logoutHint: tokenExchange.logoutHint,
-  };
+  return { auth, returnTo: sanitizeReturnTo(pkce.returnTo) };
 };
 
 export const clearEntraLoginSession = () => {
   sessionStorage.removeItem(PKCE_KEY);
-};
-
-export const buildEntraLogoutUrl = (
-  tenantId: string,
-  postLogoutRedirectUri: string,
-  logoutHint: string | null,
-): string => {
-  const logoutUrl = new URL(
-    `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/logout`,
-  );
-  logoutUrl.searchParams.set('post_logout_redirect_uri', postLogoutRedirectUri);
-  if (logoutHint) {
-    logoutUrl.searchParams.set('logout_hint', logoutHint);
-  }
-  return logoutUrl.toString();
-};
-
-export const startEntraLogout = (logoutHint: string | null) => {
-  const tenantId = getEntraTenantId();
-  clearEntraLoginSession();
-  window.location.replace(
-    buildEntraLogoutUrl(tenantId, `${window.location.origin}/login`, logoutHint),
-  );
 };
 
 export const sanitizeReturnTo = (returnTo: string | null | undefined) => {
@@ -242,37 +208,24 @@ const loadPkceState = (): PkceState | null => {
   }
 };
 
-const getEntraTenantId = () => {
-  const tenantId = import.meta.env.VITE_AZURE_AD_TENANT_ID;
-  if (!tenantId) {
-    throw new Error('Microsoft login mangler VITE_AZURE_AD_TENANT_ID.');
-  }
-  return tenantId;
-};
-
 const getOAuthConfig = () => {
-  const tenantId = getEntraTenantId();
+  const tenantId = import.meta.env.VITE_AZURE_AD_TENANT_ID;
   const clientId = import.meta.env.VITE_AZURE_AD_CLIENT_ID;
-  const configuredScope = import.meta.env.VITE_AZURE_AD_SCOPE;
+  const scope = import.meta.env.VITE_AZURE_AD_SCOPE;
   const redirectUri = import.meta.env.VITE_AZURE_AD_LOGIN_REDIRECT_URI;
 
-  if (!clientId || !configuredScope) {
+  if (!tenantId || !clientId || !scope) {
     throw new Error('Microsoft login mangler konfiguration. Sæt VITE_AZURE_AD_TENANT_ID, VITE_AZURE_AD_CLIENT_ID og VITE_AZURE_AD_SCOPE.');
   }
 
-  return {
-    tenantId,
-    clientId,
-    scope: ensureOidcScopes(configuredScope),
-    redirectUri,
-  };
+  return { tenantId, clientId, scope, redirectUri };
 };
 
 const exchangeCodeForToken = async (
   config: ReturnType<typeof getOAuthConfig>,
   pkce: PkceState,
   code: string,
-): Promise<EntraTokenExchangeResult> => {
+): Promise<string> => {
   const body = new URLSearchParams();
   body.set('client_id', config.clientId);
   body.set('scope', config.scope);
@@ -287,7 +240,7 @@ const exchangeCodeForToken = async (
     body,
   });
 
-  const payload = await response.json().catch(() => ({})) as EntraTokenPayload;
+  const payload = await response.json().catch(() => ({} as Record<string, string>));
   if (!response.ok || !payload.access_token) {
     // Silent token-exchange block (e.g. interaction_required surfaced only at /token)
     // also auto-escalates to interactive login.
@@ -302,10 +255,7 @@ const exchangeCodeForToken = async (
     throw new Error(payload.error_description || 'Kunne ikke hente Microsoft token.');
   }
 
-  return {
-    accessToken: payload.access_token,
-    logoutHint: extractEntraLogoutHint(payload.id_token),
-  };
+  return payload.access_token as string;
 };
 
 const randomUrlSafe = (byteLength: number) => {
