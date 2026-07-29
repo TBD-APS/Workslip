@@ -1,55 +1,54 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
-import { clearEntraLoginSession, startEntraLogout } from '../features/auth/api/entraLogin';
-import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
-import type { UserViewModel } from '../api/generated/models';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AUTH_PROVIDER_KEY,
   AUTH_TOKEN_KEY,
+  ENTRA_LOGIN_PKCE_KEY,
   ENTRA_LOGOUT_HINT_KEY,
   AuthContext,
   USER_EMAIL_KEY,
   AuthStorage,
   clearReauthInFlight,
+  type AuthContextType,
 } from './authContextValue';
-import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
+import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
+
+const AuthenticatedAppProvider = lazy(() =>
+  import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
+);
+
+const publicMeQuery: AuthContextType['meQuery'] = {
+  isPending: false,
+  isError: false,
+  refetch: async () => null,
+  data: null,
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
-  const queryClient = useQueryClient();
-  const { register: registerPush } = usePushNotifications();
-  const hasAuthToken = Boolean(authToken);
-
-  const meQuery = useGetApiAuthMe({
-    query: {
-      enabled: hasAuthToken,
-      retry: 1,
-      retryDelay: 500,
-      refetchOnReconnect: true,
-      staleTime: 5 * 60 * 1000,
-    },
-  });
-
-  const user = meQuery.data ?? null;
-  const isAuthenticated = hasAuthToken && Boolean(user);
-  const isLoading = hasAuthToken && meQuery.isPending;
 
   useEffect(() => {
-    if (isAuthenticated) {
-      registerPush().catch((error) => {
-        console.error('[Auth] Failed to register push notifications:', error);
-      });
-    }
-    // The push hook currently returns a function tied to its mutation object.
-    // Including it would re-run registration on every provider render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+    if (!authToken) return;
+
+    // Start the shell and jobs-route downloads alongside the authenticated
+    // provider and /api/auth/me request. Import failures still flow through the
+    // existing Vite stale-chunk recovery when the route is rendered.
+    void preloadPrimaryAppRoute().catch(() => undefined);
+  }, [authToken]);
+
+  const clearStoredSession = useCallback(() => {
+    AuthStorage.removeItem(AUTH_TOKEN_KEY);
+    AuthStorage.removeItem(USER_EMAIL_KEY);
+    AuthStorage.removeItem(AUTH_PROVIDER_KEY);
+    AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
+    clearReauthInFlight();
+    sessionStorage.removeItem(ENTRA_LOGIN_PKCE_KEY);
+    setAuthToken(null);
+  }, []);
 
   const login = useCallback(
     async (email: string, code: string): Promise<boolean> => {
       try {
+        const { verifyAuthCode } = await import('../features/auth/api/devToken');
         const response = await verifyAuthCode(email, code);
         AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
         AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
@@ -68,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const devLogin = useCallback(
     async (email: string): Promise<boolean> => {
       try {
+        const { getDevToken } = await import('../features/auth/api/devToken');
         const response = await getDevToken(email);
         AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
         AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
@@ -83,77 +83,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const clearLocalSession = useCallback(() => {
-    AuthStorage.removeItem(AUTH_TOKEN_KEY);
-    AuthStorage.removeItem(USER_EMAIL_KEY);
-    AuthStorage.removeItem(AUTH_PROVIDER_KEY);
-    AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
-    clearReauthInFlight();
-    clearEntraLoginSession();
-    setAuthToken(null);
-    queryClient.clear();
-  }, [queryClient]);
-
-  const logout = useCallback(() => {
-    const authProvider = AuthStorage.getItem(AUTH_PROVIDER_KEY);
-    const logoutHint = AuthStorage.getItem(ENTRA_LOGOUT_HINT_KEY);
-    const shouldEndMicrosoftSession = authProvider === null || authProvider === 'microsoft';
-
-    clearLocalSession();
-
-    if (shouldEndMicrosoftSession) {
-      try {
-        startEntraLogout(logoutHint);
-        return;
-      } catch (error) {
-        console.error('[Auth] Failed to start Microsoft logout.', error);
-      }
-    }
-
-    window.location.replace('/login');
-  }, [clearLocalSession]);
-
-  const updateUser = useCallback(
-    (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => {
-      queryClient.setQueryData(getGetApiAuthMeQueryKey(), (old: UserViewModel | undefined) => {
-        if (!old) return old;
-        return { ...old, ...partial };
-      });
-    },
-    [queryClient],
-  );
-
-  const retryMe = useCallback(async (): Promise<unknown> => {
-    await queryClient.cancelQueries({ queryKey: getGetApiAuthMeQueryKey() });
-    return meQuery.refetch();
-  }, [meQuery.refetch, queryClient]);
-
-  const publicMeQuery = useMemo(
+  const publicValue = useMemo<AuthContextType>(
     () => ({
-      isPending: meQuery.isPending,
-      isError: meQuery.isError,
-      refetch: retryMe,
-      data: meQuery.data ?? null,
+      hasAuthToken: false,
+      isAuthenticated: false,
+      user: null,
+      isLoading: false,
+      login,
+      devLogin,
+      logout: clearStoredSession,
+      clearLocalSession: clearStoredSession,
+      updateUser: () => undefined,
+      meQuery: publicMeQuery,
     }),
-    [meQuery.isPending, meQuery.isError, meQuery.data, retryMe],
+    [clearStoredSession, devLogin, login],
   );
+
+  if (!authToken) {
+    return <AuthContext.Provider value={publicValue}>{children}</AuthContext.Provider>;
+  }
 
   return (
-    <AuthContext.Provider
-      value={{
-        hasAuthToken,
-        isAuthenticated,
-        user,
-        isLoading,
-        login,
-        devLogin,
-        logout,
-        clearLocalSession,
-        updateUser,
-        meQuery: publicMeQuery,
-      }}
+    <Suspense
+      fallback={(
+        <div className="protected-route-loading" role="status" aria-live="polite">
+          Tjekker login status...
+        </div>
+      )}
     >
-      {children}
-    </AuthContext.Provider>
+      <AuthenticatedAppProvider
+        login={login}
+        devLogin={devLogin}
+        clearStoredSession={clearStoredSession}
+      >
+        {children}
+      </AuthenticatedAppProvider>
+    </Suspense>
   );
 }
