@@ -52,16 +52,18 @@
   height: 2.5rem;
 }
 
-.superadmin-refresh {
+.superadmin-refresh,
+.superadmin-open-organization {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
   white-space: nowrap;
 }
 
 .superadmin-overview {
   display: grid;
-  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
@@ -190,6 +192,10 @@
 }
 
 .superadmin-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 1rem;
 }
 
@@ -254,13 +260,14 @@
 }
 
 @media (max-width: 760px) {
-  .superadmin-page-header {
+  .superadmin-page-header,
+  .superadmin-list-header {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .superadmin-refresh {
-    justify-content: center;
+  .superadmin-refresh,
+  .superadmin-open-organization {
     width: 100%;
   }
 
