@@ -17,6 +17,13 @@ interface AuthenticatedAppProviderProps {
   clearSession: () => void;
 }
 
+function shouldPrefetchJobs(): boolean {
+  return window.location.pathname === '/'
+    || window.location.pathname === '/login'
+    || window.location.pathname === '/app'
+    || window.location.pathname === '/app/';
+}
+
 function AuthenticatedSessionProvider({
   children,
   login,
@@ -50,7 +57,7 @@ function AuthenticatedSessionProvider({
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !shouldPrefetchJobs()) return;
 
     // The token and current user are now validated. Populate the same query key
     // used by JobList so the home route can render cached data immediately.
