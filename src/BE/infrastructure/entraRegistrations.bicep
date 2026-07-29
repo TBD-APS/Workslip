@@ -11,6 +11,7 @@ var validatedValues = provisionedValues.environment == toLower(environment)
   : fail('Entra values were not loaded for this environment. Run deploy-entra.ps1, then deploy-infrastructure.ps1.')
 
 output OAuthClientId string = validatedValues.oauthClientId
+output OAuthAppObjectId string = validatedValues.oauthAppObjectId
 // Existing callers use OAuthAppId as the API audience application/client ID.
 output OAuthAppId string = validatedValues.oauthClientId
 output ClientAppId string = validatedValues.clientAppId
