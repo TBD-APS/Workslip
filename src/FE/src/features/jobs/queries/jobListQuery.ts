@@ -2,10 +2,9 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
 import { getPaginatedListInitialState, buildPaginatedListQueryKey } from '../../../hooks/paginatedListState';
 import { apiClient } from '../../../lib/axios';
+import { JOB_LIST_GC_TIME_MS, JOB_LIST_STALE_TIME_MS } from '../../../lib/react-query';
 
 export const JOB_LIST_PAGE_SIZE = 20;
-export const JOB_LIST_STALE_TIME_MS = 30_000;
-export const JOB_LIST_GC_TIME_MS = 30 * 60 * 1000;
 
 const JOB_LIST_STORAGE_KEY = 'jobs';
 const JOB_STATUS_SECTION_KEY = 'mine-jobs';
