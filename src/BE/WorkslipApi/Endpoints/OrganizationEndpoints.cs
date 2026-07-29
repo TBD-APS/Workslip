@@ -1,5 +1,6 @@
 using Workslip.Api.Helpers;
 using Workslip.Api.ViewModels;
+using Workslip.Application.Auth;
 using Workslip.Application.Organizations;
 
 namespace Workslip.Api.Endpoints;
@@ -28,6 +29,21 @@ public static class OrganizationEndpoints
             var result = await service.CreateAsync(request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, OrganizationViewModelBuilder.ToOnboarding);
         }).Produces<OrganizationOnboardingViewModel>();
+
+        group.MapPost("/{organizationId:guid}/session", async (
+            Guid organizationId,
+            IOrganizationSessionService service,
+            IConfiguration configuration,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await service.CreateAsync(organizationId, cancellationToken);
+            return ResultExtensions.ToHttpResult(
+                result,
+                session => JwtHelper.GenerateOrganizationSessionToken(
+                    session.User,
+                    session.HomeOrganizationId,
+                    configuration));
+        }).Produces<AuthTokenResponse>();
 
         group.MapPut("/{organizationId:guid}/admin", async (
             Guid organizationId,
