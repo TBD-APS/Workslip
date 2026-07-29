@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { notify } from '../../../lib/toast';
 import {
   createOrganization,
+  createOrganizationSession,
   getOrganizations,
   getSuperadminErrorMessage,
   inviteOrganizationAdmin,
@@ -11,6 +12,10 @@ import {
 } from '../api';
 import { AdminInviteForm } from '../components/AdminInviteForm';
 import { OrganizationCreateForm } from '../components/OrganizationCreateForm';
+import {
+  activateOrganizationSession,
+  getOrganizationSession,
+} from '../organizationSession';
 import type {
   CreateOrganizationInput,
   InviteOrganizationAdminInput,
@@ -24,6 +29,7 @@ export function SuperAdmin() {
   const [requestedOrganizationId, setRequestedOrganizationId] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [lastAdminResult, setLastAdminResult] = useState<OrganizationAdmin | null>(null);
 
   const organizationsQuery = useQuery({
@@ -42,12 +48,18 @@ export function SuperAdmin() {
     ? requestedOrganizationId
     : organizations[0]?.id ?? '';
 
+  const activeOrganizationSession = getOrganizationSession();
+
   const createMutation = useMutation({
     mutationFn: createOrganization,
   });
 
   const inviteMutation = useMutation({
     mutationFn: inviteOrganizationAdmin,
+  });
+
+  const sessionMutation = useMutation({
+    mutationFn: createOrganizationSession,
   });
 
   const handleCreateOrganization = async (input: CreateOrganizationInput) => {
@@ -92,6 +104,30 @@ export function SuperAdmin() {
     (organization) => organization.id === selectedOrganizationId,
   );
 
+  const handleOpenOrganization = async () => {
+    if (!selectedOrganization) return;
+
+    setSessionError(null);
+    try {
+      const session = await sessionMutation.mutateAsync(selectedOrganization.id);
+      activateOrganizationSession(
+        {
+          id: selectedOrganization.id,
+          name: selectedOrganization.name,
+        },
+        session.token,
+      );
+
+      // Tenant query keys are not consistently organization-prefixed. A full
+      // cache clear and navigation prevents data from the previous effective
+      // organization from appearing during the switch.
+      queryClient.clear();
+      window.location.assign('/app');
+    } catch (error) {
+      setSessionError(getSuperadminErrorMessage(error));
+    }
+  };
+
   return (
     <div className="page-container superadmin-page">
       <header className="superadmin-page-header">
@@ -101,7 +137,7 @@ export function SuperAdmin() {
           </span>
           <div>
             <h1>Superadmin</h1>
-            <p>Opret organisationer og tildel administratorer via Microsoft Entra.</p>
+            <p>Administrér organisationer, og åbn en tidsbegrænset organisationssession.</p>
           </div>
         </div>
         <button
@@ -137,6 +173,10 @@ export function SuperAdmin() {
           <span className="superadmin-overview-label">Valgt organisation</span>
           <strong>{selectedOrganization?.name ?? 'Ingen valgt'}</strong>
         </div>
+        <div>
+          <span className="superadmin-overview-label">Aktiv session</span>
+          <strong>{activeOrganizationSession?.name ?? 'Superadmin-hjemmeorganisation'}</strong>
+        </div>
       </div>
 
       <div className="superadmin-grid">
@@ -160,6 +200,7 @@ export function SuperAdmin() {
             onOrganizationChange={(organizationId) => {
               setRequestedOrganizationId(organizationId);
               setInviteError(null);
+              setSessionError(null);
               setLastAdminResult(null);
             }}
             onSubmit={handleInviteAdmin}
@@ -186,9 +227,24 @@ export function SuperAdmin() {
         <div className="superadmin-list-header">
           <div>
             <h2 id="organization-list-title">Organisationer</h2>
-            <p>Vælg en organisation her for at tildele dens administrator.</p>
+            <p>Den valgte organisation åbnes med et kortlivet token. Din Superadmin-identitet bevares.</p>
           </div>
+          <button
+            type="button"
+            className="btn btn-primary superadmin-open-organization"
+            onClick={() => { void handleOpenOrganization(); }}
+            disabled={!selectedOrganization || sessionMutation.isPending}
+          >
+            <span>{sessionMutation.isPending ? 'Åbner...' : 'Åbn organisation'}</span>
+            <ArrowRight size={16} aria-hidden="true" />
+          </button>
         </div>
+
+        {sessionError && (
+          <div className="superadmin-alert superadmin-alert-error" role="alert">
+            {sessionError}
+          </div>
+        )}
 
         {organizationsQuery.isLoading ? (
           <div className="superadmin-empty" role="status">Indlæser organisationer...</div>
@@ -201,6 +257,7 @@ export function SuperAdmin() {
           <div className="superadmin-organization-cards">
             {organizations.map((organization) => {
               const isSelected = organization.id === selectedOrganizationId;
+              const isActive = organization.id === activeOrganizationSession?.id;
               return (
                 <button
                   key={organization.id}
@@ -209,12 +266,15 @@ export function SuperAdmin() {
                   onClick={() => {
                     setRequestedOrganizationId(organization.id);
                     setInviteError(null);
+                    setSessionError(null);
                     setLastAdminResult(null);
                   }}
                   aria-pressed={isSelected}
                 >
                   <span className="superadmin-organization-name">{organization.name}</span>
-                  <span className="superadmin-organization-cvr">CVR {organization.cvr}</span>
+                  <span className="superadmin-organization-cvr">
+                    CVR {organization.cvr}{isActive ? ' · Aktiv session' : ''}
+                  </span>
                 </button>
               );
             })}
