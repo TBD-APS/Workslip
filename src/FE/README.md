@@ -48,7 +48,7 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `src/providers/AuthContext.tsx` provides the lightweight public auth contract and loads login helpers only when used.
 - `src/providers/AuthenticatedAppProvider.tsx` owns React Query, the generated current-user client, push registration and authenticated auth state; it is loaded only when a stored token exists.
 - `src/routes/preloadPrimaryAppRoute.ts` warms the authenticated layout and default jobs route only after a token exists, allowing their code to download alongside session validation without affecting the anonymous login path.
-- `src/features/jobs/queries/jobListQuery.ts` owns the default jobs query request, prefetch, cache lifetime and initial browser-state key.
+- `src/features/jobs/queries/jobListQuery.ts` owns the authenticated jobs prefetch request, cache lifetime and initial browser-state key.
 - `src/hooks/paginatedListState.ts` keeps paginated list storage and query-key construction consistent between prefetching and rendered lists.
 - `src/base.css` contains the small global reset, variables and shared public controls.
 - `src/public-*.css` contains only login, invitation, recovery, error and public paint/font rules.
