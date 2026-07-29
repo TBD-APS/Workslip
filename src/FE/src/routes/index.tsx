@@ -8,7 +8,7 @@ import { Login } from '../features/auth/routes/Login';
 import { InviteAccept } from '../features/auth/routes/InviteAccept';
 import { reportFrontendError } from '../applicationInsights';
 
-const AUTH_STARTUP_GRACE_MS = 15_000;
+const AUTH_STARTUP_GRACE_MS = 6_000;
 
 const AppLayout = lazy(() =>
   import('../components/layouts/AppLayout').then((module) => ({ default: module.AppLayout })),
