@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - rbj--107-superadmin-organization-admin
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -226,7 +229,6 @@ jobs:
               raise SystemExit("DatabaseSeeder fake insertion marker not found")
           tests_path.write_text(text.replace(fake_marker, fake + fake_marker, 1), encoding="utf-8")
 
-          # Keep existing test doubles source-compatible with the expanded Entra service contract.
           tests_root = root / "Workslip.Tests"
           for path in tests_root.rglob("*.cs"):
               if path == tests_path:
@@ -278,6 +280,7 @@ jobs:
           --filter "FullyQualifiedName~Workslip.Tests.Infrastructure.DatabaseSeederTests|FullyQualifiedName~Workslip.Tests.Organizations"
 
       - name: Commit implementation and remove workflow
+        if: github.event_name == 'push'
         run: |
           rm .github/workflows/wor-107-seed-superadmin-validation.yml
           git config user.name "github-actions[bot]"
