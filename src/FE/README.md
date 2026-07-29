@@ -47,6 +47,7 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `src/lib/axios.ts` configures the API client, auth header, correlation ID and mutation idempotency header.
 - `src/providers/AuthContext.tsx` provides the lightweight public auth contract and loads login helpers only when used.
 - `src/providers/AuthenticatedAppProvider.tsx` owns React Query, the generated current-user client, push registration and authenticated auth state; it is loaded only when a stored token exists.
+- `src/routes/preloadPrimaryAppRoute.ts` warms the authenticated layout and default jobs route only after a token exists, allowing their code to download alongside session validation without affecting the anonymous login path.
 - `src/base.css` contains the small global reset, variables and shared public controls.
 - `src/public-*.css` contains only login, invitation, recovery, error and public paint/font rules.
 - `src/authenticated-base.css` defines authenticated-only globals and the Inter/Outfit font faces.
@@ -61,7 +62,7 @@ API generation uses Orval. Generated output must be regenerated from the current
 
 Authenticated feature routes and invitation enrollment are loaded through dynamic imports. The default passkey login remains in the initial application shell. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
 
-The public shell does not import the old marketing stylesheet, authenticated application CSS, branded web fonts, one-time-code form dependencies, invitation enrollment, React Query, generated authenticated clients or axios. It uses the system font and static background effects. A stored token loads `AuthenticatedAppProvider`, which installs QueryClient context and resolves `/api/auth/me`; optional one-time-code/dev-login actions load their API module only when invoked.
+The public shell does not import the old marketing stylesheet, authenticated application CSS, branded web fonts, one-time-code form dependencies, invitation enrollment, React Query, generated authenticated clients or axios. It uses the system font and static background effects. A stored token loads `AuthenticatedAppProvider`, which installs QueryClient context and resolves `/api/auth/me`; at the same time, the authenticated layout and default jobs route are warmed in parallel. Optional one-time-code/dev-login actions load their API module only when invoked.
 
 The SPA root is served directly without a Vercel redirect. The client router renders login for unauthenticated users and moves an already authenticated user to `/app`.
 
@@ -97,7 +98,7 @@ For routing, performance or PWA cache changes, also validate with a clean browse
 4. Opening the one-time-code option must load and render its isolated form/API chunk.
 5. Invitation routes must load their isolated route chunk and remain fully styled.
 6. Login, invitation, startup recovery and public error states must remain fully styled and responsive without inherited color/background transitions on their root containers.
-7. A stored-token `/app` visit must load QueryClient context, `/api/auth/me`, authenticated CSS and branded fonts on demand.
+7. A stored-token `/app` visit must start downloading `AuthenticatedAppProvider`, `AppLayout` and `JobList` in parallel with session validation, then load the existing jobs query without duplicate route downloads.
 8. Login, dev login, logout, user updates, push registration and current-user retry must retain their existing behaviour.
 9. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
 10. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
