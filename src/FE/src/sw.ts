@@ -1,36 +1,67 @@
-// @ts-nocheck — service worker types not in app tsconfig; built by Vite only
 import { clientsClaim } from 'workbox-core';
-import { precacheAndRoute } from 'workbox-precaching';
+import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
 
-declare const self: ServiceWorkerGlobalScope;
+type PrecacheManifestEntry = string | {
+  url: string;
+  revision?: string | null;
+};
 
-precacheAndRoute(self.__WB_MANIFEST);
+declare const self: ServiceWorkerGlobalScope & {
+  __WB_MANIFEST: PrecacheManifestEntry[];
+};
 
-const BUILD_TIME = '__BUILD_TIME__';
+const PRECACHE_MANIFEST = self.__WB_MANIFEST;
+const PRECACHED_URLS = new Set(
+  PRECACHE_MANIFEST.map((entry) =>
+    new URL(typeof entry === 'string' ? entry : entry.url, self.location.origin).href,
+  ),
+);
+const ROUTE_ASSET_CACHE = 'workslip-route-assets-v1';
+const MAX_ROUTE_ASSET_ENTRIES = 100;
 
-self.addEventListener('install', () => {
-  console.log('[SW] Installing (build:', BUILD_TIME + ')');
-  self.skipWaiting();
-});
+cleanupOutdatedCaches();
+precacheAndRoute(PRECACHE_MANIFEST);
 
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') {
-    console.log('[SW] SKIP_WAITING received — activating');
-    self.skipWaiting();
-  }
-});
+// Immediate activation is the accepted product policy in ADR 0002.
+self.skipWaiting();
+clientsClaim();
 
-self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating (build:', BUILD_TIME + ')');
-  event.waitUntil(
-    clientsClaim().then(() =>
-      self.clients.matchAll({ type: 'window' }).then((clients) => {
-        for (const client of clients) {
-          client.postMessage({ type: 'RELOAD' });
-        }
-      })
-    )
+function isLazyRouteAsset(request: Request) {
+  if (request.method !== 'GET') return false;
+  if (request.destination !== 'script' && request.destination !== 'style') return false;
+
+  const url = new URL(request.url);
+  return url.origin === self.location.origin
+    && url.pathname.startsWith('/assets/chunks/')
+    && !PRECACHED_URLS.has(url.href);
+}
+
+async function trimRouteAssetCache(cache: Cache) {
+  const requests = await cache.keys();
+  const excessCount = requests.length - MAX_ROUTE_ASSET_ENTRIES;
+  if (excessCount <= 0) return;
+
+  await Promise.all(
+    requests.slice(0, excessCount).map((request) => cache.delete(request)),
   );
+}
+
+self.addEventListener('fetch', (event) => {
+  if (!isLazyRouteAsset(event.request)) return;
+
+  event.respondWith((async () => {
+    const cache = await caches.open(ROUTE_ASSET_CACHE);
+    const cachedResponse = await cache.match(event.request);
+    if (cachedResponse) return cachedResponse;
+
+    const response = await fetch(event.request);
+    if (response.ok) {
+      await cache.put(event.request, response.clone());
+      await trimRouteAssetCache(cache);
+    }
+
+    return response;
+  })());
 });
 
 self.addEventListener('push', (event) => {
@@ -50,8 +81,8 @@ self.addEventListener('push', (event) => {
   let payload;
   try {
     payload = event.data.json();
-  } catch (e) {
-    console.error('Failed to parse push payload:', e);
+  } catch (error) {
+    console.error('Failed to parse push payload:', error);
     return;
   }
 
@@ -65,8 +96,8 @@ self.addEventListener('push', (event) => {
       badge: options.badge || '/logo.png',
       tag: options.tag || '',
       data: options.data || {},
-    }).catch((err) => {
-      console.error('[SW] showNotification failed:', err);
+    }).catch((error) => {
+      console.error('[SW] showNotification failed:', error);
     })
   );
 });

@@ -1,42 +1,57 @@
 /// <reference types="vite-plugin-pwa/client" />
 import { registerSW } from 'virtual:pwa-register';
 
-const updateSW = registerSW({
-  onNeedRefresh() {
-    console.log('[PWA] New update available — activating');
-    updateSW();
-  },
+const UPDATE_INTERVAL_MS = 60 * 1000;
+
+async function checkForServiceWorkerUpdate(
+  swUrl: string,
+  registration: ServiceWorkerRegistration,
+) {
+  if (!navigator.onLine || registration.installing || registration.waiting) return;
+
+  try {
+    const response = await fetch(swUrl, {
+      cache: 'no-store',
+      headers: {
+        'cache': 'no-store',
+        'cache-control': 'no-cache',
+      },
+    });
+
+    if (response.status === 200) {
+      await registration.update();
+    }
+  } catch {
+    // Startup, visibility, online and interval checks all retry this path.
+  }
+}
+
+registerSW({
   onOfflineReady() {
     console.log('[PWA] App is ready for offline use');
   },
   onRegisteredSW(swUrl, registration) {
     if (!registration) return;
 
-    // Check for updates every minute with cache-busting fetch
-    setInterval(async () => {
-      if (!navigator.onLine) return;
+    let updateCheck: Promise<void> | null = null;
+    const requestUpdate = () => {
+      if (updateCheck) return;
 
-      try {
-        const resp = await fetch(swUrl, {
-          cache: 'no-store',
-          headers: {
-            'cache': 'no-store',
-            'cache-control': 'no-cache',
-          },
+      updateCheck = checkForServiceWorkerUpdate(swUrl, registration)
+        .finally(() => {
+          updateCheck = null;
         });
+    };
 
-        if (resp?.status === 200) {
-          await registration.update();
-        }
-      } catch {
-        // Offline or fetch failed — skip
-      }
-    }, 60 * 1000);
+    // Discover a deployment immediately when the app starts, returns to the
+    // foreground or regains connectivity, and at most one minute afterwards.
+    requestUpdate();
+    window.setInterval(requestUpdate, UPDATE_INTERVAL_MS);
+    window.addEventListener('online', requestUpdate);
 
-    // Also check when app becomes visible (switching back from another app)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && navigator.onLine) {
-        registration.update();
+      if (document.visibilityState === 'visible') {
+        requestUpdate();
       }
     });
   },

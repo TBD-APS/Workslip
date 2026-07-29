@@ -11,26 +11,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
   const queryClient = useQueryClient();
   const { register: registerPush } = usePushNotifications();
+  const hasAuthToken = Boolean(authToken);
 
   const meQuery = useGetApiAuthMe({
     query: {
-      enabled: Boolean(authToken),
+      enabled: hasAuthToken,
       retry: 1,
+      retryDelay: 500,
+      refetchOnReconnect: true,
       staleTime: 5 * 60 * 1000,
     },
   });
 
   const user = meQuery.data ?? null;
-  const isAuthenticated = Boolean(authToken) && Boolean(user);
-  const isLoading = Boolean(authToken) && meQuery.isPending;
+  const isAuthenticated = hasAuthToken && Boolean(user);
+  const isLoading = hasAuthToken && meQuery.isPending;
 
-  // Register push notifications when the user becomes authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      registerPush().catch((err) => {
-        console.error('[Auth] Failed to register push notifications:', err);
+      registerPush().catch((error) => {
+        console.error('[Auth] Failed to register push notifications:', error);
       });
     }
+    // The push hook currently returns a function tied to its mutation object.
+    // Including it would re-run registration on every provider render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   const login = useCallback(
@@ -40,7 +45,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
         AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
         setAuthToken(response.token);
-        // Successful login clears any in-flight reauth redirect so the next expiry can re-trigger.
         clearReauthInFlight();
         return true;
       } catch {
@@ -84,22 +88,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  // Expose a stable, narrow shape of meQuery so ProtectedRoute can do one short
-  // retry before declaring the user signed out (handles transient failures
-  // after PWA service-worker swaps).
+  const retryMe = useCallback(async (): Promise<unknown> => {
+    await queryClient.cancelQueries({ queryKey: getGetApiAuthMeQueryKey() });
+    return meQuery.refetch();
+  }, [meQuery.refetch, queryClient]);
+
   const publicMeQuery = useMemo(
     () => ({
       isPending: meQuery.isPending,
       isError: meQuery.isError,
-      refetch: meQuery.refetch,
+      refetch: retryMe,
       data: meQuery.data ?? null,
     }),
-    [meQuery.isPending, meQuery.isError, meQuery.refetch, meQuery.data],
+    [meQuery.isPending, meQuery.isError, meQuery.data, retryMe],
   );
 
   return (
     <AuthContext.Provider
       value={{
+        hasAuthToken,
         isAuthenticated,
         user,
         isLoading,

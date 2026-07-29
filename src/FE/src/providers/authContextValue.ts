@@ -46,23 +46,11 @@ const authStorage = {
 
 export const AuthStorage = authStorage;
 
-/**
- * Sets the reauthInFlight flag with a self-expiring TTL. Storing the expiry
- * timestamp alongside the flag lets any reader cheaply check whether the
- * flag is still valid without a separate sweep job. If the redirect is
- * interrupted before the user reaches /login, the next expiry cycle will
- * simply ignore the stale flag and re-trigger.
- */
 export const setReauthInFlight = (): void => {
   const expiresAt = Date.now() + REAUTH_IN_FLIGHT_TTL_MS;
   AuthStorage.setItem(REAUTH_IN_FLIGHT_KEY, String(expiresAt));
 };
 
-/**
- * Returns true if a reauth redirect is currently in flight AND has not
- * exceeded its TTL. Callers should treat the flag as advisory — the only
- * purpose is to deduplicate concurrent 401-triggered redirects.
- */
 export const isReauthInFlight = (): boolean => {
   const raw = AuthStorage.getItem(REAUTH_IN_FLIGHT_KEY);
   if (!raw) return false;
@@ -79,9 +67,6 @@ export const clearReauthInFlight = (): void => {
 };
 
 export interface AuthMeQuery {
-  // Shape kept loose on purpose: the real type is ReturnType<typeof useGetApiAuthMe>
-  // and including it here would force this file to depend on the generated API.
-  // Callers only consume `isError`, `isPending`, `refetch`, and `data`.
   isPending: boolean;
   isError: boolean;
   refetch: () => Promise<unknown>;
@@ -89,6 +74,7 @@ export interface AuthMeQuery {
 }
 
 export interface AuthContextType {
+  hasAuthToken: boolean;
   isAuthenticated: boolean;
   user: UserViewModel | null;
   isLoading: boolean;

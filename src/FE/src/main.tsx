@@ -10,6 +10,23 @@ initializeApplicationInsights();
 installGlobalApplicationInsightsHandlers();
 
 if (typeof window !== 'undefined') {
+  // Vite emits this event when an already-open client references a hashed lazy
+  // chunk that disappeared after deployment. Reload once for this build; if it
+  // still fails, the normal error boundary handles it without a reload loop.
+  const staleBuildRecoveryKey = `workslip.preloadRecovery:${__BUILD_TIME__}`;
+  window.addEventListener('vite:preloadError', (event) => {
+    try {
+      if (sessionStorage.getItem(staleBuildRecoveryKey)) return;
+      sessionStorage.setItem(staleBuildRecoveryKey, '1');
+    } catch {
+      // Without a reliable guard an automatic reload could loop indefinitely.
+      return;
+    }
+
+    event.preventDefault();
+    window.location.reload();
+  });
+
   const originalFocus = HTMLInputElement.prototype.focus;
 
   HTMLInputElement.prototype.focus = function (options?: FocusOptions) {
