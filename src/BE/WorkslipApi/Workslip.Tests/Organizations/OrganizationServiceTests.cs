@@ -379,7 +379,7 @@ public sealed class OrganizationServiceTests
         public Task<bool> IsEntraIdentityReferencedAsync(string entraUserId, CancellationToken cancellationToken) =>
             Task.FromResult(EntraIdentityReferenced);
 
-        public Task<Guid> CreateAdminAsync(UserDataRow admin, CancellationToken cancellationToken)
+        public Task<Guid?> CreateAdminAsync(UserDataRow admin, CancellationToken cancellationToken)
         {
             CreateCalls++;
             if (ThrowOnCreate)
@@ -389,7 +389,7 @@ public sealed class OrganizationServiceTests
 
             CreatedAdmin = admin;
             EmailUser = admin;
-            return Task.FromResult(admin.Id);
+            return Task.FromResult<Guid?>(admin.Id);
         }
 
         public Task<bool> UpdateAdminAsync(
