@@ -46,6 +46,8 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `src/components/` contains shared UI and form components.
 - `src/lib/axios.ts` configures the API client, auth header, correlation ID and mutation idempotency header.
 - `src/fonts.css` defines the same-origin Inter and Outfit font faces.
+- `src/public-shell.css` contains only styles required by login, invitation, startup recovery and public error states.
+- `src/App.css` contains the authenticated application styling and is imported only by the lazy `AppLayout` boundary.
 - `scripts/sync-fonts.mjs` materializes pinned WOFF2 files before development and production builds.
 - `src/sw.ts` and `src/registerSW.ts` contain service-worker behaviour.
 - `tsconfig.sw.json` isolates Web Worker types from the browser application type environment.
@@ -53,6 +55,10 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `vercel.json` defines the Git deployment policy, production redirects, external API rewrite and response-cache policy.
 
 Authenticated feature routes are loaded through dynamic imports. The login and invite routes remain in the initial application shell; `/app` layout and feature pages are downloaded only after they are rendered. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
+
+The public shell does not import authenticated application CSS. Vite therefore emits `App.css` with the lazy `AppLayout` graph rather than making the entire application stylesheet render-blocking for login and invitation routes.
+
+Application Insights, Vercel Analytics, Speed Insights and service-worker registration are scheduled after the initial window load and the browser's next idle period. Telemetry helpers remain safe before their SDK chunk is available. Once the service worker registers, the accepted immediate update-discovery and activation policy remains unchanged.
 
 A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout, and authenticated routing shows the explicit retry/reload/login recovery screen after the same six-second grace period rather than clearing a potentially valid token or showing an endless spinner.
 
@@ -76,15 +82,17 @@ npm run build
 
 There is currently no general `npm test` script in `package.json`. Do not claim broad frontend test coverage from isolated test files. Add a documented test command when the test runner is standardized.
 
-For routing or PWA cache changes, also validate with a clean browser profile:
+For routing, performance or PWA cache changes, also validate with a clean browser profile:
 
-1. `/login` and invite routes must not request authenticated feature chunks.
-2. A representative `/app` route must load its JavaScript and CSS on demand.
-3. A route visited once online must remain available on an offline revisit under the supported PWA flow.
-4. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
-5. Service-worker update checks must not overlap while another worker is installing or waiting.
-6. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
-7. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
+1. `/login` and invite routes must not request authenticated feature chunks or the authenticated `App.css` output.
+2. Login, invitation, startup recovery and public error states must remain fully styled.
+3. A representative `/app` route must load its JavaScript and CSS on demand.
+4. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
+5. A route visited once online must remain available on an offline revisit under the supported PWA flow.
+6. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
+7. Service-worker update checks must not overlap while another worker is installing or waiting.
+8. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
+9. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
 
 ## Vercel deployment policy
 
@@ -127,7 +135,7 @@ The rewrite target is production-specific. A future separate frontend environmen
 
 The service worker precaches the public bootstrap shell and static assets, but not authenticated route bundles under `assets/chunks/`. Hashed JavaScript and CSS for lazy routes are cached after their first successful request in a stable runtime cache capped at 100 entries. Keeping content-hashed route assets across deployments reduces version-skew failures for routes that were previously visited; a route that has never been visited is not guaranteed to work offline.
 
-Update discovery runs when the service worker registers, when the browser regains connectivity, whenever the app returns to the foreground, and once per minute while the app remains open. Checks are serialized and skipped while another worker is already installing or waiting. `autoUpdate`, `skipWaiting()` and immediate client claiming intentionally activate a discovered deployment without user confirmation.
+Registration is deferred until after the initial page load and an idle callback. Update discovery then runs when the service worker registers, when the browser regains connectivity, whenever the app returns to the foreground, and once per minute while the app remains open. Checks are serialized and skipped while another worker is already installing or waiting. `autoUpdate`, `skipWaiting()` and immediate client claiming intentionally activate a discovered deployment without user confirmation.
 
 Vite dynamic-import preload failures trigger one automatic reload per build. Repeated failure in the same build falls through to the normal React error boundary instead of creating a reload loop.
 
