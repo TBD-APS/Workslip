@@ -16,11 +16,11 @@ Workslip separates **platform identity** from **tenant operating context**.
 
 A platform Superadmin is not a member of an arbitrary “home” organization. Its JWT and transformed Entra identity contain the Workslip user ID and `Superadmin` role but no permanent `organizationId` claim.
 
-Ordinary tenant services still require `ICurrentUserContext.OrganizationId`. For a Superadmin, that context is supplied by `X-Workslip-Organization-Id` after the backend has authenticated the caller as `Superadmin`. For every other role, the header is ignored and the organization comes from the authenticated claim. This prevents a tenant user from overriding its tenant boundary.
+Ordinary tenant services still require `ICurrentUserContext.OrganizationId`. For a Superadmin, the client proposes that context through `X-Workslip-Organization-Id` after the backend has authenticated the caller as `Superadmin`. Middleware validates that the organization exists, caches successful validation briefly, and only then exposes it through `ICurrentUserContext`. Malformed or unknown values remain unscoped. For every other role, the header is ignored and the organization comes from the authenticated claim. This prevents a tenant user from overriding its tenant boundary.
 
 Dedicated `/superadmin` application and repository paths are intentionally cross-tenant. They use explicit organization identifiers and must not be implemented by weakening ordinary tenant repositories or by globally bypassing organization filters.
 
-The frontend stores one selected Superadmin organization scope and performs a full navigation when changing it so tenant-specific React Query state is not reused across organizations. This is defense in depth; backend scoping remains the authorization boundary.
+The frontend stores one selected Superadmin organization scope and performs a full navigation when changing it so tenant-specific React Query state is not reused across organizations. This is defense in depth; backend validation and scoping remain the authorization boundary.
 
 ## Tenant ownership
 
@@ -36,7 +36,7 @@ The frontend stores one selected Superadmin organization scope and performs a fu
 | Job assignments | The assigned user and report must belong to the assignment organization. Platform Superadmins are operators, not tenant assignees. |
 | Job installations | The selected job and installation definition are tenant-scoped through composite foreign keys. |
 | Installation category/control-point snapshots | The nested snapshot rows do not currently carry `OrganizationId`, so their category and control-point references cannot yet be tenant-enforced. This is tracked in [WOR-160](https://linear.app/workslip/issue/WOR-160/tenant-sikr-installationssnapshot-kategorier-og-kontrolpunkter). |
-| Push subscriptions, notification queue and job views | `UserId` must resolve to an existing user. These tables do not currently duplicate `OrganizationId`; tenant authorization is enforced before their rows are written or queried. Unscoped Superadmins do not register tenant push state. |
+| Push subscriptions, notification queue and job views | `UserId` must resolve to an existing user. These tables do not currently duplicate `OrganizationId`; tenant authorization is enforced before their rows are written or queried. Platform Superadmins do not register tenant push subscriptions or open the tenant notification stream. |
 
 The database check constraint `CK_Users_RoleOrganizationScope` enforces the role/organization invariant:
 
@@ -45,7 +45,7 @@ Superadmin  => OrganizationId IS NULL
 other roles => OrganizationId IS NOT NULL
 ```
 
-Tenant user-management validators also reject creation or promotion to `Superadmin`; platform identities must be provisioned through the controlled Superadmin identity path.
+Tenant user-management validators also reject creation or promotion to `Superadmin`; platform identities must be provisioned through the controlled Superadmin identity path. Tenant CRUD also protects existing platform Superadmins from direct lookup, role changes and deletion.
 
 ## Platform-scope schema transition
 
