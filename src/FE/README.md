@@ -65,7 +65,7 @@ The SPA root is served directly without a Vercel redirect. The client router ren
 
 Service-worker registration is scheduled after the initial window load and an idle callback. Application Insights, Vercel Analytics, Speed Insights and the Sonner toaster are loaded after the first pointer/keyboard interaction or a ten-second fallback, then scheduled during idle time. The Application Insights SDK itself remains a dynamic import. Once the service worker registers, the accepted immediate update-discovery and activation policy remains unchanged.
 
-A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout, and authenticated routing shows the explicit retry/reload/login recovery screen after the same six-second grace period rather than clearing a potentially valid token or showing an endless spinner.
+A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout. Timeouts, network failures and temporary server errors retain the stored token and show the retry/reload/login recovery screen after the same six-second grace period. A `401 Unauthorized` definitively rejects the stored token, starts reauthentication automatically and does not require recovery-button input. A terminal or cancelled Microsoft reauthentication exits the spinner and restores the normal login form automatically.
 
 ## Form conventions
 
@@ -102,8 +102,10 @@ For routing, performance or PWA cache changes, also validate with a clean browse
 11. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
 12. Service-worker update checks must not overlap while another worker is installing or waiting.
 13. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
-14. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
-15. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
+14. A timeout, network error or temporary server failure from `/api/auth/me` must retain the stored token and show recovery within six seconds.
+15. A `401` from `/api/auth/me` must clear the rejected stored token and begin reauthentication automatically without showing the startup recovery screen.
+16. A terminal or cancelled silent-reauthentication attempt must remove the reauthentication URL state and restore the normal login form without requiring a button click.
+17. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
 
 ## Vercel deployment policy
 
