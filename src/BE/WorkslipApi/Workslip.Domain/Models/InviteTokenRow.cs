@@ -12,6 +12,7 @@ public sealed class InviteTokenRow
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? OpenedAt { get; set; }
     public DateTimeOffset? AcceptedAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
     public string? EntraUserId { get; set; }
     public string? EntraEmail { get; set; }
     public bool EntraCreatedByInvite { get; set; }
