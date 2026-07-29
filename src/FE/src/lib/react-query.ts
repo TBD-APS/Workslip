@@ -1,5 +1,8 @@
 import { QueryClient } from '@tanstack/react-query';
 
+export const JOB_LIST_STALE_TIME_MS = 30_000;
+export const JOB_LIST_GC_TIME_MS = 30 * 60 * 1000;
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -14,4 +17,11 @@ export const queryClient = new QueryClient({
       retry: false,
     },
   },
+});
+
+// The jobs home screen should render cached data immediately when revisited,
+// then refresh in the background once the short freshness window has elapsed.
+queryClient.setQueryDefaults(['/api/jobs'], {
+  staleTime: JOB_LIST_STALE_TIME_MS,
+  gcTime: JOB_LIST_GC_TIME_MS,
 });

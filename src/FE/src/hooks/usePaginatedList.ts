@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { QueryKey } from '@tanstack/react-query';
 import { useInfiniteList } from './useInfiniteList';
 import { useInfiniteScroll } from './useInfiniteScroll';
 import { useMediaQuery } from './useMediaQuery';
+import { buildPaginatedListQueryKey, getPaginatedListInitialState } from './paginatedListState';
 
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector('.app-shell');
@@ -19,7 +21,7 @@ window.addEventListener('resize', () => {
 }, { passive: true });
 
 interface UsePaginatedListOptions<TItem> {
-  queryKey: unknown[];
+  queryKey: QueryKey;
   fetchPage: (params: {
     limit: number;
     offset: number;
@@ -58,18 +60,6 @@ interface UsePaginatedListReturn<TItem> {
   isDesktop: boolean;
 }
 
-function getInitialState(storageKey: string | undefined) {
-  if (!storageKey) return { search: '', sort: { field: '', direction: 'asc' as const }, viewPage: 1 };
-  const search = sessionStorage.getItem(`${storageKey}:search`) ?? '';
-  let sort = { field: '', direction: 'asc' as const };
-  try {
-    const saved = sessionStorage.getItem(`${storageKey}:sort`);
-    if (saved) sort = JSON.parse(saved);
-  } catch { /* ignore */ }
-  const viewPage = Number(sessionStorage.getItem(`${storageKey}:page`) ?? '1');
-  return { search, sort, viewPage };
-}
-
 export function usePaginatedList<TItem>({
   queryKey,
   fetchPage,
@@ -77,10 +67,11 @@ export function usePaginatedList<TItem>({
   enabled = true,
   storageKey,
 }: UsePaginatedListOptions<TItem>): UsePaginatedListReturn<TItem> {
-  const [search, setSearch] = useState(() => getInitialState(storageKey).search);
-  const [querySearch, setQuerySearch] = useState(() => getInitialState(storageKey).search);
-  const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' }>(() => getInitialState(storageKey).sort);
-  const [viewPage, setViewPage] = useState(() => getInitialState(storageKey).viewPage);
+  const [initialState] = useState(() => getPaginatedListInitialState(storageKey));
+  const [search, setSearch] = useState(initialState.search);
+  const [querySearch, setQuerySearch] = useState(initialState.search);
+  const [sort, setSort] = useState(initialState.sort);
+  const [viewPage, setViewPage] = useState(initialState.viewPage);
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -99,7 +90,7 @@ export function usePaginatedList<TItem>({
   );
 
   const query = useInfiniteList<TItem>({
-    queryKey: [...queryKey, { search: querySearch || undefined, sort, limit: pageSize }],
+    queryKey: buildPaginatedListQueryKey(queryKey, querySearch, sort, pageSize),
     fetchPage: fetchWrapped,
     pageSize,
     enabled,
