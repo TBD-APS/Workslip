@@ -25,6 +25,15 @@ export const JobDetail = () => {
     }
   }, [id, details.job?.status]);
 
+  useEffect(() => {
+    if (details.job?.status !== JobStatus.Rejected) return;
+
+    if (details.currentStep !== 0) {
+      details.setCurrentStep(0);
+    }
+    document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
+  }, [details.job?.status, details.currentStep, details.setCurrentStep]);
+
   return (
     <JobDetailsPage
       details={details}

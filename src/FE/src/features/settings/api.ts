@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { customAxiosInstance } from '../../api/fetcherOrval';
 
 export interface InviteTokenResponse {
@@ -22,9 +22,21 @@ export const getApiAuthInvites = (signal?: AbortSignal) => {
   );
 };
 
+export const deleteApiAuthInvite = (inviteId: string) => {
+  return customAxiosInstance<void>(
+    { url: `/api/auth/invites/${inviteId}`, method: 'DELETE' },
+  );
+};
+
 export const useGetApiAuthInvites = () => {
   return useQuery({
     queryKey: ['/api/auth/invites'],
     queryFn: ({ signal }) => getApiAuthInvites(signal),
+  });
+};
+
+export const useDeleteApiAuthInvite = () => {
+  return useMutation({
+    mutationFn: deleteApiAuthInvite,
   });
 };

@@ -4,6 +4,7 @@ import { Checkbox } from '../../../../components/forms/Checkbox';
 import type { JobForm } from '../../types';
 import type { ReferenceDataResponse } from '../../../../api/generated/models';
 
+
 type ControlPointsStepProps = {
   form: JobForm;
   referenceData: ReferenceDataResponse;

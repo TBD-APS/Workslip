@@ -3,7 +3,7 @@
 **State:** Maintained  
 **Owner:** Backend/API  
 **Review:** With every endpoint, auth or response-shape change  
-**Linear:** WOR-146
+**Linear:** WOR-146, WOR-193
 
 ## Source of truth
 
@@ -35,6 +35,26 @@ Policy meanings:
 | `RequireSuperAdmin` | Superadmin only. |
 
 The API derives organization, user and role from authenticated claims. Integrations must not send or trust a client-selected organization ID as an authorization boundary.
+
+## User role fields
+
+User list, user detail and current-user responses expose two role fields:
+
+- `role` is the canonical authorization value (`User`, `Auditor`, `Admin` or `Superadmin`). Clients must use this field for permission logic.
+- `roleDisplayName` is the backend-owned Danish display label used by the UI. It is presentation data and must not be used for authorization.
+
+The display field is additive. Clients that do not yet understand it may continue using the canonical `role` value.
+
+## Invitation administration
+
+Admin-authorized invitation status operations are:
+
+```text
+GET    /api/auth/invites
+DELETE /api/auth/invites/{inviteId}
+```
+
+The delete operation is tenant-scoped by the authenticated organization. A pending invitation is atomically revoked and its token rotated before any external cleanup starts, so concurrent enrollment and clearing cannot both succeed. When Workslip created an Entra guest specifically for that pending invitation, the guest is removed before the revoked status row is deleted. If Graph cleanup fails, the revoked row remains as durable retry state. Accepted invitations only have their historical status row removed; the enrolled user is not deleted.
 
 ## Standard headers
 

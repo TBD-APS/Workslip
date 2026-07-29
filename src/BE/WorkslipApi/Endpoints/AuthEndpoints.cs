@@ -59,6 +59,11 @@ public static class AuthEndpoints
             return ResultExtensions.ToHttpResult(result);
         }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
+        group.MapDelete("/invites/{inviteId:guid}", async (Guid inviteId, IInvitationStatusService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.ClearAsync(inviteId, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).RequireAuthorization(AuthPolicies.RequireAdmin);
 
         group.MapPost("/invite", async (InviteUsersRequest request, IInvitationService service, CancellationToken cancellationToken) =>
         {

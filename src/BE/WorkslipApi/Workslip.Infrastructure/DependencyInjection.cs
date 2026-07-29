@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Workslip.Application;
 using Workslip.Application.Common;
 using Workslip.Application.Customers;
+using Workslip.Application.Invitations;
 using Workslip.Application.Jobs;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
@@ -49,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
         services.AddScoped<ICustomerRepository, EfCustomerRepository>();
         services.AddScoped<IInviteRepository, EfInviteRepository>();
+        services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
         services.AddScoped<IJobRepository, EfJobRepository>();
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
