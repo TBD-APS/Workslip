@@ -50,6 +50,7 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `src/authenticated-base.css` defines authenticated-only globals and the Inter/Outfit font faces.
 - `src/App.css` contains the authenticated application styling and is imported only by the lazy `AppLayout` boundary.
 - `src/features/auth/components/OneTimeCodeLogin.tsx` isolates React Hook Form, Zod and one-time-code API code from the default passkey screen.
+- `public/robots.txt` is the static crawler policy for the authenticated app domain and must not be handled by the SPA rewrite.
 - `scripts/sync-fonts.mjs` materializes pinned WOFF2 files before development and production builds.
 - `src/sw.ts` and `src/registerSW.ts` contain service-worker behaviour.
 - `tsconfig.sw.json` isolates Web Worker types from the browser application type environment.
@@ -89,19 +90,20 @@ There is currently no general `npm test` script in `package.json`. Do not claim 
 For routing, performance or PWA cache changes, also validate with a clean browser profile:
 
 1. `/` must return the SPA document directly rather than redirecting to `/app`.
-2. `/login` must not request authenticated feature chunks, invitation enrollment, `App.css`, Inter/Outfit, React Hook Form, Zod, Sonner or telemetry SDK chunks before interaction.
-3. Opening the one-time-code option must load and render its isolated form chunk.
-4. Invitation routes must load their isolated route chunk and remain fully styled.
-5. Login, invitation, startup recovery and public error states must remain fully styled and responsive.
-6. A representative `/app` route must load its JavaScript, authenticated CSS and branded fonts on demand.
-7. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
-8. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
-9. A route visited once online must remain available on an offline revisit under the supported PWA flow.
-10. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
-11. Service-worker update checks must not overlap while another worker is installing or waiting.
-12. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
-13. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
-14. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
+2. `/robots.txt` must return plain text containing valid robots directives and must never return the SPA HTML document.
+3. `/login` must not request authenticated feature chunks, invitation enrollment, `App.css`, Inter/Outfit, React Hook Form, Zod, Sonner or telemetry SDK chunks before interaction.
+4. Opening the one-time-code option must load and render its isolated form chunk.
+5. Invitation routes must load their isolated route chunk and remain fully styled.
+6. Login, invitation, startup recovery and public error states must remain fully styled and responsive.
+7. A representative `/app` route must load its JavaScript, authenticated CSS and branded fonts on demand.
+8. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
+9. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
+10. A route visited once online must remain available on an offline revisit under the supported PWA flow.
+11. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
+12. Service-worker update checks must not overlap while another worker is installing or waiting.
+13. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
+14. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
+15. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
 
 ## Vercel deployment policy
 
@@ -113,6 +115,7 @@ The Vercel project root must remain `src/FE`.
 - Manual production redeploys are not filtered by a repository `ignoreCommand`.
 - `https://app.mrsoftware.dk` is the canonical production frontend origin.
 - `/` is handled by the SPA rewrite; the router decides between login and the authenticated app without an HTTP redirect.
+- `/robots.txt` is excluded from the SPA rewrite and disallows crawler indexing of the authenticated app domain.
 
 Branch suppression is configured through `git.deploymentEnabled` in `vercel.json` with a wildcard deny and an explicit `main` allow. There is no repository-level ignored-build command.
 
@@ -137,6 +140,7 @@ The rewrite target is production-specific. A future separate frontend environmen
 ### Cache and update policy
 
 - SPA HTML: `public, max-age=0, must-revalidate`
+- robots policy: `text/plain; charset=utf-8`, `public, max-age=0, must-revalidate`, `nosniff`
 - service worker: `public, max-age=0, must-revalidate`
 - hashed Vite assets: `public, max-age=31536000, immutable`
 - versioned self-hosted fonts: `public, max-age=31536000, immutable`

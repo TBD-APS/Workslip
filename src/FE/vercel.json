@@ -11,7 +11,7 @@
       "destination": "https://api-mrsoftware-prod.azurewebsites.net/api/:path*"
     },
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!assets/|robots\\.txt$).*)",
       "destination": "/index.html"
     }
   ],
@@ -22,6 +22,23 @@
         {
           "key": "x-vercel-enable-rewrite-caching",
           "value": "0"
+        }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
         }
       ]
     },
