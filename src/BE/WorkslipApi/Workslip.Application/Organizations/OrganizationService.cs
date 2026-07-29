@@ -87,32 +87,27 @@ public sealed class OrganizationService(
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
         var existingByEmail = await administrationRepository.GetUserByEmailAsync(normalizedEmail, cancellationToken);
-        if (existingByEmail is not null && existingByEmail.OrganizationId != organizationId)
+        var initialConflict = GetAdminConflict(existingByEmail, organizationId);
+        if (initialConflict is not null)
         {
-            logger.LogWarning(
-                "Organization admin upsert conflict. OrganizationId: {OrganizationId}. ExistingOrganizationId: {ExistingOrganizationId}. Reason: {Reason}.",
-                organizationId,
-                existingByEmail.OrganizationId,
-                "email_in_use");
-            return Result<OrganizationUserResponse>.Conflict("email_in_use");
-        }
-
-        if (existingByEmail?.Role == Roles.Superadmin)
-        {
-            logger.LogWarning(
-                "Organization admin upsert rejected for Superadmin account. OrganizationId: {OrganizationId}. UserId: {UserId}.",
-                organizationId,
-                existingByEmail.Id);
-            return Result<OrganizationUserResponse>.Conflict("superadmin_role_protected");
+            LogAdminConflict(organizationId, existingByEmail, initialConflict);
+            return Result<OrganizationUserResponse>.Conflict(initialConflict);
         }
 
         var admin = existingByEmail
             ?? await administrationRepository.GetUnlinkedAdminAsync(organizationId, cancellationToken);
 
         var entraUser = await entraService.CreateUserAsync(normalizedEmail, request.DisplayName.Trim(), cancellationToken);
+        AdminPersistenceResult persistenceResult;
         try
         {
-            admin = await PersistAdminAsync(organizationId, normalizedEmail, request, entraUser, admin, cancellationToken);
+            persistenceResult = await PersistAdminAsync(
+                organizationId,
+                normalizedEmail,
+                request,
+                entraUser,
+                admin,
+                cancellationToken);
         }
         catch
         {
@@ -120,16 +115,24 @@ public sealed class OrganizationService(
             throw;
         }
 
+        if (persistenceResult.Conflict is not null)
+        {
+            await TryRollbackCreatedEntraUserAsync(entraUser, cancellationToken);
+            LogAdminConflict(organizationId, persistenceResult.ConflictingUser, persistenceResult.Conflict);
+            return Result<OrganizationUserResponse>.Conflict(persistenceResult.Conflict);
+        }
+
+        var persistedAdmin = persistenceResult.Admin!;
         logger.LogInformation(
             "Organization admin upserted. OrganizationId: {OrganizationId}. UserId: {UserId}. Created: {Created}.",
             organizationId,
-            admin.Id,
-            existingByEmail is null);
+            persistedAdmin.Id,
+            admin is null);
 
-        return Result<OrganizationUserResponse>.Success(ToOrganizationUserResponse(admin));
+        return Result<OrganizationUserResponse>.Success(ToOrganizationUserResponse(persistedAdmin));
     }
 
-    private async Task<UserDataRow> PersistAdminAsync(
+    private async Task<AdminPersistenceResult> PersistAdminAsync(
         Guid organizationId,
         string normalizedEmail,
         UpsertOrganizationAdminRequest request,
@@ -137,6 +140,18 @@ public sealed class OrganizationService(
         UserDataRow? admin,
         CancellationToken cancellationToken)
     {
+        var currentEmailOwner = await administrationRepository.GetUserByEmailAsync(normalizedEmail, cancellationToken);
+        var conflict = GetAdminConflict(currentEmailOwner, organizationId);
+        if (conflict is not null)
+        {
+            return AdminPersistenceResult.FromConflict(conflict, currentEmailOwner);
+        }
+
+        if (currentEmailOwner is not null && currentEmailOwner.Id != admin?.Id)
+        {
+            admin = currentEmailOwner;
+        }
+
         var now = DateTimeOffset.UtcNow;
         if (admin is null)
         {
@@ -161,35 +176,13 @@ public sealed class OrganizationService(
             admin.CreatedAt = now;
         }
 
-        var existingAdmin = await administrationRepository.GetUserByEmailAsync(normalizedEmail, cancellationToken);
-        if (existingAdmin is not null && existingAdmin.Id != admin.Id)
-        {
-            if (existingAdmin.OrganizationId != organizationId)
-            {
-                throw new InvalidOperationException("Admin email became assigned to another organization during upsert.");
-            }
-
-            if (existingAdmin.Role == Roles.Superadmin)
-            {
-                throw new InvalidOperationException("Superadmin account cannot be converted to an organization admin.");
-            }
-
-            admin = existingAdmin;
-            admin.DisplayName = request.DisplayName.Trim();
-            admin.Phone = NullIfWhiteSpace(request.Phone) ?? string.Empty;
-            admin.EntraId = entraUser.EntraUserId;
-            admin.EntraEmail = entraUser.EntraMail;
-            admin.Role = Roles.Admin;
-            admin.UpdatedAt = now;
-        }
-
         var updated = await administrationRepository.UpdateAdminAsync(admin, cancellationToken);
         if (!updated)
         {
             admin.Id = await administrationRepository.CreateAdminAsync(admin, cancellationToken);
         }
 
-        return admin;
+        return AdminPersistenceResult.Success(admin);
     }
 
     private async Task TryRollbackCreatedEntraUserAsync(CreateEntraUserResult entraUser, CancellationToken cancellationToken)
@@ -220,6 +213,33 @@ public sealed class OrganizationService(
         }
     }
 
+    private void LogAdminConflict(Guid organizationId, UserDataRow? existingUser, string conflict)
+    {
+        logger.LogWarning(
+            "Organization admin upsert conflict. OrganizationId: {OrganizationId}. ExistingOrganizationId: {ExistingOrganizationId}. UserId: {UserId}. Reason: {Reason}.",
+            organizationId,
+            existingUser?.OrganizationId,
+            existingUser?.Id,
+            conflict);
+    }
+
+    private static string? GetAdminConflict(UserDataRow? existingUser, Guid organizationId)
+    {
+        if (existingUser is null)
+        {
+            return null;
+        }
+
+        if (existingUser.OrganizationId != organizationId)
+        {
+            return "email_in_use";
+        }
+
+        return existingUser.Role == Roles.Superadmin
+            ? "superadmin_role_protected"
+            : null;
+    }
+
     private static OrganizationUserResponse ToOrganizationUserResponse(UserDataRow user) => new(
         user.Id,
         user.OrganizationId,
@@ -240,4 +260,15 @@ public sealed class OrganizationService(
 
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private sealed record AdminPersistenceResult(
+        UserDataRow? Admin,
+        string? Conflict,
+        UserDataRow? ConflictingUser)
+    {
+        public static AdminPersistenceResult Success(UserDataRow admin) => new(admin, null, null);
+
+        public static AdminPersistenceResult FromConflict(string conflict, UserDataRow? conflictingUser) =>
+            new(null, conflict, conflictingUser);
+    }
 }
