@@ -54,7 +54,6 @@ jobs:
           npx eslint
           src/components/layouts/AppLayout.tsx
           src/providers/permissions/permissions.ts
-          src/routes/index.tsx
           src/features/superadmin/api.ts
           src/features/superadmin/types.ts
           src/features/superadmin/components/OrganizationCreateForm.tsx
