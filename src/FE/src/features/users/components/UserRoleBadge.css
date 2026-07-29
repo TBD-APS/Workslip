@@ -1,0 +1,36 @@
+.user-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: fit-content;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.user-role-badge--user {
+  background: var(--surface-selected-strong);
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.user-role-badge--auditor {
+  background: var(--surface-raised);
+  border-color: var(--text-muted);
+  color: var(--text-muted);
+}
+
+.user-role-badge--admin {
+  background: var(--status-red-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.user-role-badge--superadmin {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}

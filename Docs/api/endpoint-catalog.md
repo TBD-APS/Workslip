@@ -1,6 +1,6 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-26  
+**Contract build reviewed:** 2026-07-28  
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
@@ -33,12 +33,13 @@ OpenAPI/Scalar exposure must be verified per environment. The current startup ma
 | POST | `/api/auth/entra-enroll` | Entra JWT | Enrollment request → local bearer token |
 | POST | `/api/auth/entra-login` | Entra JWT | Authenticated Entra identity → local bearer token |
 | GET | `/api/auth/invites` | Admin | Organization invitation list |
+| DELETE | `/api/auth/invites/{inviteId}` | Admin | Clears one tenant-owned status; revokes pending invite-owned Entra guest |
 | POST | `/api/auth/invite` | Admin | Invitation batch → result |
 | POST | `/api/auth/invite/{token}/open` | Anonymous | Marks invitation opened |
 
 ## Users
 
-All `/api/users` routes are in the admin route group. Additional user requirements do not reduce the effective admin requirement.
+All `/api/users` routes are in the admin route group. Additional user requirements do not reduce the effective admin requirement. User list/detail responses retain the canonical `role` and add the Danish presentation field `roleDisplayName`.
 
 | Method | Path | Access | Request/response |
 |---|---|---|---|

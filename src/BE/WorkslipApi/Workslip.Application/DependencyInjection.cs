@@ -23,6 +23,7 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<IUserEntraService, UserEntraService>();
     services.AddScoped<IAuthService, AuthService>();
     services.AddScoped<IInvitationService, InvitationService>();
+    services.AddScoped<IInvitationStatusService, InvitationStatusService>();
     services.AddScoped<IWorksheetService, WorksheetService>();
     services.AddScoped<IReferenceDataService, ReferenceDataService>();
     services.AddScoped<ICustomerService, CustomerService>();

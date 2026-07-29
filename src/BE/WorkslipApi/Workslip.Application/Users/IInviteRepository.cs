@@ -16,5 +16,6 @@ public interface IInviteRepository
 
     Task MarkOpenedAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken);
 
+    // Returned rows are atomically revoked before external Entra cleanup begins.
     Task<IReadOnlyList<InviteTokenRow>> GetStaleEntraProvisionedAsync(DateTimeOffset now, int take, CancellationToken cancellationToken);
 }

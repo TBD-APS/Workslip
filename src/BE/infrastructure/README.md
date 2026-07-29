@@ -10,7 +10,7 @@ Workslip has exactly three supported deployment entry points:
 
 | Script | Purpose |
 |---|---|
-| `deploy.ps1` | Reconcile Entra, remove the obsolete deployment-created OAuth credential and deploy Azure infrastructure. |
+| `deploy.ps1` | Reconcile Entra and deploy Azure infrastructure. |
 | `deploy-entra.ps1` | Reconcile only the Microsoft Entra application registrations and service principals. |
 | `deploy-infrastructure.ps1` | Deploy only Azure resources using existing Entra state or read-only Entra discovery. |
 
@@ -36,8 +36,7 @@ Run both phases through the primary entry point:
 The sequence is:
 
 1. `deploy-entra.ps1` reconciles the two Entra applications and service principals.
-2. The internal credential-cleanup step removes the exact obsolete `workslip-deploy-{environment}-oauth-client-secret` credential when present.
-3. `deploy-infrastructure.ps1` deploys and reconciles Azure resources.
+2. `deploy-infrastructure.ps1` deploys and reconciles Azure resources.
 
 ## Entra only
 
@@ -83,7 +82,7 @@ Vercel cache-purge credentials and project configuration are outside the Azure i
 
 ## Internal helpers
 
-`grant-web-api-sql-access.ps1` and files under `internal/` are called by the supported entry points. They are not standalone deployment commands and must not be referenced as startup scripts in automation or operator documentation.
+`grant-web-api-sql-access.ps1` is called by `deploy-infrastructure.ps1`. It is an implementation helper, not a standalone operator command.
 
 ## Runtime SQL authentication
 
@@ -121,9 +120,9 @@ These permissions support external-user lookup/invitation/deletion, API service-
 
 ## ACS custom sender
 
-The verified `mrsoftware.dk` ACS email domain and `noreply@mrsoftware.dk` sender are selected by every supported infrastructure deployment. There is no operator activation parameter.
+Production selects the verified `mrsoftware.dk` ACS email domain and `noreply@mrsoftware.dk` sender. Non-production environments use their Azure-managed domain and generated `DoNotReply@<domain>.azurecomm.net` sender. There is no operator activation parameter; the environment determines the sender.
 
-The Azure-managed domain remains linked only as an emergency rollback resource; the supported deployment path always provisions the custom sender and writes `noreply@mrsoftware.dk` to App Configuration.
+The Azure-managed domain remains linked in production as an emergency rollback resource. Non-production deployments do not provision or link the production custom domain.
 
 DNS verification must remain valid for Domain, SPF, DKIM and DKIM2. See `../../../Docs/acs-email-setup.md` for maintenance and smoke-test procedures.
 
@@ -136,7 +135,7 @@ A successful script exit is not sufficient release evidence. Verify:
 3. The API managed identity can connect and `/health` returns successfully after API deployment.
 4. Microsoft login and one authenticated API request succeed.
 5. The legacy OAuth credential display name is absent from the OAuth application after a full deployment.
-6. `Azure:Acs:SenderAddress` is `noreply@mrsoftware.dk` and the ACS domain verification states remain successful.
+6. In production, `Azure:Acs:SenderAddress` is `noreply@mrsoftware.dk` and the ACS domain verification states remain successful; non-production uses its Azure-managed sender.
 7. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
 
 Production Azure execution, DNS changes and secret rotation are explicit operator actions; repository changes alone do not prove they succeeded.
