@@ -48,6 +48,8 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `src/providers/AuthContext.tsx` provides the lightweight public auth contract and loads login helpers only when used.
 - `src/providers/AuthenticatedAppProvider.tsx` owns React Query, the generated current-user client, push registration and authenticated auth state; it is loaded only when a stored token exists.
 - `src/routes/preloadPrimaryAppRoute.ts` warms the authenticated layout and default jobs route only after a token exists, allowing their code to download alongside session validation without affecting the anonymous login path.
+- `src/features/jobs/queries/jobListQuery.ts` owns the default jobs query request, prefetch, cache lifetime and initial browser-state key.
+- `src/hooks/paginatedListState.ts` keeps paginated list storage and query-key construction consistent between prefetching and rendered lists.
 - `src/base.css` contains the small global reset, variables and shared public controls.
 - `src/public-*.css` contains only login, invitation, recovery, error and public paint/font rules.
 - `src/authenticated-base.css` defines authenticated-only globals and the Inter/Outfit font faces.
@@ -63,6 +65,8 @@ API generation uses Orval. Generated output must be regenerated from the current
 Authenticated feature routes and invitation enrollment are loaded through dynamic imports. The default passkey login remains in the initial application shell. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
 
 The public shell does not import the old marketing stylesheet, authenticated application CSS, branded web fonts, one-time-code form dependencies, invitation enrollment, React Query, generated authenticated clients or axios. It uses the system font and static background effects. A stored token loads `AuthenticatedAppProvider`, which installs QueryClient context and resolves `/api/auth/me`; at the same time, the authenticated layout and default jobs route are warmed in parallel. Optional one-time-code/dev-login actions load their API module only when invoked.
+
+After `/api/auth/me` succeeds, the default jobs query is prefetched with the same status, search and sort key used by the rendered list. Jobs data is fresh for 30 seconds and retained in memory for 30 minutes, so revisiting `/app` displays cached rows immediately and revalidates stale data in the background. This cache is not persisted to IndexedDB or local storage and is cleared on logout to prevent data crossing user sessions.
 
 The SPA root is served directly without a Vercel redirect. The client router renders login for unauthenticated users and moves an already authenticated user to `/app`.
 
@@ -99,15 +103,18 @@ For routing, performance or PWA cache changes, also validate with a clean browse
 5. Invitation routes must load their isolated route chunk and remain fully styled.
 6. Login, invitation, startup recovery and public error states must remain fully styled and responsive without inherited color/background transitions on their root containers.
 7. A stored-token `/app` visit must start downloading `AuthenticatedAppProvider`, `AppLayout` and `JobList` in parallel with session validation, then load the existing jobs query without duplicate route downloads.
-8. Login, dev login, logout, user updates, push registration and current-user retry must retain their existing behaviour.
-9. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
-10. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
-11. A route visited once online must remain available on an offline revisit under the supported PWA flow.
-12. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
-13. Service-worker update checks must not overlap while another worker is installing or waiting.
-14. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
-15. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
-16. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
+8. After `/api/auth/me` succeeds, the initial jobs query must use the exact key later consumed by `JobList`; an already-running request must be deduplicated.
+9. Revisiting Jobs within 30 minutes must show cached data immediately; after 30 seconds it must refresh in the background without replacing rows with the full-page skeleton.
+10. Logout must clear React Query data before another user can authenticate in the same browser.
+11. Login, dev login, user updates, push registration and current-user retry must retain their existing behaviour.
+12. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
+13. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
+14. A route visited once online must remain available on an offline revisit under the supported PWA flow.
+15. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
+16. Service-worker update checks must not overlap while another worker is installing or waiting.
+17. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
+18. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
+19. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
 
 ## Vercel deployment policy
 
@@ -148,6 +155,8 @@ The rewrite target is production-specific. A future separate frontend environmen
 - service worker: `public, max-age=0, must-revalidate`
 - hashed Vite assets: `public, max-age=31536000, immutable`
 - versioned self-hosted fonts: `public, max-age=31536000, immutable`
+- authenticated jobs HTTP responses: private browser revalidation through response-complete ETags; no CDN caching
+- jobs React Query data: 30-second freshness, 30-minute in-memory retention, clear on logout
 - API rewrite: CDN caching disabled
 
 The service worker precaches only the SPA document, web manifest and bootstrap JavaScript. CSS, fonts, images and lazy chunks are cached only after the browser requests them. Same-origin assets below `/assets/` and `/fonts/` use the stable capped runtime cache. This prevents a public login visit from downloading the authenticated application during service-worker installation while retaining offline revisits for resources that were actually used.
