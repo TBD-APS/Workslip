@@ -1,7 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using Workslip.Api.ViewModels;
 using Workslip.Application.Jobs;
-using Workslip.Domain;
 
 namespace Workslip.Api.Endpoints;
 
@@ -74,80 +75,27 @@ public static class HttpCacheHeaders
     }
 
     public static string JobListEtag(
-        JobListResponse response,
+        JobListViewModel response,
         Guid organizationId,
-        Guid? currentUserId,
-        List<JobStatus>? status,
-        string? reportNumber,
-        string? customerName,
-        string? customerEmail,
-        string? customerAddress,
-        string? search,
-        string? sortBy,
-        string? sortDirection,
-        int? limit,
-        int? offset)
+        Guid? currentUserId)
     {
-        var builder = new StringBuilder()
-            .Append("jobs:list:")
-            .Append(organizationId.ToString("N"))
-            .Append(':')
-            .Append(currentUserId?.ToString("N") ?? "anon")
-            .Append(':')
-            .Append(status?.Select(x => x.ToString()).ToString() ?? "all")
-            .Append(':')
-            .Append(reportNumber?.ToLowerInvariant() ?? "none")
-            .Append(':')
-            .Append(customerName?.ToLowerInvariant() ?? "none")
-            .Append(':')
-            .Append(customerEmail?.ToLowerInvariant() ?? "none")
-            .Append(':')
-            .Append(customerAddress?.ToLowerInvariant() ?? "none")
-            .Append(':')
-            .Append(search?.ToLowerInvariant() ?? "none")
-            .Append(':')
-            .Append(sortBy?.ToLowerInvariant() ?? "default")
-            .Append(':')
-            .Append(sortDirection?.ToLowerInvariant() ?? "default")
-            .Append(':')
-            .Append(limit?.ToString() ?? "default")
-            .Append(':')
-            .Append(offset?.ToString() ?? "default")
-            .Append(':')
-            .Append(response.TotalCount);
-
-        foreach (var job in response.Items.OrderBy(job => job.Id))
-        {
-            builder
-                .Append('|')
-                .Append(job.Id.ToString("N"))
-                .Append(':')
-                .Append(job.UpdatedAt.UtcTicks)
-                .Append(':')
-                .Append(job.Status);
-        }
-
-        return ToWeakEtag(builder.ToString());
+        // The list contains related data that can change without updating the
+        // JobReports row itself: assignments, worksheet totals, installations
+        // and user-specific seen/rejection flags. Hash the complete mapped HTTP
+        // representation so a 304 can never hide one of those changes.
+        var representation = JsonSerializer.Serialize(response);
+        var userKey = currentUserId?.ToString("N") ?? "anon";
+        return ToWeakEtag($"jobs:list:{organizationId:N}:{userKey}:{representation}");
     }
 
-    public static string JobAssignedEtag(IEnumerable<JobListItemResponse> jobs, Guid organizationId)
+    public static string JobAssignedEtag(
+        IReadOnlyList<JobListItemViewModel> jobs,
+        Guid organizationId,
+        Guid? currentUserId)
     {
-        var builder = new StringBuilder()
-            .Append("jobs:assigned:")
-            .Append(organizationId.ToString("N"));
-
-        foreach (var job in jobs.OrderBy(j => j.Id))
-        {
-            builder
-                .Append('|')
-                .Append(job.Id.ToString("N"))
-                .Append(':')
-                .Append(job.UpdatedAt.UtcTicks)
-                .Append(':')
-                .Append(job.Status);
-        }
-
-        return ToWeakEtag(builder.ToString());
+        var representation = JsonSerializer.Serialize(jobs);
+        var userKey = currentUserId?.ToString("N") ?? "anon";
+        return ToWeakEtag($"jobs:assigned:{organizationId:N}:{userKey}:{representation}");
     }
 
     public static string JobHistoryEtag(Guid jobId, IEnumerable<JobHistoryResponse> events, int? limit, int? offset)
