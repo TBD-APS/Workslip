@@ -7,6 +7,7 @@ namespace Workslip.Api.Helpers;
 public sealed class CurrentUserContext(IHttpContextAccessor httpContextAccessor) : ICurrentUserContext
 {
     public const string OrganizationScopeHeader = "X-Workslip-Organization-Id";
+    public const string ValidatedOrganizationScopeItem = "Workslip.ValidatedOrganizationScope";
 
     private const string WorkslipUserIdClaim = "workslipUserId";
     private const string OrganizationIdClaim = "organizationId";
@@ -18,7 +19,7 @@ public sealed class CurrentUserContext(IHttpContextAccessor httpContextAccessor)
 
     public Guid? OrganizationId =>
         string.Equals(Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase)
-            ? TryGetHeaderGuid(OrganizationScopeHeader)
+            ? GetValidatedOrganizationScope()
             : TryGetClaimGuid(OrganizationIdClaim);
 
     public string? Role =>
@@ -34,9 +35,10 @@ public sealed class CurrentUserContext(IHttpContextAccessor httpContextAccessor)
         return Guid.TryParse(value, out var id) ? id : null;
     }
 
-    private Guid? TryGetHeaderGuid(string headerName)
-    {
-        var value = httpContextAccessor.HttpContext?.Request.Headers[headerName].FirstOrDefault();
-        return Guid.TryParse(value, out var id) ? id : null;
-    }
+    private Guid? GetValidatedOrganizationScope() =>
+        httpContextAccessor.HttpContext?.Items.TryGetValue(
+            ValidatedOrganizationScopeItem,
+            out var value) == true && value is Guid organizationId
+                ? organizationId
+                : null;
 }
