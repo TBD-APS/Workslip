@@ -33,13 +33,16 @@ public static class JobEndpoints
         {
             var statusList = statuses?.ToList();
             var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, cancellationToken);
-            return CachedOk(result, httpContext,
-                response => HttpCacheHeaders.JobListEtag(response, currentUser.OrganizationId!.Value, currentUser.UserId, statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset),
-                response => new
-                {
-                    items = response.Items.Select(JobViewModelBuilder.ToListItem).ToArray(),
-                    totalCount = response.TotalCount
-                });
+            return CachedOk(
+                result,
+                httpContext,
+                response => new JobListViewModel(
+                    response.Items.Select(JobViewModelBuilder.ToListItem).ToArray(),
+                    response.TotalCount),
+                response => HttpCacheHeaders.JobListEtag(
+                    response,
+                    currentUser.OrganizationId!.Value,
+                    currentUser.UserId));
         });
 
         readGroup.MapGet("/my-assigned", async (HttpContext httpContext, ICurrentUserContext currentUser, IJobService service, CancellationToken cancellationToken) =>
@@ -181,6 +184,24 @@ public static class JobEndpoints
         .Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
         return app;
+    }
+
+    private static IResult CachedOk<T, TResponse>(
+        Ardalis.Result.Result<T> result,
+        HttpContext httpContext,
+        Func<T, TResponse> map,
+        Func<TResponse, string> etagFactory)
+    {
+        if (!result.IsSuccess)
+            return ResultExtensions.ToHttpResult(result);
+
+        var response = map(result.Value);
+        var etag = etagFactory(response);
+        HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
+
+        return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
+            ? TypedResults.StatusCode(StatusCodes.Status304NotModified)
+            : TypedResults.Ok(response);
     }
 
     private static IResult CachedOk<T>(
