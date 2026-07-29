@@ -30,7 +30,7 @@ const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? '';
 const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
 const isVercelHosted = hostname === 'app.mrsoftware.dk' || hostname.endsWith('.vercel.app');
 const apiUrl = isVercelHosted ? '' : configuredApiUrl;
-const AUTH_ME_TIMEOUT_MS = 12_000;
+const AUTH_ME_TIMEOUT_MS = 6_000;
 
 const isAuthMeRequest = (url: string | undefined): boolean => {
   const normalizedUrl = (url ?? '')
