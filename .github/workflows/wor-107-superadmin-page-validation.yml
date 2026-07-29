@@ -1,0 +1,64 @@
+name: WOR-107 Superadmin page validation
+
+on:
+  push:
+    branches:
+      - rbj--107-superadmin-organization-admin
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/BE/WorkslipApi/**"
+      - "src/FE/**"
+      - ".github/workflows/wor-107-superadmin-page-validation.yml"
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/BE/WorkslipApi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Restore
+        run: dotnet restore Workslip.slnx
+      - name: Build
+        run: dotnet build Workslip.slnx --configuration Release --no-restore
+      - name: Organization tests
+        run: >-
+          dotnet test Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --filter "FullyQualifiedName~Workslip.Tests.Organizations"
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/FE
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Targeted lint
+        run: >-
+          npx eslint
+          src/components/layouts/AppLayout.tsx
+          src/providers/permissions/permissions.ts
+          src/routes/index.tsx
+          src/features/superadmin/api.ts
+          src/features/superadmin/types.ts
+          src/features/superadmin/components/OrganizationCreateForm.tsx
+          src/features/superadmin/components/AdminInviteForm.tsx
+          src/features/superadmin/routes/SuperAdmin.tsx
+      - name: Build
+        run: npm run build
