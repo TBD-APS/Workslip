@@ -13,8 +13,6 @@ public sealed class DevelopmentDatabaseSeeder(
     private static readonly Guid CanonicalSuperadminId =
         new("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F");
 
-    private const string CanonicalSuperadminEmail = "rasmusvm6@hotmail.com";
-
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         await DatabaseSeeder.Seed(db);
@@ -32,26 +30,33 @@ public sealed class DevelopmentDatabaseSeeder(
 
     private async Task ReconcileSuperadminAsync(CancellationToken cancellationToken)
     {
-        var normalizedEmail = CanonicalSuperadminEmail.ToLowerInvariant();
-        var matchingUsers = await db.Users
-            .Where(user =>
-                user.Id == CanonicalSuperadminId ||
-                user.Email.ToLower() == normalizedEmail)
-            .ToListAsync(cancellationToken);
+        var user = await db.Users
+            .SingleOrDefaultAsync(candidate => candidate.Id == CanonicalSuperadminId, cancellationToken);
 
-        if (matchingUsers.Count == 0)
+        if (user is null)
         {
             throw new InvalidOperationException(
-                $"Development superadmin '{normalizedEmail}' was not created by DatabaseSeeder.");
+                $"Canonical development superadmin '{CanonicalSuperadminId}' was not created by DatabaseSeeder. Resolve any conflicting seeded email before startup.");
         }
 
-        if (matchingUsers.Count > 1)
+        var normalizedEmail = user.Email.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalizedEmail))
         {
             throw new InvalidOperationException(
-                $"Development superadmin identity conflict: ID '{CanonicalSuperadminId}' and email '{normalizedEmail}' belong to different users.");
+                $"Canonical development superadmin '{CanonicalSuperadminId}' has no email address.");
         }
 
-        var user = matchingUsers[0];
+        var emailOwnedByAnotherUser = await db.Users.AnyAsync(
+            candidate =>
+                candidate.Id != user.Id &&
+                candidate.Email.ToLower() == normalizedEmail,
+            cancellationToken);
+        if (emailOwnedByAnotherUser)
+        {
+            throw new InvalidOperationException(
+                $"Development superadmin email '{normalizedEmail}' belongs to multiple Workslip users.");
+        }
+
         var entraUser = await entraService.EnsureSuperadminAsync(
             normalizedEmail,
             user.DisplayName,
