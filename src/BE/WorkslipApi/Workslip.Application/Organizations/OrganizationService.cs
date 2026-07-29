@@ -37,6 +37,21 @@ public sealed class OrganizationService(
             return Result<OrganizationOnboardingResponse>.Invalid(errors);
         }
 
+        var normalizedAdminEmail = NullIfWhiteSpace(request.AdminEmail)?.ToLowerInvariant();
+        if (normalizedAdminEmail is not null)
+        {
+            var existingAdminEmail = await administrationRepository.GetUserByEmailAsync(normalizedAdminEmail, cancellationToken);
+            if (existingAdminEmail is not null)
+            {
+                logger.LogWarning(
+                    "Organization create conflict. ExistingOrganizationId: {ExistingOrganizationId}. UserId: {UserId}. Reason: {Reason}.",
+                    existingAdminEmail.OrganizationId,
+                    existingAdminEmail.Id,
+                    "email_in_use");
+                return Result<OrganizationOnboardingResponse>.Conflict("email_in_use");
+            }
+        }
+
         var normalizedCvr = OrganizationRequestValidator.NormalizeCvr(request.Cvr);
         if (await repository.CvrExistsAsync(normalizedCvr, cancellationToken))
         {
@@ -127,7 +142,7 @@ public sealed class OrganizationService(
             "Organization admin upserted. OrganizationId: {OrganizationId}. UserId: {UserId}. Created: {Created}.",
             organizationId,
             persistedAdmin.Id,
-            admin is null);
+            persistenceResult.Created);
 
         return Result<OrganizationUserResponse>.Success(ToOrganizationUserResponse(persistedAdmin));
     }
@@ -151,8 +166,13 @@ public sealed class OrganizationService(
         {
             admin = currentEmailOwner;
         }
+        else if (admin is not null && string.IsNullOrWhiteSpace(admin.Email))
+        {
+            admin = await administrationRepository.GetUnlinkedAdminAsync(organizationId, cancellationToken);
+        }
 
         var now = DateTimeOffset.UtcNow;
+        var created = admin is null;
         if (admin is null)
         {
             admin = new UserDataRow
@@ -180,9 +200,10 @@ public sealed class OrganizationService(
         if (!updated)
         {
             admin.Id = await administrationRepository.CreateAdminAsync(admin, cancellationToken);
+            created = true;
         }
 
-        return AdminPersistenceResult.Success(admin);
+        return AdminPersistenceResult.Success(admin, created);
     }
 
     private async Task TryRollbackCreatedEntraUserAsync(CreateEntraUserResult entraUser, CancellationToken cancellationToken)
@@ -264,11 +285,13 @@ public sealed class OrganizationService(
     private sealed record AdminPersistenceResult(
         UserDataRow? Admin,
         string? Conflict,
-        UserDataRow? ConflictingUser)
+        UserDataRow? ConflictingUser,
+        bool Created)
     {
-        public static AdminPersistenceResult Success(UserDataRow admin) => new(admin, null, null);
+        public static AdminPersistenceResult Success(UserDataRow admin, bool created) =>
+            new(admin, null, null, created);
 
         public static AdminPersistenceResult FromConflict(string conflict, UserDataRow? conflictingUser) =>
-            new(null, conflict, conflictingUser);
+            new(null, conflict, conflictingUser, false);
     }
 }
