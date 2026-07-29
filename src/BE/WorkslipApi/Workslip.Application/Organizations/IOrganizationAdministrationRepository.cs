@@ -4,7 +4,8 @@ namespace Workslip.Application.Organizations;
 
 public interface IOrganizationAdministrationRepository
 {
-    Task<IReadOnlyList<OrganizationRow>> ListOrganizationsAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<OrganizationRow>> ListOrganizationsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<OrganizationRow>>([]);
 
     Task<OrganizationRow?> GetOrganizationAsync(Guid organizationId, CancellationToken cancellationToken);
 
