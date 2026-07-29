@@ -1,10 +1,10 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-28  
+**Contract build reviewed:** 2026-07-29  
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
-The Postman item with the same route is the maintained request/response example. Parameterized requests use collection variables such as `jobId`, `userId`, `customerId` and `worksheetId`.
+The Postman item with the same route is the maintained request/response example. Parameterized requests use collection variables such as `jobId`, `userId`, `customerId`, `organizationId` and `worksheetId`.
 
 ## Platform
 
@@ -20,7 +20,10 @@ OpenAPI/Scalar exposure must be verified per environment. The current startup ma
 
 | Method | Path | Access | Request/response |
 |---|---|---|---|
-| POST | `/api/organizations/` | Admin | Organization onboarding request → organization and initial-user view |
+| POST | `/api/organizations/` | Superadmin | Organization onboarding request → organization and initial-admin view |
+| PUT | `/api/organizations/{organizationId}/admin` | Superadmin | Administrator email, display name and optional phone → created or updated admin view |
+
+The admin upsert rejects an email owned by another organization and protects existing `Superadmin` accounts from demotion.
 
 ## Authentication and invitations
 
