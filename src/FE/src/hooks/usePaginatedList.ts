@@ -32,8 +32,6 @@ interface UsePaginatedListOptions<TItem> {
   pageSize?: number;
   enabled?: boolean;
   storageKey?: string;
-  staleTime?: number;
-  gcTime?: number;
 }
 
 interface UsePaginatedListReturn<TItem> {
@@ -68,8 +66,6 @@ export function usePaginatedList<TItem>({
   pageSize = 20,
   enabled = true,
   storageKey,
-  staleTime,
-  gcTime,
 }: UsePaginatedListOptions<TItem>): UsePaginatedListReturn<TItem> {
   const [initialState] = useState(() => getPaginatedListInitialState(storageKey));
   const [search, setSearch] = useState(initialState.search);
@@ -98,8 +94,6 @@ export function usePaginatedList<TItem>({
     fetchPage: fetchWrapped,
     pageSize,
     enabled,
-    staleTime,
-    gcTime,
   });
 
   const { sentinelRef } = useInfiniteScroll({
