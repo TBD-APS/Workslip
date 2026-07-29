@@ -35,6 +35,9 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
             IF COL_LENGTH(N'dbo.NotificationQueue', N'ReadUtc') IS NULL
                 ALTER TABLE [dbo].[NotificationQueue] ADD [ReadUtc] datetimeoffset NULL;
 
+            IF COL_LENGTH(N'dbo.InviteTokens', N'RevokedAt') IS NULL
+                ALTER TABLE [dbo].[InviteTokens] ADD [RevokedAt] datetimeoffset NULL;
+
             IF COL_LENGTH(N'dbo.Customers', N'CustomerNumber') IS NULL
                 ALTER TABLE [dbo].[Customers] ADD [CustomerNumber] nvarchar(80) NULL;
             ELSE IF COL_LENGTH(N'dbo.Customers', N'CustomerNumber') = -1
