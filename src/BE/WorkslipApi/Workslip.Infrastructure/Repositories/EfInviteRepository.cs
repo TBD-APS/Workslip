@@ -24,9 +24,6 @@ public sealed class EfInviteRepository : IInviteRepository, IInvitationStatusRep
     public Task UpdateAsync(InviteTokenRow invite, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("invites.update", token => UpdateCoreAsync(invite, token), cancellationToken);
 
-    public Task DeleteAsync(InviteTokenRow invite, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync("invites.delete", token => DeleteCoreAsync(invite, token), cancellationToken);
-
     public Task<InviteTokenRow?> GetInviteByEmailAsync(Guid organizationId, string email, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("invites.get-by-email", token => GetInviteByEmailCoreAsync(organizationId, email, token), cancellationToken);
 
@@ -48,6 +45,30 @@ public sealed class EfInviteRepository : IInviteRepository, IInvitationStatusRep
     public Task<IReadOnlyList<InviteTokenRow>> GetStaleEntraProvisionedAsync(DateTimeOffset now, int take, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("invites.stale-entra", token => GetStaleEntraProvisionedCoreAsync(now, take, token), cancellationToken);
 
+    public Task<bool> TryRevokePendingAsync(
+        Guid organizationId,
+        Guid inviteId,
+        string currentToken,
+        DateTimeOffset revokedAt,
+        string replacementToken,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "invites.try-revoke",
+            token => TryRevokePendingCoreAsync(organizationId, inviteId, currentToken, revokedAt, replacementToken, token),
+            cancellationToken);
+
+    public Task<bool> TryDeleteAsync(
+        Guid organizationId,
+        Guid inviteId,
+        string token,
+        bool consumed,
+        DateTimeOffset? revokedAt,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "invites.try-delete",
+            ct => TryDeleteCoreAsync(organizationId, inviteId, token, consumed, revokedAt, ct),
+            cancellationToken);
+
     private async Task CreateCoreAsync(InviteTokenRow invite, CancellationToken cancellationToken)
     {
         _dbContext.InviteTokens.Add(invite);
@@ -60,23 +81,20 @@ public sealed class EfInviteRepository : IInviteRepository, IInvitationStatusRep
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task DeleteCoreAsync(InviteTokenRow invite, CancellationToken cancellationToken)
-    {
-        _dbContext.InviteTokens.Remove(invite);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
-
     private async Task<InviteTokenRow?> GetInviteByEmailCoreAsync(Guid organizationId, string email, CancellationToken cancellationToken)
     {
         return await _dbContext.InviteTokens
             .FirstOrDefaultAsync(
-                invite => invite.OrganizationId == organizationId && invite.Email == email,
+                invite => invite.OrganizationId == organizationId
+                    && invite.Email == email
+                    && invite.RevokedAt == null,
                 cancellationToken);
     }
 
     private async Task<InviteTokenRow?> GetByIdCoreAsync(Guid organizationId, Guid inviteId, CancellationToken cancellationToken)
     {
         return await _dbContext.InviteTokens
+            .AsNoTracking()
             .FirstOrDefaultAsync(
                 invite => invite.OrganizationId == organizationId && invite.Id == inviteId,
                 cancellationToken);
@@ -85,7 +103,7 @@ public sealed class EfInviteRepository : IInviteRepository, IInvitationStatusRep
     private async Task<InviteTokenRow?> GetByTokenCoreAsync(string token, CancellationToken cancellationToken)
     {
         return await _dbContext.InviteTokens
-            .FirstOrDefaultAsync(i => i.Token == token, cancellationToken);
+            .FirstOrDefaultAsync(i => i.Token == token && i.RevokedAt == null, cancellationToken);
     }
 
     private async Task<List<InviteTokenRow>> GetByOrganizationCoreAsync(Guid organizationId, CancellationToken cancellationToken)
@@ -98,9 +116,26 @@ public sealed class EfInviteRepository : IInviteRepository, IInvitationStatusRep
 
     private async Task MarkConsumedCoreAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken)
     {
+        var acceptedAt = DateTimeOffset.UtcNow;
+        var affectedRows = await _dbContext.InviteTokens
+            .Where(invite => invite.Id == inviteTokenRow.Id
+                && invite.OrganizationId == inviteTokenRow.OrganizationId
+                && invite.Token == inviteTokenRow.Token
+                && !invite.Consumed
+                && invite.RevokedAt == null)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(invite => invite.Consumed, true)
+                    .SetProperty(invite => invite.AcceptedAt, acceptedAt),
+                cancellationToken);
+
+        if (affectedRows == 0)
+        {
+            throw new InviteStateChangedException(inviteTokenRow.Id);
+        }
+
         inviteTokenRow.Consumed = true;
-        inviteTokenRow.AcceptedAt = DateTimeOffset.UtcNow;
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        inviteTokenRow.AcceptedAt = acceptedAt;
     }
 
     private async Task MarkOpenedCoreAsync(InviteTokenRow inviteTokenRow, CancellationToken cancellationToken)
@@ -120,5 +155,48 @@ public sealed class EfInviteRepository : IInviteRepository, IInvitationStatusRep
             .OrderBy(i => i.ExpiresAt)
             .Take(take)
             .ToListAsync(cancellationToken);
+    }
+
+    private async Task<bool> TryRevokePendingCoreAsync(
+        Guid organizationId,
+        Guid inviteId,
+        string currentToken,
+        DateTimeOffset revokedAt,
+        string replacementToken,
+        CancellationToken cancellationToken)
+    {
+        var affectedRows = await _dbContext.InviteTokens
+            .Where(invite => invite.OrganizationId == organizationId
+                && invite.Id == inviteId
+                && invite.Token == currentToken
+                && !invite.Consumed
+                && invite.RevokedAt == null)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(invite => invite.RevokedAt, revokedAt)
+                    .SetProperty(invite => invite.ExpiresAt, revokedAt)
+                    .SetProperty(invite => invite.Token, replacementToken),
+                cancellationToken);
+
+        return affectedRows == 1;
+    }
+
+    private async Task<bool> TryDeleteCoreAsync(
+        Guid organizationId,
+        Guid inviteId,
+        string token,
+        bool consumed,
+        DateTimeOffset? revokedAt,
+        CancellationToken cancellationToken)
+    {
+        var affectedRows = await _dbContext.InviteTokens
+            .Where(invite => invite.OrganizationId == organizationId
+                && invite.Id == inviteId
+                && invite.Token == token
+                && invite.Consumed == consumed
+                && invite.RevokedAt == revokedAt)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        return affectedRows == 1;
     }
 }
