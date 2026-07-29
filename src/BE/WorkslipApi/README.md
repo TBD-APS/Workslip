@@ -86,7 +86,7 @@ WorkslipApi/
 
 Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
 
-Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` as an Entra B2B identity, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on the canonical Workslip row. The operation is idempotent. A missing identity receives one invitation that redirects to `/login`; later starts reuse the existing identity. Development startup therefore requires working Microsoft Graph credentials.
+Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both remain attached to the same Development organization. The operation is idempotent. Missing identities receive one invitation that redirects to `/login`; later starts reuse the existing identities. Development startup therefore requires working Microsoft Graph credentials.
 
 Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
 
@@ -101,6 +101,8 @@ API runtime Microsoft Graph permissions are declared once in `../infrastructure/
 Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
 
 Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
+
+Superadmins remain attached to one permanent organization. The Superadmin-only organization session endpoint can issue a short-lived local token whose `organizationId` is a selected organization while the real actor ID and `Superadmin` role remain unchanged. The default lifetime is 15 minutes, configurable through `Jwt:OrganizationSessionExpiryMinutes` from 1 through 30 minutes. This flow performs no database or Entra mutation and does not bypass existing tenant repository filters.
 
 ## Result and endpoint conventions
 
