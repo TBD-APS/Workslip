@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Workslip.Application;
 using Workslip.Application.Auth;
 using Workslip.Application.Users;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 using Xunit;
 
@@ -15,18 +16,7 @@ public sealed class AuthServiceEntraLoginTests
     public async Task CompleteEntraLoginAsync_WhenMappedUserExists_ReturnsAuthUser()
     {
         var organizationId = Guid.NewGuid();
-        var user = new UserDataRow
-        {
-            Id = Guid.NewGuid(),
-            OrganizationId = organizationId,
-            Email = "jane@example.test",
-            DisplayName = "Jane",
-            EntraEmail = "jane@example.test",
-            EntraId = "entra-1",
-            Role = "User",
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+        var user = CreateUser(organizationId, Roles.User);
         var service = CreateService(new FakeCurrentUserContext(user.Id, organizationId), new FakeUserRepository(user));
 
         var result = await service.CompleteEntraLoginAsync(CancellationToken.None);
@@ -37,6 +27,23 @@ public sealed class AuthServiceEntraLoginTests
         Assert.Equal(user.Email, result.Value.Email);
         Assert.Equal(user.DisplayName, result.Value.DisplayName);
         Assert.Equal(user.Role, result.Value.Role);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserAsync_InDelegatedSession_ReportsEffectiveOrganization()
+    {
+        var homeOrganizationId = Guid.NewGuid();
+        var effectiveOrganizationId = Guid.NewGuid();
+        var user = CreateUser(homeOrganizationId, Roles.Superadmin);
+        var service = CreateService(
+            new FakeCurrentUserContext(user.Id, effectiveOrganizationId, Roles.Superadmin),
+            new FakeUserRepository(user));
+
+        var result = await service.GetCurrentUserAsync(CancellationToken.None);
+
+        Assert.Equal(user.Id, result.Id);
+        Assert.Equal(effectiveOrganizationId, result.OrganizationId);
+        Assert.Equal(Roles.Superadmin, result.Role);
     }
 
     [Fact]
@@ -59,14 +66,31 @@ public sealed class AuthServiceEntraLoginTests
         Assert.Equal(ResultStatus.Unauthorized, result.Status);
     }
 
+    private static UserDataRow CreateUser(Guid organizationId, string role) => new()
+    {
+        Id = Guid.NewGuid(),
+        OrganizationId = organizationId,
+        Email = "jane@example.test",
+        DisplayName = "Jane",
+        Phone = string.Empty,
+        EntraEmail = "jane@example.test",
+        EntraId = "entra-1",
+        Role = role,
+        CreatedAt = DateTimeOffset.UtcNow,
+        UpdatedAt = DateTimeOffset.UtcNow
+    };
+
     private static AuthService CreateService(FakeCurrentUserContext currentUser, FakeUserRepository users) =>
         new(currentUser, users, new FakeEmailService(), new InlineValidator<UpdateUserRequest>(), NullLogger<AuthService>.Instance);
 
-    private sealed class FakeCurrentUserContext(Guid? userId, Guid? organizationId) : ICurrentUserContext
+    private sealed class FakeCurrentUserContext(
+        Guid? userId,
+        Guid? organizationId,
+        string? role = Roles.User) : ICurrentUserContext
     {
         public Guid? UserId { get; } = userId;
         public Guid? OrganizationId { get; } = organizationId;
-        public string? Role => "User";
+        public string? Role { get; } = role;
     }
 
     private sealed class FakeUserRepository(UserDataRow? user) : IUserRepository
