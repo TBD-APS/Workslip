@@ -15,7 +15,8 @@ public sealed class OrganizationEndpointAuthorizationTests
         await using var app = builder.Build();
         app.MapOrganizationEndpoints();
 
-        var organizationEndpoints = app.DataSources
+        var dataSources = ((IEndpointRouteBuilder)app).DataSources;
+        var organizationEndpoints = dataSources
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
             .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("/api/organizations", StringComparison.Ordinal) == true)
