@@ -3,11 +3,15 @@ using Workslip.Api.Endpoints;
 using Workslip.Application.Jobs;
 using Workslip.Domain;
 using Xunit;
+using JobListItemViewModel = Workslip.Api.ViewModels.JobListItemViewModel;
+using JobListViewModel = Workslip.Api.ViewModels.JobListViewModel;
 
 namespace Workslip.Tests.Configuration;
 
 public sealed class HttpCacheHeadersTests
 {
+    private static readonly Guid CurrentUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
     [Fact]
     public void SetNoStore_sets_all_mutation_cache_headers()
     {
@@ -45,6 +49,117 @@ public sealed class HttpCacheHeadersTests
         };
 
         Assert.NotEqual(HttpCacheHeaders.JobReportEtag(report), HttpCacheHeaders.JobReportEtag(changedReport));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_when_assignments_change()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Ada")] }]
+        };
+
+        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_when_total_hours_change()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { TotalHours = 7.5m }]
+        };
+
+        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_when_installations_change()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { InstallationTypes = ["Varmepumpe"] }]
+        };
+
+        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_when_seen_state_changes()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { IsSeen = true }]
+        };
+
+        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_between_users()
+    {
+        var response = CreateJobList();
+        var organizationId = response.Items.Single().OrganizationId;
+
+        var first = HttpCacheHeaders.JobListEtag(response, organizationId, CurrentUserId);
+        var second = HttpCacheHeaders.JobListEtag(response, organizationId, Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"));
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void JobAssignedEtag_changes_when_related_list_data_changes()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { TotalHours = 9m, InstallationTypes = ["Kedel"] }]
+        };
+
+        Assert.NotEqual(CreateAssignedJobsEtag(response), CreateAssignedJobsEtag(changed));
+    }
+
+    private static string CreateJobListEtag(JobListViewModel response) =>
+        HttpCacheHeaders.JobListEtag(response, response.Items.Single().OrganizationId, CurrentUserId);
+
+    private static string CreateAssignedJobsEtag(JobListViewModel response) =>
+        HttpCacheHeaders.JobAssignedEtag(response.Items, response.Items.Single().OrganizationId, CurrentUserId);
+
+    private static JobListViewModel CreateJobList()
+    {
+        var organizationId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var item = new JobListItemViewModel(
+            Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+            organizationId,
+            null,
+            "2026-0001",
+            JobStatus.Draft,
+            [],
+            [],
+            false,
+            1.5m,
+            DateTimeOffset.UnixEpoch,
+            DateTimeOffset.UnixEpoch,
+            null,
+            "Diverse",
+            null,
+            null,
+            null,
+            null,
+            false,
+            false,
+            null);
+
+        return new JobListViewModel([item], 1);
     }
 
     private static JobReportSummaryResponse CreateReport(
