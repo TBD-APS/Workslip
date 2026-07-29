@@ -5,7 +5,6 @@ param environment string = ''
 param globalAdminId string = ''
 param location string = resourceGroup().location
 param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
-param logicAppName string             = 'la-${companyName}-${toLower(environment)}'
 param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
 param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
 param webApiServerName string          = take('plan-${companyName}-${toLower(environment)}', 40)
@@ -19,10 +18,9 @@ param appConfigurationCreateMode string = 'Default'
 param identityName string             = 'id-${companyName}-${toLower(environment)}'
 param githubDeploymentIdentityName string = take('id-${companyName}-${toLower(environment)}-github', 128)
 param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
-param documentIntelligenceName string = 'di-${companyName}-${toLower(environment)}'
 param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
 param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
-@description('Verified customer-managed ACS email domain used by every deployment.')
+@description('Verified customer-managed ACS email domain used by production deployments.')
 param customEmailDomainName string = 'mrsoftware.dk'
 @description('Sender username used on the verified customer-managed email domain.')
 param customEmailSenderUsername string = 'noreply'
@@ -45,7 +43,6 @@ param sqlAdminPassword string
 // ── Role definition IDs ───────────────────────────────────────────────────────
 // Centralised here so they're easy to audit and update.
 var roles = {
-  cognitiveServicesUser:   'a97b65f3-24c7-4388-baec-2e87135dc908'
   storageBlobContributor:  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
   appConfigurationDataReader: '516239f1-63e1-4d78-a4de-a74fb236a071'
   keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
@@ -58,7 +55,6 @@ var roles = {
   UserInviteAll: '09850681-111b-4a89-9bed-3f2cae46d706'
   ApplicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
   AppRoleAssignmentReadWriteAll: '06b708a9-e830-4db3-a914-8e69da51d44f'
-  UserAuthenticationMethodReadWriteAll: '50483e42-d915-4231-9639-7fdb7fd190e5'
 }
 
 var tags = {
@@ -69,6 +65,10 @@ var tags = {
 var appInsightsConnectionString = appInsights.properties.ConnectionString
 var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
 var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
+var isProduction = toLower(environment) == 'prod'
+var acsSenderAddress = isProduction
+  ? '${customEmailSenderUsername}@${customEmailDomainName}'
+  : 'DoNotReply@${azureManagedEmailDomain.properties.mailFromSenderDomain}'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Runtime identity
@@ -306,7 +306,7 @@ module dynamicAppConfigValues './dynamicConfig.bicep' = {
     oauthServerAppId: EntraAppRegistrations.outputs.OAuthAppId
 
     acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
-    acsSenderAddress: '${customEmailSenderUsername}@${customEmailDomainName}'
+    acsSenderAddress: acsSenderAddress
 
     storageAccountName: storageAccount.name
     applicationInsightsConnectionString: appInsights.properties.ConnectionString
@@ -378,7 +378,6 @@ module keyVaultConfigs './keyvaultConfig.bicep' = {
   params: {
     keyVaultName: keyVault.name
     communicationServiceName: communicationService.name
-    sqlConnectionString: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=db-${companyName}-${environment};User ID=rbj;Password=${sqlAdminPassword}; TrustServerCertificate=False;'
   }
 }
 
@@ -680,10 +679,14 @@ resource communicationService 'Microsoft.Communication/communicationServices@202
   }
   properties: {
     dataLocation: 'europe'
-    linkedDomains: [
-      azureManagedEmailDomain.id
-      customEmailDomain.id
-    ]
+    linkedDomains: isProduction
+      ? [
+          azureManagedEmailDomain.id
+          customEmailDomain.id
+        ]
+      : [
+          azureManagedEmailDomain.id
+        ]
   }
 }
 
@@ -716,9 +719,9 @@ resource azureManagedSenderUsername 'Microsoft.Communication/emailServices/domai
   }
 }
 
-// Production DNS verification is complete. The custom domain and sender are
-// unconditional parts of every infrastructure deployment.
-resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = {
+// Production DNS verification is complete. Non-production environments use the
+// Azure-managed domain and do not depend on production DNS ownership.
+resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = if (isProduction) {
   name: customEmailDomainName
   parent: emailService
   location: 'global'
@@ -729,7 +732,7 @@ resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-0
   }
 }
 
-resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = {
+resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (isProduction) {
   parent: customEmailDomain
   name: customEmailSenderUsername
   properties: {
@@ -743,7 +746,6 @@ resource customEmailSender 'Microsoft.Communication/emailServices/domains/sender
 // ──────────────────────────────────────────────────────────────────────────────
 
 output STORAGE_ACCOUNT_NAME string             = storageAccount.name
-output LOGIC_APP_NAME string                   = logicAppName
 output WEB_API_NAME string                     = webApi.name
 output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName
 output WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'
@@ -755,11 +757,10 @@ output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
 output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
 output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
-output DOCUMENT_INTELLIGENCE_NAME string       = documentIntelligenceName
 output AZURE_APP_CONFIG_ENDPOINT string         = appConfiguration.properties.endpoint
-output AZURE_AD_OAUTH_APP_OBJECT_ID string      = EntraAppRegistrations.outputs.OAuthClientId
+output AZURE_AD_OAUTH_APP_OBJECT_ID string      = EntraAppRegistrations.outputs.OAuthAppObjectId
 output AZURE_AD_OAUTH_APP_CLIENT_ID string      = EntraAppRegistrations.outputs.OAuthAppId
 output ACS_ENDPOINT string                     = 'https://${communicationService.properties.hostName}'
-output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = customEmailDomain.id
-output ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE bool      = true
-output ACS_SENDER_ADDRESS string                = '${customEmailSenderUsername}@${customEmailDomainName}'
+output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = isProduction ? customEmailDomain.id : ''
+output ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE bool      = isProduction
+output ACS_SENDER_ADDRESS string                = acsSenderAddress
