@@ -5,13 +5,6 @@
       "main": true
     }
   },
-  "redirects": [
-    {
-      "source": "/",
-      "destination": "/app",
-      "permanent": false
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/:path*",
