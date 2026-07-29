@@ -101,8 +101,24 @@ public sealed class HttpCacheHeadersTests
         Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
     }
 
+    [Fact]
+    public void JobAssignedEtag_changes_when_related_list_data_changes()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { TotalHours = 9m, InstallationTypes = ["Kedel"] }]
+        };
+
+        Assert.NotEqual(CreateAssignedJobsEtag(response), CreateAssignedJobsEtag(changed));
+    }
+
     private static string CreateJobListEtag(JobListViewModel response) =>
         HttpCacheHeaders.JobListEtag(response, response.Items.Single().OrganizationId, Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+
+    private static string CreateAssignedJobsEtag(JobListViewModel response) =>
+        HttpCacheHeaders.JobAssignedEtag(response.Items, response.Items.Single().OrganizationId, Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
 
     private static JobListViewModel CreateJobList()
     {
