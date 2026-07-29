@@ -1,18 +1,31 @@
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
-import { SpeedInsights } from '@vercel/speed-insights/react';
-import { Analytics } from '@vercel/analytics/react';
 import { AppProvider } from './providers/AppProvider';
 import { router } from './routes';
+import { scheduleAfterInitialLoad } from './lib/scheduleAfterInitialLoad';
 
-import './index.css';
-import './App.css';
+import './public-shell.css';
+
+const VercelTelemetry = lazy(() =>
+  import('./telemetry/VercelTelemetry').then((module) => ({ default: module.VercelTelemetry })),
+);
 
 function App() {
+  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
+
+  useEffect(
+    () => scheduleAfterInitialLoad(() => setTelemetryEnabled(true)),
+    [],
+  );
+
   return (
     <AppProvider>
       <RouterProvider router={router} />
-      <SpeedInsights />
-      <Analytics />
+      {telemetryEnabled && (
+        <Suspense fallback={null}>
+          <VercelTelemetry />
+        </Suspense>
+      )}
     </AppProvider>
   );
 }
