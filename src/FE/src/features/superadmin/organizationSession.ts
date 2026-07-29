@@ -6,6 +6,7 @@ import {
 const HOME_AUTH_TOKEN_KEY = 'workslip.superadmin.homeAuthToken';
 const ORGANIZATION_SESSION_ID_KEY = 'workslip.superadmin.organizationSessionId';
 const ORGANIZATION_SESSION_NAME_KEY = 'workslip.superadmin.organizationSessionName';
+const ROLE_CLAIM = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
 
 export interface OrganizationSession {
   id: string;
@@ -21,6 +22,28 @@ export function getOrganizationSession(): OrganizationSession | null {
     id,
     name: AuthStorage.getItem(ORGANIZATION_SESSION_NAME_KEY)?.trim() || 'Valgt organisation',
   };
+}
+
+export function isSuperadminAuthToken(): boolean {
+  const token = AuthStorage.getItem(AUTH_TOKEN_KEY);
+  if (!token) return false;
+
+  try {
+    const payloadPart = token.split('.')[1];
+    if (!payloadPart) return false;
+
+    const normalized = payloadPart
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(payloadPart.length / 4) * 4, '=');
+    const payload = JSON.parse(window.atob(normalized)) as Record<string, unknown>;
+    const rawRole = payload.role ?? payload.roles ?? payload[ROLE_CLAIM];
+    const role = Array.isArray(rawRole) ? rawRole[0] : rawRole;
+
+    return typeof role === 'string' && role.toLowerCase() === 'superadmin';
+  } catch {
+    return false;
+  }
 }
 
 export function activateOrganizationSession(
