@@ -1,10 +1,16 @@
+type IdleCapableWindow = Window & {
+  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
+
 export function scheduleAfterInitialLoad(task: () => void, timeoutMs = 2_000): () => void {
+  const idleWindow = window as IdleCapableWindow;
   let idleHandle: number | undefined;
   let fallbackHandle: number | undefined;
 
   const schedule = () => {
-    if ('requestIdleCallback' in window) {
-      idleHandle = window.requestIdleCallback(task, { timeout: timeoutMs });
+    if (idleWindow.requestIdleCallback) {
+      idleHandle = idleWindow.requestIdleCallback(task, { timeout: timeoutMs });
       return;
     }
 
@@ -19,8 +25,8 @@ export function scheduleAfterInitialLoad(task: () => void, timeoutMs = 2_000): (
 
   return () => {
     window.removeEventListener('load', schedule);
-    if (idleHandle !== undefined && 'cancelIdleCallback' in window) {
-      window.cancelIdleCallback(idleHandle);
+    if (idleHandle !== undefined) {
+      idleWindow.cancelIdleCallback?.(idleHandle);
     }
     if (fallbackHandle !== undefined) {
       window.clearTimeout(fallbackHandle);
