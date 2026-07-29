@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { postApiPushSubscriptions } from '../../../api/generated/push-subscriptions/push-subscriptions';
 import type { RegisterPushSubscriptionRequest } from '../../../api/generated/models';
+import { isSuperadminAuthToken } from '../../superadmin/organizationSession';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -24,6 +25,12 @@ export function usePushNotifications() {
   });
 
   const register = useCallback(async () => {
+    // Platform operators retain their own identity while changing effective
+    // organization. Never subscribe that device to a tenant notification feed.
+    if (isSuperadminAuthToken()) {
+      return;
+    }
+
     if (!VAPID_PUBLIC_KEY_ARRAY) {
       console.warn('Push notifications are disabled because VITE_VAPID_PUBLIC_KEY is not configured.');
       return;
