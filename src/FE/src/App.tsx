@@ -4,6 +4,7 @@ import { AppProvider } from './providers/AppProvider';
 import { router } from './routes';
 import { scheduleAfterInitialLoad } from './lib/scheduleAfterInitialLoad';
 
+import './public-fonts.css';
 import './public-shell.css';
 
 const VercelTelemetry = lazy(() =>
