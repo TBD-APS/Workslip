@@ -7,6 +7,10 @@ import {
   trackApiDependency,
   trackUserInteraction,
 } from '../applicationInsights';
+import {
+  getOrganizationScope,
+  ORGANIZATION_SCOPE_HEADER,
+} from '../features/superadmin/organizationScope';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -68,8 +72,6 @@ function releaseKey(config: InternalAxiosRequestConfig): void {
 const DUPLICATE_REQUEST_ERROR = '__DUPLICATE_REQUEST__';
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Bound only the startup identity request. Other reports and mutations retain
-  // their existing timeout behaviour.
   if (isAuthMeRequest(config.url) && (!config.timeout || config.timeout <= 0)) {
     config.timeout = AUTH_ME_TIMEOUT_MS;
     config.skipGlobalErrorToast = true;
@@ -79,6 +81,12 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  const organizationScope = getOrganizationScope();
+  if (token && organizationScope && !config.headers[ORGANIZATION_SCOPE_HEADER]) {
+    config.headers[ORGANIZATION_SCOPE_HEADER] = organizationScope.id;
+  }
+
   config.headers.Accept = 'application/json';
 
   const interaction = consumePendingInteraction();
@@ -171,8 +179,6 @@ apiClient.interceptors.response.use(
         }
       }
 
-      // A failing identity bootstrap is not proof that the stored token is
-      // invalid. ProtectedRoute owns retry, reload and deliberate logout.
       if (!isMeEndpoint) {
         AuthStorage.removeItem(AUTH_TOKEN_KEY);
         AuthStorage.removeItem(USER_EMAIL_KEY);
@@ -192,5 +198,5 @@ apiClient.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
