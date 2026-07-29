@@ -504,9 +504,7 @@ $clientBody = [ordered]@{
             'http://localhost:5270/login',
             'http://localhost:5270/invite/callback',
             'https://app.mrsoftware.dk/login',
-            'https://app.mrsoftware.dk/invite/callback',
-            'https://workslip-v2-0.vercel.app/login',
-            'https://workslip-v2-0.vercel.app/invite/callback'
+            'https://app.mrsoftware.dk/invite/callback'
         )
     }
     web = [ordered]@{
