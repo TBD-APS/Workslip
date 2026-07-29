@@ -40,7 +40,7 @@ public sealed class DevelopmentDatabaseSeederTests
             .AsNoTracking()
             .SingleAsync(candidate => candidate.Id == CanonicalMahadSuperadminId);
 
-        Assert.Equal(organization.Id, rasmus.OrganizationId);
+        Assert.Null(rasmus.OrganizationId);
         Assert.Equal("rasmusvm6@hotmail.com", rasmus.Email);
         Assert.Equal("Rasmus Bak Jakobsen", rasmus.DisplayName);
         Assert.Equal("28929173", rasmus.Phone);
@@ -48,7 +48,7 @@ public sealed class DevelopmentDatabaseSeederTests
         Assert.Equal("entra-rasmus", rasmus.EntraId);
         Assert.Equal("rasmusvm6_hotmail.com#EXT#@tenant.onmicrosoft.com", rasmus.EntraEmail);
 
-        Assert.Equal(organization.Id, mahad.OrganizationId);
+        Assert.Null(mahad.OrganizationId);
         Assert.Equal("mahad8@outlook.dk", mahad.Email);
         Assert.Equal("Mahad", mahad.DisplayName);
         Assert.Equal(string.Empty, mahad.Phone);
