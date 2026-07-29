@@ -86,7 +86,7 @@ WorkslipApi/
 
 Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
 
-Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` as an Entra B2B identity, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on the canonical Workslip row. The operation is idempotent. A missing identity receives one invitation that redirects to `/login`; later starts reuse the existing identity. Development startup therefore requires working Microsoft Graph credentials.
+Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both rows are platform-scoped with `OrganizationId = null`. The operation is idempotent. A missing identity receives one invitation that redirects to `/login`; later starts reuse the existing identity. Development startup therefore requires working Microsoft Graph credentials.
 
 Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
 
@@ -96,11 +96,13 @@ Schema mutation still occurs at startup. Treat that as a production limitation t
 
 The API selects local Workslip JWT or Microsoft Entra JWT validation from the bearer-token issuer. The public browser flow uses authorization code + PKCE. The API does not require an OAuth application client secret for that flow.
 
+Tenant users receive an `organizationId` claim and are always scoped to that organization. Platform `Superadmin` users do not receive a permanent organization claim. A Superadmin must explicitly select a tenant before using ordinary tenant endpoints; the frontend sends that selection as `X-Workslip-Organization-Id`. The backend reads that header only for the authenticated `Superadmin` role and ignores it for tenant users. Dedicated `/superadmin` endpoints remain cross-tenant and do not require a selected organization.
+
 API runtime Microsoft Graph permissions are declared once in `../infrastructure/main.bicep`. They support user invitation/lifecycle and app-role assignment. Do not assign a competing permission set from deployment scripts.
 
 Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
 
-Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
+Tenant/organization identifiers must come from authenticated server context or server-owned data. The Superadmin scope header is accepted only after the server has verified the platform role. Frontend guards are not security boundaries.
 
 ## Result and endpoint conventions
 
