@@ -144,17 +144,50 @@ public sealed class EfInviteRepository : IInviteRepository, IInvitationStatusRep
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<IReadOnlyList<InviteTokenRow>> GetStaleEntraProvisionedCoreAsync(DateTimeOffset now, int take, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<InviteTokenRow>> GetStaleEntraProvisionedCoreAsync(
+        DateTimeOffset now,
+        int take,
+        CancellationToken cancellationToken)
     {
-        return await _dbContext.InviteTokens
-            .Where(i => !i.Consumed
-                && i.EntraCreatedByInvite
-                && i.EntraCleanedAt == null
-                && i.EntraUserId != null
-                && i.ExpiresAt < now)
-            .OrderBy(i => i.ExpiresAt)
+        var candidates = await _dbContext.InviteTokens
+            .AsNoTracking()
+            .Where(invite => !invite.Consumed
+                && invite.EntraCreatedByInvite
+                && invite.EntraCleanedAt == null
+                && invite.EntraUserId != null
+                && invite.ExpiresAt < now)
+            .OrderBy(invite => invite.ExpiresAt)
             .Take(take)
             .ToListAsync(cancellationToken);
+
+        var claimedInvites = new List<InviteTokenRow>(candidates.Count);
+        foreach (var invite in candidates)
+        {
+            if (invite.RevokedAt is null)
+            {
+                var replacementToken = Guid.NewGuid().ToString("N");
+                var claimed = await TryRevokePendingCoreAsync(
+                    invite.OrganizationId,
+                    invite.Id,
+                    invite.Token,
+                    now,
+                    replacementToken,
+                    cancellationToken);
+
+                if (!claimed)
+                {
+                    continue;
+                }
+
+                invite.RevokedAt = now;
+                invite.ExpiresAt = now;
+                invite.Token = replacementToken;
+            }
+
+            claimedInvites.Add(invite);
+        }
+
+        return claimedInvites;
     }
 
     private async Task<bool> TryRevokePendingCoreAsync(
