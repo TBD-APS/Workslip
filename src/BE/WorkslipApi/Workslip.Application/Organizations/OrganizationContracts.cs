@@ -7,6 +7,11 @@ public sealed record CreateOrganizationRequest(
     string? AdminEmail,
     string? AdminPhone);
 
+public sealed record UpsertOrganizationAdminRequest(
+    string Email,
+    string DisplayName,
+    string? Phone);
+
 public sealed record OrganizationResponse(
     Guid Id,
     string Name,
@@ -35,4 +40,3 @@ public sealed record CurrentUserResponse(
     string? Phone,
     string Role,
     OrganizationResponse Organization);
-
