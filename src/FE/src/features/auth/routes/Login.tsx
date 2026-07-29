@@ -10,6 +10,7 @@ import { notify } from '../../../lib/toast';
 import {
   AUTH_PROVIDER_KEY,
   AUTH_TOKEN_KEY,
+  ENTRA_LOGOUT_HINT_KEY,
   USER_EMAIL_KEY,
   AuthStorage,
   clearReauthInFlight,
@@ -92,6 +93,11 @@ export const Login = () => {
           AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
           AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
           AuthStorage.setItem(AUTH_PROVIDER_KEY, 'microsoft');
+          if (result.logoutHint) {
+            AuthStorage.setItem(ENTRA_LOGOUT_HINT_KEY, result.logoutHint);
+          } else {
+            AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
+          }
           clearReauthInFlight();
           clearEntraLoginSession();
           window.history.replaceState(null, '', '/login');

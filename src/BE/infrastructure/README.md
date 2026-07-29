@@ -57,7 +57,7 @@ Resolved object and client IDs are written to the ignored local state file:
 entra.{environment}.local.json
 ```
 
-The script preserves existing managed role/scope IDs and does not create an OAuth client secret. The browser authenticates with authorization code + PKCE; the API validates bearer tokens.
+The script preserves existing managed role/scope IDs and does not create an OAuth client secret. The browser authenticates with authorization code + PKCE; the API validates bearer tokens. The client registration also requests the `login_hint` optional ID-token claim so explicit logout can identify the active Microsoft session and return directly to Workslip without a logout account picker.
 
 ## Azure infrastructure only
 

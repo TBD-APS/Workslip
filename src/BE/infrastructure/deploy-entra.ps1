@@ -479,6 +479,20 @@ $clientBody = [ordered]@{
     api = [ordered]@{
         requestedAccessTokenVersion = 2
     }
+    # The browser stores this opaque ID-token claim and sends it as logout_hint
+    # so Microsoft can end the correct session without an account picker.
+    optionalClaims = [ordered]@{
+        idToken = @(
+            [ordered]@{
+                name = 'login_hint'
+                source = $null
+                essential = $false
+                additionalProperties = @()
+            }
+        )
+        accessToken = @()
+        saml2Token = @()
+    }
     spa = [ordered]@{
         redirectUris = @(
             'http://localhost:5270/login',

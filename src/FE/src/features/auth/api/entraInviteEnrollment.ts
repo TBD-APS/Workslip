@@ -1,5 +1,11 @@
 import { apiClient } from '../../../lib/axios';
 import type { AuthTokenResponse } from '../../../api/generated/models';
+import {
+  ensureOidcScopes,
+  extractEntraLogoutHint,
+  type EntraTokenExchangeResult,
+  type EntraTokenPayload,
+} from './entraOidc';
 
 const ENROLLMENT_KEY = 'workslip.inviteEnrollment';
 const PKCE_KEY = 'workslip.invitePkce';
@@ -9,6 +15,11 @@ export interface InviteEnrollmentDraft {
   token: string;
   displayName: string;
   phone?: string;
+}
+
+export interface CompleteEntraInviteEnrollmentResult {
+  auth: AuthTokenResponse;
+  logoutHint: string | null;
 }
 
 interface PkceState {
@@ -68,7 +79,7 @@ export const startEntraInviteSignIn = async (draft: InviteEnrollmentDraft) => {
   window.location.assign(authorizeUrl.toString());
 };
 
-export const completeEntraInviteEnrollment = async (): Promise<AuthTokenResponse> => {
+export const completeEntraInviteEnrollment = async (): Promise<CompleteEntraInviteEnrollmentResult> => {
   const draft = loadInviteEnrollmentDraft();
   const pkce = loadPkceState();
   const params = new URLSearchParams(window.location.search);
@@ -84,17 +95,19 @@ export const completeEntraInviteEnrollment = async (): Promise<AuthTokenResponse
   }
 
   const config = getOAuthConfig();
-  const entraAccessToken = await exchangeCodeForToken(config, pkce, code);
+  const tokenExchange = await exchangeCodeForToken(config, pkce, code);
 
-  return apiClient.post('/api/auth/entra-enroll', {
+  const auth = await apiClient.post('/api/auth/entra-enroll', {
     token: draft.token,
     displayName: draft.displayName,
     phone: draft.phone,
   }, {
     headers: {
-      Authorization: `Bearer ${entraAccessToken}`,
+      Authorization: `Bearer ${tokenExchange.accessToken}`,
     },
-  });
+  }) as unknown as AuthTokenResponse;
+
+  return { auth, logoutHint: tokenExchange.logoutHint };
 };
 
 const loadPkceState = (): PkceState | null => {
@@ -111,21 +124,26 @@ const loadPkceState = (): PkceState | null => {
 const getOAuthConfig = () => {
   const tenantId = import.meta.env.VITE_AZURE_AD_TENANT_ID;
   const clientId = import.meta.env.VITE_AZURE_AD_CLIENT_ID;
-  const scope = import.meta.env.VITE_AZURE_AD_SCOPE;
+  const configuredScope = import.meta.env.VITE_AZURE_AD_SCOPE;
   const redirectUri = import.meta.env.VITE_AZURE_AD_REDIRECT_URI;
 
-  if (!tenantId || !clientId || !scope) {
+  if (!tenantId || !clientId || !configuredScope) {
     throw new Error('Microsoft login mangler konfiguration. Sæt VITE_AZURE_AD_TENANT_ID, VITE_AZURE_AD_CLIENT_ID og VITE_AZURE_AD_SCOPE.');
   }
 
-  return { tenantId, clientId, scope, redirectUri };
+  return {
+    tenantId,
+    clientId,
+    scope: ensureOidcScopes(configuredScope),
+    redirectUri,
+  };
 };
 
 const exchangeCodeForToken = async (
   config: ReturnType<typeof getOAuthConfig>,
   pkce: PkceState,
   code: string,
-): Promise<string> => {
+): Promise<EntraTokenExchangeResult> => {
   const body = new URLSearchParams();
   body.set('client_id', config.clientId);
   body.set('scope', config.scope);
@@ -140,12 +158,15 @@ const exchangeCodeForToken = async (
     body,
   });
 
-  const payload = await response.json();
+  const payload = await response.json().catch(() => ({})) as EntraTokenPayload;
   if (!response.ok || !payload.access_token) {
     throw new Error(payload.error_description || 'Kunne ikke hente Microsoft token.');
   }
 
-  return payload.access_token as string;
+  return {
+    accessToken: payload.access_token,
+    logoutHint: extractEntraLogoutHint(payload.id_token),
+  };
 };
 
 const randomUrlSafe = (byteLength: number) => {

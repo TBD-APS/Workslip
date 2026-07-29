@@ -1,5 +1,11 @@
 import { apiClient } from '../../../lib/axios';
 import type { AuthTokenResponse } from '../../../api/generated/models';
+import {
+  ensureOidcScopes,
+  extractEntraLogoutHint,
+  type EntraTokenExchangeResult,
+  type EntraTokenPayload,
+} from './entraOidc';
 
 const PKCE_KEY = 'workslip.loginPkce';
 
@@ -18,6 +24,7 @@ interface StartEntraLoginOptions {
 export interface CompleteEntraLoginResult {
   auth: AuthTokenResponse;
   returnTo: string;
+  logoutHint: string | null;
 }
 
 /**
@@ -157,34 +164,45 @@ export const completeEntraLogin = async (): Promise<CompleteEntraLoginResult> =>
   }
 
   const config = getOAuthConfig();
-  const entraAccessToken = await exchangeCodeForToken(config, pkce, code);
+  const tokenExchange = await exchangeCodeForToken(config, pkce, code);
 
   const auth = await apiClient.post('/api/auth/entra-login', undefined, {
     headers: {
-      Authorization: `Bearer ${entraAccessToken}`,
+      Authorization: `Bearer ${tokenExchange.accessToken}`,
     },
   }) as unknown as AuthTokenResponse;
 
-  return { auth, returnTo: sanitizeReturnTo(pkce.returnTo) };
+  return {
+    auth,
+    returnTo: sanitizeReturnTo(pkce.returnTo),
+    logoutHint: tokenExchange.logoutHint,
+  };
 };
 
 export const clearEntraLoginSession = () => {
   sessionStorage.removeItem(PKCE_KEY);
 };
 
-export const buildEntraLogoutUrl = (tenantId: string, postLogoutRedirectUri: string): string => {
+export const buildEntraLogoutUrl = (
+  tenantId: string,
+  postLogoutRedirectUri: string,
+  logoutHint: string | null,
+): string => {
   const logoutUrl = new URL(
     `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/logout`,
   );
   logoutUrl.searchParams.set('post_logout_redirect_uri', postLogoutRedirectUri);
+  if (logoutHint) {
+    logoutUrl.searchParams.set('logout_hint', logoutHint);
+  }
   return logoutUrl.toString();
 };
 
-export const startEntraLogout = () => {
+export const startEntraLogout = (logoutHint: string | null) => {
   const tenantId = getEntraTenantId();
   clearEntraLoginSession();
   window.location.replace(
-    buildEntraLogoutUrl(tenantId, `${window.location.origin}/login`),
+    buildEntraLogoutUrl(tenantId, `${window.location.origin}/login`, logoutHint),
   );
 };
 
@@ -235,21 +253,26 @@ const getEntraTenantId = () => {
 const getOAuthConfig = () => {
   const tenantId = getEntraTenantId();
   const clientId = import.meta.env.VITE_AZURE_AD_CLIENT_ID;
-  const scope = import.meta.env.VITE_AZURE_AD_SCOPE;
+  const configuredScope = import.meta.env.VITE_AZURE_AD_SCOPE;
   const redirectUri = import.meta.env.VITE_AZURE_AD_LOGIN_REDIRECT_URI;
 
-  if (!clientId || !scope) {
+  if (!clientId || !configuredScope) {
     throw new Error('Microsoft login mangler konfiguration. Sæt VITE_AZURE_AD_TENANT_ID, VITE_AZURE_AD_CLIENT_ID og VITE_AZURE_AD_SCOPE.');
   }
 
-  return { tenantId, clientId, scope, redirectUri };
+  return {
+    tenantId,
+    clientId,
+    scope: ensureOidcScopes(configuredScope),
+    redirectUri,
+  };
 };
 
 const exchangeCodeForToken = async (
   config: ReturnType<typeof getOAuthConfig>,
   pkce: PkceState,
   code: string,
-): Promise<string> => {
+): Promise<EntraTokenExchangeResult> => {
   const body = new URLSearchParams();
   body.set('client_id', config.clientId);
   body.set('scope', config.scope);
@@ -264,7 +287,7 @@ const exchangeCodeForToken = async (
     body,
   });
 
-  const payload = await response.json().catch(() => ({} as Record<string, string>));
+  const payload = await response.json().catch(() => ({})) as EntraTokenPayload;
   if (!response.ok || !payload.access_token) {
     // Silent token-exchange block (e.g. interaction_required surfaced only at /token)
     // also auto-escalates to interactive login.
@@ -279,7 +302,10 @@ const exchangeCodeForToken = async (
     throw new Error(payload.error_description || 'Kunne ikke hente Microsoft token.');
   }
 
-  return payload.access_token as string;
+  return {
+    accessToken: payload.access_token,
+    logoutHint: extractEntraLogoutHint(payload.id_token),
+  };
 };
 
 const randomUrlSafe = (byteLength: number) => {

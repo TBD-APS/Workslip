@@ -8,6 +8,7 @@ import type { UserViewModel } from '../api/generated/models';
 import {
   AUTH_PROVIDER_KEY,
   AUTH_TOKEN_KEY,
+  ENTRA_LOGOUT_HINT_KEY,
   AuthContext,
   USER_EMAIL_KEY,
   AuthStorage,
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
         AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
         AuthStorage.setItem(AUTH_PROVIDER_KEY, 'one-time-code');
+        AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
         setAuthToken(response.token);
         clearReauthInFlight();
         return true;
@@ -70,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
         AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
         AuthStorage.setItem(AUTH_PROVIDER_KEY, 'development');
+        AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
         setAuthToken(response.token);
         clearReauthInFlight();
         return true;
@@ -84,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     AuthStorage.removeItem(AUTH_TOKEN_KEY);
     AuthStorage.removeItem(USER_EMAIL_KEY);
     AuthStorage.removeItem(AUTH_PROVIDER_KEY);
+    AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
     clearReauthInFlight();
     clearEntraLoginSession();
     setAuthToken(null);
@@ -92,13 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     const authProvider = AuthStorage.getItem(AUTH_PROVIDER_KEY);
+    const logoutHint = AuthStorage.getItem(ENTRA_LOGOUT_HINT_KEY);
     const shouldEndMicrosoftSession = authProvider === null || authProvider === 'microsoft';
 
     clearLocalSession();
 
     if (shouldEndMicrosoftSession) {
       try {
-        startEntraLogout();
+        startEntraLogout(logoutHint);
         return;
       } catch (error) {
         console.error('[Auth] Failed to start Microsoft logout.', error);
