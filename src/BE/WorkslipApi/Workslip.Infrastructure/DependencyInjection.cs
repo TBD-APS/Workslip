@@ -44,7 +44,7 @@ public static class DependencyInjection
             options.AddInterceptors(auditInterceptor);
 
             options.ConfigureWarnings(warnings =>
-            warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
+                warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
         });
 
         services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
         services.AddScoped<IJobRepository, EfJobRepository>();
         services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
+        services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
