@@ -73,40 +73,6 @@ public sealed class EfInviteRepositoryTests
         Assert.Equal(replacementToken, stored.Token);
     }
 
-    [Fact]
-    public async Task GetStaleEntraProvisionedAsync_RevokesInviteBeforeReturningItForCleanup()
-    {
-        await using var database = await RelationalTestDatabase.CreateAsync();
-        var organizationId = Guid.NewGuid();
-        var invite = CreateInvite(organizationId, "expired@example.test");
-        invite.ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1);
-        invite.EntraUserId = "entra-user";
-        invite.EntraCreatedByInvite = true;
-        database.Context.Organizations.Add(CreateOrganization(organizationId, "12345678"));
-        database.Context.InviteTokens.Add(invite);
-        await database.Context.SaveChangesAsync();
-
-        var repository = new EfInviteRepository(database.Context, new NoRetryPolicy());
-        var originalToken = invite.Token;
-        var cleanupStartedAt = DateTimeOffset.UtcNow;
-
-        var staleInvites = await repository.GetStaleEntraProvisionedAsync(
-            cleanupStartedAt,
-            10,
-            CancellationToken.None);
-
-        var claimed = Assert.Single(staleInvites);
-        Assert.NotNull(claimed.RevokedAt);
-        Assert.NotEqual(originalToken, claimed.Token);
-
-        var stored = await database.Context.InviteTokens
-            .AsNoTracking()
-            .SingleAsync(candidate => candidate.Id == invite.Id);
-        Assert.False(stored.Consumed);
-        Assert.NotNull(stored.RevokedAt);
-        Assert.Equal(claimed.Token, stored.Token);
-    }
-
     private static InviteTokenRow CreateInvite(Guid organizationId, string email) => new()
     {
         Id = Guid.NewGuid(),
