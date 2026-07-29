@@ -37,6 +37,12 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
     public Task<CurrentUserResponse?> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync("organizations.current_user", token => GetCurrentUserAsyncCoreAsync(userId, token), cancellationToken);
 
+    public Task<IReadOnlyList<OrganizationRow>> ListOrganizationsAsync(CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "organization-admin.list-organizations",
+            ListOrganizationsAsyncCoreAsync,
+            cancellationToken);
+
     public Task<OrganizationRow?> GetOrganizationAsync(Guid organizationId, CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync(
             "organization-admin.get-organization",
@@ -143,6 +149,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
                 NullIfWhiteSpace(request.AdminEmail),
                 NullIfWhiteSpace(request.AdminPhone),
                 Roles.Admin,
+                EntraInvitationSent: false,
                 now,
                 now));
     }
@@ -185,6 +192,13 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
                     row.OrganizationCreatedAt,
                     row.OrganizationUpdatedAt));
     }
+
+    private async Task<IReadOnlyList<OrganizationRow>> ListOrganizationsAsyncCoreAsync(CancellationToken cancellationToken) =>
+        await _dbContext.Organizations
+            .AsNoTracking()
+            .OrderBy(organization => organization.Name)
+            .ThenBy(organization => organization.Cvr)
+            .ToListAsync(cancellationToken);
 
     private async Task<OrganizationRow?> GetOrganizationAsyncCoreAsync(Guid organizationId, CancellationToken cancellationToken) =>
         await _dbContext.Organizations
