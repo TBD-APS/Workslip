@@ -6,6 +6,7 @@ import type {
   Organization,
   OrganizationAdmin,
   OrganizationOnboarding,
+  OrganizationSessionToken,
 } from './types';
 
 export const superadminOrganizationQueryKey = ['superadmin', 'organizations'] as const;
@@ -26,6 +27,12 @@ export async function createOrganization(input: CreateOrganizationInput): Promis
   }, {
     skipGlobalErrorToast: true,
   }) as unknown as OrganizationOnboarding;
+}
+
+export async function createOrganizationSession(organizationId: string): Promise<OrganizationSessionToken> {
+  return await apiClient.post(`/api/organizations/${organizationId}/session`, undefined, {
+    skipGlobalErrorToast: true,
+  }) as unknown as OrganizationSessionToken;
 }
 
 export async function inviteOrganizationAdmin(input: InviteOrganizationAdminInput): Promise<OrganizationAdmin> {
@@ -52,6 +59,10 @@ export function getSuperadminErrorMessage(error: unknown): string {
 
   if (status === 403) {
     return 'Du har ikke Superadmin-adgang til denne handling.';
+  }
+
+  if (status === 404) {
+    return 'Organisationen findes ikke længere. Genindlæs listen og prøv igen.';
   }
 
   if (status === 409) {
