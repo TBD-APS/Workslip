@@ -1,0 +1,15 @@
+.bg-glow {
+  animation: none;
+  filter: blur(80px);
+}
+
+.login-card,
+.reauth-card {
+  backdrop-filter: none;
+}
+
+.login-card *,
+.reauth-card *,
+.invite-card * {
+  transition-property: none;
+}

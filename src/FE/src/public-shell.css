@@ -1,0 +1,390 @@
+@charset "UTF-8";
+
+/* Keep the public login, invite and recovery routes independent of the
+   authenticated application stylesheet. */
+[data-sonner-toaster][data-y-position="top"] {
+  top: calc(env(safe-area-inset-top, 0px) + 1rem) !important;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--surface-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: var(--fs-body);
+  transition: all 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
+[data-theme="day"] .form-input:focus {
+  background: var(--surface-input);
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.form-input:focus::placeholder {
+  opacity: 0;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-input-invalid {
+  border-color: var(--danger);
+}
+
+.form-input-invalid:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.form-error-text {
+  margin: 0.1rem 0 0;
+  color: var(--status-red-text);
+  font-size: var(--fs-xs);
+}
+
+.text-dim {
+  color: var(--text-dim);
+}
+
+.invite-container {
+  justify-content: center;
+  align-items: center;
+  min-height: 100dvh;
+}
+
+.invite-card {
+  width: min(100%, 420px);
+  padding: 2.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  z-index: 1;
+}
+
+.invite-logo-wrapper {
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.invite-status-icon {
+  margin-bottom: 1rem;
+}
+
+.invite-status-icon--success {
+  color: var(--success);
+}
+
+.invite-status-icon--danger {
+  color: var(--danger);
+}
+
+.invite-title {
+  margin-bottom: 0.5rem;
+}
+
+.invite-text {
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.invite-text--long {
+  margin-bottom: 2rem;
+}
+
+.invite-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.invite-field {
+  text-align: left;
+}
+
+.invite-label {
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.invite-input-wrapper {
+  position: relative;
+}
+
+.invite-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+}
+
+.invite-input {
+  width: 100%;
+  padding: 0.7rem 0.75rem 0.7rem 2.5rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: var(--fs-body);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.invite-input:focus {
+  border-color: var(--focus-ring);
+}
+
+.invite-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.invite-btn-submit {
+  margin-top: 0.5rem;
+}
+
+.invite-btn-submit:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.invite-error-badge {
+  padding: 0.75rem 1rem;
+  background: var(--status-red-bg);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  color: var(--status-red-text);
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.invite-footer {
+  margin-top: 1.5rem;
+  font-size: var(--fs-sm);
+}
+
+.invite-footer-link {
+  color: var(--text-muted);
+}
+
+.app-container-center {
+  justify-content: center;
+  align-items: center;
+}
+
+.login-card,
+.reauth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.login-card-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-card-header h2 {
+  margin-bottom: 0.5rem;
+}
+
+.login-card-header p {
+  color: var(--text-secondary);
+}
+
+.login-email-info {
+  font-weight: 400;
+  font-size: 1.1rem;
+  margin-top: 0.25rem;
+}
+
+.login-form,
+.login-email-step,
+.login-dev-buttons,
+.reauth-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-form {
+  gap: 1.5rem;
+}
+
+.login-email-step,
+.reauth-card {
+  gap: 1rem;
+}
+
+.login-dev-buttons {
+  gap: 0.75rem;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.login-form .btn-primary {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.login-form .btn-primary svg:first-child {
+  margin-right: 0.5rem;
+}
+
+.logo-center {
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.reauth-card {
+  align-items: center;
+}
+
+.reauth-card .animate-spin {
+  color: var(--text-secondary);
+}
+
+.reauth-card p {
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0;
+}
+
+.reauth-cancel-btn,
+.login-otc-btn,
+.login-back-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 0.75rem;
+}
+
+.reauth-cancel-btn {
+  padding: 0.5rem;
+  text-decoration: underline;
+}
+
+.login-otc-btn,
+.login-back-btn,
+.login-submit-btn,
+.login-dev-btn {
+  width: 100%;
+}
+
+.login-back-btn,
+.login-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.login-submit-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.login-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.login-submit-btn-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: inherit;
+  backdrop-filter: blur(2px);
+}
+
+.login-error-banner {
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  color: #ef4444;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.login-frontpage-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.login-frontpage-footer a {
+  color: var(--text-secondary);
+}
+
+.login-dev-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.login-dev-btn {
+  font-size: 0.85rem;
+}
+
+.protected-route-loading {
+  text-align: center;
+  padding: clamp(8rem, 30svh, 16rem) 2rem 2rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 480px) {
+  .login-card,
+  .reauth-card,
+  .invite-card {
+    padding: 1.5rem;
+    margin: 1rem;
+    width: calc(100% - 2rem);
+  }
+}

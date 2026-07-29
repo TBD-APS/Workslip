@@ -45,14 +45,24 @@ API generation uses Orval. Generated output must be regenerated from the current
 - `src/features/` contains feature-oriented UI, hooks and API usage.
 - `src/components/` contains shared UI and form components.
 - `src/lib/axios.ts` configures the API client, auth header, correlation ID and mutation idempotency header.
-- `src/fonts.css` defines the same-origin Inter and Outfit font faces.
+- `src/base.css` contains the small global reset, variables and shared public controls.
+- `src/public-*.css` contains only login, invitation, recovery, error and public paint/font rules.
+- `src/authenticated-base.css` defines authenticated-only globals and the Inter/Outfit font faces.
+- `src/App.css` contains the authenticated application styling and is imported only by the lazy `AppLayout` boundary.
+- `src/features/auth/components/OneTimeCodeLogin.tsx` isolates React Hook Form, Zod and one-time-code API code from the default passkey screen.
 - `scripts/sync-fonts.mjs` materializes pinned WOFF2 files before development and production builds.
 - `src/sw.ts` and `src/registerSW.ts` contain service-worker behaviour.
 - `tsconfig.sw.json` isolates Web Worker types from the browser application type environment.
 - `vite.config.ts` defines the local proxy and PWA manifest/build settings.
-- `vercel.json` defines the Git deployment policy, production redirects, external API rewrite and response-cache policy.
+- `vercel.json` defines the Git deployment policy, production rewrites and response-cache policy.
 
-Authenticated feature routes are loaded through dynamic imports. The login and invite routes remain in the initial application shell; `/app` layout and feature pages are downloaded only after they are rendered. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
+Authenticated feature routes and invitation enrollment are loaded through dynamic imports. The default passkey login remains in the initial application shell. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
+
+The public shell does not import the old marketing stylesheet, authenticated application CSS, branded web fonts, one-time-code form dependencies or the invitation flow. It uses the system font and static background effects. `App.css`, authenticated globals and Inter/Outfit load only with `AppLayout`.
+
+The SPA root is served directly without a Vercel redirect. The client router renders login for unauthenticated users and moves an already authenticated user to `/app`.
+
+Service-worker registration is scheduled after the initial window load and an idle callback. Application Insights, Vercel Analytics, Speed Insights and the Sonner toaster are loaded after the first pointer/keyboard interaction or a ten-second fallback, then scheduled during idle time. The Application Insights SDK itself remains a dynamic import. Once the service worker registers, the accepted immediate update-discovery and activation policy remains unchanged.
 
 A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout, and authenticated routing shows the explicit retry/reload/login recovery screen after the same six-second grace period rather than clearing a potentially valid token or showing an endless spinner.
 
@@ -76,15 +86,22 @@ npm run build
 
 There is currently no general `npm test` script in `package.json`. Do not claim broad frontend test coverage from isolated test files. Add a documented test command when the test runner is standardized.
 
-For routing or PWA cache changes, also validate with a clean browser profile:
+For routing, performance or PWA cache changes, also validate with a clean browser profile:
 
-1. `/login` and invite routes must not request authenticated feature chunks.
-2. A representative `/app` route must load its JavaScript and CSS on demand.
-3. A route visited once online must remain available on an offline revisit under the supported PWA flow.
-4. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
-5. Service-worker update checks must not overlap while another worker is installing or waiting.
-6. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
-7. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
+1. `/` must return the SPA document directly rather than redirecting to `/app`.
+2. `/login` must not request authenticated feature chunks, invitation enrollment, `App.css`, Inter/Outfit, React Hook Form, Zod, Sonner or telemetry SDK chunks before interaction.
+3. Opening the one-time-code option must load and render its isolated form chunk.
+4. Invitation routes must load their isolated route chunk and remain fully styled.
+5. Login, invitation, startup recovery and public error states must remain fully styled and responsive.
+6. A representative `/app` route must load its JavaScript, authenticated CSS and branded fonts on demand.
+7. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
+8. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
+9. A route visited once online must remain available on an offline revisit under the supported PWA flow.
+10. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
+11. Service-worker update checks must not overlap while another worker is installing or waiting.
+12. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
+13. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
+14. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
 
 ## Vercel deployment policy
 
@@ -95,7 +112,7 @@ The Vercel project root must remain `src/FE`.
 - Every push or merge to `main` is eligible for a normal production deployment.
 - Manual production redeploys are not filtered by a repository `ignoreCommand`.
 - `https://app.mrsoftware.dk` is the canonical production frontend origin.
-- `/` is temporarily redirected to `/app` at the Vercel edge before React starts.
+- `/` is handled by the SPA rewrite; the router decides between login and the authenticated app without an HTTP redirect.
 
 Branch suppression is configured through `git.deploymentEnabled` in `vercel.json` with a wildcard deny and an explicit `main` allow. There is no repository-level ignored-build command.
 
@@ -125,9 +142,9 @@ The rewrite target is production-specific. A future separate frontend environmen
 - versioned self-hosted fonts: `public, max-age=31536000, immutable`
 - API rewrite: CDN caching disabled
 
-The service worker precaches the public bootstrap shell and static assets, but not authenticated route bundles under `assets/chunks/`. Hashed JavaScript and CSS for lazy routes are cached after their first successful request in a stable runtime cache capped at 100 entries. Keeping content-hashed route assets across deployments reduces version-skew failures for routes that were previously visited; a route that has never been visited is not guaranteed to work offline.
+The service worker precaches only the SPA document, web manifest and bootstrap JavaScript. CSS, fonts, images and lazy chunks are cached only after the browser requests them. Same-origin assets below `/assets/` and `/fonts/` use the stable capped runtime cache. This prevents a public login visit from downloading the authenticated application during service-worker installation while retaining offline revisits for resources that were actually used.
 
-Update discovery runs when the service worker registers, when the browser regains connectivity, whenever the app returns to the foreground, and once per minute while the app remains open. Checks are serialized and skipped while another worker is already installing or waiting. `autoUpdate`, `skipWaiting()` and immediate client claiming intentionally activate a discovered deployment without user confirmation.
+Registration is deferred until after the initial page load and an idle callback. Update discovery then runs when the service worker registers, when the browser regains connectivity, whenever the app returns to the foreground, and once per minute while the app remains open. Checks are serialized and skipped while another worker is already installing or waiting. `autoUpdate`, `skipWaiting()` and immediate client claiming intentionally activate a discovered deployment without user confirmation.
 
 Vite dynamic-import preload failures trigger one automatic reload per build. Repeated failure in the same build falls through to the normal React error boundary instead of creating a reload loop.
 
