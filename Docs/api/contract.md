@@ -47,7 +47,9 @@ PUT  /api/organizations/{organizationId}/admin
 
 Organization creation returns the organization and its initial local administrator row. The administrator upsert accepts `email`, `displayName` and optional `phone`, normalizes the email address, ensures the matching Entra guest, and creates or updates an `Admin` row in the selected organization.
 
-The upsert is idempotent for the same organization and email. It rejects an email already owned by another organization with `email_in_use`, and it never converts an existing `Superadmin` account to `Admin` (`superadmin_role_protected`). If Workslip creates a new Entra guest but SQL persistence fails, it removes that guest only when no persisted user references the identity.
+Sequential upserts for the same organization and email are idempotent. An email already owned by another organization returns `email_in_use`, and an existing `Superadmin` account is never converted to `Admin` (`superadmin_role_protected`). Conditional writes reject stale concurrent changes with `admin_state_changed`; clients may reload and retry. If Workslip creates a new Entra guest but SQL persistence fails, it removes that guest only when no persisted user references the identity.
+
+Non-empty user emails are globally unique through the filtered SQL index `UX_Users_Email`, matching the identity lookup used by authentication. Schema initialization fails explicitly if legacy duplicate non-empty emails exist, because silently selecting one organization would violate tenant isolation.
 
 ## User role fields
 
