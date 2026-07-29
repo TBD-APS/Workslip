@@ -90,7 +90,7 @@ export const AppLayout = () => {
                 <span>{organizationScope?.name ?? 'Vælg organisation'}</span>
               </button>
             )}
-            {hasTenantScope && (
+            {hasTenantScope && !isSuperadmin && (
               <button
                 type="button"
                 onClick={() => setNotificationsOpen(true)}
@@ -209,7 +209,7 @@ export const AppLayout = () => {
           </Can>
         )}
         {hasTenantScope && <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />}
-        {hasTenantScope && (
+        {hasTenantScope && !isSuperadmin && (
           <NotificationsDrawer
             isOpen={notificationsOpen}
             onClose={() => setNotificationsOpen(false)}
