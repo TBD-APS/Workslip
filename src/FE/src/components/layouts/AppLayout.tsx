@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, NavLink, Outlet } from 'react-router-dom';
-import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, User, Users, Sun, Moon, Bell } from 'lucide-react';
+import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can } from '../../providers/permissions';
 import { useEffect, useState } from 'react';
@@ -89,6 +89,18 @@ export const AppLayout = () => {
               </span>
             )}
           </button>
+          <Can permission="organization:manage">
+            <button
+              type="button"
+              onClick={() => navigate('/superadmin')}
+              className="user-avatar"
+              aria-label="Superadmin"
+              title="Superadmin"
+              aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
+            >
+              <ShieldCheck size={18} />
+            </button>
+          </Can>
           <Can permission="user:manage">
             <button
               type="button"
