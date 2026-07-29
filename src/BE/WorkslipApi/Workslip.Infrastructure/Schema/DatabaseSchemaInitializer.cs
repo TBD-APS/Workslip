@@ -38,6 +38,94 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
             IF COL_LENGTH(N'dbo.InviteTokens', N'RevokedAt') IS NULL
                 ALTER TABLE [dbo].[InviteTokens] ADD [RevokedAt] datetimeoffset NULL;
 
+            IF EXISTS (
+                SELECT 1
+                FROM sys.columns
+                WHERE [object_id] = OBJECT_ID(N'dbo.Users')
+                  AND [name] = N'OrganizationId'
+                  AND [is_nullable] = 0)
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM [dbo].[Worksheets] AS worksheet
+                    INNER JOIN [dbo].[Users] AS appUser ON appUser.[Id] = worksheet.[UserId]
+                    WHERE appUser.[Role] = N'Superadmin')
+                    THROW 51000, 'Cannot make Superadmins platform-scoped while worksheet rows reference a Superadmin.', 1;
+
+                IF EXISTS (
+                    SELECT 1
+                    FROM [dbo].[JobAssignments] AS assignment
+                    INNER JOIN [dbo].[Users] AS appUser ON appUser.[Id] = assignment.[UserId]
+                    WHERE appUser.[Role] = N'Superadmin')
+                    THROW 51000, 'Cannot make Superadmins platform-scoped while job assignments reference a Superadmin.', 1;
+
+                IF OBJECT_ID(N'dbo.FK_Worksheets_Users_OrganizationId_UserId', N'F') IS NOT NULL
+                    ALTER TABLE [dbo].[Worksheets] DROP CONSTRAINT [FK_Worksheets_Users_OrganizationId_UserId];
+
+                IF OBJECT_ID(N'dbo.FK_Users_Organizations_OrganizationId', N'F') IS NOT NULL
+                    ALTER TABLE [dbo].[Users] DROP CONSTRAINT [FK_Users_Organizations_OrganizationId];
+
+                IF EXISTS (
+                    SELECT 1 FROM sys.key_constraints
+                    WHERE [parent_object_id] = OBJECT_ID(N'dbo.Users')
+                      AND [name] = N'AK_Users_OrganizationId_Id')
+                    ALTER TABLE [dbo].[Users] DROP CONSTRAINT [AK_Users_OrganizationId_Id];
+
+                IF EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE [object_id] = OBJECT_ID(N'dbo.Users')
+                      AND [name] = N'UX_Users_Organization_Id')
+                    DROP INDEX [UX_Users_Organization_Id] ON [dbo].[Users];
+
+                IF EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE [object_id] = OBJECT_ID(N'dbo.Users')
+                      AND [name] = N'IX_Users_OrganizationId')
+                    DROP INDEX [IX_Users_OrganizationId] ON [dbo].[Users];
+
+                ALTER TABLE [dbo].[Users] ALTER COLUMN [OrganizationId] uniqueidentifier NULL;
+            END
+
+            UPDATE [dbo].[Users]
+            SET [OrganizationId] = NULL,
+                [UpdatedAt] = SYSUTCDATETIME()
+            WHERE [Role] = N'Superadmin'
+              AND [OrganizationId] IS NOT NULL;
+
+            IF EXISTS (
+                SELECT 1
+                FROM [dbo].[Users]
+                WHERE ([Role] = N'Superadmin' AND [OrganizationId] IS NOT NULL)
+                   OR ([Role] <> N'Superadmin' AND [OrganizationId] IS NULL))
+                THROW 51000, 'Users contain invalid organization scope for their role.', 1;
+
+            IF OBJECT_ID(N'dbo.CK_Users_RoleOrganizationScope', N'C') IS NULL
+                ALTER TABLE [dbo].[Users] WITH CHECK
+                    ADD CONSTRAINT [CK_Users_RoleOrganizationScope]
+                    CHECK (([Role] = N'Superadmin' AND [OrganizationId] IS NULL)
+                        OR ([Role] <> N'Superadmin' AND [OrganizationId] IS NOT NULL));
+
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE [object_id] = OBJECT_ID(N'dbo.Users')
+                  AND [name] = N'IX_Users_OrganizationId')
+                CREATE INDEX [IX_Users_OrganizationId] ON [dbo].[Users] ([OrganizationId]);
+
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.indexes
+                WHERE [object_id] = OBJECT_ID(N'dbo.Users')
+                  AND [name] = N'UX_Users_Organization_Id')
+                CREATE UNIQUE INDEX [UX_Users_Organization_Id] ON [dbo].[Users] ([OrganizationId], [Id]);
+
+            IF OBJECT_ID(N'dbo.FK_Users_Organizations_OrganizationId', N'F') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Users] WITH CHECK
+                    ADD CONSTRAINT [FK_Users_Organizations_OrganizationId]
+                    FOREIGN KEY ([OrganizationId]) REFERENCES [dbo].[Organizations] ([Id])
+                    ON DELETE NO ACTION;
+                ALTER TABLE [dbo].[Users] CHECK CONSTRAINT [FK_Users_Organizations_OrganizationId];
+            END
+
             IF NOT EXISTS (
                 SELECT 1
                 FROM sys.indexes
