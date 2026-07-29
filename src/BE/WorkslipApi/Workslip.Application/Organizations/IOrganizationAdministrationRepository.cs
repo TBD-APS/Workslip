@@ -14,5 +14,9 @@ public interface IOrganizationAdministrationRepository
 
     Task<Guid> CreateAdminAsync(UserDataRow admin, CancellationToken cancellationToken);
 
-    Task<bool> UpdateAdminAsync(UserDataRow admin, CancellationToken cancellationToken);
+    Task<bool> UpdateAdminAsync(
+        UserDataRow admin,
+        string expectedEmail,
+        string expectedEntraId,
+        CancellationToken cancellationToken);
 }
