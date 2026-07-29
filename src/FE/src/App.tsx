@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { AppProvider } from './providers/AppProvider';
 import { router } from './routes';
-import { scheduleAfterInitialLoad } from './lib/scheduleAfterInitialLoad';
+import { scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
 
 import './public-fonts.css';
 import './public-shell.css';
@@ -15,7 +15,7 @@ function App() {
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
 
   useEffect(
-    () => scheduleAfterInitialLoad(() => setTelemetryEnabled(true)),
+    () => scheduleDeferredTelemetry(() => setTelemetryEnabled(true)),
     [],
   );
 
