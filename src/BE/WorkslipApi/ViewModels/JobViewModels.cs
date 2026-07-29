@@ -41,6 +41,10 @@ public sealed record JobListItemViewModel(
     bool IsNewRejection,
     string? RejectionNote);
 
+public sealed record JobListViewModel(
+    IReadOnlyList<JobListItemViewModel> Items,
+    int TotalCount);
+
 public sealed record JobReportSummaryViewModel(
     Guid Id,
     Guid OrganizationId,
