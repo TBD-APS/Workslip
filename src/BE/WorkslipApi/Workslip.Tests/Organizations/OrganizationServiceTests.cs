@@ -107,7 +107,7 @@ public sealed class OrganizationServiceTests
         Assert.Equal("New Admin", result.Value.DisplayName);
         Assert.Equal("12345678", result.Value.Phone);
         Assert.Equal(Roles.Admin, result.Value.Role);
-        Assert.Equal("entra-admin", placeholder.EntraId);
+        Assert.Equal("entra-admin", administration.EmailUser?.EntraId);
         Assert.Equal(0, administration.CreateCalls);
         Assert.Equal(1, administration.UpdateCalls);
     }
@@ -251,6 +251,36 @@ public sealed class OrganizationServiceTests
         Assert.Equal(0, administration.UpdateCalls);
     }
 
+    [Fact]
+    public async Task UpsertAdminAsync_WhenObservedAdminChangesBeforeUpdate_ReturnsConflictWithoutInsert()
+    {
+        var organization = CreateOrganization();
+        var existingAdmin = CreateUser(organization.Id, "admin@example.test", Roles.Admin);
+        var administration = new FakeOrganizationAdministrationRepository
+        {
+            Organization = organization,
+            EmailUser = existingAdmin,
+            ForceUpdateConflict = true,
+            EntraIdentityReferenced = false
+        };
+        var entra = new FakeEntraService
+        {
+            CreateResult = new CreateEntraUserResult("entra-new", "admin@example.test", "Admin", Created: true)
+        };
+        var service = CreateService(administration, entra);
+
+        var result = await service.UpsertAdminAsync(
+            organization.Id,
+            new UpsertOrganizationAdminRequest("admin@example.test", "Updated Admin", null),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Contains("admin_state_changed", result.Errors);
+        Assert.Equal(1, administration.UpdateAttempts);
+        Assert.Equal(0, administration.CreateCalls);
+        Assert.Equal(1, entra.DeleteCalls);
+    }
+
     private static OrganizationService CreateService(
         FakeOrganizationAdministrationRepository administration,
         FakeEntraService entra,
@@ -316,8 +346,10 @@ public sealed class OrganizationServiceTests
         public Queue<UserDataRow?> EmailResults { get; } = new();
         public Queue<UserDataRow?> UnlinkedAdminResults { get; } = new();
         public bool ThrowOnCreate { get; init; }
+        public bool ForceUpdateConflict { get; init; }
         public bool EntraIdentityReferenced { get; init; }
         public int CreateCalls { get; private set; }
+        public int UpdateAttempts { get; private set; }
         public int UpdateCalls { get; private set; }
         public UserDataRow? CreatedAdmin { get; private set; }
 
@@ -360,9 +392,28 @@ public sealed class OrganizationServiceTests
             return Task.FromResult(admin.Id);
         }
 
-        public Task<bool> UpdateAdminAsync(UserDataRow admin, CancellationToken cancellationToken)
+        public Task<bool> UpdateAdminAsync(
+            UserDataRow admin,
+            string expectedEmail,
+            string expectedEntraId,
+            CancellationToken cancellationToken)
         {
-            if (EmailUser?.Id != admin.Id && UnlinkedAdmin?.Id != admin.Id)
+            UpdateAttempts++;
+            if (ForceUpdateConflict)
+            {
+                return Task.FromResult(false);
+            }
+
+            var existing = EmailUser?.Id == admin.Id
+                ? EmailUser
+                : UnlinkedAdmin?.Id == admin.Id
+                    ? UnlinkedAdmin
+                    : null;
+
+            if (existing is null
+                || existing.Role == Roles.Superadmin
+                || existing.Email != expectedEmail
+                || existing.EntraId != expectedEntraId)
             {
                 return Task.FromResult(false);
             }
