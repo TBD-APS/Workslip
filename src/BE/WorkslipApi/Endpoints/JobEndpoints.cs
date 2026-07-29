@@ -48,9 +48,14 @@ public static class JobEndpoints
         readGroup.MapGet("/my-assigned", async (HttpContext httpContext, ICurrentUserContext currentUser, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.GetMyAssignedJobsAsync(cancellationToken);
-            return CachedOk(result, httpContext,
-                jobs => HttpCacheHeaders.JobAssignedEtag(jobs, currentUser.OrganizationId!.Value),
-                jobs => jobs.Select(JobViewModelBuilder.ToListItem).ToArray());
+            return CachedOk(
+                result,
+                httpContext,
+                jobs => jobs.Select(JobViewModelBuilder.ToListItem).ToArray(),
+                jobs => HttpCacheHeaders.JobAssignedEtag(
+                    jobs,
+                    currentUser.OrganizationId!.Value,
+                    currentUser.UserId));
         }).Produces<List<JobListItemViewModel>>();
 
         readGroup.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
