@@ -3,6 +3,7 @@ using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 
 namespace Workslip.Application.Users;
@@ -63,9 +64,9 @@ public sealed class UserService(
         }
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
-        if (user is null)
+        if (user is null || user.Role == Roles.Superadmin)
         {
-            logger.LogInformation("User not found. UserId: {UserId}.", userId);
+            logger.LogInformation("Tenant user not found. UserId: {UserId}.", userId);
             return Result<UserResponse>.NotFound();
         }
 
@@ -81,9 +82,9 @@ public sealed class UserService(
         }
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
-        if (user is null)
+        if (user is null || user.Role == Roles.Superadmin)
         {
-            logger.LogInformation("User not found. UserId: {UserId}.", userId);
+            logger.LogInformation("Tenant user not found. UserId: {UserId}.", userId);
             return Result<UserDetailResponse>.NotFound();
         }
 
@@ -183,6 +184,12 @@ public sealed class UserService(
             return Result<UserResponse>.NotFound();
         }
 
+        if (user.Role == Roles.Superadmin)
+        {
+            logger.LogWarning("Tenant user update rejected for platform Superadmin. UserId: {UserId}.", userId);
+            return Result<UserResponse>.Conflict("superadmin_role_protected");
+        }
+
         if (!string.IsNullOrEmpty(request.DisplayName))
         {
             user.DisplayName = request.DisplayName;
@@ -217,6 +224,12 @@ public sealed class UserService(
         {
             logger.LogInformation("User not found for deletion. UserId: {UserId}.", userId);
             return Result.NotFound();
+        }
+
+        if (user.Role == Roles.Superadmin)
+        {
+            logger.LogWarning("Tenant user deletion rejected for platform Superadmin. UserId: {UserId}.", userId);
+            return Result.Conflict("superadmin_role_protected");
         }
 
         await repository.DeleteAsync(userId, cancellationToken);
