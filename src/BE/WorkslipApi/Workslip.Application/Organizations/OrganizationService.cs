@@ -62,8 +62,21 @@ public sealed class OrganizationService(
         var created = await repository.CreateAsync(request, normalizedCvr, cancellationToken);
         if (created is null)
         {
-            logger.LogWarning("Organization create conflict after insert attempt. Cvr: {Cvr}.", normalizedCvr);
+            if (normalizedAdminEmail is not null)
+            {
+                var currentEmailOwner = await administrationRepository.GetUserByEmailAsync(normalizedAdminEmail, cancellationToken);
+                if (currentEmailOwner is not null)
+                {
+                    logger.LogWarning(
+                        "Organization create conflict after insert attempt. ExistingOrganizationId: {ExistingOrganizationId}. UserId: {UserId}. Reason: {Reason}.",
+                        currentEmailOwner.OrganizationId,
+                        currentEmailOwner.Id,
+                        "email_in_use");
+                    return Result<OrganizationOnboardingResponse>.Conflict("email_in_use");
+                }
+            }
 
+            logger.LogWarning("Organization create conflict after insert attempt. Cvr: {Cvr}.", normalizedCvr);
             return Result<OrganizationOnboardingResponse>.Conflict("organization_cvr_exists");
         }
 
@@ -182,7 +195,15 @@ public sealed class OrganizationService(
                 entraUser,
                 now,
                 now);
-            createdAdmin.Id = await administrationRepository.CreateAdminAsync(createdAdmin, cancellationToken);
+            var createdId = await administrationRepository.CreateAdminAsync(createdAdmin, cancellationToken);
+            if (createdId is null)
+            {
+                var conflictingUser = await administrationRepository.GetUserByEmailAsync(normalizedEmail, cancellationToken);
+                var createConflict = GetAdminConflict(conflictingUser, organizationId) ?? "admin_state_changed";
+                return AdminPersistenceResult.FromConflict(createConflict, conflictingUser);
+            }
+
+            createdAdmin.Id = createdId.Value;
             return AdminPersistenceResult.Success(createdAdmin, created: true);
         }
 
