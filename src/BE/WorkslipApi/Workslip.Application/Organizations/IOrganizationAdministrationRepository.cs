@@ -10,6 +10,8 @@ public interface IOrganizationAdministrationRepository
 
     Task<UserDataRow?> GetUnlinkedAdminAsync(Guid organizationId, CancellationToken cancellationToken);
 
+    Task<bool> IsEntraIdentityReferencedAsync(string entraUserId, CancellationToken cancellationToken);
+
     Task<Guid> CreateAdminAsync(UserDataRow admin, CancellationToken cancellationToken);
 
     Task<bool> UpdateAdminAsync(UserDataRow admin, CancellationToken cancellationToken);
