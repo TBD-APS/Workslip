@@ -171,8 +171,12 @@ apiClient.interceptors.response.use(
         AuthStorage.removeItem(AUTH_TOKEN_KEY);
         AuthStorage.removeItem(USER_EMAIL_KEY);
 
-        if (!isReauthInFlight()) {
-          setReauthInFlight();
+        const isReauthRoute = window.location.pathname.includes('/login')
+          && new URLSearchParams(window.location.search).get('reauth') === '1';
+        if (!isReauthRoute) {
+          if (!isReauthInFlight()) {
+            setReauthInFlight();
+          }
           const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
           notify.dismiss();
           window.location.replace(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
