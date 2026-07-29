@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './base.css';
 import App from './App.tsx';
 import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
-import { scheduleAfterInitialLoad } from './lib/scheduleAfterInitialLoad';
+import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
 
 if (typeof window !== 'undefined') {
   // Vite emits this event when an already-open client references a hashed lazy
@@ -43,5 +43,8 @@ createRoot(document.getElementById('root')!).render(
 
 scheduleAfterInitialLoad(() => {
   void import('./registerSW');
+});
+
+scheduleDeferredTelemetry(() => {
   void initializeApplicationInsights().then(installGlobalApplicationInsightsHandlers);
 });
