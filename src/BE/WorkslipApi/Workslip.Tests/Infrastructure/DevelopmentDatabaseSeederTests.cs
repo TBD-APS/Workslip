@@ -10,25 +10,21 @@ namespace Workslip.Tests.Infrastructure;
 
 public sealed class DevelopmentDatabaseSeederTests
 {
-    private static readonly Guid CanonicalSuperadminId =
+    private static readonly Guid CanonicalRasmusSuperadminId =
         new("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F");
 
+    private static readonly Guid CanonicalMahadSuperadminId =
+        new("D4D4D4D4-DA5B-4CC4-BBEB-07B40CAB806F");
+
     [Fact]
-    public async Task SeedAsync_ReconcilesCanonicalSuperadminInDatabaseAndEntra()
+    public async Task SeedAsync_ReconcilesBothCanonicalSuperadminsInDatabaseAndEntra()
     {
         await using var context = CreateContext();
         var organization = CreateOrganization(Guid.NewGuid());
         context.Organizations.Add(organization);
         await context.SaveChangesAsync();
 
-        var entraService = new FakeSuperadminEntraService
-        {
-            Result = new CreateEntraUserResult(
-                "entra-superadmin-id",
-                "rasmusvm6_hotmail.com#EXT#@tenant.onmicrosoft.com",
-                "Rasmus Bak Jakobsen",
-                Created: false)
-        };
+        var entraService = new FakeSuperadminEntraService();
         var seeder = new DevelopmentDatabaseSeeder(
             context,
             entraService,
@@ -37,25 +33,39 @@ public sealed class DevelopmentDatabaseSeederTests
         await seeder.SeedAsync();
         await seeder.SeedAsync();
 
-        var user = await context.Users
+        var rasmus = await context.Users
             .AsNoTracking()
-            .SingleAsync(candidate => candidate.Id == CanonicalSuperadminId);
+            .SingleAsync(candidate => candidate.Id == CanonicalRasmusSuperadminId);
+        var mahad = await context.Users
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == CanonicalMahadSuperadminId);
 
-        Assert.Equal(organization.Id, user.OrganizationId);
-        Assert.Equal("rasmusvm6@hotmail.com", user.Email);
-        Assert.Equal("Rasmus Bak Jakobsen", user.DisplayName);
-        Assert.Equal("28929173", user.Phone);
-        Assert.Equal(Roles.Superadmin, user.Role);
-        Assert.Equal("entra-superadmin-id", user.EntraId);
-        Assert.Equal("rasmusvm6_hotmail.com#EXT#@tenant.onmicrosoft.com", user.EntraEmail);
-        Assert.Equal(2, entraService.EnsureSuperadminCalls);
+        Assert.Equal(organization.Id, rasmus.OrganizationId);
+        Assert.Equal("rasmusvm6@hotmail.com", rasmus.Email);
+        Assert.Equal("Rasmus Bak Jakobsen", rasmus.DisplayName);
+        Assert.Equal("28929173", rasmus.Phone);
+        Assert.Equal(Roles.Superadmin, rasmus.Role);
+        Assert.Equal("entra-rasmus", rasmus.EntraId);
+        Assert.Equal("rasmusvm6_hotmail.com#EXT#@tenant.onmicrosoft.com", rasmus.EntraEmail);
+
+        Assert.Equal(organization.Id, mahad.OrganizationId);
+        Assert.Equal("mahad8@outlook.dk", mahad.Email);
+        Assert.Equal("Mahad", mahad.DisplayName);
+        Assert.Equal(string.Empty, mahad.Phone);
+        Assert.Equal(Roles.Superadmin, mahad.Role);
+        Assert.Equal("entra-mahad", mahad.EntraId);
+        Assert.Equal("mahad8_outlook.dk#EXT#@tenant.onmicrosoft.com", mahad.EntraEmail);
+
+        Assert.Equal(4, entraService.EnsureCalls.Count);
+        Assert.Equal(2, entraService.EnsureCalls.Count(call => call.Email == "rasmusvm6@hotmail.com"));
+        Assert.Equal(2, entraService.EnsureCalls.Count(call => call.Email == "mahad8@outlook.dk"));
         Assert.Equal(0, entraService.DeleteCalls);
-        Assert.Equal(4, await context.Users.CountAsync());
+        Assert.Equal(5, await context.Users.CountAsync());
         Assert.False(context.IsSeeding);
     }
 
     [Fact]
-    public async Task SeedAsync_WhenCanonicalEmailAlreadyBelongsToAnotherId_FailsBeforeGraphCall()
+    public async Task SeedAsync_WhenMahadEmailBelongsToAnotherId_FailsBeforeGraphCall()
     {
         await using var context = CreateContext();
         var organization = CreateOrganization(Guid.NewGuid());
@@ -65,10 +75,10 @@ public sealed class DevelopmentDatabaseSeederTests
         {
             Id = Guid.NewGuid(),
             OrganizationId = organization.Id,
-            DisplayName = "Conflicting canonical email",
-            Email = "rasmusvm6@hotmail.com",
-            Phone = "22222222",
-            Role = Roles.Admin,
+            DisplayName = "Conflicting Mahad identity",
+            Email = "mahad8@outlook.dk",
+            Phone = string.Empty,
+            Role = Roles.User,
             CreatedAt = timestamp,
             UpdatedAt = timestamp
         });
@@ -82,8 +92,8 @@ public sealed class DevelopmentDatabaseSeederTests
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => seeder.SeedAsync());
 
-        Assert.Contains("was not created", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(0, entraService.EnsureSuperadminCalls);
+        Assert.Contains("identity conflict", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(entraService.EnsureCalls);
         Assert.False(context.IsSeeding);
     }
 
@@ -107,10 +117,7 @@ public sealed class DevelopmentDatabaseSeederTests
 
     private sealed class FakeSuperadminEntraService : ISuperadminEntraService
     {
-        public CreateEntraUserResult Result { get; init; } =
-            new("entra-superadmin-id", "rasmusvm6@hotmail.com", "Rasmus Bak Jakobsen", Created: false);
-
-        public int EnsureSuperadminCalls { get; private set; }
+        public List<EnsureCall> EnsureCalls { get; } = [];
         public int DeleteCalls { get; private set; }
 
         public Task<CreateEntraUserResult> EnsureSuperadminAsync(
@@ -118,10 +125,22 @@ public sealed class DevelopmentDatabaseSeederTests
             string displayName,
             CancellationToken cancellationToken)
         {
-            EnsureSuperadminCalls++;
-            Assert.Equal("rasmusvm6@hotmail.com", email);
-            Assert.Equal("Rasmus Bak Jakobsen", displayName);
-            return Task.FromResult(Result);
+            EnsureCalls.Add(new EnsureCall(email, displayName));
+
+            return email switch
+            {
+                "rasmusvm6@hotmail.com" => Task.FromResult(new CreateEntraUserResult(
+                    "entra-rasmus",
+                    "rasmusvm6_hotmail.com#EXT#@tenant.onmicrosoft.com",
+                    "Rasmus Bak Jakobsen",
+                    Created: false)),
+                "mahad8@outlook.dk" => Task.FromResult(new CreateEntraUserResult(
+                    "entra-mahad",
+                    "mahad8_outlook.dk#EXT#@tenant.onmicrosoft.com",
+                    "Mahad",
+                    Created: false)),
+                _ => throw new InvalidOperationException($"Unexpected Superadmin seed email '{email}'.")
+            };
         }
 
         public Task<CreateEntraUserResult> CreateUserAsync(
@@ -145,4 +164,6 @@ public sealed class DevelopmentDatabaseSeederTests
             return Task.CompletedTask;
         }
     }
+
+    private sealed record EnsureCall(string Email, string DisplayName);
 }
