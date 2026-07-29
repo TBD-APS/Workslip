@@ -45,7 +45,6 @@ jobs:
           src/components/ErrorState.tsx
           src/providers/ErrorFallback.tsx
           src/components/layouts/AppLayout.tsx
-          src/routes/index.tsx
 
       - name: Build frontend
         working-directory: src/FE
