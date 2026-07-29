@@ -12,6 +12,33 @@ namespace Workslip.Tests.Organizations;
 public sealed class OrganizationServiceTests
 {
     [Fact]
+    public async Task CreateAsync_WhenAdminEmailBelongsToExistingUser_ReturnsConflictWithoutCreatingOrganization()
+    {
+        var existingUser = CreateUser(Guid.NewGuid(), "admin@example.test", Roles.Admin);
+        var administration = new FakeOrganizationAdministrationRepository
+        {
+            EmailUser = existingUser
+        };
+        var organizationRepository = new FakeOrganizationRepository();
+        var entra = new FakeEntraService();
+        var service = CreateService(administration, entra, organizationRepository);
+
+        var result = await service.CreateAsync(
+            new CreateOrganizationRequest(
+                "New organization",
+                "12345678",
+                "Admin",
+                " ADMIN@example.test ",
+                null),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Contains("email_in_use", result.Errors);
+        Assert.Equal(0, organizationRepository.CreateCalls);
+        Assert.Equal(0, entra.CreateCalls);
+    }
+
+    [Fact]
     public async Task UpsertAdminAsync_WhenOrganizationDoesNotExist_ReturnsNotFoundWithoutGraphCall()
     {
         var administration = new FakeOrganizationAdministrationRepository();
@@ -83,6 +110,38 @@ public sealed class OrganizationServiceTests
         Assert.Equal("entra-admin", placeholder.EntraId);
         Assert.Equal(0, administration.CreateCalls);
         Assert.Equal(1, administration.UpdateCalls);
+    }
+
+    [Fact]
+    public async Task UpsertAdminAsync_WhenPlaceholderIsClaimedDuringGraphCall_DoesNotOverwriteIt()
+    {
+        var organization = CreateOrganization();
+        var placeholder = CreateUser(organization.Id, string.Empty, Roles.Admin);
+        placeholder.EntraId = string.Empty;
+        var administration = new FakeOrganizationAdministrationRepository
+        {
+            Organization = organization,
+            UnlinkedAdmin = placeholder
+        };
+        administration.UnlinkedAdminResults.Enqueue(placeholder);
+        administration.UnlinkedAdminResults.Enqueue(null);
+        var entra = new FakeEntraService
+        {
+            CreateResult = new CreateEntraUserResult("entra-admin", "admin@example.test", "Admin", Created: true)
+        };
+        var service = CreateService(administration, entra);
+
+        var result = await service.UpsertAdminAsync(
+            organization.Id,
+            new UpsertOrganizationAdminRequest("admin@example.test", "New Admin", null),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.NotEqual(placeholder.Id, result.Value.Id);
+        Assert.Equal(string.Empty, placeholder.Email);
+        Assert.Equal(1, administration.CreateCalls);
+        Assert.Equal(0, administration.UpdateCalls);
     }
 
     [Fact]
@@ -194,9 +253,10 @@ public sealed class OrganizationServiceTests
 
     private static OrganizationService CreateService(
         FakeOrganizationAdministrationRepository administration,
-        FakeEntraService entra) =>
+        FakeEntraService entra,
+        FakeOrganizationRepository? organizationRepository = null) =>
         new(
-            new FakeOrganizationRepository(),
+            organizationRepository ?? new FakeOrganizationRepository(),
             administration,
             new CreateOrganizationRequestValidator(),
             new UpsertOrganizationAdminRequestValidator(),
@@ -228,13 +288,18 @@ public sealed class OrganizationServiceTests
 
     private sealed class FakeOrganizationRepository : IOrganizationRepository
     {
+        public int CreateCalls { get; private set; }
+
         public Task<bool> CvrExistsAsync(string normalizedCvr, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<OrganizationOnboardingResponse?> CreateAsync(
             CreateOrganizationRequest request,
             string normalizedCvr,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<OrganizationOnboardingResponse?>(null);
+            CancellationToken cancellationToken)
+        {
+            CreateCalls++;
+            return Task.FromResult<OrganizationOnboardingResponse?>(null);
+        }
 
         public Task<CurrentUserResponse?> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult<CurrentUserResponse?>(null);
@@ -249,6 +314,7 @@ public sealed class OrganizationServiceTests
         public UserDataRow? EmailUser { get; set; }
         public UserDataRow? UnlinkedAdmin { get; init; }
         public Queue<UserDataRow?> EmailResults { get; } = new();
+        public Queue<UserDataRow?> UnlinkedAdminResults { get; } = new();
         public bool ThrowOnCreate { get; init; }
         public bool EntraIdentityReferenced { get; init; }
         public int CreateCalls { get; private set; }
@@ -268,8 +334,15 @@ public sealed class OrganizationServiceTests
             return Task.FromResult(EmailUser?.Email == normalizedEmail ? EmailUser : null);
         }
 
-        public Task<UserDataRow?> GetUnlinkedAdminAsync(Guid organizationId, CancellationToken cancellationToken) =>
-            Task.FromResult(UnlinkedAdmin?.OrganizationId == organizationId ? UnlinkedAdmin : null);
+        public Task<UserDataRow?> GetUnlinkedAdminAsync(Guid organizationId, CancellationToken cancellationToken)
+        {
+            if (UnlinkedAdminResults.Count > 0)
+            {
+                return Task.FromResult(UnlinkedAdminResults.Dequeue());
+            }
+
+            return Task.FromResult(UnlinkedAdmin?.OrganizationId == organizationId ? UnlinkedAdmin : null);
+        }
 
         public Task<bool> IsEntraIdentityReferencedAsync(string entraUserId, CancellationToken cancellationToken) =>
             Task.FromResult(EntraIdentityReferenced);
