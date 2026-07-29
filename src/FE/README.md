@@ -54,7 +54,7 @@ API generation uses Orval. Generated output must be regenerated from the current
 
 Authenticated feature routes are loaded through dynamic imports. The login and invite routes remain in the initial application shell; `/app` layout and feature pages are downloaded only after they are rendered. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
 
-A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a 12-second request timeout, and authenticated routing transitions to an explicit retry/reload/login recovery screen rather than clearing a potentially valid token or showing an endless spinner.
+A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout, and authenticated routing shows the explicit retry/reload/login recovery screen after the same six-second grace period rather than clearing a potentially valid token or showing an endless spinner.
 
 ## Form conventions
 
@@ -84,7 +84,7 @@ For routing or PWA cache changes, also validate with a clean browser profile:
 4. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
 5. Service-worker update checks must not overlap while another worker is installing or waiting.
 6. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
-7. A temporary `/api/auth/me` outage must retain the stored token and show bounded startup recovery.
+7. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
 
 ## Vercel deployment policy
 
