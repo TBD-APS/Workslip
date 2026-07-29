@@ -32,7 +32,7 @@ export async function fetchJobListPage(
   statuses: JobStatus[],
   { limit, offset, search, sortBy, sortDirection }: JobListPageRequest,
 ): Promise<JobListPage> {
-  return await apiClient.get('/api/jobs', {
+  const data = await apiClient.get('/api/jobs', {
     params: {
       status: statuses,
       search: search || undefined,
@@ -42,6 +42,8 @@ export async function fetchJobListPage(
       offset,
     },
   }) as JobListPage;
+
+  return data;
 }
 
 function getInitialJobStatuses(): JobStatus[] {
