@@ -3,7 +3,13 @@ import { useParams, Link } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, Loader2, LogIn, ArrowRight, User, Phone } from 'lucide-react';
 import { verifyInviteToken } from '../api/inviteAccept';
 import { useAuth } from '../../../providers/useAuth';
-import { AUTH_TOKEN_KEY, USER_EMAIL_KEY, AuthStorage } from '../../../providers/authContextValue';
+import {
+  AUTH_PROVIDER_KEY,
+  AUTH_TOKEN_KEY,
+  ENTRA_LOGOUT_HINT_KEY,
+  USER_EMAIL_KEY,
+  AuthStorage,
+} from '../../../providers/authContextValue';
 import {
   clearInviteEnrollmentSession,
   completeEntraInviteEnrollment,
@@ -33,7 +39,7 @@ const resolveInviteError = (errorCode: string | undefined, fallback: string) =>
 
 export const InviteAccept = () => {
   const { token } = useParams<{ token: string }>();
-  const { meQuery, logout, isLoading } = useAuth();
+  const { meQuery, clearLocalSession, isLoading } = useAuth();
   const [state, setState] = useState<InviteState>({ status: 'checking' });
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
@@ -49,9 +55,16 @@ export const InviteAccept = () => {
 
       setState({ status: 'enrolling' });
       completeEntraInviteEnrollment()
-        .then(response => {
+        .then(result => {
+          const response = result.auth;
           AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
           AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+          AuthStorage.setItem(AUTH_PROVIDER_KEY, 'microsoft');
+          if (result.logoutHint) {
+            AuthStorage.setItem(ENTRA_LOGOUT_HINT_KEY, result.logoutHint);
+          } else {
+            AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
+          }
           clearInviteEnrollmentSession();
           window.history.replaceState(null, '', window.location.pathname);
           setState({ status: 'success' });
@@ -102,7 +115,7 @@ export const InviteAccept = () => {
           // session and fall through to the un-authenticated flow so
           // the new invite can be completed. Otherwise the next page
           // (Login) would land as the wrong user.
-          logout();
+          clearLocalSession();
           if (res.userExists) {
             window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
             return;
@@ -133,7 +146,7 @@ export const InviteAccept = () => {
         setState({ status: 'consumed_no_user' });
       })
       .catch(() => setState({ status: 'invalid', message: 'Invitationen blev ikke fundet. Kontrollér linket eller kontakt administratoren.' }));
-  }, [token, isLoading, meQuery.data, logout]);
+  }, [token, isLoading, meQuery.data, clearLocalSession]);
 
   const handleAcceptInvite = () => {
     setState({ status: 'accepted' });

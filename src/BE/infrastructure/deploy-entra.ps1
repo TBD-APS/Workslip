@@ -454,7 +454,10 @@ $oauthScopes = @($managedScope) + @(Get-UnmanagedExistingScopes -Application $ex
 
 $oauthBody = [ordered]@{
     displayName = "Oauth server $Environment"
-    signInAudience = 'AzureADandPersonalMicrosoftAccount'
+    # Workslip authenticates members and invited B2B guests in this tenant.
+    # Single-tenant registration is required for the login_hint optional claim
+    # used by promptless Microsoft logout.
+    signInAudience = 'AzureADMyOrg'
     publicClient = [ordered]@{
         redirectUris = @('nativepasskeydemo://auth')
     }
@@ -475,9 +478,26 @@ $oauthApplication = Get-GraphApplication -UniqueName $OAuthUniqueName -MaxAttemp
 
 $clientBody = [ordered]@{
     displayName = 'Workslip App'
-    signInAudience = 'AzureADandPersonalMicrosoftAccount'
+    # Workslip authenticates members and invited B2B guests in this tenant.
+    # Single-tenant registration is required for the login_hint optional claim
+    # used by promptless Microsoft logout.
+    signInAudience = 'AzureADMyOrg'
     api = [ordered]@{
         requestedAccessTokenVersion = 2
+    }
+    # The browser stores this opaque ID-token claim and sends it as logout_hint
+    # so Microsoft can end the correct session without an account picker.
+    optionalClaims = [ordered]@{
+        idToken = @(
+            [ordered]@{
+                name = 'login_hint'
+                source = $null
+                essential = $false
+                additionalProperties = @()
+            }
+        )
+        accessToken = @()
+        saml2Token = @()
     }
     spa = [ordered]@{
         redirectUris = @(

@@ -2,9 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { verifyAuthCode, getDevToken } from '../features/auth/api/devToken';
+import { clearEntraLoginSession, startEntraLogout } from '../features/auth/api/entraLogin';
 import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
 import type { UserViewModel } from '../api/generated/models';
-import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY, AuthStorage, clearReauthInFlight } from './authContextValue';
+import {
+  AUTH_PROVIDER_KEY,
+  AUTH_TOKEN_KEY,
+  ENTRA_LOGOUT_HINT_KEY,
+  AuthContext,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+} from './authContextValue';
 import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -44,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await verifyAuthCode(email, code);
         AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
         AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        AuthStorage.setItem(AUTH_PROVIDER_KEY, 'one-time-code');
+        AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
         setAuthToken(response.token);
         clearReauthInFlight();
         return true;
@@ -60,6 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await getDevToken(email);
         AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
         AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        AuthStorage.setItem(AUTH_PROVIDER_KEY, 'development');
+        AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
         setAuthToken(response.token);
         clearReauthInFlight();
         return true;
@@ -70,13 +83,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const logout = useCallback(() => {
+  const clearLocalSession = useCallback(() => {
     AuthStorage.removeItem(AUTH_TOKEN_KEY);
     AuthStorage.removeItem(USER_EMAIL_KEY);
+    AuthStorage.removeItem(AUTH_PROVIDER_KEY);
+    AuthStorage.removeItem(ENTRA_LOGOUT_HINT_KEY);
     clearReauthInFlight();
+    clearEntraLoginSession();
     setAuthToken(null);
     queryClient.clear();
   }, [queryClient]);
+
+  const logout = useCallback(() => {
+    const authProvider = AuthStorage.getItem(AUTH_PROVIDER_KEY);
+    const logoutHint = AuthStorage.getItem(ENTRA_LOGOUT_HINT_KEY);
+    const shouldEndMicrosoftSession = authProvider === null || authProvider === 'microsoft';
+
+    clearLocalSession();
+
+    if (shouldEndMicrosoftSession) {
+      try {
+        startEntraLogout(logoutHint);
+        return;
+      } catch (error) {
+        console.error('[Auth] Failed to start Microsoft logout.', error);
+      }
+    }
+
+    window.location.replace('/login');
+  }, [clearLocalSession]);
 
   const updateUser = useCallback(
     (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => {
@@ -113,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         devLogin,
         logout,
+        clearLocalSession,
         updateUser,
         meQuery: publicMeQuery,
       }}
