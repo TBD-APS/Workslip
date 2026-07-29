@@ -38,6 +38,7 @@ public static class PipelineConfiguration
         app.UseCors("Frontend");
         app.UseRateLimiter();
         app.UseAuthentication();
+        app.UseMiddleware<SuperadminOrganizationScopeMiddleware>();
         app.UseAuthorization();
 
         return app;
