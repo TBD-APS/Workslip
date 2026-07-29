@@ -10,6 +10,8 @@ namespace Workslip.Tests.Configuration;
 
 public sealed class HttpCacheHeadersTests
 {
+    private static readonly Guid CurrentUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
     [Fact]
     public void SetNoStore_sets_all_mutation_cache_headers()
     {
@@ -102,6 +104,18 @@ public sealed class HttpCacheHeadersTests
     }
 
     [Fact]
+    public void JobListEtag_changes_between_users()
+    {
+        var response = CreateJobList();
+        var organizationId = response.Items.Single().OrganizationId;
+
+        var first = HttpCacheHeaders.JobListEtag(response, organizationId, CurrentUserId);
+        var second = HttpCacheHeaders.JobListEtag(response, organizationId, Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"));
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
     public void JobAssignedEtag_changes_when_related_list_data_changes()
     {
         var response = CreateJobList();
@@ -115,10 +129,10 @@ public sealed class HttpCacheHeadersTests
     }
 
     private static string CreateJobListEtag(JobListViewModel response) =>
-        HttpCacheHeaders.JobListEtag(response, response.Items.Single().OrganizationId, Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+        HttpCacheHeaders.JobListEtag(response, response.Items.Single().OrganizationId, CurrentUserId);
 
     private static string CreateAssignedJobsEtag(JobListViewModel response) =>
-        HttpCacheHeaders.JobAssignedEtag(response.Items, response.Items.Single().OrganizationId, Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+        HttpCacheHeaders.JobAssignedEtag(response.Items, response.Items.Single().OrganizationId, CurrentUserId);
 
     private static JobListViewModel CreateJobList()
     {
