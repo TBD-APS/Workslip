@@ -86,7 +86,11 @@ WorkslipApi/
 
 Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
 
+<<<<<<< HEAD
 Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both rows are platform-scoped with `OrganizationId = null`. The operation is idempotent. A missing identity receives one invitation that redirects to `/login`; later starts reuse the existing identity. Development startup therefore requires working Microsoft Graph credentials.
+=======
+Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both Superadmins remain attached to the same Development organization. The operation is idempotent. A missing identity receives one invitation that redirects to `/login`; later starts reuse the existing identity. Development startup therefore requires working Microsoft Graph credentials.
+>>>>>>> 15649a93cfa5e16a9a7d40cb7a5e2865484d9a06
 
 Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
 
