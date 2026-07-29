@@ -86,6 +86,7 @@ export function ControlPointsStep({
                 </div>
 
                 <div className="control-points-list">
+                  {(cat.controlPoints ?? []).length > 0 && (
                   <button
                     className={`multi-select-option selection-row control-point-irrelevant-row${isIrrelevant ? ' selected' : ''}`}
                     type="button"
@@ -98,6 +99,7 @@ export function ControlPointsStep({
                       <span>Irrelevant</span>
                     </span>
                   </button>
+                  )}
 
                   {!isIrrelevant && (cat.controlPoints ?? []).sort(bySortOrder).map((cp) => (
                     <Checkbox

@@ -1,36 +1,36 @@
-﻿Gruppe;Nr.;Navn;Adresse 1;Postnr. ;By;Land;Telfon/fax;Attention;Deres ref. ;E-mail
-Diverse;1940;Jesper Pedersen;Nørbovej 15;7200;Grindsted;Danmark;;;;Vestenaa@Hotmail.com
-Diverse;22945366;Muremester Thomas B Aps;Bøgebakker 9;7430;Ikast;Danmark;;;;Thomasbach1985@gmail.com
-Diverse;155;CEP capital Aps;Bredgade 24, 1;7400;Herning;Danmark;;;;tad@tad.as
-Diverse;1480;Claus Keld Hansen;Rådhusstrædet 12;7430;Ikast;Danmark;;;;tad@tad.as
-Diverse;26080002;AWTC ApS;Lene Haus Vej 15;7430;Ikast;Danmark;;;;tad@tad.as
-Diverse;38494899;CEP Group ApS;Bredgade 24, 1 sal ;7400;Herning;Danmark;;;;tad@tad.as
-Diverse;770;Sussi Sahl Bjerre;Rypevej 63;7480;Vildbjerg;Danmark;;;;Susssi.sahl@Hotmail.com
-Diverse;86411777;PM Salon Group A/S;Lægårdsvej 28;8520;Lystrup;Danmark;96411777;;;
-Diverse;97131025;BENDT RISOM ApS;Østergade 22;7480;Vildbjerg;Danmark;;;;Risom.Martin@gmail.com
-Diverse;97133333;EJENDOMSSELSKAB;Midgaardsvej 28;7480;Vildbjerg;Danmark;;;;Mrstougaard@gmail.com
-Diverse;97122680;Park by Fruehøj;Grundvigsvej 66;7400;Herning;Danmark;;;;Larsogtinavestergaard@gmail.com
-Diverse;97121112;Øreklinikken Herning;Merkurvej 1k, 2;7400;Herning;Danmark;;;;klinikherning@gmail.com
-Diverse;72175555;SKOV A/S;Hedelund 4, Glyngøre;7870;Roslev;Danmark;72175555;;;KGJ@skov.dk
-Diverse;1900;Jacob Svangaard;Søkærvej 10;8722;Hedensted;Danmark;;;;Js@select.dk
-Diverse;25144203;Jesper Nielsen;Kæmindevej 16;7480;Vildbjerg;Danmark;;;;Jhn@welcon.dk
-Diverse;86815000;JH EI & Køl A/S;Allinggårdsvej 131c;8600;Silkeborg;Danmark;86815000;;;Jh@jhsm.dk
-Diverse;1360;JOO Byg ApS;Duedalen 99B;5492;Vissenbjerg;Danmark;;;;Jesperoo90@gmail.com
-Diverse;96135551;Gråkjær Landbrug A/S;Fabersvej 15;7500;Holstebro;Danmark;;;;Invoice.landbrug@graakjaer.dk
-Diverse;96135555;Gråkjær  Erhverv A/S;Fabersvej 15;7500;Holstebro;Danmark;;;;Invoice.erhverv@graakjaer.dk
-Diverse;B69620000;NORDISK WAVIN A/S;Wavinvej 1;8450;Hammel;Danmark;86962000;;;Invoice.dk@wavin.com
-Diverse;30404600;TRÆHUSE NORDSJÆLLAND HELÅRSHUSE - FRITIDSHUSE ApS;Ømosevej 22, ørerne;3000;Helsingør;Danmark;;;;Hb@theranch3000.dk
-Diverse;27218744;TØMRERMESTER SØREN BRØDSGAARD ApS;Tingvej 8;7400;Herning;Danmark;97269744;;;faktura@tmsb.dk
-Diverse;42123322;KLIMASHUSE A/S;Lene Haus Vej 15;7430;Ikast;Danmark;;;;faktura@klimahuse.com
-Diverse;1450;KH Bolig Invest ApS;Lene Haus Vej 15;7430;Ikast;Danmark;;;;faktura@klimahuse.com
-Diverse;260;Dobbelthuse ApS;Lene Haus Vej 15;7430;Ikast;Danmark;;;;faktura@klimahuse.com
-Diverse;1000;Kirkebakke ApS;Lene Haus Vej 15;7430;Ikast;Danmark;;;;Faktura@ihouse.as
-Diverse;42123312;IHOUSE GROUP A/S;Lene Haus Vej 15;7430;Ikast;Danmark;;;;Faktura@ihouse.as
-Diverse;1980;Vesterhab Bakke Aps;Lene Haus Vej 15;7430;Ikast;Danmark;;;;Faktura@ihouse.as
-Diverse;42123342;CFT Ejendomme ApS;Akacieparken 49;7430;Ikast;Danmark;;;;Faktura@cftejendomme.dk
-Diverse;30920254;Buus A/S;Silkeborgvej 750b;8220;Brabrand;Danmark;;;;Faktura@buus-ag.dk
-Diverse;2200;Janne radsten;Holmeskovvej 9;3480;Fredensborg;Danmark;;;;Drjmrodsten@gmail.com
-Diverse;23461311;Tømrermester Daniel D ApS;Bøgildhaven 14;7430;Ikast;Danmark;;;;Danieldahse@gmail.com
-Diverse;1230;Dan Boel Nielsen;Lysgård søvej ;7480;Vildbjerg;Danmark;;;;Danboel@hotmail.com
-Diverse;850;Carsten Sohnemann;Nylandsvej 22;7480;Vildbjerg;Danmark;;;;Carstensohnemann@gmail.com
-Diverse;1590;CFT Ejendomme ApS;Akacieparken 49;7430;Ikast;Danmark;;;;c@eyda.com
+﻿Gruppe;Nr.;Navn;Adresse 1;Postnr. ;By;Land;Telfon/fax;Attention;Deres ref. ;E-mail;IsFavorite
+Diverse;1940;Jesper Pedersen;Nørbovej 15;7200;Grindsted;Danmark;;;;Vestenaa@Hotmail.com;false
+Diverse;22945366;Muremester Thomas B Aps;Bøgebakker 9;7430;Ikast;Danmark;;;;Thomasbach1985@gmail.com;false
+Diverse;155;CEP capital Aps;Bredgade 24, 1;7400;Herning;Danmark;;;;tad@tad.as;false
+Diverse;1480;Claus Keld Hansen;Rådhusstrædet 12;7430;Ikast;Danmark;;;;tad@tad.as;false
+Diverse;26080002;AWTC ApS;Lene Haus Vej 15;7430;Ikast;Danmark;;;;tad@tad.as;false
+Diverse;38494899;CEP Group ApS;Bredgade 24, 1 sal ;7400;Herning;Danmark;;;;tad@tad.as;false
+Diverse;770;Sussi Sahl Bjerre;Rypevej 63;7480;Vildbjerg;Danmark;;;;Susssi.sahl@Hotmail.com;false
+Diverse;86411777;PM Salon Group A/S;Lægårdsvej 28;8520;Lystrup;Danmark;96411777;;;false
+Diverse;97131025;BENDT RISOM ApS;Østergade 22;7480;Vildbjerg;Danmark;;;;Risom.Martin@gmail.com;false
+Diverse;97133333;EJENDOMSSELSKAB;Midgaardsvej 28;7480;Vildbjerg;Danmark;;;;Mrstougaard@gmail.com;false
+Diverse;97122680;Park by Fruehøj;Grundvigsvej 66;7400;Herning;Danmark;;;;Larsogtinavestergaard@gmail.com;false
+Diverse;97121112;Øreklinikken Herning;Merkurvej 1k, 2;7400;Herning;Danmark;;;;klinikherning@gmail.com;false
+Diverse;72175555;SKOV A/S;Hedelund 4, Glyngøre;7870;Roslev;Danmark;72175555;;;KGJ@skov.dk;false
+Diverse;1900;Jacob Svangaard;Søkærvej 10;8722;Hedensted;Danmark;;;;Js@select.dk;false
+Diverse;25144203;Jesper Nielsen;Kæmindevej 16;7480;Vildbjerg;Danmark;;;;Jhn@welcon.dk;false
+Diverse;86815000;JH EI & Køl A/S;Allinggårdsvej 131c;8600;Silkeborg;Danmark;86815000;;;Jh@jhsm.dk;false
+Diverse;1360;JOO Byg ApS;Duedalen 99B;5492;Vissenbjerg;Danmark;;;;Jesperoo90@gmail.com;false
+Diverse;96135551;Gråkjær Landbrug A/S;Fabersvej 15;7500;Holstebro;Danmark;;;;Invoice.landbrug@graakjaer.dk;true
+Diverse;96135555;Gråkjær  Erhverv A/S;Fabersvej 15;7500;Holstebro;Danmark;;;;Invoice.erhverv@graakjaer.dk;true
+Diverse;B69620000;NORDISK WAVIN A/S;Wavinvej 1;8450;Hammel;Danmark;86962000;;;Invoice.dk@wavin.com;false
+Diverse;30404600;TRÆHUSE NORDSJÆLLAND HELÅRSHUSE - FRITIDSHUSE ApS;Ømosevej 22, ørerne;3000;Helsingør;Danmark;;;;Hb@theranch3000.dk;true
+Diverse;27218744;TØMRERMESTER SØREN BRØDSGAARD ApS;Tingvej 8;7400;Herning;Danmark;97269744;;;faktura@tmsb.dk;false
+Diverse;42123322;KLIMASHUSE A/S;Lene Haus Vej 15;7430;Ikast;Danmark;;;;faktura@klimahuse.com;true
+Diverse;1450;KH Bolig Invest ApS;Lene Haus Vej 15;7430;Ikast;Danmark;;;;faktura@klimahuse.com;false
+Diverse;260;Dobbelthuse ApS;Lene Haus Vej 15;7430;Ikast;Danmark;;;;faktura@klimahuse.com;false
+Diverse;1000;Kirkebakke ApS;Lene Haus Vej 15;7430;Ikast;Danmark;;;;Faktura@ihouse.as;false
+Diverse;42123312;IHOUSE GROUP A/S;Lene Haus Vej 15;7430;Ikast;Danmark;;;;Faktura@ihouse.as;false
+Diverse;1980;Vesterhab Bakke Aps;Lene Haus Vej 15;7430;Ikast;Danmark;;;;Faktura@ihouse.as;false
+Diverse;42123342;CFT Ejendomme ApS;Akacieparken 49;7430;Ikast;Danmark;;;;Faktura@cftejendomme.dk;false
+Diverse;30920254;Buus A/S;Silkeborgvej 750b;8220;Brabrand;Danmark;;;;Faktura@buus-ag.dk;false
+Diverse;2200;Janne radsten;Holmeskovvej 9;3480;Fredensborg;Danmark;;;;Drjmrodsten@gmail.com;false
+Diverse;23461311;Tømrermester Daniel D ApS;Bøgildhaven 14;7430;Ikast;Danmark;;;;Danieldahse@gmail.com;false
+Diverse;1230;Dan Boel Nielsen;Lysgård søvej ;7480;Vildbjerg;Danmark;;;;Danboel@hotmail.com;false
+Diverse;850;Carsten Sohnemann;Nylandsvej 22;7480;Vildbjerg;Danmark;;;;Carstensohnemann@gmail.com;false
+Diverse;1590;CFT Ejendomme ApS;Akacieparken 49;7430;Ikast;Danmark;;;;c@eyda.com;false

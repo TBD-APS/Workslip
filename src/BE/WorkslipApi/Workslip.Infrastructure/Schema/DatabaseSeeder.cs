@@ -555,7 +555,7 @@ public static class DatabaseSeeder
                 Email = record.Email?.Trim(),
                 ContactPerson = record.Attention?.Trim(),
                 Phone = record.TelefonFax?.Trim(),
-                IsFavorite = false,
+                IsFavorite = record.IsFavorite,
                 CreatedAt = now,
                 UpdatedAt = now,
             });
@@ -577,6 +577,7 @@ public static class DatabaseSeeder
         public string? Attention { get; set; }
         public string? DeresRef { get; set; }
         public string? Email { get; set; }
+        public bool IsFavorite {get;set;}
     }
 
     private sealed class CsvCustomerMap : ClassMap<CsvCustomerRow>
