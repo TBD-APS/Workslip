@@ -181,9 +181,9 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         completedSteps={completedSteps} 
       />
 
-      {details.job.status === JobStatus.Rejected && details.job.rejectionNote && (
-        <StatusBanner variant="warning" title="Afvisningsgrund">
-          <p>{details.job.rejectionNote}</p>
+      {details.job.status === JobStatus.Rejected && (
+        <StatusBanner variant="warning" title="Sagen er afvist - kontakt chef for yderligere detaljer">
+          {details.job.rejectionNote && <p>{details.job.rejectionNote}</p>}
         </StatusBanner>
       )}
 

@@ -3,7 +3,7 @@ import { ChevronRight, ClipboardList } from 'lucide-react';
 import { Checkbox } from '../../../../components/forms/Checkbox';
 import type { JobForm } from '../../types';
 import type { ReferenceDataResponse } from '../../../../api/generated/models';
-import './ControlPointsStep.css';
+
 
 type ControlPointsStepProps = {
   form: JobForm;
