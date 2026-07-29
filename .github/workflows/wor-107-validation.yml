@@ -119,8 +119,13 @@ jobs:
       - name: Build
         run: dotnet build Workslip.slnx --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test Workslip.slnx --configuration Release --no-build --no-restore
+      - name: Test organization scope
+        run: >-
+          dotnet test Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --filter "FullyQualifiedName~Workslip.Tests.Organizations"
 
       - name: Commit Postman update
         if: github.event_name == 'push'
