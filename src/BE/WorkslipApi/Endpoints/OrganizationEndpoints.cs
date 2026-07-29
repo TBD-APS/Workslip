@@ -34,8 +34,10 @@ public static class OrganizationEndpoints
             Guid organizationId,
             IOrganizationSessionService service,
             IConfiguration configuration,
+            HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.CreateAsync(organizationId, cancellationToken);
             return ResultExtensions.ToHttpResult(
                 result,
