@@ -38,6 +38,27 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
             IF COL_LENGTH(N'dbo.InviteTokens', N'RevokedAt') IS NULL
                 ALTER TABLE [dbo].[InviteTokens] ADD [RevokedAt] datetimeoffset NULL;
 
+            IF NOT EXISTS (
+                SELECT 1
+                FROM sys.indexes
+                WHERE [name] = N'UX_Users_Email'
+                  AND [object_id] = OBJECT_ID(N'dbo.Users'))
+            BEGIN
+                IF EXISTS (
+                    SELECT [Email]
+                    FROM [dbo].[Users]
+                    WHERE [Email] IS NOT NULL AND LTRIM(RTRIM([Email])) <> N''
+                    GROUP BY [Email]
+                    HAVING COUNT_BIG(*) > 1)
+                BEGIN
+                    THROW 51000, 'Cannot create UX_Users_Email because duplicate non-empty user emails exist.', 1;
+                END
+
+                CREATE UNIQUE INDEX [UX_Users_Email]
+                    ON [dbo].[Users] ([Email])
+                    WHERE [Email] IS NOT NULL AND [Email] <> N'';
+            END
+
             IF COL_LENGTH(N'dbo.Customers', N'CustomerNumber') IS NULL
                 ALTER TABLE [dbo].[Customers] ADD [CustomerNumber] nvarchar(80) NULL;
             ELSE IF COL_LENGTH(N'dbo.Customers', N'CustomerNumber') = -1
