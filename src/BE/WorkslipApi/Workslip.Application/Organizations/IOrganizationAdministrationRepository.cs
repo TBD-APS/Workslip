@@ -12,7 +12,7 @@ public interface IOrganizationAdministrationRepository
 
     Task<bool> IsEntraIdentityReferencedAsync(string entraUserId, CancellationToken cancellationToken);
 
-    Task<Guid> CreateAdminAsync(UserDataRow admin, CancellationToken cancellationToken);
+    Task<Guid?> CreateAdminAsync(UserDataRow admin, CancellationToken cancellationToken);
 
     Task<bool> UpdateAdminAsync(
         UserDataRow admin,
