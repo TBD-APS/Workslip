@@ -1,15 +1,16 @@
-import {
-  ApplicationInsights,
-  type IDependencyTelemetry,
-  type IEventTelemetry,
-  type IExceptionTelemetry,
-  type ITelemetryItem,
+import type {
+  ApplicationInsights as ApplicationInsightsClient,
+  IDependencyTelemetry,
+  IEventTelemetry,
+  IExceptionTelemetry,
+  ITelemetryItem,
 } from '@microsoft/applicationinsights-web';
 
 const connectionString = import.meta.env.VITE_APPLICATIONINSIGHTS_CONNECTION_STRING;
 const release = import.meta.env.VITE_APP_RELEASE?.trim() || __BUILD_TIME__;
 
-let client: ApplicationInsights | null = null;
+let client: ApplicationInsightsClient | null = null;
+let initializationPromise: Promise<void> | null = null;
 let globalHandlersInstalled = false;
 let pendingInteraction: { correlationId: string; action: string; createdAt: number } | null = null;
 const recentlyReportedErrors = new Map<string, number>();
@@ -182,34 +183,45 @@ function sanitizeTelemetryItem(item: ITelemetryItem): boolean {
   return true;
 }
 
-export function initializeApplicationInsights(): void {
+export function initializeApplicationInsights(): Promise<void> {
   const localOptIn = import.meta.env.VITE_APPLICATIONINSIGHTS_ENABLE_LOCAL === 'true';
-  if ((!import.meta.env.PROD && !localOptIn) || !connectionString || client) return;
-
-  try {
-    client = new ApplicationInsights({
-      config: {
-        connectionString,
-        disableAjaxTracking: true,
-        disableCookiesUsage: true,
-        disableExceptionTracking: true,
-        disableFetchTracking: true,
-        enableAutoRouteTracking: false,
-        samplingPercentage: 100,
-      },
-    });
-
-    client.addTelemetryInitializer((item) => {
-      item.tags = {
-        ...(item.tags ?? {}),
-        'ai.application.ver': release,
-      };
-      return sanitizeTelemetryItem(item);
-    });
-    client.loadAppInsights();
-  } catch {
-    client = null;
+  if ((!import.meta.env.PROD && !localOptIn) || !connectionString || client) {
+    return Promise.resolve();
   }
+  if (initializationPromise) return initializationPromise;
+
+  initializationPromise = import('@microsoft/applicationinsights-web')
+    .then(({ ApplicationInsights }) => {
+      if (client) return;
+
+      const nextClient = new ApplicationInsights({
+        config: {
+          connectionString,
+          disableAjaxTracking: true,
+          disableCookiesUsage: true,
+          disableExceptionTracking: true,
+          disableFetchTracking: true,
+          enableAutoRouteTracking: false,
+          samplingPercentage: 100,
+        },
+      });
+
+      nextClient.addTelemetryInitializer((item) => {
+        item.tags = {
+          ...(item.tags ?? {}),
+          'ai.application.ver': release,
+        };
+        return sanitizeTelemetryItem(item);
+      });
+      nextClient.loadAppInsights();
+      client = nextClient;
+    })
+    .catch(() => {
+      client = null;
+      initializationPromise = null;
+    });
+
+  return initializationPromise;
 }
 
 export function reportFrontendError(error: unknown, source: string, details: Record<string, string> = {}): void {
