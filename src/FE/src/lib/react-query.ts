@@ -1,5 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
-import { JOB_LIST_GC_TIME_MS, JOB_LIST_STALE_TIME_MS } from '../features/jobs/queries/jobListQuery';
+
+export const JOB_LIST_STALE_TIME_MS = 30_000;
+export const JOB_LIST_GC_TIME_MS = 30 * 60 * 1000;
 
 export const queryClient = new QueryClient({
   defaultOptions: {
