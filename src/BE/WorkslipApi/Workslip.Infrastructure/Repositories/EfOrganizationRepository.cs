@@ -67,10 +67,14 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             token => CreateAdminAsyncCoreAsync(admin, token),
             cancellationToken);
 
-    public Task<bool> UpdateAdminAsync(UserDataRow admin, CancellationToken cancellationToken) =>
+    public Task<bool> UpdateAdminAsync(
+        UserDataRow admin,
+        string expectedEmail,
+        string expectedEntraId,
+        CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync(
             "organization-admin.update",
-            token => UpdateAdminAsyncCoreAsync(admin, token),
+            token => UpdateAdminAsyncCoreAsync(admin, expectedEmail, expectedEntraId, token),
             cancellationToken);
 
     private async Task<bool> CvrExistsAsyncCoreAsync(string normalizedCvr, CancellationToken cancellationToken) =>
@@ -197,8 +201,8 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             .AsNoTracking()
             .Where(user => user.OrganizationId == organizationId
                 && user.Role == Roles.Admin
-                && (user.Email == null || user.Email == string.Empty)
-                && (user.EntraId == null || user.EntraId == string.Empty))
+                && user.Email == string.Empty
+                && user.EntraId == string.Empty)
             .OrderBy(user => user.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -214,28 +218,30 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
         return admin.Id;
     }
 
-    private async Task<bool> UpdateAdminAsyncCoreAsync(UserDataRow admin, CancellationToken cancellationToken)
+    private async Task<bool> UpdateAdminAsyncCoreAsync(
+        UserDataRow admin,
+        string expectedEmail,
+        string expectedEntraId,
+        CancellationToken cancellationToken)
     {
-        var existing = await _dbContext.Users
-            .FirstOrDefaultAsync(
-                user => user.Id == admin.Id && user.OrganizationId == admin.OrganizationId,
+        var affectedRows = await _dbContext.Users
+            .Where(user => user.Id == admin.Id
+                && user.OrganizationId == admin.OrganizationId
+                && user.Email == expectedEmail
+                && user.EntraId == expectedEntraId
+                && user.Role != Roles.Superadmin)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(user => user.Email, admin.Email)
+                    .SetProperty(user => user.DisplayName, admin.DisplayName)
+                    .SetProperty(user => user.Phone, admin.Phone)
+                    .SetProperty(user => user.EntraId, admin.EntraId)
+                    .SetProperty(user => user.EntraEmail, admin.EntraEmail)
+                    .SetProperty(user => user.Role, Roles.Admin)
+                    .SetProperty(user => user.UpdatedAt, admin.UpdatedAt),
                 cancellationToken);
 
-        if (existing is null)
-        {
-            return false;
-        }
-
-        existing.Email = admin.Email;
-        existing.DisplayName = admin.DisplayName;
-        existing.Phone = admin.Phone;
-        existing.EntraId = admin.EntraId;
-        existing.EntraEmail = admin.EntraEmail;
-        existing.Role = Roles.Admin;
-        existing.UpdatedAt = admin.UpdatedAt;
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return true;
+        return affectedRows == 1;
     }
 
     private static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
