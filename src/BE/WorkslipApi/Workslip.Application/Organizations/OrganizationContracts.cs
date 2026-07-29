@@ -26,6 +26,7 @@ public sealed record OrganizationUserResponse(
     string? Email,
     string? Phone,
     string Role,
+    bool EntraInvitationSent,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
