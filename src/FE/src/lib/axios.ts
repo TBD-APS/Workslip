@@ -7,6 +7,7 @@ import {
   trackApiDependency,
   trackUserInteraction,
 } from '../applicationInsights';
+import { restoreHomeOrganizationSession } from '../features/superadmin/organizationSession';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -22,6 +23,7 @@ import {
   AUTH_TOKEN_KEY,
   USER_EMAIL_KEY,
   AuthStorage,
+  clearReauthInFlight,
   isReauthInFlight,
   setReauthInFlight,
 } from '../providers/authContextValue';
@@ -162,6 +164,14 @@ apiClient.interceptors.response.use(
     const isMeEndpoint = isAuthMeRequest(error.config?.url);
 
     if (error.response?.status === 401) {
+      if (restoreHomeOrganizationSession()) {
+        clearReauthInFlight();
+        notify.dismiss();
+        notify.info('Organisationssessionen er udløbet. Du er tilbage i Superadmin.');
+        window.location.assign('/superadmin?organizationSessionExpired=1');
+        return Promise.reject(error);
+      }
+
       if (!isAuthApi && !isAuthRoute) {
         if (!isReauthInFlight()) {
           setReauthInFlight();
