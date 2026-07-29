@@ -5,11 +5,13 @@ import { ErrorFallback } from '../providers/ErrorFallback';
 import { useAuth } from '../providers/useAuth';
 import { RoleGuard } from '../providers/permissions';
 import { Login } from '../features/auth/routes/Login';
-import { InviteAccept } from '../features/auth/routes/InviteAccept';
 import { reportFrontendError } from '../applicationInsights';
 
 const AUTH_STARTUP_GRACE_MS = 6_000;
 
+const InviteAccept = lazy(() =>
+  import('../features/auth/routes/InviteAccept').then((module) => ({ default: module.InviteAccept })),
+);
 const AppLayout = lazy(() =>
   import('../components/layouts/AppLayout').then((module) => ({ default: module.AppLayout })),
 );
