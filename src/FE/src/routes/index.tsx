@@ -64,6 +64,9 @@ const Profile = lazy(() =>
 const LegalPage = lazy(() =>
   import('../features/legal').then((module) => ({ default: module.LegalPage })),
 );
+const SuperAdmin = lazy(() =>
+  import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
+);
 
 interface StartupRecoveryProps {
   isRetrying: boolean;
@@ -238,6 +241,20 @@ export const router = createBrowserRouter([
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
           { path: 'legal/:type', element: <LegalPage /> },
+        ],
+      },
+      {
+        path: '/superadmin',
+        element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
+        children: [
+          {
+            index: true,
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <SuperAdmin />
+              </RoleGuard>
+            ),
+          },
         ],
       },
       {
