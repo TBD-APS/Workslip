@@ -54,7 +54,7 @@ GET    /api/auth/invites
 DELETE /api/auth/invites/{inviteId}
 ```
 
-The delete operation is tenant-scoped by the authenticated organization. It removes the selected status row and invalidates an unaccepted invitation. When Workslip created an Entra guest specifically for that pending invitation, the guest is removed before the status row is deleted. Accepted invitations only have their historical status row removed; the enrolled user is not deleted.
+The delete operation is tenant-scoped by the authenticated organization. A pending invitation is atomically revoked and its token rotated before any external cleanup starts, so concurrent enrollment and clearing cannot both succeed. When Workslip created an Entra guest specifically for that pending invitation, the guest is removed before the revoked status row is deleted. If Graph cleanup fails, the revoked row remains as durable retry state. Accepted invitations only have their historical status row removed; the enrolled user is not deleted.
 
 ## Standard headers
 
