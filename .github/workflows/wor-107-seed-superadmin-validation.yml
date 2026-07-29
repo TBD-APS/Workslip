@@ -1,0 +1,287 @@
+name: WOR-107 Entra-backed superadmin seed validation
+
+on:
+  push:
+    branches:
+      - rbj--107-superadmin-organization-admin
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rbj--107-superadmin-organization-admin
+
+      - name: Apply implementation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path("src/BE/WorkslipApi")
+
+          def replace(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"Expected block not found in {path}: {old[:120]!r}")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          interface_path = root / "Workslip.Application/Users/IUserEntraService.cs"
+          replace(
+              interface_path,
+              "    Task<CreateEntraUserResult> InviteAdminAsync(string email, string displayName, CancellationToken ct) =>\n        CreateUserAsync(email, displayName, ct);\n\n    Task DeleteUserAsync(string entraUserId, CancellationToken ct);",
+              "    Task<CreateEntraUserResult> InviteAdminAsync(string email, string displayName, CancellationToken ct) =>\n        CreateUserAsync(email, displayName, ct);\n\n    Task<CreateEntraUserResult> EnsureSuperadminAsync(string email, string displayName, CancellationToken ct);\n\n    Task DeleteUserAsync(string entraUserId, CancellationToken ct);",
+          )
+
+          entra_path = root / "Workslip.Application/Users/UserEntraService.cs"
+          replace(
+              entra_path,
+              "    public Task<CreateEntraUserResult> InviteAdminAsync(string email, string displayName, CancellationToken ct) =>\n        EnsureInvitedUserAsync(\n            email,\n            displayName,\n            Roles.Admin,\n            sendInvitationMessage: true,\n            redirectPath: \"/login\",\n            ct);\n\n    public Task<CreateEntraUserResult> EnsureInvitedUserAsync(string email, CancellationToken ct) =>",
+              "    public Task<CreateEntraUserResult> InviteAdminAsync(string email, string displayName, CancellationToken ct) =>\n        EnsureInvitedUserAsync(\n            email,\n            displayName,\n            Roles.Admin,\n            sendInvitationMessage: true,\n            redirectPath: \"/login\",\n            ct);\n\n    public Task<CreateEntraUserResult> EnsureSuperadminAsync(string email, string displayName, CancellationToken ct) =>\n        EnsureInvitedUserAsync(\n            email,\n            displayName,\n            Roles.Superadmin,\n            sendInvitationMessage: true,\n            redirectPath: \"/login\",\n            ct);\n\n    public Task<CreateEntraUserResult> EnsureInvitedUserAsync(string email, CancellationToken ct) =>",
+          )
+
+          seeder_path = root / "Workslip.Infrastructure/Schema/DatabaseSeeder.cs"
+          replace(
+              seeder_path,
+              "using Microsoft.EntityFrameworkCore;\nusing Workslip.Domain;",
+              "using Microsoft.EntityFrameworkCore;\nusing Workslip.Application.Users;\nusing Workslip.Domain;",
+          )
+          replace(
+              seeder_path,
+              "    public static async Task Seed(SqlDbContext db)\n    {\n        db.IsSeeding = true;\n        try\n        {\n            await SeedCore(db);\n        }\n        finally\n        {\n            db.IsSeeding = false;\n        }\n    }",
+              "    public static Task Seed(SqlDbContext db) =>\n        SeedInternal(db, entraService: null, CancellationToken.None);\n\n    public static Task Seed(\n        SqlDbContext db,\n        IUserEntraService entraService,\n        CancellationToken cancellationToken = default) =>\n        SeedInternal(db, entraService, cancellationToken);\n\n    private static async Task SeedInternal(\n        SqlDbContext db,\n        IUserEntraService? entraService,\n        CancellationToken cancellationToken)\n    {\n        db.IsSeeding = true;\n        try\n        {\n            await SeedCore(db);\n            if (entraService is not null)\n            {\n                await ReconcileDevelopmentSuperadminAsync(db, entraService, cancellationToken);\n            }\n        }\n        finally\n        {\n            db.IsSeeding = false;\n        }\n    }",
+          )
+          reconcile_marker = "    private static async Task ReconcileDevelopmentUsersAsync(SqlDbContext db, Guid organizationId)\n"
+          reconcile_method = '''    private static async Task ReconcileDevelopmentSuperadminAsync(
+        SqlDbContext db,
+        IUserEntraService entraService,
+        CancellationToken cancellationToken)
+    {
+        var definition = DevelopmentUserDefinitions.Single(user => user.Role == Roles.Superadmin);
+        var normalizedEmail = definition.Email.Trim().ToLowerInvariant();
+        var matchingUsers = await db.Users
+            .Where(user => user.Id == definition.Id || user.Email.ToLower() == normalizedEmail)
+            .ToListAsync(cancellationToken);
+
+        if (matchingUsers.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Development superadmin '{normalizedEmail}' was not created by the database seed.");
+        }
+
+        if (matchingUsers.Count > 1)
+        {
+            throw new InvalidOperationException(
+                $"Development superadmin identity conflict: canonical ID '{definition.Id}' and email '{normalizedEmail}' belong to different users.");
+        }
+
+        var user = matchingUsers[0];
+        var entraUser = await entraService.EnsureSuperadminAsync(
+            normalizedEmail,
+            definition.DisplayName,
+            cancellationToken);
+
+        try
+        {
+            user.Email = normalizedEmail;
+            user.DisplayName = definition.DisplayName;
+            user.Phone = definition.Phone;
+            user.Role = Roles.Superadmin;
+            user.EntraId = entraUser.EntraUserId;
+            user.EntraEmail = entraUser.EntraMail;
+            user.UpdatedAt = DateTimeOffset.UtcNow;
+
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception persistenceException) when (entraUser.Created)
+        {
+            try
+            {
+                await entraService.DeleteUserAsync(entraUser.EntraUserId, cancellationToken);
+            }
+            catch (Exception rollbackException)
+            {
+                throw new AggregateException(
+                    "Development superadmin persistence and Entra rollback both failed.",
+                    persistenceException,
+                    rollbackException);
+            }
+
+            throw;
+        }
+    }
+
+'''
+          text = seeder_path.read_text(encoding="utf-8")
+          if reconcile_marker not in text:
+              raise SystemExit("DatabaseSeeder reconciliation marker not found")
+          seeder_path.write_text(text.replace(reconcile_marker, reconcile_method + reconcile_marker, 1), encoding="utf-8")
+
+          program_path = root / "Program.cs"
+          replace(
+              program_path,
+              "using Workslip.Api.Configuration;\nusing Workslip.Infrastructure.Schema;",
+              "using Workslip.Api.Configuration;\nusing Workslip.Application.Users;\nusing Workslip.Infrastructure.Schema;",
+          )
+          replace(
+              program_path,
+              "        if (app.Environment.IsDevelopment())\n            await DatabaseSeeder.Seed(db);",
+              "        if (app.Environment.IsDevelopment())\n        {\n            var entraService = scope.ServiceProvider.GetRequiredService<IUserEntraService>();\n            await DatabaseSeeder.Seed(db, entraService);\n        }",
+          )
+
+          tests_path = root / "Workslip.Tests/Infrastructure/DatabaseSeederTests.cs"
+          replace(
+              tests_path,
+              "using Microsoft.EntityFrameworkCore;\nusing Workslip.Domain;",
+              "using Microsoft.EntityFrameworkCore;\nusing Workslip.Application.Users;\nusing Workslip.Domain;",
+          )
+          test_marker = "    [Fact]\n    public async Task Seed_when_canonical_id_has_different_email_preserves_existing_user()\n"
+          new_test = '''    [Fact]
+    public async Task Seed_with_entra_service_reconciles_canonical_superadmin_identity()
+    {
+        await using var context = CreateContext();
+        var organization = CreateOrganization(
+            Guid.NewGuid(),
+            "Existing organization",
+            "12345678",
+            DateTimeOffset.Parse("2025-01-01T00:00:00Z"));
+        context.Organizations.Add(organization);
+        await context.SaveChangesAsync();
+
+        var entraService = new FakeEntraService
+        {
+            SuperadminResult = new CreateEntraUserResult(
+                "entra-superadmin-id",
+                "rasmusvm6_hotmail.com#EXT#@tenant.onmicrosoft.com",
+                "Rasmus Bak Jakobsen",
+                Created: false)
+        };
+
+        await DatabaseSeeder.Seed(context, entraService);
+        await DatabaseSeeder.Seed(context, entraService);
+
+        var user = await context.Users
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.Email == "rasmusvm6@hotmail.com");
+
+        Assert.Equal(new Guid("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F"), user.Id);
+        Assert.Equal(organization.Id, user.OrganizationId);
+        Assert.Equal("Rasmus Bak Jakobsen", user.DisplayName);
+        Assert.Equal("28929173", user.Phone);
+        Assert.Equal(Roles.Superadmin, user.Role);
+        Assert.Equal("entra-superadmin-id", user.EntraId);
+        Assert.Equal("rasmusvm6_hotmail.com#EXT#@tenant.onmicrosoft.com", user.EntraEmail);
+        Assert.Equal(2, entraService.EnsureSuperadminCalls);
+        Assert.Equal(0, entraService.DeleteCalls);
+        Assert.Equal(ExpectedDevelopmentUsers.Count, await context.Users.CountAsync());
+        Assert.False(context.IsSeeding);
+    }
+
+'''
+          text = tests_path.read_text(encoding="utf-8")
+          if test_marker not in text:
+              raise SystemExit("DatabaseSeeder test insertion marker not found")
+          tests_path.write_text(text.replace(test_marker, new_test + test_marker, 1), encoding="utf-8")
+
+          fake_marker = "    private sealed record ExpectedDevelopmentUser(Guid Id, string DisplayName, string Phone, string Role);\n"
+          fake = '''    private sealed class FakeEntraService : IUserEntraService
+    {
+        public CreateEntraUserResult SuperadminResult { get; init; } =
+            new("entra-superadmin-id", "rasmusvm6@hotmail.com", "Rasmus Bak Jakobsen", Created: false);
+
+        public int EnsureSuperadminCalls { get; private set; }
+        public int DeleteCalls { get; private set; }
+
+        public Task<CreateEntraUserResult> CreateUserAsync(string email, string displayName, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<CreateEntraUserResult> EnsureInvitedUserAsync(string email, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<CreateEntraUserResult> InviteAdminAsync(string email, string displayName, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<CreateEntraUserResult> EnsureSuperadminAsync(string email, string displayName, CancellationToken ct)
+        {
+            EnsureSuperadminCalls++;
+            Assert.Equal("rasmusvm6@hotmail.com", email);
+            Assert.Equal("Rasmus Bak Jakobsen", displayName);
+            return Task.FromResult(SuperadminResult);
+        }
+
+        public Task DeleteUserAsync(string entraUserId, CancellationToken ct)
+        {
+            DeleteCalls++;
+            return Task.CompletedTask;
+        }
+    }
+
+'''
+          text = tests_path.read_text(encoding="utf-8")
+          if fake_marker not in text:
+              raise SystemExit("DatabaseSeeder fake insertion marker not found")
+          tests_path.write_text(text.replace(fake_marker, fake + fake_marker, 1), encoding="utf-8")
+
+          # Keep existing test doubles source-compatible with the expanded Entra service contract.
+          tests_root = root / "Workslip.Tests"
+          for path in tests_root.rglob("*.cs"):
+              if path == tests_path:
+                  continue
+              text = path.read_text(encoding="utf-8")
+              if ": IUserEntraService" not in text or "EnsureSuperadminAsync" in text:
+                  continue
+              pattern = re.compile(r"(?P<indent>\s*)public Task DeleteUserAsync\(")
+              match = pattern.search(text)
+              if not match:
+                  raise SystemExit(f"Could not add EnsureSuperadminAsync to {path}")
+              indent = match.group("indent")
+              method = (
+                  f"{indent}public Task<CreateEntraUserResult> EnsureSuperadminAsync(\n"
+                  f"{indent}    string email,\n"
+                  f"{indent}    string displayName,\n"
+                  f"{indent}    CancellationToken ct) =>\n"
+                  f"{indent}    CreateUserAsync(email, displayName, ct);\n\n"
+              )
+              path.write_text(text[:match.start()] + method + text[match.start():], encoding="utf-8")
+
+          readme_path = root / "README.md"
+          replace(
+              readme_path,
+              "Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.",
+              "Development seeding resolves the existing `IUserEntraService` after the local rows are reconciled. The canonical `rasmusvm6@hotmail.com` seed is created or reused as an Entra B2B identity, assigned the `Superadmin` app role, and persisted with `EntraId` and `EntraEmail`. A missing identity receives one invitation to `/login`; later starts are idempotent. Development startup therefore requires working Microsoft Graph credentials when this seed is enabled.\n\nProduction SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.",
+          )
+          PY
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        working-directory: src/BE/WorkslipApi
+        run: dotnet restore Workslip.slnx
+
+      - name: Build
+        working-directory: src/BE/WorkslipApi
+        run: dotnet build Workslip.slnx --configuration Release --no-restore
+
+      - name: Seeder and organization tests
+        working-directory: src/BE/WorkslipApi
+        run: >-
+          dotnet test Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --filter "FullyQualifiedName~Workslip.Tests.Infrastructure.DatabaseSeederTests|FullyQualifiedName~Workslip.Tests.Organizations"
+
+      - name: Commit implementation and remove workflow
+        run: |
+          rm .github/workflows/wor-107-seed-superadmin-validation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "WOR-107 seed canonical Superadmin through Entra service"
+          git push origin HEAD:rbj--107-superadmin-organization-admin
