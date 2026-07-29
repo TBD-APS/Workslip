@@ -1,5 +1,10 @@
 @charset "UTF-8";
 
+:root {
+  --font-main: 'Inter', sans-serif;
+  --font-heading: 'Outfit', sans-serif;
+}
+
 [data-theme="day"] .bottom-nav {
   background: rgba(255, 255, 255, 0.92);
   padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
