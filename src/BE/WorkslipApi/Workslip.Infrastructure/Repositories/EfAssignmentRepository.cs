@@ -20,8 +20,12 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     private readonly IWorksheetRepository _worksheetRepo;
     private readonly IJobViewRepository _jobViewRepo;
 
-    public EfAssignmentRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy,
-        ICurrentUserContext currentUser, IWorksheetRepository worksheetRepo, IJobViewRepository jobViewRepo)
+    public EfAssignmentRepository(
+        SqlDbContext dbContext,
+        IDatabaseRetryPolicy retryPolicy,
+        ICurrentUserContext currentUser,
+        IWorksheetRepository worksheetRepo,
+        IJobViewRepository jobViewRepo)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
@@ -30,23 +34,40 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         _jobViewRepo = jobViewRepo;
     }
 
-    public Task AssignAsync(Guid jobId, Guid organizationId, IReadOnlyList<Guid> userIds, Guid? actorId, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync("jobs.assign", token => AssignAsyncCoreAsync(jobId, organizationId, userIds, actorId, token), cancellationToken);
+    public Task AssignAsync(
+        Guid jobId,
+        Guid organizationId,
+        IReadOnlyList<Guid> userIds,
+        Guid? actorId,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "jobs.assign",
+            token => AssignAsyncCoreAsync(jobId, organizationId, userIds, actorId, token),
+            cancellationToken);
 
-    private async Task AssignAsyncCoreAsync(Guid jobId, Guid organizationId, IReadOnlyList<Guid> userIds, Guid? actorId, CancellationToken cancellationToken)
+    private async Task AssignAsyncCoreAsync(
+        Guid jobId,
+        Guid organizationId,
+        IReadOnlyList<Guid> userIds,
+        Guid? actorId,
+        CancellationToken cancellationToken)
     {
         if (organizationId != _currentUser.OrganizationId)
+        {
             return;
+        }
 
         _dbContext.ChangeTracker.Clear();
 
-        var existing = await _dbContext.JobReports.FirstOrDefaultAsync(r => r.Id == jobId && r.OrganizationId == organizationId, cancellationToken);
-
+        var existing = await _dbContext.JobReports.FirstOrDefaultAsync(
+            report => report.Id == jobId && report.OrganizationId == organizationId,
+            cancellationToken);
         if (existing is null)
+        {
             return;
+        }
 
-        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var normalizedUserIds = userIds
             .Where(id => id != Guid.Empty)
@@ -54,14 +75,14 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
             .ToArray();
 
         var currentAssignments = await _dbContext.JobAssignments
-            .Where(a => a.ReportId == jobId && a.OrganizationId == organizationId)
+            .Where(assignment => assignment.ReportId == jobId && assignment.OrganizationId == organizationId)
             .ToListAsync(cancellationToken);
 
         var assignmentsToRemove = currentAssignments
-            .Where(a => !normalizedUserIds.Contains(a.UserId))
+            .Where(assignment => !normalizedUserIds.Contains(assignment.UserId))
             .ToArray();
 
-        var existingUserIds = currentAssignments.Select(a => a.UserId).ToHashSet();
+        var existingUserIds = currentAssignments.Select(assignment => assignment.UserId).ToHashSet();
         var userIdsToAdd = normalizedUserIds
             .Where(userId => !existingUserIds.Contains(userId))
             .ToArray();
@@ -84,169 +105,218 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         if (assignmentsToRemove.Length > 0 || userIdsToAdd.Length > 0)
         {
             var entry = _dbContext.Entry(existing);
-            entry.Property(e => e.UpdatedAt).CurrentValue = now;
+            entry.Property(report => report.UpdatedAt).CurrentValue = now;
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        await tx.CommitAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
-    public Task<IReadOnlyList<JobListItemResponse>> GetMyAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync("jobs.get-my-assigned", token => GetMyAssignedJobsAsyncCoreAsync(organizationId, userId, token), cancellationToken);
+    public Task<IReadOnlyList<JobListItemResponse>> GetMyAssignedJobsAsync(
+        Guid organizationId,
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "jobs.get-my-assigned",
+            token => GetMyAssignedJobsAsyncCoreAsync(organizationId, userId, token),
+            cancellationToken);
 
-    private async Task<IReadOnlyList<JobListItemResponse>> GetMyAssignedJobsAsyncCoreAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<JobListItemResponse>> GetMyAssignedJobsAsyncCoreAsync(
+        Guid organizationId,
+        Guid userId,
+        CancellationToken cancellationToken)
     {
         if (organizationId != _currentUser.OrganizationId)
+        {
             return [];
+        }
 
         var projected = await (
-            from r in _dbContext.JobReports.AsNoTracking()
-            join a in _dbContext.JobAssignments.AsNoTracking()
-                on new { r.Id, r.OrganizationId }
-                equals new { Id = a.ReportId, a.OrganizationId }
-            join c in _dbContext.Customers.AsNoTracking() on new { Id = r.CustomerId, r.OrganizationId } equals new { Id = (Guid?)c.Id, c.OrganizationId } into rjc
-            from c in rjc.DefaultIfEmpty()
-            where r.OrganizationId == organizationId
-                  && a.UserId == userId
-                  && !r.IsSoftDeleted
-            orderby r.UpdatedAt descending
+            from report in _dbContext.JobReports.AsNoTracking()
+            join assignment in _dbContext.JobAssignments.AsNoTracking()
+                on new { report.Id, report.OrganizationId }
+                equals new { Id = assignment.ReportId, assignment.OrganizationId }
+            join customer in _dbContext.Customers.AsNoTracking()
+                on new { Id = report.CustomerId, report.OrganizationId }
+                equals new { Id = (Guid?)customer.Id, customer.OrganizationId } into reportCustomerJoin
+            from customer in reportCustomerJoin.DefaultIfEmpty()
+            where report.OrganizationId == organizationId
+                && assignment.UserId == userId
+                && !report.IsSoftDeleted
+            orderby report.UpdatedAt descending
             select new
             {
-                r.Id,
-                r.OrganizationId,
-                CustId = r.CustomerId,
-                CustName = c.Name,
-                CustAddress = c.Address,
-                CustEmail = c.Email,
-                CustContactPerson = c.ContactPerson,
-                CustPhone = c.Phone,
-                r.ReportNumber,
-                r.Status,
-                r.JobType,
-                r.DestinationAddress,
-                r.DestinationZipCode,
-                r.DestinationCity,
-                r.TaskDescription,
-                r.ReportDate,
-                WorkKind = r.WorkKindRow != null ? new JobWorkKindResponse(
-                    r.WorkKindRow.Id,
-                    r.WorkKindRow.NormalizedLabel,
-                    r.WorkKindRow.Label,
-                    r.WorkKindRow.RequiresCustomWorkKind,
-                    r.WorkKindRow.SortOrder,
-                    r.CustomWorkKind) : null,
-                r.CreatedAt,
-                r.UpdatedAt,
-                r.IsSoftDeleted,
-                r.DeletionScheduledAt,
-                r.RejectionNote
+                report.Id,
+                report.OrganizationId,
+                CustId = report.CustomerId,
+                CustName = customer.Name,
+                CustAddress = customer.Address,
+                CustEmail = customer.Email,
+                CustContactPerson = customer.ContactPerson,
+                CustPhone = customer.Phone,
+                report.ReportNumber,
+                report.Status,
+                report.JobType,
+                report.DestinationAddress,
+                report.DestinationZipCode,
+                report.DestinationCity,
+                report.TaskDescription,
+                report.ReportDate,
+                WorkKind = report.WorkKindRow != null
+                    ? new JobWorkKindResponse(
+                        report.WorkKindRow.Id,
+                        report.WorkKindRow.NormalizedLabel,
+                        report.WorkKindRow.Label,
+                        report.WorkKindRow.RequiresCustomWorkKind,
+                        report.WorkKindRow.SortOrder,
+                        report.CustomWorkKind)
+                    : null,
+                report.CreatedAt,
+                report.UpdatedAt,
+                report.IsSoftDeleted,
+                report.DeletionScheduledAt,
+                report.RejectionNote
             }).ToListAsync(cancellationToken);
 
-        var reportIds = projected.Select(x => x.Id).ToArray();
+        var reportIds = projected.Select(report => report.Id).ToArray();
 
         var assignedUsers = await (
-            from a in _dbContext.JobAssignments.AsNoTracking()
-            join u in _dbContext.Users.AsNoTracking()
-                on new { a.UserId, a.OrganizationId }
-                equals new { UserId = u.Id, u.OrganizationId }
-            where a.OrganizationId == organizationId
-                  && reportIds.Contains(a.ReportId)
+            from assignment in _dbContext.JobAssignments.AsNoTracking()
+            join user in _dbContext.Users.AsNoTracking()
+                on new { assignment.UserId, OrganizationId = (Guid?)assignment.OrganizationId }
+                equals new { UserId = user.Id, user.OrganizationId }
+            where assignment.OrganizationId == organizationId
+                && reportIds.Contains(assignment.ReportId)
             select new
             {
-                a.ReportId,
-                u.Id,
-                u.DisplayName
+                assignment.ReportId,
+                user.Id,
+                user.DisplayName
             }).ToListAsync(cancellationToken);
 
         var assignedDictionary = assignedUsers
-            .GroupBy(x => x.ReportId)
+            .GroupBy(user => user.ReportId)
             .ToDictionary(
-                g => g.Key,
-                g => g.OrderBy(x => x.Id == _currentUser.UserId ? 0 : 1)
-                      .Select(x => new AssignedUserResponse(x.Id, x.DisplayName))
-                      .ToArray() as IReadOnlyList<AssignedUserResponse>);
+                group => group.Key,
+                group => group.OrderBy(user => user.Id == _currentUser.UserId ? 0 : 1)
+                    .Select(user => new AssignedUserResponse(user.Id, user.DisplayName))
+                    .ToArray() as IReadOnlyList<AssignedUserResponse>);
 
         var installationTypesByReport = await _dbContext.JobReportInstallations
             .AsNoTracking()
-            .Where(it => it.OrganizationId == organizationId && reportIds.Contains(it.JobReportId))
-            .Include(it => it.InstallationTypeDefinition)
-            .GroupBy(it => it.JobReportId)
+            .Where(installation => installation.OrganizationId == organizationId
+                && reportIds.Contains(installation.JobReportId))
+            .Include(installation => installation.InstallationTypeDefinition)
+            .GroupBy(installation => installation.JobReportId)
             .ToDictionaryAsync(
-                g => g.Key,
-                g => g.OrderBy(it => it.SortOrder).Select(it => it.InstallationTypeDefinition.Name).ToArray() as IReadOnlyList<string>,
+                group => group.Key,
+                group => group.OrderBy(installation => installation.SortOrder)
+                    .Select(installation => installation.InstallationTypeDefinition.Name)
+                    .ToArray() as IReadOnlyList<string>,
                 cancellationToken);
 
         var totalHoursByJob = await _worksheetRepo.GetTotalHoursByJobAsync(reportIds, cancellationToken);
 
-        var seenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(userId, reportIds, ["New"], cancellationToken);
+        var seenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(
+            userId,
+            reportIds,
+            ["New"],
+            cancellationToken);
         var seenSet = new HashSet<Guid>(seenJobIds);
 
-        var rejectedSeenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(userId, reportIds, ["RejectedAssignment"], cancellationToken);
+        var rejectedSeenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(
+            userId,
+            reportIds,
+            ["RejectedAssignment"],
+            cancellationToken);
         var rejectedSeenSet = new HashSet<Guid>(rejectedSeenJobIds);
 
-        return projected.Select(x =>
+        return projected.Select(report =>
         {
-            var customerInfo = x.CustId is not null
-                ? new CustomerInfo(x.CustId.Value, x.CustName ?? "", x.CustAddress, x.CustEmail, x.CustContactPerson, x.CustPhone)
+            var customerInfo = report.CustId is not null
+                ? new CustomerInfo(
+                    report.CustId.Value,
+                    report.CustName ?? string.Empty,
+                    report.CustAddress,
+                    report.CustEmail,
+                    report.CustContactPerson,
+                    report.CustPhone)
                 : null;
 
-            var status = Enum.Parse<JobStatus>(x.Status, ignoreCase: true);
-            var isNewRejection = status == JobStatus.Rejected && !rejectedSeenSet.Contains(x.Id);
+            var status = Enum.Parse<JobStatus>(report.Status, ignoreCase: true);
+            var isNewRejection = status == JobStatus.Rejected && !rejectedSeenSet.Contains(report.Id);
 
             return new JobListItemResponse(
-                x.Id, x.OrganizationId,
+                report.Id,
+                report.OrganizationId,
                 customerInfo,
-                x.ReportNumber, status, JobReportMapper.ToDateOnly(x.ReportDate),
-                x.JobType,
-                x.DestinationAddress,
-                x.DestinationZipCode,
-                x.DestinationCity,
-                x.TaskDescription,
-                installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
-                x.CreatedAt, x.UpdatedAt,
-                assignedDictionary.GetValueOrDefault(x.Id) ?? [],
-                x.IsSoftDeleted, x.DeletionScheduledAt,
-                totalHoursByJob.GetValueOrDefault(x.Id),
-                seenSet.Contains(x.Id),
+                report.ReportNumber,
+                status,
+                JobReportMapper.ToDateOnly(report.ReportDate),
+                report.JobType,
+                report.DestinationAddress,
+                report.DestinationZipCode,
+                report.DestinationCity,
+                report.TaskDescription,
+                installationTypesByReport.GetValueOrDefault(report.Id) ?? [],
+                report.WorkKind,
+                report.CreatedAt,
+                report.UpdatedAt,
+                assignedDictionary.GetValueOrDefault(report.Id) ?? [],
+                report.IsSoftDeleted,
+                report.DeletionScheduledAt,
+                totalHoursByJob.GetValueOrDefault(report.Id),
+                seenSet.Contains(report.Id),
                 isNewRejection,
-                x.RejectionNote);
+                report.RejectionNote);
         }).ToArray();
     }
 
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<AssignedUserResponse>>> GetAssignedUsersByReportAsync(
-        Guid organizationId, IEnumerable<Guid> reportIds, CancellationToken cancellationToken)
+        Guid organizationId,
+        IEnumerable<Guid> reportIds,
+        CancellationToken cancellationToken)
     {
         var normalizedIds = reportIds.Distinct().ToArray();
-        if (normalizedIds.Length == 0) return new Dictionary<Guid, IReadOnlyList<AssignedUserResponse>>();
+        if (normalizedIds.Length == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyList<AssignedUserResponse>>();
+        }
 
         var rows = await (
-            from a in _dbContext.JobAssignments.AsNoTracking()
-            join user in _dbContext.Users.AsNoTracking() on new { a.OrganizationId, Id = a.UserId } equals new { user.OrganizationId, user.Id }
-            where a.OrganizationId == organizationId && normalizedIds.Contains(a.ReportId)
-            select new { a.ReportId, user.Id, user.DisplayName }
+            from assignment in _dbContext.JobAssignments.AsNoTracking()
+            join user in _dbContext.Users.AsNoTracking()
+                on new { OrganizationId = (Guid?)assignment.OrganizationId, Id = assignment.UserId }
+                equals new { user.OrganizationId, user.Id }
+            where assignment.OrganizationId == organizationId
+                && normalizedIds.Contains(assignment.ReportId)
+            select new { assignment.ReportId, user.Id, user.DisplayName }
         ).ToListAsync(cancellationToken);
 
-        var result = rows
-            .GroupBy(r => r.ReportId)
+        return rows
+            .GroupBy(row => row.ReportId)
             .ToDictionary(
-                g => g.Key,
-                g => g.OrderBy(r => r.Id == _currentUser.UserId ? 0 : 1)
-                      .Select(r => new AssignedUserResponse(r.Id, r.DisplayName))
-                      .ToArray() as IReadOnlyList<AssignedUserResponse>);
-
-        return result;
+                group => group.Key,
+                group => group.OrderBy(row => row.Id == _currentUser.UserId ? 0 : 1)
+                    .Select(row => new AssignedUserResponse(row.Id, row.DisplayName))
+                    .ToArray() as IReadOnlyList<AssignedUserResponse>);
     }
 
     public async Task<IReadOnlyList<AssignedUserResponse>> GetAssignedUsersByIdsAsync(
-        Guid organizationId, IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
+        Guid organizationId,
+        IReadOnlyList<Guid> userIds,
+        CancellationToken cancellationToken)
     {
-        if (userIds.Count == 0) return [];
+        if (userIds.Count == 0)
+        {
+            return [];
+        }
 
         var rows = await _dbContext.Users
             .AsNoTracking()
-            .Where(u => u.OrganizationId == organizationId && userIds.Contains(u.Id))
-            .Select(u => new { u.Id, u.DisplayName })
-            .ToDictionaryAsync(u => u.Id, cancellationToken);
+            .Where(user => user.OrganizationId == organizationId && userIds.Contains(user.Id))
+            .Select(user => new { user.Id, user.DisplayName })
+            .ToDictionaryAsync(user => user.Id, cancellationToken);
 
         return userIds
             .Where(rows.ContainsKey)
@@ -255,9 +325,12 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     }
 
     public Task AddAssignedUsersAsync(
-        Guid organizationId, Guid reportId,
-        IReadOnlyList<Guid> userIds, Guid? actorId,
-        DateTimeOffset now, CancellationToken cancellationToken)
+        Guid organizationId,
+        Guid reportId,
+        IReadOnlyList<Guid> userIds,
+        Guid? actorId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         foreach (var userId in userIds)
         {
@@ -276,6 +349,11 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
     }
 
     private async Task<IReadOnlyList<AssignedUserResponse>> GetSingleAssignedUsersAsync(
-        Guid organizationId, Guid reportId, CancellationToken cancellationToken) =>
-        (await GetAssignedUsersByReportAsync(organizationId, [reportId], cancellationToken)).GetValueOrDefault(reportId) ?? [];
+        Guid organizationId,
+        Guid reportId,
+        CancellationToken cancellationToken) =>
+        (await GetAssignedUsersByReportAsync(
+            organizationId,
+            [reportId],
+            cancellationToken)).GetValueOrDefault(reportId) ?? [];
 }
