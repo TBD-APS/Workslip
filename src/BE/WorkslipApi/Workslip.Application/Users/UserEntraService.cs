@@ -13,29 +13,59 @@ public sealed class UserEntraService(
     IConfiguration configuration,
     ICorrelationIdAccessor correlationIdAccessor) : IUserEntraService
 {
-    public async Task<CreateEntraUserResult> CreateUserAsync(string email, string displayName, CancellationToken ct)
-    {
-        var user = await EnsureInvitedUserAsync(email, ct);
-        return user with { DisplayName = displayName };
-    }
+    public Task<CreateEntraUserResult> CreateUserAsync(string email, string displayName, CancellationToken ct) =>
+        EnsureInvitedUserAsync(
+            email,
+            displayName,
+            Roles.User,
+            sendInvitationMessage: false,
+            redirectPath: "/invite",
+            ct);
 
-    public async Task<CreateEntraUserResult> EnsureInvitedUserAsync(string email, CancellationToken ct)
+    public Task<CreateEntraUserResult> InviteAdminAsync(string email, string displayName, CancellationToken ct) =>
+        EnsureInvitedUserAsync(
+            email,
+            displayName,
+            Roles.Admin,
+            sendInvitationMessage: true,
+            redirectPath: "/login",
+            ct);
+
+    public Task<CreateEntraUserResult> EnsureInvitedUserAsync(string email, CancellationToken ct) =>
+        EnsureInvitedUserAsync(
+            email,
+            email,
+            Roles.User,
+            sendInvitationMessage: false,
+            redirectPath: "/invite",
+            ct);
+
+    private async Task<CreateEntraUserResult> EnsureInvitedUserAsync(
+        string email,
+        string displayName,
+        string appRoleValue,
+        bool sendInvitationMessage,
+        string redirectPath,
+        CancellationToken ct)
     {
         var existingUser = await FindExistingEntraUserAsync(email, ct);
         if (existingUser != null)
         {
-            await AssignAppRoleTo(existingUser.Id!, Roles.User, ct);
-            return new CreateEntraUserResult(existingUser.Id!, ResolveEntraMail(existingUser, email), existingUser.DisplayName ?? email, Created: false);
+            await AssignAppRoleTo(existingUser.Id!, appRoleValue, ct);
+            return new CreateEntraUserResult(
+                existingUser.Id!,
+                ResolveEntraMail(existingUser, email),
+                existingUser.DisplayName ?? displayName,
+                Created: false);
         }
 
-        var redirectUrl = configuration["Azure:Domain:BaseUrl"] + "/invite";
-
+        var baseUrl = configuration["Azure:Domain:BaseUrl"]?.TrimEnd('/') ?? string.Empty;
         var invitation = new Invitation
         {
             InvitedUserEmailAddress = email,
-            InviteRedirectUrl = redirectUrl,
-            SendInvitationMessage = false,
-            InvitedUserDisplayName = email
+            InviteRedirectUrl = baseUrl + redirectPath,
+            SendInvitationMessage = sendInvitationMessage,
+            InvitedUserDisplayName = displayName
         };
 
         var createdInvitation = await CreateExternalInviteAsync(invitation, email, ct);
@@ -44,7 +74,7 @@ public sealed class UserEntraService(
 
         try
         {
-            await AssignAppRoleTo(invitedUser.Id!, Roles.User, ct);
+            await AssignAppRoleTo(invitedUser.Id!, appRoleValue, ct);
         }
         catch
         {
@@ -52,7 +82,11 @@ public sealed class UserEntraService(
             throw;
         }
 
-        return new CreateEntraUserResult(invitedUser.Id!, ResolveEntraMail(invitedUser, email), email, Created: true);
+        return new CreateEntraUserResult(
+            invitedUser.Id!,
+            ResolveEntraMail(invitedUser, email),
+            displayName,
+            Created: true);
     }
 
     public async Task DeleteUserAsync(string entraUserId, CancellationToken ct)
@@ -123,18 +157,16 @@ public sealed class UserEntraService(
         var escapedUserPrincipalName = EscapeODataString(userPrincipalName);
         var escapedGuestUpnPrefix = EscapeODataString(guestUpnPrefix);
 
-        logger.LogError("My graph {GraphClient}", graphClient.GetType().FullName);
-
         try
         {
             var result = await graphClient.Users.GetAsync(
-                        request =>
-                        {
-                            request.QueryParameters.Filter =
-                                $"mail eq '{escapedEmail}' or otherMails/any(m:m eq '{escapedEmail}') or userPrincipalName eq '{escapedUserPrincipalName}' or startswith(userPrincipalName,'{escapedGuestUpnPrefix}')";
-                            request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail", "otherMails"];
-                            request.QueryParameters.Top = 1;
-                        }, ct);
+                request =>
+                {
+                    request.QueryParameters.Filter =
+                        $"mail eq '{escapedEmail}' or otherMails/any(m:m eq '{escapedEmail}') or userPrincipalName eq '{escapedUserPrincipalName}' or startswith(userPrincipalName,'{escapedGuestUpnPrefix}')";
+                    request.QueryParameters.Select = ["id", "displayName", "userPrincipalName", "mail", "otherMails"];
+                    request.QueryParameters.Top = 1;
+                }, ct);
             return result?.Value?.FirstOrDefault();
         }
         catch (ODataError odataError)
@@ -144,9 +176,9 @@ public sealed class UserEntraService(
                 odataError.Error?.Message);
             throw;
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            logger.LogError(e, "Generel fejl under kald til Graph API");
+            logger.LogError(exception, "Generel fejl under kald til Graph API");
             throw;
         }
     }
@@ -230,9 +262,11 @@ public sealed class UserEntraService(
 
     private static AppRole FindAppRole(ServicePrincipal servicePrincipal, string appRoleValue)
     {
-        var appRole = servicePrincipal.AppRoles?.SingleOrDefault(r => r.Value == appRoleValue && r.IsEnabled == true);
+        var appRole = servicePrincipal.AppRoles?.SingleOrDefault(role => role.Value == appRoleValue && role.IsEnabled == true);
         if (appRole?.Id is null)
+        {
             throw new InvalidOperationException($"App role '{appRoleValue}' not found.");
+        }
 
         return appRole;
     }
@@ -242,5 +276,4 @@ public record CreateEntraUserResult(
     string EntraUserId,
     string EntraMail,
     string DisplayName,
-    bool Created
-);
+    bool Created);
