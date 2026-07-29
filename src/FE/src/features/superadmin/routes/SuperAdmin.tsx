@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ArrowRight, Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { notify } from '../../../lib/toast';
 import {
   createOrganization,
@@ -11,6 +11,11 @@ import {
 } from '../api';
 import { AdminInviteForm } from '../components/AdminInviteForm';
 import { OrganizationCreateForm } from '../components/OrganizationCreateForm';
+import {
+  clearOrganizationScope,
+  getOrganizationScope,
+  setOrganizationScope,
+} from '../organizationScope';
 import type {
   CreateOrganizationInput,
   InviteOrganizationAdminInput,
@@ -41,6 +46,15 @@ export function SuperAdmin() {
   )
     ? requestedOrganizationId
     : organizations[0]?.id ?? '';
+
+  const activeOrganizationScope = getOrganizationScope();
+
+  useEffect(() => {
+    if (!organizationsQuery.isSuccess || !activeOrganizationScope) return;
+    if (!organizations.some((organization) => organization.id === activeOrganizationScope.id)) {
+      clearOrganizationScope();
+    }
+  }, [activeOrganizationScope, organizations, organizationsQuery.isSuccess]);
 
   const createMutation = useMutation({
     mutationFn: createOrganization,
@@ -92,6 +106,17 @@ export function SuperAdmin() {
     (organization) => organization.id === selectedOrganizationId,
   );
 
+  const handleOpenOrganization = () => {
+    if (!selectedOrganization) return;
+
+    setOrganizationScope({
+      id: selectedOrganization.id,
+      name: selectedOrganization.name,
+    });
+
+    window.location.assign('/app');
+  };
+
   return (
     <div className="page-container superadmin-page">
       <header className="superadmin-page-header">
@@ -101,7 +126,7 @@ export function SuperAdmin() {
           </span>
           <div>
             <h1>Superadmin</h1>
-            <p>Opret organisationer og tildel administratorer via Microsoft Entra.</p>
+            <p>Administrér platformens organisationer, og vælg eksplicit hvilken organisation du arbejder i.</p>
           </div>
         </div>
         <button
@@ -136,6 +161,10 @@ export function SuperAdmin() {
         <div>
           <span className="superadmin-overview-label">Valgt organisation</span>
           <strong>{selectedOrganization?.name ?? 'Ingen valgt'}</strong>
+        </div>
+        <div>
+          <span className="superadmin-overview-label">Aktiv adgang</span>
+          <strong>{activeOrganizationScope?.name ?? 'Platformniveau'}</strong>
         </div>
       </div>
 
@@ -186,8 +215,17 @@ export function SuperAdmin() {
         <div className="superadmin-list-header">
           <div>
             <h2 id="organization-list-title">Organisationer</h2>
-            <p>Vælg en organisation her for at tildele dens administrator.</p>
+            <p>Vælg en organisation, og åbn derefter dens almindelige Workslip-visning.</p>
           </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleOpenOrganization}
+            disabled={!selectedOrganization}
+          >
+            <span>Åbn organisation</span>
+            <ArrowRight size={16} aria-hidden="true" />
+          </button>
         </div>
 
         {organizationsQuery.isLoading ? (
@@ -201,6 +239,7 @@ export function SuperAdmin() {
           <div className="superadmin-organization-cards">
             {organizations.map((organization) => {
               const isSelected = organization.id === selectedOrganizationId;
+              const isActive = organization.id === activeOrganizationScope?.id;
               return (
                 <button
                   key={organization.id}
@@ -214,7 +253,9 @@ export function SuperAdmin() {
                   aria-pressed={isSelected}
                 >
                   <span className="superadmin-organization-name">{organization.name}</span>
-                  <span className="superadmin-organization-cvr">CVR {organization.cvr}</span>
+                  <span className="superadmin-organization-cvr">
+                    CVR {organization.cvr}{isActive ? ' · Aktiv' : ''}
+                  </span>
                 </button>
               );
             })}
