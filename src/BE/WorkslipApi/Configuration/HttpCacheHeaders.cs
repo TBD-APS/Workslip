@@ -87,24 +87,13 @@ public static class HttpCacheHeaders
         return ToWeakEtag($"jobs:list:{organizationId:N}:{currentUserId?.ToString("N") ?? "anon"}:{representation}");
     }
 
-    public static string JobAssignedEtag(IEnumerable<JobListItemResponse> jobs, Guid organizationId)
+    public static string JobAssignedEtag(
+        IReadOnlyList<JobListItemViewModel> jobs,
+        Guid organizationId,
+        Guid? currentUserId)
     {
-        var builder = new StringBuilder()
-            .Append("jobs:assigned:")
-            .Append(organizationId.ToString("N"));
-
-        foreach (var job in jobs.OrderBy(j => j.Id))
-        {
-            builder
-                .Append('|')
-                .Append(job.Id.ToString("N"))
-                .Append(':')
-                .Append(job.UpdatedAt.UtcTicks)
-                .Append(':')
-                .Append(job.Status);
-        }
-
-        return ToWeakEtag(builder.ToString());
+        var representation = JsonSerializer.Serialize(jobs);
+        return ToWeakEtag($"jobs:assigned:{organizationId:N}:{currentUserId?.ToString("N") ?? "anon"}:{representation}");
     }
 
     public static string JobHistoryEtag(Guid jobId, IEnumerable<JobHistoryResponse> events, int? limit, int? offset)
