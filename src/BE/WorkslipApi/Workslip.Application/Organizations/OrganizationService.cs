@@ -10,6 +10,8 @@ namespace Workslip.Application.Organizations;
 
 public interface IOrganizationService
 {
+    Task<Result<IReadOnlyList<OrganizationResponse>>> ListAsync(CancellationToken cancellationToken);
+
     Task<Result<OrganizationOnboardingResponse>> CreateAsync(CreateOrganizationRequest request, CancellationToken cancellationToken);
 
     Task<Result<OrganizationUserResponse>> UpsertAdminAsync(
@@ -26,6 +28,21 @@ public sealed class OrganizationService(
     IUserEntraService entraService,
     ILogger<OrganizationService> logger) : IOrganizationService
 {
+    public async Task<Result<IReadOnlyList<OrganizationResponse>>> ListAsync(CancellationToken cancellationToken)
+    {
+        var organizations = await administrationRepository.ListOrganizationsAsync(cancellationToken);
+        IReadOnlyList<OrganizationResponse> response = organizations
+            .Select(organization => new OrganizationResponse(
+                organization.Id,
+                organization.Name,
+                organization.Cvr,
+                organization.CreatedAt,
+                organization.UpdatedAt))
+            .ToList();
+
+        return Result<IReadOnlyList<OrganizationResponse>>.Success(response);
+    }
+
     public async Task<Result<OrganizationOnboardingResponse>> CreateAsync(CreateOrganizationRequest request, CancellationToken cancellationToken)
     {
         var validationResult = await createOrganizationValidator.ValidateAsync(request, cancellationToken);
@@ -125,7 +142,7 @@ public sealed class OrganizationService(
         var admin = existingByEmail
             ?? await administrationRepository.GetUnlinkedAdminAsync(organizationId, cancellationToken);
 
-        var entraUser = await entraService.CreateUserAsync(normalizedEmail, request.DisplayName.Trim(), cancellationToken);
+        var entraUser = await entraService.InviteAdminAsync(normalizedEmail, request.DisplayName.Trim(), cancellationToken);
         AdminPersistenceResult persistenceResult;
         try
         {
@@ -152,12 +169,13 @@ public sealed class OrganizationService(
 
         var persistedAdmin = persistenceResult.Admin!;
         logger.LogInformation(
-            "Organization admin upserted. OrganizationId: {OrganizationId}. UserId: {UserId}. Created: {Created}.",
+            "Organization admin upserted. OrganizationId: {OrganizationId}. UserId: {UserId}. Created: {Created}. InvitationSent: {InvitationSent}.",
             organizationId,
             persistedAdmin.Id,
-            persistenceResult.Created);
+            persistenceResult.Created,
+            entraUser.Created);
 
-        return Result<OrganizationUserResponse>.Success(ToOrganizationUserResponse(persistedAdmin));
+        return Result<OrganizationUserResponse>.Success(ToOrganizationUserResponse(persistedAdmin, entraUser.Created));
     }
 
     private async Task<AdminPersistenceResult> PersistAdminAsync(
@@ -310,13 +328,14 @@ public sealed class OrganizationService(
             : null;
     }
 
-    private static OrganizationUserResponse ToOrganizationUserResponse(UserDataRow user) => new(
+    private static OrganizationUserResponse ToOrganizationUserResponse(UserDataRow user, bool entraInvitationSent) => new(
         user.Id,
         user.OrganizationId,
         user.DisplayName,
         NullIfWhiteSpace(user.Email),
         NullIfWhiteSpace(user.Phone),
         user.Role,
+        entraInvitationSent,
         user.CreatedAt,
         user.UpdatedAt);
 
