@@ -13,7 +13,7 @@ public sealed record UpdateUserRequest(
 
 public sealed record UserResponse(
     Guid Id,
-    Guid OrganizationId,
+    Guid? OrganizationId,
     string Email,
     string DisplayName,
     string Phone,
@@ -37,7 +37,7 @@ public sealed record AssignedJobResponse(
 
 public sealed record UserDetailResponse(
     Guid Id,
-    Guid OrganizationId,
+    Guid? OrganizationId,
     string Email,
     string DisplayName,
     string Phone,
@@ -83,4 +83,3 @@ public sealed record InviteOpenResponse(
     string Email,
     bool UserExists,
     bool Consumed);
-
