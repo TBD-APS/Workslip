@@ -364,7 +364,7 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
 
         var query = from e in _dbContext.JobEvents.AsNoTracking()
                     join u in _dbContext.Users.AsNoTracking()
-                        on new { UserId = e.ActorId, e.OrganizationId }
+                        on new { UserId = e.ActorId, OrganizationId = (Guid?)e.OrganizationId }
                         equals new { UserId = (Guid?)u.Id, u.OrganizationId } into users
                     from u in users.DefaultIfEmpty()
                     where e.ReportId == id && e.OrganizationId == organizationId
