@@ -6,6 +6,7 @@ import { scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
 
 import './public-fonts.css';
 import './public-shell.css';
+import './public-error.css';
 
 const VercelTelemetry = lazy(() =>
   import('./telemetry/VercelTelemetry').then((module) => ({ default: module.VercelTelemetry })),
