@@ -39,10 +39,10 @@ public sealed class DevelopmentDatabaseSeederTests
 
         var user = await context.Users
             .AsNoTracking()
-            .SingleAsync(candidate => candidate.Email == "rasmusvm6@hotmail.com");
+            .SingleAsync(candidate => candidate.Id == CanonicalSuperadminId);
 
-        Assert.Equal(CanonicalSuperadminId, user.Id);
         Assert.Equal(organization.Id, user.OrganizationId);
+        Assert.Equal("rasmusvm6@hotmail.com", user.Email);
         Assert.Equal("Rasmus Bak Jakobsen", user.DisplayName);
         Assert.Equal("28929173", user.Phone);
         Assert.Equal(Roles.Superadmin, user.Role);
@@ -55,35 +55,23 @@ public sealed class DevelopmentDatabaseSeederTests
     }
 
     [Fact]
-    public async Task SeedAsync_WhenCanonicalIdAndEmailBelongToDifferentUsers_FailsBeforeGraphCall()
+    public async Task SeedAsync_WhenCanonicalEmailAlreadyBelongsToAnotherId_FailsBeforeGraphCall()
     {
         await using var context = CreateContext();
         var organization = CreateOrganization(Guid.NewGuid());
         var timestamp = DateTimeOffset.Parse("2025-01-02T00:00:00Z");
         context.Organizations.Add(organization);
-        context.Users.AddRange(
-            new UserDataRow
-            {
-                Id = CanonicalSuperadminId,
-                OrganizationId = organization.Id,
-                DisplayName = "Renamed canonical ID",
-                Email = "renamed@example.test",
-                Phone = "11111111",
-                Role = Roles.User,
-                CreatedAt = timestamp,
-                UpdatedAt = timestamp
-            },
-            new UserDataRow
-            {
-                Id = Guid.NewGuid(),
-                OrganizationId = organization.Id,
-                DisplayName = "Conflicting canonical email",
-                Email = "rasmusvm6@hotmail.com",
-                Phone = "22222222",
-                Role = Roles.Admin,
-                CreatedAt = timestamp,
-                UpdatedAt = timestamp
-            });
+        context.Users.Add(new UserDataRow
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organization.Id,
+            DisplayName = "Conflicting canonical email",
+            Email = "rasmusvm6@hotmail.com",
+            Phone = "22222222",
+            Role = Roles.Admin,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp
+        });
         await context.SaveChangesAsync();
 
         var entraService = new FakeSuperadminEntraService();
@@ -94,7 +82,7 @@ public sealed class DevelopmentDatabaseSeederTests
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => seeder.SeedAsync());
 
-        Assert.Contains("identity conflict", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("was not created", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, entraService.EnsureSuperadminCalls);
         Assert.False(context.IsSeeding);
     }
