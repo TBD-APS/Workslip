@@ -35,6 +35,12 @@ jobs:
         working-directory: src/FE
         run: npm ci
 
+      - name: Generate API client
+        working-directory: src/FE
+        env:
+          VITE_API_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+        run: npm run orval
+
       - name: Validate changed lint-clean frontend files
         working-directory: src/FE
         run: >-
