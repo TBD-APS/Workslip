@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasTenantScope = !isSuperadmin || Boolean(getOrganizationScope());
 
   useEffect(() => {
-    if (isAuthenticated && hasTenantScope) {
+    if (isAuthenticated && hasTenantScope && !isSuperadmin) {
       registerPush().catch((error) => {
         console.error('[Auth] Failed to register push notifications:', error);
       });
@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The push hook currently returns a function tied to its mutation object.
     // Including it would re-run registration on every provider render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, hasTenantScope]);
+  }, [isAuthenticated, hasTenantScope, isSuperadmin]);
 
   const login = useCallback(
     async (email: string, code: string): Promise<boolean> => {
