@@ -41,11 +41,16 @@ The API derives organization, user and role from authenticated claims. Integrati
 The following platform operations require `RequireSuperAdmin`:
 
 ```text
+GET  /api/organizations/
 POST /api/organizations/
 PUT  /api/organizations/{organizationId}/admin
 ```
 
-Organization creation returns the organization and its initial local administrator row. The administrator upsert accepts `email`, `displayName` and optional `phone`, normalizes the email address, ensures the matching Entra guest, and creates or updates an `Admin` row in the selected organization.
+The GET operation returns all organizations ordered by name and CVR for the `/superadmin` administration page. This is an intentional cross-tenant read and must remain inside the exclusive Superadmin route group.
+
+Organization creation returns the organization and its initial local administrator placeholder. The administrator upsert accepts `email`, `displayName` and optional `phone`, normalizes the email address, creates a Microsoft Entra B2B invitation when needed, sends the Entra invitation message with `/login` as the redemption redirect, assigns the Entra `Admin` app role, and creates or updates the local `Admin` row in the selected organization.
+
+The admin response includes `entraInvitationSent`. It is `true` only when a new Entra guest and invitation message were created. It is `false` when an existing Entra identity was reused and its Admin role/local record was updated.
 
 Sequential upserts for the same organization and email are idempotent. An email already owned by another organization returns `email_in_use`, and an existing `Superadmin` account is never converted to `Admin` (`superadmin_role_protected`). Conditional writes reject stale concurrent changes with `admin_state_changed`; clients may reload and retry. If Workslip creates a new Entra guest but SQL persistence fails, it removes that guest only when no persisted user references the identity.
 
