@@ -49,6 +49,8 @@ jobs:
           cache-dependency-path: src/FE/package-lock.json
       - name: Install
         run: npm ci
+      - name: Generate API client
+        run: npm run generate:api:prod
       - name: Targeted lint
         run: >-
           npx eslint
