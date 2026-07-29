@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 
 namespace Workslip.Infrastructure.Schema;
 
-public sealed class DatabaseSchemaInitializer(SqlDbContext db)
+public sealed class DatabaseSchemaInitializer(SqlDbContext db, IHostEnvironment environment)
 {
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -99,12 +100,6 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
                    OR ([Role] <> N'Superadmin' AND [OrganizationId] IS NULL))
                 THROW 51000, 'Users contain invalid organization scope for their role.', 1;
 
-            IF OBJECT_ID(N'dbo.CK_Users_RoleOrganizationScope', N'C') IS NULL
-                ALTER TABLE [dbo].[Users] WITH CHECK
-                    ADD CONSTRAINT [CK_Users_RoleOrganizationScope]
-                    CHECK (([Role] = N'Superadmin' AND [OrganizationId] IS NULL)
-                        OR ([Role] <> N'Superadmin' AND [OrganizationId] IS NOT NULL));
-
             IF NOT EXISTS (
                 SELECT 1 FROM sys.indexes
                 WHERE [object_id] = OBJECT_ID(N'dbo.Users')
@@ -178,6 +173,33 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
                     WHERE [CustomerNumber] IS NOT NULL;
             END
             """, cancellationToken);
+
+        if (!environment.IsDevelopment())
+        {
+            await EnsureUserRoleOrganizationScopeConstraintAsync(db, cancellationToken);
+        }
+
         await db.Database.ExecuteSqlRawAsync(DatabaseIntegrityConstraintsSql.Apply, cancellationToken);
     }
+
+    public static Task EnsureUserRoleOrganizationScopeConstraintAsync(
+        SqlDbContext context,
+        CancellationToken cancellationToken = default) =>
+        context.Database.ExecuteSqlRawAsync("""
+            IF EXISTS (
+                SELECT 1
+                FROM [dbo].[Users]
+                WHERE ([Role] = N'Superadmin' AND [OrganizationId] IS NOT NULL)
+                   OR ([Role] <> N'Superadmin' AND [OrganizationId] IS NULL))
+                THROW 51000, 'Users contain invalid organization scope for their role.', 1;
+
+            IF OBJECT_ID(N'dbo.CK_Users_RoleOrganizationScope', N'C') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Users] WITH CHECK
+                    ADD CONSTRAINT [CK_Users_RoleOrganizationScope]
+                    CHECK (([Role] = N'Superadmin' AND [OrganizationId] IS NULL)
+                        OR ([Role] <> N'Superadmin' AND [OrganizationId] IS NOT NULL));
+                ALTER TABLE [dbo].[Users] CHECK CONSTRAINT [CK_Users_RoleOrganizationScope];
+            END
+            """, cancellationToken);
 }
