@@ -44,7 +44,7 @@ Before a Superadmin calls ordinary tenant endpoints, the client must explicitly 
 X-Workslip-Organization-Id: <organization-guid>
 ```
 
-The backend accepts this header only after authenticating the caller as `Superadmin`. Missing or malformed scope leaves the Superadmin without tenant context, causing tenant-scoped services to reject the request rather than infer or default an organization. Normal tenant users cannot use this header to escape their authenticated organization.
+The backend accepts this header only after authenticating the caller as `Superadmin` and verifying that the organization exists. Successful scope validation is cached briefly. Missing, malformed or unknown scope leaves the Superadmin without tenant context, causing tenant-scoped services to reject the request rather than infer or default an organization. Normal tenant users cannot use this header to escape their authenticated organization.
 
 Clients must clear tenant-specific application caches when switching the selected organization. The first-party frontend performs a full navigation after selection to prevent React Query data from one tenant being reused in another tenant view.
 
@@ -78,7 +78,7 @@ User list, user detail and current-user responses expose:
 - `role`: canonical authorization value (`User`, `Auditor`, `Admin`, or `Superadmin`). Clients must use this field for permission logic.
 - `roleDisplayName`: backend-owned Danish display label used by the UI. It is presentation data and must not be used for authorization.
 
-Tenant user-management endpoints reject attempts to create or convert users to `Superadmin`. Platform Superadmins are provisioned through the controlled platform identity path, not ordinary organization user CRUD.
+Tenant user-management endpoints reject attempts to create or convert users to `Superadmin`. Existing platform Superadmins are also protected from tenant lookup, update and deletion. Platform Superadmins are provisioned through the controlled platform identity path, not ordinary organization user CRUD.
 
 ## Invitation administration
 
@@ -103,7 +103,7 @@ X-Workslip-Organization-Id: <organization-guid>  # Superadmin tenant endpoints o
 
 `Idempotency-Key` is mandatory on currently protected mutation endpoints. Missing keys can return `428 Precondition Required`. Reusing a key with different content returns a conflict. A replay can return the stored original response.
 
-`X-Workslip-Organization-Id` is not an authorization credential. It is an explicit tenant-selection value that is honored only for an already authenticated platform Superadmin.
+`X-Workslip-Organization-Id` is not an authorization credential. It is an explicit tenant-selection value that is honored only for an already authenticated platform Superadmin and only after the organization has been verified by the server.
 
 ## Result and error contract
 
