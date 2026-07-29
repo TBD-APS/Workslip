@@ -36,22 +36,23 @@ export function scheduleAfterInitialLoad(task: () => void, timeoutMs = 2_000): (
 
 export function scheduleDeferredTelemetry(task: () => void, delayMs = 10_000): () => void {
   let started = false;
+  let delayHandle: number | undefined;
   let cancelScheduledTask: (() => void) | undefined;
 
-  const removeTriggers = () => {
+  function removeTriggers() {
     window.removeEventListener('pointerdown', start);
     window.removeEventListener('keydown', start);
-    window.clearTimeout(delayHandle);
-  };
+    if (delayHandle !== undefined) window.clearTimeout(delayHandle);
+  }
 
-  const start = () => {
+  function start() {
     if (started) return;
     started = true;
     removeTriggers();
     cancelScheduledTask = scheduleAfterInitialLoad(task);
-  };
+  }
 
-  const delayHandle = window.setTimeout(start, delayMs);
+  delayHandle = window.setTimeout(start, delayMs);
   window.addEventListener('pointerdown', start, { once: true, passive: true });
   window.addEventListener('keydown', start, { once: true });
 
