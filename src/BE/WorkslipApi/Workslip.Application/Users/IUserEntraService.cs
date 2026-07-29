@@ -1,5 +1,3 @@
-using Workslip.Domain;
-
 namespace Workslip.Application.Users;
 
 public interface IUserEntraService
