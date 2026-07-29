@@ -13,7 +13,8 @@ public sealed record OrganizationUserViewModel(
     string DisplayName,
     string? Email,
     string? Phone,
-    string Role);
+    string Role,
+    bool EntraInvitationSent);
 
 public sealed record OrganizationOnboardingViewModel(
     OrganizationViewModel Organization,
@@ -40,7 +41,8 @@ public static class OrganizationViewModelBuilder
         user.DisplayName,
         user.Email,
         user.Phone,
-        user.Role);
+        user.Role,
+        user.EntraInvitationSent);
 
     public static OrganizationOnboardingViewModel ToOnboarding(OrganizationOnboardingResponse onboarding) => new(
         ToOrganization(onboarding.Organization),
