@@ -154,7 +154,7 @@ Explicit user logout clears the Workslip JWT, saved email, authentication-provid
 
 One-time-code and development sessions clear only Workslip state. Internal account switching and startup recovery use `clearLocalSession` so they can discard an invalid or wrong Workslip identity without unexpectedly terminating the browser's Microsoft session. Existing sessions created before the authentication-provider marker was introduced are treated as Microsoft sessions on explicit logout.
 
-The Entra client registration must expose the `login_hint` optional ID-token claim; `deploy-entra.ps1` reconciles it. Sessions created before that configuration is deployed and the user signs in again have no stored hint and can still see Microsoft's account picker once. Microsoft logout does not remove remembered account tiles from the operating system, Outlook, Authenticator or Microsoft's sign-in account chooser.
+The Entra client registration must be single-tenant and expose the `login_hint` optional ID-token claim; `deploy-entra.ps1` reconciles both requirements. Invited external users remain supported as B2B guests in the Workslip tenant. Sessions created before that configuration is deployed and the user signs in again have no stored hint and can still see Microsoft's account picker once. Microsoft logout does not remove remembered account tiles from the operating system, Outlook, Authenticator or Microsoft's sign-in account chooser.
 
 ## PWA caution
 
