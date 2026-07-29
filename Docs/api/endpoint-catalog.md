@@ -20,10 +20,11 @@ OpenAPI/Scalar exposure must be verified per environment. The current startup ma
 
 | Method | Path | Access | Request/response |
 |---|---|---|---|
+| GET | `/api/organizations/` | Superadmin | All organizations ordered by name and CVR |
 | POST | `/api/organizations/` | Superadmin | Organization onboarding request → organization and initial-admin view |
 | PUT | `/api/organizations/{organizationId}/admin` | Superadmin | Administrator email, display name and optional phone → created or updated admin view |
 
-The admin upsert rejects an email owned by another organization and protects existing `Superadmin` accounts from demotion.
+These routes support the frontend `/superadmin` page. The admin upsert rejects an email owned by another organization, protects existing `Superadmin` accounts from demotion, sends a Microsoft Entra B2B invitation for new identities, assigns the Entra `Admin` app role and returns `entraInvitationSent` so the UI can distinguish a newly sent invitation from reuse of an existing identity.
 
 ## Authentication and invitations
 
@@ -97,34 +98,3 @@ Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/ci
 | DELETE | `/api/worksheets/{worksheetId}/jobs/{jobId}` | User | Delete worksheet → job summary |
 | GET | `/api/worksheets/my` | User | Optional `year`, `month` → current-user month |
 | GET | `/api/worksheets/all` | Admin | Optional `year`, `month` → organization month |
-
-## Reference data
-
-| Method | Path | Access | Notes |
-|---|---|---|---|
-| GET | `/api/reference-data/` | Read | Reference-data response with ETag/`304` support |
-
-## Notifications and push
-
-| Method | Path | Access | Notes |
-|---|---|---|---|
-| POST | `/api/push-subscriptions/` | User | Browser push endpoint and keys → mapped result |
-| GET | `/api/notifications/` | User | `limit`, `offset` → notification history |
-| PATCH | `/api/notifications/{id}/read` | User | Marks one notification read → `204` |
-| POST | `/api/notifications/read-all` | User | Marks all read → `204` |
-| DELETE | `/api/notifications/{id}` | User | Deletes one owned notification → mapped result |
-
-## Operations
-
-| Method | Path | Access | Notes |
-|---|---|---|---|
-| POST | `/api/admin/cache/clear` | Admin | Clears application caches and attempts Vercel cache invalidation |
-
-## Development endpoints
-
-| Method | Path | Access | Notes |
-|---|---|---|---|
-| POST | `/api/dev/token` | Anonymous in current route definition | Generates a local token by email; must never be treated as safe outside isolated development |
-| GET | `/api/dev/debug` | Authenticated | Returns identity/claim diagnostics |
-
-The current application maps these endpoints through `ConfigureDevEnvironment`, but the environment guard is commented out. This is a verified implementation risk, not a documentation assumption.
