@@ -1,3 +1,15 @@
+body,
+#root,
+#portal-root,
+.app-container,
+.bg-glow-wrapper,
+.bg-glow,
+.login-card,
+.reauth-card,
+.invite-card {
+  transition-property: none;
+}
+
 .bg-glow {
   animation: none;
   filter: blur(80px);
