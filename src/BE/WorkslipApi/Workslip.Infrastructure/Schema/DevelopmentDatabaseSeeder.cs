@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Users;
 using Workslip.Domain;
+using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Schema;
 
@@ -10,8 +11,14 @@ public sealed class DevelopmentDatabaseSeeder(
     ISuperadminEntraService entraService,
     ILogger<DevelopmentDatabaseSeeder> logger)
 {
-    private static readonly Guid CanonicalSuperadminId =
+    private static readonly Guid CanonicalRasmusSuperadminId =
         new("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F");
+
+    private static readonly Guid CanonicalMahadSuperadminId =
+        new("D4D4D4D4-DA5B-4CC4-BBEB-07B40CAB806F");
+
+    private const string CanonicalMahadEmail = "mahad8@outlook.dk";
+    private const string CanonicalMahadDisplayName = "Mahad";
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
@@ -20,7 +27,18 @@ public sealed class DevelopmentDatabaseSeeder(
         db.IsSeeding = true;
         try
         {
-            await ReconcileSuperadminAsync(cancellationToken);
+            var rasmus = await GetRequiredRasmusSuperadminAsync(cancellationToken);
+            var existingMahad = await ResolveExistingMahadSuperadminAsync(cancellationToken);
+
+            await ReconcileSuperadminAsync(rasmus, cancellationToken);
+
+            var mahad = existingMahad ?? CreateMahadSuperadmin(rasmus.OrganizationId);
+            if (existingMahad is null)
+            {
+                db.Users.Add(mahad);
+            }
+
+            await ReconcileSuperadminAsync(mahad, cancellationToken);
         }
         finally
         {
@@ -28,22 +46,71 @@ public sealed class DevelopmentDatabaseSeeder(
         }
     }
 
-    private async Task ReconcileSuperadminAsync(CancellationToken cancellationToken)
+    private async Task<UserDataRow> GetRequiredRasmusSuperadminAsync(CancellationToken cancellationToken)
     {
         var user = await db.Users
-            .SingleOrDefaultAsync(candidate => candidate.Id == CanonicalSuperadminId, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Id == CanonicalRasmusSuperadminId, cancellationToken);
 
-        if (user is null)
+        return user ?? throw new InvalidOperationException(
+            $"Canonical development superadmin '{CanonicalRasmusSuperadminId}' was not created by DatabaseSeeder. Resolve any conflicting seeded email before startup.");
+    }
+
+    private async Task<UserDataRow?> ResolveExistingMahadSuperadminAsync(CancellationToken cancellationToken)
+    {
+        var normalizedEmail = CanonicalMahadEmail.ToLowerInvariant();
+        var matchingUsers = await db.Users
+            .Where(user =>
+                user.Id == CanonicalMahadSuperadminId ||
+                user.Email.ToLower() == normalizedEmail)
+            .ToListAsync(cancellationToken);
+
+        if (matchingUsers.Count == 0)
         {
-            throw new InvalidOperationException(
-                $"Canonical development superadmin '{CanonicalSuperadminId}' was not created by DatabaseSeeder. Resolve any conflicting seeded email before startup.");
+            return null;
         }
 
+        if (matchingUsers.Count > 1)
+        {
+            throw new InvalidOperationException(
+                $"Development superadmin identity conflict: ID '{CanonicalMahadSuperadminId}' and email '{normalizedEmail}' belong to different Workslip users.");
+        }
+
+        var user = matchingUsers[0];
+        if (user.Id != CanonicalMahadSuperadminId ||
+            !string.Equals(user.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Development superadmin identity conflict: '{normalizedEmail}' does not belong to canonical user '{CanonicalMahadSuperadminId}'.");
+        }
+
+        return user;
+    }
+
+    private static UserDataRow CreateMahadSuperadmin(Guid organizationId)
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        return new UserDataRow
+        {
+            Id = CanonicalMahadSuperadminId,
+            OrganizationId = organizationId,
+            DisplayName = CanonicalMahadDisplayName,
+            Email = CanonicalMahadEmail,
+            Phone = string.Empty,
+            Role = Roles.Superadmin,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp
+        };
+    }
+
+    private async Task ReconcileSuperadminAsync(
+        UserDataRow user,
+        CancellationToken cancellationToken)
+    {
         var normalizedEmail = user.Email.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalizedEmail))
         {
             throw new InvalidOperationException(
-                $"Canonical development superadmin '{CanonicalSuperadminId}' has no email address.");
+                $"Canonical development superadmin '{user.Id}' has no email address.");
         }
 
         var emailOwnedByAnotherUser = await db.Users.AnyAsync(
