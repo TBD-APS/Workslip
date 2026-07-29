@@ -1,12 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Mail, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../providers/useAuth';
-import { sendAuthCode } from '../api/devToken';
-import { notify } from '../../../lib/toast';
 import {
   AUTH_PROVIDER_KEY,
   AUTH_TOKEN_KEY,
@@ -25,22 +20,13 @@ import {
   startEntraLogin,
 } from '../api/entraLogin';
 
-const EmailSchema = z.object({
-  email: z.string().email({ message: 'Ugyldig email adresse' }),
-});
-
-const CodeSchema = z.object({
-  code: z.string().min(6, { message: 'Koden skal være 6 tegn' }),
-});
-
-type EmailFormValues = z.infer<typeof EmailSchema>;
-type CodeFormValues = z.infer<typeof CodeSchema>;
+const OneTimeCodeLogin = lazy(() =>
+  import('../components/OneTimeCodeLogin').then((module) => ({ default: module.OneTimeCodeLogin })),
+);
 
 export const Login = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, login, devLogin } = useAuth();
-  const [step, setStep] = useState<'email' | 'code'>('email');
-  const [email, setEmail] = useState('');
+  const { isAuthenticated, devLogin } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showOtcLogin, setShowOtcLogin] = useState(false);
@@ -51,37 +37,23 @@ export const Login = () => {
   const [isReauth, setIsReauth] = useState(
     () => new URLSearchParams(window.location.search).get('reauth') === '1',
   );
-  const codeInputRef = useRef<HTMLInputElement>(null);
   // Guards against React.StrictMode's double-mount in dev (and against any
   // edge case where this effect runs twice). The first call navigates the
   // browser to Microsoft; the second must be a no-op to avoid generating
   // a second PKCE state that overwrites the first.
   const reauthStartedRef = useRef(false);
 
-  const emailForm = useForm<EmailFormValues>({
-    resolver: zodResolver(EmailSchema),
-    defaultValues: {
-      email: new URLSearchParams(window.location.search).get('email') || '',
-    }
-  });
-
-  const codeForm = useForm<CodeFormValues>({
-    resolver: zodResolver(CodeSchema),
-  });
-  const { ref: codeFieldRef, ...codeField } = codeForm.register('code');
-
   // Combined callback + reauth effect.
   //
   // Splitting these into two effects races when Microsoft redirects back with
-  // BOTH `?reauth=1` and `?code=` — the second effect's guard
-  // (`hasEntraLoginCallback() || params.get('reauth') !== '1'`) is implicit and
-  // easy to break. Keeping them in one effect makes the branches explicit.
+  // BOTH `?reauth=1` and `?code=`. Keeping them in one effect makes the
+  // callback and fresh-reauth branches explicit.
   useEffect(() => {
     if (reauthStartedRef.current) return;
     const params = new URLSearchParams(window.location.search);
     const isCallback = hasEntraLoginCallback();
-    const isReauth = params.get('reauth') === '1';
-    if (!isCallback && !isReauth) return;
+    const isReauthRequest = params.get('reauth') === '1';
+    if (!isCallback && !isReauthRequest) return;
     reauthStartedRef.current = true;
 
     const returnTo = sanitizeReturnTo(params.get('returnTo'));
@@ -89,7 +61,7 @@ export const Login = () => {
     if (isCallback) {
       setIsSubmitting(true);
       completeEntraLogin()
-        .then(result => {
+        .then((result) => {
           AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
           AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
           AuthStorage.setItem(AUTH_PROVIDER_KEY, 'microsoft');
@@ -105,8 +77,6 @@ export const Login = () => {
         })
         .catch((err: unknown) => {
           if (err instanceof InteractiveLoginRequiredError) {
-            // Microsoft blocked the silent flow even after we already
-            // auto-escalated from prompt=none. Force interactive login.
             clearReauthInFlight();
             clearEntraLoginSession();
             window.history.replaceState(null, '', '/login');
@@ -117,9 +87,6 @@ export const Login = () => {
             return;
           }
           if (err instanceof LoginCancelledError) {
-            // User clicked "Cancel" / "Tilbage" in the Microsoft dialog.
-            // Clean up state and let them try again on their own terms —
-            // do NOT auto-escalate, since the choice to cancel was deliberate.
             clearReauthInFlight();
             clearEntraLoginSession();
             window.history.replaceState(null, '', '/login');
@@ -132,13 +99,11 @@ export const Login = () => {
           clearEntraLoginSession();
           const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
           setErrorMsg(message);
-          notify.error(message);
           setIsSubmitting(false);
         });
       return;
     }
 
-    // Fresh reauth: try silent first, escalate on InteractiveLoginRequiredError.
     setIsSubmitting(true);
     startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
       if (err instanceof InteractiveLoginRequiredError) {
@@ -155,29 +120,6 @@ export const Login = () => {
     });
   }, []);
 
-  useEffect(() => {
-    if (step !== 'code' || !codeInputRef.current) return undefined;
-
-    const focusTimer = setTimeout(() => codeInputRef.current?.focus(), 50);
-    return () => clearTimeout(focusTimer);
-  }, [step]);
-
-  const handleSendCode = async (data: EmailFormValues) => {
-    setErrorMsg(null);
-    setIsSubmitting(true);
-    try {
-      await sendAuthCode(data.email);
-      setEmail(data.email);
-      setStep('code');
-      notify.success('Tjek din indbakke – en kode er sendt.');
-    } catch {
-      notify.error('Kunne ikke sende kode. Prøv igen.');
-      setErrorMsg('Kunne ikke sende kode. Prøv igen.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleMicrosoftLogin = async () => {
     setErrorMsg(null);
     setIsSubmitting(true);
@@ -187,27 +129,6 @@ export const Login = () => {
     } catch (err: unknown) {
       const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
       setErrorMsg(message);
-      notify.error(message);
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleVerifyCode = async (data: CodeFormValues) => {
-    setErrorMsg(null);
-    setIsSubmitting(true);
-    try {
-      const success = await login(email, data.code);
-      if (success) {
-        clearReauthInFlight();
-        navigate('/app');
-      } else {
-        setErrorMsg('Ugyldig kode. Prøv igen.');
-        notify.error('Ugyldig kode. Prøv igen.');
-      }
-    } catch {
-      setErrorMsg('Ugyldig kode. Prøv igen.');
-      notify.error('Ugyldig kode. Prøv igen.');
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -226,9 +147,7 @@ export const Login = () => {
       {isReauth && (
         <div className="reauth-card">
           <Loader2 className="animate-spin" size={32} />
-          <p>
-            Genindlæser login...
-          </p>
+          <p>Genindlæser login...</p>
           <button
             type="button"
             onClick={() => {
@@ -246,189 +165,96 @@ export const Login = () => {
       )}
 
       {!isReauth && (
-      <div className="login-card">
-        <div className="login-card-header">
-          <div className="logo logo-center">
-            <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <h2>Log ind på Workslip</h2>
-          {step === 'email' && (
-            <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
-          )}
-          {step === 'code' && (
-            <div>
-              <p>En kode er sendt til</p>
-              <p className="login-email-info">{email}</p>
-            </div>
+        <div className="login-card">
+          {showOtcLogin ? (
+            <Suspense
+              fallback={(
+                <div className="login-email-step" role="status" aria-live="polite">
+                  <Loader2 className="animate-spin" size={24} />
+                  <span>Indlæser engangskode...</span>
+                </div>
+              )}
+            >
+              <OneTimeCodeLogin onBack={() => setShowOtcLogin(false)} />
+            </Suspense>
+          ) : (
+            <>
+              <div className="login-card-header">
+                <div className="logo logo-center">
+                  <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <h2>Log ind på Workslip</h2>
+                <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
+              </div>
+
+              {errorMsg && (
+                <div className="login-error-banner">
+                  <Loader2 size={16} />
+                  {errorMsg}
+                </div>
+              )}
+
+              <div className="login-email-step">
+                <button
+                  type="button"
+                  className="btn btn-primary login-submit-btn"
+                  onClick={handleMicrosoftLogin}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
+                  <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOtcLogin(true)}
+                  className="login-otc-btn"
+                >
+                  Mistet dit login? Modtag engangskode
+                </button>
+              </div>
+
+              {import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
+                <div className="login-dev-section">
+                  <div className="login-dev-buttons">
+                    {[
+                      { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
+                      { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
+                      { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
+                      { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' },
+                    ].map((entry) => (
+                      <button
+                        key={entry.email}
+                        onClick={async () => {
+                          setErrorMsg(null);
+                          setIsSubmitting(true);
+                          try {
+                            const success = await devLogin(entry.email);
+                            if (success) navigate(entry.redirect);
+                            else setErrorMsg(`Dev login failed - ${entry.email} not found`);
+                          } catch {
+                            setErrorMsg('Dev login failed');
+                          } finally {
+                            setIsSubmitting(false);
+                          }
+                        }}
+                        disabled={isSubmitting}
+                        className="btn btn-secondary login-dev-btn"
+                      >
+                        {entry.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
-
-        {errorMsg && (
-          <div className="login-error-banner">
-            <Loader2 size={16} />
-            {errorMsg}
-          </div>
-        )}
-
-        {step === 'email' && !showOtcLogin && (
-          <div className="login-email-step">
-            <button
-              type="button"
-              className="btn btn-primary login-submit-btn"
-              onClick={handleMicrosoftLogin}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
-              <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowOtcLogin(true)}
-              className="login-otc-btn"
-            >
-              Mistet dit login? Modtag engangskode
-            </button>
-          </div>
-        )}
-
-        {step === 'email' && showOtcLogin && (
-          <form onSubmit={emailForm.handleSubmit(handleSendCode)} className="login-form">
-            <div className="form-group">
-              <label>Email</label>
-              <input
-                {...emailForm.register('email')}
-                type="email"
-                placeholder="din@email.dk"
-                className={`form-input${emailForm.formState.errors.email ? ' form-input-invalid' : ''}`}
-                autoComplete="email"
-              />
-              {emailForm.formState.errors.email && (
-                <span className="form-error-text">
-                  {emailForm.formState.errors.email.message}
-                </span>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary login-submit-btn"
-              disabled={isSubmitting}
-            >
-              {isSubmitting && (
-                <span className="login-submit-btn-overlay">
-                  <Loader2 className="animate-spin" size={18} />
-                </span>
-              )}
-              <Mail size={18} />
-              <span>{isSubmitting ? 'Sender kode...' : 'Send kode'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowOtcLogin(false)}
-              className="login-back-btn"
-            >
-              <ArrowLeft size={16} />
-              Tilbage til passkey login
-            </button>
-          </form>
-        )}
-
-        {step === 'code' && (
-          <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} className="login-form">
-            <div className="form-group">
-              <label>Engangskode</label>
-              <input
-                {...codeField}
-                ref={(element) => {
-                  codeFieldRef(element);
-                  codeInputRef.current = element;
-                }}
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="123456"
-                className={`form-input${codeForm.formState.errors.code ? ' form-input-invalid' : ''}`}
-                maxLength={6}
-                autoComplete="one-time-code"
-              />
-              {codeForm.formState.errors.code && (
-                <span className="form-error-text">
-                  {codeForm.formState.errors.code.message}
-                </span>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary login-submit-btn"
-              disabled={isSubmitting}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-              <span>Log ind</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setErrorMsg(null);
-                codeForm.reset();
-                setStep('email');
-                setShowOtcLogin(false);
-              }}
-              className="login-back-btn"
-            >
-              <ArrowLeft size={16} />
-              Tilbage til login
-            </button>
-          </form>
-        )}
-
-        {(!showOtcLogin && step === 'email') && (
-          <div className="login-frontpage-footer" />
-        )}
-
-        {(!showOtcLogin && step === 'email') && import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
-          <div className="login-dev-section">
-            <div className="login-dev-buttons">
-              {[
-                { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
-                { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
-                { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
-                { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' }
-              ].map((entry) => (
-                <button
-                  key={entry.email}
-                  onClick={async () => {
-                    setErrorMsg(null);
-                    setIsSubmitting(true);
-                    try {
-                      const success = await devLogin(entry.email);
-                      if (success) navigate(entry.redirect);
-                      else setErrorMsg(`Dev login failed - ${entry.email} not found`);
-                    } catch {
-                      setErrorMsg('Dev login failed');
-                    } finally {
-                      setIsSubmitting(false);
-                    }
-                  }}
-                  disabled={isSubmitting}
-                  className="btn btn-secondary login-dev-btn"
-                >
-                  {entry.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
       )}
     </div>
   );
 };
-;
