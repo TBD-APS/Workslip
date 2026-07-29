@@ -83,7 +83,7 @@ export async function prefetchInitialJobList(queryClient: QueryClient): Promise<
     queryKey,
     queryFn: ({ pageParam }) => fetchJobListPage(statuses, {
       limit: JOB_LIST_PAGE_SIZE,
-      offset: pageParam,
+      offset: Number(pageParam),
       search: initialState.search || undefined,
       sortBy: initialState.sort.field || undefined,
       sortDirection: initialState.sort.direction,
