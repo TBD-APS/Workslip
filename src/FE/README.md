@@ -66,7 +66,7 @@ Authenticated feature routes and invitation enrollment are loaded through dynami
 
 The public shell does not import the old marketing stylesheet, authenticated application CSS, branded web fonts, one-time-code form dependencies, invitation enrollment, React Query, generated authenticated clients or axios. It uses the system font and static background effects. A stored token loads `AuthenticatedAppProvider`, which installs QueryClient context and resolves `/api/auth/me`; at the same time, the authenticated layout and default jobs route are warmed in parallel. Optional one-time-code/dev-login actions load their API module only when invoked.
 
-After `/api/auth/me` succeeds, the default jobs query is prefetched with the same status, search and sort key used by the rendered list. Jobs data is fresh for 30 seconds and retained in memory for 30 minutes, so revisiting `/app` displays cached rows immediately and revalidates stale data in the background. This cache is not persisted to IndexedDB or local storage and is cleared on logout to prevent data crossing user sessions.
+When authentication resolves on `/`, `/login` or the `/app` home route, the default jobs query is prefetched with the same status, search and sort key used by the rendered list. Jobs data is fresh for 30 seconds and retained in memory for 30 minutes, so revisiting `/app` displays cached rows immediately and revalidates stale data in the background. This cache is not persisted to IndexedDB or local storage and is cleared on logout to prevent data crossing user sessions. Deep links to other authenticated sections do not speculatively request the jobs list.
 
 The SPA root is served directly without a Vercel redirect. The client router renders login for unauthenticated users and moves an already authenticated user to `/app`.
 
@@ -103,7 +103,7 @@ For routing, performance or PWA cache changes, also validate with a clean browse
 5. Invitation routes must load their isolated route chunk and remain fully styled.
 6. Login, invitation, startup recovery and public error states must remain fully styled and responsive without inherited color/background transitions on their root containers.
 7. A stored-token `/app` visit must start downloading `AuthenticatedAppProvider`, `AppLayout` and `JobList` in parallel with session validation, then load the existing jobs query without duplicate route downloads.
-8. After `/api/auth/me` succeeds, the initial jobs query must use the exact key later consumed by `JobList`; an already-running request must be deduplicated.
+8. After `/api/auth/me` succeeds on a primary jobs destination, the initial jobs query must use the exact key later consumed by `JobList`; an already-running request must be deduplicated.
 9. Revisiting Jobs within 30 minutes must show cached data immediately; after 30 seconds it must refresh in the background without replacing rows with the full-page skeleton.
 10. Logout must clear React Query data before another user can authenticate in the same browser.
 11. Login, dev login, user updates, push registration and current-user retry must retain their existing behaviour.
@@ -178,7 +178,7 @@ Common runtime configuration includes:
 
 The browser PKCE flow stores the complete temporary login state in `sessionStorage` under `workslip.loginPkce` before navigating to Microsoft. The stored object includes the OAuth state value, PKCE verifier, redirect URI and return target.
 
-Do not replace this with an in-memory map or store only an opaque reference. Microsoft login performs a full-page navigation, which destroys module memory before the callback is processed. Invalid or legacy stored values must be discarded rather than used for token exchange.
+Do not replace this with an in-memory map or store only an opaque reference. Microsoft login performs a full-page navigation, which destroys module memory before the callback is processed. Invalid or legacy stored values must be discarded rather than used.
 
 The login route clears the PKCE state after success, cancellation or callback failure. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters.
 
