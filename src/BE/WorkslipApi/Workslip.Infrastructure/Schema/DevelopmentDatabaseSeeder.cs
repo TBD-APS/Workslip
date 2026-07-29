@@ -39,9 +39,12 @@ public sealed class DevelopmentDatabaseSeeder(
             }
 
             await ReconcileSuperadminAsync(mahad, cancellationToken);
-            await DatabaseSchemaInitializer.EnsureUserRoleOrganizationScopeConstraintAsync(
-                db,
-                cancellationToken);
+            if (db.Database.IsRelational())
+            {
+                await DatabaseSchemaInitializer.EnsureUserRoleOrganizationScopeConstraintAsync(
+                    db,
+                    cancellationToken);
+            }
         }
         finally
         {
