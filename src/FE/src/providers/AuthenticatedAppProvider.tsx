@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
 import type { UserViewModel } from '../api/generated/models';
+import { prefetchInitialJobList } from '../features/jobs/queries/jobListQuery';
 import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
 import { queryClient } from '../lib/react-query';
 import {
@@ -46,6 +47,14 @@ function AuthenticatedSessionProvider({
     // The push hook currently returns a function tied to its mutation object.
     // Including it would re-run registration on every provider render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // The token and current user are now validated. Populate the same query key
+    // used by JobList so the home route can render cached data immediately.
+    void prefetchInitialJobList(queryClient).catch(() => undefined);
   }, [isAuthenticated]);
 
   const logout = useCallback(() => {
