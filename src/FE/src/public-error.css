@@ -1,0 +1,9 @@
+@media (max-width: 640px) {
+  .app-container > div[style*="max-width: 400px"] {
+    max-width: 100% !important;
+    border-radius: 16px !important;
+    padding: 1.5rem !important;
+    margin: 1rem;
+    width: calc(100% - 2rem);
+  }
+}

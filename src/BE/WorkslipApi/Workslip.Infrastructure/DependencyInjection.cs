@@ -38,7 +38,8 @@ public static class DependencyInjection
             var configuration = sp.GetRequiredService<IConfiguration>();
             var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
             options.UseSqlServer(connectionString, b =>
-                b.MigrationsAssembly("Workslip.Api"));
+                b.MigrationsAssembly("Workslip.Api").EnableRetryOnFailure()
+            );
 
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
             options.AddInterceptors(auditInterceptor);
