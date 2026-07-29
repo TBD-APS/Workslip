@@ -19,6 +19,19 @@ export interface OrganizationOnboarding {
   user: OrganizationAdmin;
 }
 
+export interface OrganizationSessionToken {
+  token: string;
+  tokenType: string;
+  expiresIn: number;
+  user: {
+    userId: string;
+    organizationId: string;
+    email: string;
+    displayName: string;
+    role: string;
+  };
+}
+
 export interface CreateOrganizationInput {
   name: string;
   cvr: string;
