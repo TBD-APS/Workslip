@@ -1,0 +1,291 @@
+.superadmin-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-bottom: calc(var(--spacing-2xl) + 4rem);
+}
+
+.superadmin-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.superadmin-page-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.superadmin-page-heading h1,
+.superadmin-card h2,
+.superadmin-organization-list h2 {
+  margin: 0;
+}
+
+.superadmin-page-heading p,
+.superadmin-card-header p,
+.superadmin-list-header p {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+}
+
+.superadmin-page-icon,
+.superadmin-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+
+.superadmin-page-icon {
+  width: 3rem;
+  height: 3rem;
+}
+
+.superadmin-card-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.superadmin-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.superadmin-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.superadmin-overview > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.superadmin-overview strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.superadmin-overview-label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.superadmin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-lg);
+  align-items: start;
+}
+
+.superadmin-card,
+.superadmin-organization-list {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.superadmin-card {
+  padding: var(--spacing-lg);
+}
+
+.superadmin-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  margin-bottom: var(--spacing-lg);
+}
+
+.superadmin-card-header h2,
+.superadmin-organization-list h2 {
+  font-size: 1.15rem;
+}
+
+.superadmin-card-header p,
+.superadmin-list-header p {
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.superadmin-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.superadmin-form .form-group {
+  margin: 0;
+}
+
+.superadmin-select {
+  appearance: auto;
+}
+
+.superadmin-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.form-help-text {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.superadmin-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+  padding: 0.8rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.superadmin-alert-error {
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+.superadmin-alert-success {
+  justify-content: flex-start;
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+}
+
+.superadmin-organization-list {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-lg);
+}
+
+.superadmin-list-header {
+  margin-bottom: var(--spacing-md);
+}
+
+.superadmin-organization-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.superadmin-organization-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.superadmin-organization-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border-color));
+}
+
+.superadmin-organization-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.superadmin-organization-card.selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 9%, var(--background));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.superadmin-organization-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.superadmin-organization-cvr {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.superadmin-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 6rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .superadmin-page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .superadmin-refresh {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .superadmin-overview,
+  .superadmin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .superadmin-card,
+  .superadmin-organization-list {
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .superadmin-page-heading {
+    align-items: flex-start;
+  }
+
+  .superadmin-page-icon {
+    width: 2.6rem;
+    height: 2.6rem;
+  }
+
+  .superadmin-organization-cards {
+    grid-template-columns: 1fr;
+  }
+}
