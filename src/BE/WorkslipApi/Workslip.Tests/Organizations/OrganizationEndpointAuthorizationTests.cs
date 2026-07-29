@@ -1,7 +1,10 @@
+using Ardalis.Result;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Workslip.Api.Endpoints;
+using Workslip.Application.Organizations;
 using Xunit;
 
 namespace Workslip.Tests.Organizations;
@@ -12,6 +15,7 @@ public sealed class OrganizationEndpointAuthorizationTests
     public async Task OrganizationAdministrationEndpoints_RequireSuperAdminPolicy()
     {
         var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IOrganizationService, StubOrganizationService>();
         await using var app = builder.Build();
         app.MapOrganizationEndpoints();
 
@@ -34,5 +38,19 @@ public sealed class OrganizationEndpointAuthorizationTests
             Assert.Contains(AuthPolicies.RequireSuperAdmin, policies);
             Assert.DoesNotContain(AuthPolicies.RequireAdmin, policies);
         });
+    }
+
+    private sealed class StubOrganizationService : IOrganizationService
+    {
+        public Task<Result<OrganizationOnboardingResponse>> CreateAsync(
+            CreateOrganizationRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Result<OrganizationOnboardingResponse>.NotFound());
+
+        public Task<Result<OrganizationUserResponse>> UpsertAdminAsync(
+            Guid organizationId,
+            UpsertOrganizationAdminRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Result<OrganizationUserResponse>.NotFound());
     }
 }
