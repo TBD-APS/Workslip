@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.Extensions.Caching.Memory;
 using Workslip.Api.Helpers;
 using Workslip.Application.Organizations;
 using Workslip.Domain;
@@ -9,9 +10,13 @@ public sealed class SuperadminOrganizationScopeMiddleware(
     RequestDelegate next,
     ILogger<SuperadminOrganizationScopeMiddleware> logger)
 {
+    private static readonly TimeSpan ExistingOrganizationCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan MissingOrganizationCacheDuration = TimeSpan.FromSeconds(30);
+
     public async Task InvokeAsync(
         HttpContext context,
-        IOrganizationAdministrationRepository organizations)
+        IOrganizationAdministrationRepository organizations,
+        IMemoryCache cache)
     {
         if (!IsSuperadmin(context.User))
         {
@@ -36,10 +41,21 @@ public sealed class SuperadminOrganizationScopeMiddleware(
             return;
         }
 
-        var organization = await organizations.GetOrganizationAsync(
-            organizationId,
-            context.RequestAborted);
-        if (organization is null)
+        var cacheKey = $"auth:superadmin-organization:{organizationId:N}";
+        if (!cache.TryGetValue(cacheKey, out bool organizationExists))
+        {
+            organizationExists = await organizations.GetOrganizationAsync(
+                organizationId,
+                context.RequestAborted) is not null;
+            cache.Set(
+                cacheKey,
+                organizationExists,
+                organizationExists
+                    ? ExistingOrganizationCacheDuration
+                    : MissingOrganizationCacheDuration);
+        }
+
+        if (!organizationExists)
         {
             logger.LogWarning(
                 "Ignoring unknown Superadmin organization scope. UserId: {UserId}. OrganizationId: {OrganizationId}.",
