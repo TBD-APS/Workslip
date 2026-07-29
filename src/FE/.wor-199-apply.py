@@ -6,7 +6,7 @@ def replace_exact(path: str, old: str, new: str) -> None:
     content = file_path.read_text(encoding="utf-8-sig")
     if old not in content:
         raise RuntimeError(f"Expected text not found in {path}:\n{old}")
-    file_path.write_text(content.replace(old, new), encoding="utf-8", newline="\n")
+    file_path.write_text(content.replace(old, new, 1), encoding="utf-8", newline="\n")
 
 
 auth_value = "src/FE/src/providers/authContextValue.ts"
