@@ -1,15 +1,15 @@
 .superadmin-page {
   max-width: 1180px;
   margin: 0 auto;
-  padding-bottom: calc(var(--spacing-2xl) + 4rem);
+  padding-bottom: 6rem;
 }
 
 .superadmin-page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg);
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
 .superadmin-page-heading {
@@ -37,7 +37,7 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
   background: color-mix(in srgb, var(--primary) 14%, transparent);
   color: var(--primary);
 }
@@ -62,8 +62,8 @@
 .superadmin-overview {
   display: grid;
   grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .superadmin-overview > div {
@@ -72,8 +72,8 @@
   gap: 0.25rem;
   min-width: 0;
   padding: 0.9rem 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface);
 }
 
@@ -94,27 +94,27 @@
 .superadmin-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-lg);
+  gap: 1.5rem;
   align-items: start;
 }
 
 .superadmin-card,
 .superadmin-organization-list {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
 
 .superadmin-card {
-  padding: var(--spacing-lg);
+  padding: 1.5rem;
 }
 
 .superadmin-card-header {
   display: flex;
   align-items: flex-start;
   gap: 0.8rem;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: 1.5rem;
 }
 
 .superadmin-card-header h2,
@@ -131,7 +131,7 @@
 .superadmin-form {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 1rem;
 }
 
 .superadmin-form .form-group {
@@ -162,11 +162,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-md);
-  margin-top: var(--spacing-md);
+  gap: 1rem;
+  margin-top: 1rem;
   padding: 0.8rem 0.9rem;
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
   font-size: 0.9rem;
   line-height: 1.45;
 }
@@ -185,18 +185,18 @@
 }
 
 .superadmin-organization-list {
-  margin-top: var(--spacing-lg);
-  padding: var(--spacing-lg);
+  margin-top: 1.5rem;
+  padding: 1.5rem;
 }
 
 .superadmin-list-header {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: 1rem;
 }
 
 .superadmin-organization-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: var(--spacing-sm);
+  gap: 0.75rem;
 }
 
 .superadmin-organization-card {
@@ -206,9 +206,9 @@
   gap: 0.3rem;
   min-width: 0;
   padding: 0.85rem 0.95rem;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-input);
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
@@ -216,7 +216,7 @@
 }
 
 .superadmin-organization-card:hover {
-  border-color: color-mix(in srgb, var(--primary) 55%, var(--border-color));
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
 }
 
 .superadmin-organization-card:focus-visible {
@@ -226,7 +226,7 @@
 
 .superadmin-organization-card.selected {
   border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 9%, var(--background));
+  background: var(--surface-selected);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
@@ -271,7 +271,7 @@
 
   .superadmin-card,
   .superadmin-organization-list {
-    padding: var(--spacing-md);
+    padding: 1rem;
   }
 }
 
