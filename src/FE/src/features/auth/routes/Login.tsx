@@ -57,6 +57,14 @@ export const Login = () => {
     reauthStartedRef.current = true;
 
     const returnTo = sanitizeReturnTo(params.get('returnTo'));
+    const recoverToLogin = (message: string) => {
+      clearReauthInFlight();
+      clearEntraLoginSession();
+      window.history.replaceState(null, '', '/login');
+      setErrorMsg(message);
+      setIsSubmitting(false);
+      setIsReauth(false);
+    };
 
     if (isCallback) {
       setIsSubmitting(true);
@@ -81,25 +89,16 @@ export const Login = () => {
             clearEntraLoginSession();
             window.history.replaceState(null, '', '/login');
             startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
-              setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
-              setIsSubmitting(false);
+              recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
             });
             return;
           }
           if (err instanceof LoginCancelledError) {
-            clearReauthInFlight();
-            clearEntraLoginSession();
-            window.history.replaceState(null, '', '/login');
-            setErrorMsg('Login afbrudt. Klik på knappen for at prøve igen.');
-            setIsSubmitting(false);
-            setIsReauth(false);
+            recoverToLogin('Login afbrudt. Klik på knappen for at prøve igen.');
             return;
           }
-          window.history.replaceState(null, '', '/login');
-          clearEntraLoginSession();
           const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
-          setErrorMsg(message);
-          setIsSubmitting(false);
+          recoverToLogin(message);
         });
       return;
     }
@@ -109,14 +108,11 @@ export const Login = () => {
       if (err instanceof InteractiveLoginRequiredError) {
         clearReauthInFlight();
         startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
-          setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
-          setIsSubmitting(false);
+          recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
         });
         return;
       }
-      setErrorMsg('Sessionen udløb. Log ind med passkey for at fortsætte.');
-      setIsSubmitting(false);
-      setIsReauth(false);
+      recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
     });
   }, []);
 
