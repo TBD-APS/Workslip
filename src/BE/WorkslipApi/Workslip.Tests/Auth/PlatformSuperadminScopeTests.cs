@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Workslip.Api;
@@ -55,30 +56,31 @@ public sealed class PlatformSuperadminScopeTests
     }
 
     [Fact]
-    public async Task ScopeMiddleware_WhenOrganizationExists_StoresValidatedScope()
+    public async Task ScopeMiddleware_WhenOrganizationExists_StoresValidatedScopeAndCachesLookup()
     {
-        var httpContext = CreateHttpContext(Roles.Superadmin, organizationId: null);
-        httpContext.Request.Headers[CurrentUserContext.OrganizationScopeHeader] = TenantId.ToString();
+        using var cache = CreateCache();
         var repository = new FakeOrganizationAdministrationRepository(CreateOrganization(TenantId));
-        var nextCalled = false;
         var middleware = new SuperadminOrganizationScopeMiddleware(
-            _ =>
-            {
-                nextCalled = true;
-                return Task.CompletedTask;
-            },
+            _ => Task.CompletedTask,
             NullLogger<SuperadminOrganizationScopeMiddleware>.Instance);
 
-        await middleware.InvokeAsync(httpContext, repository);
+        var firstContext = CreateHttpContext(Roles.Superadmin, organizationId: null);
+        firstContext.Request.Headers[CurrentUserContext.OrganizationScopeHeader] = TenantId.ToString();
+        await middleware.InvokeAsync(firstContext, repository, cache);
 
-        Assert.True(nextCalled);
-        Assert.Equal(TenantId, httpContext.Items[CurrentUserContext.ValidatedOrganizationScopeItem]);
+        var secondContext = CreateHttpContext(Roles.Superadmin, organizationId: null);
+        secondContext.Request.Headers[CurrentUserContext.OrganizationScopeHeader] = TenantId.ToString();
+        await middleware.InvokeAsync(secondContext, repository, cache);
+
+        Assert.Equal(TenantId, firstContext.Items[CurrentUserContext.ValidatedOrganizationScopeItem]);
+        Assert.Equal(TenantId, secondContext.Items[CurrentUserContext.ValidatedOrganizationScopeItem]);
         Assert.Equal(1, repository.GetOrganizationCalls);
     }
 
     [Fact]
     public async Task ScopeMiddleware_WhenOrganizationIsUnknown_DoesNotStoreScope()
     {
+        using var cache = CreateCache();
         var httpContext = CreateHttpContext(Roles.Superadmin, organizationId: null);
         httpContext.Request.Headers[CurrentUserContext.OrganizationScopeHeader] = TenantId.ToString();
         var repository = new FakeOrganizationAdministrationRepository(null);
@@ -86,7 +88,7 @@ public sealed class PlatformSuperadminScopeTests
             _ => Task.CompletedTask,
             NullLogger<SuperadminOrganizationScopeMiddleware>.Instance);
 
-        await middleware.InvokeAsync(httpContext, repository);
+        await middleware.InvokeAsync(httpContext, repository, cache);
 
         Assert.False(httpContext.Items.ContainsKey(CurrentUserContext.ValidatedOrganizationScopeItem));
         Assert.Equal(1, repository.GetOrganizationCalls);
@@ -95,6 +97,7 @@ public sealed class PlatformSuperadminScopeTests
     [Fact]
     public async Task ScopeMiddleware_ForTenantAdmin_IgnoresHeaderWithoutRepositoryLookup()
     {
+        using var cache = CreateCache();
         var claimedTenantId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var httpContext = CreateHttpContext(Roles.Admin, claimedTenantId);
         httpContext.Request.Headers[CurrentUserContext.OrganizationScopeHeader] = TenantId.ToString();
@@ -103,7 +106,7 @@ public sealed class PlatformSuperadminScopeTests
             _ => Task.CompletedTask,
             NullLogger<SuperadminOrganizationScopeMiddleware>.Instance);
 
-        await middleware.InvokeAsync(httpContext, repository);
+        await middleware.InvokeAsync(httpContext, repository, cache);
 
         Assert.False(httpContext.Items.ContainsKey(CurrentUserContext.ValidatedOrganizationScopeItem));
         Assert.Equal(0, repository.GetOrganizationCalls);
@@ -163,6 +166,8 @@ public sealed class PlatformSuperadminScopeTests
             User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))
         };
     }
+
+    private static MemoryCache CreateCache() => new(new MemoryCacheOptions());
 
     private static OrganizationRow CreateOrganization(Guid id) => new()
     {
