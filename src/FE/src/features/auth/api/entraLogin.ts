@@ -172,6 +172,22 @@ export const clearEntraLoginSession = () => {
   sessionStorage.removeItem(PKCE_KEY);
 };
 
+export const buildEntraLogoutUrl = (tenantId: string, postLogoutRedirectUri: string): string => {
+  const logoutUrl = new URL(
+    `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/logout`,
+  );
+  logoutUrl.searchParams.set('post_logout_redirect_uri', postLogoutRedirectUri);
+  return logoutUrl.toString();
+};
+
+export const startEntraLogout = () => {
+  const tenantId = getEntraTenantId();
+  clearEntraLoginSession();
+  window.location.replace(
+    buildEntraLogoutUrl(tenantId, `${window.location.origin}/login`),
+  );
+};
+
 export const sanitizeReturnTo = (returnTo: string | null | undefined) => {
   if (!returnTo || !returnTo.startsWith('/') || returnTo.startsWith('//') || returnTo.startsWith('/login')) {
     return '/app';
@@ -208,13 +224,21 @@ const loadPkceState = (): PkceState | null => {
   }
 };
 
-const getOAuthConfig = () => {
+const getEntraTenantId = () => {
   const tenantId = import.meta.env.VITE_AZURE_AD_TENANT_ID;
+  if (!tenantId) {
+    throw new Error('Microsoft login mangler VITE_AZURE_AD_TENANT_ID.');
+  }
+  return tenantId;
+};
+
+const getOAuthConfig = () => {
+  const tenantId = getEntraTenantId();
   const clientId = import.meta.env.VITE_AZURE_AD_CLIENT_ID;
   const scope = import.meta.env.VITE_AZURE_AD_SCOPE;
   const redirectUri = import.meta.env.VITE_AZURE_AD_LOGIN_REDIRECT_URI;
 
-  if (!tenantId || !clientId || !scope) {
+  if (!clientId || !scope) {
     throw new Error('Microsoft login mangler konfiguration. Sæt VITE_AZURE_AD_TENANT_ID, VITE_AZURE_AD_CLIENT_ID og VITE_AZURE_AD_SCOPE.');
   }
 

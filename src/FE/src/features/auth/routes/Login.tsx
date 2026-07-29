@@ -8,6 +8,7 @@ import { useAuth } from '../../../providers/useAuth';
 import { sendAuthCode } from '../api/devToken';
 import { notify } from '../../../lib/toast';
 import {
+  AUTH_PROVIDER_KEY,
   AUTH_TOKEN_KEY,
   USER_EMAIL_KEY,
   AuthStorage,
@@ -90,6 +91,7 @@ export const Login = () => {
         .then(result => {
           AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
           AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
+          AuthStorage.setItem(AUTH_PROVIDER_KEY, 'microsoft');
           clearReauthInFlight();
           clearEntraLoginSession();
           window.history.replaceState(null, '', '/login');

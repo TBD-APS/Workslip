@@ -148,6 +148,14 @@ Do not replace this with an in-memory map or store only an opaque reference. Mic
 
 The login route clears the PKCE state after success, cancellation or callback failure. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters.
 
+## Microsoft logout
+
+Explicit user logout clears the Workslip JWT, saved email, authentication-provider marker, reauthentication state, PKCE state and authenticated query cache before navigation. Sessions authenticated with Microsoft then redirect through the tenant-specific Microsoft Entra `/oauth2/v2.0/logout` endpoint and return to the current origin's `/login` route through `post_logout_redirect_uri`.
+
+One-time-code and development sessions clear only Workslip state. Internal account switching and startup recovery use `clearLocalSession` so they can discard an invalid or wrong Workslip identity without unexpectedly terminating the browser's Microsoft session. Existing sessions created before the authentication-provider marker was introduced are treated as Microsoft sessions on explicit logout.
+
+Microsoft logout ends the active browser SSO session but does not remove remembered account tiles from the operating system, Outlook, Authenticator or Microsoft's account chooser.
+
 ## PWA caution
 
 The application uses `vite-plugin-pwa` with an injected service worker. The custom service worker is type-checked separately and must not be excluded through `@ts-nocheck` again.

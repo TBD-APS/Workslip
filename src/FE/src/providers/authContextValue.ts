@@ -3,7 +3,10 @@ import type { UserViewModel } from '../api/generated/models';
 
 export const AUTH_TOKEN_KEY = 'authToken';
 export const USER_EMAIL_KEY = 'userEmail';
+export const AUTH_PROVIDER_KEY = 'authProvider';
 export const REAUTH_IN_FLIGHT_KEY = 'workslip.reauthInFlight';
+
+export type AuthProvider = 'microsoft' | 'one-time-code' | 'development';
 
 /**
  * TTL on the reauthInFlight flag. If the redirect is interrupted (browser
@@ -81,6 +84,7 @@ export interface AuthContextType {
   login: (email: string, code: string) => Promise<boolean>;
   devLogin: (email: string) => Promise<boolean>;
   logout: () => void;
+  clearLocalSession: () => void;
   updateUser: (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => void;
   meQuery: AuthMeQuery;
 }
