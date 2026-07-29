@@ -43,21 +43,26 @@ public sealed class OrganizationService(
         return Result<IReadOnlyList<OrganizationResponse>>.Success(response);
     }
 
-    public async Task<Result<OrganizationOnboardingResponse>> CreateAsync(CreateOrganizationRequest request, CancellationToken cancellationToken)
+    public async Task<Result<OrganizationOnboardingResponse>> CreateAsync(
+        CreateOrganizationRequest request,
+        CancellationToken cancellationToken)
     {
         var validationResult = await createOrganizationValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
             var errors = MapValidationErrors(validationResult);
-            logger.LogWarning("Organization create validation failed. Fields: {ValidationFields}", ValidationFields(errors));
-
+            logger.LogWarning(
+                "Organization create validation failed. Fields: {ValidationFields}",
+                ValidationFields(errors));
             return Result<OrganizationOnboardingResponse>.Invalid(errors);
         }
 
         var normalizedAdminEmail = NullIfWhiteSpace(request.AdminEmail)?.ToLowerInvariant();
         if (normalizedAdminEmail is not null)
         {
-            var existingAdminEmail = await administrationRepository.GetUserByEmailAsync(normalizedAdminEmail, cancellationToken);
+            var existingAdminEmail = await administrationRepository.GetUserByEmailAsync(
+                normalizedAdminEmail,
+                cancellationToken);
             if (existingAdminEmail is not null)
             {
                 logger.LogWarning(
@@ -72,7 +77,10 @@ public sealed class OrganizationService(
         var normalizedCvr = OrganizationRequestValidator.NormalizeCvr(request.Cvr);
         if (await repository.CvrExistsAsync(normalizedCvr, cancellationToken))
         {
-            logger.LogWarning("Organization create conflict. Reason: {Reason}. Cvr: {Cvr}.", "organization_cvr_exists", normalizedCvr);
+            logger.LogWarning(
+                "Organization create conflict. Reason: {Reason}. Cvr: {Cvr}.",
+                "organization_cvr_exists",
+                normalizedCvr);
             return Result<OrganizationOnboardingResponse>.Conflict("organization_cvr_exists");
         }
 
@@ -81,7 +89,9 @@ public sealed class OrganizationService(
         {
             if (normalizedAdminEmail is not null)
             {
-                var currentEmailOwner = await administrationRepository.GetUserByEmailAsync(normalizedAdminEmail, cancellationToken);
+                var currentEmailOwner = await administrationRepository.GetUserByEmailAsync(
+                    normalizedAdminEmail,
+                    cancellationToken);
                 if (currentEmailOwner is not null)
                 {
                     logger.LogWarning(
@@ -119,14 +129,15 @@ public sealed class OrganizationService(
                 "Organization admin upsert validation failed. OrganizationId: {OrganizationId}. Fields: {ValidationFields}",
                 organizationId,
                 ValidationFields(errors));
-
             return Result<OrganizationUserResponse>.Invalid(errors);
         }
 
         var organization = await administrationRepository.GetOrganizationAsync(organizationId, cancellationToken);
         if (organization is null)
         {
-            logger.LogInformation("Organization not found for admin upsert. OrganizationId: {OrganizationId}.", organizationId);
+            logger.LogInformation(
+                "Organization not found for admin upsert. OrganizationId: {OrganizationId}.",
+                organizationId);
             return Result<OrganizationUserResponse>.NotFound();
         }
 
@@ -142,7 +153,10 @@ public sealed class OrganizationService(
         var admin = existingByEmail
             ?? await administrationRepository.GetUnlinkedAdminAsync(organizationId, cancellationToken);
 
-        var entraUser = await entraService.InviteAdminAsync(normalizedEmail, request.DisplayName.Trim(), cancellationToken);
+        var entraUser = await entraService.InviteAdminAsync(
+            normalizedEmail,
+            request.DisplayName.Trim(),
+            cancellationToken);
         AdminPersistenceResult persistenceResult;
         try
         {
@@ -175,7 +189,8 @@ public sealed class OrganizationService(
             persistenceResult.Created,
             entraUser.Created);
 
-        return Result<OrganizationUserResponse>.Success(ToOrganizationUserResponse(persistedAdmin, entraUser.Created));
+        return Result<OrganizationUserResponse>.Success(
+            ToOrganizationUserResponse(persistedAdmin, entraUser.Created));
     }
 
     private async Task<AdminPersistenceResult> PersistAdminAsync(
@@ -186,7 +201,9 @@ public sealed class OrganizationService(
         UserDataRow? admin,
         CancellationToken cancellationToken)
     {
-        var currentEmailOwner = await administrationRepository.GetUserByEmailAsync(normalizedEmail, cancellationToken);
+        var currentEmailOwner = await administrationRepository.GetUserByEmailAsync(
+            normalizedEmail,
+            cancellationToken);
         var conflict = GetAdminConflict(currentEmailOwner, organizationId);
         if (conflict is not null)
         {
@@ -216,8 +233,11 @@ public sealed class OrganizationService(
             var createdId = await administrationRepository.CreateAdminAsync(createdAdmin, cancellationToken);
             if (createdId is null)
             {
-                var conflictingUser = await administrationRepository.GetUserByEmailAsync(normalizedEmail, cancellationToken);
-                var createConflict = GetAdminConflict(conflictingUser, organizationId) ?? "admin_state_changed";
+                var conflictingUser = await administrationRepository.GetUserByEmailAsync(
+                    normalizedEmail,
+                    cancellationToken);
+                var createConflict = GetAdminConflict(conflictingUser, organizationId)
+                    ?? "admin_state_changed";
                 return AdminPersistenceResult.FromConflict(createConflict, conflictingUser);
             }
 
@@ -229,7 +249,7 @@ public sealed class OrganizationService(
         var expectedEntraId = admin.EntraId;
         var updatedAdmin = BuildAdmin(
             admin.Id,
-            admin.OrganizationId,
+            organizationId,
             normalizedEmail,
             request,
             entraUser,
@@ -243,8 +263,11 @@ public sealed class OrganizationService(
             cancellationToken);
         if (!updated)
         {
-            var conflictingUser = await administrationRepository.GetUserByEmailAsync(normalizedEmail, cancellationToken);
-            var stateConflict = GetAdminConflict(conflictingUser, organizationId) ?? "admin_state_changed";
+            var conflictingUser = await administrationRepository.GetUserByEmailAsync(
+                normalizedEmail,
+                cancellationToken);
+            var stateConflict = GetAdminConflict(conflictingUser, organizationId)
+                ?? "admin_state_changed";
             return AdminPersistenceResult.FromConflict(stateConflict, conflictingUser);
         }
 
@@ -273,7 +296,9 @@ public sealed class OrganizationService(
             UpdatedAt = updatedAt
         };
 
-    private async Task TryRollbackCreatedEntraUserAsync(CreateEntraUserResult entraUser, CancellationToken cancellationToken)
+    private async Task TryRollbackCreatedEntraUserAsync(
+        CreateEntraUserResult entraUser,
+        CancellationToken cancellationToken)
     {
         if (!entraUser.Created)
         {
@@ -282,7 +307,9 @@ public sealed class OrganizationService(
 
         try
         {
-            if (await administrationRepository.IsEntraIdentityReferencedAsync(entraUser.EntraUserId, cancellationToken))
+            if (await administrationRepository.IsEntraIdentityReferencedAsync(
+                    entraUser.EntraUserId,
+                    cancellationToken))
             {
                 logger.LogWarning(
                     "Skipping Entra rollback because identity is already referenced. EntraUserId: {EntraUserId}.",
@@ -318,33 +345,41 @@ public sealed class OrganizationService(
             return null;
         }
 
-        if (existingUser.OrganizationId != organizationId)
+        if (existingUser.Role == Roles.Superadmin)
         {
-            return "email_in_use";
+            return "superadmin_role_protected";
         }
 
-        return existingUser.Role == Roles.Superadmin
-            ? "superadmin_role_protected"
+        return existingUser.OrganizationId != organizationId
+            ? "email_in_use"
             : null;
     }
 
-    private static OrganizationUserResponse ToOrganizationUserResponse(UserDataRow user, bool entraInvitationSent) => new(
-        user.Id,
-        user.OrganizationId,
-        user.DisplayName,
-        NullIfWhiteSpace(user.Email),
-        NullIfWhiteSpace(user.Phone),
-        user.Role,
-        entraInvitationSent,
-        user.CreatedAt,
-        user.UpdatedAt);
+    private static OrganizationUserResponse ToOrganizationUserResponse(
+        UserDataRow user,
+        bool entraInvitationSent) =>
+        new(
+            user.Id,
+            user.OrganizationId ?? throw new InvalidOperationException(
+                "Organization administrator must belong to an organization."),
+            user.DisplayName,
+            NullIfWhiteSpace(user.Email),
+            NullIfWhiteSpace(user.Phone),
+            user.Role,
+            entraInvitationSent,
+            user.CreatedAt,
+            user.UpdatedAt);
 
     private static string ValidationFields(IEnumerable<ValidationError> errors) =>
         string.Join(",", errors.Select(error => error.Identifier).Distinct());
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors
-            .Select(error => new ValidationError { Identifier = error.PropertyName, ErrorMessage = error.ErrorMessage })
+            .Select(error => new ValidationError
+            {
+                Identifier = error.PropertyName,
+                ErrorMessage = error.ErrorMessage
+            })
             .ToList();
 
     private static string? NullIfWhiteSpace(string? value) =>
@@ -359,7 +394,9 @@ public sealed class OrganizationService(
         public static AdminPersistenceResult Success(UserDataRow admin, bool created) =>
             new(admin, null, null, created);
 
-        public static AdminPersistenceResult FromConflict(string conflict, UserDataRow? conflictingUser) =>
+        public static AdminPersistenceResult FromConflict(
+            string conflict,
+            UserDataRow? conflictingUser) =>
             new(null, conflict, conflictingUser, false);
     }
 }
