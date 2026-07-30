@@ -13,6 +13,7 @@ const superadmin: UserViewModel = {
   displayName: 'Super Admin',
   phone: '',
   role: 'Superadmin',
+  roleDisplayName: 'Superadministrator',
   hoursThisWeek: null,
   hoursThisMonth: null,
   hoursBiweekly: null,
