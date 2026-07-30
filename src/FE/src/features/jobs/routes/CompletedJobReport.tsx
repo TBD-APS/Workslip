@@ -542,7 +542,7 @@ export const CompletedJobReport = () => {
         <UndoRejectionSuccessDialog
           reportNumber={formatReportNumber(job)}
           onGoToJobList={() => navigate('/app', { replace: true })}
-          onGoToJob={() => navigate(`/app/completed/${job.id}`, { replace: true, state: { from: '/app' } })}
+          onGoToJob={() => setUndoRejectionCompleted(false)}
         />
       )}
     </div>
