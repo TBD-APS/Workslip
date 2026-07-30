@@ -25,7 +25,7 @@ public sealed class JobDeletionNotificationServiceTests
     }
 
     [Fact]
-    public async Task QueueAsync_NotifiesEveryUniqueAssigneeIncludingDeletingUser()
+    public async Task QueueAsync_NotifiesEveryUniqueAssigneeIncludingTheDeletingUser()
     {
         var deletingUserId = Guid.NewGuid();
         var recipientId = Guid.NewGuid();
