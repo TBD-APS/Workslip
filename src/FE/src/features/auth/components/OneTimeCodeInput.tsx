@@ -52,10 +52,9 @@ export const OneTimeCodeInput = forwardRef<HTMLInputElement, OneTimeCodeInputPro
             onPaste?.(event);
             if (event.defaultPrevented) return;
 
-            const pastedDigits = event.clipboardData
-              .getData('text')
-              .replace(/\D/g, '')
-              .slice(0, CODE_LENGTH);
+            const clipboardText = event.clipboardData.getData('text');
+            const completeCode = clipboardText.match(/(?:^|\D)(\d{6})(?:\D|$)/)?.[1];
+            const pastedDigits = completeCode ?? clipboardText.replace(/\D/g, '').slice(0, CODE_LENGTH);
 
             if (!pastedDigits) return;
 
