@@ -29,6 +29,9 @@ concurrency:
   group: playwright-${{ github.workflow }}-${{ github.ref }}-${{ inputs.suite || 'public' }}
   cancel-in-progress: true
 
+env:
+  OPENAPI_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
+
 jobs:
   public-smoke:
     name: Public browser smoke
@@ -55,6 +58,12 @@ jobs:
       - name: Install Playwright dependencies
         run: npm ci
         working-directory: src/FE/e2e
+
+      - name: Generate frontend API client
+        run: npx orval --config orval.config.ts
+        working-directory: src/FE
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
 
       - name: Build frontend
         run: npm run build
