@@ -1,6 +1,6 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-28  
+**Contract build reviewed:** 2026-07-30  
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
@@ -99,7 +99,7 @@ Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/ci
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/api/reference-data/` | Read | Reference-data response with ETag/`304` support |
+| GET | `/api/reference-data/` | Read | Reference-data response with installation types ordered alphabetically by name and ETag/`304` support |
 
 ## Notifications and push
 
