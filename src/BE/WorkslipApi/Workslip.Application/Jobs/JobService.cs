@@ -779,10 +779,6 @@ public sealed class JobService(
         {
             errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = $"Unknown work kind '{normalizedWorkKind}'." });
         }
-        else if (workKindDefinition.RequiresCustomWorkKind && string.IsNullOrWhiteSpace(workKind?.CustomWorkKind))
-        {
-            errors.Add(new ValidationError { Identifier = $"{nameof(JobReportResponse.WorkKind)}.{nameof(JobWorkKindResponse.CustomWorkKind)}", ErrorMessage = "This work kind requires custom text." });
-        }
         else if (!workKindDefinition.RequiresCustomWorkKind && !string.IsNullOrWhiteSpace(workKind?.CustomWorkKind))
         {
             errors.Add(new ValidationError { Identifier = $"{nameof(JobReportResponse.WorkKind)}.{nameof(JobWorkKindResponse.CustomWorkKind)}", ErrorMessage = "Custom work kind is only allowed for work kinds that require custom text." });
