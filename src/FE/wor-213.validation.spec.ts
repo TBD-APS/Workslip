@@ -7,6 +7,7 @@ test.describe.configure({ mode: 'serial' });
 const baseUrl = 'http://127.0.0.1:4173/';
 const root = path.resolve(process.cwd(), '.tmp-wor-213');
 const coordinatorReadyEvent = 'workslip:pwa-update-coordinator-ready';
+const expectedVersionBWorkerHash = process.env.WOR_213_V2_WORKER_HASH;
 
 type RegistrationObservation = {
   installing: string | null;
@@ -96,12 +97,30 @@ async function publishAndDiscoverUpdate(page: Page) {
     const registration = await navigator.serviceWorker.getRegistration();
     if (!registration) throw new Error('No service-worker registration found.');
 
+    registration.addEventListener('updatefound', () => {
+      console.log('[WOR-213 validation] updatefound');
+      const installingWorker = registration.installing;
+      console.log(`[WOR-213 validation] installing=${installingWorker?.state ?? 'none'}`);
+      installingWorker?.addEventListener('statechange', () => {
+        console.log(`[WOR-213 validation] installing state=${installingWorker.state}`);
+      });
+    });
+
     const response = await fetch(registration.active?.scriptURL ?? '/sw.js', {
       cache: 'no-store',
     });
-    const publishedWorkerLength = (await response.text()).length;
+    const publishedWorker = await response.text();
+    const workerDigest = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(publishedWorker),
+    );
+    const publishedWorkerHash = Array.from(new Uint8Array(workerDigest))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
 
-    void registration.update().catch((error) => {
+    void registration.update().then(() => {
+      console.log('[WOR-213 validation] registration.update resolved');
+    }).catch((error) => {
       console.error('[WOR-213 validation] registration.update failed', error);
     });
 
@@ -109,11 +128,14 @@ async function publishAndDiscoverUpdate(page: Page) {
       installing: registration.installing?.state ?? null,
       waiting: registration.waiting?.state ?? null,
       active: registration.active?.state ?? null,
-      publishedWorkerLength,
+      publishedWorkerLength: publishedWorker.length,
+      publishedWorkerHash,
     };
   });
 
   console.log(`Initial service-worker observation: ${JSON.stringify(initialObservation)}`);
+  expect(expectedVersionBWorkerHash).toBeTruthy();
+  expect(initialObservation.publishedWorkerHash).toBe(expectedVersionBWorkerHash);
   await expect(page.getByRole('button', { name: 'Opdater nu' })).toBeVisible({ timeout: 8_000 });
 
   const readyObservation = await readRegistrationObservation(page);
