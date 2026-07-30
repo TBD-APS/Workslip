@@ -1,0 +1,21 @@
+{
+  "name": "workslip-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "install:browsers": "playwright install chromium",
+    "install:browsers:ci": "playwright install --with-deps chromium",
+    "test": "playwright test",
+    "test:pr": "playwright test --grep \"@public|@authenticated-ui\"",
+    "test:public": "playwright test --grep @public",
+    "test:authenticated": "playwright test --grep @live-authenticated",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
+  }
+}
