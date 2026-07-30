@@ -154,9 +154,10 @@ A successful script exit is not sufficient release evidence. Verify:
 4. Microsoft login and one authenticated API request succeed.
 5. The legacy OAuth credential display name is absent from the OAuth application after a full deployment.
 6. In production, `Azure:Acs:SenderAddress` is `noreply@mrsoftware.dk` and the ACS domain verification states remain successful; non-production uses its Azure-managed sender.
-7. The API Action Group contains the intended operations recipients and its test notification is received.
-8. The availability test reports successful executions from all configured locations.
-9. The API unavailable, HTTP 5xx and slow-response alert rules are enabled and reference the same Action Group.
-10. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
+7. The temporary SQL firewall rule `AllowSqlProvisioningScript` is absent after deployment.
+8. The API Action Group contains the intended operations recipients and its test notification is received.
+9. The availability test reports successful executions from all configured locations.
+10. The API unavailable, HTTP 5xx and slow-response alert rules are enabled and reference the same Action Group.
+11. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
 
 Production Azure execution, DNS changes, alert testing and secret rotation are explicit operator actions; repository changes alone do not prove they succeeded.
