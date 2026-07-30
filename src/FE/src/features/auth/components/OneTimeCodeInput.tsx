@@ -1,4 +1,5 @@
 import { forwardRef, useState, type InputHTMLAttributes } from 'react';
+import './OneTimeCodeInput.css';
 
 const CODE_LENGTH = 6;
 
@@ -26,7 +27,7 @@ export const OneTimeCodeInput = forwardRef<HTMLInputElement, OneTimeCodeInputPro
   ) {
     const [isFocused, setIsFocused] = useState(false);
     const normalizedValue = value.replace(/\D/g, '').slice(0, CODE_LENGTH);
-    const activeIndex = normalizedValue.length < CODE_LENGTH ? normalizedValue.length : -1;
+    const activeIndex = Math.min(normalizedValue.length, CODE_LENGTH - 1);
 
     return (
       <div
