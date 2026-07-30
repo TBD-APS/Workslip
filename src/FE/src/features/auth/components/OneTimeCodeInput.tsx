@@ -21,6 +21,7 @@ export const OneTimeCodeInput = forwardRef<HTMLInputElement, OneTimeCodeInputPro
       disabled = false,
       onBlur,
       onFocus,
+      onPaste,
       ...inputProps
     },
     ref,
@@ -46,6 +47,19 @@ export const OneTimeCodeInput = forwardRef<HTMLInputElement, OneTimeCodeInputPro
           className="otp-input-native"
           onChange={(event) => {
             onValueChange(event.currentTarget.value.replace(/\D/g, '').slice(0, CODE_LENGTH));
+          }}
+          onPaste={(event) => {
+            onPaste?.(event);
+            if (event.defaultPrevented) return;
+
+            const clipboardText = event.clipboardData.getData('text');
+            const completeCode = clipboardText.match(/(?:^|\D)(\d{6})(?:\D|$)/)?.[1];
+            const pastedDigits = completeCode ?? clipboardText.replace(/\D/g, '').slice(0, CODE_LENGTH);
+
+            if (!pastedDigits) return;
+
+            event.preventDefault();
+            onValueChange(pastedDigits);
           }}
           onFocus={(event) => {
             setIsFocused(true);

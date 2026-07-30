@@ -159,7 +159,7 @@ export const Login = () => {
               fallback={(
                 <div className="login-email-step" role="status" aria-live="polite">
                   <Loader2 className="animate-spin" size={24} />
-                  <span>Indlæser engangskode...</span>
+                  <span>Vent venligst.. Indlæser modul</span>
                 </div>
               )}
             >
