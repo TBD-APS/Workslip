@@ -26,6 +26,12 @@ precacheAndRoute(PRECACHE_MANIFEST);
 self.skipWaiting();
 clientsClaim();
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting());
+  }
+});
+
 function isRuntimeStaticAsset(request: Request) {
   if (request.method !== 'GET') return false;
   if (!['script', 'style', 'font', 'image'].includes(request.destination)) return false;
