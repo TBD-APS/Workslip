@@ -176,12 +176,12 @@ jobs:
           HEALTH_URL: ${{ steps.target.outputs.health_url }}
         run: |
           set -Eeuo pipefail
-          max_attempts=18
+          max_attempts=15
 
           for attempt in $(seq 1 "${max_attempts}"); do
             if curl --fail --silent --show-error \
               --connect-timeout 10 \
-              --max-time 20 \
+              --max-time 10 \
               --output /dev/null \
               "${HEALTH_URL}"; then
               echo "API health check passed: ${HEALTH_URL}"
