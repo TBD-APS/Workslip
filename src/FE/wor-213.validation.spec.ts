@@ -57,7 +57,18 @@ async function loadControlledClient(page: Page) {
 
   if (!await page.evaluate(() => Boolean(navigator.serviceWorker.controller))) {
     await page.reload({ waitUntil: 'networkidle' });
+    await expect.poll(
+      () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
+      { timeout: 10_000 },
+    ).toBe(true);
   }
+
+  // The document in which the controller first appears may already have
+  // evaluated the update module as a first-install session. Navigate once more
+  // so version-A starts with a controller present at module evaluation time.
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
 
   await expect.poll(
     () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
