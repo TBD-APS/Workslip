@@ -1,0 +1,36 @@
+name: WOR-89 modal implementation
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - rbj--89-modal-implementation-base
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Apply focused source patch
+        run: python tools/temp/wor89_add_navigation_modal.py
+
+      - name: Validate patch shape
+        run: git diff --check
+
+      - name: Commit source change
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/FE/src/features/jobs/routes/CompletedJobReport.tsx
+          git commit -m "RBJ-89: add post-undo navigation modal"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
