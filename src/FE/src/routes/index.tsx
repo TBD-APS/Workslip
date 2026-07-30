@@ -6,6 +6,7 @@ import { useAuth } from '../providers/useAuth';
 import { RoleGuard } from '../providers/permissions';
 import { Login } from '../features/auth/routes/Login';
 import { reportFrontendError } from '../applicationInsights';
+import { DesktopOnlySuperadminBoundary } from '../features/superadmin/components/DesktopOnlySuperadmin';
 
 const AUTH_STARTUP_GRACE_MS = 6_000;
 
@@ -224,7 +225,13 @@ export const router = createBrowserRouter([
       { path: '/invite/:token', element: <InviteAccept /> },
       {
         path: '/app',
-        element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
+        element: (
+          <ProtectedRoute>
+            <DesktopOnlySuperadminBoundary>
+              <AppLayout />
+            </DesktopOnlySuperadminBoundary>
+          </ProtectedRoute>
+        ),
         children: [
           { index: true, element: <JobList /> },
           { path: 'timer', element: <MyWorksheets /> },
@@ -247,7 +254,13 @@ export const router = createBrowserRouter([
       },
       {
         path: '/superadmin',
-        element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
+        element: (
+          <ProtectedRoute>
+            <DesktopOnlySuperadminBoundary>
+              <AppLayout />
+            </DesktopOnlySuperadminBoundary>
+          </ProtectedRoute>
+        ),
         children: [
           {
             index: true,

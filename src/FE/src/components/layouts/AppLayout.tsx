@@ -12,6 +12,10 @@ import {
   getOrganizationSession,
   restoreHomeOrganizationSession,
 } from '../../features/superadmin/organizationSession';
+import {
+  DesktopOnlySuperadminScreen,
+} from '../../features/superadmin/components/DesktopOnlySuperadmin';
+import { isDesktopPlatform } from '../../lib/platform';
 import '../../features/superadmin/organizationSession.css';
 import '../../authenticated-base.css';
 import '../../App.css';
@@ -21,6 +25,7 @@ export const AppLayout = () => {
   const location = useLocation();
   const { logout, user } = useAuth();
   const isSuperadmin = useIsSuperAdmin();
+  const isDesktop = isDesktopPlatform();
   const organizationSession = getOrganizationSession();
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
@@ -75,6 +80,10 @@ export const AppLayout = () => {
     };
   }, []);
 
+  if (isSuperadmin && !isDesktop) {
+    return <DesktopOnlySuperadminScreen onLogout={handleLogout} />;
+  }
+
   if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
     return <Navigate to="/superadmin" replace />;
   }
@@ -117,18 +126,20 @@ export const AppLayout = () => {
               )}
             </button>
           )}
-          <Can permission="organization:manage">
-            <button
-              type="button"
-              onClick={() => navigate('/superadmin')}
-              className="user-avatar"
-              aria-label="Superadmin"
-              title="Superadmin"
-              aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
-            >
-              <ShieldCheck size={18} />
-            </button>
-          </Can>
+          {isDesktop && (
+            <Can permission="organization:manage">
+              <button
+                type="button"
+                onClick={() => navigate('/superadmin')}
+                className="user-avatar"
+                aria-label="Superadmin"
+                title="Superadmin"
+                aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
+              >
+                <ShieldCheck size={18} />
+              </button>
+            </Can>
+          )}
           <Can permission="user:manage">
             <button
               type="button"

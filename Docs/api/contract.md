@@ -75,6 +75,18 @@ The delegated token expires after 15 minutes by default. `Jwt:OrganizationSessio
 
 The frontend preserves the original Superadmin token, clears tenant query state before entering or leaving an organization, displays the effective organization continuously, and restores the original token on explicit exit or delegated-token expiry. Superadmins cannot register tenant push subscriptions, and tenant notification/profile UI is hidden during delegated use.
 
+The official frontend makes Superadmin organization administration and delegated
+organization sessions available only on desktop-class devices. On iOS, Android,
+and iPadOS a valid delegated recovery state is restored to the home Superadmin
+token before authentication bootstrap and then shows an authenticated
+desktop-only blocker. An expired delegated token can still restore a matching,
+unexpired home token; a missing or expired home token, malformed claims,
+cross-actor state, or organization-inconsistent recovery state is cleared and
+requires a new login.
+This is a frontend product boundary, not a bearer-token security guarantee: API
+clients must rely on the authorization policies and token validation documented
+above rather than device detection.
+
 Ordinary repositories continue using the authenticated `organizationId` claim. Audit data therefore records the real Superadmin actor while operational reads and writes remain scoped to the selected organization.
 
 ## User role fields

@@ -4,6 +4,71 @@
   padding-bottom: 6rem;
 }
 
+.superadmin-desktop-only {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--background);
+}
+
+.superadmin-desktop-only-card {
+  display: flex;
+  width: min(100%, 34rem);
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+.superadmin-desktop-only-card h1,
+.superadmin-desktop-only-card p {
+  margin: 0;
+}
+
+.superadmin-desktop-only-card h1 {
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  line-height: 1.2;
+}
+
+.superadmin-desktop-only-card p {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.superadmin-desktop-only-card .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 8rem;
+}
+
+.superadmin-desktop-only-icon {
+  position: relative;
+  display: inline-grid;
+  width: 4.5rem;
+  height: 4.5rem;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+
+.superadmin-desktop-only-icon > :last-child {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  padding: 0.15rem;
+  border-radius: 50%;
+  background: var(--surface);
+}
+
 .superadmin-page-header {
   display: flex;
   align-items: flex-start;
