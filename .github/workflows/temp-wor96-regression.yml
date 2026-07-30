@@ -22,11 +22,14 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore backend
-        run: dotnet restore src/BE/WorkslipApi/WorkslipApi.sln
+      - name: Restore backend tests
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
 
-      - name: Build backend
-        run: dotnet build src/BE/WorkslipApi/WorkslipApi.sln --configuration Release --no-restore
+      - name: Build backend tests
+        run: >-
+          dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-restore
 
       - name: Run focused notification tests
         run: >-
