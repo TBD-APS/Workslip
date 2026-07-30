@@ -160,6 +160,27 @@ async function resolveRegistrationAndAnnounceUpdate() {
   }
 }
 
+function observeInstallingWorker(installingWorker: ServiceWorker | null) {
+  if (!installingWorker) return;
+
+  const handleStateChange = () => {
+    if (installingWorker.state === 'installed' && hadControllerAtStartup) {
+      void resolveRegistrationAndAnnounceUpdate();
+    }
+  };
+
+  installingWorker.addEventListener('statechange', handleStateChange);
+  handleStateChange();
+}
+
+function observeRegistrationUpdates(registration: ServiceWorkerRegistration) {
+  registration.addEventListener('updatefound', () => {
+    observeInstallingWorker(registration.installing);
+  });
+
+  observeInstallingWorker(registration.installing);
+}
+
 function recoverFromActivationFailure(error: unknown) {
   updateApplying = false;
   clearReloadFallback();
@@ -247,6 +268,8 @@ window.addEventListener(PWA_UPDATE_APPLY_EVENT, () => {
 registerSW({
   immediate: true,
   onNeedRefresh() {
+    // Redundant plugin signal. Native registration events below are authoritative
+    // for updates started through registration.update().
     void resolveRegistrationAndAnnounceUpdate();
   },
   // vite-plugin-pwa otherwise reloads directly from its Workbox controlling
@@ -259,6 +282,7 @@ registerSW({
     if (!registration) return;
 
     serviceWorkerRegistration = registration;
+    observeRegistrationUpdates(registration);
 
     let updateCheck: Promise<void> | null = null;
     const requestUpdate = () => {
