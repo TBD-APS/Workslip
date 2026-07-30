@@ -21,6 +21,7 @@
     "generate:api:watch": "orval --watch",
     "test:e2e:install": "npm --prefix e2e ci && npm --prefix e2e run install:browsers",
     "test:e2e": "npm --prefix e2e test",
+    "test:e2e:pr": "npm --prefix e2e run test:pr",
     "test:e2e:public": "npm --prefix e2e run test:public",
     "test:e2e:authenticated": "npm --prefix e2e run test:authenticated",
     "test:e2e:ui": "npm --prefix e2e run test:ui",
