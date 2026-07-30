@@ -1,7 +1,7 @@
 import { expect, test } from '../support/test';
 import { waitForOneTimeCode } from '../support/mailosaur';
 
-test.describe('@authenticated Workslip smoke', () => {
+test.describe('@live-authenticated Workslip smoke', () => {
   test('logs in with OTP, navigates the app, opens a form, and logs out', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'chromium-desktop', 'Authenticated OTP smoke runs once on desktop Chromium.');
 
