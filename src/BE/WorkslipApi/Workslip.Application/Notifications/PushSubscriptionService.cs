@@ -1,5 +1,4 @@
-using Result = Ardalis.Result.Result;
-using Workslip.Domain.Models;
+using Ardalis.Result;
 
 namespace Workslip.Application.Notifications;
 
@@ -11,13 +10,14 @@ public sealed class PushSubscriptionService(INotificationRepository notification
         string p256Dh,
         string auth,
         string? userAgent,
+        string? replacedEndpoint,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(endpoint) || 
-            string.IsNullOrWhiteSpace(p256Dh) || 
-            string.IsNullOrWhiteSpace(auth))
+        if (string.IsNullOrWhiteSpace(endpoint)
+            || string.IsNullOrWhiteSpace(p256Dh)
+            || string.IsNullOrWhiteSpace(auth))
         {
-            return Result.Invalid(new Ardalis.Result.ValidationError("Endpoint, P256Dh, and Auth keys are required."));
+            return Result.Invalid(new ValidationError("Endpoint, P256Dh, and Auth keys are required."));
         }
 
         await notificationRepository.RegisterSubscriptionAsync(
@@ -26,6 +26,7 @@ public sealed class PushSubscriptionService(INotificationRepository notification
             p256Dh,
             auth,
             userAgent,
+            string.IsNullOrWhiteSpace(replacedEndpoint) ? null : replacedEndpoint,
             cancellationToken);
 
         return Result.Success();

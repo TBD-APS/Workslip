@@ -11,7 +11,14 @@ public interface INotificationRepository
     Task<IReadOnlyList<PushSubscriptionRow>> GetActiveSubscriptionsForUserAsync(Guid userId, CancellationToken cancellationToken);
     Task UpdateSubscriptionActiveStatusAsync(Guid subscriptionId, bool isActive, CancellationToken cancellationToken);
     Task LogDeliveryAttemptAsync(NotificationDeliveryLogRow log, CancellationToken cancellationToken);
-    Task RegisterSubscriptionAsync(Guid userId, string endpoint, string p256Dh, string auth, string? userAgent, CancellationToken cancellationToken);
+    Task RegisterSubscriptionAsync(
+        Guid userId,
+        string endpoint,
+        string p256Dh,
+        string auth,
+        string? userAgent,
+        string? replacedEndpoint,
+        CancellationToken cancellationToken);
     Task<IReadOnlyList<NotificationQueueRow>> GetHistoryAsync(Guid userId, int limit, int offset, CancellationToken cancellationToken);
     Task MarkReadAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken);
     Task MarkAllReadAsync(Guid userId, CancellationToken cancellationToken);

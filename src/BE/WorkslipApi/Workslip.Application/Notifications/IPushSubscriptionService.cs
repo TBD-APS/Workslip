@@ -1,5 +1,3 @@
-using Workslip.Domain.Models;
-
 namespace Workslip.Application.Notifications;
 
 public interface IPushSubscriptionService
@@ -10,5 +8,6 @@ public interface IPushSubscriptionService
         string p256Dh,
         string auth,
         string? userAgent,
+        string? replacedEndpoint,
         CancellationToken cancellationToken);
 }

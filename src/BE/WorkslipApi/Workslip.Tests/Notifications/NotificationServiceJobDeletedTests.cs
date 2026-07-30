@@ -86,7 +86,14 @@ public sealed class NotificationServiceJobDeletedTests
         public Task LogDeliveryAttemptAsync(NotificationDeliveryLogRow log, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task RegisterSubscriptionAsync(Guid userId, string endpoint, string p256Dh, string auth, string? userAgent, CancellationToken cancellationToken) =>
+        public Task RegisterSubscriptionAsync(
+            Guid userId,
+            string endpoint,
+            string p256Dh,
+            string auth,
+            string? userAgent,
+            string? replacedEndpoint,
+            CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
         public Task<IReadOnlyList<NotificationQueueRow>> GetHistoryAsync(Guid userId, int limit, int offset, CancellationToken cancellationToken) =>

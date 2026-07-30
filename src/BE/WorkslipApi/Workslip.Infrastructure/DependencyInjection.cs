@@ -2,24 +2,23 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Workslip.Application;
 using Workslip.Application.Common;
 using Workslip.Application.Customers;
 using Workslip.Application.Invitations;
 using Workslip.Application.Jobs;
+using Workslip.Application.Notifications;
 using Workslip.Application.Organizations;
 using Workslip.Application.Users;
-using Workslip.Application.Notifications;
-using Workslip.Infrastructure.Invitations;
 using Workslip.Application.Worksheets;
+using Workslip.Infrastructure.Configuration;
+using Workslip.Infrastructure.Invitations;
 using Workslip.Infrastructure.Jobs;
+using Workslip.Infrastructure.Notifications;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
 using Workslip.Infrastructure.Transactions;
-using Workslip.Infrastructure.Configuration;
-using Workslip.Infrastructure.Notifications;
 
 namespace Workslip.Infrastructure;
 
@@ -65,6 +64,9 @@ public static class DependencyInjection
         services.AddScoped<DevelopmentDatabaseSeeder>();
 
         services.AddScoped<IEmailService, AcsEmailService>();
+        services.AddSingleton<VapidKeyMaterial>();
+        services.AddSingleton<IVapidPublicKeyProvider>(serviceProvider =>
+            serviceProvider.GetRequiredService<VapidKeyMaterial>());
         services.AddScoped<IPushSender, WebPushSender>();
         services.AddHostedService<JobDeletionCleanupService>();
         services.AddHostedService<InviteEntraCleanupService>();
