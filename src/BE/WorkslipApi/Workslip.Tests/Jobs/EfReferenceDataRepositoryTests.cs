@@ -16,9 +16,9 @@ public sealed class EfReferenceDataRepositoryTests
     public async Task GetAsync_OrdersInstallationTypesAlphabeticallyInsteadOfBySortOrder()
     {
         await using var database = await RelationalTestDatabase.CreateAsync();
-        using var services = new ServiceCollection()
-            .AddHybridCache()
-            .BuildServiceProvider();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddHybridCache();
+        using var services = serviceCollection.BuildServiceProvider();
         var organizationId = Guid.NewGuid();
 
         database.Context.Organizations.Add(CreateOrganization(organizationId));
