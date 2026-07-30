@@ -43,7 +43,7 @@ public sealed class JobDeletionNotificationServiceTests
             deletingUserId,
             CancellationToken.None);
 
-        Assert.Equal([recipientId, secondRecipientId], notifications.DeletedRecipients);
+        Assert.Equal(new[] { recipientId, secondRecipientId }, notifications.DeletedRecipients);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class JobDeletionNotificationServiceTests
             deletingUserId: null,
             CancellationToken.None);
 
-        Assert.Equal([failingRecipientId, successfulRecipientId], notifications.DeletedRecipients);
+        Assert.Equal(new[] { failingRecipientId, successfulRecipientId }, notifications.DeletedRecipients);
     }
 
     private static JobDeletionNotificationService CreateService(
