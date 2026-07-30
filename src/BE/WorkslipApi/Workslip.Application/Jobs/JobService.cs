@@ -26,7 +26,8 @@ public sealed class JobService(
     ICurrentUserContext currentUser,
     ILogger<JobService> logger,
     JobValidationService jobValidationService,
-    INotificationService notificationService) : IJobService
+    INotificationService notificationService,
+    JobDeletionNotificationService jobDeletionNotificationService) : IJobService
 {
     private static readonly HybridCacheEntryOptions JobReportCacheOptions = new()
     {
@@ -541,6 +542,10 @@ public sealed class JobService(
              return Result<JobDeleteErrorResponse>.Unauthorized();
          }
 
+         var deletedJob = jobDeletionNotificationService.IsEnabled
+             ? await _jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken)
+             : null;
+
          var deleteResult = await _jobRepository.DeleteAsync(id, organizationId.Value, cancellationToken);
          if (deleteResult.Status == JobDeleteRepositoryStatus.NotFound)
          {
@@ -558,6 +563,14 @@ public sealed class JobService(
 
          await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
          logger.LogInformation("Job deleted. JobId: {JobId}.", id);
+
+         if (deletedJob is not null)
+         {
+             await jobDeletionNotificationService.QueueAsync(
+                 deletedJob,
+                 currentUser.UserId,
+                 cancellationToken);
+         }
 
          return Result<JobDeleteErrorResponse>.NoContent();
       }
@@ -765,6 +778,10 @@ public sealed class JobService(
         else if (!workKindsByLabel.TryGetValue(normalizedWorkKind, out var workKindDefinition))
         {
             errors.Add(new ValidationError { Identifier = nameof(JobReportResponse.WorkKind), ErrorMessage = $"Unknown work kind '{normalizedWorkKind}'." });
+        }
+        else if (workKindDefinition.RequiresCustomWorkKind && string.IsNullOrWhiteSpace(workKind?.CustomWorkKind))
+        {
+            errors.Add(new ValidationError { Identifier = $"{nameof(JobReportResponse.WorkKind)}.{nameof(JobWorkKindResponse.CustomWorkKind)}", ErrorMessage = "This work kind requires custom text." });
         }
         else if (!workKindDefinition.RequiresCustomWorkKind && !string.IsNullOrWhiteSpace(workKind?.CustomWorkKind))
         {
