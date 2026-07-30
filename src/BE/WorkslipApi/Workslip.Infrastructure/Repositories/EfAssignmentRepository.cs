@@ -147,7 +147,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         var assignedUsers = await (
             from a in _dbContext.JobAssignments.AsNoTracking()
             join u in _dbContext.Users.AsNoTracking()
-                on new { a.UserId, OrganizationId = (Guid?)a.OrganizationId }
+                on new { a.UserId, a.OrganizationId }
                 equals new { UserId = u.Id, u.OrganizationId }
             where a.OrganizationId == organizationId
                   && reportIds.Contains(a.ReportId)
@@ -221,7 +221,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
 
         var rows = await (
             from a in _dbContext.JobAssignments.AsNoTracking()
-            join user in _dbContext.Users.AsNoTracking() on new { OrganizationId = (Guid?)a.OrganizationId, Id = a.UserId } equals new { user.OrganizationId, user.Id }
+            join user in _dbContext.Users.AsNoTracking() on new { a.OrganizationId, Id = a.UserId } equals new { user.OrganizationId, user.Id }
             where a.OrganizationId == organizationId && normalizedIds.Contains(a.ReportId)
             select new { a.ReportId, user.Id, user.DisplayName }
         ).ToListAsync(cancellationToken);

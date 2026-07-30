@@ -9,26 +9,50 @@ namespace Workslip.Api;
 public static class JwtHelper
 {
     public const int DefaultExpiryMinutes = 60;
+    public const int DefaultOrganizationSessionExpiryMinutes = 15;
+    public const string HomeOrganizationIdClaim = "homeOrganizationId";
+    public const string DelegatedOrganizationSessionClaim = "delegatedOrganizationSession";
 
-    public static AuthTokenResponse GenerateToken(AuthUserInfo user, IConfiguration configuration)
+    public static AuthTokenResponse GenerateToken(AuthUserInfo user, IConfiguration configuration) =>
+        GenerateTokenCore(
+            user,
+            configuration,
+            ResolveExpiryMinutes(configuration),
+            []);
+
+    public static AuthTokenResponse GenerateOrganizationSessionToken(
+        AuthUserInfo user,
+        Guid homeOrganizationId,
+        IConfiguration configuration) =>
+        GenerateTokenCore(
+            user,
+            configuration,
+            ResolveOrganizationSessionExpiryMinutes(configuration),
+            [
+                new Claim(HomeOrganizationIdClaim, homeOrganizationId.ToString()),
+                new Claim(DelegatedOrganizationSessionClaim, bool.TrueString.ToLowerInvariant()),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
+            ]);
+
+    private static AuthTokenResponse GenerateTokenCore(
+        AuthUserInfo user,
+        IConfiguration configuration,
+        int expiryMinutes,
+        IReadOnlyCollection<Claim> additionalClaims)
     {
         var tokenSection = GetTokenSection(configuration);
-        var expiryMinutes = ResolveExpiryMinutes(configuration);
-
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenSection.SigningKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.UserId.ToString()),
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Name, user.DisplayName),
+            new("organizationId", user.OrganizationId.ToString()),
             new(ClaimTypes.Role, user.Role)
         };
-
-        if (user.OrganizationId is Guid organizationId)
-        {
-            claims.Add(new Claim("organizationId", organizationId.ToString()));
-        }
+        claims.AddRange(additionalClaims);
 
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(expiryMinutes);
         var token = new JwtSecurityToken(
@@ -38,9 +62,8 @@ public static class JwtHelper
             expires: expiresAt.UtcDateTime,
             signingCredentials: credentials);
 
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
         return new AuthTokenResponse(
-            tokenString,
+            new JwtSecurityTokenHandler().WriteToken(token),
             "Bearer",
             expiryMinutes * 60,
             user);
@@ -49,12 +72,17 @@ public static class JwtHelper
     private static int ResolveExpiryMinutes(IConfiguration configuration)
     {
         var raw = configuration["Jwt:ExpiryMinutes"];
-        if (int.TryParse(raw, out var minutes) && minutes > 0)
-        {
-            return minutes;
-        }
+        return int.TryParse(raw, out var minutes) && minutes > 0
+            ? minutes
+            : DefaultExpiryMinutes;
+    }
 
-        return DefaultExpiryMinutes;
+    private static int ResolveOrganizationSessionExpiryMinutes(IConfiguration configuration)
+    {
+        var raw = configuration["Jwt:OrganizationSessionExpiryMinutes"];
+        return int.TryParse(raw, out var minutes) && minutes is >= 1 and <= 30
+            ? minutes
+            : DefaultOrganizationSessionExpiryMinutes;
     }
 
     public static TokenValidationParameters GetTokenValidationParameters(IConfiguration configuration)
@@ -76,6 +104,7 @@ public static class JwtHelper
     private static TokenSection GetTokenSection(IConfiguration configuration)
     {
         var jwtSection = configuration.GetSection("Jwt");
+
         return new TokenSection
         {
             Issuer = jwtSection["Issuer"]!,
@@ -86,8 +115,8 @@ public static class JwtHelper
 
     private sealed record TokenSection
     {
-        public required string Issuer { get; set; }
-        public required string Audience { get; set; }
-        public required string SigningKey { get; set; }
+        public required string Issuer { get; init; }
+        public required string Audience { get; init; }
+        public required string SigningKey { get; init; }
     }
 }

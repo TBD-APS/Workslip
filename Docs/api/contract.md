@@ -34,19 +34,7 @@ Policy meanings:
 | `RequireAdmin` | Admin or a higher configured role. |
 | `RequireSuperAdmin` | Superadmin only. |
 
-Tenant users (`User`, `Auditor`, and `Admin`) are permanently associated with one organization. Their authenticated identity contains the server-owned `organizationId` claim, and the API ignores any client-supplied organization-scope header for those roles.
-
-A `Superadmin` is a platform identity and has `organizationId = null` in Workslip. Its local JWT and transformed Entra identity do not contain a permanent organization claim. Dedicated Superadmin platform routes operate cross-tenant without selecting an organization.
-
-Before a Superadmin calls ordinary tenant endpoints, the client must explicitly select an organization and send:
-
-```http
-X-Workslip-Organization-Id: <organization-guid>
-```
-
-The backend accepts this header only after authenticating the caller as `Superadmin` and verifying that the organization exists. Successful scope validation is cached briefly. Missing, malformed or unknown scope leaves the Superadmin without tenant context, causing tenant-scoped services to reject the request rather than infer or default an organization. Normal tenant users cannot use this header to escape their authenticated organization.
-
-Clients must clear tenant-specific application caches when switching the selected organization. The first-party frontend performs a full navigation after selection to prevent React Query data from one tenant being reused in another tenant view.
+The API derives organization, user and role from authenticated claims. Integrations must not send or trust a client-selected organization ID as an authorization boundary except on explicitly Superadmin-only platform administration routes.
 
 ## Organization administration
 
@@ -55,10 +43,9 @@ The following platform operations require `RequireSuperAdmin`:
 ```text
 GET  /api/organizations/
 POST /api/organizations/
+POST /api/organizations/{organizationId}/session
 PUT  /api/organizations/{organizationId}/admin
 ```
-
-These operations do not require `X-Workslip-Organization-Id`. Their explicit route parameters and dedicated cross-tenant application/repository paths define the target organization.
 
 The GET operation returns all organizations ordered by name and CVR for the `/superadmin` administration page. This is an intentional cross-tenant read and must remain inside the exclusive Superadmin route group.
 
@@ -66,19 +53,38 @@ Organization creation returns the organization and its initial local administrat
 
 The admin response includes `entraInvitationSent`. It is `true` only when a new Entra guest and invitation message were created. It is `false` when an existing Entra identity was reused and its Admin role/local record was updated.
 
-Sequential upserts for the same organization and email are idempotent. An email already owned by another organization returns `email_in_use`, and an existing platform `Superadmin` account is never converted to tenant `Admin` (`superadmin_role_protected`). Conditional writes reject stale concurrent changes with `admin_state_changed`; clients may reload and retry. If Workslip creates a new Entra guest but SQL persistence fails, it removes that guest only when no persisted user references the identity.
+Sequential upserts for the same organization and email are idempotent. An email already owned by another organization returns `email_in_use`, and an existing `Superadmin` account is never converted to `Admin` (`superadmin_role_protected`). Conditional writes reject stale concurrent changes with `admin_state_changed`; clients may reload and retry. If Workslip creates a new Entra guest but SQL persistence fails, it removes that guest only when no persisted user references the identity.
 
 Non-empty user emails are globally unique through the filtered SQL index `UX_Users_Email`, matching the identity lookup used by authentication. Schema initialization fails explicitly if legacy duplicate non-empty emails exist, because silently selecting one organization would violate tenant isolation.
 
-## User organization and role fields
+### Delegated organization sessions
 
-User list, user detail and current-user responses expose:
+`POST /api/organizations/{organizationId}/session` validates that:
 
-- `organizationId`: required for `User`, `Auditor`, and `Admin`; `null` for platform `Superadmin`.
-- `role`: canonical authorization value (`User`, `Auditor`, `Admin`, or `Superadmin`). Clients must use this field for permission logic.
-- `roleDisplayName`: backend-owned Danish display label used by the UI. It is presentation data and must not be used for authorization.
+- the authenticated claim role is `Superadmin`;
+- the current Workslip database row still has the `Superadmin` role;
+- the selected organization exists.
 
-Tenant user-management endpoints reject attempts to create or convert users to `Superadmin`. Existing platform Superadmins are also protected from tenant lookup, update and deletion. Platform Superadmins are provisioned through the controlled platform identity path, not ordinary organization user CRUD.
+On success it returns the standard `AuthTokenResponse` with a short-lived local Workslip token. The token keeps the real Superadmin user ID, email, display name and role, but its `organizationId` claim is the selected organization. It also contains:
+
+- `homeOrganizationId`: the Superadmin row's permanent organization;
+- `delegatedOrganizationSession=true`;
+- a unique `jti`.
+
+The delegated token expires after 15 minutes by default. `Jwt:OrganizationSessionExpiryMinutes` may configure a value from 1 through 30 minutes. It has no refresh flow. Selecting an organization does not update the user row, create a membership, modify Entra, or change any tenant service contract.
+
+The frontend preserves the original Superadmin token, clears tenant query state before entering or leaving an organization, displays the effective organization continuously, and restores the original token on explicit exit or delegated-token expiry. Superadmins cannot register tenant push subscriptions, and tenant notification/profile UI is hidden during delegated use.
+
+Ordinary repositories continue using the authenticated `organizationId` claim. Audit data therefore records the real Superadmin actor while operational reads and writes remain scoped to the selected organization.
+
+## User role fields
+
+User list, user detail and current-user responses expose two role fields:
+
+- `role` is the canonical authorization value (`User`, `Auditor`, `Admin` or `Superadmin`). Clients must use this field for permission logic.
+- `roleDisplayName` is the backend-owned Danish display label used by the UI. It is presentation data and must not be used for authorization.
+
+The display field is additive. Clients that do not yet understand it may continue using the canonical `role` value.
 
 ## Invitation administration
 
@@ -89,7 +95,7 @@ GET    /api/auth/invites
 DELETE /api/auth/invites/{inviteId}
 ```
 
-The delete operation is tenant-scoped by the authenticated or explicitly selected organization. A pending invitation is atomically revoked and its token rotated before any external cleanup starts, so concurrent enrollment and clearing cannot both succeed. When Workslip created an Entra guest specifically for that pending invitation, the guest is removed before the revoked status row is deleted. If Graph cleanup fails, the revoked row remains as durable retry state. Accepted invitations only have their historical status row removed; the enrolled user is not deleted.
+The delete operation is tenant-scoped by the authenticated organization. A pending invitation is atomically revoked and its token rotated before any external cleanup starts, so concurrent enrollment and clearing cannot both succeed. When Workslip created an Entra guest specifically for that pending invitation, the guest is removed before the revoked status row is deleted. If Graph cleanup fails, the revoked row remains as durable retry state. Accepted invitations only have their historical status row removed; the enrolled user is not deleted.
 
 ## Standard headers
 
@@ -98,12 +104,9 @@ Accept: application/json
 Content-Type: application/json
 X-Correlation-ID: <uuid-or-trace-id>
 Idempotency-Key: <stable-key-for-one-logical-mutation>
-X-Workslip-Organization-Id: <organization-guid>  # Superadmin tenant endpoints only
 ```
 
 `Idempotency-Key` is mandatory on currently protected mutation endpoints. Missing keys can return `428 Precondition Required`. Reusing a key with different content returns a conflict. A replay can return the stored original response.
-
-`X-Workslip-Organization-Id` is not an authorization credential. It is an explicit tenant-selection value that is honored only for an already authenticated platform Superadmin and only after the organization has been verified by the server.
 
 ## Result and error contract
 
@@ -170,12 +173,9 @@ Selected GET endpoints return ETags and private revalidation headers. Clients ma
 
 The API accepts/creates correlation identifiers and writes them to request telemetry. Preserve `X-Correlation-ID` across integration boundaries and include it in support reports.
 
-Tenant-scoped client caches must include the selected organization in their effective cache boundary or be cleared when the organization changes.
-
 ## Compatibility
 
 - Additive optional fields are normally backward compatible.
-- `organizationId` becoming nullable for `Superadmin` requires generated clients to preserve `null` rather than substituting an empty GUID.
 - Removing or renaming fields, routes, enum values or error codes requires a migration/deprecation plan.
 - Generated frontend clients and the Postman collection must be reviewed with every contract change.
 - Planned behaviour is never documented as deployed behaviour.

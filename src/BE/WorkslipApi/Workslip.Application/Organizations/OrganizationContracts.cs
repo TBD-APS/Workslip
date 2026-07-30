@@ -1,3 +1,5 @@
+using Workslip.Application.Auth;
+
 namespace Workslip.Application.Organizations;
 
 public sealed record CreateOrganizationRequest(
@@ -40,4 +42,9 @@ public sealed record CurrentUserResponse(
     string? Email,
     string? Phone,
     string Role,
+    OrganizationResponse Organization);
+
+public sealed record OrganizationSessionContext(
+    AuthUserInfo User,
+    Guid HomeOrganizationId,
     OrganizationResponse Organization);

@@ -290,7 +290,14 @@
       "categories": [
         {
           "categoryKey": "forundersoegelse",
-          "controlPoints": []
+          "controlPoints": [
+            {
+              "key": "ventilation-forundersoegelse-ansoegning-paa-ventilation",
+              "label": "Ansøgning på ventilation",
+              "sortOrder": 1,
+              "isRequired": true
+            }
+          ]
         },
         {
           "categoryKey": "modtagekontrol",
@@ -302,9 +309,21 @@
               "isRequired": true
             },
             {
+              "key": "ventilation-modtagekontrol-armaturer",
+              "label": "Armaturer",
+              "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-modtagekontrol-kedel-vb",
+              "label": "Kedel / VB",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
               "key": "ventilation-modtagekontrol-saerlige-komponenter",
               "label": "Særlige komponenter",
-              "sortOrder": 2,
+              "sortOrder": 4,
               "isRequired": true
             }
           ]
@@ -313,15 +332,21 @@
           "categoryKey": "udfoerelseskontrol",
           "controlPoints": [
             {
-              "key": "ventilation-udfoerelseskontrol-anlaeg",
-              "label": "Anlæg",
+              "key": "ventilation-udfoerelseskontrol-stikledning-og-indfoering",
+              "label": "Stikledning og indføring",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "ventilation-udfoerelseskontrol-ventiler",
-              "label": "Ventiler",
+              "key": "ventilation-udfoerelseskontrol-roerophaeng",
+              "label": "Rørophæng",
               "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-udfoerelseskontrol-tilslutning-til-varmtvandsforsyning",
+              "label": "Tilslutning til varmtvandsforsyning",
+              "sortOrder": 3,
               "isRequired": true
             }
           ]
@@ -330,15 +355,27 @@
           "categoryKey": "slutkontrol",
           "controlPoints": [
             {
-              "key": "ventilation-slutkontrol-indregulering",
-              "label": "Indregulering",
+              "key": "ventilation-slutkontrol-taethedsproevning",
+              "label": "Tæthedsprøvning",
               "sortOrder": 1,
               "isRequired": true
             },
             {
-              "key": "ventilation-slutkontrol-taethedsproevning",
-              "label": "Tæthedsprøvning",
+              "key": "ventilation-slutkontrol-funktionsproevning",
+              "label": "Funktionsprøvning",
               "sortOrder": 2,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-slutkontrol-sikkerhedsarmaturer",
+              "label": "Sikkerhedsarmaturer",
+              "sortOrder": 3,
+              "isRequired": true
+            },
+            {
+              "key": "ventilation-slutkontrol-optaelling-af-materialer",
+              "label": "Optælling af materialer",
+              "sortOrder": 4,
               "isRequired": true
             }
           ]
@@ -353,8 +390,8 @@
               "isRequired": true
             },
             {
-              "key": "ventilation-drift-vedligehold-vedligehold",
-              "label": "Vedligehold",
+              "key": "ventilation-drift-vedligehold-vedligeholdsinstruktion",
+              "label": "Vedligeholdsinstruktion",
               "sortOrder": 2,
               "isRequired": true
             },

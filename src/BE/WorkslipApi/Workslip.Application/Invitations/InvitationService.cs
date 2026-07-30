@@ -77,7 +77,7 @@ public sealed class InvitationService(
         {
             var existingUser = await userRepository.GetByEmailAsync(invite.Email, cancellationToken);
             Guid userId;
-            Guid? organizationId;
+            Guid organizationId;
             string userRole;
             string userDisplayName;
 
@@ -185,6 +185,7 @@ public sealed class InvitationService(
             await emailService.SendInviteEmailAsync(normalizedEmail, token, cancellationToken);
             logger.LogInformation("Invite sent. InviteId: {InviteId}. OrganizationId: {OrganizationId}", inviteId, organizationId);
 
+            // The token is delivered only to the recipient by email and must not be returned by the API.
             return new InviteUserResult(normalizedEmail, true, null, null);
         }
         catch (InvalidOperationException ex)
@@ -204,19 +205,19 @@ public sealed class InvitationService(
 
         var invites = await inviteRepository.GetByOrganizationAsync(organizationId.Value, cancellationToken);
         var response = new InviteListResponse(
-            invites.Select(invite => new InviteTokenResponse(
-                invite.Id,
-                invite.Email,
-                invite.Role,
-                invite.CreatedAt,
-                invite.ExpiresAt,
-                invite.Consumed,
-                invite.OpenedAt,
-                invite.AcceptedAt,
-                invite.EntraUserId,
-                invite.EntraCreatedByInvite,
-                invite.EntraProvisionedAt,
-                invite.EntraCleanedAt)).ToList());
+            invites.Select(i => new InviteTokenResponse(
+                i.Id,
+                i.Email,
+                i.Role,
+                i.CreatedAt,
+                i.ExpiresAt,
+                i.Consumed,
+                i.OpenedAt,
+                i.AcceptedAt,
+                i.EntraUserId,
+                i.EntraCreatedByInvite,
+                i.EntraProvisionedAt,
+                i.EntraCleanedAt)).ToList());
 
         return Result<InviteListResponse>.Success(response);
     }

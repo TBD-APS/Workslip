@@ -16,7 +16,7 @@ public sealed class AuthService(
     IValidator<UpdateUserRequest> updateUserValidator,
     ILogger<AuthService> logger) : IAuthService
 {
-    private static readonly ConcurrentDictionary<string, OtcEntry> OtcStore = new();
+    private static readonly ConcurrentDictionary<string, OtcEntry> _otcStore = new();
     private static readonly TimeSpan OtcTtl = TimeSpan.FromMinutes(10);
     private const int OtcLength = 6;
 
@@ -25,18 +25,16 @@ public sealed class AuthService(
         var userId = currentUser.UserId ?? throw new UnauthorizedAccessException("User is not logged in");
         var user = await userRepository.GetByIdAsync(userId, cancellationToken);
 
-        if (user is null)
+        if (user == null)
         {
             logger.LogError("Current user not found in database. UserId: {UserId}", userId);
             throw new UnauthorizedAccessException("User is not logged in");
         }
 
-        return UserResponseBuilder.MapToResponse(user);
+        return ApplyEffectiveOrganization(UserResponseBuilder.MapToResponse(user));
     }
 
-    public async Task<Result<UserResponse>> UpdateCurrentUserAsync(
-        UpdateUserRequest request,
-        CancellationToken cancellationToken)
+    public async Task<Result<UserResponse>> UpdateCurrentUserAsync(UpdateUserRequest request, CancellationToken cancellationToken)
     {
         var userId = currentUser.UserId;
         if (userId is null)
@@ -44,8 +42,15 @@ public sealed class AuthService(
             return Result<UserResponse>.Unauthorized();
         }
 
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<UserResponse>.Unauthorized();
+        }
+
         var user = await userRepository.GetByIdAsync(userId.Value, cancellationToken);
-        if (user is null)
+
+        if (user == null)
         {
             logger.LogInformation("Current user not found for update. UserId: {UserId}", userId);
             return Result<UserResponse>.NotFound();
@@ -55,30 +60,25 @@ public sealed class AuthService(
         if (!validationResult.IsValid)
         {
             var errors = validationResult.Errors
-                .Select(error => new ValidationError
-                {
-                    Identifier = error.PropertyName,
-                    ErrorMessage = error.ErrorMessage
-                })
+                .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
                 .ToList();
             return Result<UserResponse>.Invalid(errors);
         }
 
         if (!string.IsNullOrEmpty(request.DisplayName))
-        {
             user.DisplayName = request.DisplayName;
-        }
 
         if (!string.IsNullOrEmpty(request.Phone))
-        {
             user.Phone = request.Phone;
-        }
 
         user.UpdatedAt = DateTimeOffset.UtcNow;
+
         await userRepository.UpdateAsync(user, cancellationToken);
 
         logger.LogInformation("User updated own profile. UserId: {UserId}.", userId);
-        return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
+
+        return Result<UserResponse>.Success(
+            ApplyEffectiveOrganization(UserResponseBuilder.MapToResponse(user)));
     }
 
     public async Task SendLoginCodeAsync(SendCodeRequest request, CancellationToken cancellationToken)
@@ -96,19 +96,18 @@ public sealed class AuthService(
         var codeHash = HashCode(code);
         var expiresAt = DateTimeOffset.UtcNow.Add(OtcTtl);
 
-        OtcStore[email] = new OtcEntry(codeHash, expiresAt);
+        _otcStore[email] = new OtcEntry(codeHash, expiresAt);
+
         await emailService.SendOtcEmailAsync(email, code, cancellationToken);
 
         logger.LogInformation("Login code sent to {Email}. ExpiresAt: {ExpiresAt}", email, expiresAt);
     }
 
-    public Task<Result<AuthUserInfo>> VerifyLoginCodeAsync(
-        VerifyCodeRequest request,
-        CancellationToken cancellationToken)
+    public Task<Result<AuthUserInfo>> VerifyLoginCodeAsync(VerifyCodeRequest request, CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
 
-        if (!OtcStore.TryGetValue(email, out var entry))
+        if (!_otcStore.TryGetValue(email, out var entry))
         {
             logger.LogWarning("Login code verification failed: no code requested for {Email}", email);
             return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
@@ -116,7 +115,7 @@ public sealed class AuthService(
 
         if (DateTimeOffset.UtcNow > entry.ExpiresAt)
         {
-            OtcStore.TryRemove(email, out _);
+            _otcStore.TryRemove(email, out _);
             logger.LogWarning("Login code verification failed: code expired for {Email}", email);
             return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
@@ -127,29 +126,26 @@ public sealed class AuthService(
             var newAttempts = entry.Attempts + 1;
             if (newAttempts >= 3)
             {
-                OtcStore.TryRemove(email, out _);
+                _otcStore.TryRemove(email, out _);
                 logger.LogWarning("Login code verification failed: too many attempts for {Email}", email);
             }
             else
             {
-                OtcStore[email] = entry with { Attempts = newAttempts };
-                logger.LogWarning(
-                    "Login code verification failed: invalid code for {Email}. Attempt {Attempt}/3",
-                    email,
-                    newAttempts);
+                _otcStore[email] = entry with { Attempts = newAttempts };
+                logger.LogWarning("Login code verification failed: invalid code for {Email}. Attempt {Attempt}/3", email, newAttempts);
             }
-
             return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
 
-        OtcStore.TryRemove(email, out _);
+        _otcStore.TryRemove(email, out _);
         return ResolveUserAsync(email, cancellationToken);
     }
 
     public async Task<Result<AuthUserInfo>> CompleteEntraLoginAsync(CancellationToken cancellationToken)
     {
         var userId = currentUser.UserId;
-        if (userId is null)
+        var organizationId = currentUser.OrganizationId;
+        if (userId is null || organizationId is null)
         {
             logger.LogWarning("Entra login failed: authenticated Entra user was not mapped to a Workslip user.");
             return Result<AuthUserInfo>.Unauthorized();
@@ -162,16 +158,12 @@ public sealed class AuthService(
             return Result<AuthUserInfo>.Unauthorized();
         }
 
-        if (!HasValidOrganizationScope(user.Role, user.OrganizationId))
-        {
-            logger.LogError(
-                "Entra login failed: non-Superadmin user has no organization. UserId: {UserId}. Role: {Role}.",
-                user.Id,
-                user.Role);
-            return Result<AuthUserInfo>.Unauthorized();
-        }
-
-        return Result<AuthUserInfo>.Success(MapAuthUser(user));
+        return Result<AuthUserInfo>.Success(new AuthUserInfo(
+            user.Id,
+            user.OrganizationId,
+            user.Email,
+            user.DisplayName,
+            user.Role));
     }
 
     private async Task<Result<AuthUserInfo>> ResolveUserAsync(string email, CancellationToken cancellationToken)
@@ -183,29 +175,24 @@ public sealed class AuthService(
             return Result<AuthUserInfo>.Unauthorized();
         }
 
-        if (!HasValidOrganizationScope(user.Role, user.OrganizationId))
-        {
-            logger.LogError(
-                "Login failed: non-Superadmin user has no organization. UserId: {UserId}. Role: {Role}.",
-                user.Id,
-                user.Role);
-            return Result<AuthUserInfo>.Unauthorized();
-        }
-
-        return Result<AuthUserInfo>.Success(MapAuthUser(user));
+        return Result<AuthUserInfo>.Success(new AuthUserInfo(
+            user.Id,
+            user.OrganizationId,
+            user.Email,
+            user.DisplayName,
+            user.Role));
     }
 
-    private static AuthUserInfo MapAuthUser(Workslip.Domain.Models.UserDataRow user) => new(
-        user.Id,
-        user.OrganizationId,
-        user.Email,
-        user.DisplayName,
-        user.Role);
+    private UserResponse ApplyEffectiveOrganization(UserResponse response)
+    {
+        if (string.Equals(currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase)
+            && currentUser.OrganizationId is Guid effectiveOrganizationId)
+        {
+            return response with { OrganizationId = effectiveOrganizationId };
+        }
 
-    private static bool HasValidOrganizationScope(string role, Guid? organizationId) =>
-        string.Equals(role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase)
-            ? organizationId is null
-            : organizationId is not null;
+        return response;
+    }
 
     private static string GenerateCode()
     {

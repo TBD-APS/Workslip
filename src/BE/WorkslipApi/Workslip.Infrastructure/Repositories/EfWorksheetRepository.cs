@@ -200,7 +200,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             existing = new WorksheetRow
             {
                 Id = Guid.NewGuid(),
-                OrganizationId = job.OrganizationId,
+                OrganizationId = user.OrganizationId,
                 JobId = request.JobId,
                 UserId = request.UserId,
                 WorkDate = workDate,

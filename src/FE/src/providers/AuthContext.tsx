@@ -6,10 +6,6 @@ import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/
 import type { UserViewModel } from '../api/generated/models';
 import { AUTH_TOKEN_KEY, AuthContext, USER_EMAIL_KEY, AuthStorage, clearReauthInFlight } from './authContextValue';
 import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
-import {
-  clearOrganizationScope,
-  getOrganizationScope,
-} from '../features/superadmin/organizationScope';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
@@ -30,11 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const user = meQuery.data ?? null;
   const isAuthenticated = hasAuthToken && Boolean(user);
   const isLoading = hasAuthToken && meQuery.isPending;
-  const isSuperadmin = user?.role?.toLowerCase() === 'superadmin';
-  const hasTenantScope = !isSuperadmin || Boolean(getOrganizationScope());
 
   useEffect(() => {
-    if (isAuthenticated && hasTenantScope && !isSuperadmin) {
+    if (isAuthenticated) {
       registerPush().catch((error) => {
         console.error('[Auth] Failed to register push notifications:', error);
       });
@@ -42,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The push hook currently returns a function tied to its mutation object.
     // Including it would re-run registration on every provider render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, hasTenantScope, isSuperadmin]);
+  }, [isAuthenticated]);
 
   const login = useCallback(
     async (email: string, code: string): Promise<boolean> => {
@@ -80,7 +74,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     AuthStorage.removeItem(AUTH_TOKEN_KEY);
     AuthStorage.removeItem(USER_EMAIL_KEY);
     clearReauthInFlight();
-    clearOrganizationScope();
     setAuthToken(null);
     queryClient.clear();
   }, [queryClient]);

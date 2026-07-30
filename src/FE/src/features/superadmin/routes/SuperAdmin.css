@@ -52,9 +52,11 @@
   height: 2.5rem;
 }
 
-.superadmin-refresh {
+.superadmin-refresh,
+.superadmin-open-organization {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
   white-space: nowrap;
 }
@@ -197,14 +199,6 @@
   margin-bottom: 1rem;
 }
 
-.superadmin-list-header .btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
 .superadmin-organization-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
@@ -273,8 +267,7 @@
   }
 
   .superadmin-refresh,
-  .superadmin-list-header .btn {
-    justify-content: center;
+  .superadmin-open-organization {
     width: 100%;
   }
 

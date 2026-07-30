@@ -15,10 +15,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
     private readonly IDatabaseRetryPolicy _retryPolicy;
     private readonly ICurrentUserContext _currentUser;
 
-    public EfOrganizationRepository(
-        SqlDbContext dbContext,
-        IDatabaseRetryPolicy retryPolicy,
-        ICurrentUserContext currentUser)
+    public EfOrganizationRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICurrentUserContext currentUser)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
@@ -26,31 +23,19 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
     }
 
     public Task<bool> CvrExistsAsync(string normalizedCvr, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync(
-            "organizations.cvr_exists",
-            token => CvrExistsAsyncCoreAsync(normalizedCvr, token),
-            cancellationToken);
+        _retryPolicy.ExecuteAsync("organizations.cvr_exists", token => CvrExistsAsyncCoreAsync(normalizedCvr, token), cancellationToken);
 
     public Task<OrganizationRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync(
-            "organizations.get_by_id",
-            token => GetByIdAsyncCoreAsync(id, token),
-            cancellationToken);
+        _retryPolicy.ExecuteAsync("organizations.get_by_id", token => GetByIdAsyncCoreAsync(id, token), cancellationToken);
 
     public Task<OrganizationOnboardingResponse?> CreateAsync(
         CreateOrganizationRequest request,
         string normalizedCvr,
         CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync(
-            "organizations.create",
-            token => CreateAsyncCoreAsync(request, normalizedCvr, token),
-            cancellationToken);
+        _retryPolicy.ExecuteAsync("organizations.create", token => CreateAsyncCoreAsync(request, normalizedCvr, token), cancellationToken);
 
     public Task<CurrentUserResponse?> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken) =>
-        _retryPolicy.ExecuteAsync(
-            "organizations.current_user",
-            token => GetCurrentUserAsyncCoreAsync(userId, token),
-            cancellationToken);
+        _retryPolicy.ExecuteAsync("organizations.current_user", token => GetCurrentUserAsyncCoreAsync(userId, token), cancellationToken);
 
     public Task<IReadOnlyList<OrganizationRow>> ListOrganizationsAsync(CancellationToken cancellationToken) =>
         _retryPolicy.ExecuteAsync(
@@ -99,9 +84,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             cancellationToken);
 
     private async Task<bool> CvrExistsAsyncCoreAsync(string normalizedCvr, CancellationToken cancellationToken) =>
-        await _dbContext.Organizations.AnyAsync(
-            organization => organization.Cvr == normalizedCvr,
-            cancellationToken);
+        await _dbContext.Organizations.AnyAsync(organization => organization.Cvr == normalizedCvr, cancellationToken);
 
     private async Task<OrganizationRow?> GetByIdAsyncCoreAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -171,14 +154,12 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
                 now));
     }
 
-    private async Task<CurrentUserResponse?> GetCurrentUserAsyncCoreAsync(
-        Guid userId,
-        CancellationToken cancellationToken)
+    private async Task<CurrentUserResponse?> GetCurrentUserAsyncCoreAsync(Guid userId, CancellationToken cancellationToken)
     {
         var row = await (
             from user in _dbContext.Users.AsNoTracking()
             join organization in _dbContext.Organizations.AsNoTracking()
-                on user.OrganizationId equals (Guid?)organization.Id
+                on user.OrganizationId equals organization.Id
             where user.Id == userId
                 && user.OrganizationId == _currentUser.OrganizationId
                 && organization.Id == _currentUser.OrganizationId
@@ -212,31 +193,24 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
                     row.OrganizationUpdatedAt));
     }
 
-    private async Task<IReadOnlyList<OrganizationRow>> ListOrganizationsAsyncCoreAsync(
-        CancellationToken cancellationToken) =>
+    private async Task<IReadOnlyList<OrganizationRow>> ListOrganizationsAsyncCoreAsync(CancellationToken cancellationToken) =>
         await _dbContext.Organizations
             .AsNoTracking()
             .OrderBy(organization => organization.Name)
             .ThenBy(organization => organization.Cvr)
             .ToListAsync(cancellationToken);
 
-    private async Task<OrganizationRow?> GetOrganizationAsyncCoreAsync(
-        Guid organizationId,
-        CancellationToken cancellationToken) =>
+    private async Task<OrganizationRow?> GetOrganizationAsyncCoreAsync(Guid organizationId, CancellationToken cancellationToken) =>
         await _dbContext.Organizations
             .AsNoTracking()
             .FirstOrDefaultAsync(organization => organization.Id == organizationId, cancellationToken);
 
-    private async Task<UserDataRow?> GetUserByEmailAsyncCoreAsync(
-        string normalizedEmail,
-        CancellationToken cancellationToken) =>
+    private async Task<UserDataRow?> GetUserByEmailAsyncCoreAsync(string normalizedEmail, CancellationToken cancellationToken) =>
         await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(user => user.Email == normalizedEmail, cancellationToken);
 
-    private async Task<UserDataRow?> GetUnlinkedAdminAsyncCoreAsync(
-        Guid organizationId,
-        CancellationToken cancellationToken) =>
+    private async Task<UserDataRow?> GetUnlinkedAdminAsyncCoreAsync(Guid organizationId, CancellationToken cancellationToken) =>
         await _dbContext.Users
             .AsNoTracking()
             .Where(user => user.OrganizationId == organizationId
@@ -246,16 +220,12 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             .OrderBy(user => user.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
-    private async Task<bool> IsEntraIdentityReferencedAsyncCoreAsync(
-        string entraUserId,
-        CancellationToken cancellationToken) =>
+    private async Task<bool> IsEntraIdentityReferencedAsyncCoreAsync(string entraUserId, CancellationToken cancellationToken) =>
         await _dbContext.Users
             .AsNoTracking()
             .AnyAsync(user => user.EntraId == entraUserId, cancellationToken);
 
-    private async Task<Guid?> CreateAdminAsyncCoreAsync(
-        UserDataRow admin,
-        CancellationToken cancellationToken)
+    private async Task<Guid?> CreateAdminAsyncCoreAsync(UserDataRow admin, CancellationToken cancellationToken)
     {
         _dbContext.Users.Add(admin);
         try

@@ -28,32 +28,25 @@ public sealed class DevelopmentDatabaseSeeder(
         try
         {
             var rasmus = await GetRequiredRasmusSuperadminAsync(cancellationToken);
-<<<<<<< HEAD
-            var existingMahad = await ResolveExistingMahadSuperadminAsync(cancellationToken);
-
-            await ReconcileSuperadminAsync(rasmus, cancellationToken);
-
-            var mahad = existingMahad ?? CreateMahadSuperadmin();
-            if (existingMahad is null)
-            {
-                db.Users.Add(mahad);
-            }
-
-            await ReconcileSuperadminAsync(mahad, cancellationToken);
-            if (db.Database.IsRelational())
-            {
-                await DatabaseSchemaInitializer.EnsureUserRoleOrganizationScopeConstraintAsync(
-                    db,
-                    cancellationToken);
-            }
-=======
-            await ReconcileSuperadminAsync(rasmus, rasmus.OrganizationId, cancellationToken);
-
-            var mahad = await GetOrCreateMahadSuperadminAsync(
+            var mahad = await ResolveMahadSuperadminAsync(
                 rasmus.OrganizationId,
                 cancellationToken);
-            await ReconcileSuperadminAsync(mahad, rasmus.OrganizationId, cancellationToken);
->>>>>>> 15649a93cfa5e16a9a7d40cb7a5e2865484d9a06
+
+            // Resolve all canonical identity conflicts before calling Graph so a
+            // bad local seed never sends only one of the two invitations.
+            await ValidateUniqueEmailAsync(rasmus, cancellationToken);
+            await ValidateUniqueEmailAsync(mahad.User, cancellationToken);
+
+            await ReconcileSuperadminAsync(
+                rasmus,
+                rasmus.OrganizationId,
+                isNew: false,
+                cancellationToken);
+            await ReconcileSuperadminAsync(
+                mahad.User,
+                rasmus.OrganizationId,
+                mahad.IsNew,
+                cancellationToken);
         }
         finally
         {
@@ -61,12 +54,6 @@ public sealed class DevelopmentDatabaseSeeder(
         }
     }
 
-<<<<<<< HEAD
-    private async Task<UserDataRow> GetRequiredRasmusSuperadminAsync(CancellationToken cancellationToken)
-    {
-        var user = await db.Users
-            .SingleOrDefaultAsync(candidate => candidate.Id == CanonicalRasmusSuperadminId, cancellationToken);
-=======
     private async Task<UserDataRow> GetRequiredRasmusSuperadminAsync(
         CancellationToken cancellationToken)
     {
@@ -74,19 +61,14 @@ public sealed class DevelopmentDatabaseSeeder(
             .SingleOrDefaultAsync(
                 candidate => candidate.Id == CanonicalRasmusSuperadminId,
                 cancellationToken);
->>>>>>> 15649a93cfa5e16a9a7d40cb7a5e2865484d9a06
 
         return user ?? throw new InvalidOperationException(
             $"Canonical development superadmin '{CanonicalRasmusSuperadminId}' was not created by DatabaseSeeder. Resolve any conflicting seeded email before startup.");
     }
 
-<<<<<<< HEAD
-    private async Task<UserDataRow?> ResolveExistingMahadSuperadminAsync(CancellationToken cancellationToken)
-=======
-    private async Task<UserDataRow> GetOrCreateMahadSuperadminAsync(
+    private async Task<ResolvedSuperadmin> ResolveMahadSuperadminAsync(
         Guid organizationId,
         CancellationToken cancellationToken)
->>>>>>> 15649a93cfa5e16a9a7d40cb7a5e2865484d9a06
     {
         var normalizedEmail = CanonicalMahadEmail.ToLowerInvariant();
         var matchingUsers = await db.Users
@@ -95,37 +77,6 @@ public sealed class DevelopmentDatabaseSeeder(
                 user.Email.ToLower() == normalizedEmail)
             .ToListAsync(cancellationToken);
 
-<<<<<<< HEAD
-        if (matchingUsers.Count == 0)
-        {
-            return null;
-        }
-
-        if (matchingUsers.Count > 1)
-        {
-            throw new InvalidOperationException(
-                $"Development superadmin identity conflict: ID '{CanonicalMahadSuperadminId}' and email '{normalizedEmail}' belong to different Workslip users.");
-        }
-
-        var user = matchingUsers[0];
-        if (user.Id != CanonicalMahadSuperadminId ||
-            !string.Equals(user.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                $"Development superadmin identity conflict: '{normalizedEmail}' does not belong to canonical user '{CanonicalMahadSuperadminId}'.");
-        }
-
-        return user;
-    }
-
-    private static UserDataRow CreateMahadSuperadmin()
-    {
-        var timestamp = DateTimeOffset.UtcNow;
-        return new UserDataRow
-        {
-            Id = CanonicalMahadSuperadminId,
-            OrganizationId = null,
-=======
         if (matchingUsers.Count > 1)
         {
             throw new InvalidOperationException(
@@ -142,36 +93,27 @@ public sealed class DevelopmentDatabaseSeeder(
                     $"Development superadmin identity conflict: '{normalizedEmail}' does not belong to canonical user '{CanonicalMahadSuperadminId}'.");
             }
 
-            return existing;
+            return new ResolvedSuperadmin(existing, IsNew: false);
         }
 
         var timestamp = DateTimeOffset.UtcNow;
-        var mahad = new UserDataRow
-        {
-            Id = CanonicalMahadSuperadminId,
-            OrganizationId = organizationId,
->>>>>>> 15649a93cfa5e16a9a7d40cb7a5e2865484d9a06
-            DisplayName = CanonicalMahadDisplayName,
-            Email = CanonicalMahadEmail,
-            Phone = string.Empty,
-            Role = Roles.Superadmin,
-            CreatedAt = timestamp,
-            UpdatedAt = timestamp
-        };
-<<<<<<< HEAD
-=======
-
-        db.Users.Add(mahad);
-        return mahad;
->>>>>>> 15649a93cfa5e16a9a7d40cb7a5e2865484d9a06
+        return new ResolvedSuperadmin(
+            new UserDataRow
+            {
+                Id = CanonicalMahadSuperadminId,
+                OrganizationId = organizationId,
+                DisplayName = CanonicalMahadDisplayName,
+                Email = CanonicalMahadEmail,
+                Phone = string.Empty,
+                Role = Roles.Superadmin,
+                CreatedAt = timestamp,
+                UpdatedAt = timestamp
+            },
+            IsNew: true);
     }
 
-    private async Task ReconcileSuperadminAsync(
+    private async Task ValidateUniqueEmailAsync(
         UserDataRow user,
-<<<<<<< HEAD
-=======
-        Guid organizationId,
->>>>>>> 15649a93cfa5e16a9a7d40cb7a5e2865484d9a06
         CancellationToken cancellationToken)
     {
         var normalizedEmail = user.Email.Trim().ToLowerInvariant();
@@ -191,7 +133,15 @@ public sealed class DevelopmentDatabaseSeeder(
             throw new InvalidOperationException(
                 $"Development superadmin email '{normalizedEmail}' belongs to multiple Workslip users.");
         }
+    }
 
+    private async Task ReconcileSuperadminAsync(
+        UserDataRow user,
+        Guid organizationId,
+        bool isNew,
+        CancellationToken cancellationToken)
+    {
+        var normalizedEmail = user.Email.Trim().ToLowerInvariant();
         var entraUser = await entraService.EnsureSuperadminAsync(
             normalizedEmail,
             user.DisplayName,
@@ -199,21 +149,32 @@ public sealed class DevelopmentDatabaseSeeder(
 
         try
         {
-<<<<<<< HEAD
-            user.OrganizationId = null;
-=======
             user.OrganizationId = organizationId;
->>>>>>> 15649a93cfa5e16a9a7d40cb7a5e2865484d9a06
             user.Email = normalizedEmail;
             user.Role = Roles.Superadmin;
             user.EntraId = entraUser.EntraUserId;
             user.EntraEmail = entraUser.EntraMail;
             user.UpdatedAt = DateTimeOffset.UtcNow;
 
+            if (isNew)
+            {
+                db.Users.Add(user);
+            }
+
             await db.SaveChangesAsync(cancellationToken);
         }
-        catch (Exception persistenceException) when (entraUser.Created)
+        catch (Exception persistenceException)
         {
+            if (isNew)
+            {
+                db.Entry(user).State = EntityState.Detached;
+            }
+
+            if (!entraUser.Created)
+            {
+                throw;
+            }
+
             try
             {
                 await entraService.DeleteUserAsync(entraUser.EntraUserId, CancellationToken.None);
@@ -235,14 +196,12 @@ public sealed class DevelopmentDatabaseSeeder(
         }
 
         logger.LogInformation(
-<<<<<<< HEAD
-            "Development platform Superadmin reconciled. UserId: {UserId}. EntraUserId: {EntraUserId}. EntraIdentityCreated: {EntraIdentityCreated}.",
-=======
             "Development organization-bound Superadmin reconciled. UserId: {UserId}. OrganizationId: {OrganizationId}. EntraUserId: {EntraUserId}. EntraIdentityCreated: {EntraIdentityCreated}.",
->>>>>>> 15649a93cfa5e16a9a7d40cb7a5e2865484d9a06
             user.Id,
             organizationId,
             entraUser.EntraUserId,
             entraUser.Created);
     }
+
+    private sealed record ResolvedSuperadmin(UserDataRow User, bool IsNew);
 }

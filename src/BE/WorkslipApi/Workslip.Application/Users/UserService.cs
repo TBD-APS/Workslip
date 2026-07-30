@@ -3,7 +3,6 @@ using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
-using Workslip.Domain;
 using Workslip.Domain.Models;
 
 namespace Workslip.Application.Users;
@@ -18,62 +17,59 @@ public sealed class UserService(
 {
     public async Task<Result<UserResponse>> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken)
     {
-        var organizationId = currentUser.OrganizationId;
-        if (organizationId is null)
-        {
-            return Result<UserResponse>.Unauthorized();
-        }
-
         var validationResult = await createUserValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
             var errors = MapValidationErrors(validationResult);
-            logger.LogWarning(
-                "User create validation failed. Fields: {Fields}",
-                string.Join(", ", errors.Select(error => error.Identifier).Distinct()));
+            logger.LogWarning("User create validation failed. Fields: {Fields}",
+                string.Join(", ", errors.Select(e => e.Identifier).Distinct()));
+
             return Result<UserResponse>.Invalid(errors);
         }
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
         var existing = await repository.GetByEmailAsync(normalizedEmail, cancellationToken);
-        if (existing is not null)
+        if (existing != null)
         {
             logger.LogWarning("User create conflict: email already in use. Email: {Email}", normalizedEmail);
             return Result<UserResponse>.Conflict("email_in_use");
         }
 
         var entraUser = await entraService.CreateUserAsync(normalizedEmail, request.DisplayName, cancellationToken);
-        var user = BuildUserRow(normalizedEmail, request, entraUser, organizationId.Value);
+
+        var user = BuildUserRow(normalizedEmail, request, entraUser, currentUser.OrganizationId.GetValueOrDefault());
         var userId = await repository.CreateAsync(user, cancellationToken);
         user.Id = userId;
 
-        logger.LogInformation(
-            "User created. UserId: {UserId}. OrganizationId: {OrganizationId}. Role: {Role}.",
-            user.Id,
-            user.OrganizationId,
-            user.Role);
+        logger.LogInformation("User created. UserId: {UserId}. OrganizationId: {OrganizationId}. Role: {Role}.", user.Id, user.OrganizationId, user.Role);
 
         return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
-    public async Task<Result<UserResponse>> GetAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<Result<UserResponse>> GetAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        if (currentUser.OrganizationId is null)
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
         {
             return Result<UserResponse>.Unauthorized();
         }
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
-        if (user is null || user.Role == Roles.Superadmin)
+        if (user == null)
         {
-            logger.LogInformation("Tenant user not found. UserId: {UserId}.", userId);
+            logger.LogInformation("User not found. UserId: {UserId}.", userId);
             return Result<UserResponse>.NotFound();
         }
 
         return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
-    public async Task<Result<UserDetailResponse>> GetDetailAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<Result<UserDetailResponse>> GetDetailAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
         if (organizationId is null)
@@ -82,18 +78,15 @@ public sealed class UserService(
         }
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
-        if (user is null || user.Role == Roles.Superadmin)
+        if (user == null)
         {
-            logger.LogInformation("Tenant user not found. UserId: {UserId}.", userId);
+            logger.LogInformation("User not found. UserId: {UserId}.", userId);
             return Result<UserDetailResponse>.NotFound();
         }
 
         var assignedJobs = await repository.GetAssignedJobsAsync(organizationId.Value, userId, cancellationToken);
         var totalHours = await repository.GetTotalHoursAsync(organizationId.Value, userId, cancellationToken);
-        var periodHours = await repository.GetPeriodHoursAsync(
-            organizationId.Value,
-            ComputeBiweeklyStart(),
-            cancellationToken);
+        var periodHours = await repository.GetPeriodHoursAsync(organizationId.Value, ComputeBiweeklyStart(), cancellationToken);
         var hours = periodHours.GetValueOrDefault(userId);
 
         return Result<UserDetailResponse>.Success(new UserDetailResponse(
@@ -126,32 +119,24 @@ public sealed class UserService(
 
         var normalizedLimit = Math.Clamp(limit ?? 50, 1, 200);
         var normalizedOffset = Math.Max(offset ?? 0, 0);
-        var users = await repository.GetByOrganizationIdAsync(
-            organizationId.Value,
-            normalizedLimit,
-            normalizedOffset,
-            search,
-            sortBy,
-            sortDirection,
-            cancellationToken);
+        var users = await repository.GetByOrganizationIdAsync(organizationId.Value, normalizedLimit, normalizedOffset, search, sortBy, sortDirection, cancellationToken);
         var count = await repository.GetCountByOrganizationIdAsync(organizationId.Value, cancellationToken);
-        var periodHours = await repository.GetPeriodHoursAsync(
-            organizationId.Value,
-            ComputeBiweeklyStart(),
-            cancellationToken);
+        var periodHours = await repository.GetPeriodHoursAsync(organizationId.Value, ComputeBiweeklyStart(), cancellationToken);
 
-        var responses = users.Select(user =>
+        var responses = users.Select(u =>
         {
-            var response = UserResponseBuilder.MapToResponse(user);
-            var hours = periodHours.GetValueOrDefault(user.Id);
-            return hours is null
-                ? response
-                : response with
+            var response = UserResponseBuilder.MapToResponse(u);
+            var hours = periodHours.GetValueOrDefault(u.Id);
+            if (hours is not null)
+            {
+                response = response with
                 {
                     HoursThisWeek = hours.HoursThisWeek,
                     HoursThisMonth = hours.HoursThisMonth,
                     HoursBiweekly = hours.HoursBiweekly
                 };
+            }
+            return response;
         }).ToList();
 
         return Result<UserListResponse>.Success(new UserListResponse(responses, count));
@@ -166,91 +151,73 @@ public sealed class UserService(
         if (!validationResult.IsValid)
         {
             var errors = MapValidationErrors(validationResult);
-            logger.LogWarning(
-                "User update validation failed. Fields: {Fields}",
-                string.Join(", ", errors.Select(error => error.Identifier).Distinct()));
+            logger.LogWarning("User update validation failed. Fields: {Fields}",
+                string.Join(", ", errors.Select(e => e.Identifier).Distinct()));
+
             return Result<UserResponse>.Invalid(errors);
         }
 
-        if (currentUser.OrganizationId is null)
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
         {
             return Result<UserResponse>.Unauthorized();
         }
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
-        if (user is null)
+        if (user == null)
         {
             logger.LogInformation("User not found for update. UserId: {UserId}.", userId);
             return Result<UserResponse>.NotFound();
         }
 
-        if (user.Role == Roles.Superadmin)
-        {
-            logger.LogWarning("Tenant user update rejected for platform Superadmin. UserId: {UserId}.", userId);
-            return Result<UserResponse>.Conflict("superadmin_role_protected");
-        }
-
         if (!string.IsNullOrEmpty(request.DisplayName))
-        {
             user.DisplayName = request.DisplayName;
-        }
 
         if (!string.IsNullOrEmpty(request.Phone))
-        {
             user.Phone = request.Phone;
-        }
 
         if (!string.IsNullOrEmpty(request.Role))
-        {
             user.Role = request.Role;
-        }
 
         user.UpdatedAt = DateTimeOffset.UtcNow;
+
         await repository.UpdateAsync(user, cancellationToken);
 
         logger.LogInformation("User updated. UserId: {UserId}.", userId);
+
         return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
-    public async Task<Result> DeleteAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<Result> DeleteAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        if (currentUser.OrganizationId is null)
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
         {
             return Result.Unauthorized();
         }
 
         var user = await repository.GetByIdAsync(userId, cancellationToken);
-        if (user is null)
+        if (user == null)
         {
             logger.LogInformation("User not found for deletion. UserId: {UserId}.", userId);
             return Result.NotFound();
         }
 
-        if (user.Role == Roles.Superadmin)
-        {
-            logger.LogWarning("Tenant user deletion rejected for platform Superadmin. UserId: {UserId}.", userId);
-            return Result.Conflict("superadmin_role_protected");
-        }
-
         await repository.DeleteAsync(userId, cancellationToken);
+
         logger.LogInformation("User deleted. UserId: {UserId}.", userId);
+
         return Result.NoContent();
     }
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors
-            .Select(error => new ValidationError
-            {
-                Identifier = error.PropertyName,
-                ErrorMessage = error.ErrorMessage
-            })
+            .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
             .ToList();
 
-    private static UserDataRow BuildUserRow(
-        string normalizedEmail,
-        CreateUserRequest request,
-        CreateEntraUserResult entraUser,
-        Guid organizationId) =>
+    private static UserDataRow BuildUserRow(string normalizedEmail, CreateUserRequest request, CreateEntraUserResult entraUser, Guid organizationId) =>
         new()
         {
             Id = Guid.NewGuid(),

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Workslip.Api.Endpoints;
+using Workslip.Application.Auth;
 using Workslip.Application.Organizations;
 using Xunit;
 
@@ -16,6 +17,7 @@ public sealed class OrganizationEndpointAuthorizationTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<IOrganizationService, StubOrganizationService>();
+        builder.Services.AddSingleton<IOrganizationSessionService, StubOrganizationSessionService>();
         await using var app = builder.Build();
         app.MapOrganizationEndpoints();
 
@@ -26,7 +28,10 @@ public sealed class OrganizationEndpointAuthorizationTests
             .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith("/api/organizations", StringComparison.Ordinal) == true)
             .ToList();
 
-        Assert.Equal(3, organizationEndpoints.Count);
+        Assert.Equal(4, organizationEndpoints.Count);
+        Assert.Contains(
+            organizationEndpoints,
+            endpoint => endpoint.RoutePattern.RawText == "/api/organizations/{organizationId:guid}/session");
         Assert.All(organizationEndpoints, endpoint =>
         {
             var policies = endpoint.Metadata
@@ -55,5 +60,13 @@ public sealed class OrganizationEndpointAuthorizationTests
             UpsertOrganizationAdminRequest request,
             CancellationToken cancellationToken) =>
             Task.FromResult(Result<OrganizationUserResponse>.NotFound());
+    }
+
+    private sealed class StubOrganizationSessionService : IOrganizationSessionService
+    {
+        public Task<Result<OrganizationSessionContext>> CreateAsync(
+            Guid organizationId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Result<OrganizationSessionContext>.NotFound());
     }
 }

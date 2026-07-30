@@ -20,10 +20,10 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
     {
-        var query = ScopeUserById(id, _dbContext.Users.AsNoTracking());
-        return await query.FirstOrDefaultAsync(cancellationToken);
+        return await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);   
     }
-
     public async Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) =>
         await _dbContext.Users
             .AsNoTracking()
@@ -130,8 +130,8 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task UpdateAsync(UserDataRow user, CancellationToken cancellationToken)
     {
-        var existing = await ScopeUserById(user.Id, _dbContext.Users)
-            .FirstOrDefaultAsync(cancellationToken);
+        var existing = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.Id == user.Id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);
 
         if (existing is null)
             return;
@@ -206,25 +206,14 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var user = await ScopeUserById(id, _dbContext.Users)
-            .FirstOrDefaultAsync(cancellationToken);
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);
 
         if (user is null)
             return;
 
         _dbContext.Users.Remove(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    private IQueryable<UserDataRow> ScopeUserById(Guid id, IQueryable<UserDataRow> query)
-    {
-        if (_currentUser.UserId == id)
-            return query.Where(user => user.Id == id);
-
-        var organizationId = _currentUser.OrganizationId;
-        return organizationId is null
-            ? query.Where(_ => false)
-            : query.Where(user => user.Id == id && user.OrganizationId == organizationId.Value);
     }
 
     private static string[] NormalizeEmailCandidates(IEnumerable<string> emailCandidates) =>

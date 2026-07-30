@@ -3,7 +3,7 @@ namespace Workslip.Domain.Models;
 public sealed class UserDataRow
 {
     public Guid Id { get; set; }
-    public Guid? OrganizationId { get; set; }
+    public Guid OrganizationId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public string EntraId { get; set; } = string.Empty;

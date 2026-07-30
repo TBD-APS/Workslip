@@ -6,7 +6,7 @@ public sealed record VerifyCodeRequest(string Email, string Code);
 
 public sealed record AuthUserInfo(
     Guid UserId,
-    Guid? OrganizationId,
+    Guid OrganizationId,
     string Email,
     string DisplayName,
     string Role);
