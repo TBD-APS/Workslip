@@ -38,6 +38,11 @@ public sealed class NotificationService : INotificationService
         await QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobUnassigned, cancellationToken);
     }
 
+    public async Task QueueJobDeletedAsync(Guid userId, string recipientName, Guid jobId, string jobNumber, string customerAddress, CancellationToken cancellationToken)
+    {
+        await QueueNotificationInternalAsync(userId, recipientName, jobId, jobNumber, customerAddress, NotificationType.JobDeleted, cancellationToken);
+    }
+
     public async Task<Result> DeleteAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken)
     {
         var deleted = await _notificationRepository.DeleteAsync(userId, notificationId, cancellationToken);
@@ -49,6 +54,7 @@ public sealed class NotificationService : INotificationService
         var url = type switch
         {
             NotificationType.JobReadyForReview or NotificationType.JobCompleted => $"/app/completed/{jobId}",
+            NotificationType.JobDeleted => "/app",
             _ => $"/app/job/{jobId}"
         };
         var payload = new NotificationPayload(jobId, jobNumber, customerAddress, type.ToString(), recipientName, url, rejectionNote);
@@ -94,6 +100,10 @@ public sealed class NotificationService : INotificationService
             NotificationType.JobUnassigned => (
                 "Sag uden medarbejdere",
                 $"{recipientName}, SAG-{jobNumber} har ingen tildelte medarbejdere.\nAdresse: {customerAddress}"
+            ),
+            NotificationType.JobDeleted => (
+                $"SAG-{jobNumber} slettet",
+                $"{recipientName}, SAG-{jobNumber}, som var tildelt dig, er blevet slettet.\nAdresse: {customerAddress}"
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(notificationType), notificationType, null)
         };
