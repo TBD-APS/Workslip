@@ -33,7 +33,7 @@ The first visible update implementation let the banner enter `Opdaterer...` befo
 7. The coordinator sends `SKIP_WAITING` directly to the waiting worker instead of invoking the plugin's returned update function.
 8. The newly activated worker claims clients but does not navigate window clients.
 9. One guarded client reload function is the only navigation owner. Both the browser's `controllerchange` event and the plugin's `controlling` callback feed that function, covering browser differences without allowing duplicate reloads.
-10. A five-second fallback reload covers installed/mobile browser contexts that omit both expected control-change signals. It shares the same one-shot guard and is cancelled when a normal signal wins.
+10. A five-second fallback covers installed/mobile browser contexts that omit both expected control-change signals. At most one emergency fallback reload is allowed for the currently loaded build. If that same old build still cannot complete activation after the emergency reload, the banner returns to its ready state instead of reloading again or remaining permanently disabled.
 11. The update banner is informational and cannot permanently dismiss or block the deployment.
 12. The public bootstrap shell is precached. Authenticated route chunks are loaded and cached on first use.
 13. Previously fetched content-hashed route assets remain in a capped runtime cache across deployments to support already-open clients.
@@ -48,7 +48,8 @@ The first visible update implementation let the banner enter `Opdaterer...` befo
 - Service-worker activation has one navigation owner instead of worker navigation, plugin direct reload and client reload racing each other.
 - Native and plugin lifecycle events provide redundant signals while the shared guard preserves one effective navigation.
 - An app that stays open and visible discovers a deployment within approximately one minute, followed by at most a ten-second visible grace period; reopening, refocusing or reconnecting triggers an immediate check.
-- The one-shot reload guard and bounded fallback prevent duplicate lifecycle events from creating a reload loop or a permanently applying banner.
+- The one-shot navigation guard and build-scoped fallback prevent duplicate lifecycle events from creating a reload loop or a permanently applying banner.
+- After a consumed emergency fallback, automatic retry pauses for that old build while the manual action remains available.
 - Unsaved in-memory form state may be lost when a deployment reloads the active client. This is an accepted product trade-off.
 - Content-hashed lazy chunks and the runtime cache reduce, but cannot eliminate, mixed-version behaviour.
 - Service-worker, update-banner and route-splitting changes require clean-profile, already-open-tab, installed-PWA and offline-revisit smoke testing.
@@ -63,6 +64,7 @@ The first visible update implementation let the banner enter `Opdaterer...` befo
 - Plugin returned update function plus custom activation/reload handlers: rejected because it obscures which waiting worker is activated and can duplicate control-change handling.
 - Letting the plugin call `window.location.reload()` directly: rejected because its navigation would bypass Workslip's shared one-shot guard.
 - Two-second fallback: rejected because it can race normal service-worker activation on installed/mobile browsers.
+- Unbounded fallback reloads: rejected because a browser that never completes activation would enter a reload loop instead of returning control to the user.
 - Reload on first service-worker installation: rejected because there is no previous application version to replace.
 - Precache every authenticated route chunk: rejected because it removes the initial-load performance benefit of route splitting.
 - Delete all previous route chunks during activation: rejected because already-open clients can still reference the previous deployment's hashed assets.
