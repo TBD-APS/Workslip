@@ -25,7 +25,7 @@ public sealed class JobDeletionNotificationServiceTests
     }
 
     [Fact]
-    public async Task QueueAsync_NotifiesUniqueAssigneesExceptDeletingUser()
+    public async Task QueueAsync_NotifiesEveryUniqueAssigneeIncludingDeletingUser()
     {
         var deletingUserId = Guid.NewGuid();
         var recipientId = Guid.NewGuid();
@@ -43,7 +43,9 @@ public sealed class JobDeletionNotificationServiceTests
             deletingUserId,
             CancellationToken.None);
 
-        Assert.Equal(new[] { recipientId, secondRecipientId }, notifications.DeletedRecipients);
+        Assert.Equal(
+            new[] { deletingUserId, recipientId, secondRecipientId },
+            notifications.DeletedRecipients);
     }
 
     [Fact]
