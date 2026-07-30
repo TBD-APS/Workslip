@@ -140,10 +140,32 @@ public sealed class EfNotificationRepository : INotificationRepository
         }, cancellationToken);
     }
 
-    public async Task RegisterSubscriptionAsync(Guid userId, string endpoint, string p256Dh, string auth, string? userAgent, CancellationToken cancellationToken)
+    public async Task RegisterSubscriptionAsync(
+        Guid userId,
+        string endpoint,
+        string p256Dh,
+        string auth,
+        string? userAgent,
+        string? replacedEndpoint,
+        CancellationToken cancellationToken)
     {
         await _retryPolicy.ExecuteAsync("notifications.register_subscription", async token =>
         {
+            if (!string.IsNullOrWhiteSpace(replacedEndpoint)
+                && !string.Equals(replacedEndpoint, endpoint, StringComparison.Ordinal))
+            {
+                var replaced = await _dbContext.PushSubscriptions
+                    .FirstOrDefaultAsync(
+                        subscription => subscription.UserId == userId
+                            && subscription.Endpoint == replacedEndpoint,
+                        token);
+                if (replaced is not null)
+                {
+                    replaced.IsActive = false;
+                    replaced.LastSeenUtc = DateTimeOffset.UtcNow;
+                }
+            }
+
             var existing = await _dbContext.PushSubscriptions
                 .FirstOrDefaultAsync(s => s.UserId == userId && s.Endpoint == endpoint, token);
 
