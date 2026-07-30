@@ -16,29 +16,30 @@ export const JobDetail = () => {
   const isAdmin = useIsAdmin();
   const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
   const details = useJobDetails(id);
+  const jobStatus = details.job?.status;
 
   useScrollRestore(`job:${id}`);
 
   useEffect(() => {
-    if (!id || !details.job) return;
-    if (isAdmin && details.job.status === JobStatus.Rejected) return;
+    if (!id || !jobStatus) return;
+    if (isAdmin && jobStatus === JobStatus.Rejected) return;
 
     markJobAsSeen(id, queryClient);
-    if (details.job.status === JobStatus.Rejected) {
+    if (jobStatus === JobStatus.Rejected) {
       markJobAsSeen(id, queryClient, 'RejectedAssignment');
     }
-  }, [id, details.job, isAdmin, queryClient]);
+  }, [id, jobStatus, isAdmin, queryClient]);
 
   useEffect(() => {
-    if (details.job?.status !== JobStatus.Rejected || isAdmin) return;
+    if (jobStatus !== JobStatus.Rejected || isAdmin) return;
 
     if (details.currentStep !== 0) {
       details.setCurrentStep(0);
     }
     document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
-  }, [details.job?.status, details.currentStep, details.setCurrentStep, isAdmin]);
+  }, [jobStatus, details.currentStep, details.setCurrentStep, isAdmin]);
 
-  if (id && isAdmin && details.job?.status === JobStatus.Rejected) {
+  if (id && isAdmin && jobStatus === JobStatus.Rejected) {
     return <Navigate to={`/app/completed/${id}`} replace state={{ from }} />;
   }
 
