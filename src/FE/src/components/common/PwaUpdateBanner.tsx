@@ -28,7 +28,13 @@ export function PwaUpdateBanner() {
   const isApplying = updateState === 'applying';
 
   return (
-    <aside className="pwa-update-banner" role="status" aria-live="polite" aria-atomic="true">
+    <aside
+      className="pwa-update-banner"
+      role="region"
+      aria-label="Appopdatering"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       <div className="pwa-update-banner-copy">
         <strong>Ny version klar</strong>
         <span>{isApplying ? 'Opdaterer appen...' : 'Appen opdateres automatisk om få sekunder.'}</span>
