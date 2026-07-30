@@ -212,7 +212,6 @@ finally {
             '--resource-group', $resourceGroup,
             '--server', $sqlServerName,
             '--name', $firewallRuleName,
-            '--yes',
             '--only-show-errors',
             '--output', 'none'
         ) -AllowFailure
