@@ -26,7 +26,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: playwright-${{ github.workflow }}-${{ github.ref }}-${{ inputs.suite || 'public' }}
+  group: playwright-${{ github.workflow }}-${{ github.ref }}-${{ inputs.suite || 'pull-request' }}
   cancel-in-progress: true
 
 env:
@@ -34,7 +34,7 @@ env:
 
 jobs:
   public-smoke:
-    name: Public browser smoke
+    name: Pull request browser smoke
     if: github.event_name == 'pull_request' || inputs.suite == 'public' || inputs.suite == 'all'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -73,17 +73,17 @@ jobs:
         run: npm run install:browsers:ci
         working-directory: src/FE/e2e
 
-      - name: Run public Playwright smoke
-        run: npm run test:public
+      - name: Run pull request Playwright smoke
+        run: npm run test:pr
         working-directory: src/FE/e2e
         env:
           E2E_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || '' }}
 
-      - name: Upload public Playwright evidence
+      - name: Upload pull request Playwright evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-public-${{ github.run_attempt }}
+          name: playwright-pr-${{ github.run_attempt }}
           path: |
             src/FE/e2e/playwright-report
             src/FE/e2e/test-results
@@ -91,7 +91,7 @@ jobs:
           retention-days: 7
 
   authenticated-smoke:
-    name: Authenticated OTP smoke
+    name: Live authenticated OTP smoke
     if: github.event_name == 'workflow_dispatch' && (inputs.suite == 'authenticated' || inputs.suite == 'all')
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -125,7 +125,7 @@ jobs:
           test -n "$E2E_MAILOSAUR_API_KEY" || { echo 'Missing E2E_MAILOSAUR_API_KEY secret'; exit 1; }
           test -n "$E2E_MAILOSAUR_SERVER_ID" || { echo 'Missing E2E_MAILOSAUR_SERVER_ID secret'; exit 1; }
 
-      - name: Run authenticated Playwright smoke
+      - name: Run live authenticated Playwright smoke
         run: npm run test:authenticated
         working-directory: src/FE/e2e
         env:
