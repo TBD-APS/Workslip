@@ -75,8 +75,8 @@ public static class DatabaseSeeder
 
         var organization = new Faker<OrganizationRow>()
             .RuleFor(x => x.Id, f => f.Random.Guid())
-            .RuleFor(x => x.Cvr, f => f.Random.Replace("########"))
-            .RuleFor(x => x.Name, f => f.Company.CompanyName())
+            .RuleFor(x => x.Cvr, f => "37236497")
+            .RuleFor(x => x.Name, f => "NP VVS Teknik ApS")
             .RuleFor(x => x.CreatedAt, _ => now)
             .RuleFor(x => x.UpdatedAt, _ => now)
             .Generate();

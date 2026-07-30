@@ -28,9 +28,7 @@ public sealed class DevelopmentDatabaseSeeder(
         try
         {
             var rasmus = await GetRequiredRasmusSuperadminAsync(cancellationToken);
-            var mahad = await ResolveMahadSuperadminAsync(
-                rasmus.OrganizationId,
-                cancellationToken);
+            var mahad = await ResolveMahadSuperadminAsync(rasmus.OrganizationId, cancellationToken);
 
             // Resolve all canonical identity conflicts before calling Graph so a
             // bad local seed never sends only one of the two invitations.
@@ -42,6 +40,7 @@ public sealed class DevelopmentDatabaseSeeder(
                 rasmus.OrganizationId,
                 isNew: false,
                 cancellationToken);
+
             await ReconcileSuperadminAsync(
                 mahad.User,
                 rasmus.OrganizationId,
