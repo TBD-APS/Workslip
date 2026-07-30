@@ -3,6 +3,9 @@ import { registerSW } from 'virtual:pwa-register';
 
 const UPDATE_INTERVAL_MS = 60 * 1000;
 const UPDATE_RELOAD_FALLBACK_MS = 2_000;
+const CONFIRMED_RELOAD_GUARD_MS = 10_000;
+const CONFIRMED_RELOAD_AT_KEY = 'workslip.pwaUpdateReloadAt';
+const FALLBACK_RELOAD_KEY = `workslip.pwaUpdateFallback:${__BUILD_TIME__}`;
 const SKIP_WAITING_MESSAGE = { type: 'SKIP_WAITING' } as const;
 
 const serviceWorkerSupported = 'serviceWorker' in navigator;
@@ -12,22 +15,62 @@ const hadControllerAtStartup = serviceWorkerSupported
 let reloadRequested = false;
 let reloadFallback: number | undefined;
 
+function readSessionValue(key: string) {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionValue(key: string, value: string) {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // The in-memory guard still prevents duplicate reloads in this document.
+  }
+}
+
+function wasConfirmedReloadRecent() {
+  const lastReloadAt = Number(readSessionValue(CONFIRMED_RELOAD_AT_KEY));
+  return Number.isFinite(lastReloadAt)
+    && Date.now() - lastReloadAt < CONFIRMED_RELOAD_GUARD_MS;
+}
+
+function clearReloadFallback() {
+  if (reloadFallback === undefined) return;
+
+  window.clearTimeout(reloadFallback);
+  reloadFallback = undefined;
+}
+
 function reloadForUpdate() {
-  if (!hadControllerAtStartup || reloadRequested) return;
+  if (!hadControllerAtStartup || reloadRequested || wasConfirmedReloadRecent()) return;
 
   reloadRequested = true;
-  if (reloadFallback !== undefined) {
-    window.clearTimeout(reloadFallback);
-    reloadFallback = undefined;
-  }
+  writeSessionValue(CONFIRMED_RELOAD_AT_KEY, Date.now().toString());
+  clearReloadFallback();
+  window.location.reload();
+}
 
+function reloadFromFallback() {
+  reloadFallback = undefined;
+  if (!hadControllerAtStartup || reloadRequested || readSessionValue(FALLBACK_RELOAD_KEY)) return;
+
+  reloadRequested = true;
+  writeSessionValue(FALLBACK_RELOAD_KEY, '1');
   window.location.reload();
 }
 
 function scheduleReloadFallback() {
-  if (!hadControllerAtStartup || reloadRequested || reloadFallback !== undefined) return;
+  if (
+    !hadControllerAtStartup
+    || reloadRequested
+    || reloadFallback !== undefined
+    || readSessionValue(FALLBACK_RELOAD_KEY)
+  ) return;
 
-  reloadFallback = window.setTimeout(reloadForUpdate, UPDATE_RELOAD_FALLBACK_MS);
+  reloadFallback = window.setTimeout(reloadFromFallback, UPDATE_RELOAD_FALLBACK_MS);
 }
 
 function activateWaitingWorker(registration: ServiceWorkerRegistration) {
