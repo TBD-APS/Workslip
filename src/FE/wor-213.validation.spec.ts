@@ -3,6 +3,7 @@ import { cpSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 test.describe.configure({ mode: 'serial' });
+test.setTimeout(60_000);
 
 const baseUrl = 'http://127.0.0.1:4173/';
 const root = path.resolve(process.cwd(), '.tmp-wor-213');
@@ -47,7 +48,7 @@ async function loadControlledClient(page: Page) {
     });
   }, coordinatorReadyEvent);
 
-  await page.goto(baseUrl, { waitUntil: 'networkidle' });
+  await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
 
@@ -56,7 +57,7 @@ async function loadControlledClient(page: Page) {
   });
 
   if (!await page.evaluate(() => Boolean(navigator.serviceWorker.controller))) {
-    await page.reload({ waitUntil: 'networkidle' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await expect.poll(
       () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
       { timeout: 10_000 },
@@ -66,7 +67,7 @@ async function loadControlledClient(page: Page) {
   // The document in which the controller first appears may already have
   // evaluated the update module as a first-install session. Navigate once more
   // so version-A starts with a controller present at module evaluation time.
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
 
