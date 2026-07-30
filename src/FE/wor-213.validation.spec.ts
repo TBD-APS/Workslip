@@ -16,7 +16,12 @@ type RegistrationObservation = {
 
 function publish(version: 'dist-v1' | 'dist-v2') {
   const current = path.join(root, 'current');
-  rmSync(current, { recursive: true, force: true });
+  if (version === 'dist-v1') {
+    rmSync(current, { recursive: true, force: true });
+  }
+
+  // Vercel keeps previously deployed immutable hashed assets available. Overlay
+  // version B instead of deleting version A so the open document remains valid.
   cpSync(path.join(root, version), current, { recursive: true });
 }
 
@@ -71,55 +76,49 @@ async function currentAppAsset(page: Page) {
   return page.locator('script[type="module"][src*="/assets/app-"]').getAttribute('src');
 }
 
-async function publishAndDiscoverUpdate(page: Page) {
-  publish('dist-v2');
-
-  const updateResult = await page.evaluate(async () => {
+async function readRegistrationObservation(page: Page) {
+  return page.evaluate(async (): Promise<RegistrationObservation> => {
     const registration = await navigator.serviceWorker.getRegistration();
     if (!registration) throw new Error('No service-worker registration found.');
 
-    const observations: RegistrationObservation[] = [];
-    let previousObservation = '';
-    const observe = () => {
-      const observation: RegistrationObservation = {
-        installing: registration.installing?.state ?? null,
-        waiting: registration.waiting?.state ?? null,
-        active: registration.active?.state ?? null,
-      };
-      const serialized = JSON.stringify(observation);
-      if (serialized !== previousObservation) {
-        previousObservation = serialized;
-        observations.push(observation);
-      }
-      return observation;
+    return {
+      installing: registration.installing?.state ?? null,
+      waiting: registration.waiting?.state ?? null,
+      active: registration.active?.state ?? null,
     };
+  });
+}
+
+async function publishAndDiscoverUpdate(page: Page) {
+  publish('dist-v2');
+
+  const initialObservation = await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) throw new Error('No service-worker registration found.');
 
     const response = await fetch(registration.active?.scriptURL ?? '/sw.js', {
       cache: 'no-store',
     });
     const publishedWorkerLength = (await response.text()).length;
 
-    observe();
-    await registration.update();
+    void registration.update().catch((error) => {
+      console.error('[WOR-213 validation] registration.update failed', error);
+    });
 
-    const deadline = Date.now() + 10_000;
-    while (Date.now() < deadline) {
-      const observation = observe();
-      if (observation.waiting) break;
-      await new Promise((resolve) => window.setTimeout(resolve, 100));
-    }
-
-    const finalObservation = observe();
     return {
-      observations,
-      finalObservation,
+      installing: registration.installing?.state ?? null,
+      waiting: registration.waiting?.state ?? null,
+      active: registration.active?.state ?? null,
       publishedWorkerLength,
     };
   });
 
-  console.log(`Service-worker update observations: ${JSON.stringify(updateResult)}`);
-  expect(updateResult.finalObservation.waiting).not.toBeNull();
-  await expect(page.getByRole('button', { name: 'Opdater nu' })).toBeVisible({ timeout: 10_000 });
+  console.log(`Initial service-worker observation: ${JSON.stringify(initialObservation)}`);
+  await expect(page.getByRole('button', { name: 'Opdater nu' })).toBeVisible({ timeout: 8_000 });
+
+  const readyObservation = await readRegistrationObservation(page);
+  console.log(`Ready service-worker observation: ${JSON.stringify(readyObservation)}`);
+  expect(readyObservation.waiting).not.toBeNull();
 }
 
 test('button applies one update without leaving the page frozen', async ({ browser }) => {
@@ -130,13 +129,13 @@ test('button applies one update without leaving the page frozen', async ({ brows
 
   const previousAsset = await currentAppAsset(page);
   expect(previousAsset).toBeTruthy();
-  await publishAndDiscoverUpdate(page);
 
   let updateNavigations = 0;
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) updateNavigations += 1;
   });
 
+  await publishAndDiscoverUpdate(page);
   await page.getByRole('button', { name: 'Opdater nu' }).click();
   await expect(page.getByRole('button', { name: 'Opdaterer...' })).toBeDisabled();
 
@@ -163,13 +162,13 @@ test('untouched banner applies the same update automatically once', async ({ bro
 
   const previousAsset = await currentAppAsset(page);
   expect(previousAsset).toBeTruthy();
-  await publishAndDiscoverUpdate(page);
 
   let updateNavigations = 0;
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) updateNavigations += 1;
   });
 
+  await publishAndDiscoverUpdate(page);
   await expect.poll(async () => {
     try {
       return await currentAppAsset(page);
