@@ -18,6 +18,7 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
 {
     services.AddScoped<IJobService, JobService>();
     services.AddScoped<JobValidationService>();
+    services.AddScoped<JobDeletionNotificationService>();
     services.AddScoped<IOrganizationService, OrganizationService>();
     services.AddScoped<IOrganizationSessionService, OrganizationSessionService>();
     services.AddScoped<IUserService, UserService>();
