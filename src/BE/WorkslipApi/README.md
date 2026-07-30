@@ -108,6 +108,12 @@ Superadmins remain attached to one permanent organization. The Superadmin-only o
 
 Application services return `Ardalis.Result`. Endpoints map through `ResultExtensions.ToHttpResult`; do not introduce custom wrappers or duplicate result-to-HTTP mapping. See the root `AGENTS.md` before changing service or endpoint patterns.
 
+## HTTP caching
+
+Authenticated job GET endpoints use private browser revalidation, `Vary: Authorization` and weak ETags. Jobs-list validators are calculated from the complete mapped HTTP representation, including assignments, worksheet totals, installations and user-specific seen/rejection flags; hashing only the `JobReports.UpdatedAt` value is insufficient because those related values can change independently.
+
+The validator is evaluated after tenant-scoped service/repository work. A `304 Not Modified` therefore saves response transfer and client parsing, but it is not a server-side query cache. Do not add shared output caching or an in-memory jobs-list cache without complete organization/user/filter keys and explicit invalidation for every job, assignment, worksheet, installation and view-state mutation. Mutation responses remain `no-store`.
+
 ## Build and tests
 
 ```bash
