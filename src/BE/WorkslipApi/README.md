@@ -144,7 +144,22 @@ The production API workflow is:
 .github/workflows/main_api-mrsoftware-prod.yml
 ```
 
-It builds and publishes the API, authenticates to Azure through GitHub OIDC and deploys to `api-mrsoftware-prod`. Production uses GitHub environment `prod` with:
+It restores, builds and publishes the API, creates a ZIP whose root is the `dotnet publish` output, authenticates through GitHub OIDC and deploys the package to `api-mrsoftware-prod` with `az webapp deploy`.
+
+The deployment workflow:
+
+- preserves the `prod` environment and its scoped OIDC identity;
+- serializes production API releases through the existing concurrency group;
+- retries an App Service/Kudu deployment failure at most three times with bounded backoff;
+- records the immutable ZIP size in the build log;
+- restarts the App Service between attempts only when Kudu reports `There is not enough space on the disk`, clearing the worker's temporary local storage before retrying;
+- requests Azure CLI enriched deployment errors;
+- prints only safe App Service state and deployment-log diagnostics after a final failure;
+- verifies `https://<default-hostname>/health` before reporting success.
+
+The production App Service plan is currently F1. Its local temporary worker storage is small and may be exhausted by accumulated Kudu deployment data even when the repository and deployment workflow are unchanged. A restart clears temporary local storage. Repeated disk-full failures after that recovery indicate persistent filesystem usage or package growth and must be investigated through App Service quotas/Kudu before adding retries or changing application code.
+
+Production uses GitHub environment `prod` with:
 
 - `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
 - `AZURE_TENANT_ID`: target Entra tenant ID
@@ -157,6 +172,10 @@ After infrastructure recreation:
 1. run `../infrastructure/deploy.ps1 prod`;
 2. set the three GitHub `prod` environment identifiers from the deployment output;
 3. run the API workflow manually;
-4. verify `/health`, Microsoft login and one authenticated API request.
+4. confirm the workflow package check finds `Workslip.Api.dll` at ZIP root;
+5. confirm the deployment step succeeds and `/health` passes;
+6. verify Microsoft login and one authenticated API request.
+
+If all deployment attempts fail, use the workflow's safe App Service state, recent deployment records and latest deployment log before changing application code or infrastructure. The Node deprecation warnings emitted by third-party actions are not deployment evidence; the failing Azure/Kudu operation and its diagnostics are authoritative.
 
 Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
