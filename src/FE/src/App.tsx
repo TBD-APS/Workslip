@@ -9,6 +9,7 @@ import './public-fonts.css';
 import './public-shell.css';
 import './public-error.css';
 import './public-performance.css';
+import './pwa-update.css';
 
 const VercelTelemetry = lazy(() =>
   import('./telemetry/VercelTelemetry').then((module) => ({ default: module.VercelTelemetry })),
