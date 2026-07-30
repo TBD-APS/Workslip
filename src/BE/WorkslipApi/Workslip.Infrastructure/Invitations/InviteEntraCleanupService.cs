@@ -22,7 +22,21 @@ public sealed class InviteEntraCleanupService(
             using var timer = new PeriodicTimer(CleanupInterval);
             do
             {
-                await CleanupStaleInvitesAsync(stoppingToken);
+                try
+                {
+                    await CleanupStaleInvitesAsync(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(
+                        ex,
+                        "Stale invite cleanup failed. Next attempt in {RetryInterval}.",
+                        CleanupInterval);
+                }
             }
             while (await timer.WaitForNextTickAsync(stoppingToken));
         }
