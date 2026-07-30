@@ -38,7 +38,9 @@ jobs:
         run: npm ci
 
       - name: Generate production API client
-        run: npm run generate:api:prod
+        env:
+          VITE_API_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+        run: npx orval --config orval.config.ts
 
       - name: Lint changed TypeScript files
         run: npx eslint src/features/auth/components/OneTimeCodeInput.tsx src/features/auth/components/OneTimeCodeLogin.tsx
