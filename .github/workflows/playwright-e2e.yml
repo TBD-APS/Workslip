@@ -1,0 +1,137 @@
+name: Playwright E2E
+
+on:
+  pull_request:
+    paths:
+      - 'src/FE/**'
+      - '.github/workflows/playwright-e2e.yml'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Playwright suite to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - public
+          - authenticated
+          - all
+      base_url:
+        description: 'Deployed Workslip frontend URL for manual runs'
+        required: true
+        default: 'https://app.mrsoftware.dk'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playwright-${{ github.workflow }}-${{ github.ref }}-${{ inputs.suite || 'public' }}
+  cancel-in-progress: true
+
+jobs:
+  public-smoke:
+    name: Public browser smoke
+    if: github.event_name == 'pull_request' || inputs.suite == 'public' || inputs.suite == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            src/FE/package-lock.json
+            src/FE/e2e/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: src/FE
+
+      - name: Install Playwright dependencies
+        run: npm ci
+        working-directory: src/FE/e2e
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: src/FE
+
+      - name: Install Chromium
+        run: npm run install:browsers:ci
+        working-directory: src/FE/e2e
+
+      - name: Run public Playwright smoke
+        run: npm run test:public
+        working-directory: src/FE/e2e
+        env:
+          E2E_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || '' }}
+
+      - name: Upload public Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-public-${{ github.run_attempt }}
+          path: |
+            src/FE/e2e/playwright-report
+            src/FE/e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  authenticated-smoke:
+    name: Authenticated OTP smoke
+    if: github.event_name == 'workflow_dispatch' && (inputs.suite == 'authenticated' || inputs.suite == 'all')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/e2e/package-lock.json
+
+      - name: Install Playwright dependencies
+        run: npm ci
+        working-directory: src/FE/e2e
+
+      - name: Install Chromium
+        run: npm run install:browsers:ci
+        working-directory: src/FE/e2e
+
+      - name: Verify authenticated test configuration
+        shell: bash
+        env:
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_MAILOSAUR_API_KEY: ${{ secrets.E2E_MAILOSAUR_API_KEY }}
+          E2E_MAILOSAUR_SERVER_ID: ${{ secrets.E2E_MAILOSAUR_SERVER_ID }}
+        run: |
+          test -n "$E2E_EMAIL" || { echo 'Missing E2E_EMAIL secret'; exit 1; }
+          test -n "$E2E_MAILOSAUR_API_KEY" || { echo 'Missing E2E_MAILOSAUR_API_KEY secret'; exit 1; }
+          test -n "$E2E_MAILOSAUR_SERVER_ID" || { echo 'Missing E2E_MAILOSAUR_SERVER_ID secret'; exit 1; }
+
+      - name: Run authenticated Playwright smoke
+        run: npm run test:authenticated
+        working-directory: src/FE/e2e
+        env:
+          E2E_BASE_URL: ${{ inputs.base_url }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_MAILOSAUR_API_KEY: ${{ secrets.E2E_MAILOSAUR_API_KEY }}
+          E2E_MAILOSAUR_SERVER_ID: ${{ secrets.E2E_MAILOSAUR_SERVER_ID }}
+
+      - name: Upload authenticated Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-authenticated-${{ github.run_attempt }}
+          path: |
+            src/FE/e2e/playwright-report
+            src/FE/e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7
