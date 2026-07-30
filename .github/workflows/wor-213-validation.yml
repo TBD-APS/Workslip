@@ -173,4 +173,5 @@ jobs:
             exit 1
           fi
 
-          npx playwright test wor-213.validation.spec.ts --reporter=line --workers=1
+          WOR_213_V2_WORKER_HASH="${second_worker_hash}" \
+            npx playwright test wor-213.validation.spec.ts --reporter=line --workers=1
