@@ -1,0 +1,61 @@
+name: WOR-89 temporary validation
+
+on:
+  push:
+    branches:
+      - rbj--89-undo-rejected-job
+    paths:
+      - 'src/FE/**'
+      - '.github/workflows/wor-89-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: src/FE
+        run: npm run lint
+
+      - name: Build frontend
+        working-directory: src/FE
+        run: npm run build
+
+      - name: Install temporary Playwright dependencies
+        working-directory: src/FE/e2e-wor89
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: src/FE/e2e-wor89
+        run: npx playwright install --with-deps chromium
+
+      - name: Run WOR-89 browser scenarios
+        working-directory: src/FE/e2e-wor89
+        run: npm test
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wor-89-playwright-diagnostics
+          path: |
+            src/FE/e2e-wor89/playwright-report
+            src/FE/e2e-wor89/test-results
+          if-no-files-found: ignore
+          retention-days: 7
