@@ -21,11 +21,24 @@ public sealed class EfNotificationRepository : INotificationRepository
 
     public async Task QueueNotificationAsync(NotificationQueueRow row, CancellationToken cancellationToken)
     {
-        await _retryPolicy.ExecuteAsync("notifications.queue", async token =>
+        try
         {
-            _dbContext.NotificationQueue.Add(row);
-            await _dbContext.SaveChangesAsync(token);
-        }, cancellationToken);
+            await _retryPolicy.ExecuteAsync("notifications.queue", async token =>
+            {
+                _dbContext.NotificationQueue.Add(row);
+                await _dbContext.SaveChangesAsync(token);
+            }, cancellationToken);
+        }
+        catch
+        {
+            var entry = _dbContext.Entry(row);
+            if (entry.State != EntityState.Detached)
+            {
+                entry.State = EntityState.Detached;
+            }
+
+            throw;
+        }
     }
 
     public async Task<IReadOnlyList<NotificationQueueRow>> ClaimPendingNotificationsAsync(int batchSize, CancellationToken cancellationToken)
