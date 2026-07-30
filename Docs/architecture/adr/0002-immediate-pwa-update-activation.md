@@ -2,8 +2,9 @@
 
 **Status:** Accepted  
 **Date:** 2026-07-28  
+**Amended:** 2026-07-30  
 **Owner:** Workslip architecture owner  
-**Linear:** WOR-196
+**Linear:** WOR-196, WOR-213
 
 ## Context
 
@@ -12,6 +13,8 @@ Workslip is deployed as a Vite PWA with an injected custom service worker. Authe
 The product owner prioritizes rapid rollout of frontend fixes over preserving unsaved browser form state during a deployment. Update prompts and dirty-form-aware activation would delay rollout and add a second update state machine alongside the existing routing and form guards.
 
 Immediate activation creates a version-skew risk for clients that loaded application shell code from one deployment and later request a lazy chunk from another deployment. The implementation therefore needs explicit stale-chunk recovery and retention of previously fetched content-hashed route assets.
+
+WOR-213 verified that update discovery and worker activation were not sufficient by themselves. An installed mobile PWA could receive a new worker while the already-open document continued running the old application bundle until the app was fully closed. The lifecycle must therefore include an explicit, guarded navigation or reload after an update is installed.
 
 ## Decision
 
@@ -22,25 +25,32 @@ Immediate activation creates a version-skew risk for clients that loaded applica
    - when the app returns to the foreground;
    - when browser connectivity returns; and
    - once per minute while the app remains open.
-4. Update checks are serialized and skipped while a worker is already installing or waiting.
-5. The public bootstrap shell is precached. Authenticated route chunks are loaded and cached on first use.
-6. Previously fetched content-hashed route assets remain in a capped runtime cache across deployments to support already-open clients.
-7. A Vite `vite:preloadError` triggers at most one guarded reload per build. A repeated failure reaches the normal application error boundary.
-8. The update flow does not wait for shared dirty-form state or user confirmation.
+4. Update checks are serialized. A waiting worker is explicitly sent a `SKIP_WAITING` message instead of leaving the client on the previous version.
+5. An activating worker records whether it replaces a previous active worker. After claiming clients, an update worker navigates existing window clients to their current URLs; first-time installation does not navigate them.
+6. The client also reloads at most once when the plugin reports an update, the service-worker controller changes, or the installing worker activates.
+7. A two-second fallback reload covers installed/mobile browser contexts that do not reliably emit the expected controller lifecycle event. The fallback is never scheduled for a first-time service-worker installation and is session-guarded per application build.
+8. The public bootstrap shell is precached. Authenticated route chunks are loaded and cached on first use.
+9. Previously fetched content-hashed route assets remain in a capped runtime cache across deployments to support already-open clients.
+10. A Vite `vite:preloadError` triggers at most one guarded reload per build. A repeated failure reaches the normal application error boundary.
+11. The update flow does not wait for shared dirty-form state or user confirmation.
 
 ## Consequences
 
-- A detected production deployment takes control without requiring a user action.
+- A detected production deployment activates and reloads an already-open controlled client without requiring a button press or full app close.
+- Worker-side navigation allows the deployment containing WOR-213 to refresh clients still running the previous client bundle, rather than requiring the new client code to be loaded first.
 - An app that stays open and visible discovers a deployment within at most approximately one minute; reopening, refocusing or reconnecting triggers an immediate check.
+- The one-shot and session guards prevent duplicate lifecycle events or fallback retries from causing a reload loop.
 - Unsaved in-memory form state may be lost when a deployment reloads or replaces the active client. This is an accepted product trade-off.
 - Content-hashed lazy chunks and the runtime cache reduce, but cannot eliminate, mixed-version behaviour.
-- Service-worker and route-splitting changes require clean-profile, already-open-tab and offline-revisit smoke testing.
-- Prompt-based dirty-safe updates are not a prerequisite for WOR-196. A future change to that policy requires superseding this ADR.
+- Service-worker and route-splitting changes require clean-profile, already-open-tab, installed-PWA and offline-revisit smoke testing.
+- Prompt-based dirty-safe updates are not a prerequisite for WOR-196 or WOR-213. A future change to that policy requires superseding this ADR.
 
 ## Rejected alternatives
 
 - Hourly-only update checks: rejected because fixes should reach an open application faster.
 - Prompt-based activation: rejected because the product owner prefers immediate rollout over preserving unsaved in-memory state.
+- Rely only on plugin/controller lifecycle events: rejected because the observed installed-PWA failure can leave the old document running after the new worker is available.
+- Reload on first service-worker installation: rejected because there is no previous application version to replace.
 - Precache every authenticated route chunk: rejected because it removes the initial-load performance benefit of route splitting.
 - Delete all previous route chunks during activation: rejected because already-open clients can still reference the previous deployment's hashed assets.
 - Poll more frequently than once per minute: rejected because startup, focus and online events already cover the common immediate-update paths, while tighter polling adds continuous unnecessary traffic.

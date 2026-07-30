@@ -72,7 +72,7 @@ Explicit logout and internal session recovery are separate auth-context operatio
 
 The SPA root is served directly without a Vercel redirect. The client router renders login for unauthenticated users and moves an already authenticated user to `/app`.
 
-Service-worker registration is scheduled after the initial window load and an idle callback. Application Insights, Vercel Analytics, Speed Insights and the Sonner toaster are loaded after the first pointer/keyboard interaction or a ten-second fallback, then scheduled during idle time. The Application Insights SDK itself remains a dynamic import. Once the service worker registers, the accepted immediate update-discovery and activation policy remains unchanged.
+Service-worker registration is scheduled after the initial window load and an idle callback. Application Insights, Vercel Analytics, Speed Insights and the Sonner toaster are loaded after the first pointer/keyboard interaction or a ten-second fallback, then scheduled during idle time. The Application Insights SDK itself remains a dynamic import. Once registered, the service worker discovers deployments on startup, focus, connectivity recovery and a one-minute interval; a waiting worker is activated explicitly and an already-controlled client reloads once without user interaction.
 
 A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout, and authenticated routing shows the explicit retry/reload/login recovery screen after the same six-second grace period rather than clearing a potentially valid token or showing an endless spinner.
 
@@ -112,11 +112,12 @@ For routing, performance or PWA cache changes, also validate with a clean browse
 12. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
 13. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
 14. A route visited once online must remain available on an offline revisit under the supported PWA flow.
-15. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded `vite:preloadError` recovery path.
-16. Service-worker update checks must not overlap while another worker is installing or waiting.
-17. A newly deployed worker must activate immediately after discovery and take control without waiting for an update prompt.
-18. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
-19. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
+15. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded update/preload recovery paths.
+16. Service-worker update checks must not overlap; a waiting worker must be explicitly activated rather than left pending.
+17. A newly deployed worker must activate immediately and an already-controlled browser/PWA client must reload once to display the new application bundle without an update prompt, button press or full app close.
+18. A first-time service-worker installation must not trigger the update reload fallback.
+19. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
+20. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
 
 ## Vercel deployment policy
 
@@ -163,7 +164,7 @@ The rewrite target is production-specific. A future separate frontend environmen
 
 The service worker precaches only the SPA document, web manifest and bootstrap JavaScript. CSS, fonts, images and lazy chunks are cached only after the browser requests them. Same-origin assets below `/assets/` and `/fonts/` use the stable capped runtime cache. This prevents a public login visit from downloading the authenticated application during service-worker installation while retaining offline revisits for resources that were actually used.
 
-Registration is deferred until after the initial page load and an idle callback. Update discovery then runs when the service worker registers, when the browser regains connectivity, whenever the app returns to the foreground, and once per minute while the app remains open. Checks are serialized and skipped while another worker is already installing or waiting. `autoUpdate`, `skipWaiting()` and immediate client claiming intentionally activate a discovered deployment without user confirmation.
+Registration is deferred until after the initial page load and an idle callback. Update discovery then runs when the service worker registers, when the browser regains connectivity, whenever the app returns to the foreground, and once per minute while the app remains open. Checks are serialized while a worker installs. A waiting worker receives `SKIP_WAITING`; plugin notification, `controllerchange` or worker activation reloads an already-controlled client at most once. A two-second fallback covers installed/mobile contexts where those browser events are not delivered reliably. First-time installation is excluded from all update reload paths.
 
 Vite dynamic-import preload failures trigger one automatic reload per build. Repeated failure in the same build falls through to the normal React error boundary instead of creating a reload loop.
 
@@ -188,4 +189,4 @@ The login route clears the PKCE state after success, cancellation or callback fa
 
 The application uses `vite-plugin-pwa` with an injected service worker. The custom service worker is type-checked separately and must not be excluded through `@ts-nocheck` again.
 
-Immediate activation is an accepted product decision recorded in ADR 0002. A deployment may replace an open client without waiting for dirty-form state or explicit confirmation. Runtime chunk retention and one-shot stale-build recovery reduce version-skew failures, but do not make API mutations offline-capable.
+Immediate activation and one-shot automatic client reload are accepted product decisions recorded in ADR 0002. A deployment may replace an open client without waiting for dirty-form state or explicit confirmation. Runtime chunk retention and one-shot stale-build recovery reduce version-skew failures, but do not make API mutations offline-capable.
