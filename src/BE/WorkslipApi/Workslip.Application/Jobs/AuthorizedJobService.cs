@@ -111,7 +111,22 @@ public sealed class AuthorizedJobService(
             return Result<JobReportSummaryResponse>.Conflict("invalid_job_status_transition");
         }
 
-        return await inner.ChangeStatusAsync(id, request, cancellationToken);
+        try
+        {
+            return await inner.ChangeStatusAsync(id, request, cancellationToken);
+        }
+        catch (InvalidJobStatusTransitionException exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Concurrent job transition rejected. JobId: {JobId}. OrganizationId: {OrganizationId}. CurrentStatus: {CurrentStatus}. TargetStatus: {TargetStatus}.",
+                id,
+                organizationId.Value,
+                exception.CurrentStatus,
+                exception.TargetStatus);
+
+            return Result<JobReportSummaryResponse>.Conflict("invalid_job_status_transition");
+        }
     }
 
     public Task<Result<JobReportSummaryResponse>> AssignAsync(
