@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, ChevronRight, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
@@ -52,6 +53,7 @@ export const CompletedJobReport = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | 'undo-reject' | null>(null);
+  const [undoRejectionCompleted, setUndoRejectionCompleted] = useState(false);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [worksheetOpen, setWorksheetOpen] = useState(true);
   const previewUrlRef = useRef<string | null>(null);
@@ -195,8 +197,14 @@ export const CompletedJobReport = () => {
         : confirmAction === 'approve'
           ? `${details.form.reportNumber} er godkendt`
           : `${details.form.reportNumber} er afvist`;
-      notify.success(message);
       setConfirmAction(null);
+
+      if (confirmAction === 'undo-reject') {
+        setUndoRejectionCompleted(true);
+        return;
+      }
+
+      notify.success(message);
       navigate(from);
     } catch {
       const message = confirmAction === 'undo-reject'
@@ -529,6 +537,42 @@ export const CompletedJobReport = () => {
           onClose={() => setConfirmAction(null)}
         />
       )}
+
+      {undoRejectionCompleted && (
+        <UndoRejectionSuccessDialog
+          reportNumber={formatReportNumber(job)}
+          onGoToJobList={() => navigate('/app', { replace: true })}
+          onGoToJob={() => navigate(`/app/job/${job.id}`, { replace: true, state: { from: '/app' } })}
+        />
+      )}
     </div>
+  );
+}
+
+function UndoRejectionSuccessDialog({
+  reportNumber,
+  onGoToJobList,
+  onGoToJob,
+}: {
+  reportNumber: string;
+  onGoToJobList: () => void;
+  onGoToJob: () => void;
+}) {
+  return createPortal(
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="undo-rejection-success-title">
+      <div className="modal-card">
+        <h3 id="undo-rejection-success-title">Afvisningen er fortrudt</h3>
+        <p>Sagen <strong>{reportNumber}</strong> er sendt til gennemgang igen.</p>
+        <div className="modal-actions modal-actions--double">
+          <button className="btn btn-secondary" type="button" onClick={onGoToJobList}>
+            Til sagslisten
+          </button>
+          <button className="btn btn-primary" type="button" onClick={onGoToJob}>
+            Til sagen
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
