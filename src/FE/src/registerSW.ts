@@ -144,8 +144,8 @@ async function checkForServiceWorkerUpdate(
 }
 
 if (serviceWorkerSupported) {
-  // This is the single normal page-reload owner. The custom worker only claims
-  // clients; it never navigates them itself.
+  // Native controller changes and the plugin's controlling callback both feed
+  // this single guarded reload coordinator. The worker never navigates clients.
   navigator.serviceWorker.addEventListener('controllerchange', reloadForUpdate);
 }
 
@@ -156,6 +156,9 @@ registerSW({
   onNeedRefresh() {
     void resolveRegistrationAndAnnounceUpdate();
   },
+  // vite-plugin-pwa otherwise reloads directly from its Workbox controlling
+  // listener. Route that signal through the same one-shot coordinator instead.
+  onNeedReload: reloadForUpdate,
   onOfflineReady() {
     console.log('[PWA] App is ready for offline use');
   },
