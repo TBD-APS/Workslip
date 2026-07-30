@@ -46,8 +46,11 @@ public static class PushNotificationEndpoints
             return ResultExtensions.ToHttpResult(result);
         });
 
-        group.MapGet("/public-key", (IVapidPublicKeyProvider keyProvider) =>
-            Results.Ok(new VapidPublicKeyViewModel(keyProvider.PublicKey)));
+        group.MapGet("/public-key", (IVapidPublicKeyProvider keyProvider, HttpContext httpContext) =>
+        {
+            httpContext.Response.Headers.CacheControl = "no-store";
+            return Results.Ok(new VapidPublicKeyViewModel(keyProvider.PublicKey));
+        });
 
         group.MapPost("/", async (
             RegisterPushSubscriptionRequest request,
