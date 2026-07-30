@@ -118,11 +118,9 @@ async function publishAndDiscoverUpdate(page: Page) {
       .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('');
 
-    void registration.update().then(() => {
-      console.log('[WOR-213 validation] registration.update resolved');
-    }).catch((error) => {
-      console.error('[WOR-213 validation] registration.update failed', error);
-    });
+    // Exercise Workslip's actual online/refocus update path rather than calling
+    // registration.update() outside the application coordinator.
+    window.dispatchEvent(new Event('online'));
 
     return {
       installing: registration.installing?.state ?? null,
