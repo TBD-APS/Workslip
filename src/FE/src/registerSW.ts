@@ -262,15 +262,18 @@ registerSW({
 
     let updateCheck: Promise<void> | null = null;
     const requestUpdate = () => {
-      if (updateCheck) return;
+      if (updateCheck) return updateCheck;
 
       updateCheck = checkForServiceWorkerUpdate(swUrl, registration)
         .finally(() => {
           updateCheck = null;
         });
+      return updateCheck;
     };
 
-    requestRegisteredUpdate = requestUpdate;
+    requestRegisteredUpdate = () => {
+      void requestUpdate();
+    };
 
     if (registration.waiting) {
       announceUpdateAvailable();
@@ -278,17 +281,21 @@ registerSW({
 
     // Discover a deployment immediately when the app starts, returns to the
     // foreground or regains connectivity, and at most one minute afterwards.
-    requestUpdate();
-    window.setInterval(requestUpdate, UPDATE_INTERVAL_MS);
-    window.addEventListener('online', requestUpdate);
+    // Readiness is announced only after this first check settles, preventing a
+    // newly opened client from overlapping its bootstrap check with deployment.
+    void requestUpdate().finally(announcePwaUpdateCoordinatorReady);
+    window.setInterval(() => {
+      void requestUpdate();
+    }, UPDATE_INTERVAL_MS);
+    window.addEventListener('online', () => {
+      void requestUpdate();
+    });
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        requestUpdate();
+        void requestUpdate();
       }
     });
-
-    announcePwaUpdateCoordinatorReady();
   },
   onRegisterError(error) {
     console.error('[PWA] Registration failed:', error);
