@@ -45,6 +45,30 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
 
+      - name: Align legacy test fixtures with generated API model
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          fixture_paths = [
+              Path('src/components/layouts/AppLayout.desktopOnly.test.tsx'),
+              Path('src/features/superadmin/components/DesktopOnlySuperadmin.test.tsx'),
+          ]
+          needle = "  role: 'Superadmin',\n"
+          replacement = needle + "  roleDisplayName: 'Superadmin',\n"
+
+          for fixture_path in fixture_paths:
+              content = fixture_path.read_text(encoding='utf-8')
+              if 'roleDisplayName:' in content:
+                  continue
+              if needle not in content:
+                  raise SystemExit(f'Expected Superadmin fixture not found in {fixture_path}')
+              fixture_path.write_text(
+                  content.replace(needle, replacement, 1),
+                  encoding='utf-8',
+              )
+          PY
+
       - name: Lint affected frontend files
         run: >-
           npx eslint
