@@ -20,11 +20,14 @@ test.describe('@public one-time-code login', () => {
     await expect(emailInput).toBeVisible();
 
     await emailInput.fill('ikke-en-email');
+    await expect(emailInput).toHaveJSProperty('validity.valid', false);
     await page.getByRole('button', { name: 'Send kode' }).click();
-    await expect(page.getByText('Ugyldig email adresse')).toBeVisible();
+    await expect(emailInput).toBeVisible();
+    await expect(page.getByText('En kode er sendt til')).not.toBeVisible();
 
     const testEmail = 'playwright@example.test';
     await emailInput.fill(testEmail);
+    await expect(emailInput).toHaveJSProperty('validity.valid', true);
     await page.getByRole('button', { name: 'Send kode' }).click();
 
     await expect(page.getByText('En kode er sendt til')).toBeVisible();
