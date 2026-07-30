@@ -125,7 +125,32 @@ jobs:
           fi
 
           cp -R "${temp_root}/dist-v1" "${temp_root}/current"
-          python3 -m http.server 4173 --bind 127.0.0.1 --directory "${temp_root}/current" > "${temp_root}/server.log" 2>&1 &
+          cat > "${temp_root}/server.py" <<'PY'
+          from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1]).resolve()
+
+          class NoCacheHandler(SimpleHTTPRequestHandler):
+              def __init__(self, *args, **kwargs):
+                  super().__init__(*args, directory=str(root), **kwargs)
+
+              def send_head(self):
+                  for header in ('If-Modified-Since', 'If-None-Match'):
+                      if header in self.headers:
+                          del self.headers[header]
+                  return super().send_head()
+
+              def end_headers(self):
+                  self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+                  self.send_header('Pragma', 'no-cache')
+                  self.send_header('Expires', '0')
+                  super().end_headers()
+
+          ThreadingHTTPServer(('127.0.0.1', 4173), NoCacheHandler).serve_forever()
+          PY
+          python3 "${temp_root}/server.py" "${temp_root}/current" > "${temp_root}/server.log" 2>&1 &
           server_pid=$!
 
           cleanup() {
@@ -148,4 +173,5 @@ jobs:
             exit 1
           fi
 
-          npx playwright test wor-213.validation.spec.ts --reporter=line --workers=1
+          WOR_213_V2_WORKER_HASH="${second_worker_hash}" \
+            npx playwright test wor-213.validation.spec.ts --reporter=line --workers=1

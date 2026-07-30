@@ -160,6 +160,27 @@ async function resolveRegistrationAndAnnounceUpdate() {
   }
 }
 
+function observeInstallingWorker(installingWorker: ServiceWorker | null) {
+  if (!installingWorker) return;
+
+  const handleStateChange = () => {
+    if (installingWorker.state === 'installed' && hadControllerAtStartup) {
+      void resolveRegistrationAndAnnounceUpdate();
+    }
+  };
+
+  installingWorker.addEventListener('statechange', handleStateChange);
+  handleStateChange();
+}
+
+function observeRegistrationUpdates(registration: ServiceWorkerRegistration) {
+  registration.addEventListener('updatefound', () => {
+    observeInstallingWorker(registration.installing);
+  });
+
+  observeInstallingWorker(registration.installing);
+}
+
 function recoverFromActivationFailure(error: unknown) {
   updateApplying = false;
   clearReloadFallback();
@@ -247,6 +268,8 @@ window.addEventListener(PWA_UPDATE_APPLY_EVENT, () => {
 registerSW({
   immediate: true,
   onNeedRefresh() {
+    // Redundant plugin signal. Native registration events below are authoritative
+    // for updates started through registration.update().
     void resolveRegistrationAndAnnounceUpdate();
   },
   // vite-plugin-pwa otherwise reloads directly from its Workbox controlling
@@ -259,18 +282,22 @@ registerSW({
     if (!registration) return;
 
     serviceWorkerRegistration = registration;
+    observeRegistrationUpdates(registration);
 
     let updateCheck: Promise<void> | null = null;
     const requestUpdate = () => {
-      if (updateCheck) return;
+      if (updateCheck) return updateCheck;
 
       updateCheck = checkForServiceWorkerUpdate(swUrl, registration)
         .finally(() => {
           updateCheck = null;
         });
+      return updateCheck;
     };
 
-    requestRegisteredUpdate = requestUpdate;
+    requestRegisteredUpdate = () => {
+      void requestUpdate();
+    };
 
     if (registration.waiting) {
       announceUpdateAvailable();
@@ -278,17 +305,21 @@ registerSW({
 
     // Discover a deployment immediately when the app starts, returns to the
     // foreground or regains connectivity, and at most one minute afterwards.
-    requestUpdate();
-    window.setInterval(requestUpdate, UPDATE_INTERVAL_MS);
-    window.addEventListener('online', requestUpdate);
+    // Readiness is announced only after this first check settles, preventing a
+    // newly opened client from overlapping its bootstrap check with deployment.
+    void requestUpdate().finally(announcePwaUpdateCoordinatorReady);
+    window.setInterval(() => {
+      void requestUpdate();
+    }, UPDATE_INTERVAL_MS);
+    window.addEventListener('online', () => {
+      void requestUpdate();
+    });
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        requestUpdate();
+        void requestUpdate();
       }
     });
-
-    announcePwaUpdateCoordinatorReady();
   },
   onRegisterError(error) {
     console.error('[PWA] Registration failed:', error);
