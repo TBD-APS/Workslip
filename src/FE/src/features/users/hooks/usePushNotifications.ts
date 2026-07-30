@@ -16,13 +16,19 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
+function toUint8Array(value: BufferSource): Uint8Array {
+  return value instanceof ArrayBuffer
+    ? new Uint8Array(value)
+    : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+}
+
 function keysMatch(
-  existingKey: ArrayBuffer | null,
-  expectedKey: Uint8Array<ArrayBuffer>,
+  existingKey: BufferSource | null,
+  expectedKey: Uint8Array,
 ): boolean {
   if (!existingKey) return false;
 
-  const existingBytes = new Uint8Array(existingKey);
+  const existingBytes = toUint8Array(existingKey);
   if (existingBytes.length !== expectedKey.length) return false;
   return existingBytes.every((value, index) => value === expectedKey[index]);
 }
