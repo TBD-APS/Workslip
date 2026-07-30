@@ -17,6 +17,7 @@ export const JobDetail = () => {
   const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
   const details = useJobDetails(id);
   const jobStatus = details.job?.status;
+  const { currentStep, setCurrentStep } = details;
 
   useScrollRestore(`job:${id}`);
 
@@ -33,11 +34,11 @@ export const JobDetail = () => {
   useEffect(() => {
     if (jobStatus !== JobStatus.Rejected || isAdmin) return;
 
-    if (details.currentStep !== 0) {
-      details.setCurrentStep(0);
+    if (currentStep !== 0) {
+      setCurrentStep(0);
     }
     document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
-  }, [jobStatus, details.currentStep, details.setCurrentStep, isAdmin]);
+  }, [jobStatus, currentStep, setCurrentStep, isAdmin]);
 
   if (id && isAdmin && jobStatus === JobStatus.Rejected) {
     return <Navigate to={`/app/completed/${id}`} replace state={{ from }} />;
