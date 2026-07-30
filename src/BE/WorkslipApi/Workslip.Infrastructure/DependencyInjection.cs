@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
         services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
 
+        services.AddScoped<JobStatusTransitionInterceptor>();
         services.AddScoped<AuditInterceptor>();
 
         services.AddDbContext<SqlDbContext>((sp, options) =>
@@ -41,8 +42,9 @@ public static class DependencyInjection
                 b.MigrationsAssembly("Workslip.Api")
             );
 
+            var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
-            options.AddInterceptors(auditInterceptor);
+            options.AddInterceptors(transitionInterceptor, auditInterceptor);
 
             options.ConfigureWarnings(warnings =>
                 warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
