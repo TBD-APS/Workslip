@@ -37,21 +37,34 @@ export const AppLayout = () => {
   };
 
   useEffect(() => {
+    let focusCheckTimeoutId: number | undefined;
+
     const handleFocusChange = () => {
       const activeElement = document.activeElement;
       const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
       setIsKeyboardVisible(isInput);
     };
 
-    document.addEventListener('focusing', handleFocusChange);
-    document.addEventListener('focusout', () => {
-      // Small timeout to allow next element to focus before hiding
-      setTimeout(handleFocusChange, 50);
-    });
+    const handleFocusOut = () => {
+      if (focusCheckTimeoutId !== undefined) {
+        window.clearTimeout(focusCheckTimeoutId);
+      }
+
+      // Allow the next element to receive focus before deciding whether the
+      // mobile keyboard-dependent layout should be restored.
+      focusCheckTimeoutId = window.setTimeout(handleFocusChange, 50);
+    };
+
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('focusout', handleFocusOut);
 
     return () => {
       document.removeEventListener('focusin', handleFocusChange);
-      document.removeEventListener('focusout', handleFocusChange);
+      document.removeEventListener('focusout', handleFocusOut);
+
+      if (focusCheckTimeoutId !== undefined) {
+        window.clearTimeout(focusCheckTimeoutId);
+      }
     };
   }, []);
 
