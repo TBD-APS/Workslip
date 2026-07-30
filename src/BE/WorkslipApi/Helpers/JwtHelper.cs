@@ -9,7 +9,7 @@ namespace Workslip.Api;
 public static class JwtHelper
 {
     public const int DefaultExpiryMinutes = 60;
-    public const int DefaultOrganizationSessionExpiryMinutes = 15;
+    public const int DefaultOrganizationSessionExpiryMinutes = 30;
     public const string HomeOrganizationIdClaim = "homeOrganizationId";
     public const string DelegatedOrganizationSessionClaim = "delegatedOrganizationSession";
 
