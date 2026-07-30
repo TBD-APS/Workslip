@@ -177,11 +177,14 @@ export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
                   onBlur={field.onBlur}
                   hasError={Boolean(codeForm.formState.errors.code)}
                   aria-invalid={Boolean(codeForm.formState.errors.code)}
-                  aria-describedby={codeForm.formState.errors.code ? 'otc-code-error' : undefined}
+                  aria-describedby={codeForm.formState.errors.code ? 'otc-code-help otc-code-error' : 'otc-code-help'}
                   disabled={isSubmitting}
                 />
               )}
             />
+            <p id="otc-code-help" className="login-code-help">
+              Kan du ikke finde mailen? Tjek spam eller uønsket post.
+            </p>
             {codeForm.formState.errors.code && (
               <span id="otc-code-error" className="form-error-text">
                 {codeForm.formState.errors.code.message}
