@@ -20,12 +20,14 @@ export const JobDetail = () => {
   useScrollRestore(`job:${id}`);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !details.job) return;
+    if (isAdmin && details.job.status === JobStatus.Rejected) return;
+
     markJobAsSeen(id, queryClient);
-    if (details.job?.status === JobStatus.Rejected) {
+    if (details.job.status === JobStatus.Rejected) {
       markJobAsSeen(id, queryClient, 'RejectedAssignment');
     }
-  }, [id, details.job?.status, queryClient]);
+  }, [id, details.job, isAdmin, queryClient]);
 
   useEffect(() => {
     if (details.job?.status !== JobStatus.Rejected || isAdmin) return;
