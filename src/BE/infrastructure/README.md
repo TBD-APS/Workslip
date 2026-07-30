@@ -84,6 +84,8 @@ Vercel cache-purge credentials and project configuration are outside the Azure i
 
 `grant-web-api-sql-access.ps1` is called by `deploy-infrastructure.ps1`. It is an implementation helper, not a standalone operator command.
 
+The helper temporarily allows the deployment machine's public IPv4 address while running `sqlcmd`, then deletes the rule through `az sql server firewall-rule delete`. Azure SQL's delete command does not accept the `--yes` option; do not copy confirmation flags from MySQL or App Configuration CLI commands into this cleanup path.
+
 ## Runtime SQL authentication
 
 Production API connections use the user-assigned managed identity:
