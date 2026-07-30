@@ -6,8 +6,10 @@ on:
     paths:
       - 'src/FE/src/registerSW.ts'
       - 'src/FE/src/sw.ts'
+      - 'src/FE/src/lib/pwaUpdateEvents.ts'
       - 'src/FE/src/components/common/PwaUpdateBanner.tsx'
       - 'src/FE/src/components/common/PwaUpdateBanner.test.tsx'
+      - 'src/FE/wor-213.validation.spec.ts'
       - 'Docs/architecture/adr/0002-immediate-pwa-update-activation.md'
       - '.github/workflows/wor-213-validation.yml'
 
@@ -105,8 +107,20 @@ jobs:
 
           first_asset="$(find "${temp_root}/dist-v1/assets" -maxdepth 1 -name 'app-*.js' -printf '%f\n' | head -n 1)"
           second_asset="$(find "${temp_root}/dist-v2/assets" -maxdepth 1 -name 'app-*.js' -printf '%f\n' | head -n 1)"
+          first_worker_hash="$(sha256sum "${temp_root}/dist-v1/sw.js" | cut -d' ' -f1)"
+          second_worker_hash="$(sha256sum "${temp_root}/dist-v2/sw.js" | cut -d' ' -f1)"
+
+          echo "Version A app asset: ${first_asset}"
+          echo "Version B app asset: ${second_asset}"
+          echo "Version A worker: ${first_worker_hash}"
+          echo "Version B worker: ${second_worker_hash}"
+
           if [[ -z "${first_asset}" || -z "${second_asset}" || "${first_asset}" == "${second_asset}" ]]; then
             echo "::error::The two validation builds did not produce distinct application assets."
+            exit 1
+          fi
+          if [[ "${first_worker_hash}" == "${second_worker_hash}" ]]; then
+            echo "::error::The two validation builds did not produce distinct service workers."
             exit 1
           fi
 
@@ -134,135 +148,4 @@ jobs:
             exit 1
           fi
 
-          cat > "${temp_root}/wor-213.spec.ts" <<'EOF'
-          import { expect, test, type Page } from '@playwright/test';
-          import { cpSync, rmSync } from 'node:fs';
-          import path from 'node:path';
-
-          test.describe.configure({ mode: 'serial' });
-          const baseUrl = 'http://127.0.0.1:4173/';
-          const root = path.resolve(process.cwd(), '.tmp-wor-213');
-          const coordinatorReadyEvent = 'workslip:pwa-update-coordinator-ready';
-
-          function publish(version: 'dist-v1' | 'dist-v2') {
-            const current = path.join(root, 'current');
-            rmSync(current, { recursive: true, force: true });
-            cpSync(path.join(root, version), current, { recursive: true });
-          }
-
-          async function loadControlledClient(page: Page) {
-            await page.addInitScript((eventName) => {
-              const testWindow = window as Window & {
-                __workslipPwaCoordinatorReady?: boolean;
-              };
-              testWindow.__workslipPwaCoordinatorReady = false;
-              window.addEventListener(eventName, () => {
-                testWindow.__workslipPwaCoordinatorReady = true;
-              });
-            }, coordinatorReadyEvent);
-
-            await page.goto(baseUrl, { waitUntil: 'networkidle' });
-            await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
-            await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
-
-            await page.evaluate(async () => {
-              await navigator.serviceWorker.ready;
-            });
-
-            if (!await page.evaluate(() => Boolean(navigator.serviceWorker.controller))) {
-              await page.reload({ waitUntil: 'networkidle' });
-            }
-
-            await expect.poll(
-              () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
-              { timeout: 10_000 },
-            ).toBe(true);
-
-            await expect.poll(
-              () => page.evaluate(() => Boolean(
-                (window as Window & { __workslipPwaCoordinatorReady?: boolean })
-                  .__workslipPwaCoordinatorReady,
-              )),
-              { timeout: 10_000 },
-            ).toBe(true);
-          }
-
-          async function currentAppAsset(page: Page) {
-            return page.locator('script[type="module"][src*="/assets/app-"]').getAttribute('src');
-          }
-
-          async function publishAndDiscoverUpdate(page: Page) {
-            publish('dist-v2');
-            await page.evaluate(async () => {
-              const registration = await navigator.serviceWorker.getRegistration();
-              if (!registration) throw new Error('No service-worker registration found.');
-              await registration.update();
-            });
-            await expect(page.getByRole('button', { name: 'Opdater nu' })).toBeVisible({ timeout: 10_000 });
-          }
-
-          test('button applies one update without leaving the page frozen', async ({ browser }) => {
-            publish('dist-v1');
-            const context = await browser.newContext();
-            const page = await context.newPage();
-            await loadControlledClient(page);
-
-            const previousAsset = await currentAppAsset(page);
-            expect(previousAsset).toBeTruthy();
-            await publishAndDiscoverUpdate(page);
-
-            let updateNavigations = 0;
-            page.on('framenavigated', (frame) => {
-              if (frame === page.mainFrame()) updateNavigations += 1;
-            });
-
-            await page.getByRole('button', { name: 'Opdater nu' }).click();
-            await expect(page.getByRole('button', { name: 'Opdaterer...' })).toBeDisabled();
-
-            await expect.poll(async () => {
-              try {
-                return await currentAppAsset(page);
-              } catch {
-                return null;
-              }
-            }, { timeout: 15_000 }).not.toBe(previousAsset);
-
-            await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
-            await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
-            await page.waitForTimeout(2_000);
-            expect(updateNavigations).toBe(1);
-            await context.close();
-          });
-
-          test('untouched banner applies the same update automatically once', async ({ browser }) => {
-            publish('dist-v1');
-            const context = await browser.newContext();
-            const page = await context.newPage();
-            await loadControlledClient(page);
-
-            const previousAsset = await currentAppAsset(page);
-            expect(previousAsset).toBeTruthy();
-            await publishAndDiscoverUpdate(page);
-
-            let updateNavigations = 0;
-            page.on('framenavigated', (frame) => {
-              if (frame === page.mainFrame()) updateNavigations += 1;
-            });
-
-            await expect.poll(async () => {
-              try {
-                return await currentAppAsset(page);
-              } catch {
-                return null;
-              }
-            }, { timeout: 20_000 }).not.toBe(previousAsset);
-
-            await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
-            await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
-            await page.waitForTimeout(2_000);
-            expect(updateNavigations).toBe(1);
-            await context.close();
-          });
-          EOF
-
-          npx playwright test "${temp_root}/wor-213.spec.ts" --reporter=line --workers=1
+          npx playwright test wor-213.validation.spec.ts --reporter=line --workers=1
