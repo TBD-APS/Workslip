@@ -36,7 +36,7 @@ jobs:
 
   validate-frontend:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: src/FE
@@ -82,3 +82,31 @@ jobs:
         run: npm test -- --run src/features/users/hooks/usePushNotifications.test.ts
       - name: Build production frontend
         run: npm run build
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run browser subscription repair
+        run: |
+          set -Eeuo pipefail
+          npm run dev -- --host 127.0.0.1 --port 4174 > /tmp/wor223-vite.log 2>&1 &
+          vite_pid=$!
+          cleanup() {
+            kill "${vite_pid}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4174/wor-223.validation.html; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "${ready}" != "true" ]]; then
+            cat /tmp/wor223-vite.log || true
+            exit 1
+          fi
+
+          npx playwright test wor-223.validation.spec.ts --reporter=line --workers=1
