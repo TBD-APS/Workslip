@@ -2,7 +2,7 @@
 
 **Status:** Accepted  
 **Date:** 2026-07-28  
-**Amended:** 2026-07-30  
+**Amended:** 2026-07-30
 **Owner:** Workslip architecture owner  
 **Linear:** WOR-196, WOR-213
 

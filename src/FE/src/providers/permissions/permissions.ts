@@ -23,8 +23,10 @@ export type Permission =
   | 'report:view'
   | 'customer:view'
   | 'customer:edit'
+  | 'organization:manage';
 
 const ADMIN_PERMISSIONS: readonly Role[] = [ROLES.Admin, ROLES.Superadmin];
+const SUPERADMIN_PERMISSIONS: readonly Role[] = [ROLES.Superadmin];
 const CUSTOMER_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
 const AUDITOR_PERMISSIONS: readonly Role[] = [ROLES.Auditor, ROLES.Admin, ROLES.Superadmin];
 const USER_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
@@ -39,7 +41,8 @@ const PERMISSIONS: Record<Permission, readonly Role[]> = {
   'user:manage': ADMIN_PERMISSIONS,
   'report:view': AUDITOR_PERMISSIONS,
   'customer:view': CUSTOMER_PERMISSIONS,
-  'customer:edit': ADMIN_PERMISSIONS
+  'customer:edit': ADMIN_PERMISSIONS,
+  'organization:manage': SUPERADMIN_PERMISSIONS,
 };
 
 export function hasPermission(role: string | null | undefined, permission: Permission): boolean {

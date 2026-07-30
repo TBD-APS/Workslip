@@ -1,10 +1,10 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-30  
+**Contract build reviewed:** 2026-07-30<br>
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
-The Postman item with the same route is the maintained request/response example. Parameterized requests use collection variables such as `jobId`, `userId`, `customerId` and `worksheetId`.
+The Postman item with the same route is the maintained request/response example. Parameterized requests use collection variables such as `jobId`, `userId`, `customerId`, `organizationId` and `worksheetId`.
 
 ## Platform
 
@@ -20,13 +20,20 @@ OpenAPI/Scalar exposure must be verified per environment. The current startup ma
 
 | Method | Path | Access | Request/response |
 |---|---|---|---|
-| POST | `/api/organizations/` | Admin | Organization onboarding request → organization and initial-user view |
+| GET | `/api/organizations/` | Superadmin | All organizations ordered by name and CVR |
+| POST | `/api/organizations/` | Superadmin | Organization onboarding request → organization and initial-admin view |
+| POST | `/api/organizations/{organizationId}/session` | Superadmin | Selected organization → 15-minute delegated `AuthTokenResponse` |
+| PUT | `/api/organizations/{organizationId}/admin` | Superadmin | Administrator email, display name and optional phone → created or updated admin view |
+
+These routes support the frontend `/superadmin` page. The admin upsert rejects an email owned by another organization, protects existing `Superadmin` accounts from demotion, sends a Microsoft Entra B2B invitation for new identities, assigns the Entra `Admin` app role and returns `entraInvitationSent` so the UI can distinguish a newly sent invitation from reuse of an existing identity.
+
+The delegated session endpoint does not modify the Superadmin user row or create organization memberships. It verifies the target organization and the actor's current database role, then returns a short-lived token whose `organizationId` is the selected organization while the real Superadmin user ID and role are preserved. The original token is restored when the frontend exits the session or the delegated token expires.
 
 ## Authentication and invitations
 
 | Method | Path | Access | Request/response |
 |---|---|---|---|
-| GET | `/api/auth/me` | Read | Current user view |
+| GET | `/api/auth/me` | Read | Current user view; delegated Superadmins receive the effective organization ID |
 | PATCH | `/api/auth/me` | User | Profile update → user view |
 | POST | `/api/auth/send-code` | Anonymous | `{ "email": "..." }` → generic `200` message |
 | POST | `/api/auth/verify-code/{code}` | Anonymous | Email body + code path → local bearer token |
@@ -105,11 +112,13 @@ Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/ci
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/api/push-subscriptions/` | User | Browser push endpoint and keys → mapped result |
+| POST | `/api/push-subscriptions/` | User, excluding Superadmin | Browser push endpoint and keys → mapped result |
 | GET | `/api/notifications/` | User | `limit`, `offset` → notification history |
 | PATCH | `/api/notifications/{id}/read` | User | Marks one notification read → `204` |
 | POST | `/api/notifications/read-all` | User | Marks all read → `204` |
 | DELETE | `/api/notifications/{id}` | User | Deletes one owned notification → mapped result |
+
+Superadmins are blocked from push registration so a device used during a delegated organization session is never attached to a tenant notification stream.
 
 ## Operations
 

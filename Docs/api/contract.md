@@ -3,7 +3,7 @@
 **State:** Maintained  
 **Owner:** Backend/API  
 **Review:** With every endpoint, auth or response-shape change  
-**Linear:** WOR-146, WOR-193
+**Linear:** WOR-107, WOR-146, WOR-193
 
 ## Source of truth
 
@@ -34,7 +34,60 @@ Policy meanings:
 | `RequireAdmin` | Admin or a higher configured role. |
 | `RequireSuperAdmin` | Superadmin only. |
 
-The API derives organization, user and role from authenticated claims. Integrations must not send or trust a client-selected organization ID as an authorization boundary.
+The API derives organization, user and role from authenticated claims. Integrations must not send or trust a client-selected organization ID as an authorization boundary except on explicitly Superadmin-only platform administration routes.
+
+## Organization administration
+
+The following platform operations require `RequireSuperAdmin`:
+
+```text
+GET  /api/organizations/
+POST /api/organizations/
+POST /api/organizations/{organizationId}/session
+PUT  /api/organizations/{organizationId}/admin
+```
+
+The GET operation returns all organizations ordered by name and CVR for the `/superadmin` administration page. This is an intentional cross-tenant read and must remain inside the exclusive Superadmin route group.
+
+Organization creation returns the organization and its initial local administrator placeholder. The administrator upsert accepts `email`, `displayName` and optional `phone`, normalizes the email address, creates a Microsoft Entra B2B invitation when needed, sends the Entra invitation message with `/login` as the redemption redirect, assigns the Entra `Admin` app role, and creates or updates the local `Admin` row in the selected organization.
+
+The admin response includes `entraInvitationSent`. It is `true` only when a new Entra guest and invitation message were created. It is `false` when an existing Entra identity was reused and its Admin role/local record was updated.
+
+Sequential upserts for the same organization and email are idempotent. An email already owned by another organization returns `email_in_use`, and an existing `Superadmin` account is never converted to `Admin` (`superadmin_role_protected`). Conditional writes reject stale concurrent changes with `admin_state_changed`; clients may reload and retry. If Workslip creates a new Entra guest but SQL persistence fails, it removes that guest only when no persisted user references the identity.
+
+Non-empty user emails are globally unique through the filtered SQL index `UX_Users_Email`, matching the identity lookup used by authentication. Schema initialization fails explicitly if legacy duplicate non-empty emails exist, because silently selecting one organization would violate tenant isolation.
+
+### Delegated organization sessions
+
+`POST /api/organizations/{organizationId}/session` validates that:
+
+- the authenticated claim role is `Superadmin`;
+- the current Workslip database row still has the `Superadmin` role;
+- the selected organization exists.
+
+On success it returns the standard `AuthTokenResponse` with a short-lived local Workslip token. The token keeps the real Superadmin user ID, email, display name and role, but its `organizationId` claim is the selected organization. It also contains:
+
+- `homeOrganizationId`: the Superadmin row's permanent organization;
+- `delegatedOrganizationSession=true`;
+- a unique `jti`.
+
+The delegated token expires after 15 minutes by default. `Jwt:OrganizationSessionExpiryMinutes` may configure a value from 1 through 30 minutes. It has no refresh flow. Selecting an organization does not update the user row, create a membership, modify Entra, or change any tenant service contract.
+
+The frontend preserves the original Superadmin token, clears tenant query state before entering or leaving an organization, displays the effective organization continuously, and restores the original token on explicit exit or delegated-token expiry. Superadmins cannot register tenant push subscriptions, and tenant notification/profile UI is hidden during delegated use.
+
+The official frontend makes Superadmin organization administration and delegated
+organization sessions available only on desktop-class devices. On iOS, Android,
+and iPadOS a valid delegated recovery state is restored to the home Superadmin
+token before authentication bootstrap and then shows an authenticated
+desktop-only blocker. An expired delegated token can still restore a matching,
+unexpired home token; a missing or expired home token, malformed claims,
+cross-actor state, or organization-inconsistent recovery state is cleared and
+requires a new login.
+This is a frontend product boundary, not a bearer-token security guarantee: API
+clients must rely on the authorization policies and token validation documented
+above rather than device detection.
+
+Ordinary repositories continue using the authenticated `organizationId` claim. Audit data therefore records the real Superadmin actor while operational reads and writes remain scoped to the selected organization.
 
 ## User role fields
 

@@ -6,6 +6,7 @@ public sealed record UserPeriodHours(decimal HoursThisWeek, decimal HoursThisMon
 
 public interface IUserRepository
 {
+    Task<UserDataRow?> GetAuthenticatedActorAsync(Guid id, CancellationToken cancellationToken);
     Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken);
     Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, IReadOnlyCollection<string> emailCandidates, CancellationToken cancellationToken);

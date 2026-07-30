@@ -16,6 +16,7 @@
     "build": "tsc -b && npm run typecheck:sw && vite build",
     "build:dev": "npm run generate:api:dev && npm run sync:fonts && tsc -b && npm run typecheck:sw && vite build",
     "build:local": "npm run generate:api:local && npm run sync:fonts && tsc -b && npm run typecheck:sw && vite build",
+    "test": "vitest",
     "lint": "eslint .",
     "preview": "vite preview",
     "generate:api:watch": "orval --watch",
@@ -46,6 +47,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
     "@types/node": "^24.13.1",
     "@types/qs": "^6.15.1",
     "@types/react": "^19.2.14",
@@ -56,11 +59,13 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "jsdom": "26.1.0",
     "orval": "^8.18.0",
     "react-doctor": "^0.4.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.16",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "4.1.10"
   }
 }

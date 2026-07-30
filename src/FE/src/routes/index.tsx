@@ -6,6 +6,7 @@ import { useAuth } from '../providers/useAuth';
 import { RoleGuard } from '../providers/permissions';
 import { Login } from '../features/auth/routes/Login';
 import { reportFrontendError } from '../applicationInsights';
+import { DesktopOnlySuperadminBoundary } from '../features/superadmin/components/DesktopOnlySuperadmin';
 
 const AUTH_STARTUP_GRACE_MS = 6_000;
 
@@ -65,6 +66,9 @@ const Profile = lazy(() =>
 );
 const LegalPage = lazy(() =>
   import('../features/legal').then((module) => ({ default: module.LegalPage })),
+);
+const SuperAdmin = lazy(() =>
+  import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
 );
 
 interface StartupRecoveryProps {
@@ -221,7 +225,13 @@ export const router = createBrowserRouter([
       { path: '/invite/:token', element: <InviteAccept /> },
       {
         path: '/app',
-        element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
+        element: (
+          <ProtectedRoute>
+            <DesktopOnlySuperadminBoundary>
+              <AppLayout />
+            </DesktopOnlySuperadminBoundary>
+          </ProtectedRoute>
+        ),
         children: [
           { index: true, element: <JobList /> },
           { path: 'timer', element: <MyWorksheets /> },
@@ -240,6 +250,26 @@ export const router = createBrowserRouter([
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
           { path: 'legal/:type', element: <LegalPage /> },
+        ],
+      },
+      {
+        path: '/superadmin',
+        element: (
+          <ProtectedRoute>
+            <DesktopOnlySuperadminBoundary>
+              <AppLayout />
+            </DesktopOnlySuperadminBoundary>
+          </ProtectedRoute>
+        ),
+        children: [
+          {
+            index: true,
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <SuperAdmin />
+              </RoleGuard>
+            ),
+          },
         ],
       },
       {

@@ -19,8 +19,13 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
     services.AddScoped<IJobService, JobService>();
     services.AddScoped<JobValidationService>();
     services.AddScoped<IOrganizationService, OrganizationService>();
+    services.AddScoped<IOrganizationSessionService, OrganizationSessionService>();
     services.AddScoped<IUserService, UserService>();
-    services.AddScoped<IUserEntraService, UserEntraService>();
+    services.AddScoped<UserEntraService>();
+    services.AddScoped<IUserEntraService>(serviceProvider =>
+        serviceProvider.GetRequiredService<UserEntraService>());
+    services.AddScoped<ISuperadminEntraService>(serviceProvider =>
+        serviceProvider.GetRequiredService<UserEntraService>());
     services.AddScoped<IAuthService, AuthService>();
     services.AddScoped<IInvitationService, InvitationService>();
     services.AddScoped<IInvitationStatusService, InvitationStatusService>();

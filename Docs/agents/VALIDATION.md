@@ -1,8 +1,8 @@
 # Workslip testing and validation contract
 
-**Status:** Active  
-**Owner:** Workslip maintainers  
-**Source of truth:** Executed commands, test output, browser evidence, workflow results, and deployed smoke observations  
+**Status:** Active
+**Owner:** Workslip maintainers
+**Source of truth:** Executed commands, test output, browser evidence, workflow results, and deployed smoke observations
 **Review cadence:** When test infrastructure, CI, or critical user flows change
 
 ## Validation truth

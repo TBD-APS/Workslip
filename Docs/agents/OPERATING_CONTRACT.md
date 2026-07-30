@@ -1,8 +1,8 @@
 # Workslip implementation-agent operating contract
 
-**Status:** Active  
-**Owner:** Workslip maintainers  
-**Source of truth:** Current repository, active ADRs, maintained architecture documentation, Linear, and executable validation evidence  
+**Status:** Active
+**Owner:** Workslip maintainers
+**Source of truth:** Current repository, active ADRs, maintained architecture documentation, Linear, and executable validation evidence
 **Review cadence:** When agent workflow, repository structure, or delivery expectations change
 
 ## Responsibility split

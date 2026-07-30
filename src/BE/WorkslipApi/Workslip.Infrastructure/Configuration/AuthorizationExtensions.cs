@@ -28,6 +28,14 @@ public static class AuthorizationExtensions
         return group;
     }
 
+    public static RouteGroupBuilder MapSuperAdminGroup(this IEndpointRouteBuilder app, string prefix, string? tag = null)
+    {
+        var path = prefix.TrimEnd('/');
+        var group = app.MapGroup(path).RequireAuthorization(AuthPolicies.RequireSuperAdmin);
+        if (tag is not null) group.WithTags(tag);
+        return group;
+    }
+
     public static (RouteGroupBuilder read, RouteGroupBuilder user) MapReadUserGroups(
         this IEndpointRouteBuilder app, string prefix, string? tag = null)
     {

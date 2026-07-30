@@ -1,6 +1,7 @@
 using Workslip.Application.Auth;
 using Workslip.Application.Notifications;
 using System.Text.Json;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 using ResultExtensions = Workslip.Api.Helpers.ResultExtensions;
 
@@ -56,6 +57,14 @@ public static class PushNotificationEndpoints
             if (userId is null)
             {
                 return Results.Unauthorized();
+            }
+
+            // A delegated Superadmin session changes the effective organization
+            // while preserving the platform actor. Never bind that device to a
+            // tenant notification stream.
+            if (string.Equals(currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.Forbid();
             }
 
             var result = await subscriptionService.RegisterSubscriptionAsync(
