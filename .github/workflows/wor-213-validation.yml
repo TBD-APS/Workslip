@@ -1,0 +1,151 @@
+name: TEMP — Assistant Validation — WOR-213
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/FE/src/registerSW.ts'
+      - 'src/FE/src/sw.ts'
+      - 'src/FE/src/lib/pwaUpdateEvents.ts'
+      - 'src/FE/src/components/common/PwaUpdateBanner.tsx'
+      - 'src/FE/src/components/common/PwaUpdateBanner.test.tsx'
+      - 'src/FE/wor-213.validation.spec.ts'
+      - 'Docs/architecture/adr/0002-immediate-pwa-update-activation.md'
+      - '.github/workflows/wor-213-validation.yml'
+
+permissions:
+  contents: read
+
+env:
+  OPENAPI_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
+
+jobs:
+  validate:
+    name: Build and two-version browser update
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: src/FE
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate frontend API client
+        run: npx orval --config orval.config.ts
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
+
+      - name: Align legacy test fixtures with generated API model
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          fixture_paths = [
+              Path('src/components/layouts/AppLayout.desktopOnly.test.tsx'),
+              Path('src/features/superadmin/components/DesktopOnlySuperadmin.test.tsx'),
+          ]
+          needle = "  role: 'Superadmin',\n"
+          replacement = needle + "  roleDisplayName: 'Superadmin',\n"
+
+          for fixture_path in fixture_paths:
+              content = fixture_path.read_text(encoding='utf-8')
+              if 'roleDisplayName:' in content:
+                  continue
+              if needle not in content:
+                  raise SystemExit(f'Expected Superadmin fixture not found in {fixture_path}')
+              fixture_path.write_text(
+                  content.replace(needle, replacement, 1),
+                  encoding='utf-8',
+              )
+          PY
+
+      - name: Lint affected frontend files
+        run: >-
+          npx eslint
+          src/registerSW.ts
+          src/sw.ts
+          src/lib/pwaUpdateEvents.ts
+          src/components/common/PwaUpdateBanner.tsx
+          src/components/common/PwaUpdateBanner.test.tsx
+
+      - name: Test update banner acknowledgement
+        run: npm test -- --run src/components/common/PwaUpdateBanner.test.tsx
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Validate real service-worker update lifecycle
+        run: |
+          set -Eeuo pipefail
+
+          temp_root=".tmp-wor-213"
+          rm -rf "${temp_root}"
+          mkdir -p "${temp_root}"
+
+          npm run build
+          cp -R dist "${temp_root}/dist-v1"
+          sleep 2
+          npm run build
+          cp -R dist "${temp_root}/dist-v2"
+
+          first_asset="$(find "${temp_root}/dist-v1/assets" -maxdepth 1 -name 'app-*.js' -printf '%f\n' | head -n 1)"
+          second_asset="$(find "${temp_root}/dist-v2/assets" -maxdepth 1 -name 'app-*.js' -printf '%f\n' | head -n 1)"
+          first_worker_hash="$(sha256sum "${temp_root}/dist-v1/sw.js" | cut -d' ' -f1)"
+          second_worker_hash="$(sha256sum "${temp_root}/dist-v2/sw.js" | cut -d' ' -f1)"
+
+          echo "Version A app asset: ${first_asset}"
+          echo "Version B app asset: ${second_asset}"
+          echo "Version A worker: ${first_worker_hash}"
+          echo "Version B worker: ${second_worker_hash}"
+
+          if [[ -z "${first_asset}" || -z "${second_asset}" || "${first_asset}" == "${second_asset}" ]]; then
+            echo "::error::The two validation builds did not produce distinct application assets."
+            exit 1
+          fi
+          if [[ "${first_worker_hash}" == "${second_worker_hash}" ]]; then
+            echo "::error::The two validation builds did not produce distinct service workers."
+            exit 1
+          fi
+
+          cp -R "${temp_root}/dist-v1" "${temp_root}/current"
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory "${temp_root}/current" > "${temp_root}/server.log" 2>&1 &
+          server_pid=$!
+
+          cleanup() {
+            kill "${server_pid}" 2>/dev/null || true
+            rm -rf "${temp_root}"
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4173/; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "${ready}" != "true" ]]; then
+            cat "${temp_root}/server.log" || true
+            echo "::error::Validation server did not become ready."
+            exit 1
+          fi
+
+          npx playwright test wor-213.validation.spec.ts --reporter=line --workers=1

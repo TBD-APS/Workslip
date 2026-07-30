@@ -17,25 +17,12 @@ const PRECACHED_URLS = new Set(
 );
 const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
 const MAX_RUNTIME_ASSET_ENTRIES = 150;
-const REPLACES_ACTIVE_WORKER = Boolean(self.registration.active);
 
 cleanupOutdatedCaches();
 precacheAndRoute(PRECACHE_MANIFEST);
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    await self.clients.claim();
-    if (!REPLACES_ACTIVE_WORKER) return;
-
-    const windowClients = await self.clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true,
-    });
-
-    await Promise.allSettled(
-      windowClients.map((client) => (client as WindowClient).navigate(client.url)),
-    );
-  })());
+  event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener('message', (event) => {

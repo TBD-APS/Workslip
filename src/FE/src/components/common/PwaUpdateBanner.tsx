@@ -43,10 +43,7 @@ export function PwaUpdateBanner() {
         type="button"
         className="btn btn-primary btn-sm pwa-update-banner-button"
         disabled={isApplying}
-        onClick={() => {
-          setUpdateState('applying');
-          requestPwaUpdate();
-        }}
+        onClick={requestPwaUpdate}
       >
         {isApplying ? 'Opdaterer...' : 'Opdater nu'}
       </button>

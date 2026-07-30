@@ -2,16 +2,18 @@
 import { registerSW } from 'virtual:pwa-register';
 import {
   announcePwaUpdateApplying,
+  announcePwaUpdateCoordinatorReady,
   announcePwaUpdateReady,
   PWA_UPDATE_APPLY_EVENT,
 } from './lib/pwaUpdateEvents';
 
 const UPDATE_INTERVAL_MS = 60 * 1000;
 const UPDATE_ACTIVATION_GRACE_MS = 10_000;
-const UPDATE_RELOAD_FALLBACK_MS = 2_000;
-const CONFIRMED_RELOAD_GUARD_MS = 10_000;
-const CONFIRMED_RELOAD_AT_KEY = 'workslip.pwaUpdateReloadAt';
+const UPDATE_RELOAD_FALLBACK_MS = 5_000;
+const WAITING_WORKER_RESOLVE_TIMEOUT_MS = 2_000;
+const WAITING_WORKER_POLL_INTERVAL_MS = 50;
 const FALLBACK_RELOAD_KEY = `workslip.pwaUpdateFallback:${__BUILD_TIME__}`;
+const SKIP_WAITING_MESSAGE = { type: 'SKIP_WAITING' } as const;
 
 const serviceWorkerSupported = 'serviceWorker' in navigator;
 const hadControllerAtStartup = serviceWorkerSupported
@@ -22,7 +24,9 @@ let reloadFallback: number | undefined;
 let automaticUpdateTimer: number | undefined;
 let updateAvailable = false;
 let updateApplying = false;
-let updateServiceWorker: ReturnType<typeof registerSW> | null = null;
+let updateActivationResolving = false;
+let serviceWorkerRegistration: ServiceWorkerRegistration | null = null;
+let requestRegisteredUpdate: (() => void) | null = null;
 
 function readSessionValue(key: string) {
   try {
@@ -36,14 +40,40 @@ function writeSessionValue(key: string, value: string) {
   try {
     window.sessionStorage.setItem(key, value);
   } catch {
-    // The in-memory guard still prevents duplicate reloads in this document.
+    // The document-level guards still prevent duplicate work in this page.
   }
 }
 
-function wasConfirmedReloadRecent() {
-  const lastReloadAt = Number(readSessionValue(CONFIRMED_RELOAD_AT_KEY));
-  return Number.isFinite(lastReloadAt)
-    && Date.now() - lastReloadAt < CONFIRMED_RELOAD_GUARD_MS;
+function wasFallbackReloadUsedForCurrentBuild() {
+  return readSessionValue(FALLBACK_RELOAD_KEY) === '1';
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
+async function resolveServiceWorkerRegistration() {
+  if (serviceWorkerRegistration) return serviceWorkerRegistration;
+
+  const resolvedRegistration = await navigator.serviceWorker.getRegistration();
+  serviceWorkerRegistration = resolvedRegistration ?? null;
+  return serviceWorkerRegistration;
+}
+
+async function waitForWaitingWorker() {
+  if (!serviceWorkerSupported) return null;
+
+  const registration = await resolveServiceWorkerRegistration();
+  if (!registration) return null;
+
+  const deadline = Date.now() + WAITING_WORKER_RESOLVE_TIMEOUT_MS;
+  while (true) {
+    if (registration.waiting) return registration.waiting;
+    if (Date.now() >= deadline) return null;
+    await delay(WAITING_WORKER_POLL_INTERVAL_MS);
+  }
 }
 
 function clearReloadFallback() {
@@ -61,38 +91,45 @@ function clearAutomaticUpdateTimer() {
 }
 
 function reloadForUpdate() {
-  if (!hadControllerAtStartup || reloadRequested || wasConfirmedReloadRecent()) return;
+  if (!hadControllerAtStartup || reloadRequested) return;
 
   reloadRequested = true;
-  updateApplying = true;
-  announcePwaUpdateApplying();
-  writeSessionValue(CONFIRMED_RELOAD_AT_KEY, Date.now().toString());
   clearAutomaticUpdateTimer();
   clearReloadFallback();
   window.location.reload();
 }
 
+function recoverFromActivationTimeout() {
+  reloadFallback = undefined;
+  if (reloadRequested) return;
+
+  updateApplying = false;
+  updateAvailable = Boolean(serviceWorkerRegistration?.waiting);
+
+  if (updateAvailable) {
+    // Keep the action usable, but do not schedule another automatic attempt for
+    // the same old build after its one permitted emergency reload was consumed.
+    announcePwaUpdateReady();
+  } else {
+    requestRegisteredUpdate?.();
+  }
+}
+
 function reloadFromFallback() {
   reloadFallback = undefined;
-  if (!hadControllerAtStartup || reloadRequested || readSessionValue(FALLBACK_RELOAD_KEY)) return;
+  if (!hadControllerAtStartup || reloadRequested) return;
 
-  reloadRequested = true;
-  updateApplying = true;
-  announcePwaUpdateApplying();
   writeSessionValue(FALLBACK_RELOAD_KEY, '1');
-  clearAutomaticUpdateTimer();
-  window.location.reload();
+  reloadForUpdate();
 }
 
 function scheduleReloadFallback() {
-  if (
-    !hadControllerAtStartup
-    || reloadRequested
-    || reloadFallback !== undefined
-    || readSessionValue(FALLBACK_RELOAD_KEY)
-  ) return;
+  if (!hadControllerAtStartup || reloadRequested || reloadFallback !== undefined) return;
 
-  reloadFallback = window.setTimeout(reloadFromFallback, UPDATE_RELOAD_FALLBACK_MS);
+  const fallbackAction = wasFallbackReloadUsedForCurrentBuild()
+    ? recoverFromActivationTimeout
+    : reloadFromFallback;
+  reloadFallback = window.setTimeout(fallbackAction, UPDATE_RELOAD_FALLBACK_MS);
 }
 
 function announceUpdateAvailable() {
@@ -101,34 +138,72 @@ function announceUpdateAvailable() {
   updateAvailable = true;
   announcePwaUpdateReady();
 
-  if (automaticUpdateTimer !== undefined) return;
+  if (
+    automaticUpdateTimer !== undefined
+    || wasFallbackReloadUsedForCurrentBuild()
+  ) return;
 
   automaticUpdateTimer = window.setTimeout(() => {
     automaticUpdateTimer = undefined;
-    applyAvailableUpdate();
+    void applyAvailableUpdate();
   }, UPDATE_ACTIVATION_GRACE_MS);
 }
 
-function applyAvailableUpdate() {
+async function resolveRegistrationAndAnnounceUpdate() {
+  if (!serviceWorkerSupported || updateApplying) return;
+
+  const waitingWorker = await waitForWaitingWorker();
+  if (waitingWorker) {
+    announceUpdateAvailable();
+  } else {
+    requestRegisteredUpdate?.();
+  }
+}
+
+function recoverFromActivationFailure(error: unknown) {
+  updateApplying = false;
+  clearReloadFallback();
+  console.error('[PWA] Failed to activate update:', error);
+
+  updateAvailable = Boolean(serviceWorkerRegistration?.waiting);
+  if (updateAvailable) {
+    announceUpdateAvailable();
+  } else {
+    requestRegisteredUpdate?.();
+  }
+}
+
+async function applyAvailableUpdate() {
   if (
     !hadControllerAtStartup
     || !updateAvailable
     || updateApplying
-    || !updateServiceWorker
+    || updateActivationResolving
   ) return;
 
-  updateAvailable = false;
-  updateApplying = true;
-  clearAutomaticUpdateTimer();
-  announcePwaUpdateApplying();
-  scheduleReloadFallback();
+  updateActivationResolving = true;
+  try {
+    const waitingWorker = await waitForWaitingWorker();
+    if (!waitingWorker) {
+      updateAvailable = false;
+      requestRegisteredUpdate?.();
+      return;
+    }
 
-  void updateServiceWorker().catch((error) => {
-    updateApplying = false;
-    clearReloadFallback();
-    console.error('[PWA] Failed to apply update:', error);
-    announceUpdateAvailable();
-  });
+    updateAvailable = false;
+    updateApplying = true;
+    clearAutomaticUpdateTimer();
+    announcePwaUpdateApplying();
+    scheduleReloadFallback();
+
+    try {
+      waitingWorker.postMessage(SKIP_WAITING_MESSAGE);
+    } catch (error) {
+      recoverFromActivationFailure(error);
+    }
+  } finally {
+    updateActivationResolving = false;
+  }
 }
 
 async function checkForServiceWorkerUpdate(
@@ -139,6 +214,7 @@ async function checkForServiceWorkerUpdate(
     !navigator.onLine
     || registration.installing
     || registration.waiting
+    || updateApplying
   ) return;
 
   try {
@@ -159,14 +235,22 @@ async function checkForServiceWorkerUpdate(
 }
 
 if (serviceWorkerSupported) {
+  // Native controller changes and the plugin's controlling callback both feed
+  // this single guarded reload coordinator. The worker never navigates clients.
   navigator.serviceWorker.addEventListener('controllerchange', reloadForUpdate);
 }
 
-window.addEventListener(PWA_UPDATE_APPLY_EVENT, applyAvailableUpdate);
+window.addEventListener(PWA_UPDATE_APPLY_EVENT, () => {
+  void applyAvailableUpdate();
+});
 
-updateServiceWorker = registerSW({
+registerSW({
   immediate: true,
-  onNeedRefresh: announceUpdateAvailable,
+  onNeedRefresh() {
+    void resolveRegistrationAndAnnounceUpdate();
+  },
+  // vite-plugin-pwa otherwise reloads directly from its Workbox controlling
+  // listener. Route that signal through the same one-shot coordinator instead.
   onNeedReload: reloadForUpdate,
   onOfflineReady() {
     console.log('[PWA] App is ready for offline use');
@@ -174,9 +258,7 @@ updateServiceWorker = registerSW({
   onRegisteredSW(swUrl, registration) {
     if (!registration) return;
 
-    if (registration.waiting) {
-      announceUpdateAvailable();
-    }
+    serviceWorkerRegistration = registration;
 
     let updateCheck: Promise<void> | null = null;
     const requestUpdate = () => {
@@ -187,6 +269,12 @@ updateServiceWorker = registerSW({
           updateCheck = null;
         });
     };
+
+    requestRegisteredUpdate = requestUpdate;
+
+    if (registration.waiting) {
+      announceUpdateAvailable();
+    }
 
     // Discover a deployment immediately when the app starts, returns to the
     // foreground or regains connectivity, and at most one minute afterwards.
@@ -199,6 +287,8 @@ updateServiceWorker = registerSW({
         requestUpdate();
       }
     });
+
+    announcePwaUpdateCoordinatorReady();
   },
   onRegisterError(error) {
     console.error('[PWA] Registration failed:', error);
