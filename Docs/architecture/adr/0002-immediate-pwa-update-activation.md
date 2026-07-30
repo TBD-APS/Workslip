@@ -30,10 +30,10 @@ The first visible update implementation let the banner enter `Opdaterer...` befo
 4. Update checks are serialized and use no-cache service-worker requests.
 5. When a real waiting worker exists, Workslip displays a persistent `Ny version klar` banner with an `Opdater nu` action.
 6. Selecting `Opdater nu` asks the service-worker coordinator to apply the update. The banner enters `Opdaterer...` only after the coordinator has accepted an actual waiting worker. If the user does nothing, the same action runs automatically after ten seconds.
-7. The coordinator sends `SKIP_WAITING` directly to the waiting worker instead of invoking a second plugin-owned reload path.
+7. The coordinator sends `SKIP_WAITING` directly to the waiting worker instead of invoking the plugin's returned update function.
 8. The newly activated worker claims clients but does not navigate window clients.
-9. `controllerchange` is the single normal page-reload owner. One in-memory guard prevents duplicate controller events from reloading the same document more than once.
-10. A five-second fallback reload covers installed/mobile browser contexts that omit the expected controller event. It shares the same one-shot guard and is cancelled when the normal reload path wins.
+9. One guarded client reload function is the only navigation owner. Both the browser's `controllerchange` event and the plugin's `controlling` callback feed that function, covering browser differences without allowing duplicate reloads.
+10. A five-second fallback reload covers installed/mobile browser contexts that omit both expected control-change signals. It shares the same one-shot guard and is cancelled when a normal signal wins.
 11. The update banner is informational and cannot permanently dismiss or block the deployment.
 12. The public bootstrap shell is precached. Authenticated route chunks are loaded and cached on first use.
 13. Previously fetched content-hashed route assets remain in a capped runtime cache across deployments to support already-open clients.
@@ -45,7 +45,8 @@ The first visible update implementation let the banner enter `Opdaterer...` befo
 - Users receive visible confirmation that a new version was detected and can apply it immediately.
 - A detected production deployment still applies automatically without a button press or full app close.
 - A click cannot disable the update control unless a waiting worker was actually accepted for activation.
-- Service-worker activation has one normal reload owner instead of worker navigation, plugin reload and client reload racing each other.
+- Service-worker activation has one navigation owner instead of worker navigation, plugin direct reload and client reload racing each other.
+- Native and plugin lifecycle events provide redundant signals while the shared guard preserves one effective navigation.
 - An app that stays open and visible discovers a deployment within approximately one minute, followed by at most a ten-second visible grace period; reopening, refocusing or reconnecting triggers an immediate check.
 - The one-shot reload guard and bounded fallback prevent duplicate lifecycle events from creating a reload loop or a permanently applying banner.
 - Unsaved in-memory form state may be lost when a deployment reloads the active client. This is an accepted product trade-off.
@@ -59,7 +60,8 @@ The first visible update implementation let the banner enter `Opdaterer...` befo
 - Mandatory confirmation: rejected because the product owner still requires automatic rollout without user action.
 - Invisible automatic activation only: rejected because it gives users no fallback action or confidence that an update was detected.
 - Worker-side `WindowClient.navigate`: rejected after production testing because it races client/plugin reload paths and makes effective navigation ownership ambiguous.
-- Plugin update function plus custom reload handlers: rejected because both can own navigation after the same `SKIP_WAITING` activation.
+- Plugin returned update function plus custom activation/reload handlers: rejected because it obscures which waiting worker is activated and can duplicate control-change handling.
+- Letting the plugin call `window.location.reload()` directly: rejected because its navigation would bypass Workslip's shared one-shot guard.
 - Two-second fallback: rejected because it can race normal service-worker activation on installed/mobile browsers.
 - Reload on first service-worker installation: rejected because there is no previous application version to replace.
 - Precache every authenticated route chunk: rejected because it removes the initial-load performance benefit of route splitting.
