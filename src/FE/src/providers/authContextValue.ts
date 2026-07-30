@@ -81,6 +81,7 @@ export interface AuthContextType {
   login: (email: string, code: string) => Promise<boolean>;
   devLogin: (email: string) => Promise<boolean>;
   logout: () => void;
+  clearLocalSession: () => void;
   updateUser: (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => void;
   meQuery: AuthMeQuery;
 }
