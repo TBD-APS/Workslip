@@ -2,6 +2,7 @@
 import { registerSW } from 'virtual:pwa-register';
 import {
   announcePwaUpdateApplying,
+  announcePwaUpdateCoordinatorReady,
   announcePwaUpdateReady,
   PWA_UPDATE_APPLY_EVENT,
 } from './lib/pwaUpdateEvents';
@@ -286,6 +287,8 @@ registerSW({
         requestUpdate();
       }
     });
+
+    announcePwaUpdateCoordinatorReady();
   },
   onRegisterError(error) {
     console.error('[PWA] Registration failed:', error);
