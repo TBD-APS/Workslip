@@ -65,6 +65,8 @@ jobs:
             zip -q -r "${DEPLOY_PACKAGE}" .
           )
           unzip -Z1 "${DEPLOY_PACKAGE}" | grep -qx 'Workslip.Api.dll'
+          package_bytes="$(stat -c '%s' "${DEPLOY_PACKAGE}")"
+          echo "Deployment package size: ${package_bytes} bytes"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -122,9 +124,12 @@ jobs:
         run: |
           set -Eeuo pipefail
           max_attempts=3
+          deployment_log="$(mktemp)"
+          trap 'rm -f "${deployment_log}"' EXIT
 
           for attempt in $(seq 1 "${max_attempts}"); do
             echo "App Service deployment attempt ${attempt}/${max_attempts}"
+            : > "${deployment_log}"
 
             if az webapp deploy \
               --resource-group "${AZURE_RESOURCE_GROUP}" \
@@ -136,12 +141,28 @@ jobs:
               --enable-kudu-warmup true \
               --enriched-errors true \
               --track-status false \
-              --timeout 600000; then
+              --timeout 600000 2>&1 | tee "${deployment_log}"; then
               exit 0
             fi
 
+            disk_full=false
+            if grep -Fqi 'There is not enough space on the disk' "${deployment_log}"; then
+              disk_full=true
+              echo "::warning::Kudu reported a full local deployment disk."
+            fi
+
             if [[ "${attempt}" -lt "${max_attempts}" ]]; then
-              delay_seconds=$((attempt * 30))
+              if [[ "${disk_full}" == "true" ]]; then
+                echo "Recycling ${AZURE_WEBAPP_NAME} to clear its temporary local storage before retrying."
+                az webapp restart \
+                  --resource-group "${AZURE_RESOURCE_GROUP}" \
+                  --name "${AZURE_WEBAPP_NAME}" \
+                  --output none
+                delay_seconds=30
+              else
+                delay_seconds=$((attempt * 30))
+              fi
+
               echo "::warning::App Service deployment attempt ${attempt} failed. Retrying in ${delay_seconds} seconds."
               sleep "${delay_seconds}"
             fi
