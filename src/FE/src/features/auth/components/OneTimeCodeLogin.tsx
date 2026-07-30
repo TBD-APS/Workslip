@@ -108,6 +108,7 @@ export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
           <div>
             <p>En kode er sendt til</p>
             <p className="login-email-info">{email}</p>
+            <p id="otc-code-help">Kan du ikke finde mailen? Tjek spam eller uønsket post.</p>
           </div>
         )}
       </div>
@@ -182,9 +183,6 @@ export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
                 />
               )}
             />
-            <p id="otc-code-help" className="login-code-help">
-              Kan du ikke finde mailen? Tjek spam eller uønsket post.
-            </p>
             {codeForm.formState.errors.code && (
               <span id="otc-code-error" className="form-error-text">
                 {codeForm.formState.errors.code.message}
