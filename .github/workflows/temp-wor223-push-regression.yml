@@ -1,0 +1,57 @@
+name: TEMP WOR-223 push notification regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/BE/WorkslipApi/**'
+      - 'src/FE/**'
+      - '.github/workflows/temp-wor223-push-regression.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore backend
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+      - name: Build backend
+        run: dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-restore
+      - name: Run focused push tests
+        run: >-
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-build
+          --filter 'FullyQualifiedName~Workslip.Tests.Notifications.VapidKeyMaterialTests|FullyQualifiedName~Workslip.Tests.Notifications.EfNotificationRepositoryTests'
+
+  validate-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src/FE
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - run: npm ci
+      - name: Lint affected frontend files
+        run: >-
+          npx eslint
+          src/features/users/api/pushSubscriptions.ts
+          src/features/users/hooks/usePushNotifications.ts
+          src/features/users/hooks/usePushNotifications.test.ts
+      - name: Run focused frontend tests
+        run: npm test -- --run src/features/users/hooks/usePushNotifications.test.ts
+      - name: Build production frontend
+        run: npm run build
