@@ -11,6 +11,9 @@ on:
 permissions:
   contents: read
 
+env:
+  OPENAPI_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -28,6 +31,12 @@ jobs:
       - name: Install frontend dependencies
         working-directory: src/FE
         run: npm ci
+
+      - name: Generate frontend API client
+        working-directory: src/FE
+        run: npx orval --config orval.config.ts
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
 
       - name: Lint affected frontend file
         working-directory: src/FE
