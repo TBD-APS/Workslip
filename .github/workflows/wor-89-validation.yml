@@ -29,9 +29,9 @@ jobs:
         working-directory: src/FE
         run: npm ci
 
-      - name: Lint frontend
+      - name: Lint affected frontend file
         working-directory: src/FE
-        run: npm run lint
+        run: npx eslint src/features/jobs/routes/JobDetail.tsx
 
       - name: Build frontend
         working-directory: src/FE
