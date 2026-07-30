@@ -73,7 +73,9 @@ function announceUpdateAvailable() {
 async function resolveRegistrationAndAnnounceUpdate() {
   if (!serviceWorkerSupported || updateApplying) return;
 
-  serviceWorkerRegistration ??= await navigator.serviceWorker.getRegistration() ?? null;
+  const resolvedRegistration = serviceWorkerRegistration
+    ?? await navigator.serviceWorker.getRegistration();
+  serviceWorkerRegistration = resolvedRegistration ?? null;
   announceUpdateAvailable();
 }
 
