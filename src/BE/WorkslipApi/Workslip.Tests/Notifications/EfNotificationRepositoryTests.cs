@@ -51,7 +51,20 @@ public sealed class EfNotificationRepositoryTests
 
         await using (var setupContext = new SqlDbContext(options))
         {
-            await setupContext.Database.EnsureCreatedAsync();
+            await setupContext.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE PushSubscriptions (
+                    Id TEXT NOT NULL PRIMARY KEY,
+                    UserId TEXT NOT NULL,
+                    Endpoint TEXT NOT NULL,
+                    P256Dh TEXT NOT NULL,
+                    Auth TEXT NOT NULL,
+                    UserAgent TEXT NULL,
+                    IsActive INTEGER NOT NULL,
+                    CreatedUtc TEXT NOT NULL,
+                    LastSeenUtc TEXT NOT NULL
+                );
+                """);
             setupContext.PushSubscriptions.Add(new PushSubscriptionRow
             {
                 Id = Guid.NewGuid(),
