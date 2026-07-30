@@ -9,6 +9,7 @@ import {
 const UPDATE_INTERVAL_MS = 60 * 1000;
 const UPDATE_ACTIVATION_GRACE_MS = 10_000;
 const UPDATE_RELOAD_FALLBACK_MS = 5_000;
+const FALLBACK_RELOAD_KEY = `workslip.pwaUpdateFallback:${__BUILD_TIME__}`;
 const SKIP_WAITING_MESSAGE = { type: 'SKIP_WAITING' } as const;
 
 const serviceWorkerSupported = 'serviceWorker' in navigator;
@@ -22,6 +23,26 @@ let updateAvailable = false;
 let updateApplying = false;
 let serviceWorkerRegistration: ServiceWorkerRegistration | null = null;
 let requestRegisteredUpdate: (() => void) | null = null;
+
+function readSessionValue(key: string) {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionValue(key: string, value: string) {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // The document-level guards still prevent duplicate work in this page.
+  }
+}
+
+function wasFallbackReloadUsedForCurrentBuild() {
+  return readSessionValue(FALLBACK_RELOAD_KEY) === '1';
+}
 
 function clearReloadFallback() {
   if (reloadFallback === undefined) return;
@@ -46,10 +67,37 @@ function reloadForUpdate() {
   window.location.reload();
 }
 
+function recoverFromActivationTimeout() {
+  reloadFallback = undefined;
+  if (reloadRequested) return;
+
+  updateApplying = false;
+  updateAvailable = Boolean(serviceWorkerRegistration?.waiting);
+
+  if (updateAvailable) {
+    // Keep the action usable, but do not schedule another automatic attempt for
+    // the same old build after its one permitted emergency reload was consumed.
+    announcePwaUpdateReady();
+  } else {
+    requestRegisteredUpdate?.();
+  }
+}
+
+function reloadFromFallback() {
+  reloadFallback = undefined;
+  if (!hadControllerAtStartup || reloadRequested) return;
+
+  writeSessionValue(FALLBACK_RELOAD_KEY, '1');
+  reloadForUpdate();
+}
+
 function scheduleReloadFallback() {
   if (!hadControllerAtStartup || reloadRequested || reloadFallback !== undefined) return;
 
-  reloadFallback = window.setTimeout(reloadForUpdate, UPDATE_RELOAD_FALLBACK_MS);
+  const fallbackAction = wasFallbackReloadUsedForCurrentBuild()
+    ? recoverFromActivationTimeout
+    : reloadFromFallback;
+  reloadFallback = window.setTimeout(fallbackAction, UPDATE_RELOAD_FALLBACK_MS);
 }
 
 function announceUpdateAvailable() {
@@ -62,7 +110,10 @@ function announceUpdateAvailable() {
   updateAvailable = true;
   announcePwaUpdateReady();
 
-  if (automaticUpdateTimer !== undefined) return;
+  if (
+    automaticUpdateTimer !== undefined
+    || wasFallbackReloadUsedForCurrentBuild()
+  ) return;
 
   automaticUpdateTimer = window.setTimeout(() => {
     automaticUpdateTimer = undefined;
