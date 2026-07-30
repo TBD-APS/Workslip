@@ -10,8 +10,9 @@
     "install:browsers": "playwright install chromium",
     "install:browsers:ci": "playwright install --with-deps chromium",
     "test": "playwright test",
+    "test:pr": "playwright test --grep \"@public|@authenticated-ui\"",
     "test:public": "playwright test --grep @public",
-    "test:authenticated": "playwright test --grep @authenticated",
+    "test:authenticated": "playwright test --grep @live-authenticated",
     "test:ui": "playwright test --ui"
   },
   "devDependencies": {
