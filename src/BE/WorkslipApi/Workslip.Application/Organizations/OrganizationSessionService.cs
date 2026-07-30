@@ -33,11 +33,7 @@ public sealed class OrganizationSessionService(
             return Result<OrganizationSessionContext>.Forbidden();
         }
 
-        // EfUserRepository intentionally allows an authenticated user to load
-        // their own row independent of the effective organization claim. This
-        // preserves the real actor identity while tenant repositories continue
-        // to use the delegated organization from the short-lived token.
-        var actor = await userRepository.GetByIdAsync(userId, cancellationToken);
+        var actor = await userRepository.GetAuthenticatedActorAsync(userId, cancellationToken);
         if (actor is null || !string.Equals(actor.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase))
         {
             logger.LogWarning(

@@ -289,6 +289,7 @@ public sealed class InvitationEnrollmentTests
         public int CreateCalls { get; private set; }
         public UserDataRow? ExistingUser { get; init; }
 
+        public Task<UserDataRow?> GetAuthenticatedActorAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<UserDataRow?>(null);
         public Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<UserDataRow?>(null);
         public Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) => Task.FromResult(ExistingUser);
         public Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, IReadOnlyCollection<string> emailCandidates, CancellationToken cancellationToken) => Task.FromResult<UserDataRow?>(null);

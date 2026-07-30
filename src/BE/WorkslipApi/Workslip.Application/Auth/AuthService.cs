@@ -23,7 +23,7 @@ public sealed class AuthService(
     public async Task<UserResponse> GetCurrentUserAsync(CancellationToken cancellationToken)
     {
         var userId = currentUser.UserId ?? throw new UnauthorizedAccessException("User is not logged in");
-        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
+        var user = await userRepository.GetAuthenticatedActorAsync(userId, cancellationToken);
 
         if (user == null)
         {

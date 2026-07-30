@@ -17,14 +17,18 @@ public sealed class OrganizationSessionServiceTests
         var homeOrganizationId = Guid.NewGuid();
         var targetOrganization = CreateOrganization(Guid.NewGuid());
         var actor = CreateUser(homeOrganizationId, Roles.Superadmin);
-        var service = CreateService(
+        var users = new FakeUserRepository(actor);
+        var service = new OrganizationSessionService(
             new FakeCurrentUserContext(actor.Id, homeOrganizationId, Roles.Superadmin),
-            actor,
-            targetOrganization);
+            users,
+            new FakeOrganizationAdministrationRepository(targetOrganization),
+            NullLogger<OrganizationSessionService>.Instance);
 
         var result = await service.CreateAsync(targetOrganization.Id, CancellationToken.None);
 
         Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(1, users.GetAuthenticatedActorCalls);
+        Assert.Equal(0, users.GetByIdCalls);
         Assert.Equal(actor.Id, result.Value.User.UserId);
         Assert.Equal(targetOrganization.Id, result.Value.User.OrganizationId);
         Assert.Equal(homeOrganizationId, result.Value.HomeOrganizationId);
@@ -62,6 +66,7 @@ public sealed class OrganizationSessionServiceTests
         var result = await service.CreateAsync(Guid.NewGuid(), CancellationToken.None);
 
         Assert.Equal(ResultStatus.Forbidden, result.Status);
+        Assert.Equal(0, users.GetAuthenticatedActorCalls);
         Assert.Equal(0, users.GetByIdCalls);
         Assert.Equal(0, organizations.GetOrganizationCalls);
     }
@@ -72,15 +77,18 @@ public sealed class OrganizationSessionServiceTests
         var homeOrganizationId = Guid.NewGuid();
         var actor = CreateUser(homeOrganizationId, Roles.Admin);
         var organizations = new FakeOrganizationAdministrationRepository(CreateOrganization(Guid.NewGuid()));
+        var users = new FakeUserRepository(actor);
         var service = new OrganizationSessionService(
             new FakeCurrentUserContext(actor.Id, homeOrganizationId, Roles.Superadmin),
-            new FakeUserRepository(actor),
+            users,
             organizations,
             NullLogger<OrganizationSessionService>.Instance);
 
         var result = await service.CreateAsync(organizations.Organization!.Id, CancellationToken.None);
 
         Assert.Equal(ResultStatus.Forbidden, result.Status);
+        Assert.Equal(1, users.GetAuthenticatedActorCalls);
+        Assert.Equal(0, users.GetByIdCalls);
         Assert.Equal(0, organizations.GetOrganizationCalls);
     }
 
@@ -156,7 +164,14 @@ public sealed class OrganizationSessionServiceTests
 
     private sealed class FakeUserRepository(UserDataRow? user) : IUserRepository
     {
+        public int GetAuthenticatedActorCalls { get; private set; }
         public int GetByIdCalls { get; private set; }
+
+        public Task<UserDataRow?> GetAuthenticatedActorAsync(Guid id, CancellationToken cancellationToken)
+        {
+            GetAuthenticatedActorCalls++;
+            return Task.FromResult(user?.Id == id ? user : null);
+        }
 
         public Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
         {
