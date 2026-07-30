@@ -60,7 +60,7 @@ public sealed class EfNotificationRepositoryTests
                     P256Dh TEXT NOT NULL,
                     Auth TEXT NOT NULL,
                     UserAgent TEXT NULL,
-                    IsActive INTEGER NOT NULL,
+                    IsActive INTEGER NOT NULL DEFAULT 1,
                     CreatedUtc TEXT NOT NULL,
                     LastSeenUtc TEXT NOT NULL
                 );
