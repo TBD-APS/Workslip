@@ -11,11 +11,6 @@ public sealed class DatabaseSeederTests
     private static readonly IReadOnlyDictionary<string, ExpectedDevelopmentUser> ExpectedDevelopmentUsers =
         new Dictionary<string, ExpectedDevelopmentUser>(StringComparer.OrdinalIgnoreCase)
         {
-            ["rasmusvm6@hotmail.com"] = new(
-                new Guid("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F"),
-                "Rasmus Bak Jakobsen",
-                "28929173",
-                Roles.Superadmin),
             ["admin@17v3ygzs.mailosaur.net"] = new(
                 new Guid("A1A1A1A1-DA5B-4CC4-BBEB-07B40CAB806F"),
                 "Niels Petersen",
@@ -82,7 +77,7 @@ public sealed class DatabaseSeederTests
             Assert.Equal(oldestOrganization.Id, user.OrganizationId);
         }
 
-        Assert.Equal(5, await context.Users.CountAsync());
+        Assert.Equal(4, await context.Users.CountAsync());
         Assert.Equal(newerOrganization.Id, unrelatedUser.OrganizationId);
         Assert.False(context.IsSeeding);
     }
@@ -108,6 +103,31 @@ public sealed class DatabaseSeederTests
         Assert.Equal(ExpectedDevelopmentUsers.Count, await context.Users.CountAsync());
         Assert.Equal(firstSeed, secondSeed);
         Assert.False(context.IsSeeding);
+    }
+
+    [Fact]
+    public async Task Seed_when_platform_is_oldest_adds_ordinary_users_to_oldest_customer()
+    {
+        await using var context = CreateContext();
+        var platform = CreateOrganization(
+            PlatformOrganization.Id,
+            PlatformOrganization.Name,
+            PlatformOrganization.Cvr,
+            DateTimeOffset.Parse("2024-01-01T00:00:00Z"));
+        var customer = CreateOrganization(
+            Guid.NewGuid(),
+            "Existing customer",
+            "12345678",
+            DateTimeOffset.Parse("2025-01-01T00:00:00Z"));
+        context.Organizations.AddRange(platform, customer);
+        await context.SaveChangesAsync();
+
+        await DatabaseSeeder.Seed(context);
+
+        var developmentUsers = await context.Users.AsNoTracking().ToListAsync();
+        Assert.Equal(ExpectedDevelopmentUsers.Count, developmentUsers.Count);
+        Assert.All(developmentUsers, user => Assert.Equal(customer.Id, user.OrganizationId));
+        Assert.DoesNotContain(developmentUsers, user => user.Role == Roles.Superadmin);
     }
 
     [Fact]

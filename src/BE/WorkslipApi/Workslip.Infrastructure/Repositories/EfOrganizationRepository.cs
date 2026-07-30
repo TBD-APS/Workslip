@@ -196,6 +196,7 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
     private async Task<IReadOnlyList<OrganizationRow>> ListOrganizationsAsyncCoreAsync(CancellationToken cancellationToken) =>
         await _dbContext.Organizations
             .AsNoTracking()
+            .Where(organization => organization.Id != PlatformOrganization.Id)
             .OrderBy(organization => organization.Name)
             .ThenBy(organization => organization.Cvr)
             .ToListAsync(cancellationToken);
@@ -203,7 +204,11 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
     private async Task<OrganizationRow?> GetOrganizationAsyncCoreAsync(Guid organizationId, CancellationToken cancellationToken) =>
         await _dbContext.Organizations
             .AsNoTracking()
-            .FirstOrDefaultAsync(organization => organization.Id == organizationId, cancellationToken);
+            .FirstOrDefaultAsync(
+                organization =>
+                    organization.Id == organizationId &&
+                    organization.Id != PlatformOrganization.Id,
+                cancellationToken);
 
     private async Task<UserDataRow?> GetUserByEmailAsyncCoreAsync(string normalizedEmail, CancellationToken cancellationToken) =>
         await _dbContext.Users

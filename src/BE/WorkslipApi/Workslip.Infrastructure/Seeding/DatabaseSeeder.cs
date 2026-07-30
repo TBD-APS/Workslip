@@ -14,12 +14,6 @@ public static class DatabaseSeeder
     private static readonly DevelopmentUserDefinition[] DevelopmentUserDefinitions =
     [
         new(
-            new Guid("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F"),
-            "Rasmus Bak Jakobsen",
-            "rasmusvm6@hotmail.com",
-            "28929173",
-            Roles.Superadmin),
-        new(
             new Guid("A1A1A1A1-DA5B-4CC4-BBEB-07B40CAB806F"),
             "Niels Petersen",
             "admin@17v3ygzs.mailosaur.net",
@@ -56,11 +50,20 @@ public static class DatabaseSeeder
     {
         await NormalizeExclusiveClosureFlagSelectionsAsync(db);
 
-        var existingOrganization = await db.Organizations
+        var customerOrganizations = db.Organizations
             .AsNoTracking()
-            .OrderBy(organization => organization.CreatedAt)
-            .ThenBy(organization => organization.Id)
-            .FirstOrDefaultAsync();
+            .Where(organization => organization.Id != PlatformOrganization.Id);
+        // SQLite cannot translate DateTimeOffset ordering. Keep the SQL Server
+        // query server-side and use client ordering only for relational tests.
+        var existingOrganization = db.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite"
+            ? (await customerOrganizations.ToListAsync())
+                .OrderBy(organization => organization.CreatedAt)
+                .ThenBy(organization => organization.Id)
+                .FirstOrDefault()
+            : await customerOrganizations
+                .OrderBy(organization => organization.CreatedAt)
+                .ThenBy(organization => organization.Id)
+                .FirstOrDefaultAsync();
 
         if (existingOrganization is not null)
         {

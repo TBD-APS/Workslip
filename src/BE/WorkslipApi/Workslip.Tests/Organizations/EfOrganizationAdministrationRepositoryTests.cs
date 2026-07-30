@@ -13,6 +13,40 @@ namespace Workslip.Tests.Organizations;
 public sealed class EfOrganizationAdministrationRepositoryTests
 {
     [Fact]
+    public async Task ListOrganizationsAsync_DoesNotFilterReservedCvrOnDifferentId()
+    {
+        await using var database = await RelationalTestDatabase.CreateAsync();
+        var customerWithReservedCvr = CreateOrganization(Guid.NewGuid(), PlatformOrganization.Cvr);
+        var ordinaryCustomer = CreateOrganization(Guid.NewGuid(), "87654321");
+        database.Context.Organizations.AddRange(customerWithReservedCvr, ordinaryCustomer);
+        await database.Context.SaveChangesAsync();
+
+        var repository = CreateRepository(database.Context, ordinaryCustomer.Id);
+
+        var organizations = await repository.ListOrganizationsAsync(CancellationToken.None);
+
+        Assert.Contains(organizations, organization => organization.Id == customerWithReservedCvr.Id);
+        Assert.Contains(organizations, organization => organization.Id == ordinaryCustomer.Id);
+    }
+
+    [Fact]
+    public async Task GetOrganizationAsync_WhenIdIsReserved_ReturnsNull()
+    {
+        await using var database = await RelationalTestDatabase.CreateAsync();
+        var platform = CreateOrganization(PlatformOrganization.Id, PlatformOrganization.Cvr);
+        database.Context.Organizations.Add(platform);
+        await database.Context.SaveChangesAsync();
+
+        var repository = CreateRepository(database.Context, PlatformOrganization.Id);
+
+        var organization = await repository.GetOrganizationAsync(
+            PlatformOrganization.Id,
+            CancellationToken.None);
+
+        Assert.Null(organization);
+    }
+
+    [Fact]
     public async Task UpdateAdminAsync_WhenObservedStateChanged_DoesNotOverwriteCurrentRow()
     {
         await using var database = await RelationalTestDatabase.CreateAsync();
@@ -79,11 +113,13 @@ public sealed class EfOrganizationAdministrationRepositoryTests
     private static EfOrganizationRepository CreateRepository(SqlDbContext context, Guid organizationId) =>
         new(context, new NoRetryPolicy(), new TestCurrentUserContext(organizationId));
 
-    private static OrganizationRow CreateOrganization() => new()
+    private static OrganizationRow CreateOrganization(
+        Guid? id = null,
+        string cvr = "12345678") => new()
     {
-        Id = Guid.NewGuid(),
+        Id = id ?? Guid.NewGuid(),
         Name = "Test organization",
-        Cvr = "12345678",
+        Cvr = cvr,
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow
     };
