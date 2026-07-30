@@ -1,7 +1,10 @@
 import { useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { postApiPushSubscriptions } from '../../../api/generated/push-subscriptions/push-subscriptions';
-import type { RegisterPushSubscriptionRequest } from '../../../api/generated/models';
+import {
+  getVapidPublicKey,
+  registerPushSubscription,
+  type RegisterPushSubscriptionPayload,
+} from '../api/pushSubscriptions';
 import { isSuperadminAuthToken } from '../../superadmin/organizationSession';
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -13,15 +16,76 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
-const VAPID_PUBLIC_KEY_ARRAY = VAPID_PUBLIC_KEY
-  ? urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-  : null;
+function keysMatch(
+  existingKey: ArrayBuffer | null,
+  expectedKey: Uint8Array<ArrayBuffer>,
+): boolean {
+  if (!existingKey) return false;
+
+  const existingBytes = new Uint8Array(existingKey);
+  if (existingBytes.length !== expectedKey.length) return false;
+  return existingBytes.every((value, index) => value === expectedKey[index]);
+}
+
+async function ensurePushSubscription(): Promise<RegisterPushSubscriptionPayload | null> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.warn('Push notifications are not supported in this browser.');
+    return null;
+  }
+
+  const publicKey = await getVapidPublicKey();
+  const applicationServerKey = urlBase64ToUint8Array(publicKey);
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+  let replacedEndpoint: string | undefined;
+
+  if (subscription && !keysMatch(subscription.options.applicationServerKey, applicationServerKey)) {
+    replacedEndpoint = subscription.endpoint;
+    const unsubscribed = await subscription.unsubscribe();
+    if (!unsubscribed) {
+      throw new Error('The stale push subscription could not be removed.');
+    }
+    subscription = null;
+  }
+
+  if (!subscription) {
+    const permission = Notification.permission === 'default'
+      ? await Notification.requestPermission()
+      : Notification.permission;
+    if (permission !== 'granted') {
+      console.warn('Notification permission was denied.');
+      return null;
+    }
+
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey,
+    });
+  }
+
+  const rawP256dh = subscription.getKey('p256dh');
+  const rawAuth = subscription.getKey('auth');
+
+  if (!rawP256dh || !rawAuth) {
+    throw new Error('Could not retrieve keys from subscription object.');
+  }
+
+  const p256Dh = btoa(String.fromCharCode(...new Uint8Array(rawP256dh)));
+  const auth = btoa(String.fromCharCode(...new Uint8Array(rawAuth)));
+
+  return {
+    endpoint: subscription.endpoint,
+    keys: {
+      p256Dh,
+      auth,
+    },
+    ...(replacedEndpoint ? { replacedEndpoint } : {}),
+  };
+}
 
 export function usePushNotifications() {
   const mutation = useMutation({
-    mutationFn: (request: RegisterPushSubscriptionRequest) =>
-      postApiPushSubscriptions(request),
+    mutationFn: registerPushSubscription,
   });
 
   const register = useCallback(async () => {
@@ -31,51 +95,11 @@ export function usePushNotifications() {
       return;
     }
 
-    if (!VAPID_PUBLIC_KEY_ARRAY) {
-      console.warn('Push notifications are disabled because VITE_VAPID_PUBLIC_KEY is not configured.');
-      return;
-    }
-
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      console.warn('Push notifications are not supported in this browser.');
-      return;
-    }
-
     try {
-      const registration = await navigator.serviceWorker.ready;
-      let subscription = await registration.pushManager.getSubscription();
+      const payload = await ensurePushSubscription();
+      if (!payload) return;
 
-      if (!subscription) {
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          console.warn('Notification permission was denied.');
-          return;
-        }
-
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: VAPID_PUBLIC_KEY_ARRAY,
-        });
-      }
-
-      const rawP256dh = subscription.getKey('p256dh');
-      const rawAuth = subscription.getKey('auth');
-
-      if (!rawP256dh || !rawAuth) {
-        throw new Error('Could not retrieve keys from subscription object.');
-      }
-
-      const p256dh = btoa(String.fromCharCode(...new Uint8Array(rawP256dh)));
-      const auth = btoa(String.fromCharCode(...new Uint8Array(rawAuth)));
-
-      await mutation.mutateAsync({
-        endpoint: subscription.endpoint,
-        keys: {
-          p256Dh: p256dh,
-          auth,
-        },
-      });
-
+      await mutation.mutateAsync(payload);
       console.log('Push subscription registered successfully.');
     } catch (error) {
       console.error('Failed to register push subscription:', error);
@@ -90,3 +114,9 @@ export function usePushNotifications() {
     error: mutation.error,
   };
 }
+
+export const pushSubscriptionInternals = {
+  ensurePushSubscription,
+  keysMatch,
+  urlBase64ToUint8Array,
+};
