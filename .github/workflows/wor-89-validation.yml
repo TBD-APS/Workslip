@@ -1,9 +1,9 @@
 name: WOR-89 temporary validation
 
 on:
-  push:
+  pull_request:
     branches:
-      - rbj--89-undo-rejected-job
+      - rbj--89-validation-base
     paths:
       - 'src/FE/**'
       - '.github/workflows/wor-89-validation.yml'
