@@ -21,7 +21,9 @@ env:
   DOTNET_VERSION: '10.0.x'
   API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish/api
+  DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
   AZURE_WEBAPP_NAME: ${{ inputs.app_name || 'api-mrsoftware-prod' }}
+  AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
 
 permissions:
   id-token: write
@@ -53,11 +55,22 @@ jobs:
       - name: Publish
         run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output "${{ env.PUBLISH_DIR }}" --nologo
 
+      - name: Create deployment package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f "${DEPLOY_PACKAGE}"
+          (
+            cd "${PUBLISH_DIR}"
+            zip -q -r "${DEPLOY_PACKAGE}" .
+          )
+          unzip -Z1 "${DEPLOY_PACKAGE}" | grep -qx 'Workslip.Api.dll'
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: workslip-api
-          path: ${{ env.PUBLISH_DIR }}
+          path: ${{ env.DEPLOY_PACKAGE }}
           if-no-files-found: error
 
   deploy:
@@ -70,7 +83,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: workslip-api
-          path: ${{ env.PUBLISH_DIR }}
+          path: ${{ github.workspace }}/publish
 
       - name: Azure login
         uses: azure/login@v3
@@ -79,8 +92,112 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: ${{ env.PUBLISH_DIR }}
+      - name: Inspect deployment target
+        id: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          state="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query state \
+            --output tsv)"
+          host="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query defaultHostName \
+            --output tsv)"
+
+          if [[ -z "${host}" || "${host}" == "null" ]]; then
+            echo "::error::Azure did not return a default hostname for ${AZURE_WEBAPP_NAME}."
+            exit 1
+          fi
+
+          echo "App Service state before deployment: ${state}"
+          echo "App Service host: ${host}"
+          echo "health_url=https://${host}/health" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy package with bounded retry
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          max_attempts=3
+
+          for attempt in $(seq 1 "${max_attempts}"); do
+            echo "App Service deployment attempt ${attempt}/${max_attempts}"
+
+            if az webapp deploy \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --name "${AZURE_WEBAPP_NAME}" \
+              --src-path "${DEPLOY_PACKAGE}" \
+              --type zip \
+              --clean true \
+              --restart true \
+              --enable-kudu-warmup true \
+              --enriched-errors true \
+              --track-status false \
+              --timeout 600000; then
+              exit 0
+            fi
+
+            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+              delay_seconds=$((attempt * 30))
+              echo "::warning::App Service deployment attempt ${attempt} failed. Retrying in ${delay_seconds} seconds."
+              sleep "${delay_seconds}"
+            fi
+          done
+
+          echo "::error::App Service deployment failed after ${max_attempts} attempts."
+          echo "Safe App Service state:"
+          az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
+            --output jsonc || true
+
+          echo "Recent deployment records:"
+          az webapp log deployment list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '[0:5]' \
+            --output jsonc || true
+
+          echo "Latest deployment log:"
+          az webapp log deployment show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --output jsonc || true
+
+          exit 1
+
+      - name: Verify API health
+        shell: bash
+        env:
+          HEALTH_URL: ${{ steps.target.outputs.health_url }}
+        run: |
+          set -Eeuo pipefail
+          max_attempts=15
+
+          for attempt in $(seq 1 "${max_attempts}"); do
+            if curl --fail --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 10 \
+              --output /dev/null \
+              "${HEALTH_URL}"; then
+              echo "API health check passed: ${HEALTH_URL}"
+              exit 0
+            fi
+
+            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+              echo "Health check attempt ${attempt}/${max_attempts} failed; retrying in 10 seconds."
+              sleep 10
+            fi
+          done
+
+          echo "::error::API deployment completed, but ${HEALTH_URL} did not become healthy."
+          az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
+            --output jsonc || true
+          exit 1
