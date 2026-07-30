@@ -162,23 +162,29 @@ apiClient.interceptors.response.use(
     const isMeEndpoint = isAuthMeRequest(error.config?.url);
 
     if (error.response?.status === 401) {
-      if (!isAuthApi && !isAuthRoute) {
-        if (!isReauthInFlight()) {
-          setReauthInFlight();
-          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          notify.dismiss();
-          window.location.assign(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
-        }
-      }
-
-      // A failing identity bootstrap is not proof that the stored token is
-      // invalid. ProtectedRoute owns retry, reload and deliberate logout.
-      if (!isMeEndpoint) {
+      // A 401 from /api/auth/me definitively rejects the stored JWT. Treat it
+      // like any other expired authenticated request instead of leaving the user
+      // on the startup recovery screen. Timeouts and 5xx responses remain
+      // recoverable without deleting a potentially valid session.
+      const shouldReauthenticate = isMeEndpoint || (!isAuthApi && !isAuthRoute);
+      if (shouldReauthenticate) {
         AuthStorage.removeItem(AUTH_TOKEN_KEY);
         AuthStorage.removeItem(USER_EMAIL_KEY);
+
+        const isReauthRoute = window.location.pathname.includes('/login')
+          && new URLSearchParams(window.location.search).get('reauth') === '1';
+        if (!isReauthRoute) {
+          if (!isReauthInFlight()) {
+            setReauthInFlight();
+          }
+          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          notify.dismiss();
+          window.location.replace(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
+        }
       }
     } else if (isMeEndpoint || error.config?.skipGlobalErrorToast) {
-      // ProtectedRoute renders the startup recovery state.
+      // ProtectedRoute renders recovery only for timeouts, network failures and
+      // temporary server errors where the stored token may still be valid.
     } else if (error.response?.status === 403) {
       notify.error('Du har ikke adgang til denne handling');
     } else if (error.response?.status === 400 && error.response?.data?.errors) {
