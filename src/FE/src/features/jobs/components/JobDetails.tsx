@@ -64,6 +64,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         notify.error(getJobDeleteErrorMessage(error));
       },
     },
+    request: { skipGlobalErrorToast: true },
   });
 
   const handleDelete = () => {
