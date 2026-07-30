@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ArrowLeft, Loader2, Mail } from 'lucide-react';
@@ -8,13 +8,14 @@ import { notify } from '../../../lib/toast';
 import { clearReauthInFlight } from '../../../providers/authContextValue';
 import { useAuth } from '../../../providers/useAuth';
 import { sendAuthCode } from '../api/devToken';
+import { OneTimeCodeInput } from './OneTimeCodeInput';
 
 const EmailSchema = z.object({
   email: z.string().email({ message: 'Ugyldig email adresse' }),
 });
 
 const CodeSchema = z.object({
-  code: z.string().min(6, { message: 'Koden skal være 6 tegn' }),
+  code: z.string().regex(/^\d{6}$/, { message: 'Koden skal bestå af 6 cifre' }),
 });
 
 type EmailFormValues = z.infer<typeof EmailSchema>;
@@ -42,8 +43,10 @@ export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
 
   const codeForm = useForm<CodeFormValues>({
     resolver: zodResolver(CodeSchema),
+    defaultValues: {
+      code: '',
+    },
   });
-  const { ref: codeFieldRef, ...codeField } = codeForm.register('code');
 
   useEffect(() => {
     if (step !== 'code' || !codeInputRef.current) return undefined;
@@ -105,6 +108,7 @@ export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
           <div>
             <p>En kode er sendt til</p>
             <p className="login-email-info">{email}</p>
+            <p id="otc-code-help">Kan du ikke finde mailen? Tjek spam eller uønsket post.</p>
           </div>
         )}
       </div>
@@ -158,23 +162,29 @@ export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
         <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} className="login-form">
           <div className="form-group">
             <label htmlFor="otc-code">Engangskode</label>
-            <input
-              {...codeField}
-              id="otc-code"
-              ref={(element) => {
-                codeFieldRef(element);
-                codeInputRef.current = element;
-              }}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="123456"
-              className={`form-input${codeForm.formState.errors.code ? ' form-input-invalid' : ''}`}
-              maxLength={6}
-              autoComplete="one-time-code"
+            <Controller
+              name="code"
+              control={codeForm.control}
+              render={({ field }) => (
+                <OneTimeCodeInput
+                  id="otc-code"
+                  name={field.name}
+                  ref={(element) => {
+                    field.ref(element);
+                    codeInputRef.current = element;
+                  }}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  onBlur={field.onBlur}
+                  hasError={Boolean(codeForm.formState.errors.code)}
+                  aria-invalid={Boolean(codeForm.formState.errors.code)}
+                  aria-describedby={codeForm.formState.errors.code ? 'otc-code-help otc-code-error' : 'otc-code-help'}
+                  disabled={isSubmitting}
+                />
+              )}
             />
             {codeForm.formState.errors.code && (
-              <span className="form-error-text">
+              <span id="otc-code-error" className="form-error-text">
                 {codeForm.formState.errors.code.message}
               </span>
             )}

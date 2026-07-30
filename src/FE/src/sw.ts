@@ -1,4 +1,3 @@
-import { clientsClaim } from 'workbox-core';
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
 
 type PrecacheManifestEntry = string | {
@@ -18,13 +17,32 @@ const PRECACHED_URLS = new Set(
 );
 const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
 const MAX_RUNTIME_ASSET_ENTRIES = 150;
+const REPLACES_ACTIVE_WORKER = Boolean(self.registration.active);
 
 cleanupOutdatedCaches();
 precacheAndRoute(PRECACHE_MANIFEST);
 
-// Immediate activation is the accepted product policy in ADR 0002.
-self.skipWaiting();
-clientsClaim();
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    await self.clients.claim();
+    if (!REPLACES_ACTIVE_WORKER) return;
+
+    const windowClients = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true,
+    });
+
+    await Promise.allSettled(
+      windowClients.map((client) => (client as WindowClient).navigate(client.url)),
+    );
+  })());
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting());
+  }
+});
 
 function isRuntimeStaticAsset(request: Request) {
   if (request.method !== 'GET') return false;
