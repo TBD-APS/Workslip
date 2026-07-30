@@ -1,0 +1,216 @@
+name: TEMP — Assistant Validation — WOR-213
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/FE/src/registerSW.ts'
+      - 'src/FE/src/sw.ts'
+      - 'src/FE/src/components/common/PwaUpdateBanner.tsx'
+      - 'src/FE/src/components/common/PwaUpdateBanner.test.tsx'
+      - 'Docs/architecture/adr/0002-immediate-pwa-update-activation.md'
+      - '.github/workflows/wor-213-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Build and two-version browser update
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: src/FE
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint affected frontend files
+        run: >-
+          npx eslint
+          src/registerSW.ts
+          src/sw.ts
+          src/components/common/PwaUpdateBanner.tsx
+          src/components/common/PwaUpdateBanner.test.tsx
+
+      - name: Test update banner acknowledgement
+        run: npm test -- --run src/components/common/PwaUpdateBanner.test.tsx
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Validate real service-worker update lifecycle
+        run: |
+          set -Eeuo pipefail
+
+          temp_root=".tmp-wor-213"
+          rm -rf "${temp_root}"
+          mkdir -p "${temp_root}"
+
+          npm run build
+          cp -R dist "${temp_root}/dist-v1"
+          sleep 2
+          npm run build
+          cp -R dist "${temp_root}/dist-v2"
+
+          first_asset="$(find "${temp_root}/dist-v1/assets" -maxdepth 1 -name 'app-*.js' -printf '%f\n' | head -n 1)"
+          second_asset="$(find "${temp_root}/dist-v2/assets" -maxdepth 1 -name 'app-*.js' -printf '%f\n' | head -n 1)"
+          if [[ -z "${first_asset}" || -z "${second_asset}" || "${first_asset}" == "${second_asset}" ]]; then
+            echo "::error::The two validation builds did not produce distinct application assets."
+            exit 1
+          fi
+
+          cp -R "${temp_root}/dist-v1" "${temp_root}/current"
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory "${temp_root}/current" > "${temp_root}/server.log" 2>&1 &
+          server_pid=$!
+
+          cleanup() {
+            kill "${server_pid}" 2>/dev/null || true
+            rm -rf "${temp_root}"
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4173/; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "${ready}" != "true" ]]; then
+            cat "${temp_root}/server.log" || true
+            echo "::error::Validation server did not become ready."
+            exit 1
+          fi
+
+          cat > "${temp_root}/wor-213.spec.ts" <<'EOF'
+          import { expect, test, type Page } from '@playwright/test';
+          import { cpSync, rmSync } from 'node:fs';
+          import path from 'node:path';
+
+          test.describe.configure({ mode: 'serial' });
+          const baseUrl = 'http://127.0.0.1:4173/';
+          const root = path.resolve(process.cwd(), '.tmp-wor-213');
+
+          function publish(version: 'dist-v1' | 'dist-v2') {
+            const current = path.join(root, 'current');
+            rmSync(current, { recursive: true, force: true });
+            cpSync(path.join(root, version), current, { recursive: true });
+          }
+
+          async function loadControlledClient(page: Page) {
+            await page.goto(baseUrl, { waitUntil: 'networkidle' });
+            await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
+            await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
+
+            await page.evaluate(async () => {
+              await navigator.serviceWorker.ready;
+            });
+
+            if (!await page.evaluate(() => Boolean(navigator.serviceWorker.controller))) {
+              await page.reload({ waitUntil: 'networkidle' });
+            }
+
+            await expect.poll(
+              () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
+              { timeout: 10_000 },
+            ).toBe(true);
+          }
+
+          async function currentAppAsset(page: Page) {
+            return page.locator('script[type="module"][src*="/assets/app-"]').getAttribute('src');
+          }
+
+          async function publishAndDiscoverUpdate(page: Page) {
+            publish('dist-v2');
+            await page.evaluate(async () => {
+              const registration = await navigator.serviceWorker.getRegistration();
+              if (!registration) throw new Error('No service-worker registration found.');
+              await registration.update();
+            });
+            await expect(page.getByRole('button', { name: 'Opdater nu' })).toBeVisible({ timeout: 10_000 });
+          }
+
+          test('button applies one update without leaving the page frozen', async ({ browser }) => {
+            publish('dist-v1');
+            const context = await browser.newContext();
+            const page = await context.newPage();
+            await loadControlledClient(page);
+
+            const previousAsset = await currentAppAsset(page);
+            expect(previousAsset).toBeTruthy();
+            await publishAndDiscoverUpdate(page);
+
+            let updateNavigations = 0;
+            page.on('framenavigated', (frame) => {
+              if (frame === page.mainFrame()) updateNavigations += 1;
+            });
+
+            await page.getByRole('button', { name: 'Opdater nu' }).click();
+            await expect(page.getByRole('button', { name: 'Opdaterer...' })).toBeDisabled();
+
+            await expect.poll(async () => {
+              try {
+                return await currentAppAsset(page);
+              } catch {
+                return null;
+              }
+            }, { timeout: 15_000 }).not.toBe(previousAsset);
+
+            await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
+            await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
+            await page.waitForTimeout(2_000);
+            expect(updateNavigations).toBe(1);
+            await context.close();
+          });
+
+          test('untouched banner applies the same update automatically once', async ({ browser }) => {
+            publish('dist-v1');
+            const context = await browser.newContext();
+            const page = await context.newPage();
+            await loadControlledClient(page);
+
+            const previousAsset = await currentAppAsset(page);
+            expect(previousAsset).toBeTruthy();
+            await publishAndDiscoverUpdate(page);
+
+            let updateNavigations = 0;
+            page.on('framenavigated', (frame) => {
+              if (frame === page.mainFrame()) updateNavigations += 1;
+            });
+
+            await expect.poll(async () => {
+              try {
+                return await currentAppAsset(page);
+              } catch {
+                return null;
+              }
+            }, { timeout: 20_000 }).not.toBe(previousAsset);
+
+            await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
+            await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
+            await page.waitForTimeout(2_000);
+            expect(updateNavigations).toBe(1);
+            await context.close();
+          });
+          EOF
+
+          npx playwright test "${temp_root}/wor-213.spec.ts" --reporter=line --workers=1
