@@ -9,6 +9,8 @@ import {
 const UPDATE_INTERVAL_MS = 60 * 1000;
 const UPDATE_ACTIVATION_GRACE_MS = 10_000;
 const UPDATE_RELOAD_FALLBACK_MS = 5_000;
+const WAITING_WORKER_RESOLVE_TIMEOUT_MS = 2_000;
+const WAITING_WORKER_POLL_INTERVAL_MS = 50;
 const FALLBACK_RELOAD_KEY = `workslip.pwaUpdateFallback:${__BUILD_TIME__}`;
 const SKIP_WAITING_MESSAGE = { type: 'SKIP_WAITING' } as const;
 
@@ -21,6 +23,7 @@ let reloadFallback: number | undefined;
 let automaticUpdateTimer: number | undefined;
 let updateAvailable = false;
 let updateApplying = false;
+let updateActivationResolving = false;
 let serviceWorkerRegistration: ServiceWorkerRegistration | null = null;
 let requestRegisteredUpdate: (() => void) | null = null;
 
@@ -42,6 +45,34 @@ function writeSessionValue(key: string, value: string) {
 
 function wasFallbackReloadUsedForCurrentBuild() {
   return readSessionValue(FALLBACK_RELOAD_KEY) === '1';
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
+async function resolveServiceWorkerRegistration() {
+  if (serviceWorkerRegistration) return serviceWorkerRegistration;
+
+  const resolvedRegistration = await navigator.serviceWorker.getRegistration();
+  serviceWorkerRegistration = resolvedRegistration ?? null;
+  return serviceWorkerRegistration;
+}
+
+async function waitForWaitingWorker() {
+  if (!serviceWorkerSupported) return null;
+
+  const registration = await resolveServiceWorkerRegistration();
+  if (!registration) return null;
+
+  const deadline = Date.now() + WAITING_WORKER_RESOLVE_TIMEOUT_MS;
+  while (true) {
+    if (registration.waiting) return registration.waiting;
+    if (Date.now() >= deadline) return null;
+    await delay(WAITING_WORKER_POLL_INTERVAL_MS);
+  }
 }
 
 function clearReloadFallback() {
@@ -101,11 +132,7 @@ function scheduleReloadFallback() {
 }
 
 function announceUpdateAvailable() {
-  if (
-    !hadControllerAtStartup
-    || updateApplying
-    || !serviceWorkerRegistration?.waiting
-  ) return;
+  if (!hadControllerAtStartup || updateApplying) return;
 
   updateAvailable = true;
   announcePwaUpdateReady();
@@ -117,17 +144,19 @@ function announceUpdateAvailable() {
 
   automaticUpdateTimer = window.setTimeout(() => {
     automaticUpdateTimer = undefined;
-    applyAvailableUpdate();
+    void applyAvailableUpdate();
   }, UPDATE_ACTIVATION_GRACE_MS);
 }
 
 async function resolveRegistrationAndAnnounceUpdate() {
   if (!serviceWorkerSupported || updateApplying) return;
 
-  const resolvedRegistration = serviceWorkerRegistration
-    ?? await navigator.serviceWorker.getRegistration();
-  serviceWorkerRegistration = resolvedRegistration ?? null;
-  announceUpdateAvailable();
+  const waitingWorker = await waitForWaitingWorker();
+  if (waitingWorker) {
+    announceUpdateAvailable();
+  } else {
+    requestRegisteredUpdate?.();
+  }
 }
 
 function recoverFromActivationFailure(error: unknown) {
@@ -143,26 +172,36 @@ function recoverFromActivationFailure(error: unknown) {
   }
 }
 
-function applyAvailableUpdate() {
-  if (!hadControllerAtStartup || updateApplying) return;
+async function applyAvailableUpdate() {
+  if (
+    !hadControllerAtStartup
+    || !updateAvailable
+    || updateApplying
+    || updateActivationResolving
+  ) return;
 
-  const waitingWorker = serviceWorkerRegistration?.waiting;
-  if (!updateAvailable || !waitingWorker) {
-    updateAvailable = false;
-    requestRegisteredUpdate?.();
-    return;
-  }
-
-  updateAvailable = false;
-  updateApplying = true;
-  clearAutomaticUpdateTimer();
-  announcePwaUpdateApplying();
-  scheduleReloadFallback();
-
+  updateActivationResolving = true;
   try {
-    waitingWorker.postMessage(SKIP_WAITING_MESSAGE);
-  } catch (error) {
-    recoverFromActivationFailure(error);
+    const waitingWorker = await waitForWaitingWorker();
+    if (!waitingWorker) {
+      updateAvailable = false;
+      requestRegisteredUpdate?.();
+      return;
+    }
+
+    updateAvailable = false;
+    updateApplying = true;
+    clearAutomaticUpdateTimer();
+    announcePwaUpdateApplying();
+    scheduleReloadFallback();
+
+    try {
+      waitingWorker.postMessage(SKIP_WAITING_MESSAGE);
+    } catch (error) {
+      recoverFromActivationFailure(error);
+    }
+  } finally {
+    updateActivationResolving = false;
   }
 }
 
@@ -200,7 +239,9 @@ if (serviceWorkerSupported) {
   navigator.serviceWorker.addEventListener('controllerchange', reloadForUpdate);
 }
 
-window.addEventListener(PWA_UPDATE_APPLY_EVENT, applyAvailableUpdate);
+window.addEventListener(PWA_UPDATE_APPLY_EVENT, () => {
+  void applyAvailableUpdate();
+});
 
 registerSW({
   immediate: true,
