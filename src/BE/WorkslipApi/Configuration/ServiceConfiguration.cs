@@ -22,8 +22,9 @@ public static class ServiceConfiguration
         builder.Services.AddScoped<IdempotentMutationService>();
         builder.Services.AddSingleton(new JobNotificationFeatures
         {
-            NotifyAssignedUsersOnJobDeletion = configuration.GetValue<bool>(
-                JobNotificationFeatures.NotifyAssignedUsersOnJobDeletionKey)
+            NotifyAssignedUsersOnJobDeletion = configuration.GetValue(
+                JobNotificationFeatures.NotifyAssignedUsersOnJobDeletionKey,
+                true)
         });
 
         builder.Services.ConfigureHttpJsonOptions(options =>

@@ -26,7 +26,6 @@ public sealed class JobDeletionNotificationService(
             ?? "Ingen adresse angivet";
 
         var recipients = deletedJob.AssignedUsers
-            .Where(user => user.Id != deletingUserId)
             .GroupBy(user => user.Id)
             .Select(group => group.First())
             .ToArray();
