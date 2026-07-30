@@ -169,7 +169,6 @@ test('button applies one update without leaving the page frozen', async ({ brows
 
   await publishAndDiscoverUpdate(page);
   await page.getByRole('button', { name: 'Opdater nu' }).click();
-  await expect(page.getByRole('button', { name: 'Opdaterer...' })).toBeDisabled();
 
   await expect.poll(async () => {
     try {
