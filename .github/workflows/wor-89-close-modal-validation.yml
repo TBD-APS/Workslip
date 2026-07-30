@@ -1,0 +1,77 @@
+name: WOR-89 close modal validation
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - rbj--89-close-modal-validation-base
+
+permissions:
+  contents: write
+
+env:
+  OPENAPI_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Apply modal interaction fix
+        run: python tools/temp/wor89_close_undo_modal.py
+
+      - name: Validate focused diff
+        run: |
+          git diff --check
+          grep -F 'onGoToJob={() => setUndoRejectionCompleted(false)}' src/FE/src/features/jobs/routes/CompletedJobReport.tsx
+          ! grep -F 'onGoToJob={() => navigate(`/app/completed/${job.id}`' src/FE/src/features/jobs/routes/CompletedJobReport.tsx
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Generate frontend API client
+        working-directory: src/FE
+        run: npx orval --config orval.config.ts
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
+
+      - name: Lint affected frontend file
+        working-directory: src/FE
+        run: npx eslint src/features/jobs/routes/CompletedJobReport.tsx
+
+      - name: Build frontend
+        working-directory: src/FE
+        run: npm run build
+
+      - name: Install temporary Playwright dependencies
+        working-directory: src/FE/e2e-wor89-close-modal
+        run: npm install --no-package-lock
+
+      - name: Install Chromium
+        working-directory: src/FE/e2e-wor89-close-modal
+        run: npx playwright install --with-deps chromium
+
+      - name: Run WOR-89 modal browser scenarios
+        working-directory: src/FE/e2e-wor89-close-modal
+        run: npm test
+
+      - name: Commit production fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/FE/src/features/jobs/routes/CompletedJobReport.tsx
+          git commit -m "RBJ-89: close undo success modal on job action"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
