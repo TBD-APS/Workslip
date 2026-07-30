@@ -14,7 +14,7 @@ The product owner prioritizes rapid rollout of frontend fixes over preserving un
 
 Immediate activation creates a version-skew risk for clients that loaded application shell code from one deployment and later request a lazy chunk from another deployment. The implementation therefore needs explicit stale-chunk recovery and retention of previously fetched content-hashed route assets.
 
-WOR-213 verified that update discovery and worker activation were not sufficient by themselves. An installed mobile PWA could receive a new worker while the already-open document continued running the old application bundle until the app was fully closed. The client lifecycle must therefore include an explicit, guarded reload after an update is installed.
+WOR-213 verified that update discovery and worker activation were not sufficient by themselves. An installed mobile PWA could receive a new worker while the already-open document continued running the old application bundle until the app was fully closed. The lifecycle must therefore include an explicit, guarded navigation or reload after an update is installed.
 
 ## Decision
 
@@ -26,18 +26,20 @@ WOR-213 verified that update discovery and worker activation were not sufficient
    - when browser connectivity returns; and
    - once per minute while the app remains open.
 4. Update checks are serialized. A waiting worker is explicitly sent a `SKIP_WAITING` message instead of leaving the client on the previous version.
-5. A client that was already controlled when the page loaded reloads at most once when the plugin reports an update, the service-worker controller changes, or the installing worker activates.
-6. A two-second fallback reload covers installed/mobile browser contexts that do not reliably emit the expected controller lifecycle event. The fallback is never scheduled for a first-time service-worker installation.
-7. The public bootstrap shell is precached. Authenticated route chunks are loaded and cached on first use.
-8. Previously fetched content-hashed route assets remain in a capped runtime cache across deployments to support already-open clients.
-9. A Vite `vite:preloadError` triggers at most one guarded reload per build. A repeated failure reaches the normal application error boundary.
-10. The update flow does not wait for shared dirty-form state or user confirmation.
+5. An activating worker records whether it replaces a previous active worker. After claiming clients, an update worker navigates existing window clients to their current URLs; first-time installation does not navigate them.
+6. The client also reloads at most once when the plugin reports an update, the service-worker controller changes, or the installing worker activates.
+7. A two-second fallback reload covers installed/mobile browser contexts that do not reliably emit the expected controller lifecycle event. The fallback is never scheduled for a first-time service-worker installation and is session-guarded per application build.
+8. The public bootstrap shell is precached. Authenticated route chunks are loaded and cached on first use.
+9. Previously fetched content-hashed route assets remain in a capped runtime cache across deployments to support already-open clients.
+10. A Vite `vite:preloadError` triggers at most one guarded reload per build. A repeated failure reaches the normal application error boundary.
+11. The update flow does not wait for shared dirty-form state or user confirmation.
 
 ## Consequences
 
 - A detected production deployment activates and reloads an already-open controlled client without requiring a button press or full app close.
+- Worker-side navigation allows the deployment containing WOR-213 to refresh clients still running the previous client bundle, rather than requiring the new client code to be loaded first.
 - An app that stays open and visible discovers a deployment within at most approximately one minute; reopening, refocusing or reconnecting triggers an immediate check.
-- The one-shot guard prevents duplicate lifecycle events from causing a reload loop.
+- The one-shot and session guards prevent duplicate lifecycle events or fallback retries from causing a reload loop.
 - Unsaved in-memory form state may be lost when a deployment reloads or replaces the active client. This is an accepted product trade-off.
 - Content-hashed lazy chunks and the runtime cache reduce, but cannot eliminate, mixed-version behaviour.
 - Service-worker and route-splitting changes require clean-profile, already-open-tab, installed-PWA and offline-revisit smoke testing.
