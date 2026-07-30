@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate production API client
+        run: npm run generate:api:prod
+
       - name: Lint changed TypeScript files
         run: npx eslint src/features/auth/components/OneTimeCodeInput.tsx src/features/auth/components/OneTimeCodeLogin.tsx
 
