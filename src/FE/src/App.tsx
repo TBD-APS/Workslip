@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
+import { PwaUpdateBanner } from './components/common/PwaUpdateBanner';
 import { AppProvider } from './providers/AppProvider';
 import { router } from './routes';
 import { scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
@@ -24,6 +25,7 @@ function App() {
   return (
     <AppProvider>
       <RouterProvider router={router} />
+      <PwaUpdateBanner />
       {telemetryEnabled && (
         <Suspense fallback={null}>
           <VercelTelemetry />
