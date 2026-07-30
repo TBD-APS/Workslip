@@ -7,7 +7,10 @@ import {
   trackApiDependency,
   trackUserInteraction,
 } from '../applicationInsights';
-import { restoreHomeOrganizationSession } from '../features/superadmin/organizationSession';
+import {
+  isDelegatedOrganizationSessionToken,
+  restoreHomeOrganizationSession,
+} from '../features/superadmin/organizationSession';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -41,6 +44,14 @@ const isAuthMeRequest = (url: string | undefined): boolean => {
     .replace(/\/+$/, '');
 
   return normalizedUrl.endsWith('/api/auth/me');
+};
+
+const getRequestBearerToken = (config: InternalAxiosRequestConfig | undefined): string | null => {
+  const authorization = config?.headers?.get?.('Authorization') ?? config?.headers?.Authorization;
+  if (typeof authorization !== 'string') return null;
+
+  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
+  return match?.[1] ?? null;
 };
 
 export const apiClient = axios.create({
@@ -164,31 +175,49 @@ apiClient.interceptors.response.use(
     const isMeEndpoint = isAuthMeRequest(error.config?.url);
 
     if (error.response?.status === 401) {
-      if (restoreHomeOrganizationSession()) {
-        clearReauthInFlight();
-        notify.dismiss();
-        notify.info('Organisationssessionen er udløbet. Du er tilbage i Superadmin.');
-        window.location.assign('/superadmin?organizationSessionExpired=1');
+      const requestToken = getRequestBearerToken(error.config);
+      const activeToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
+      const isStaleUnauthorizedResponse = Boolean(
+        requestToken && activeToken && requestToken !== activeToken,
+      );
+      const shouldHandleSessionExpiry = isMeEndpoint || (!isAuthApi && !isAuthRoute);
+
+      if (isStaleUnauthorizedResponse) {
         return Promise.reject(error);
       }
 
-      if (!isAuthApi && !isAuthRoute) {
-        if (!isReauthInFlight()) {
+      if (
+        shouldHandleSessionExpiry
+        && isDelegatedOrganizationSessionToken(requestToken)
+        && restoreHomeOrganizationSession()
+      ) {
+        clearReauthInFlight();
+        notify.dismiss();
+        notify.info('Organisationssessionen er udløbet. Du er tilbage i Superadmin.');
+        window.location.replace('/superadmin');
+        return Promise.reject(error);
+      }
+
+      // A 401 from /api/auth/me definitively rejects the stored JWT. Treat it
+      // like any other expired authenticated request instead of leaving the user
+      // on the startup recovery screen. Timeouts and 5xx responses remain
+      // recoverable without deleting a potentially valid session.
+      if (shouldHandleSessionExpiry) {
+        AuthStorage.removeItem(AUTH_TOKEN_KEY);
+        AuthStorage.removeItem(USER_EMAIL_KEY);
+
+        const isReauthRoute = window.location.pathname.includes('/login')
+          && new URLSearchParams(window.location.search).get('reauth') === '1';
+        if (!isReauthRoute && !isReauthInFlight()) {
           setReauthInFlight();
           const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
           notify.dismiss();
-          window.location.assign(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
+          window.location.replace(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
         }
       }
-
-      // A failing identity bootstrap is not proof that the stored token is
-      // invalid. ProtectedRoute owns retry, reload and deliberate logout.
-      if (!isMeEndpoint) {
-        AuthStorage.removeItem(AUTH_TOKEN_KEY);
-        AuthStorage.removeItem(USER_EMAIL_KEY);
-      }
     } else if (isMeEndpoint || error.config?.skipGlobalErrorToast) {
-      // ProtectedRoute renders the startup recovery state.
+      // ProtectedRoute renders recovery only for timeouts, network failures and
+      // temporary server errors where the stored token may still be valid.
     } else if (error.response?.status === 403) {
       notify.error('Du har ikke adgang til denne handling');
     } else if (error.response?.status === 400 && error.response?.data?.errors) {
