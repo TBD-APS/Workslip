@@ -117,7 +117,7 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
  * indefinitely.
  */
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { hasAuthToken, isAuthenticated, isLoading, logout, meQuery } = useAuth();
+  const { hasAuthToken, isAuthenticated, isLoading, clearLocalSession, meQuery } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [startupTimedOut, setStartupTimedOut] = useState(false);
@@ -152,7 +152,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   };
 
   const handleLogin = () => {
-    logout();
+    clearLocalSession();
     navigate(loginUrl, { replace: true });
   };
 

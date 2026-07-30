@@ -68,6 +68,8 @@ The public shell does not import the old marketing stylesheet, authenticated app
 
 When authentication resolves on `/`, `/login` or the `/app` home route, the default jobs query is prefetched with the same status, search and sort key used by the rendered list. Jobs data is fresh for 30 seconds and retained in memory for 30 minutes, so revisiting `/app` displays cached rows immediately and revalidates stale data in the background. This cache is not persisted to IndexedDB or local storage and is cleared on logout to prevent data crossing user sessions. Deep links to other authenticated sections do not speculatively request the jobs list.
 
+Explicit logout and internal session recovery are separate auth-context operations. Both clear local credentials and, while authenticated, clear React Query before removing the token. Invitation account switching and startup recovery use `clearLocalSession`; user-facing logout controls use `logout`. The current logout implementation is local-only and does not navigate through a Microsoft logout endpoint.
+
 The SPA root is served directly without a Vercel redirect. The client router renders login for unauthenticated users and moves an already authenticated user to `/app`.
 
 Service-worker registration is scheduled after the initial window load and an idle callback. Application Insights, Vercel Analytics, Speed Insights and the Sonner toaster are loaded after the first pointer/keyboard interaction or a ten-second fallback, then scheduled during idle time. The Application Insights SDK itself remains a dynamic import. Once the service worker registers, the accepted immediate update-discovery and activation policy remains unchanged.
@@ -105,7 +107,7 @@ For routing, performance or PWA cache changes, also validate with a clean browse
 7. A stored-token `/app` visit must start downloading `AuthenticatedAppProvider`, `AppLayout` and `JobList` in parallel with session validation, then load the existing jobs query without duplicate route downloads.
 8. After `/api/auth/me` succeeds on a primary jobs destination, the initial jobs query must use the exact key later consumed by `JobList`; an already-running request must be deduplicated.
 9. Revisiting Jobs within 30 minutes must show cached data immediately; after 30 seconds it must refresh in the background without replacing rows with the full-page skeleton.
-10. Logout must clear React Query data before another user can authenticate in the same browser.
+10. Explicit logout and internal session clearing during invitation account switching or startup recovery must clear React Query data before another user can authenticate in the same browser; explicit logout must remain on Workslip rather than visiting a provider logout endpoint.
 11. Login, dev login, user updates, push registration and current-user retry must retain their existing behaviour.
 12. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
 13. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.

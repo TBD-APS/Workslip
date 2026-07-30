@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void preloadPrimaryAppRoute().catch(() => undefined);
   }, [authToken]);
 
-  const clearSession = useCallback(() => {
+  const clearStoredSession = useCallback(() => {
     AuthStorage.removeItem(AUTH_TOKEN_KEY);
     AuthStorage.removeItem(USER_EMAIL_KEY);
     clearReauthInFlight();
@@ -81,11 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading: false,
       login,
       devLogin,
-      logout: clearSession,
+      logout: clearStoredSession,
+      clearLocalSession: clearStoredSession,
       updateUser: () => undefined,
       meQuery: publicMeQuery,
     }),
-    [clearSession, devLogin, login],
+    [clearStoredSession, devLogin, login],
   );
 
   if (!authToken) {
@@ -103,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       <AuthenticatedAppProvider
         login={login}
         devLogin={devLogin}
-        clearSession={clearSession}
+        clearSession={clearStoredSession}
       >
         {children}
       </AuthenticatedAppProvider>

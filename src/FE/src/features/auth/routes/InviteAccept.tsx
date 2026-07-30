@@ -33,7 +33,7 @@ const resolveInviteError = (errorCode: string | undefined, fallback: string) =>
 
 export const InviteAccept = () => {
   const { token } = useParams<{ token: string }>();
-  const { meQuery, logout, isLoading } = useAuth();
+  const { meQuery, clearLocalSession, isLoading } = useAuth();
   const [state, setState] = useState<InviteState>({ status: 'checking' });
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
@@ -98,11 +98,10 @@ export const InviteAccept = () => {
             return;
           }
 
-          // Logged in as a different identity. Drop the existing
-          // session and fall through to the un-authenticated flow so
-          // the new invite can be completed. Otherwise the next page
-          // (Login) would land as the wrong user.
-          logout();
+          // Logged in as a different identity. Drop only the local Workslip
+          // session and fall through to the un-authenticated flow. This must not
+          // acquire provider-specific logout side effects.
+          clearLocalSession();
           if (res.userExists) {
             window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
             return;
@@ -133,7 +132,7 @@ export const InviteAccept = () => {
         setState({ status: 'consumed_no_user' });
       })
       .catch(() => setState({ status: 'invalid', message: 'Invitationen blev ikke fundet. Kontrollér linket eller kontakt administratoren.' }));
-  }, [token, isLoading, meQuery.data, logout]);
+  }, [token, isLoading, meQuery.data, clearLocalSession]);
 
   const handleAcceptInvite = () => {
     setState({ status: 'accepted' });

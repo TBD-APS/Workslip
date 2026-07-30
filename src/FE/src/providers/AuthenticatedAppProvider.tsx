@@ -64,10 +64,16 @@ function AuthenticatedSessionProvider({
     void prefetchInitialJobList(queryClient).catch(() => undefined);
   }, [isAuthenticated]);
 
-  const logout = useCallback(() => {
+  const clearLocalSession = useCallback(() => {
     queryClient.clear();
     clearSession();
   }, [clearSession]);
+
+  const logout = useCallback(() => {
+    // Keep explicit logout separate from internal session clearing so a future
+    // provider-specific sign-out cannot affect invitation or recovery flows.
+    clearLocalSession();
+  }, [clearLocalSession]);
 
   const updateUser = useCallback(
     (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => {
@@ -103,10 +109,11 @@ function AuthenticatedSessionProvider({
       login,
       devLogin,
       logout,
+      clearLocalSession,
       updateUser,
       meQuery: publicMeQuery,
     }),
-    [devLogin, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
+    [clearLocalSession, devLogin, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
