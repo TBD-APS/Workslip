@@ -14,18 +14,24 @@ async function fulfillJson(route: Route, body: unknown, status = 200): Promise<v
 
 test.describe('@authenticated-ui authenticated application shell', () => {
   test('navigates to the create form, verifies its initial state, and logs out', async ({ page }) => {
-    await page.addInitScript(({ id, email }) => {
+    await page.addInitScript(({ email }) => {
       localStorage.setItem('authToken', 'playwright-ui-token');
       localStorage.setItem('userEmail', email);
       localStorage.removeItem('workslip.reauthInFlight');
-      localStorage.setItem('playwrightUserId', id);
-    }, { id: userId, email: 'playwright-admin@example.test' });
+    }, { email: 'playwright-admin@example.test' });
 
     await page.route('**/api/**', async (route) => {
       const request = route.request();
       const url = new URL(request.url());
       const path = url.pathname.replace(/\/+$/, '');
       const method = request.method();
+
+      // Vite source modules can contain `/api/` in their file path, for example
+      // `/src/features/auth/api/entraLogin.ts`. Only intercept real server routes.
+      if (!url.pathname.startsWith('/api/')) {
+        await route.continue();
+        return;
+      }
 
       if (method === 'GET' && path === '/api/auth/me') {
         await fulfillJson(route, {
