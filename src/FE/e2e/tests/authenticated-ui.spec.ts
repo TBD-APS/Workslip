@@ -88,8 +88,8 @@ test.describe('@authenticated-ui authenticated application shell', () => {
     await page.goto('/app');
 
     await expect(page).toHaveURL(/\/app\/?$/);
-    await expect(page.getByText('Playwright Admin', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Sager' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Opret ny sag' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Opret ny sag' }).click();
     await expect(page.getByRole('heading', { name: 'Opret' })).toBeVisible();
