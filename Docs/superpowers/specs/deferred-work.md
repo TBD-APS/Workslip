@@ -12,6 +12,7 @@
 - Four `JobCustomerSnapshotTests` use EF relational APIs through the InMemory provider and fail at `EfJobRepository.GetNextReportNumberAsync`.
 - `AuditInterceptorTests.Job_repository_update_after_status_activation_logs_real_work_events_without_churn` expects a more detailed status audit message than the current implementation emits.
 - Nine `EfInviteRepositoryTests` and `DatabaseIntegrityConstraintTests` fail while creating SQLite fixtures because SQL Server-style `max` column syntax is not accepted by SQLite (`near "max": syntax error`).
+- `EfReferenceDataRepositoryTests.GetAsync_OrdersInstallationTypesAlphabeticallyInsteadOfBySortOrder` fails for the same SQLite fixture incompatibility (`near "max": syntax error`) before exercising the ordering assertion.
 
 ## Existing frontend lint failures
 

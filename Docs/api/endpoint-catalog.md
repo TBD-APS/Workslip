@@ -1,6 +1,6 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-30
+**Contract build reviewed:** 2026-07-30<br>
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
