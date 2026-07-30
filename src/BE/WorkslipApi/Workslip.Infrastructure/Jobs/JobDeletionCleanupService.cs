@@ -21,7 +21,21 @@ public sealed class JobDeletionCleanupService(
             using var timer = new PeriodicTimer(CleanupInterval);
             do
             {
-                await PurgeDueJobsAsync(stoppingToken);
+                try
+                {
+                    await PurgeDueJobsAsync(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(
+                        ex,
+                        "Scheduled job deletion cleanup failed. Next attempt in {RetryInterval}.",
+                        CleanupInterval);
+                }
             }
             while (await timer.WaitForNextTickAsync(stoppingToken));
         }
