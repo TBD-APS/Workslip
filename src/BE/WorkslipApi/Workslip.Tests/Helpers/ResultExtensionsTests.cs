@@ -41,6 +41,31 @@ public sealed class ResultExtensionsTests
     }
 
     [Fact]
+    public async Task ToHttpResult_maps_invalid_job_transition_to_conflict()
+    {
+        var result = Result.Conflict("invalid_job_status_transition");
+
+        var context = CreateHttpContext();
+        await ApiResultExtensions.ToHttpResult(result).ExecuteAsync(context);
+
+        var root = await ReadResponseAsync(context);
+
+        Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+        Assert.Equal("invalid_job_status_transition", root.GetProperty("error").GetString());
+        Assert.Equal("Statusændringen er ikke tilladt fra sagens nuværende status.", root.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task ToHttpResult_maps_forbidden_to_403()
+    {
+        var context = CreateHttpContext();
+
+        await ApiResultExtensions.ToHttpResult(Result.Forbidden()).ExecuteAsync(context);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+    }
+
+    [Fact]
     public async Task ToHttpResult_translates_legacy_validation_message()
     {
         var result = Result.Invalid([
