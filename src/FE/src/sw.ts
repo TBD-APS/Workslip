@@ -22,9 +22,6 @@ const REPLACES_ACTIVE_WORKER = Boolean(self.registration.active);
 cleanupOutdatedCaches();
 precacheAndRoute(PRECACHE_MANIFEST);
 
-// Immediate activation is the accepted product policy in ADR 0002.
-self.skipWaiting();
-
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     await self.clients.claim();

@@ -7,6 +7,10 @@ import {
   trackApiDependency,
   trackUserInteraction,
 } from '../applicationInsights';
+import {
+  isDelegatedOrganizationSessionToken,
+  restoreHomeOrganizationSession,
+} from '../features/superadmin/organizationSession';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -22,6 +26,7 @@ import {
   AUTH_TOKEN_KEY,
   USER_EMAIL_KEY,
   AuthStorage,
+  clearReauthInFlight,
   isReauthInFlight,
   setReauthInFlight,
 } from '../providers/authContextValue';
@@ -39,6 +44,14 @@ const isAuthMeRequest = (url: string | undefined): boolean => {
     .replace(/\/+$/, '');
 
   return normalizedUrl.endsWith('/api/auth/me');
+};
+
+const getRequestBearerToken = (config: InternalAxiosRequestConfig | undefined): string | null => {
+  const authorization = config?.headers?.get?.('Authorization') ?? config?.headers?.Authorization;
+  if (typeof authorization !== 'string') return null;
+
+  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
+  return match?.[1] ?? null;
 };
 
 export const apiClient = axios.create({
@@ -162,21 +175,41 @@ apiClient.interceptors.response.use(
     const isMeEndpoint = isAuthMeRequest(error.config?.url);
 
     if (error.response?.status === 401) {
+      const requestToken = getRequestBearerToken(error.config);
+      const activeToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
+      const isStaleUnauthorizedResponse = Boolean(
+        requestToken && activeToken && requestToken !== activeToken,
+      );
+      const shouldHandleSessionExpiry = isMeEndpoint || (!isAuthApi && !isAuthRoute);
+
+      if (isStaleUnauthorizedResponse) {
+        return Promise.reject(error);
+      }
+
+      if (
+        shouldHandleSessionExpiry
+        && isDelegatedOrganizationSessionToken(requestToken)
+        && restoreHomeOrganizationSession()
+      ) {
+        clearReauthInFlight();
+        notify.dismiss();
+        notify.info('Organisationssessionen er udløbet. Du er tilbage i Superadmin.');
+        window.location.replace('/superadmin');
+        return Promise.reject(error);
+      }
+
       // A 401 from /api/auth/me definitively rejects the stored JWT. Treat it
       // like any other expired authenticated request instead of leaving the user
       // on the startup recovery screen. Timeouts and 5xx responses remain
       // recoverable without deleting a potentially valid session.
-      const shouldReauthenticate = isMeEndpoint || (!isAuthApi && !isAuthRoute);
-      if (shouldReauthenticate) {
+      if (shouldHandleSessionExpiry) {
         AuthStorage.removeItem(AUTH_TOKEN_KEY);
         AuthStorage.removeItem(USER_EMAIL_KEY);
 
         const isReauthRoute = window.location.pathname.includes('/login')
           && new URLSearchParams(window.location.search).get('reauth') === '1';
-        if (!isReauthRoute) {
-          if (!isReauthInFlight()) {
-            setReauthInFlight();
-          }
+        if (!isReauthRoute && !isReauthInFlight()) {
+          setReauthInFlight();
           const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
           notify.dismiss();
           window.location.replace(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);

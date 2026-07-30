@@ -4,8 +4,11 @@ import './base.css';
 import App from './App.tsx';
 import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
 import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
+import { normalizeSuperadminSessionForCurrentPlatform } from './features/superadmin/organizationSession';
 
 if (typeof window !== 'undefined') {
+  normalizeSuperadminSessionForCurrentPlatform();
+
   // Vite emits this event when an already-open client references a hashed lazy
   // chunk that disappeared after deployment. Reload once for this build; if it
   // still fails, the normal error boundary handles it without a reload loop.

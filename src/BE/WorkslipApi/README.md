@@ -86,6 +86,8 @@ WorkslipApi/
 
 Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
 
+Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both remain attached to the same Development organization. The operation is idempotent. Missing identities receive one invitation that redirects to `/login`; later starts reuse the existing identities. Development startup therefore requires working Microsoft Graph credentials.
+
 Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
 
 Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
@@ -99,6 +101,8 @@ API runtime Microsoft Graph permissions are declared once in `../infrastructure/
 Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
 
 Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
+
+Superadmins remain attached to one permanent organization. The Superadmin-only organization session endpoint can issue a short-lived local token whose `organizationId` is a selected organization while the real actor ID and `Superadmin` role remain unchanged. The default lifetime is 15 minutes, configurable through `Jwt:OrganizationSessionExpiryMinutes` from 1 through 30 minutes. This flow performs no database or Entra mutation and does not bypass existing tenant repository filters.
 
 ## Result and endpoint conventions
 
@@ -140,7 +144,22 @@ The production API workflow is:
 .github/workflows/main_api-mrsoftware-prod.yml
 ```
 
-It builds and publishes the API, authenticates to Azure through GitHub OIDC and deploys to `api-mrsoftware-prod`. Production uses GitHub environment `prod` with:
+It restores, builds and publishes the API, creates a ZIP whose root is the `dotnet publish` output, authenticates through GitHub OIDC and deploys the package to `api-mrsoftware-prod` with `az webapp deploy`.
+
+The deployment workflow:
+
+- preserves the `prod` environment and its scoped OIDC identity;
+- serializes production API releases through the existing concurrency group;
+- retries an App Service/Kudu deployment failure at most three times with bounded backoff;
+- records the immutable ZIP size in the build log;
+- restarts the App Service between attempts only when Kudu reports `There is not enough space on the disk`, clearing the worker's temporary local storage before retrying;
+- requests Azure CLI enriched deployment errors;
+- prints only safe App Service state and deployment-log diagnostics after a final failure;
+- verifies `https://<default-hostname>/health` before reporting success.
+
+The production App Service plan is currently F1. Its local temporary worker storage is small and may be exhausted by accumulated Kudu deployment data even when the repository and deployment workflow are unchanged. A restart clears temporary local storage. Repeated disk-full failures after that recovery indicate persistent filesystem usage or package growth and must be investigated through App Service quotas/Kudu before adding retries or changing application code.
+
+Production uses GitHub environment `prod` with:
 
 - `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
 - `AZURE_TENANT_ID`: target Entra tenant ID
@@ -153,6 +172,10 @@ After infrastructure recreation:
 1. run `../infrastructure/deploy.ps1 prod`;
 2. set the three GitHub `prod` environment identifiers from the deployment output;
 3. run the API workflow manually;
-4. verify `/health`, Microsoft login and one authenticated API request.
+4. confirm the workflow package check finds `Workslip.Api.dll` at ZIP root;
+5. confirm the deployment step succeeds and `/health` passes;
+6. verify Microsoft login and one authenticated API request.
+
+If all deployment attempts fail, use the workflow's safe App Service state, recent deployment records and latest deployment log before changing application code or infrastructure. The Node deprecation warnings emitted by third-party actions are not deployment evidence; the failing Azure/Kudu operation and its diagnostics are authoritative.
 
 Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.

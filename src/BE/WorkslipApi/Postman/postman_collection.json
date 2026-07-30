@@ -217,6 +217,40 @@
         {
           "name": "/api/organizations",
           "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizations",
+                ""
+              ]
+            },
+            "description": "Superadmin-only list used by the /superadmin page."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('organization array returned', function () { pm.expect(json).to.be.an('array'); });",
+                  "pm.test('organization contract returned', function () { if (json.length > 0) { pm.expect(json[0]).to.include.all.keys('id', 'name', 'cvr'); } });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/organizations",
+          "request": {
             "method": "POST",
             "header": [
               {
@@ -234,7 +268,7 @@
                 "organizations"
               ]
             },
-            "description": "Creates organization and initial admin user. Saves organizationId + userId on 200.",
+            "description": "Superadmin-only organization creation. Creates the organization and initial local admin row, then saves organizationId and userId on 200.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"{{organizationName}}\",\n  \"cvr\": \"{{organizationCvr}}\",\n  \"adminDisplayName\": \"{{adminDisplayName}}\",\n  \"adminEmail\": \"{{testEmail}}\",\n  \"adminPhone\": \"{{adminPhone}}\"\n}",
@@ -311,6 +345,57 @@
                   "const errors = json.errors || {};",
                   "const keys = Object.keys(errors);",
                   "pm.test('organization validation fields returned', function () { pm.expect(keys).to.include.members(['Name', 'Cvr', 'AdminDisplayName', 'AdminEmail']); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/organizations/{organizationId}/admin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizations/{{organizationId}}/admin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizations",
+                "{{organizationId}}",
+                "admin"
+              ]
+            },
+            "description": "Superadmin-only administrator assignment. Sends a Microsoft Entra B2B invitation for a new identity, assigns the Entra Admin app role, and creates or updates the local Admin row.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"displayName\": \"{{adminDisplayName}}\",\n  \"phone\": \"{{adminPhone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('admin belongs to selected organization', function () { pm.expect(json.organizationId).to.eql(pm.collectionVariables.get('organizationId')); });",
+                  "pm.test('canonical Admin role returned', function () { pm.expect(json.role).to.eql('Admin'); });",
+                  "pm.test('Entra invitation status returned', function () { pm.expect(json.entraInvitationSent).to.be.a('boolean'); });",
+                  "pm.collectionVariables.set('userId', json.id);"
                 ]
               }
             }

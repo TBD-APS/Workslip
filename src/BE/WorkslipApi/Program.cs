@@ -44,7 +44,11 @@ try
         await db.Database.CanConnectAsync();
 
         if (app.Environment.IsDevelopment())
-            await DatabaseSeeder.Seed(db);
+        {
+            await scope.ServiceProvider
+                .GetRequiredService<DevelopmentDatabaseSeeder>()
+                .SeedAsync();
+        }
     }
 
     app.ConfigurePipeline();

@@ -38,7 +38,7 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
             .AsNoTracking()
             .AsSplitQuery()
             .Where(d => d.OrganizationId == organizationId)
-            .OrderBy(d => d.SortOrder)
+            .OrderBy(d => d.Name)
             .Select(d => new InstallationTypeDefinitionResponse(
                 d.Id,
                 d.Name,

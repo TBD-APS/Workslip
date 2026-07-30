@@ -5,6 +5,7 @@ using Ardalis.Result;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Users;
+using Workslip.Domain;
 
 namespace Workslip.Application.Auth;
 
@@ -22,7 +23,7 @@ public sealed class AuthService(
     public async Task<UserResponse> GetCurrentUserAsync(CancellationToken cancellationToken)
     {
         var userId = currentUser.UserId ?? throw new UnauthorizedAccessException("User is not logged in");
-        var user = await userRepository.GetByIdAsync(userId, cancellationToken);
+        var user = await userRepository.GetAuthenticatedActorAsync(userId, cancellationToken);
 
         if (user == null)
         {
@@ -30,9 +31,7 @@ public sealed class AuthService(
             throw new UnauthorizedAccessException("User is not logged in");
         }
 
-        var userResponse = UserResponseBuilder.MapToResponse(user);
-
-        return userResponse;
+        return ApplyEffectiveOrganization(UserResponseBuilder.MapToResponse(user));
     }
 
     public async Task<Result<UserResponse>> UpdateCurrentUserAsync(UpdateUserRequest request, CancellationToken cancellationToken)
@@ -78,7 +77,8 @@ public sealed class AuthService(
 
         logger.LogInformation("User updated own profile. UserId: {UserId}.", userId);
 
-        return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
+        return Result<UserResponse>.Success(
+            ApplyEffectiveOrganization(UserResponseBuilder.MapToResponse(user)));
     }
 
     public async Task SendLoginCodeAsync(SendCodeRequest request, CancellationToken cancellationToken)
@@ -181,6 +181,17 @@ public sealed class AuthService(
             user.Email,
             user.DisplayName,
             user.Role));
+    }
+
+    private UserResponse ApplyEffectiveOrganization(UserResponse response)
+    {
+        if (string.Equals(currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase)
+            && currentUser.OrganizationId is Guid effectiveOrganizationId)
+        {
+            return response with { OrganizationId = effectiveOrganizationId };
+        }
+
+        return response;
     }
 
     private static string GenerateCode()

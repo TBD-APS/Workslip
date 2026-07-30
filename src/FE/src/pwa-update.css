@@ -1,0 +1,52 @@
+.pwa-update-banner {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  bottom: calc(var(--bottom-nav-height) + 1rem);
+  left: max(1rem, env(safe-area-inset-left, 0px));
+  z-index: 10000;
+  width: min(32rem, calc(100% - 2rem));
+  margin-inline: auto;
+  padding: 0.9rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(20px);
+}
+
+.pwa-update-banner-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.pwa-update-banner-copy strong {
+  color: var(--text-primary);
+  font-size: var(--fs-body);
+}
+
+.pwa-update-banner-copy span {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.pwa-update-banner-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .pwa-update-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pwa-update-banner-button {
+    width: 100%;
+  }
+}

@@ -1,12 +1,22 @@
-import { useNavigate, useLocation, NavLink, Outlet } from 'react-router-dom';
-import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, User, Users, Sun, Moon, Bell } from 'lucide-react';
+import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
+import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
-import { Can } from '../../providers/permissions';
+import { Can, useIsSuperAdmin } from '../../providers/permissions';
 import { useEffect, useState } from 'react';
 import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
 import { NotificationsDrawer } from '../common/NotificationsDrawer';
+import {
+  clearOrganizationSession,
+  getOrganizationSession,
+  restoreHomeOrganizationSession,
+} from '../../features/superadmin/organizationSession';
+import {
+  DesktopOnlySuperadminScreen,
+} from '../../features/superadmin/components/DesktopOnlySuperadmin';
+import { isDesktopPlatform } from '../../lib/platform';
+import '../../features/superadmin/organizationSession.css';
 import '../../authenticated-base.css';
 import '../../App.css';
 
@@ -14,6 +24,9 @@ export const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuth();
+  const isSuperadmin = useIsSuperAdmin();
+  const isDesktop = isDesktopPlatform();
+  const organizationSession = getOrganizationSession();
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const { theme, toggle: toggleTheme } = useTheme();
@@ -28,12 +41,24 @@ export const AppLayout = () => {
   };
 
   const handleLogout = () => {
+    clearOrganizationSession();
     logout();
     // Navigate immediately rather than waiting for ProtectedRoute to render
     // a <Navigate to="/login"> — avoids a single frame of protected content
     // still being visible after the user clicked logout, and prevents a
     // browser-back race where the protected URL is briefly visible again.
     navigate('/login', { replace: true });
+  };
+
+  const handleExitOrganizationSession = () => {
+    if (!restoreHomeOrganizationSession()) {
+      handleLogout();
+      return;
+    }
+
+    // A full navigation recreates AuthProvider with the restored token and
+    // clears all in-memory tenant queries before the Superadmin page renders.
+    window.location.assign('/superadmin');
   };
 
   useEffect(() => {
@@ -68,6 +93,14 @@ export const AppLayout = () => {
     };
   }, []);
 
+  if (isSuperadmin && !isDesktop) {
+    return <DesktopOnlySuperadminScreen onLogout={handleLogout} />;
+  }
+
+  if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
+    return <Navigate to="/superadmin" replace />;
+  }
+
   const notificationLabel = unreadNotifications > 0
     ? `Notifikationer, ${unreadNotifications} ulæste`
     : 'Notifikationer';
@@ -77,7 +110,7 @@ export const AppLayout = () => {
       <div className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
         {/* Top Header for Mobile */}
       <header className="app-header">
-        <button className="logo logo-header" onClick={() => navigate('/app')}>
+        <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : '/app')}>
           <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -90,20 +123,36 @@ export const AppLayout = () => {
             <User size={16} />
             <span>{user?.displayName ?? user?.email ?? ''}</span>
           </span>
-          <button
-            type="button"
-            onClick={() => setNotificationsOpen(true)}
-            className="user-avatar notification-bell"
-            aria-label={notificationLabel}
-            title={notificationLabel}
-          >
-            <Bell size={18} />
-            {unreadNotifications > 0 && (
-              <span className="notification-badge" aria-hidden="true">
-                {unreadNotifications > 99 ? '99+' : unreadNotifications}
-              </span>
-            )}
-          </button>
+          {!isSuperadmin && (
+            <button
+              type="button"
+              onClick={() => setNotificationsOpen(true)}
+              className="user-avatar notification-bell"
+              aria-label={notificationLabel}
+              title={notificationLabel}
+            >
+              <Bell size={18} />
+              {unreadNotifications > 0 && (
+                <span className="notification-badge" aria-hidden="true">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
+            </button>
+          )}
+          {isDesktop && (
+            <Can permission="organization:manage">
+              <button
+                type="button"
+                onClick={() => navigate('/superadmin')}
+                className="user-avatar"
+                aria-label="Superadmin"
+                title="Superadmin"
+                aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
+              >
+                <ShieldCheck size={18} />
+              </button>
+            </Can>
+          )}
           <Can permission="user:manage">
             <button
               type="button"
@@ -124,21 +173,23 @@ export const AppLayout = () => {
           >
             {theme === 'night' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/app/profil')}
-            className="user-avatar"
-            aria-label="Profil"
-            title="Profil"
-          >
-            {user?.displayName ? (
-              <span className="user-avatar-initial">
-                {user.displayName.charAt(0).toUpperCase()}
-              </span>
-            ) : (
-              <User size={18} />
-            )}
-          </button>
+          {!isSuperadmin && (
+            <button
+              type="button"
+              onClick={() => navigate('/app/profil')}
+              className="user-avatar"
+              aria-label="Profil"
+              title="Profil"
+            >
+              {user?.displayName ? (
+                <span className="user-avatar-initial">
+                  {user.displayName.charAt(0).toUpperCase()}
+                </span>
+              ) : (
+                <User size={18} />
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleLogout}
@@ -151,6 +202,18 @@ export const AppLayout = () => {
           </button>
         </div>
       </header>
+
+      {isSuperadmin && organizationSession && (
+        <div className="organization-session-banner" role="status">
+          <span>
+            <Building2 size={17} aria-hidden="true" />
+            Du arbejder i <strong>{organizationSession.name}</strong> som Superadmin.
+          </span>
+          <button type="button" className="btn btn-secondary" onClick={handleExitOrganizationSession}>
+            Afslut organisationssession
+          </button>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="app-content">
@@ -192,11 +255,13 @@ export const AppLayout = () => {
         </Can>
       )}
       <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
-      <NotificationsDrawer
-        isOpen={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-        onUnreadCountChange={setUnreadNotifications}
-      />
+      {!isSuperadmin && (
+        <NotificationsDrawer
+          isOpen={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+          onUnreadCountChange={setUnreadNotifications}
+        />
+      )}
     </div>
     </DropdownProvider>
   );

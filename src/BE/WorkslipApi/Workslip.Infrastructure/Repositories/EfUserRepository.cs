@@ -18,6 +18,18 @@ public sealed class EfUserRepository : IUserRepository
         _currentUser = currentUser;
     }
 
+    public async Task<UserDataRow?> GetAuthenticatedActorAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not Guid actorId || actorId != id)
+        {
+            return null;
+        }
+
+        return await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+    }
+
     public async Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         return await _dbContext.Users
