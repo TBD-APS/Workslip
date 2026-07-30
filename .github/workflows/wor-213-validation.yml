@@ -74,6 +74,7 @@ jobs:
           npx eslint
           src/registerSW.ts
           src/sw.ts
+          src/lib/pwaUpdateEvents.ts
           src/components/common/PwaUpdateBanner.tsx
           src/components/common/PwaUpdateBanner.test.tsx
 
@@ -141,6 +142,7 @@ jobs:
           test.describe.configure({ mode: 'serial' });
           const baseUrl = 'http://127.0.0.1:4173/';
           const root = path.resolve(process.cwd(), '.tmp-wor-213');
+          const coordinatorReadyEvent = 'workslip:pwa-update-coordinator-ready';
 
           function publish(version: 'dist-v1' | 'dist-v2') {
             const current = path.join(root, 'current');
@@ -149,6 +151,16 @@ jobs:
           }
 
           async function loadControlledClient(page: Page) {
+            await page.addInitScript((eventName) => {
+              const testWindow = window as Window & {
+                __workslipPwaCoordinatorReady?: boolean;
+              };
+              testWindow.__workslipPwaCoordinatorReady = false;
+              window.addEventListener(eventName, () => {
+                testWindow.__workslipPwaCoordinatorReady = true;
+              });
+            }, coordinatorReadyEvent);
+
             await page.goto(baseUrl, { waitUntil: 'networkidle' });
             await expect(page.getByRole('heading', { name: 'Log ind på Workslip' })).toBeVisible();
             await expect(page.getByRole('region', { name: 'Appopdatering' })).toHaveCount(0);
@@ -163,6 +175,14 @@ jobs:
 
             await expect.poll(
               () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
+              { timeout: 10_000 },
+            ).toBe(true);
+
+            await expect.poll(
+              () => page.evaluate(() => Boolean(
+                (window as Window & { __workslipPwaCoordinatorReady?: boolean })
+                  .__workslipPwaCoordinatorReady,
+              )),
               { timeout: 10_000 },
             ).toBe(true);
           }
