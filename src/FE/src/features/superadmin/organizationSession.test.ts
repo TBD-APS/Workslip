@@ -13,24 +13,37 @@ const NOW_SECONDS = 2_000_000_000;
 const ACTOR_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_ACTOR_ID = '22222222-2222-4222-8222-222222222222';
 const HOME_ORGANIZATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const OTHER_ORGANIZATION_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const CUSTOMER_ORGANIZATION_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 function token(payload: Record<string, unknown>): string {
-  return `header.${btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}.signature`;
+  const encodedPayload = btoa(JSON.stringify(payload))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+
+  return `header.${encodedPayload}.signature`;
 }
 
 function homePayload(overrides: Record<string, unknown> = {}) {
   return {
-    nameid: ACTOR_ID, organizationId: HOME_ORGANIZATION_ID,
-    role: 'Superadmin', exp: NOW_SECONDS + 300, ...overrides,
+    nameid: ACTOR_ID,
+    organizationId: HOME_ORGANIZATION_ID,
+    role: 'Superadmin',
+    exp: NOW_SECONDS + 300,
+    ...overrides,
   };
 }
 
 function delegatedPayload(overrides: Record<string, unknown> = {}) {
   return {
-    nameid: ACTOR_ID, organizationId: CUSTOMER_ORGANIZATION_ID,
-    homeOrganizationId: HOME_ORGANIZATION_ID, role: 'Superadmin',
-    exp: NOW_SECONDS + 120, delegatedOrganizationSession: true, ...overrides,
+    nameid: ACTOR_ID,
+    organizationId: CUSTOMER_ORGANIZATION_ID,
+    homeOrganizationId: HOME_ORGANIZATION_ID,
+    role: 'Superadmin',
+    exp: NOW_SECONDS + 120,
+    delegatedOrganizationSession: true,
+    ...overrides,
   };
 }
 
@@ -63,12 +76,16 @@ describe('Superadmin organization sessions', () => {
       localStorage.setItem(AUTH_TOKEN_KEY, validHomeToken);
 
       activateOrganizationSession(
-        { id: CUSTOMER_ORGANIZATION_ID, name: 'NP Teknik' }, validDelegatedToken,
+        { id: CUSTOMER_ORGANIZATION_ID, name: 'NP Teknik' },
+        validDelegatedToken,
       );
 
       expect(localStorage.getItem(HOME_AUTH_TOKEN_KEY)).toBe(validHomeToken);
       expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBe(validDelegatedToken);
-      expect(getOrganizationSession()).toEqual({ id: CUSTOMER_ORGANIZATION_ID, name: 'NP Teknik' });
+      expect(getOrganizationSession()).toEqual({
+        id: CUSTOMER_ORGANIZATION_ID,
+        name: 'NP Teknik',
+      });
     },
   );
 
@@ -83,13 +100,28 @@ describe('Superadmin organization sessions', () => {
   });
 
   it('restores home after delegated-token expiry', () => {
-    saveDelegation(token(delegatedPayload({ exp: NOW_SECONDS })), validHomeToken);
+    saveDelegation(
+      token(delegatedPayload({ exp: NOW_SECONDS })),
+      validHomeToken,
+    );
+
     expect(restoreHomeOrganizationSession()).toBe(true);
     expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBe(validHomeToken);
   });
 
-  it('clears invalid recovery state', () => {
-    saveDelegation(validDelegatedToken, token(homePayload({ nameid: OTHER_ACTOR_ID })));
+  it.each([
+    ['different actor', token(homePayload({ nameid: OTHER_ACTOR_ID }))],
+    [
+      'different home organization',
+      token(homePayload({ organizationId: OTHER_ORGANIZATION_ID })),
+    ],
+    [
+      'delegated home token',
+      token(homePayload({ delegatedOrganizationSession: true })),
+    ],
+  ])('clears invalid recovery state for %s', (_name, invalidHomeToken) => {
+    saveDelegation(validDelegatedToken, invalidHomeToken);
+
     expect(restoreHomeOrganizationSession()).toBe(false);
     expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBeNull();
     expect(getOrganizationSession()).toBeNull();
@@ -97,14 +129,29 @@ describe('Superadmin organization sessions', () => {
 
   it('rejects a delegated token for another actor', () => {
     localStorage.setItem(AUTH_TOKEN_KEY, validHomeToken);
+
     expect(() => activateOrganizationSession(
       { id: CUSTOMER_ORGANIZATION_ID, name: 'NP Teknik' },
       token(delegatedPayload({ nameid: OTHER_ACTOR_ID })),
     )).toThrow('Organisationssessionens token kunne ikke valideres.');
   });
 
+  it('rejects activation when the active session belongs to another actor', () => {
+    localStorage.setItem(HOME_AUTH_TOKEN_KEY, validHomeToken);
+    localStorage.setItem(
+      AUTH_TOKEN_KEY,
+      token(homePayload({ nameid: OTHER_ACTOR_ID })),
+    );
+
+    expect(() => activateOrganizationSession(
+      { id: CUSTOMER_ORGANIZATION_ID, name: 'NP Teknik' },
+      validDelegatedToken,
+    )).toThrow('Organisationssessionens token kunne ikke valideres.');
+  });
+
   it('rejects malformed organization identifiers', () => {
     localStorage.setItem(AUTH_TOKEN_KEY, validHomeToken);
+
     expect(() => activateOrganizationSession(
       { id: 'not-a-uuid', name: 'NP Teknik' },
       token(delegatedPayload({ organizationId: undefined })),
