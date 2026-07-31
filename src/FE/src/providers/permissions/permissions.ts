@@ -31,7 +31,7 @@ const SUPERADMIN_PERMISSIONS: readonly Role[] = [ROLES.Superadmin];
 const CUSTOMER_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
 const AUDITOR_PERMISSIONS: readonly Role[] = [ROLES.Auditor, ROLES.Admin, ROLES.Superadmin];
 const USER_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
-const NOTIFICATION_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin];
+const NOTIFICATION_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
 
 const PERMISSIONS: Record<Permission, readonly Role[]> = {
   'job:create': USER_PERMISSIONS,
