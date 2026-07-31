@@ -1,0 +1,1 @@
+Trigger WOR-219 pull-request validation after the workflow was added.
