@@ -166,7 +166,11 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
 
   return (
     <div className="page-container job-detail-page">
-      <NavigationGuard when={details.hasUnsavedChanges} onSave={() => details.saveAllChanges()} />
+      <NavigationGuard
+        when={details.hasUnsavedChanges}
+        autoSaveOnLeave={() => details.saveAllChanges()}
+        autoSavePending={details.saveStatus === 'saving'}
+      />
       <JobDetailsHeader
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
