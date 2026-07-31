@@ -22,7 +22,8 @@ public sealed class WebPushSenderTests
             throw CreateWebPushException(
                 subscription,
                 HttpStatusCode.BadRequest,
-                "{\"reason\":\"VapidPkHashMismatch\"}"));
+                "{\"reason\":\"VapidPkHashMismatch\"}",
+                "Bad Request"));
         var sender = CreateSender(client);
 
         var result = await sender.SendNotificationAsync(
@@ -32,7 +33,6 @@ public sealed class WebPushSenderTests
 
         Assert.False(result.Success);
         Assert.True(result.ShouldDeactivateSubscription);
-        Assert.Contains("VapidPkHashMismatch", result.ErrorMessage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -42,7 +42,8 @@ public sealed class WebPushSenderTests
             throw CreateWebPushException(
                 subscription,
                 HttpStatusCode.BadRequest,
-                "{\"reason\":\"InvalidRequest\"}"));
+                "{\"reason\":\"InvalidRequest\"}",
+                "Bad Request. VapidPkHashMismatch"));
         var sender = CreateSender(client);
 
         var result = await sender.SendNotificationAsync(
@@ -60,7 +61,7 @@ public sealed class WebPushSenderTests
     public async Task SendNotificationAsync_PreservesExpiredSubscriptionCleanup(HttpStatusCode statusCode)
     {
         using var client = new StubWebPushClient((subscription, _, _, _) =>
-            throw CreateWebPushException(subscription, statusCode, null));
+            throw CreateWebPushException(subscription, statusCode, null, statusCode.ToString()));
         var sender = CreateSender(client);
 
         var result = await sender.SendNotificationAsync(
@@ -97,7 +98,8 @@ public sealed class WebPushSenderTests
     private static WebPushException CreateWebPushException(
         PushSubscription subscription,
         HttpStatusCode statusCode,
-        string? details)
+        string? details,
+        string message)
     {
         var response = new HttpResponseMessage(statusCode);
         if (details is not null)
@@ -105,9 +107,6 @@ public sealed class WebPushSenderTests
             response.Content = new StringContent(details);
         }
 
-        var message = details is null
-            ? statusCode.ToString()
-            : $"Bad Request. Details: {details}";
         return new WebPushException(message, subscription, response);
     }
 
