@@ -1,0 +1,46 @@
+name: TEMP — Validate WOR-223 VAPID mismatch cleanup
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
+
+      - name: Build Release
+        run: dotnet build src/BE/WorkslipApi/Workslip.Api.csproj --configuration Release --no-restore --nologo
+
+      - name: Run focused Web Push regression tests
+        run: >-
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-build
+          --filter FullyQualifiedName~Workslip.Tests.Notifications.WebPushSenderTests
+          --logger "console;verbosity=normal"
+          --nologo
+
+      - name: Run notification regression suite
+        run: >-
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-build
+          --filter FullyQualifiedName~Workslip.Tests.Notifications
+          --logger "console;verbosity=normal"
+          --nologo
