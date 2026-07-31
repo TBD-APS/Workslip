@@ -1,4 +1,4 @@
-name: TEMP - WOR-235 build-compatible candidates
+name: TEMP - WOR-235 validated candidates
 
 on:
   push:
@@ -12,9 +12,13 @@ on:
 permissions:
   contents: read
 
+env:
+  OPENAPI_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+
 jobs:
   candidates:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -56,28 +60,29 @@ jobs:
           }
           fs.writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
           NODE
-      - name: Inspect candidate metadata
-        env:
-          CANDIDATE: ${{ matrix.candidate }}
-        run: |
-          package="${CANDIDATE%-*}"
-          version="${CANDIDATE##*-}"
-          npm view "$package@$version" version dependencies engines type exports --json || true
       - name: Install candidate
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Generate frontend API client
+        run: npx orval --config orval.config.ts
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
       - name: Audit candidate
         env:
           CANDIDATE: ${{ matrix.candidate }}
         run: |
           npm audit --json > npm-audit.json || true
+          npm audit --omit=dev --json > npm-audit-production.json || true
           node <<'NODE'
           const fs = require('node:fs');
-          const audit = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
-          console.log(JSON.stringify({
+          const all = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
+          const prod = JSON.parse(fs.readFileSync('npm-audit-production.json', 'utf8'));
+          console.log(`AUDIT_SUMMARY ${JSON.stringify({
             candidate: process.env.CANDIDATE,
-            counts: audit.metadata?.vulnerabilities,
-            packages: Object.keys(audit.vulnerabilities ?? {}),
-          }, null, 2));
+            all: all.metadata?.vulnerabilities,
+            allPackages: Object.keys(all.vulnerabilities ?? {}),
+            production: prod.metadata?.vulnerabilities,
+            productionPackages: Object.keys(prod.vulnerabilities ?? {}),
+          })}`);
           NODE
       - name: Build candidate
         run: npm run build
