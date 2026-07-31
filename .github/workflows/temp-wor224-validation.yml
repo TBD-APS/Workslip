@@ -37,6 +37,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate frontend API client
+        run: npx orval --config orval.config.ts
+        env:
+          VITE_API_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+
       - name: Lint affected frontend files
         run: >-
           npx eslint
