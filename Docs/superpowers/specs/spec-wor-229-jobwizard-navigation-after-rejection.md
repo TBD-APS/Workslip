@@ -66,9 +66,10 @@ context:
 - Implemented a per-loaded-job rejected landing guard and excluded rejected jobs from the asynchronous worksheet shortcut.
 - Added seven focused Vitest scenarios across the route and hook boundaries; all seven pass, including actual route-ID changes, one-time scrolling, seen-state preservation, status transitions, and both job/reference-data response orders.
 - Affected-file ESLint completes with zero errors and one pre-existing `react-hooks/exhaustive-deps` warning at `useJobDetails.ts:308`.
-- `npm run build` remains pending after local API-client regeneration: the ignored local `UserViewModel` artifact lacks the already-referenced `roleDisplayName` field in three existing tests.
+- Regenerated the ignored client from the maintained deployed OpenAPI source, then `npm run build` passed TypeScript, service-worker typecheck, and the production Vite/PWA build.
 - Three independent reviews found no frozen-intent or architecture gap. Their route-transition edge case was patched by requiring route and loaded-job identity to match before normalization.
-- Playwright remains pending in the publishing workflow. The final PR must include a documentation waiver owned by the Workslip frontend owner, expiring 2026-08-14, because no maintained job-transition document currently covers this route behavior.
+- Playwright passed six deterministic scenarios in Chrome for Testing 149: desktop 1440x1000 and Pixel 7 emulation each covered rejected-user navigation with delayed reference data and reload/back/forward, the admin redirect/undo flow, and job-load failure/recovery. No unexpected console, page, request, or API-response failures occurred.
+- Deployed smoke testing was not run. The final PR includes a documentation waiver owned by the Workslip frontend owner, expiring 2026-08-14, because no maintained job-transition document currently covers this route behavior.
 
 ## Spec Change Log
 
