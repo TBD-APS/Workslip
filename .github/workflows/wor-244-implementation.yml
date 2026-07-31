@@ -1,0 +1,169 @@
+name: TEMP — WOR-244 invitation roles
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/wor-244-implementation.yml'
+      - 'tools/temp-wor-244-apply.py'
+      - 'src/BE/WorkslipApi/**'
+      - 'src/FE/**'
+      - 'Docs/api/contract.md'
+
+permissions:
+  contents: write
+
+env:
+  VITE_API_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
+
+jobs:
+  implement-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: rbj--244-invitation-role
+          fetch-depth: 0
+
+      - name: Apply deterministic product patch
+        run: python3 tools/temp-wor-244-apply.py
+
+      - name: Verify role boundaries and scope
+        run: |
+          git diff --check
+          grep -q 'NormalizeInviteRole' src/BE/WorkslipApi/Workslip.Application/Invitations/InvitationService.cs
+          grep -q 'existingInvite.Role = role' src/BE/WorkslipApi/Workslip.Application/Invitations/InvitationService.cs
+          grep -q "type InviteRole = 'User' | 'Auditor'" src/FE/src/features/settings/routes/Settings.tsx
+          grep -q 'role: inviteRole' src/FE/src/features/settings/routes/Settings.tsx
+          if grep -n 'role: null' src/FE/src/features/settings/routes/Settings.tsx; then
+            echo '::error::Settings still submits a null invitation role.'
+            exit 1
+          fi
+
+      - name: Commit maintained product changes
+        run: |
+          git config user.name 'workslip-validation-bot'
+          git config user.email 'workslip-validation-bot@users.noreply.github.com'
+          git add \
+            src/BE/WorkslipApi/Workslip.Application/Invitations/InvitationService.cs \
+            src/BE/WorkslipApi/Workslip.Tests/Invitations/InvitationRoleTests.cs \
+            src/FE/src/features/settings/routes/Settings.tsx \
+            src/FE/src/features/settings/routes/Settings.invitation-role.test.tsx \
+            src/FE/src/App.css \
+            Docs/api/contract.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'RBJ-244: assign invitation roles'
+            git push origin HEAD:rbj--244-invitation-role
+          fi
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore backend tests
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+
+      - name: Build backend Release
+        run: >-
+          dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-restore
+
+      - name: Run focused backend tests
+        run: >-
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-build
+          --filter FullyQualifiedName~InvitationRoleTests
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Generate frontend API client
+        working-directory: src/FE
+        run: npx orval --config orval.config.ts
+
+      - name: Align legacy generated-model fixtures when required
+        working-directory: src/FE
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          fixture_paths = [
+              Path('src/components/layouts/AppLayout.desktopOnly.test.tsx'),
+              Path('src/features/superadmin/components/DesktopOnlySuperadmin.test.tsx'),
+          ]
+          needle = "  role: 'Superadmin',\n"
+          replacement = needle + "  roleDisplayName: 'Superadministrator',\n"
+
+          for fixture_path in fixture_paths:
+              if not fixture_path.exists():
+                  continue
+              content = fixture_path.read_text(encoding='utf-8')
+              if 'roleDisplayName:' in content or needle not in content:
+                  continue
+              fixture_path.write_text(content.replace(needle, replacement, 1), encoding='utf-8')
+          PY
+
+      - name: Lint affected frontend files
+        working-directory: src/FE
+        run: >-
+          npx eslint
+          src/features/settings/routes/Settings.tsx
+          src/features/settings/routes/Settings.invitation-role.test.tsx
+
+      - name: Run focused frontend test
+        working-directory: src/FE
+        run: npm test -- --run src/features/settings/routes/Settings.invitation-role.test.tsx
+
+      - name: Build production frontend
+        working-directory: src/FE
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        working-directory: src/FE
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Validate invitation role flow in mobile Chromium
+        working-directory: src/FE
+        run: |
+          set -Eeuo pipefail
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/wor-244-preview.log 2>&1 &
+          preview_pid=$!
+          cleanup() {
+            kill "${preview_pid}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4173/; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "${ready}" != "true" ]]; then
+            cat /tmp/wor-244-preview.log || true
+            echo '::error::Frontend preview did not become ready.'
+            exit 1
+          fi
+
+          npx playwright test wor-244.validation.spec.ts --reporter=line --workers=1
+
+      - name: Verify final diff hygiene
+        run: git diff --check origin/main...HEAD
