@@ -1,12 +1,15 @@
 ---
-title: 'Desktop-only Superadmin organization sessions'
+title: 'Desktop-only Superadmin organization sessions (superseded)'
 type: 'feature'
 created: '2026-07-30'
-status: 'done'
+status: 'superseded'
+superseded_by: 'WOR-237'
 baseline_commit: '9ef939552b6b865f42ffe6805fc6b4ac0116bec8'
 context:
   - '{project-root}/Docs/api/contract.md'
 ---
+
+> **Superseded on 2026-07-31 by WOR-237.** Superadmin organization administration and delegated organization sessions are now supported on every frontend platform. The frozen section below records the former product decision and is retained only as history.
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
 

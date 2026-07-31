@@ -16,10 +16,6 @@ import {
   getOrganizationSession,
   restoreHomeOrganizationSession,
 } from '../../features/superadmin/organizationSession';
-import {
-  DesktopOnlySuperadminScreen,
-} from '../../features/superadmin/components/DesktopOnlySuperadmin';
-import { isDesktopPlatform } from '../../lib/platform';
 import '../../features/superadmin/organizationSession.css';
 import '../../authenticated-base.css';
 import '../../App.css';
@@ -30,7 +26,6 @@ export const AppLayout = () => {
   const { logout, user } = useAuth();
   const isSuperadmin = useIsSuperAdmin();
   const canUseNotifications = useCan('notification:use');
-  const isDesktop = isDesktopPlatform();
   const organizationSession = getOrganizationSession();
   const appHomePath = getAuthenticatedHomePath(user?.role);
   const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
@@ -100,9 +95,6 @@ export const AppLayout = () => {
     };
   }, []);
 
-  if (isSuperadmin && !isDesktop) {
-    return <DesktopOnlySuperadminScreen onLogout={handleLogout} />;
-  }
 
   if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
     return <Navigate to="/superadmin" replace />;
@@ -150,8 +142,7 @@ export const AppLayout = () => {
               )}
             </button>
           )}
-          {isDesktop && (
-            <Can permission="organization:manage">
+          <Can permission="organization:manage">
               <button
                 type="button"
                 onClick={() => navigate('/superadmin')}
@@ -163,7 +154,6 @@ export const AppLayout = () => {
                 <ShieldCheck size={18} />
               </button>
             </Can>
-          )}
           <Can permission="user:manage">
             <button
               type="button"

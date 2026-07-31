@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { apiClient } from '../../lib/axios';
-import { assertDesktopSuperadminAvailable } from '../../lib/platform';
 import type {
   CreateOrganizationInput,
   InviteOrganizationAdminInput,
@@ -14,14 +13,12 @@ export const superadminOrganizationQueryKey = ['superadmin', 'organizations'] as
 const organizationsPath = '/api/organizations';
 
 export async function getOrganizations(): Promise<Organization[]> {
-  assertDesktopSuperadminAvailable();
   return await apiClient.get(organizationsPath, {
     skipGlobalErrorToast: true,
   }) as unknown as Organization[];
 }
 
 export async function createOrganization(input: CreateOrganizationInput): Promise<OrganizationOnboarding> {
-  assertDesktopSuperadminAvailable();
   return await apiClient.post(organizationsPath, {
     name: input.name.trim(),
     cvr: input.cvr.trim(),
@@ -34,14 +31,12 @@ export async function createOrganization(input: CreateOrganizationInput): Promis
 }
 
 export async function createOrganizationSession(organizationId: string): Promise<OrganizationSessionToken> {
-  assertDesktopSuperadminAvailable();
   return await apiClient.post(`/api/organizations/${organizationId}/session`, undefined, {
     skipGlobalErrorToast: true,
   }) as unknown as OrganizationSessionToken;
 }
 
 export async function inviteOrganizationAdmin(input: InviteOrganizationAdminInput): Promise<OrganizationAdmin> {
-  assertDesktopSuperadminAvailable();
   return await apiClient.put(`/api/organizations/${input.organizationId}/admin`, {
     email: input.email.trim(),
     displayName: input.displayName.trim(),
