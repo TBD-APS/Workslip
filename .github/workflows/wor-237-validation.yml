@@ -75,11 +75,9 @@ jobs:
         working-directory: src/FE
         run: npm run build
 
-      - name: Install Playwright Chromium
+      - name: Install Playwright test runner
         working-directory: src/FE
-        run: |
-          npm install --no-save --package-lock=false @playwright/test@1.55.0
-          npx playwright install --with-deps chromium
+        run: npm install --no-save --package-lock=false @playwright/test@1.55.0
 
       - name: Validate mobile Superadmin workflow
         working-directory: src/FE
