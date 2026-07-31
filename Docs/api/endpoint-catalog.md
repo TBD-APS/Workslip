@@ -124,13 +124,14 @@ Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/ci
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/api/push-subscriptions/` | User, excluding Superadmin | Browser push endpoint and keys → mapped result |
+| GET | `/api/push-subscriptions/public-key` | User | Active private-key-derived VAPID public key; `Cache-Control: no-store` |
+| POST | `/api/push-subscriptions/` | User, excluding Superadmin | Browser endpoint and keys; optional `replacedEndpoint` deactivates exactly one stale subscription |
 | GET | `/api/notifications/` | User | `limit`, `offset` → notification history |
 | PATCH | `/api/notifications/{id}/read` | User | Marks one notification read → `204` |
 | POST | `/api/notifications/read-all` | User | Marks all read → `204` |
 | DELETE | `/api/notifications/{id}` | User | Deletes one owned notification → mapped result |
 
-Superadmins are blocked from push registration so a device used during a delegated organization session is never attached to a tenant notification stream.
+The backend derives the active public key from `Vapid:PrivateKey`; independently configured public-key values are diagnostic only. During authenticated startup, the frontend compares the browser subscription's `applicationServerKey` with this endpoint. A mismatch recreates the browser subscription and supplies the old endpoint as `replacedEndpoint`, preserving other device subscriptions. Superadmins are blocked from push registration so a device used during a delegated organization session is never attached to a tenant notification stream.
 
 ## Operations
 

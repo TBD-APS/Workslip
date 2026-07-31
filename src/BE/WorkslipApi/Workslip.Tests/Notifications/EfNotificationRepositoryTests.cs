@@ -37,6 +37,72 @@ public sealed class EfNotificationRepositoryTests
         Assert.Equal(EntityState.Detached, context.Entry(duplicate).State);
     }
 
+    [Fact]
+    public async Task RegisterSubscriptionAsync_DeactivatesReplacedEndpoint()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<SqlDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var userId = Guid.NewGuid();
+        const string oldEndpoint = "https://push.example/old";
+        const string newEndpoint = "https://push.example/new";
+
+        await using (var setupContext = new SqlDbContext(options))
+        {
+            await setupContext.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE PushSubscriptions (
+                    Id TEXT NOT NULL PRIMARY KEY,
+                    UserId TEXT NOT NULL,
+                    Endpoint TEXT NOT NULL,
+                    P256Dh TEXT NOT NULL,
+                    Auth TEXT NOT NULL,
+                    UserAgent TEXT NULL,
+                    IsActive INTEGER NOT NULL DEFAULT 1,
+                    CreatedUtc TEXT NOT NULL,
+                    LastSeenUtc TEXT NOT NULL
+                );
+                """);
+            setupContext.PushSubscriptions.Add(new PushSubscriptionRow
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Endpoint = oldEndpoint,
+                P256Dh = "old-key",
+                Auth = "old-auth",
+                IsActive = true,
+                CreatedUtc = DateTimeOffset.UtcNow,
+                LastSeenUtc = DateTimeOffset.UtcNow
+            });
+            await setupContext.SaveChangesAsync();
+        }
+
+        await using (var context = new SqlDbContext(options))
+        {
+            var repository = new EfNotificationRepository(context, new NoRetryPolicy());
+            await repository.RegisterSubscriptionAsync(
+                userId,
+                newEndpoint,
+                "new-key",
+                "new-auth",
+                "test-agent",
+                oldEndpoint,
+                CancellationToken.None);
+        }
+
+        await using var assertionContext = new SqlDbContext(options);
+        var subscriptions = await assertionContext.PushSubscriptions
+            .AsNoTracking()
+            .OrderBy(subscription => subscription.Endpoint)
+            .ToListAsync();
+
+        Assert.Equal(2, subscriptions.Count);
+        Assert.False(subscriptions.Single(subscription => subscription.Endpoint == oldEndpoint).IsActive);
+        Assert.True(subscriptions.Single(subscription => subscription.Endpoint == newEndpoint).IsActive);
+    }
+
     private static NotificationQueueRow CreateNotification(Guid id) => new()
     {
         Id = id,

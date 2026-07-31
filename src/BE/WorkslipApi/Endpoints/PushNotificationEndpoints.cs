@@ -1,6 +1,6 @@
+using System.Text.Json;
 using Workslip.Application.Auth;
 using Workslip.Application.Notifications;
-using System.Text.Json;
 using Workslip.Domain;
 using Workslip.Domain.Models;
 using ResultExtensions = Workslip.Api.Helpers.ResultExtensions;
@@ -46,6 +46,12 @@ public static class PushNotificationEndpoints
             return ResultExtensions.ToHttpResult(result);
         });
 
+        group.MapGet("/public-key", (IVapidPublicKeyProvider keyProvider, HttpContext httpContext) =>
+        {
+            httpContext.Response.Headers.CacheControl = "no-store";
+            return Results.Ok(new VapidPublicKeyViewModel(keyProvider.PublicKey));
+        });
+
         group.MapPost("/", async (
             RegisterPushSubscriptionRequest request,
             ICurrentUserContext currentUser,
@@ -73,6 +79,7 @@ public static class PushNotificationEndpoints
                 request.Keys.P256Dh,
                 request.Keys.Auth,
                 httpContext.Request.Headers.UserAgent.ToString(),
+                request.ReplacedEndpoint,
                 cancellationToken);
 
             return ResultExtensions.ToHttpResult(result);
@@ -84,9 +91,12 @@ public static class PushNotificationEndpoints
 
 public sealed record NotificationHistoryViewModel(Guid Id, string Title, string Body, string? Url, DateTimeOffset CreatedUtc, bool IsRead, string Status);
 
+public sealed record VapidPublicKeyViewModel(string PublicKey);
+
 public sealed record RegisterPushSubscriptionRequest(
     string Endpoint,
-    PushSubscriptionKeys Keys
+    PushSubscriptionKeys Keys,
+    string? ReplacedEndpoint = null
 );
 
 public sealed record PushSubscriptionKeys(
