@@ -1,14 +1,17 @@
 param(
     [Parameter(Position = 0)]
     [string]$Environment = 'prod',
-    [string]$CompanyName = 'mrsoftware'
+    [string]$CompanyName = 'mrsoftware',
+    [switch]$ValidateOnly
 )
 
 $ErrorActionPreference = 'Stop'
 
 $NormalizedEnvironment = $Environment.ToLowerInvariant()
+$ResourceGroup = "rg-$CompanyName-$NormalizedEnvironment"
 $AppConfigurationName = "appcs-$CompanyName-$NormalizedEnvironment"
 $KeyVaultName = "kv-$CompanyName-$NormalizedEnvironment"
+$WebApiName = "api-$CompanyName-$NormalizedEnvironment"
 $VapidPrivateKeySecretName = 'Vapid--PrivateKey'
 $VapidPrivateKeyConfigurationKey = 'Vapid:PrivateKey'
 $LegacyVapidPublicKeyConfigurationKey = 'Vapid:PublicKey'
@@ -139,6 +142,7 @@ function New-VapidPrivateKey {
     $ecdsa = [System.Security.Cryptography.ECDsa]::Create(
         [System.Security.Cryptography.ECCurve]::NamedCurves.nistP256
     )
+    $parameters = $null
 
     try {
         $parameters = $ecdsa.ExportParameters($true)
@@ -149,7 +153,7 @@ function New-VapidPrivateKey {
         return ConvertTo-Base64Url -Bytes $parameters.D
     }
     finally {
-        if ($null -ne $parameters.D) {
+        if ($null -ne $parameters -and $null -ne $parameters.D) {
             [Array]::Clear($parameters.D, 0, $parameters.D.Length)
         }
         $ecdsa.Dispose()
@@ -194,7 +198,7 @@ function Set-KeyVaultSecretFromMemory {
             [System.Text.UTF8Encoding]::new($false)
         )
 
-        $result = Invoke-AzureCli `
+        Invoke-AzureCli `
             -Arguments @(
                 'keyvault', 'secret', 'set',
                 '--vault-name', $KeyVaultName,
@@ -203,11 +207,7 @@ function Set-KeyVaultSecretFromMemory {
                 '--encoding', 'utf-8',
                 '--only-show-errors',
                 '-o', 'none'
-            )
-
-        if ($result.ExitCode -ne 0) {
-            throw 'Could not store the VAPID private key in Key Vault.'
-        }
+            ) | Out-Null
     }
     finally {
         Remove-Item $tempFile.FullName -Force -ErrorAction SilentlyContinue
@@ -249,6 +249,70 @@ function Remove-LegacyPublicKeyConfiguration {
     }
 }
 
+function Restart-WebApiAndWaitForHealth {
+    Invoke-AzureCli `
+        -Arguments @(
+            'webapp', 'restart',
+            '--resource-group', $ResourceGroup,
+            '--name', $WebApiName,
+            '--only-show-errors',
+            '-o', 'none'
+        ) | Out-Null
+
+    $hostResult = Invoke-AzureCli `
+        -Arguments @(
+            'webapp', 'show',
+            '--resource-group', $ResourceGroup,
+            '--name', $WebApiName,
+            '--query', 'defaultHostName',
+            '--only-show-errors',
+            '-o', 'tsv'
+        )
+
+    $hostName = $hostResult.Output.Trim()
+    if ([string]::IsNullOrWhiteSpace($hostName)) {
+        throw "Azure did not return a hostname for $WebApiName."
+    }
+
+    $healthUrl = "https://$hostName/health"
+    for ($attempt = 1; $attempt -le 15; $attempt++) {
+        try {
+            $response = Invoke-WebRequest `
+                -Uri $healthUrl `
+                -Method Get `
+                -TimeoutSec 10 `
+                -UseBasicParsing
+
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+                Write-Host "API health check passed after VAPID reconciliation: $healthUrl" -ForegroundColor Green
+                return
+            }
+        }
+        catch {
+            if ($attempt -eq 15) {
+                throw "API did not become healthy after VAPID reconciliation: $healthUrl`n$($_.Exception.Message)"
+            }
+        }
+
+        Start-Sleep -Seconds 10
+    }
+
+    throw "API did not become healthy after VAPID reconciliation: $healthUrl"
+}
+
+if ($ValidateOnly) {
+    $validationKey = $null
+    try {
+        $validationKey = New-VapidPrivateKey
+        Assert-VapidPrivateKey -Value $validationKey
+        Write-Host 'VAPID P-256 generation and validation passed.' -ForegroundColor Green
+        return
+    }
+    finally {
+        $validationKey = $null
+    }
+}
+
 Initialize-AzureCliInvocation
 
 $existingPrivateKey = $null
@@ -283,6 +347,7 @@ try {
 
     Set-AppConfigurationKeyVaultReference
     Remove-LegacyPublicKeyConfiguration
+    Restart-WebApiAndWaitForHealth
 
     Write-Host "VAPID secret lifecycle reconciled for $Environment." -ForegroundColor Green
 }
