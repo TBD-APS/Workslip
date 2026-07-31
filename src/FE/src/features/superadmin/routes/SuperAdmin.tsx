@@ -2,8 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { notify } from '../../../lib/toast';
-import { isDesktopPlatform } from '../../../lib/platform';
-import { useAuth } from '../../../providers/useAuth';
 import {
   createOrganization,
   createOrganizationSession,
@@ -16,7 +14,6 @@ import { AdminInviteForm } from '../components/AdminInviteForm';
 import { OrganizationCreateForm } from '../components/OrganizationCreateForm';
 import {
   activateOrganizationSession,
-  clearOrganizationSession,
   getOrganizationSession,
 } from '../organizationSession';
 import type {
@@ -26,12 +23,9 @@ import type {
   OrganizationAdmin,
 } from '../types';
 import './SuperAdmin.css';
-import { DesktopOnlySuperadminScreen } from '../components/DesktopOnlySuperadmin';
 
 export function SuperAdmin() {
   const queryClient = useQueryClient();
-  const { logout } = useAuth();
-  const canUseSuperadmin = isDesktopPlatform();
   const [requestedOrganizationId, setRequestedOrganizationId] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -41,7 +35,6 @@ export function SuperAdmin() {
   const organizationsQuery = useQuery({
     queryKey: superadminOrganizationQueryKey,
     queryFn: getOrganizations,
-    enabled: canUseSuperadmin,
   });
 
   const organizations = useMemo(
@@ -70,8 +63,6 @@ export function SuperAdmin() {
   });
 
   const handleCreateOrganization = async (input: CreateOrganizationInput) => {
-    if (!canUseSuperadmin) return;
-
     setCreateError(null);
     setLastAdminResult(null);
 
@@ -91,8 +82,6 @@ export function SuperAdmin() {
   };
 
   const handleInviteAdmin = async (input: InviteOrganizationAdminInput) => {
-    if (!canUseSuperadmin) return;
-
     setInviteError(null);
     setLastAdminResult(null);
 
@@ -116,7 +105,7 @@ export function SuperAdmin() {
   );
 
   const handleOpenOrganization = async () => {
-    if (!canUseSuperadmin || !selectedOrganization) return;
+    if (!selectedOrganization) return;
 
     setSessionError(null);
     try {
@@ -138,17 +127,6 @@ export function SuperAdmin() {
       setSessionError(getSuperadminErrorMessage(error));
     }
   };
-
-  if (!canUseSuperadmin) {
-    return (
-      <DesktopOnlySuperadminScreen
-        onLogout={() => {
-          clearOrganizationSession();
-          logout();
-        }}
-      />
-    );
-  }
 
   return (
     <div className="page-container superadmin-page">
