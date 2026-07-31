@@ -4,22 +4,16 @@ using Workslip.Application.Jobs;
 namespace Workslip.Application.Notifications;
 
 public sealed class JobDeletionNotificationService(
-    JobNotificationFeatures features,
     INotificationService notificationService,
     ILogger<JobDeletionNotificationService> logger)
 {
-    public bool IsEnabled => features.NotifyAssignedUsersOnJobDeletion;
+    public bool IsEnabled => true;
 
     public async Task QueueAsync(
         JobReportResponse deletedJob,
         Guid? deletingUserId,
         CancellationToken cancellationToken)
     {
-        if (!IsEnabled)
-        {
-            return;
-        }
-
         var reportNumber = deletedJob.ReportNumber ?? "Uden nummer";
         var address = deletedJob.DestinationAddress
             ?? deletedJob.Customer?.Address
