@@ -261,6 +261,19 @@ resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssi
   }
 }
 
+module apiMonitoring './monitoring.bicep' = {
+  name: 'api-monitoring-alerts'
+  params: {
+    companyName: companyName
+    environment: environment
+    location: location
+    appInsightsResourceId: appInsights.id
+    webApiResourceId: webApi.id
+    healthEndpointUrl: 'https://${webApi.properties.defaultHostName}/health'
+    tags: tags
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Azure App Configuration
 // Workloads read non-secret configuration here with managed identity. Secret values
@@ -757,7 +770,7 @@ output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
 output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
 output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
 output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
-output AZURE_APP_CONFIG_ENDPOINT string         = appConfiguration.properties.endpoint
+output AZURE_APP_CONFIG_ENDPOINT string        = appConfiguration.properties.endpoint
 output AZURE_AD_OAUTH_APP_OBJECT_ID string      = EntraAppRegistrations.outputs.OAuthAppObjectId
 output AZURE_AD_OAUTH_APP_CLIENT_ID string      = EntraAppRegistrations.outputs.OAuthAppId
 output ACS_ENDPOINT string                     = 'https://${communicationService.properties.hostName}'
