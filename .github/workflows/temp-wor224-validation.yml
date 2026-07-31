@@ -14,6 +14,9 @@ on:
 permissions:
   contents: read
 
+env:
+  OPENAPI_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+
 jobs:
   validate:
     name: Frontend build and mobile drawer navigation
@@ -38,9 +41,23 @@ jobs:
         run: npm ci
 
       - name: Generate frontend API client
-        run: npx orval --config orval.config.ts
+        run: |
+          set -Eeuo pipefail
+          ready=false
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --output /dev/null "${OPENAPI_BASE_URL}/openapi/v1.json"; then
+              ready=true
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${ready}" != "true" ]]; then
+            echo "::error::Production OpenAPI endpoint did not become ready."
+            exit 1
+          fi
+          npx orval --config orval.config.ts
         env:
-          VITE_API_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
 
       - name: Lint affected frontend files
         run: >-
