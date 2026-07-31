@@ -31,6 +31,8 @@ import { WorksheetDetailList } from '../components/WorksheetDetailList';
 import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories } from '../components/ControlPointOverview';
 import { formatReportNumber, formatWorkKind, formatInstallationTypeNames, formatClosureFlags } from '../utils/completedJobFormatters';
 
+type JobAction = 'approve' | 'reject' | 'undo-reject';
+
 function scrollToTop() {
   document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
 }
@@ -52,8 +54,8 @@ export const CompletedJobReport = () => {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | 'undo-reject' | null>(null);
-  const [completedAction, setCompletedAction] = useState<'approve' | 'reject' | 'undo-reject' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<JobAction | null>(null);
+  const [completedAction, setCompletedAction] = useState<JobAction | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [worksheetOpen, setWorksheetOpen] = useState(true);
   const previewUrlRef = useRef<string | null>(null);
@@ -531,7 +533,10 @@ export const CompletedJobReport = () => {
           action={completedAction}
           reportNumber={formatReportNumber(job)}
           onGoToJobList={() => navigate('/app', { replace: true })}
-          onGoToJob={() => navigate(`/app/completed/${job.id}`, { replace: true })}
+          onGoToJob={() => {
+            setCompletedAction(null);
+            navigate(`/app/completed/${job.id}`, { replace: true });
+          }}
         />
       )}
     </div>
@@ -544,7 +549,7 @@ function ActionSuccessDialog({
   onGoToJobList,
   onGoToJob,
 }: {
-  action: 'approve' | 'reject' | 'undo-reject';
+  action: JobAction;
   reportNumber: string;
   onGoToJobList: () => void;
   onGoToJob: () => void;

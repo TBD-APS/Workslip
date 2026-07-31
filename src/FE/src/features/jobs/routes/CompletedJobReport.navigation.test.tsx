@@ -209,6 +209,7 @@ describe('CompletedJobReport post-approval navigation', () => {
       '/app/completed/job-1',
       expect.objectContaining({ replace: true }),
     );
+    expect(screen.queryByRole('heading', { name: 'Sagen er godkendt' })).not.toBeInTheDocument();
   });
 
   it('shows the navigation modal after rejecting', async () => {
