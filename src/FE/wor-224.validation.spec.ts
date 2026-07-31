@@ -91,7 +91,7 @@ test('browser back closes an open drawer without leaving the current route', asy
   await page.getByRole('link', { name: 'Kunder' }).click();
   await expect(page).toHaveURL(`${baseUrl}/app/customers`);
 
-  const notificationsButton = page.getByRole('button', { name: 'Notifikationer' });
+  const notificationsButton = page.getByRole('button', { name: 'Notifikationer', exact: true });
   await notificationsButton.click();
 
   const drawer = page.getByRole('dialog', { name: 'Notifikationer' });
