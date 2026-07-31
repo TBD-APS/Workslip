@@ -37,9 +37,11 @@ The sequence is:
 
 1. `deploy-entra.ps1` reconciles the two Entra applications and service principals.
 2. `deploy-infrastructure.ps1` deploys and reconciles Azure resources.
-3. `reconcile-vapid-secret.ps1` preserves or creates the secure VAPID private key and its App Configuration Key Vault reference.
+3. `reconcile-vapid-secret.ps1` preserves or creates the secure VAPID private key, creates its App Configuration Key Vault reference and restarts the API.
 
-The VAPID phase never prints key material. It preserves an existing valid `Vapid--PrivateKey` secret, generates a new P-256 private scalar only when the secret is absent, and removes the obsolete static `Vapid:PublicKey` configuration. Explicit rotation requires setting `WORKSLIP_VAPID_PRIVATE_KEY` for that deployment invocation.
+The VAPID phase never prints key material. It preserves an enabled `Vapid--PrivateKey` secret and generates one valid P-256 private scalar only when the secret is missing or disabled.
+
+The historical `Vapid:PublicKey` value is no longer declared by Bicep. Existing Azure App Configuration state must be removed manually by the operator; deployment does not read, update or delete it.
 
 ## Entra only
 
@@ -81,7 +83,7 @@ The infrastructure phase:
 5. provisions the API user-assigned managed identity in Azure SQL;
 6. restores the committed handoff placeholder.
 
-An infrastructure-only deployment intentionally does not rotate or generate VAPID credentials. Use the full `deploy.ps1` entry point when establishing a new environment or repairing a missing VAPID secret.
+An infrastructure-only deployment does not generate the VAPID private key. Use the full `deploy.ps1` entry point when establishing a new environment or repairing a missing VAPID secret.
 
 Vercel cache-purge credentials and project configuration are outside the Azure infrastructure deployment boundary. The infrastructure scripts neither require nor reconcile them.
 
@@ -91,7 +93,7 @@ Vercel cache-purge credentials and project configuration are outside the Azure i
 
 The SQL helper temporarily allows the deployment machine's public IPv4 address while running `sqlcmd`, then deletes the rule through `az sql server firewall-rule delete`. Azure SQL's delete command does not accept the `--yes` option; do not copy confirmation flags from MySQL or App Configuration CLI commands into this cleanup path.
 
-The VAPID helper validates a 32-byte P-256 private scalar before storing or referencing it. It accepts an explicit `WORKSLIP_VAPID_PRIVATE_KEY` override only for controlled rotation and otherwise preserves the current Key Vault value.
+The VAPID helper only owns private-key generation, Key Vault storage, the `Vapid:PrivateKey` Key Vault reference and API restart. It does not manage separately configured public-key state.
 
 ## Runtime SQL authentication
 
@@ -113,9 +115,9 @@ The full deployment owns these versionless Key Vault references:
 |---|---|---|
 | `Jwt:SigningKey` | `Jwt--SigningKey` | Generates a cryptographically random key when missing or when the legacy short deterministic value is detected. `WORKSLIP_JWT_SIGNING_KEY` is an explicit rotation override. |
 | `Azure:Sql:ConnectionString` | `Azure--Sql--ConnectionString` | Reconciled to a passwordless managed-identity connection string after Bicep returns the identity client ID. |
-| `Vapid:PrivateKey` | `Vapid--PrivateKey` | Preserves an existing valid P-256 private scalar, generates one when absent, and rotates only when `WORKSLIP_VAPID_PRIVATE_KEY` is supplied explicitly. The backend derives the public key. |
+| `Vapid:PrivateKey` | `Vapid--PrivateKey` | Preserves an enabled secret and generates one valid P-256 private scalar when the secret is missing or disabled. |
 
-Secrets are written through temporary files and cleared from script variables during cleanup. A JWT signing-key rotation invalidates outstanding local Workslip JWTs. A VAPID-key rotation invalidates existing browser subscriptions until each installed PWA completes its authenticated subscription-repair flow.
+Secrets are written through temporary files and cleared from script variables during cleanup. A newly generated VAPID key invalidates old browser subscriptions until each installed PWA completes its authenticated subscription-repair flow.
 
 ## Microsoft Graph permissions
 
@@ -157,18 +159,19 @@ After deployment, use Azure Monitor's **Test action group** function to verify d
 A successful script exit is not sufficient release evidence. Verify:
 
 1. `Azure:Sql:ConnectionString`, `Jwt:SigningKey` and `Vapid:PrivateKey` are versionless Key Vault references in App Configuration.
-2. Key Vault contains an enabled `Vapid--PrivateKey` secret and App Configuration no longer contains `Vapid:PublicKey`.
-3. The SQL connection secret uses managed identity and contains no `Password=` or SQL user ID.
-4. The API managed identity can connect and `/health` returns successfully after API deployment.
-5. Microsoft login and one authenticated API request succeed.
-6. Authenticated `GET /api/push-subscriptions/public-key` returns `200` without exposing private material.
-7. Open or re-authenticate one installed PWA so it registers or repairs its subscription, then background the app and verify one OS-level notification.
-8. The legacy OAuth credential display name is absent from the OAuth application after a full deployment.
-9. In production, `Azure:Acs:SenderAddress` is `noreply@mrsoftware.dk` and the ACS domain verification states remain successful; non-production uses its Azure-managed sender.
-10. The temporary SQL firewall rule `AllowSqlProvisioningScript` is absent after deployment.
-11. The API Action Group contains the intended operations recipients and its test notification is received.
-12. The availability test reports successful executions from all configured locations.
-13. The API unavailable, HTTP 5xx and slow-response alert rules are enabled and reference the same Action Group.
-14. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
+2. Key Vault contains an enabled `Vapid--PrivateKey` secret.
+3. Remove any existing `Vapid:PublicKey` value manually from Azure App Configuration.
+4. The SQL connection secret uses managed identity and contains no `Password=` or SQL user ID.
+5. The API managed identity can connect and `/health` returns successfully after API deployment.
+6. Microsoft login and one authenticated API request succeed.
+7. Authenticated `GET /api/push-subscriptions/public-key` returns `200` without exposing private material.
+8. Open or re-authenticate one installed PWA so it registers or repairs its subscription, then background the app and verify one OS-level notification.
+9. The legacy OAuth credential display name is absent from the OAuth application after a full deployment.
+10. In production, `Azure:Acs:SenderAddress` is `noreply@mrsoftware.dk` and the ACS domain verification states remain successful; non-production uses its Azure-managed sender.
+11. The temporary SQL firewall rule `AllowSqlProvisioningScript` is absent after deployment.
+12. The API Action Group contains the intended operations recipients and its test notification is received.
+13. The availability test reports successful executions from all configured locations.
+14. The API unavailable, HTTP 5xx and slow-response alert rules are enabled and reference the same Action Group.
+15. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
 
 Production Azure execution, DNS changes, alert testing and secret rotation are explicit operator actions; repository changes alone do not prove they succeeded.
