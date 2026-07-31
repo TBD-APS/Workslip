@@ -1,46 +1,78 @@
-name: TEMP - WOR-235 apply dependency override
+name: TEMP - WOR-235 frontend dependency validation
 
 on:
   pull_request:
     branches:
       - main
+    paths:
+      - src/FE/package.json
+      - src/FE/package-lock.json
+      - .github/workflows/wor-235-audit.yml
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  OPENAPI_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
 
 jobs:
-  apply:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: src/FE
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: rbj--235-frontend-audit-vulnerabilities
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
-      - name: Apply EJS security override
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Generate frontend API client
+        run: npx orval --config orval.config.ts
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
+      - name: Verify dependency resolution
         run: |
           node <<'NODE'
           const fs = require('node:fs');
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          pkg.overrides = { ...(pkg.overrides ?? {}), ejs: '5.0.1' };
-          fs.writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const packages = lock.packages ?? {};
+          const ejs = packages['node_modules/ejs']?.version;
+          if (ejs !== '5.0.1') {
+            throw new Error(`Expected ejs@5.0.1, resolved ${ejs ?? 'nothing'}`);
+          }
+          for (const removed of ['node_modules/jake', 'node_modules/filelist']) {
+            if (packages[removed]) {
+              throw new Error(`Vulnerable build-chain package still resolved: ${removed}`);
+            }
+          }
+          console.log('Resolved ejs@5.0.1 without jake/filelist runtime dependencies.');
           NODE
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - name: Commit dependency resolution
+      - name: Verify audit result
         run: |
-          if git diff --quiet -- package.json package-lock.json; then
-            echo 'Dependency files already current.'
-            exit 0
-          fi
-          git config user.name 'workslip-validation-bot'
-          git config user.email 'workslip-validation-bot@users.noreply.github.com'
-          git add package.json package-lock.json
-          git commit -m 'RBJ-235: override vulnerable EJS build dependency'
-          git push origin HEAD:rbj--235-frontend-audit-vulnerabilities
+          npm audit --json > npm-audit.json || true
+          npm audit --omit=dev --json > npm-audit-production.json || true
+          node <<'NODE'
+          const fs = require('node:fs');
+          const allowed = ['react-router', 'react-router-dom'];
+          for (const file of ['npm-audit.json', 'npm-audit-production.json']) {
+            const audit = JSON.parse(fs.readFileSync(file, 'utf8'));
+            const packages = Object.keys(audit.vulnerabilities ?? {}).sort();
+            const total = audit.metadata?.vulnerabilities?.total;
+            if (total !== 2 || JSON.stringify(packages) !== JSON.stringify(allowed)) {
+              throw new Error(`${file}: unexpected audit result ${JSON.stringify({ total, packages })}`);
+            }
+            console.log(`${file}: two residual React Router RSC-only findings.`);
+          }
+          NODE
+      - name: Lint frontend
+        run: npm run lint
+      - name: Run frontend tests
+        run: npm test -- --run
+      - name: Build production frontend and PWA
+        run: npm run build
