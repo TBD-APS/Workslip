@@ -24,7 +24,6 @@ export function NavigationGuard({
   const [isSaving, setIsSaving] = useState(false);
   const autoSaveOnLeaveRef = useRef(autoSaveOnLeave);
   const autoSaveStartedRef = useRef(false);
-  const mountedRef = useRef(true);
   const isAutoSaveMode = Boolean(autoSaveOnLeave);
   const dialogTitle = isAutoSaveMode ? 'Gemmer ændringer' : title;
   const dialogMessage = isAutoSaveMode
@@ -34,13 +33,6 @@ export function NavigationGuard({
   useEffect(() => {
     autoSaveOnLeaveRef.current = autoSaveOnLeave;
   }, [autoSaveOnLeave]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (!when) return;
@@ -56,7 +48,6 @@ export function NavigationGuard({
     if (!save) return;
 
     autoSaveStartedRef.current = true;
-    setIsSaving(true);
     try {
       const saved = await save();
       if (saved === false) {
@@ -66,8 +57,6 @@ export function NavigationGuard({
       blocker.proceed?.();
     } catch {
       blocker.reset();
-    } finally {
-      if (mountedRef.current) setIsSaving(false);
     }
   }, [blocker]);
 
