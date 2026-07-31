@@ -2,9 +2,14 @@ import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
 import type { UserViewModel } from '../api/generated/models';
+import {
+  DEFAULT_AUTHENTICATED_PATH,
+  getAuthenticatedHomePath,
+} from '../features/auth/authenticatedDestination';
 import { prefetchInitialJobList } from '../features/jobs/queries/jobListQuery';
 import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
 import { queryClient } from '../lib/react-query';
+import { hasPermission } from './permissions';
 import {
   AuthContext,
   type AuthContextType,
@@ -44,9 +49,11 @@ function AuthenticatedSessionProvider({
 
   const user = meQuery.data ?? null;
   const isAuthenticated = Boolean(user);
+  const canUseNotifications = hasPermission(user?.role, 'notification:use');
+  const usesPrimaryJobList = getAuthenticatedHomePath(user?.role) === DEFAULT_AUTHENTICATED_PATH;
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && canUseNotifications) {
       registerPush().catch((error) => {
         console.error('[Auth] Failed to register push notifications:', error);
       });
@@ -54,15 +61,15 @@ function AuthenticatedSessionProvider({
     // The push hook currently returns a function tied to its mutation object.
     // Including it would re-run registration on every provider render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+  }, [canUseNotifications, isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated || !shouldPrefetchJobs()) return;
+    if (!isAuthenticated || !usesPrimaryJobList || !shouldPrefetchJobs()) return;
 
     // The token and current user are now validated. Populate the same query key
     // used by JobList so the home route can render cached data immediately.
     void prefetchInitialJobList(queryClient).catch(() => undefined);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, usesPrimaryJobList]);
 
   const clearLocalSession = useCallback(() => {
     queryClient.clear();
