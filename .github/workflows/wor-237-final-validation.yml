@@ -1,0 +1,61 @@
+name: TEMP — Final Validation — WOR-237
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/wor-237-final-validation.yml'
+      - 'src/FE/src/features/superadmin/**'
+
+permissions:
+  contents: read
+
+env:
+  OPENAPI_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
+
+jobs:
+  validate:
+    name: Validate final Superadmin diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: rbj--237-superadmin-all-platforms
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Generate API client
+        working-directory: src/FE
+        run: npx orval --config orval.config.ts
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
+
+      - name: Lint focused files
+        working-directory: src/FE
+        run: >-
+          npx eslint
+          src/features/superadmin/api.test.ts
+          src/features/superadmin/organizationSession.test.ts
+
+      - name: Run focused tests
+        working-directory: src/FE
+        run: npm test -- --run src/features/superadmin
+
+      - name: Build production frontend
+        working-directory: src/FE
+        run: npm run build
+
+      - name: Verify diff hygiene
+        run: git diff --check
