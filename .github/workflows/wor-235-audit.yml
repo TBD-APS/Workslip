@@ -1,4 +1,4 @@
-name: TEMP - WOR-235 dependency overrides
+name: TEMP - WOR-235 upstream override candidates
 
 on:
   push:
@@ -25,10 +25,14 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
-      - name: Evaluate targeted dependency overrides
+      - name: Evaluate patched upstream overrides
         run: |
           cp package.json /tmp/wor235-package.json
           cp package-lock.json /tmp/wor235-package-lock.json
+
+          npm view filelist versions --json
+          npm view jake versions --json
+          npm view ejs versions --json
 
           evaluate() {
             label="$1"
@@ -39,21 +43,17 @@ jobs:
           const fs = require('node:fs');
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
           switch (process.env.LABEL) {
-            case 'brace-global':
-              pkg.overrides = { 'brace-expansion': '5.0.8' };
+            case 'filelist-1.0.7':
+              pkg.overrides = { filelist: '1.0.7' };
               break;
-            case 'brace-scoped':
-              pkg.overrides = { filelist: { minimatch: { 'brace-expansion': '5.0.8' } } };
+            case 'jake-10.9.5':
+              pkg.overrides = { jake: '10.9.5' };
               break;
-            case 'workbox-7.4.0':
-              pkg.overrides = { 'workbox-build': '7.4.0' };
+            case 'ejs-4.0.2':
+              pkg.overrides = { ejs: '4.0.2' };
               break;
-            case 'router-7.18.2':
-              pkg.dependencies['react-router-dom'] = '7.18.2';
-              break;
-            case 'router-7.18.2-brace':
-              pkg.dependencies['react-router-dom'] = '7.18.2';
-              pkg.overrides = { filelist: { minimatch: { 'brace-expansion': '5.0.8' } } };
+            case 'jake-10.9.5-filelist-1.0.7':
+              pkg.overrides = { jake: '10.9.5', filelist: '1.0.7' };
               break;
           }
           fs.writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
@@ -71,12 +71,12 @@ jobs:
           const label = process.env.LABEL;
           const audit = JSON.parse(fs.readFileSync(`/tmp/${label}-audit.json`, 'utf8'));
           const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
-          const targets = ['react-router-dom', 'react-router', 'vite-plugin-pwa', 'workbox-build', 'filelist', 'minimatch', 'brace-expansion'];
+          const targets = ['@trickfilm400/rollup-plugin-off-main-thread', 'ejs', 'jake', 'filelist', 'minimatch', 'brace-expansion'];
           const resolved = Object.fromEntries(targets.map((target) => [
             target,
             Object.entries(lock.packages)
               .filter(([path]) => path === `node_modules/${target}` || path.endsWith(`/node_modules/${target}`))
-              .map(([path, value]) => ({ path, version: value.version })),
+              .map(([path, value]) => ({ path, version: value.version, dependencies: value.dependencies })),
           ]));
           console.log(JSON.stringify({
             label,
@@ -87,9 +87,7 @@ jobs:
           NODE
           }
 
-          evaluate baseline
-          evaluate brace-global
-          evaluate brace-scoped
-          evaluate workbox-7.4.0
-          evaluate router-7.18.2
-          evaluate router-7.18.2-brace
+          evaluate filelist-1.0.7
+          evaluate jake-10.9.5
+          evaluate ejs-4.0.2
+          evaluate jake-10.9.5-filelist-1.0.7
