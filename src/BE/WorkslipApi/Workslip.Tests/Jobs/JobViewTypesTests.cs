@@ -1,5 +1,6 @@
 using Workslip.Application.Jobs;
 using Workslip.Domain;
+using Xunit;
 
 namespace Workslip.Tests.Jobs;
 

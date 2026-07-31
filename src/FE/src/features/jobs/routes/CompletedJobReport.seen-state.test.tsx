@@ -65,6 +65,7 @@ vi.mock('../hooks/useJobDetails', () => ({
 }));
 
 vi.mock('../utils/markJobSeen', () => ({
+  COMPLETED_JOB_VIEW_TYPE: 'Completed',
   markJobAsSeen: mocks.markJobAsSeen,
 }));
 

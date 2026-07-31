@@ -66,8 +66,11 @@ export const CompletedJobReport = () => {
 
   useEffect(() => {
     if (!id || !jobStatus) return;
-    const viewType = jobStatus === JobStatus.Approved ? COMPLETED_JOB_VIEW_TYPE : undefined;
-    markJobAsSeen(id, queryClient, viewType);
+    if (jobStatus === JobStatus.Approved) {
+      markJobAsSeen(id, queryClient, COMPLETED_JOB_VIEW_TYPE);
+      return;
+    }
+    markJobAsSeen(id, queryClient);
   }, [id, jobStatus, queryClient]);
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
