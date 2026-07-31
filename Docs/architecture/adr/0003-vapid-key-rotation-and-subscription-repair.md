@@ -19,12 +19,14 @@ The previous implementation configured public and private key material independe
 4. Full infrastructure deployment preserves an enabled Key Vault secret named `Vapid--PrivateKey` and generates a valid P-256 private scalar only when that secret is missing or disabled.
 5. Deployment creates the versionless App Configuration Key Vault reference `Vapid:PrivateKey` and restarts the API.
 6. Deployment does not read, update or delete separately configured `Vapid:PublicKey` state. The historical Bicep declaration is removed, and any existing Azure value is an operator cleanup action.
+7. A push-provider response identifying `VapidPkHashMismatch` is a permanent failure for that specific stored endpoint. The worker deactivates only that subscription and does not retry the notification solely because of that endpoint. Other valid device subscriptions remain active and continue receiving notifications.
 
 ## Consequences
 
 - Missing private key material is repaired by the normal full deployment.
 - Ordinary deployments preserve the existing key and do not invalidate browser subscriptions.
 - A newly generated key requires each installed PWA to open once so its browser subscription can be repaired.
+- Stale subscriptions that have not yet reopened are removed lazily when the push provider reports a VAPID public-key mismatch, preventing repeated delivery attempts against an endpoint that cannot accept the active key.
 - Private key material is never committed or printed by deployment.
 - Real OS-level delivery still requires a deployed smoke test.
 
