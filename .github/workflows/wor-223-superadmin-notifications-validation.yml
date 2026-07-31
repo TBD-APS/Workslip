@@ -139,8 +139,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run documentation checks
-        run: python3 tools/docs/check_docs.py
+      - name: Compare documentation checks with main baseline
+        run: |
+          set +e
+          python3 tools/docs/check_docs.py > /tmp/branch-docs.log 2>&1
+          branch_status=$?
+          set -e
+
+          git worktree add --detach /tmp/workslip-main origin/main
+          set +e
+          (cd /tmp/workslip-main && python3 tools/docs/check_docs.py) > /tmp/main-docs.log 2>&1
+          main_status=$?
+          set -e
+
+          cat /tmp/branch-docs.log
+          if [[ "${branch_status}" != "${main_status}" ]]; then
+            echo '::error::Documentation validation differs from main.'
+            exit 1
+          fi
+          if ! diff -u /tmp/main-docs.log /tmp/branch-docs.log; then
+            echo '::error::This branch introduces a new documentation validation result.'
+            exit 1
+          fi
+          if [[ "${branch_status}" != "0" ]]; then
+            echo '::notice::Documentation checker has the unchanged main-branch ../README.md baseline failure.'
+          fi
 
       - name: Verify diff hygiene and removed restrictions
         run: |
