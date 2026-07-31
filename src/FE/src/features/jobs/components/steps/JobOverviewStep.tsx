@@ -29,7 +29,7 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         customerSnapshot={details.form.customerSnapshot}
         editSnapshot={details.form.editSnapshot}
         createCustomer={details.form.createCustomer}
-        onCreateCustomerChange={details.updateCreateCustomer}
+        onCreateCustomerChange={details.isAdmin ? details.updateCreateCustomer : undefined}
         onCustomerSelect={details.selectCustomer}
         onSnapshotFieldChange={details.updateSnapshotField}
         onEditSnapshotChange={details.updateEditSnapshot}
