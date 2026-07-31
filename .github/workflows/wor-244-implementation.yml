@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/wor-244-implementation.yml'
       - 'tools/temp-wor-244-apply.py'
+      - 'tools/temp-wor-244-fix-anchor.py'
       - 'src/BE/WorkslipApi/**'
       - 'src/FE/**'
       - 'Docs/api/contract.md'
@@ -29,7 +30,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply deterministic product patch
-        run: python3 tools/temp-wor-244-apply.py
+        run: |
+          python3 tools/temp-wor-244-fix-anchor.py
+          python3 tools/temp-wor-244-apply.py
 
       - name: Verify role boundaries and scope
         run: |
