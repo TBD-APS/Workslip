@@ -1,0 +1,84 @@
+name: TEMP — WOR-223 application-wide notifications
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/temp-wor-223-application-wide-validation.yml'
+      - 'src/BE/WorkslipApi/Workslip.Application/Notifications/IPushSender.cs'
+      - 'src/BE/WorkslipApi/Workslip.Infrastructure/DependencyInjection.cs'
+      - 'src/BE/WorkslipApi/Workslip.Infrastructure/Notifications/PushNotificationWorker.cs'
+      - 'src/BE/WorkslipApi/Workslip.Infrastructure/Notifications/WebPushSender.cs'
+      - 'src/BE/WorkslipApi/Workslip.Tests/Notifications/**'
+      - 'src/FE/src/features/users/hooks/usePushNotifications.ts'
+      - 'src/FE/src/features/users/hooks/usePushNotifications.test.ts'
+      - 'src/FE/src/providers/permissions/permissions.ts'
+      - 'src/FE/src/providers/sessionFeaturePolicy.test.ts'
+      - 'Docs/api/**'
+      - 'Docs/architecture/**'
+
+permissions:
+  contents: read
+
+env:
+  OPENAPI_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --nologo
+      - run: dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-restore --nologo
+      - run: >-
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release --no-build --nologo
+          --filter "FullyQualifiedName~WebPushSenderTests|FullyQualifiedName~PushNotificationEndpointsTests"
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - run: npm ci
+        working-directory: src/FE
+      - run: npx orval --config orval.config.ts
+        working-directory: src/FE
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
+      - run: >-
+          npx eslint
+          src/providers/permissions/permissions.ts
+          src/providers/sessionFeaturePolicy.test.ts
+          src/features/users/hooks/usePushNotifications.ts
+          src/features/users/hooks/usePushNotifications.test.ts
+        working-directory: src/FE
+      - run: >-
+          npm test -- --run
+          src/providers/sessionFeaturePolicy.test.ts
+          src/features/users/hooks/usePushNotifications.test.ts
+        working-directory: src/FE
+      - run: npm run build
+        working-directory: src/FE
+
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: git diff --check origin/main...HEAD
+      - run: |
+          grep -q 'VapidPkHashMismatch' src/BE/WorkslipApi/Workslip.Infrastructure/Notifications/WebPushSender.cs
+          ! grep -q 'result.IsExpired' src/BE/WorkslipApi/Workslip.Infrastructure/Notifications/PushNotificationWorker.cs
+          ! grep -q 'isSuperadminAuthToken' src/FE/src/features/users/hooks/usePushNotifications.ts
