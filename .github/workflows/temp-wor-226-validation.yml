@@ -59,61 +59,35 @@ jobs:
         run: |
           set -Eeuo pipefail
           rm -rf .tmp-wor-226
-          mkdir -p .tmp-wor-226/src
+          mkdir -p .tmp-wor-226
 
-          cat > .tmp-wor-226/index.html <<'HTML'
-          <!doctype html>
-          <html lang="da">
-            <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
-            <body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
-          </html>
-          HTML
-
-          cat > .tmp-wor-226/vite.config.ts <<'TS'
-          import { defineConfig } from 'vite';
-          import react from '@vitejs/plugin-react';
-          import { fileURLToPath, URL } from 'node:url';
-
-          export default defineConfig({
-            root: fileURLToPath(new URL('.', import.meta.url)),
-            plugins: [react()],
-            server: {
-              fs: {
-                allow: [fileURLToPath(new URL('..', import.meta.url))],
-              },
-            },
-          });
-          TS
-
-          cat > .tmp-wor-226/src/main.tsx <<'TSX'
+          cat > src/wor226Validation.tsx <<'TSX'
           import { useMemo, useState } from 'react';
-          import { createRoot } from 'react-dom/client';
           import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-          import { AuthContext, type AuthContextType } from '../../src/providers/authContextValue';
-          import { CreateOverviewStep } from '../../src/features/jobs/components/steps/CreateOverviewStep';
-          import { JobOverviewStep } from '../../src/features/jobs/components/steps/JobOverviewStep';
-          import '../../src/base.css';
+          import { AuthContext, type AuthContextType } from './providers/authContextValue';
+          import { CreateOverviewStep } from './features/jobs/components/steps/CreateOverviewStep';
+          import { JobOverviewStep } from './features/jobs/components/steps/JobOverviewStep';
 
           const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
           });
 
-          function ValidationApp() {
+          export function Wor226Validation() {
             const params = new URLSearchParams(window.location.search);
             const role = params.get('role') === 'Admin' ? 'Admin' : 'User';
             const flow = params.get('flow') === 'edit' ? 'edit' : 'create';
             const isAdmin = role === 'Admin';
             const [createCustomer, setCreateCustomer] = useState(false);
 
-            const auth = useMemo<AuthContextType>(() => ({
+            const auth = useMemo(() => ({
               hasAuthToken: true,
               isAuthenticated: true,
               user: {
                 id: 'user-1',
-                displayName: role === 'Admin' ? 'Testadmin' : 'Testbruger',
+                displayName: isAdmin ? 'Testadmin' : 'Testbruger',
                 role,
                 roleDisplayName: role,
-              } as never,
+              },
               isLoading: false,
               login: async () => true,
               devLogin: async () => true,
@@ -126,7 +100,7 @@ jobs:
                 refetch: async () => undefined,
                 data: null,
               },
-            }), [role]);
+            }) as unknown as AuthContextType, [isAdmin, role]);
 
             const form = {
               customerId: null,
@@ -194,8 +168,19 @@ jobs:
               </AuthContext.Provider>
             );
           }
+          TSX
 
-          createRoot(document.getElementById('root')!).render(<ValidationApp />);
+          cat > src/main.tsx <<'TSX'
+          import { StrictMode } from 'react';
+          import { createRoot } from 'react-dom/client';
+          import './base.css';
+          import { Wor226Validation } from './wor226Validation';
+
+          createRoot(document.getElementById('root')!).render(
+            <StrictMode>
+              <Wor226Validation />
+            </StrictMode>,
+          );
           TSX
 
           cat > .tmp-wor-226/playwright.config.ts <<'TS'
@@ -225,21 +210,15 @@ jobs:
             page.on('response', response => {
               if (response.status() >= 400) failures.push(`response: ${response.status()} ${response.url()}`);
             });
-            await page.route('**/api/**', route => route.fulfill({
-              status: 200,
-              contentType: 'application/json',
-              body: '[]',
-            }));
+            await page.route('**/*', async route => {
+              const url = new URL(route.request().url());
+              if (url.pathname.startsWith('/api/')) {
+                await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+                return;
+              }
+              await route.continue();
+            });
             return failures;
-          }
-
-          async function expectHarness(page: Page, failures: string[]) {
-            const heading = page.getByRole('heading', { name: 'WOR-226 validation' });
-            try {
-              await expect(heading).toBeVisible({ timeout: 10_000 });
-            } catch (error) {
-              throw new Error(`${String(error)}\nBrowser failures: ${failures.join(' | ')}\nHTML: ${await page.content()}`);
-            }
           }
 
           for (const viewport of [
@@ -251,7 +230,7 @@ jobs:
                 const failures = await installDiagnostics(page);
                 await page.setViewportSize({ width: viewport.width, height: viewport.height });
                 await page.goto(`/?role=User&flow=${flow}`);
-                await expectHarness(page, failures);
+                await expect(page.getByRole('heading', { name: 'WOR-226 validation' })).toBeVisible();
                 await expect(page.getByRole('checkbox', { name: /Opret kunde/ })).toHaveCount(0);
                 expect(failures).toEqual([]);
               });
@@ -260,7 +239,6 @@ jobs:
                 const failures = await installDiagnostics(page);
                 await page.setViewportSize({ width: viewport.width, height: viewport.height });
                 await page.goto(`/?role=Admin&flow=${flow}`);
-                await expectHarness(page, failures);
                 const checkbox = page.getByRole('checkbox', { name: /Opret kunde/ });
                 await expect(checkbox).toBeVisible();
                 await checkbox.check();
@@ -274,11 +252,11 @@ jobs:
       - name: Run Playwright role and viewport scenarios
         run: |
           set -Eeuo pipefail
-          npx vite --host 127.0.0.1 --port 4173 --config .tmp-wor-226/vite.config.ts > .tmp-wor-226/vite.log 2>&1 &
+          npx vite --host 127.0.0.1 --port 4173 > .tmp-wor-226/vite.log 2>&1 &
           server_pid=$!
           cleanup() {
             kill "${server_pid}" 2>/dev/null || true
-            rm -rf .tmp-wor-226
+            rm -rf .tmp-wor-226 src/wor226Validation.tsx
           }
           trap cleanup EXIT
 
