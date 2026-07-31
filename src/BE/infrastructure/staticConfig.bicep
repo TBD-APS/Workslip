@@ -62,4 +62,29 @@ var appConfigValues = {
     {inviteLink}
     Linket udløber om 7 dage.
   '''
+  'Azure:Acs:OtcHeaderText': 'Din midlertidige adgangskode til Workslip'
+  'Azure:Acs:OtcHtmlText': '''
+  <html>
+  <body style="font-family: Arial, sans-serif; padding: 24px;">
+    <h2>Midlertidig adgangskode</h2>
+    <p>Du har anmodet om en midlertidig adgangskode til Workslip. Din adgangskode er:</p>
+    <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 16px; background-color: #f5f5f5; border-radius: 8px;">
+      {otcCode}
+    </p>
+    <p>Koden udløber om 10 minutter og kan kun bruges én gang.</p>
+    <p>Hvis du ikke har bedt om denne kode, kan du ignorere denne email.</p>
+    <hr/>
+    <p style="color: #666; font-size: 12px;">Workslip af MR Software</p>
+  </body>
+  </html>'''
+  'Azure:Acs:OtcPlainText': '''
+    Du har anmodet om en midlertidig adgangskode til Workslip.
+
+    Din adgangskode er: {otcCode}
+
+    Koden udløber om 10 minutter og kan kun bruges én gang.
+    Hvis du ikke har bedt om denne kode, kan du ignorere denne email.
+
+    Workslip af MR Software
+  '''
 }
