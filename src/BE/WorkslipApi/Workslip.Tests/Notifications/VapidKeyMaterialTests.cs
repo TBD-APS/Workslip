@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Workslip.Infrastructure.Configuration;
 using Workslip.Infrastructure.Notifications;
@@ -14,12 +13,11 @@ public sealed class VapidKeyMaterialTests
         "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU";
 
     [Fact]
-    public void Constructor_DerivesAuthoritativePublicKeyFromPrivateKey()
+    public void Constructor_DerivesPublicKeyFromPrivateKey()
     {
         var material = CreateMaterial(new VapidOptions
         {
-            PrivateKey = PrivateScalarOne,
-            PublicKey = "BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            PrivateKey = PrivateScalarOne
         });
 
         Assert.Equal(ExpectedPublicKey, material.PublicKey);
@@ -36,7 +34,5 @@ public sealed class VapidKeyMaterialTests
     }
 
     private static VapidKeyMaterial CreateMaterial(VapidOptions options) =>
-        new(
-            Options.Create(options),
-            NullLogger<VapidKeyMaterial>.Instance);
+        new(Options.Create(options));
 }
