@@ -50,7 +50,9 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
   });
 
   await page.addInitScript((storedToken) => {
-    localStorage.setItem('authToken', storedToken);
+    if (!localStorage.getItem('authToken')) {
+      localStorage.setItem('authToken', storedToken);
+    }
   }, homeToken);
 
   await page.route('**/api/**', async (route) => {
