@@ -32,7 +32,7 @@ jobs:
       - name: Compile output validator
         run: python -m py_compile site/scripts/validate_output.py
       - id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Build Jekyll site
         working-directory: site
         run: bundle exec jekyll build --strict_front_matter --baseurl "${{ steps.pages.outputs.base_path }}"
