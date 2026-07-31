@@ -1,0 +1,102 @@
+name: TEMP — Isolated Implementation — WOR-227 v2
+
+on:
+  pull_request:
+    branches: [rbj--227-validation-base]
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Apply cache isolation fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs')
+          source = path.read_text(encoding='utf-8')
+
+          factory = re.compile(
+              r'(?m)^(?P<i>[ \t]*)var cacheKey = BuildJobListCacheKey\(query\);\n'
+              r'(?P=i)var jobList = await _jobRepository\.ListAsync\(query, cancellationToken\);\n'
+              r'(?P=i)var result = await cache\.GetOrCreateAsync\(\n'
+              r'(?P=i)    cacheKey,\n'
+              r'(?P=i)    async token => jobList,\n'
+          )
+
+          def factory_replacement(match):
+              i = match.group('i')
+              return (
+                  f'{i}var cacheKey = BuildJobListCacheKey(query);\n'
+                  f'{i}var result = await cache.GetOrCreateAsync(\n'
+                  f'{i}    cacheKey,\n'
+                  f'{i}    token => _jobRepository.ListAsync(query, token),\n'
+              )
+
+          source, count = factory.subn(factory_replacement, source, count=1)
+          if count == 0 and 'token => _jobRepository.ListAsync(query, token),' not in source:
+              raise SystemExit('Job-list cache factory not found')
+
+          key = re.compile(
+              r'(?m)^(?P<i>[ \t]*)return \$"jobs:list:organization=\{query\.OrganizationId:N\}:status=\{statusKey\}" \+'
+          )
+
+          def key_replacement(match):
+              i = match.group('i')
+              return (
+                  f'{i}var currentUserKey = query.CurrentUserId?.ToString("N") ?? "none";\n\n'
+                  f'{i}return $"jobs:list:organization={{query.OrganizationId:N}}:currentUser={{currentUserKey}}:status={{statusKey}}" +'
+              )
+
+          source, count = key.subn(key_replacement, source, count=1)
+          if count == 0 and ':currentUser={currentUserKey}:status={statusKey}' not in source:
+              raise SystemExit('Job-list cache key not found')
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+          mkdir -p src/BE/WorkslipApi/Workslip.Tests/Jobs
+          printf '%s' 'dXNpbmcgTWljcm9zb2Z0LkV4dGVuc2lvbnMuQ2FjaGluZy5IeWJyaWQ7CnVzaW5nIE1pY3Jvc29mdC5FeHRlbnNpb25zLkRlcGVuZGVuY3lJbmplY3Rpb247CnVzaW5nIE1pY3Jvc29mdC5FeHRlbnNpb25zLkxvZ2dpbmcuQWJzdHJhY3Rpb25zOwp1c2luZyBXb3Jrc2xpcC5BcHBsaWNhdGlvbi5BdXRoOwp1c2luZyBXb3Jrc2xpcC5BcHBsaWNhdGlvbi5Kb2JzOwp1c2luZyBXb3Jrc2xpcC5Eb21haW47CnVzaW5nIFh1bml0OwoKbmFtZXNwYWNlIFdvcmtzbGlwLlRlc3RzLkpvYnM7CgpwdWJsaWMgc2VhbGVkIGNsYXNzIEpvYkxpc3RDYWNoZUlzb2xhdGlvblRlc3RzCnsKICAgIFtGYWN0XQogICAgcHVibGljIGFzeW5jIFRhc2sgTGlzdEFzeW5jX0RvZXNOb3RSZXVzZVNlZW5TdGF0ZUFjcm9zc1VzZXJzKCkKICAgIHsKICAgICAgICB2YXIgb3JnYW5pemF0aW9uSWQgPSBHdWlkLk5ld0d1aWQoKTsKICAgICAgICB2YXIgc2VlblVzZXJJZCA9IEd1aWQuTmV3R3VpZCgpOwogICAgICAgIHZhciB1bnNlZW5Vc2VySWQgPSBHdWlkLk5ld0d1aWQoKTsKICAgICAgICB2YXIgcmVwb3NpdG9yeSA9IG5ldyBVc2VyQXdhcmVKb2JSZXBvc2l0b3J5KG9yZ2FuaXphdGlvbklkLCBzZWVuVXNlcklkKTsKCiAgICAgICAgdXNpbmcgdmFyIHNlcnZpY2VzID0gQ3JlYXRlQ2FjaGVTZXJ2aWNlcygpOwogICAgICAgIHZhciBjYWNoZSA9IHNlcnZpY2VzLkdldFJlcXVpcmVkU2VydmljZTxIeWJyaWRDYWNoZT4oKTsKICAgICAgICB2YXIgc2VlblVzZXJTZXJ2aWNlID0gQ3JlYXRlU2VydmljZShyZXBvc2l0b3J5LCBjYWNoZSwgb3JnYW5pemF0aW9uSWQsIHNlZW5Vc2VySWQpOwogICAgICAgIHZhciB1bnNlZW5Vc2VyU2VydmljZSA9IENyZWF0ZVNlcnZpY2UocmVwb3NpdG9yeSwgY2FjaGUsIG9yZ2FuaXphdGlvbklkLCB1bnNlZW5Vc2VySWQpOwoKICAgICAgICB2YXIgc2VlblJlc3VsdCA9IGF3YWl0IExpc3REcmFmdHNBc3luYyhzZWVuVXNlclNlcnZpY2UpOwogICAgICAgIHZhciB1bnNlZW5SZXN1bHQgPSBhd2FpdCBMaXN0RHJhZnRzQXN5bmModW5zZWVuVXNlclNlcnZpY2UpOwoKICAgICAgICBBc3NlcnQuVHJ1ZShzZWVuUmVzdWx0LklzU3VjY2Vzcyk7CiAgICAgICAgQXNzZXJ0LlRydWUodW5zZWVuUmVzdWx0LklzU3VjY2Vzcyk7CiAgICAgICAgQXNzZXJ0LlRydWUoc2VlblJlc3VsdC5WYWx1ZS5JdGVtcy5TaW5nbGUoKS5Jc1NlZW5CeUN1cnJlbnRVc2VyKTsKICAgICAgICBBc3NlcnQuRmFsc2UodW5zZWVuUmVzdWx0LlZhbHVlLkl0ZW1zLlNpbmdsZSgpLklzU2VlbkJ5Q3VycmVudFVzZXIpOwogICAgICAgIEFzc2VydC5FcXVhbCgyLCByZXBvc2l0b3J5Lkxpc3RDYWxsQ291bnQpOwogICAgfQoKICAgIFtGYWN0XQogICAgcHVibGljIGFzeW5jIFRhc2sgTGlzdEFzeW5jX1JldXNlc0NhY2hlRm9yVGhlU2FtZVVzZXIoKQogICAgewogICAgICAgIHZhciBvcmdhbml6YXRpb25JZCA9IEd1aWQuTmV3R3VpZCgpOwogICAgICAgIHZhciB1c2VySWQgPSBHdWlkLk5ld0d1aWQoKTsKICAgICAgICB2YXIgcmVwb3NpdG9yeSA9IG5ldyBVc2VyQXdhcmVKb2JSZXBvc2l0b3J5KG9yZ2FuaXphdGlvbklkLCB1c2VySWQpOwoKICAgICAgICB1c2luZyB2YXIgc2VydmljZXMgPSBDcmVhdGVDYWNoZVNlcnZpY2VzKCk7CiAgICAgICAgdmFyIHNlcnZpY2UgPSBDcmVhdGVTZXJ2aWNlKAogICAgICAgICAgICByZXBvc2l0b3J5LAogICAgICAgICAgICBzZXJ2aWNlcy5HZXRSZXF1aXJlZFNlcnZpY2U8SHlicmlkQ2FjaGU+KCksCiAgICAgICAgICAgIG9yZ2FuaXphdGlvbklkLAogICAgICAgICAgICB1c2VySWQpOwoKICAgICAgICBhd2FpdCBMaXN0RHJhZnRzQXN5bmMoc2VydmljZSk7CiAgICAgICAgYXdhaXQgTGlzdERyYWZ0c0FzeW5jKHNlcnZpY2UpOwoKICAgICAgICBBc3NlcnQuRXF1YWwoMSwgcmVwb3NpdG9yeS5MaXN0Q2FsbENvdW50KTsKICAgIH0KCiAgICBwcml2YXRlIHN0YXRpYyBTZXJ2aWNlUHJvdmlkZXIgQ3JlYXRlQ2FjaGVTZXJ2aWNlcygpCiAgICB7CiAgICAgICAgdmFyIHNlcnZpY2VzID0gbmV3IFNlcnZpY2VDb2xsZWN0aW9uKCk7CiAgICAgICAgc2VydmljZXMuQWRkSHlicmlkQ2FjaGUoKTsKICAgICAgICByZXR1cm4gc2VydmljZXMuQnVpbGRTZXJ2aWNlUHJvdmlkZXIoKTsKICAgIH0KCiAgICBwcml2YXRlIHN0YXRpYyBUYXNrPEFyZGFsaXMuUmVzdWx0LlJlc3VsdDxKb2JMaXN0UmVzcG9uc2U+PiBMaXN0RHJhZnRzQXN5bmMoSm9iU2VydmljZSBzZXJ2aWNlKSA9PgogICAgICAgIHNlcnZpY2UuTGlzdEFzeW5jKAogICAgICAgICAgICBbSm9iU3RhdHVzLkRyYWZ0XSwKICAgICAgICAgICAgcmVwb3J0TnVtYmVyOiBudWxsLAogICAgICAgICAgICBjdXN0b21lck5hbWU6IG51bGwsCiAgICAgICAgICAgIGN1c3RvbWVyRW1haWw6IG51bGwsCiAgICAgICAgICAgIGN1c3RvbWVyQWRkcmVzczogbnVsbCwKICAgICAgICAgICAgc2VhcmNoOiBudWxsLAogICAgICAgICAgICBzb3J0Qnk6IG51bGwsCiAgICAgICAgICAgIHNvcnREaXJlY3Rpb246IG51bGwsCiAgICAgICAgICAgIGxpbWl0OiAyMCwKICAgICAgICAgICAgb2Zmc2V0OiAwLAogICAgICAgICAgICBDYW5jZWxsYXRpb25Ub2tlbi5Ob25lKTsKCiAgICBwcml2YXRlIHN0YXRpYyBKb2JTZXJ2aWNlIENyZWF0ZVNlcnZpY2UoCiAgICAgICAgSUpvYlJlcG9zaXRvcnkgcmVwb3NpdG9yeSwKICAgICAgICBIeWJyaWRDYWNoZSBjYWNoZSwKICAgICAgICBHdWlkIG9yZ2FuaXphdGlvbklkLAogICAgICAgIEd1aWQgdXNlcklkKSA9PgogICAgICAgIG5ldygKICAgICAgICAgICAgcmVwb3NpdG9yeSwKICAgICAgICAgICAgbnVsbCEsCiAgICAgICAgICAgIG51bGwhLAogICAgICAgICAgICBudWxsISwKICAgICAgICAgICAgbnVsbCEsCiAgICAgICAgICAgIG51bGwhLAogICAgICAgICAgICBudWxsISwKICAgICAgICAgICAgY2FjaGUsCiAgICAgICAgICAgIG51bGwhLAogICAgICAgICAgICBudWxsISwKICAgICAgICAgICAgbnVsbCEsCiAgICAgICAgICAgIG5ldyBUZXN0Q3VycmVudFVzZXJDb250ZXh0KHVzZXJJZCwgb3JnYW5pemF0aW9uSWQsIFJvbGVzLlVzZXIpLAogICAgICAgICAgICBOdWxsTG9nZ2VyPEpvYlNlcnZpY2U+Lkluc3RhbmNlLAogICAgICAgICAgICBudWxsISwKICAgICAgICAgICAgbnVsbCEsCiAgICAgICAgICAgIG51bGwhKTsKCiAgICBwcml2YXRlIHNlYWxlZCByZWNvcmQgVGVzdEN1cnJlbnRVc2VyQ29udGV4dCgKICAgICAgICBHdWlkPyBVc2VySWQsCiAgICAgICAgR3VpZD8gT3JnYW5pemF0aW9uSWQsCiAgICAgICAgc3RyaW5nPyBSb2xlKSA6IElDdXJyZW50VXNlckNvbnRleHQ7CgogICAgcHJpdmF0ZSBzZWFsZWQgY2xhc3MgVXNlckF3YXJlSm9iUmVwb3NpdG9yeShHdWlkIG9yZ2FuaXphdGlvbklkLCBHdWlkIHNlZW5Vc2VySWQpIDogSUpvYlJlcG9zaXRvcnkKICAgIHsKICAgICAgICBwcml2YXRlIHJlYWRvbmx5IEd1aWQgam9iSWQgPSBHdWlkLk5ld0d1aWQoKTsKCiAgICAgICAgaW50ZXJuYWwgaW50IExpc3RDYWxsQ291bnQgeyBnZXQ7IHByaXZhdGUgc2V0OyB9CgogICAgICAgIHB1YmxpYyBUYXNrPEpvYkxpc3RSZXNwb25zZT4gTGlzdEFzeW5jKEpvYlF1ZXJ5IHF1ZXJ5LCBDYW5jZWxsYXRpb25Ub2tlbiBjYW5jZWxsYXRpb25Ub2tlbikKICAgICAgICB7CiAgICAgICAgICAgIExpc3RDYWxsQ291bnQrKzsKICAgICAgICAgICAgdmFyIG5vdyA9IERhdGVUaW1lT2Zmc2V0LlV0Y05vdzsKICAgICAgICAgICAgdmFyIGl0ZW0gPSBuZXcgSm9iTGlzdEl0ZW1SZXNwb25zZSgKICAgICAgICAgICAgICAgIGpvYklkLAogICAgICAgICAgICAgICAgb3JnYW5pemF0aW9uSWQsCiAgICAgICAgICAgICAgICBDdXN0b21lcjogbnVsbCwKICAgICAgICAgICAgICAgIFJlcG9ydE51bWJlcjogIjAwMDEiLAogICAgICAgICAgICAgICAgU3RhdHVzOiBKb2JTdGF0dXMuRHJhZnQsCiAgICAgICAgICAgICAgICBSZXBvcnREYXRlOiBudWxsLAogICAgICAgICAgICAgICAgSm9iVHlwZTogSm9iVHlwZS5LTFMsCiAgICAgICAgICAgICAgICBEZXN0aW5hdGlvbkFkZHJlc3M6IG51bGwsCiAgICAgICAgICAgICAgICBEZXN0aW5hdGlvblppcENvZGU6IG51bGwsCiAgICAgICAgICAgICAgICBEZXN0aW5hdGlvbkNpdHk6IG51bGwsCiAgICAgICAgICAgICAgICBUYXNrRGVzY3JpcHRpb246IG51bGwsCiAgICAgICAgICAgICAgICBJbnN0YWxsYXRpb25UeXBlczogW10sCiAgICAgICAgICAgICAgICBXb3JrS2luZDogbnVsbCwKICAgICAgICAgICAgICAgIENyZWF0ZWRBdDogbm93LAogICAgICAgICAgICAgICAgVXBkYXRlZEF0OiBub3csCiAgICAgICAgICAgICAgICBBc3NpZ25lZFVzZXJzOiBbXSwKICAgICAgICAgICAgICAgIFNvZnREZWxldGVkOiBmYWxzZSwKICAgICAgICAgICAgICAgIERlbGV0aW9uU2NoZWR1bGVkQXQ6IG51bGwsCiAgICAgICAgICAgICAgICBUb3RhbEhvdXJzOiBudWxsLAogICAgICAgICAgICAgICAgSXNTZWVuQnlDdXJyZW50VXNlcjogcXVlcnkuQ3VycmVudFVzZXJJZCA9PSBzZWVuVXNlcklkLAogICAgICAgICAgICAgICAgSXNOZXdSZWplY3Rpb246IGZhbHNlLAogICAgICAgICAgICAgICAgUmVqZWN0aW9uTm90ZTogbnVsbCk7CgogICAgICAgICAgICByZXR1cm4gVGFzay5Gcm9tUmVzdWx0KG5ldyBKb2JMaXN0UmVzcG9uc2UoW2l0ZW1dLCAxKSk7CiAgICAgICAgfQoKICAgICAgICBwdWJsaWMgVGFzazxKb2JSZXBvcnRSZXNwb25zZT4gQ3JlYXRlQXN5bmMoR3VpZCBvcmdhbml6YXRpb25JZCwgQ3JlYXRlSm9iUmVxdWVzdCByZXF1ZXN0LCBJUmVhZE9ubHlMaXN0PEd1aWQ+IGFzc2lnbmVkVXNlcklkcywgR3VpZD8gYWN0b3JJZCwgQ2FuY2VsbGF0aW9uVG9rZW4gY2FuY2VsbGF0aW9uVG9rZW4pID0+CiAgICAgICAgICAgIHRocm93IG5ldyBOb3RTdXBwb3J0ZWRFeGNlcHRpb24oKTsKCiAgICAgICAgcHVibGljIFRhc2s8Sm9iUmVwb3J0UmVzcG9uc2U/PiBHZXRTaW5nbGVKb2JBc3luYyhHdWlkIGlkLCBHdWlkIG9yZ2FuaXphdGlvbklkLCBDYW5jZWxsYXRpb25Ub2tlbiBjYW5jZWxsYXRpb25Ub2tlbikgPT4KICAgICAgICAgICAgdGhyb3cgbmV3IE5vdFN1cHBvcnRlZEV4Y2VwdGlvbigpOwoKICAgICAgICBwdWJsaWMgVGFzazxJUmVhZE9ubHlMaXN0PEpvYkhpc3RvcnlSZXNwb25zZT4/PiBHZXRFdmVudHNBc3luYyhHdWlkIGlkLCBHdWlkIG9yZ2FuaXphdGlvbklkLCBpbnQgbGltaXQsIGludCBvZmZzZXQsIENhbmNlbGxhdGlvblRva2VuIGNhbmNlbGxhdGlvblRva2VuKSA9PgogICAgICAgICAgICB0aHJvdyBuZXcgTm90U3VwcG9ydGVkRXhjZXB0aW9uKCk7CgogICAgICAgIHB1YmxpYyBUYXNrPEpvYlJlcG9ydFJlc3BvbnNlPz4gVXBkYXRlQXN5bmMoR3VpZCBpZCwgR3VpZCBvcmdhbml6YXRpb25JZCwgVXBkYXRlSm9iUmVxdWVzdCByZXF1ZXN0LCBDYW5jZWxsYXRpb25Ub2tlbiBjYW5jZWxsYXRpb25Ub2tlbikgPT4KICAgICAgICAgICAgdGhyb3cgbmV3IE5vdFN1cHBvcnRlZEV4Y2VwdGlvbigpOwoKICAgICAgICBwdWJsaWMgVGFzazxKb2JUcmFuc2l0aW9uUmVzdWx0Pz4gVHJhbnNpdGlvbkFzeW5jKEd1aWQgaWQsIEd1aWQgb3JnYW5pemF0aW9uSWQsIEpvYlN0YXR1cyBuZXh0U3RhdHVzLCBHdWlkPyBhY3RvcklkLCBzdHJpbmc/IHJlamVjdGlvbk5vdGUsIENhbmNlbGxhdGlvblRva2VuIGNhbmNlbGxhdGlvblRva2VuKSA9PgogICAgICAgICAgICB0aHJvdyBuZXcgTm90U3VwcG9ydGVkRXhjZXB0aW9uKCk7CgogICAgICAgIHB1YmxpYyBUYXNrPEpvYkRlbGV0ZVJlcG9zaXRvcnlSZXN1bHQ+IERlbGV0ZUFzeW5jKEd1aWQgaWQsIEd1aWQgb3JnYW5pemF0aW9uSWQsIENhbmNlbGxhdGlvblRva2VuIGNhbmNlbGxhdGlvblRva2VuKSA9PgogICAgICAgICAgICB0aHJvdyBuZXcgTm90U3VwcG9ydGVkRXhjZXB0aW9uKCk7CgogICAgICAgIHB1YmxpYyBUYXNrPEpvYlJlcG9ydFJlc3BvbnNlPz4gUmVzdG9yZURlbGV0aW9uQXN5bmMoR3VpZCBpZCwgR3VpZCBvcmdhbml6YXRpb25JZCwgQ2FuY2VsbGF0aW9uVG9rZW4gY2FuY2VsbGF0aW9uVG9rZW4pID0+CiAgICAgICAgICAgIHRocm93IG5ldyBOb3RTdXBwb3J0ZWRFeGNlcHRpb24oKTsKCiAgICAgICAgcHVibGljIFRhc2s8aW50PiBQdXJnZURlbGV0aW9uU2NoZWR1bGVkQmVmb3JlQXN5bmMoRGF0ZVRpbWVPZmZzZXQgY3V0b2ZmLCBDYW5jZWxsYXRpb25Ub2tlbiBjYW5jZWxsYXRpb25Ub2tlbikgPT4KICAgICAgICAgICAgdGhyb3cgbmV3IE5vdFN1cHBvcnRlZEV4Y2VwdGlvbigpOwogICAgfQp9Cg==' | base64 --decode > src/BE/WorkslipApi/Workslip.Tests/Jobs/JobListCacheIsolationTests.cs
+          git diff --check
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore backend tests
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+
+      - name: Build backend tests
+        run: dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-restore
+
+      - name: Run focused regression tests
+        run: dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-build --filter FullyQualifiedName~JobListCacheIsolationTests
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          git config user.name "Hermes Agent"
+          git config user.email "hermes-agent@local"
+          git add \
+            src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs \
+            src/BE/WorkslipApi/Workslip.Tests/Jobs/JobListCacheIsolationTests.cs
+          if git diff --cached --quiet; then
+            echo "Implementation already committed."
+            exit 0
+          fi
+          git commit -m "RBJ-227: isolate job list cache by user"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
