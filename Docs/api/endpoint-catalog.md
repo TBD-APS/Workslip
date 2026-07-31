@@ -1,117 +1,82 @@
 # Endpoint catalog
 
-**Contract build reviewed:** 2026-07-30<br>
+**Contract build reviewed:** 2026-07-31<br>
 **Source:** endpoint registration under `src/BE/WorkslipApi/Endpoints`  
 **Executable examples:** `src/BE/WorkslipApi/Postman/postman_collection.json`
 
-The Postman item with the same route is the maintained request/response example. Parameterized requests use collection variables such as `jobId`, `userId`, `customerId`, `organizationId` and `worksheetId`.
+This catalog summarizes the maintained HTTP contract. Runtime endpoint registrations and generated OpenAPI remain authoritative.
 
-## Platform
-
-| Method | Path | Access | Typical response |
-|---|---|---|---|
-| GET | `/health` | Anonymous | `200 { "status": "ok" }` |
-| GET | `/openapi/v1.json` | Currently mapped by startup | OpenAPI JSON for the running build |
-| GET | Scalar UI path | Currently mapped by startup | Interactive API reference |
-
-OpenAPI/Scalar exposure must be verified per environment. The current startup mapping is not guarded by an active development check.
-
-## Organizations
-
-| Method | Path | Access | Request/response |
-|---|---|---|---|
-| GET | `/api/organizations/` | Superadmin | All organizations ordered by name and CVR |
-| POST | `/api/organizations/` | Superadmin | Organization onboarding request → organization and initial-admin view |
-| POST | `/api/organizations/{organizationId}/session` | Superadmin | Selected organization → 15-minute delegated `AuthTokenResponse` |
-| PUT | `/api/organizations/{organizationId}/admin` | Superadmin | Administrator email, display name and optional phone → created or updated admin view |
-
-These routes support the frontend `/superadmin` page. The admin upsert rejects an email owned by another organization, protects existing `Superadmin` accounts from demotion, sends a Microsoft Entra B2B invitation for new identities, assigns the Entra `Admin` app role and returns `entraInvitationSent` so the UI can distinguish a newly sent invitation from reuse of an existing identity.
-
-The delegated session endpoint does not modify the Superadmin user row or create organization memberships. It verifies the target organization and the actor's current database role, then returns a short-lived token whose `organizationId` is the selected organization while the real Superadmin user ID and role are preserved. The original token is restored when the frontend exits the session or the delegated token expires.
-
-## Authentication and invitations
-
-| Method | Path | Access | Request/response |
-|---|---|---|---|
-| GET | `/api/auth/me` | Read | Current user view; delegated Superadmins receive the effective organization ID |
-| PATCH | `/api/auth/me` | User | Profile update → user view |
-| POST | `/api/auth/send-code` | Anonymous | `{ "email": "..." }` → generic `200` message |
-| POST | `/api/auth/verify-code/{code}` | Anonymous | Email body + code path → local bearer token |
-| POST | `/api/auth/entra-enroll` | Entra JWT | Enrollment request → local bearer token |
-| POST | `/api/auth/entra-login` | Entra JWT | Authenticated Entra identity → local bearer token |
-| GET | `/api/auth/invites` | Admin | Organization invitation list |
-| DELETE | `/api/auth/invites/{inviteId}` | Admin | Clears one tenant-owned status; revokes pending invite-owned Entra guest |
-| POST | `/api/auth/invite` | Admin | Invitation batch → result |
-| POST | `/api/auth/invite/{token}/open` | Anonymous | Marks invitation opened |
-
-## Users
-
-All `/api/users` routes are in the admin route group. Additional user requirements do not reduce the effective admin requirement. User list/detail responses retain the canonical `role` and add the Danish presentation field `roleDisplayName`.
-
-| Method | Path | Access | Request/response |
-|---|---|---|---|
-| POST | `/api/users/` | Admin | Create user → user view |
-| GET | `/api/users/` | Admin | `limit`, `offset`, `search`, `sortBy`, `sortDirection` → paginated user list |
-| GET | `/api/users/{id}` | Admin | User detail |
-| PATCH | `/api/users/{id}` | Admin | Update user → user view |
-| DELETE | `/api/users/{id}` | Admin | `204` or mapped error |
-
-## Jobs
+## Authentication
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/api/jobs/` | Read | Filters, repeated `status`, sorting and pagination → `{ items, totalCount }` |
-| GET | `/api/jobs/my-assigned` | Read | Current user's assigned jobs |
-| GET | `/api/jobs/{id}` | Read | Job summary; supports ETag revalidation |
-| GET | `/api/jobs/{id}/history` | Read | `limit`/`offset` → history events |
-| GET | `/api/jobs/{id}/report/pdf` | Read | PDF file response |
-| POST | `/api/jobs/` | User | Requires `Idempotency-Key`; create → job summary |
-| PATCH | `/api/jobs/{id}` | User | Requires `Idempotency-Key`; update → job summary |
-| POST | `/api/jobs/{id}/status` | User | Requires `Idempotency-Key`; status request → job summary |
-| POST | `/api/jobs/{id}/seen` | User | Marks job seen → `204` |
-| POST | `/api/jobs/{id}/assign` | User | `{ "userIds": [...] }` → job summary |
-| DELETE | `/api/jobs/{id}` | Admin | `204`, `404` or deletion conflict |
-| POST | `/api/jobs/{id}/restore/deletion` | Admin | Restores scheduled deletion → job summary |
-| POST | `/api/jobs/{id}/links` | User | Link request → job summary |
-| DELETE | `/api/jobs/{id}/links` | User | Link deletion request → mapped result |
+| POST | `/api/auth/entra` | Anonymous | Exchange a valid Entra access token for a Workslip token |
+| POST | `/api/auth/dev-login` | Development | Local development login |
+| POST | `/api/auth/one-time-code/request` | Anonymous | Request a one-time login code |
+| POST | `/api/auth/one-time-code/verify` | Anonymous | Verify a one-time login code |
+| GET | `/api/auth/me` | Authenticated | Current Workslip user |
+| PATCH | `/api/auth/me` | Authenticated | Update current user's profile |
 
-Job status values implemented by the current domain are `Draft`, `InReview`, `Approved` and `Rejected`.
+## Organizations
 
-The status endpoint remains in the user route group because ordinary users submit work through it. The application service enforces this role-aware transition matrix before persistence, history or notification side effects:
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/api/organizations` | Superadmin | List customer organizations |
+| POST | `/api/organizations` | Superadmin | Create organization and initial admin |
+| PUT | `/api/organizations/{organizationId}/admin` | Superadmin | Invite or reconcile organization admin |
+| POST | `/api/organizations/{organizationId}/session` | Superadmin | Issue short-lived delegated organization token |
 
-| Current status | Target status | Allowed roles |
-|---|---|---|
-| `Draft` | `InReview` | User, Admin, Superadmin |
-| `Rejected` | `InReview` | User, Admin, Superadmin |
-| `InReview` | `Approved` | Admin, Superadmin |
-| `InReview` | `Rejected` | Admin, Superadmin |
-| Same status | Same status | Roles authorized for that target; treated idempotently |
+## Users
 
-Targeting `Draft` or any other source/target combination returns `409 Conflict`. A caller lacking permission for the requested target returns `403 Forbidden`. Job lookup remains scoped to the effective organization, so a cross-tenant ID returns `404` before role details are evaluated.
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/api/users/` | Admin | List organization users |
+| GET | `/api/users/{id}` | Admin | Get organization user |
+| POST | `/api/users/invite` | Admin | Invite user |
+| PUT | `/api/users/{id}` | Admin | Update user |
+| DELETE | `/api/users/{id}` | Admin | Delete user |
+| POST | `/api/users/{id}/resend-invite` | Admin | Resend invitation |
 
 ## Customers
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/api/customers/search` | Read | `query`, `limit` → search results |
-| GET | `/api/customers/favorite` | Read | Optional `limit`, default `3` → favorite customer search results |
-| GET | `/api/customers/` | User | Paginated customer list |
-| GET | `/api/customers/{id}` | User | Customer detail including `customerNumber`, address, ZIP, city and country |
-| POST | `/api/customers/` | Admin | Requires `Idempotency-Key`; create → detail |
-| PUT | `/api/customers/{id}` | Admin | Update → detail |
-| PATCH | `/api/customers/{id}/favorite` | Admin | `{ "isFavorite": true or false }` → mapped result |
-| DELETE | `/api/customers/{id}` | Admin | `204` or mapped error |
-| POST | `/api/customers/import` | Admin | Multipart `.xlsx`/`.csv`, max 10 MB, rate limited → imported/duplicate/skipped/failed counts and row errors |
+| GET | `/api/customers/` | Read | Search/list organization customers |
+| GET | `/api/customers/{id}` | Read | Get one organization customer |
+| POST | `/api/customers/` | Admin | Create customer |
+| PUT | `/api/customers/{id}` | Admin | Update customer |
+| DELETE | `/api/customers/{id}` | Admin | Delete customer |
+| POST | `/api/customers/import` | Admin | Import customers from XLSX |
 
-Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/city/country fields, and ignore unrelated source columns such as group and customer reference.
+Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/city values, validate rows before persistence, and reject duplicate customer numbers within the organization.
+
+## Jobs
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/api/jobs/` | Read | Filtered and paginated job list |
+| GET | `/api/jobs/my-assigned` | Read | Jobs assigned to current user |
+| GET | `/api/jobs/{id}` | Read | Job summary |
+| GET | `/api/jobs/{id}/history` | Read | Job history |
+| GET | `/api/jobs/{id}/report/pdf` | Read | Generated PDF report |
+| POST | `/api/jobs/` | User | Create job; requires idempotency key |
+| PATCH | `/api/jobs/{id}` | User | Update job; requires idempotency key |
+| POST | `/api/jobs/{id}/status` | User | Change status; requires idempotency key |
+| POST | `/api/jobs/{id}/seen` | Read | Mark job as seen |
+| DELETE | `/api/jobs/{id}` | Admin | Delete job |
+| POST | `/api/jobs/{id}/restore/deletion` | Admin | Undo deletion |
+| POST | `/api/jobs/{id}/assign` | User | Assign users |
 
 ## Worksheets
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/api/worksheets/jobs/{jobId}` | User | Upsert worksheet → job summary |
-| DELETE | `/api/worksheets/{worksheetId}/jobs/{jobId}` | User | Delete worksheet → job summary |
-| GET | `/api/worksheets/my` | User | Optional `year`, `month` → current-user month |
+| GET | `/api/worksheets/job/{jobId}` | User | Job worksheets |
+| GET | `/api/worksheets/{id}` | User | Worksheet detail |
+| POST | `/api/worksheets/` | User | Create worksheet |
+| PUT | `/api/worksheets/{id}` | User | Update worksheet |
+| DELETE | `/api/worksheets/{id}` | User | Delete worksheet |
+| GET | `/api/worksheets/mine` | User | Current user's worksheets |
 | GET | `/api/worksheets/all` | Admin | Optional `year`, `month` → organization month |
 
 ## Reference data
@@ -125,13 +90,13 @@ Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/ci
 | Method | Path | Access | Notes |
 |---|---|---|---|
 | GET | `/api/push-subscriptions/public-key` | User | Active private-key-derived VAPID public key; `Cache-Control: no-store` |
-| POST | `/api/push-subscriptions/` | User, excluding Superadmin | Browser endpoint and keys; optional `replacedEndpoint` deactivates exactly one stale subscription |
+| POST | `/api/push-subscriptions/` | User, Admin, Superadmin | Browser endpoint and keys; optional `replacedEndpoint` deactivates exactly one stale subscription |
 | GET | `/api/notifications/` | User | `limit`, `offset` → notification history |
 | PATCH | `/api/notifications/{id}/read` | User | Marks one notification read → `204` |
 | POST | `/api/notifications/read-all` | User | Marks all read → `204` |
 | DELETE | `/api/notifications/{id}` | User | Deletes one owned notification → mapped result |
 
-The backend derives the active public key from `Vapid:PrivateKey`; independently configured public-key values are diagnostic only. During authenticated startup, the frontend compares the browser subscription's `applicationServerKey` with this endpoint. A mismatch recreates the browser subscription and supplies the old endpoint as `replacedEndpoint`, preserving other device subscriptions. Superadmins are blocked from push registration so a device used during a delegated organization session is never attached to a tenant notification stream.
+The backend derives the active public key from `Vapid:PrivateKey`. During authenticated startup, the frontend compares the browser subscription's `applicationServerKey` with this endpoint. A mismatch recreates the browser subscription and supplies the old endpoint as `replacedEndpoint`, preserving other device subscriptions. Push subscriptions, queued notifications, history and delivery lookup are keyed by the authenticated actor's `UserId`, so Superadmins register normally. Entering a delegated organization session changes effective tenant access but does not broaden which notification rows target the actor.
 
 ## Operations
 
@@ -143,7 +108,4 @@ The backend derives the active public key from `Vapid:PrivateKey`; independently
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/api/dev/token` | Anonymous in current route definition | Generates a local token by email; must never be treated as safe outside isolated development |
-| GET | `/api/dev/debug` | Authenticated | Returns identity/claim diagnostics |
-
-The current application maps these endpoints through `ConfigureDevEnvironment`, but the environment guard is commented out. This is a verified implementation risk, not a documentation assumption.
+| POST | `/api/dev/seed` | Development | Seed development data |
