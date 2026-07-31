@@ -14,7 +14,7 @@ import { validateControlPoints } from '../components/steps/controlPointsValidati
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useJobDetailsState } from '../hooks/useJobDetails';
-import { markJobAsSeen } from '../utils/markJobSeen';
+import { COMPLETED_JOB_VIEW_TYPE, markJobAsSeen } from '../utils/markJobSeen';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
 
 import { formatJobStatus } from '../statusLabels';
@@ -64,9 +64,10 @@ export const CompletedJobReport = () => {
   const isDiverseInReview = job?.jobType === 'Diverse' && job?.status === JobStatus.InReview;
 
   useEffect(() => {
-    if (!id) return;
-    markJobAsSeen(id, queryClient);
-  }, [id, queryClient]);
+    if (!id || !job) return;
+    const viewType = job.status === JobStatus.Approved ? COMPLETED_JOB_VIEW_TYPE : undefined;
+    markJobAsSeen(id, queryClient, viewType);
+  }, [id, job?.status, queryClient]);
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
