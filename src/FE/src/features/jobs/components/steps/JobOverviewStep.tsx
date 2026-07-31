@@ -29,7 +29,7 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         customerSnapshot={details.form.customerSnapshot}
         editSnapshot={details.form.editSnapshot}
         createCustomer={details.form.createCustomer}
-        onCreateCustomerChange={details.updateCreateCustomer}
+        onCreateCustomerChange={details.isAdmin ? details.updateCreateCustomer : undefined}
         onCustomerSelect={details.selectCustomer}
         onSnapshotFieldChange={details.updateSnapshotField}
         onEditSnapshotChange={details.updateEditSnapshot}
@@ -72,7 +72,7 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         placeholder="Notér oplysninger til kunden..."
       />
       <TextAreaBlock
-        icon={<Wrench size={18} />}
+        icon={<Wrench size={18} />
         title="Tekniske observationer"
         value={details.form.technicalObservations}
         onChange={details.updateTechnicalObservations}
