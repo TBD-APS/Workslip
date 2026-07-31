@@ -43,9 +43,20 @@ type DestinationAddressBlockProps = {
   onCityChange: (value: string) => void;
   required?: boolean;
   error?: string;
+  readOnly?: boolean;
 };
 
-export function DestinationAddressBlock({ value, zipCode, city, onChange, onZipCodeChange, onCityChange, required, error }: DestinationAddressBlockProps) {
+export function DestinationAddressBlock({
+  value,
+  zipCode,
+  city,
+  onChange,
+  onZipCodeChange,
+  onCityChange,
+  required,
+  error,
+  readOnly = false,
+}: DestinationAddressBlockProps) {
   const displayValue = useMemo(() => {
     if (zipCode && city && value) return `${value}, ${zipCode} ${city}`;
     if (value) return value;
@@ -72,10 +83,11 @@ export function DestinationAddressBlock({ value, zipCode, city, onChange, onZipC
 
   return (
     <section className="detail-section">
-      <div className="detail-form">
+      <div className={`detail-form ${readOnly ? 'is-readonly' : 'is-editable'}`}>
         <div className="section-header-row">
           <FileText size={18} />
           <h3>Adresse (destination){required && <span className="required-asterisk">*</span>}</h3>
+          {readOnly && <Lock size={14} className="readonly-indicator" />}
           {(() => {
             const mapsUrl = getMapsUrl(value, zipCode, city);
             return mapsUrl ? (
@@ -95,6 +107,7 @@ export function DestinationAddressBlock({ value, zipCode, city, onChange, onZipC
           error={error}
           required={required}
           placeholder="Søg adresse..."
+          readOnly={readOnly}
           onTextChange={handleTextChange}
           onSelectSuggestion={handleSelect}
           onClear={handleClear}
