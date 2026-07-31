@@ -85,7 +85,6 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
   };
 
   const handleBack = () => {
-    details.saveCurrentStep({ validateWork: false });
     onBack();
   };
 
