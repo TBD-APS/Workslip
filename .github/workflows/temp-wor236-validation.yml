@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/FE/src/features/jobs/routes/JobList.tsx'
+      - 'src/FE/src/features/jobs/routes/jobListReportDate.ts'
       - 'src/FE/src/features/jobs/routes/JobList.reportDate.test.ts'
       - '.github/workflows/temp-wor236-validation.yml'
 
@@ -63,7 +64,7 @@ jobs:
           PY
 
       - name: Lint affected files
-        run: npx eslint src/features/jobs/routes/JobList.tsx src/features/jobs/routes/JobList.reportDate.test.ts
+        run: npx eslint src/features/jobs/routes/JobList.tsx src/features/jobs/routes/jobListReportDate.ts src/features/jobs/routes/JobList.reportDate.test.ts
 
       - name: Run focused regression test
         run: npm test -- --run src/features/jobs/routes/JobList.reportDate.test.ts
