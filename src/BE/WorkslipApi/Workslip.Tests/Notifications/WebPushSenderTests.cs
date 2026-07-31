@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using WebPush;
 using Workslip.Domain.Models;
@@ -80,8 +79,7 @@ public sealed class WebPushSenderTests
             {
                 PrivateKey = PrivateScalarOne,
                 Subject = "mailto:push@workslip.app"
-            }),
-            NullLogger<VapidKeyMaterial>.Instance);
+            }));
 
         return new WebPushSender(keyMaterial, client);
     }
