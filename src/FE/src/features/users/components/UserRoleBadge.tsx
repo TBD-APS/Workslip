@@ -1,4 +1,4 @@
-import { Shield } from 'lucide-react';
+import { Crown, SearchCheck, Shield, User } from 'lucide-react';
 import './UserRoleBadge.css';
 
 type UserRoleBadgeProps = {
@@ -6,23 +6,23 @@ type UserRoleBadgeProps = {
   displayName?: string | null;
 };
 
-function getRoleClassName(role: string): string {
+function renderRoleIcon(role: string) {
   switch (role.trim().toLowerCase()) {
     case 'superadmin':
-      return 'superadmin';
+      return <Crown size={13} aria-hidden="true" />;
     case 'admin':
-      return 'admin';
+      return <Shield size={13} aria-hidden="true" />;
     case 'auditor':
-      return 'auditor';
+      return <SearchCheck size={13} aria-hidden="true" />;
     default:
-      return 'user';
+      return <User size={13} aria-hidden="true" />;
   }
 }
 
 export function UserRoleBadge({ role, displayName }: UserRoleBadgeProps) {
   return (
-    <span className={`user-role-badge user-role-badge--${getRoleClassName(role)}`}>
-      <Shield size={13} aria-hidden="true" />
+    <span className="user-role-badge">
+      {renderRoleIcon(role)}
       <span>{displayName || role}</span>
     </span>
   );
