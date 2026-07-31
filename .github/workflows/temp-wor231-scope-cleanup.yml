@@ -1,0 +1,42 @@
+name: TEMP WOR-231 scope cleanup
+
+on:
+  push:
+    branches:
+      - rbj--231-merge-active-rejected-job-filters
+    paths:
+      - '.github/workflows/temp-wor231-scope-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: rbj--231-merge-active-rejected-job-filters
+
+      - name: Restore unrelated literal and remove workflow
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/FE/src/features/jobs/routes/JobList.tsx')
+          text = path.read_text(encoding='utf-8-sig')
+          current = 'aria-label="Åbn sag"'
+          original = 'aria-label="' + chr(92) + 'u00c5bn sag"'
+          if text.count(current) != 1:
+              raise SystemExit(f'Expected exactly one source literal to restore, found {text.count(current)}')
+          path.write_text(text.replace(current, original), encoding='utf-8-sig')
+          PY
+
+          git rm .github/workflows/temp-wor231-scope-cleanup.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/FE/src/features/jobs/routes/JobList.tsx
+          git commit -m "RBJ-231: keep job filter scope isolated"
+          git push origin HEAD:rbj--231-merge-active-rejected-job-filters
