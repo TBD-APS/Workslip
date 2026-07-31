@@ -5,11 +5,11 @@ import { canUseSessionNotifications } from './sessionFeaturePolicy';
 describe('role feature policy', () => {
   it('excludes roles without access', () => {
     expect(canUseSessionNotifications(ROLES.Auditor)).toBe(false);
-    expect(canUseSessionNotifications(ROLES.Superadmin)).toBe(false);
   });
 
   it('includes supported roles', () => {
     expect(canUseSessionNotifications(ROLES.User)).toBe(true);
     expect(canUseSessionNotifications(ROLES.Admin)).toBe(true);
+    expect(canUseSessionNotifications(ROLES.Superadmin)).toBe(true);
   });
 });
