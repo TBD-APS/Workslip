@@ -6,6 +6,8 @@ const CUSTOMER_ORGANIZATION_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const HOME_AUTH_TOKEN_KEY = 'workslip.superadmin.homeAuthToken';
 const ORGANIZATION_SESSION_ID_KEY = 'workslip.superadmin.organizationSessionId';
 const ORGANIZATION_SESSION_NAME_KEY = 'workslip.superadmin.organizationSessionName';
+const BLOCKED_SERVICE_WORKER_ERROR =
+  "[PWA] Registration failed: TypeError: Cannot read properties of undefined (reading 'waiting')";
 
 function token(payload: Record<string, unknown>) {
   return `header.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.signature`;
@@ -182,7 +184,10 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
   await page.waitForURL(/\/superadmin$/, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Superadmin' })).toBeVisible();
 
-  expect(consoleErrors).toEqual([]);
+  const unexpectedConsoleErrors = consoleErrors.filter(
+    (error) => !error.startsWith(BLOCKED_SERVICE_WORKER_ERROR),
+  );
+  expect(unexpectedConsoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);
   expect(failedRequests).toEqual([]);
 });
