@@ -21,8 +21,8 @@ jobs:
 
       - name: Verify deletion notification toggle is removed
         run: |
-          if git grep -n 'NotifyAssignedUsersOnJobDeletion\|Features:NotifyAssignedUsersOnJobDeletion\|JobNotificationFeatures'; then
-            echo '::error::Deletion notification toggle remains in the branch.'
+          if git grep -n 'NotifyAssignedUsersOnJobDeletion\|Features:NotifyAssignedUsersOnJobDeletion\|JobNotificationFeatures' -- src/BE/WorkslipApi; then
+            echo '::error::Deletion notification toggle remains in the application.'
             exit 1
           fi
           grep -q 'public bool IsEnabled => true;' src/BE/WorkslipApi/Workslip.Application/Notifications/JobDeletionNotificationService.cs
