@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StatusFilter } from './StatusFilter';
 
 type TestStatus = 'Draft' | 'Rejected' | 'InReview';
@@ -15,6 +15,10 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   });
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 afterAll(() => {
