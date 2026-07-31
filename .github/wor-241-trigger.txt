@@ -1,1 +1,1 @@
-Temporary trigger for WOR-241 implementation validation.
+Temporary trigger for repaired WOR-241 implementation validation.
