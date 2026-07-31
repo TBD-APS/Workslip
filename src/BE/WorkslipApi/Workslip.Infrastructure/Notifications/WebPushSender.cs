@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WebPush;
 using Workslip.Application.Notifications;
 using Workslip.Domain.Models;
@@ -38,9 +39,8 @@ public sealed class WebPushSender(
         {
             var statusCode = (int)exception.StatusCode;
             var shouldDeactivateSubscription = statusCode is 404 or 410
-                || statusCode == 400 && exception.Message.Contains(
-                    VapidPublicKeyMismatchReason,
-                    StringComparison.OrdinalIgnoreCase);
+                || statusCode == 400
+                && await HasVapidPublicKeyMismatchReasonAsync(exception, cancellationToken);
 
             return new PushSenderResult(
                 false,
@@ -53,6 +53,34 @@ public sealed class WebPushSender(
                 false,
                 $"Unexpected error sending push notification: {exception.Message}",
                 false);
+        }
+    }
+
+    private static async Task<bool> HasVapidPublicKeyMismatchReasonAsync(
+        WebPushException exception,
+        CancellationToken cancellationToken)
+    {
+        if (exception.HttpResponseMessage.Content is null)
+        {
+            return false;
+        }
+
+        var details = await exception.HttpResponseMessage.Content
+            .ReadAsStringAsync(cancellationToken);
+
+        try
+        {
+            using var document = JsonDocument.Parse(details);
+            return document.RootElement.TryGetProperty("reason", out var reason)
+                && reason.ValueKind == JsonValueKind.String
+                && string.Equals(
+                    reason.GetString(),
+                    VapidPublicKeyMismatchReason,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 }
