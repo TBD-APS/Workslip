@@ -31,6 +31,8 @@ import { WorksheetDetailList } from '../components/WorksheetDetailList';
 import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories } from '../components/ControlPointOverview';
 import { formatReportNumber, formatWorkKind, formatInstallationTypeNames, formatClosureFlags } from '../utils/completedJobFormatters';
 
+type JobAction = 'approve' | 'reject' | 'undo-reject';
+
 function scrollToTop() {
   document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
 }
@@ -52,8 +54,8 @@ export const CompletedJobReport = () => {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | 'undo-reject' | null>(null);
-  const [undoRejectionCompleted, setUndoRejectionCompleted] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<JobAction | null>(null);
+  const [completedAction, setCompletedAction] = useState<JobAction | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [worksheetOpen, setWorksheetOpen] = useState(true);
   const previewUrlRef = useRef<string | null>(null);
@@ -192,20 +194,8 @@ export const CompletedJobReport = () => {
       const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: targetStatus, rejectionNote: note } });
       queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), updatedJob);
       await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-      const message = confirmAction === 'undo-reject'
-        ? `Sagen ${details.form.reportNumber} er sendt til gennemgang igen`
-        : confirmAction === 'approve'
-          ? `${details.form.reportNumber} er godkendt`
-          : `${details.form.reportNumber} er afvist`;
       setConfirmAction(null);
-
-      if (confirmAction === 'undo-reject') {
-        setUndoRejectionCompleted(true);
-        return;
-      }
-
-      notify.success(message);
-      navigate(from);
+      setCompletedAction(confirmAction);
     } catch {
       const message = confirmAction === 'undo-reject'
         ? `Kunne ikke fortryde afvisningen. Prøv igen.`
@@ -538,31 +528,50 @@ export const CompletedJobReport = () => {
         />
       )}
 
-      {undoRejectionCompleted && (
-        <UndoRejectionSuccessDialog
+      {completedAction && (
+        <ActionSuccessDialog
+          action={completedAction}
           reportNumber={formatReportNumber(job)}
           onGoToJobList={() => navigate('/app', { replace: true })}
-          onGoToJob={() => setUndoRejectionCompleted(false)}
+          onGoToJob={() => {
+            setCompletedAction(null);
+            navigate(`/app/completed/${job.id}`, { replace: true });
+          }}
         />
       )}
     </div>
   );
 }
 
-function UndoRejectionSuccessDialog({
+function ActionSuccessDialog({
+  action,
   reportNumber,
   onGoToJobList,
   onGoToJob,
 }: {
+  action: JobAction;
   reportNumber: string;
   onGoToJobList: () => void;
   onGoToJob: () => void;
 }) {
+  const isUndoReject = action === 'undo-reject';
+  const isApprove = action === 'approve';
+  const title = isUndoReject
+    ? 'Afvisningen er fortrudt'
+    : isApprove
+      ? 'Sagen er godkendt'
+      : 'Sagen er afvist';
+  const body = isUndoReject
+    ? <>Sagen <strong>{reportNumber}</strong> er sendt til gennemgang igen.</>
+    : isApprove
+      ? <>Sagen <strong>{reportNumber}</strong> er godkendt.</>
+      : <>Sagen <strong>{reportNumber}</strong> er afvist.</>;
+
   return createPortal(
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="undo-rejection-success-title">
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="action-success-title">
       <div className="modal-card">
-        <h3 id="undo-rejection-success-title">Afvisningen er fortrudt</h3>
-        <p>Sagen <strong>{reportNumber}</strong> er sendt til gennemgang igen.</p>
+        <h3 id="action-success-title">{title}</h3>
+        <p>{body}</p>
         <div className="modal-actions modal-actions--double">
           <button className="btn btn-secondary" type="button" onClick={onGoToJobList}>
             Til sagslisten
