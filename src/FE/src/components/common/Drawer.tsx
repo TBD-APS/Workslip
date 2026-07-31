@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { useBlocker } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 
 type DrawerProps = {
@@ -11,9 +12,23 @@ type DrawerProps = {
   children: ReactNode;
 };
 
+function DrawerNavigationBlocker({ onClose }: { onClose: () => void }) {
+  const blocker = useBlocker(({ historyAction }) => historyAction === 'POP');
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return;
+
+    blocker.reset();
+    onClose();
+  }, [blocker, onClose]);
+
+  return null;
+}
+
 export function Drawer({ isOpen, onClose, title, ariaLabel, icon, className, children }: DrawerProps) {
   return (
     <>
+      {isOpen && <DrawerNavigationBlocker onClose={onClose} />}
       <div
         className={`drawer-overlay ${isOpen ? 'open' : ''}`}
         onClick={onClose}

@@ -25,7 +25,10 @@ const OneTimeCodeLogin = lazy(() =>
 export const Login = () => {
   const navigate = useNavigate();
   const { isAuthenticated, devLogin } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return hasEntraLoginCallback() || params.get('reauth') === '1';
+  });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showOtcLogin, setShowOtcLogin] = useState(false);
   // True when we arrived via the silent-reauth redirect (axios interceptor
@@ -65,7 +68,6 @@ export const Login = () => {
     };
 
     if (isCallback) {
-      setIsSubmitting(true);
       completeEntraLogin()
         .then((result) => {
           AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
@@ -73,7 +75,7 @@ export const Login = () => {
           clearReauthInFlight();
           clearEntraLoginSession();
           window.history.replaceState(null, '', '/login');
-          window.location.assign(result.returnTo);
+          window.location.replace(result.returnTo);
         })
         .catch((err: unknown) => {
           if (err instanceof InteractiveLoginRequiredError) {
@@ -95,7 +97,6 @@ export const Login = () => {
       return;
     }
 
-    setIsSubmitting(true);
     startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
       if (err instanceof InteractiveLoginRequiredError) {
         clearReauthInFlight();
@@ -122,7 +123,7 @@ export const Login = () => {
   };
 
   if (isAuthenticated) {
-    return <Navigate to="/app" />;
+    return <Navigate to="/app" replace />;
   }
 
   return (
@@ -222,7 +223,7 @@ export const Login = () => {
                           setIsSubmitting(true);
                           try {
                             const success = await devLogin(entry.email);
-                            if (success) navigate(entry.redirect);
+                            if (success) navigate(entry.redirect, { replace: true });
                             else setErrorMsg(`Dev login failed - ${entry.email} not found`);
                           } catch {
                             setErrorMsg('Dev login failed');
