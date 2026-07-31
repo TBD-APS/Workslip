@@ -11,17 +11,18 @@ import type {
 } from './types';
 
 export const superadminOrganizationQueryKey = ['superadmin', 'organizations'] as const;
+const organizationsPath = '/api/organizations';
 
 export async function getOrganizations(): Promise<Organization[]> {
   assertDesktopSuperadminAvailable();
-  return await apiClient.get('/api/organizations/', {
+  return await apiClient.get(organizationsPath, {
     skipGlobalErrorToast: true,
   }) as unknown as Organization[];
 }
 
 export async function createOrganization(input: CreateOrganizationInput): Promise<OrganizationOnboarding> {
   assertDesktopSuperadminAvailable();
-  return await apiClient.post('/api/organizations/', {
+  return await apiClient.post(organizationsPath, {
     name: input.name.trim(),
     cvr: input.cvr.trim(),
     adminDisplayName: input.adminDisplayName.trim(),
