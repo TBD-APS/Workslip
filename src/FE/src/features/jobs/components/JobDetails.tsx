@@ -470,7 +470,7 @@ function SubmittedConfirmation({ reportNumber, submittedAt, onDone, onGoToReport
         Tilbage til oversigt
       </button>
       <button type="button" className="btn btn-secondary submitted-confirmation-button" onClick={onGoToReport}>
-        Gå til oprettet sag
+        Gå til indsendt sag
       </button>
     </section>
   );
