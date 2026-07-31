@@ -23,7 +23,7 @@ jobs:
     env:
       BUNDLE_FROZEN: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
@@ -32,7 +32,7 @@ jobs:
       - name: Compile output validator
         run: python -m py_compile site/scripts/validate_output.py
       - id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Build Jekyll site
         working-directory: site
         run: bundle exec jekyll build --strict_front_matter --baseurl "${{ steps.pages.outputs.base_path }}"
@@ -40,7 +40,7 @@ jobs:
           JEKYLL_ENV: production
       - name: Validate generated Pages output
         run: python site/scripts/validate_output.py site/_site "${{ steps.pages.outputs.base_path }}"
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site/_site
 
