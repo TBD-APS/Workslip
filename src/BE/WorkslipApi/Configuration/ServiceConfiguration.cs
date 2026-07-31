@@ -4,7 +4,6 @@ using Azure.Core;
 using Microsoft.Graph;
 using Workslip.Api.Services;
 using Workslip.Application;
-using Workslip.Application.Notifications;
 using Workslip.Infrastructure;
 
 namespace Workslip.Api.Configuration;
@@ -13,19 +12,11 @@ public static class ServiceConfiguration
 {
     public static WebApplicationBuilder ConfigureServices(this WebApplicationBuilder builder)
     {
-        var configuration = builder.Configuration;
-
         builder.Services.AddOpenApi();
         builder.Services.AddHybridCache();
         builder.Services.AddMemoryCache();
         builder.Services.AddScoped<IdempotencyStore>();
         builder.Services.AddScoped<IdempotentMutationService>();
-        builder.Services.AddSingleton(new JobNotificationFeatures
-        {
-            NotifyAssignedUsersOnJobDeletion = configuration.GetValue(
-                JobNotificationFeatures.NotifyAssignedUsersOnJobDeletionKey,
-                true)
-        });
 
         builder.Services.ConfigureHttpJsonOptions(options =>
         {

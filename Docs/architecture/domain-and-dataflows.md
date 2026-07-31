@@ -12,7 +12,7 @@
 | Data | Tenant rule |
 |---|---|
 | Users and customers | Belong to exactly one organization. Their `(OrganizationId, Id)` alternate keys are the principal keys for tenant-scoped references. |
-| Jobs | Belong to exactly one organization. A linked customer must have the same `OrganizationId`; the customer snapshot columns are independent value copies and may exist without `CustomerId`. |
+| Jobs | Belong to exactly one organization. A linked customer and the latest submission owner must have the same `OrganizationId`; customer snapshot columns remain independent value copies and may exist without `CustomerId`. The latest actor who moves a job to `InReview` is persisted as `SubmittedByUserId` and is the authoritative rejection recipient. |
 | Worksheets | `OrganizationId`, `JobId` and `UserId` must resolve to one organization through composite foreign keys. |
 | Job installations | The selected job and installation definition are tenant-scoped through composite foreign keys. |
 | Installation category/control-point snapshots | The nested snapshot rows do not currently carry `OrganizationId`, so their category and control-point references cannot yet be tenant-enforced. This is tracked in [WOR-160](https://linear.app/workslip/issue/WOR-160/tenant-sikr-installationssnapshot-kategorier-og-kontrolpunkter). |
@@ -36,6 +36,7 @@ The frontend stores the original Superadmin token separately, clears tenant quer
 | `JobViews.JobId -> JobReports.Id` | Cascade | Views are disposable projections of a job and have no meaning after that job is removed. |
 | `Worksheets -> Organizations, JobReports, Users` | Restrict / no action | Time registration is operational history. Jobs, users and organizations cannot be removed while it exists. |
 | `JobReports -> Customers` | Restrict / no action | Customer deletion first clears the optional link in the repository; job snapshot values remain unchanged. |
+| `JobReports.(OrganizationId, SubmittedByUserId) -> Users.(OrganizationId, Id)` | Restrict / no action | Rejection routing must retain the latest tenant-valid submission owner. Startup backfills this field from raw `InReview` audit events for legacy jobs; jobs without recoverable ownership remain nullable and use the bounded current-assignee fallback. |
 | `JobReportInstallations -> JobReports` | Cascade | Installation selections are owned by the job. |
 | `JobReportInstallations -> InstallationTypeDefinitions` | Restrict / no action | Referenced definitions cannot be removed while used by a job. |
 

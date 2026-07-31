@@ -266,7 +266,10 @@ public sealed record JobReportResponse(
     decimal? TotalHours,
     string? RejectionNote);
 
-public sealed record JobTransitionResult(JobReportResponse Report, bool Changed);
+public sealed record JobTransitionResult(
+    JobReportResponse Report,
+    bool Changed,
+    Guid? SubmittedByUserId);
 
 public sealed record CreateJobLinkRequest(
     List<Guid> TargetReportIds);

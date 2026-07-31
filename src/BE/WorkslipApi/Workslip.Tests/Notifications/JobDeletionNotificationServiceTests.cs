@@ -11,27 +11,13 @@ namespace Workslip.Tests.Notifications;
 public sealed class JobDeletionNotificationServiceTests
 {
     [Fact]
-    public async Task QueueAsync_DoesNothingWhenFeatureIsDisabled()
-    {
-        var notifications = new RecordingNotificationService();
-        var service = CreateService(enabled: false, notifications);
-
-        await service.QueueAsync(
-            CreateJob([new AssignedUserResponse(Guid.NewGuid(), "Montør")]),
-            deletingUserId: null,
-            CancellationToken.None);
-
-        Assert.Empty(notifications.DeletedRecipients);
-    }
-
-    [Fact]
     public async Task QueueAsync_NotifiesEveryUniqueAssigneeIncludingTheDeletingUser()
     {
         var deletingUserId = Guid.NewGuid();
         var recipientId = Guid.NewGuid();
         var secondRecipientId = Guid.NewGuid();
         var notifications = new RecordingNotificationService();
-        var service = CreateService(enabled: true, notifications);
+        var service = CreateService(notifications);
 
         await service.QueueAsync(
             CreateJob([
@@ -54,7 +40,7 @@ public sealed class JobDeletionNotificationServiceTests
         var failingRecipientId = Guid.NewGuid();
         var successfulRecipientId = Guid.NewGuid();
         var notifications = new RecordingNotificationService(failingRecipientId);
-        var service = CreateService(enabled: true, notifications);
+        var service = CreateService(notifications);
 
         await service.QueueAsync(
             CreateJob([
@@ -68,13 +54,8 @@ public sealed class JobDeletionNotificationServiceTests
     }
 
     private static JobDeletionNotificationService CreateService(
-        bool enabled,
         RecordingNotificationService notifications) =>
         new(
-            new JobNotificationFeatures
-            {
-                NotifyAssignedUsersOnJobDeletion = enabled
-            },
             notifications,
             NullLogger<JobDeletionNotificationService>.Instance);
 

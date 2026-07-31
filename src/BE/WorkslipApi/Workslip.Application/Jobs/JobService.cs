@@ -345,6 +345,11 @@ public sealed class JobService(
         }
 
         var actorId = currentUser.UserId;
+        if (actorId is null)
+        {
+            return Result<JobReportSummaryResponse>.Unauthorized();
+        }
+
         var transition = await _jobRepository.TransitionAsync(id, organizationId.Value, targetStatus, actorId, rejectionNote, cancellationToken);
         if (transition is null)
         {
@@ -394,26 +399,62 @@ public sealed class JobService(
         }
         else if (targetStatus == JobStatus.Rejected)
         {
-            var events = await _jobRepository.GetEventsAsync(id, organizationId.Value, 100, 0, cancellationToken);
-            var submitterEvent = events?.FirstOrDefault(e =>
-                e.ActorId is not null
-                && e.Changes.Any(c => c.PropertyName == "Status" && c.After == JobStatus.InReview.ToString()));
+            IReadOnlyList<AssignedUserResponse> recipients = [];
 
-            if (submitterEvent?.ActorId is Guid submitterId)
+            if (transition.SubmittedByUserId is Guid submitterId)
             {
-                await assignmentRepository.AssignAsync(report.Id, organizationId.Value, [submitterId], actorId, cancellationToken);
-                report = await _jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken) ?? report;
-                logger.LogInformation("Job reassigned to submitter on rejection. JobId: {JobId}. SubmitterId: {SubmitterId}.", id, submitterId);
-            }
-            else
-            {
-                logger.LogWarning("Could not find submitter for rejected job. JobId: {JobId}. Falling back to current assignees.", id);
+                recipients = await assignmentRepository.GetAssignedUsersByIdsAsync(
+                    organizationId.Value,
+                    [submitterId],
+                    cancellationToken);
+
+                if (recipients.Count == 1)
+                {
+                    await assignmentRepository.AssignAsync(
+                        report.Id,
+                        organizationId.Value,
+                        [submitterId],
+                        actorId,
+                        cancellationToken);
+                    report = await _jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken) ?? report;
+                    logger.LogInformation(
+                        "Job reassigned to persisted submitter on rejection. JobId: {JobId}. SubmitterId: {SubmitterId}.",
+                        id,
+                        submitterId);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Persisted submitter was not found in the job organization. JobId: {JobId}. SubmitterId: {SubmitterId}. OrganizationId: {OrganizationId}.",
+                        id,
+                        submitterId,
+                        organizationId.Value);
+                }
             }
 
-            foreach (var assignedUser in report.AssignedUsers)
+            if (recipients.Count == 0)
             {
-                if (assignedUser.Id == currentUser.UserId) continue;
-                await notificationService.QueueJobDeniedAsync(assignedUser.Id, assignedUser.DisplayName, report.Id, reportNumber, address, rejectionNote, cancellationToken);
+                recipients = report.AssignedUsers
+                    .Where(user => user.Id != actorId)
+                    .DistinctBy(user => user.Id)
+                    .ToArray();
+                logger.LogWarning(
+                    "Rejected job has no valid persisted submitter. Falling back to current assignees. JobId: {JobId}. RecipientCount: {RecipientCount}.",
+                    id,
+                    recipients.Count);
+            }
+
+            foreach (var recipient in recipients)
+            {
+                if (recipient.Id == actorId) continue;
+                await notificationService.QueueJobDeniedAsync(
+                    recipient.Id,
+                    recipient.DisplayName,
+                    report.Id,
+                    reportNumber,
+                    address,
+                    rejectionNote,
+                    cancellationToken);
             }
         }
         else if (targetStatus == JobStatus.Approved)

@@ -111,6 +111,23 @@ internal static class DatabaseIntegrityConstraintsSql
 
             SELECT @InvalidCount = COUNT(*)
             FROM dbo.JobReports AS job
+            LEFT JOIN dbo.Users AS submitter
+                ON submitter.OrganizationId = job.OrganizationId
+                AND submitter.Id = job.SubmittedByUserId
+            WHERE job.SubmittedByUserId IS NOT NULL
+                AND submitter.Id IS NULL;
+
+            IF @InvalidCount > 0
+            BEGIN
+                SET @ErrorMessage = CONCAT(
+                    'WOR-245 cannot add the tenant-scoped JobReports-to-submitters FK: found ',
+                    @InvalidCount,
+                    ' orphaned or cross-tenant submission owner reference(s).');
+                THROW 51007, @ErrorMessage, 1;
+            END;
+
+            SELECT @InvalidCount = COUNT(*)
+            FROM dbo.JobReports AS job
             LEFT JOIN dbo.Customers AS customer
                 ON customer.OrganizationId = job.OrganizationId
                 AND customer.Id = job.CustomerId
@@ -221,6 +238,17 @@ internal static class DatabaseIntegrityConstraintsSql
                     ON DELETE NO ACTION;
                 ALTER TABLE dbo.Worksheets
                     CHECK CONSTRAINT FK_Worksheets_Users_OrganizationId_UserId;
+            END;
+
+            IF OBJECT_ID(N'dbo.FK_JobReports_Users_OrganizationId_SubmittedByUserId', N'F') IS NULL
+            BEGIN
+                ALTER TABLE dbo.JobReports WITH CHECK
+                    ADD CONSTRAINT FK_JobReports_Users_OrganizationId_SubmittedByUserId
+                    FOREIGN KEY (OrganizationId, SubmittedByUserId)
+                    REFERENCES dbo.Users (OrganizationId, Id)
+                    ON DELETE NO ACTION;
+                ALTER TABLE dbo.JobReports
+                    CHECK CONSTRAINT FK_JobReports_Users_OrganizationId_SubmittedByUserId;
             END;
 
             IF OBJECT_ID(N'dbo.FK_JobReports_Customers_OrganizationId_CustomerId', N'F') IS NULL

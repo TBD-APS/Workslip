@@ -32,6 +32,53 @@ public sealed class DatabaseSchemaInitializer(SqlDbContext db)
                 UPDATE [dbo].[IdempotencyRecords] SET [ReservationToken] = CONVERT(nvarchar(64), NEWID()) WHERE [ReservationToken] IS NULL;
                 ALTER TABLE [dbo].[IdempotencyRecords] ALTER COLUMN [ReservationToken] nvarchar(64) NOT NULL;
             END
+            IF COL_LENGTH(N'dbo.JobReports', N'SubmittedByUserId') IS NULL
+                ALTER TABLE [dbo].[JobReports] ADD [SubmittedByUserId] uniqueidentifier NULL;
+
+            ;WITH LatestSubmission AS
+            (
+                SELECT
+                    jobEvent.OrganizationId,
+                    jobEvent.ReportId,
+                    jobEvent.ActorId,
+                    ROW_NUMBER() OVER
+                    (
+                        PARTITION BY jobEvent.OrganizationId, jobEvent.ReportId
+                        ORDER BY jobEvent.CreatedAt DESC, jobEvent.Id DESC
+                    ) AS SequenceNumber
+                FROM dbo.JobEvents AS jobEvent
+                INNER JOIN dbo.Users AS appUser
+                    ON appUser.OrganizationId = jobEvent.OrganizationId
+                    AND appUser.Id = jobEvent.ActorId
+                WHERE jobEvent.ReportId IS NOT NULL
+                    AND jobEvent.ActorId IS NOT NULL
+                    AND CASE
+                        WHEN ISJSON(jobEvent.AfterJson) = 1
+                        THEN COALESCE(
+                            JSON_VALUE(jobEvent.AfterJson, '$.Status'),
+                            JSON_VALUE(jobEvent.AfterJson, '$.status'))
+                    END = N'InReview'
+            )
+            UPDATE job
+            SET SubmittedByUserId = submission.ActorId
+            FROM dbo.JobReports AS job
+            INNER JOIN LatestSubmission AS submission
+                ON submission.OrganizationId = job.OrganizationId
+                AND submission.ReportId = job.Id
+                AND submission.SequenceNumber = 1
+            WHERE job.SubmittedByUserId IS NULL;
+
+            IF NOT EXISTS
+            (
+                SELECT 1
+                FROM sys.indexes
+                WHERE object_id = OBJECT_ID(N'dbo.JobReports')
+                    AND name = N'IX_JobReports_Organization_SubmittedByUserId'
+            )
+                CREATE INDEX IX_JobReports_Organization_SubmittedByUserId
+                    ON dbo.JobReports (OrganizationId, SubmittedByUserId)
+                    WHERE SubmittedByUserId IS NOT NULL;
+
             IF COL_LENGTH(N'dbo.NotificationQueue', N'ReadUtc') IS NULL
                 ALTER TABLE [dbo].[NotificationQueue] ADD [ReadUtc] datetimeoffset NULL;
 
