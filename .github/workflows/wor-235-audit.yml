@@ -1,4 +1,4 @@
-name: TEMP - WOR-235 frontend audit
+name: TEMP - WOR-235 dependency candidates
 
 on:
   push:
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  audit:
+  candidates:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -25,30 +25,57 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
-      - run: npm ci
-      - name: Capture maintained dependency audit
-        run: npm audit --json > npm-audit.json || true
-      - name: Print actionable audit summary
+      - name: Evaluate patched dependency candidates
         run: |
-          node <<'NODE'
+          cp package.json /tmp/wor235-package.json
+          cp package-lock.json /tmp/wor235-package-lock.json
+
+          evaluate() {
+            label="$1"
+            router_version="$2"
+            pwa_version="$3"
+
+            cp /tmp/wor235-package.json package.json
+            cp /tmp/wor235-package-lock.json package-lock.json
+
+            ROUTER_VERSION="$router_version" PWA_VERSION="$pwa_version" node <<'NODE'
           const fs = require('node:fs');
-          const audit = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
-          console.log(JSON.stringify(audit.metadata, null, 2));
-          for (const [name, item] of Object.entries(audit.vulnerabilities ?? {})) {
-            console.log(`\nPACKAGE ${name}`);
-            console.log(JSON.stringify({
-              severity: item.severity,
-              isDirect: item.isDirect,
-              via: item.via,
-              effects: item.effects,
-              range: item.range,
-              nodes: item.nodes,
-              fixAvailable: item.fixAvailable,
-            }, null, 2));
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (process.env.ROUTER_VERSION) {
+            pkg.dependencies['react-router-dom'] = process.env.ROUTER_VERSION;
           }
+          if (process.env.PWA_VERSION) {
+            pkg.devDependencies['vite-plugin-pwa'] = process.env.PWA_VERSION;
+          }
+          fs.writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
           NODE
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wor-235-npm-audit
-          path: src/FE/npm-audit.json
-          if-no-files-found: error
+
+            echo "===== CANDIDATE: $label ====="
+            if ! npm install --package-lock-only --ignore-scripts --no-audit --no-fund; then
+              echo "INSTALL_FAILED: $label"
+              return
+            fi
+
+            npm audit --json > "/tmp/${label}-audit.json" || true
+            LABEL="$label" node <<'NODE'
+          const fs = require('node:fs');
+          const label = process.env.LABEL;
+          const audit = JSON.parse(fs.readFileSync(`/tmp/${label}-audit.json`, 'utf8'));
+          console.log(JSON.stringify({
+            label,
+            metadata: audit.metadata,
+            vulnerabilities: Object.fromEntries(Object.entries(audit.vulnerabilities ?? {}).map(([name, value]) => [name, {
+              severity: value.severity,
+              isDirect: value.isDirect,
+              range: value.range,
+              fixAvailable: value.fixAvailable,
+            }])),
+          }, null, 2));
+          NODE
+            npm ls react-router-dom react-router vite-plugin-pwa workbox-build brace-expansion --all || true
+          }
+
+          evaluate pwa-1.2 "" "1.2.0"
+          evaluate router-7.11 "7.11.0" ""
+          evaluate router-8.3 "8.3.0" ""
+          evaluate router-8.3-pwa-1.2 "8.3.0" "1.2.0"
