@@ -108,8 +108,8 @@ describe('JobDetail rejected-job landing', () => {
     expect(firstJob.setCurrentStep).toHaveBeenCalledWith(expect.any(Function));
     expect(firstJob.setCurrentStep.mock.calls[0][0](4)).toBe(0);
     expect(scrollTo).toHaveBeenCalledOnce();
+    expect(mocks.markJobAsSeen).toHaveBeenCalledOnce();
     expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', queryClient);
-    expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', queryClient, 'RejectedAssignment');
 
     firstJob.setCurrentStep.mockClear();
     details = { ...firstJob, currentStep: 2 };

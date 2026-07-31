@@ -272,16 +272,11 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 cancellationToken);
 
         HashSet<Guid> seenJobIds = [];
-        HashSet<Guid> rejectedSeenJobIds = [];
         if (query.CurrentUserId.HasValue && reportIds.Length > 0)
         {
             var viewed = await _jobViewRepo.GetViewedJobIdsAsync(
                 query.CurrentUserId.Value, reportIds, ["New"], cancellationToken);
             seenJobIds = new HashSet<Guid>(viewed);
-
-            var rejectedViewed = await _jobViewRepo.GetViewedJobIdsAsync(
-                query.CurrentUserId.Value, reportIds, ["RejectedAssignment"], cancellationToken);
-            rejectedSeenJobIds = new HashSet<Guid>(rejectedViewed);
         }
 
         var items = projected.Select(x =>
@@ -296,8 +291,7 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
             var isAssignedToCurrentUser = query.CurrentUserId.HasValue
                 && assignedUsers.Any(u => u.Id == query.CurrentUserId.Value);
             var isNewRejection = status == JobStatus.Rejected
-                && isAssignedToCurrentUser
-                && !rejectedSeenJobIds.Contains(x.Id);
+                && isAssignedToCurrentUser;
 
             return new JobListItemResponse(
                 x.Id, x.OrganizationId,

@@ -181,9 +181,6 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         var seenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(userId, reportIds, ["New"], cancellationToken);
         var seenSet = new HashSet<Guid>(seenJobIds);
 
-        var rejectedSeenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(userId, reportIds, ["RejectedAssignment"], cancellationToken);
-        var rejectedSeenSet = new HashSet<Guid>(rejectedSeenJobIds);
-
         return projected.Select(x =>
         {
             var customerInfo = x.CustId is not null
@@ -191,7 +188,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 : null;
 
             var status = Enum.Parse<JobStatus>(x.Status, ignoreCase: true);
-            var isNewRejection = status == JobStatus.Rejected && !rejectedSeenSet.Contains(x.Id);
+            var isNewRejection = status == JobStatus.Rejected;
 
             return new JobListItemResponse(
                 x.Id, x.OrganizationId,

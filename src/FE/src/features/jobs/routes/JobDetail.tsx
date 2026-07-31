@@ -28,9 +28,6 @@ export const JobDetail = () => {
     if (isAdmin && jobStatus === JobStatus.Rejected) return;
 
     markJobAsSeen(id, queryClient);
-    if (jobStatus === JobStatus.Rejected) {
-      markJobAsSeen(id, queryClient, 'RejectedAssignment');
-    }
   }, [id, jobStatus, isAdmin, queryClient]);
 
   useEffect(() => {

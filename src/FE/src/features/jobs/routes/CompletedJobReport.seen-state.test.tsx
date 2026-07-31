@@ -170,28 +170,23 @@ describe('CompletedJobReport seen-state handling', () => {
     vi.unstubAllGlobals();
   });
 
-  it('does not clear a rejected assignment indicator when an admin opens the report', async () => {
+  it('marks a rejected report as normally seen when an admin opens it', async () => {
     renderReport();
 
     await waitFor(() => {
-      expect(mocks.markJobAsSeen).not.toHaveBeenCalled();
+      expect(mocks.markJobAsSeen).toHaveBeenCalledOnce();
     });
+    expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', expect.any(QueryClient));
   });
 
-  it('marks a rejected assignment as seen for an ordinary user', async () => {
+  it('marks a rejected report as normally seen for an ordinary user', async () => {
     mocks.isAdmin = false;
     renderReport();
 
     await waitFor(() => {
-      expect(mocks.markJobAsSeen).toHaveBeenCalledTimes(2);
+      expect(mocks.markJobAsSeen).toHaveBeenCalledOnce();
     });
-    expect(mocks.markJobAsSeen).toHaveBeenNthCalledWith(1, 'job-1', expect.any(QueryClient));
-    expect(mocks.markJobAsSeen).toHaveBeenNthCalledWith(
-      2,
-      'job-1',
-      expect.any(QueryClient),
-      'RejectedAssignment',
-    );
+    expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', expect.any(QueryClient));
   });
 
   it('still marks a non-rejected report as seen for an admin', async () => {
