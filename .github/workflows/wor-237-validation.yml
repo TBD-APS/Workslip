@@ -1,9 +1,14 @@
 name: TEMP — Assistant Validation — WOR-237
 
 on:
-  push:
-    branches:
-      - rbj--237-superadmin-all-platforms
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/wor-237-validation.yml'
+      - 'src/FE/scripts/wor-237-transform.py'
+      - 'src/FE/src/**'
+      - 'Docs/api/contract.md'
+      - 'Docs/superpowers/specs/spec-desktop-only-superadmin-sessions.md'
 
 permissions:
   contents: write
@@ -75,8 +80,7 @@ jobs:
           const CUSTOMER_ORGANIZATION_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
           function token(payload: Record<string, unknown>) {
-            const encoded = Buffer.from(JSON.stringify(payload))
-              .toString('base64url');
+            const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
             return `header.${encoded}.signature`;
           }
 
