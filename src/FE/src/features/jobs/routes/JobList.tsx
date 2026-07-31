@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
@@ -465,7 +465,7 @@ function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: 
 
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="Åbn sag">
+        <span className="btn-icon" aria-label="\u00c5bn sag">
           <ChevronRight size={20} />
         </span>
       </div>
