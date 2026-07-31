@@ -25,7 +25,10 @@ const OneTimeCodeLogin = lazy(() =>
 export const Login = () => {
   const navigate = useNavigate();
   const { isAuthenticated, devLogin } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return hasEntraLoginCallback() || params.get('reauth') === '1';
+  });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showOtcLogin, setShowOtcLogin] = useState(false);
   // True when we arrived via the silent-reauth redirect (axios interceptor
@@ -65,7 +68,6 @@ export const Login = () => {
     };
 
     if (isCallback) {
-      setIsSubmitting(true);
       completeEntraLogin()
         .then((result) => {
           AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
@@ -95,7 +97,6 @@ export const Login = () => {
       return;
     }
 
-    setIsSubmitting(true);
     startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
       if (err instanceof InteractiveLoginRequiredError) {
         clearReauthInFlight();
