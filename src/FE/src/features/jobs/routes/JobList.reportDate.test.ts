@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getJobListReportDate } from './JobList';
+import { getJobListReportDate } from './jobListReportDate';
 
 describe('getJobListReportDate', () => {
   it('uses the stored report date when one exists', () => {
