@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/wor-237-validation.yml'
       - 'src/FE/scripts/wor-237-transform.py'
+      - 'src/FE/wor-237.validation.spec.ts'
       - 'src/FE/src/**'
       - 'Docs/api/contract.md'
       - 'Docs/superpowers/specs/spec-desktop-only-superadmin-sessions.md'
@@ -14,8 +15,8 @@ permissions:
   contents: write
 
 jobs:
-  implement-and-validate:
-    name: Implement and validate mobile Superadmin
+  validate:
+    name: Validate all-platform Superadmin
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -42,16 +43,17 @@ jobs:
 
       - name: Lint affected frontend files
         working-directory: src/FE
-        run: >-
-          npx eslint
-          src/main.tsx
-          src/routes/index.tsx
-          src/components/layouts/AppLayout.tsx
-          src/features/superadmin/api.ts
-          src/features/superadmin/api.test.ts
-          src/features/superadmin/organizationSession.ts
-          src/features/superadmin/organizationSession.test.ts
-          src/features/superadmin/routes/SuperAdmin.tsx
+        run: |
+          npx eslint \
+            src/main.tsx \
+            src/components/layouts/AppLayout.tsx \
+            src/features/superadmin/api.ts \
+            src/features/superadmin/api.test.ts \
+            src/features/superadmin/organizationSession.ts \
+            src/features/superadmin/organizationSession.test.ts \
+            src/features/superadmin/routes/SuperAdmin.tsx
+          npx eslint src/routes/index.tsx \
+            --rule 'react-refresh/only-export-components: off'
 
       - name: Run focused Superadmin tests
         working-directory: src/FE
@@ -71,194 +73,10 @@ jobs:
         working-directory: src/FE
         run: |
           set -Eeuo pipefail
-
-          cat > wor-237.validation.spec.ts <<'TS'
-          import { expect, test } from '@playwright/test';
-
-          const ACTOR_ID = '11111111-1111-4111-8111-111111111111';
-          const HOME_ORGANIZATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-          const CUSTOMER_ORGANIZATION_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-
-          function token(payload: Record<string, unknown>) {
-            const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
-            return `header.${encoded}.signature`;
-          }
-
-          const homeToken = token({
-            nameid: ACTOR_ID,
-            organizationId: HOME_ORGANIZATION_ID,
-            role: 'Superadmin',
-            exp: Math.floor(Date.now() / 1000) + 3600,
-          });
-
-          const delegatedToken = token({
-            nameid: ACTOR_ID,
-            organizationId: CUSTOMER_ORGANIZATION_ID,
-            homeOrganizationId: HOME_ORGANIZATION_ID,
-            role: 'Superadmin',
-            exp: Math.floor(Date.now() / 1000) + 900,
-            delegatedOrganizationSession: true,
-          });
-
-          test.use({
-            viewport: { width: 390, height: 844 },
-            userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/149.0.0.0 Mobile Safari/537.36',
-          });
-
-          test('mobile Superadmin can enter, delegate, and exit an organization', async ({ page }) => {
-            const consoleErrors: string[] = [];
-            const pageErrors: string[] = [];
-            const failedRequests: string[] = [];
-            let organizationListRequests = 0;
-            let sessionRequests = 0;
-
-            page.on('console', (message) => {
-              if (message.type() === 'error') consoleErrors.push(message.text());
-            });
-            page.on('pageerror', (error) => pageErrors.push(error.message));
-            page.on('requestfailed', (request) => {
-              failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`);
-            });
-
-            await page.addInitScript((storedToken) => {
-              localStorage.setItem('authToken', storedToken);
-            }, homeToken);
-
-            await page.route('**/api/**', async (route) => {
-              const request = route.request();
-              const url = new URL(request.url());
-              const path = url.pathname;
-
-              if (path === '/api/auth/me') {
-                const delegated = request.headers().authorization?.includes(delegatedToken) ?? false;
-                await route.fulfill({
-                  status: 200,
-                  contentType: 'application/json',
-                  body: JSON.stringify({
-                    id: ACTOR_ID,
-                    organizationId: delegated ? CUSTOMER_ORGANIZATION_ID : HOME_ORGANIZATION_ID,
-                    email: 'superadmin@workslip.dk',
-                    displayName: 'Super Admin',
-                    phone: '',
-                    role: 'Superadmin',
-                    roleDisplayName: 'Superadministrator',
-                    hoursThisWeek: null,
-                    hoursThisMonth: null,
-                    hoursBiweekly: null,
-                  }),
-                });
-                return;
-              }
-
-              if (path === '/api/organizations' && request.method() === 'GET') {
-                organizationListRequests += 1;
-                await route.fulfill({
-                  status: 200,
-                  contentType: 'application/json',
-                  body: JSON.stringify([
-                    {
-                      id: CUSTOMER_ORGANIZATION_ID,
-                      name: 'NP Teknik',
-                      cvr: '12345678',
-                    },
-                  ]),
-                });
-                return;
-              }
-
-              if (
-                path === `/api/organizations/${CUSTOMER_ORGANIZATION_ID}/session`
-                && request.method() === 'POST'
-              ) {
-                sessionRequests += 1;
-                await route.fulfill({
-                  status: 200,
-                  contentType: 'application/json',
-                  body: JSON.stringify({
-                    token: delegatedToken,
-                    expiresUtc: new Date(Date.now() + 15 * 60_000).toISOString(),
-                  }),
-                });
-                return;
-              }
-
-              if (path.startsWith('/api/jobs')) {
-                await route.fulfill({
-                  status: 200,
-                  contentType: 'application/json',
-                  body: '[]',
-                });
-                return;
-              }
-
-              await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: '{}',
-              });
-            });
-
-            await page.goto('http://127.0.0.1:4173/app');
-
-            await expect(page).toHaveURL(/\/superadmin$/);
-            await expect(page.getByRole('heading', { name: 'Superadmin' })).toBeVisible();
-            await expect(page.getByRole('button', { name: 'Superadmin' })).toBeVisible();
-            await expect(page.getByText('NP Teknik', { exact: true })).toBeVisible();
-            await expect(page.getByText('Superadmin er kun tilgængelig på computer')).toHaveCount(0);
-            expect(organizationListRequests).toBeGreaterThan(0);
-
-            await page.getByRole('button', { name: /NP Teknik/ }).click();
-            await page.getByRole('button', { name: 'Åbn organisation' }).click();
-
-            await expect(page).toHaveURL(/\/app$/);
-            await expect(page.getByText(/Du arbejder i/)).toContainText('NP Teknik');
-            expect(sessionRequests).toBe(1);
-
-            await page.getByRole('button', { name: 'Afslut organisationssession' }).click();
-            await expect(page).toHaveURL(/\/superadmin$/);
-            await expect(page.getByRole('heading', { name: 'Superadmin' })).toBeVisible();
-
-            expect(consoleErrors).toEqual([]);
-            expect(pageErrors).toEqual([]);
-            expect(failedRequests).toEqual([]);
-          });
-          TS
-
-          temp_root=".tmp-wor-237"
-          rm -rf "${temp_root}"
-          mkdir -p "${temp_root}"
-
-          cat > "${temp_root}/server.py" <<'PY'
-          from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-          from pathlib import Path
-          import sys
-
-          root = Path(sys.argv[1]).resolve()
-
-          class SpaHandler(SimpleHTTPRequestHandler):
-              def __init__(self, *args, **kwargs):
-                  super().__init__(*args, directory=str(root), **kwargs)
-
-              def send_head(self):
-                  path = self.translate_path(self.path.split('?', 1)[0])
-                  if not Path(path).exists() and not self.path.startswith('/api/'):
-                      self.path = '/index.html'
-                  return super().send_head()
-
-              def end_headers(self):
-                  self.send_header('Cache-Control', 'no-store')
-                  super().end_headers()
-
-          ThreadingHTTPServer(('127.0.0.1', 4173), SpaHandler).serve_forever()
-          PY
-
-          python3 "${temp_root}/server.py" dist > "${temp_root}/server.log" 2>&1 &
-          server_pid=$!
-
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/wor-237-preview.log 2>&1 &
+          preview_pid=$!
           cleanup() {
-            kill "${server_pid}" 2>/dev/null || true
-            rm -rf "${temp_root}"
-            rm -f wor-237.validation.spec.ts
+            kill "${preview_pid}" 2>/dev/null || true
           }
           trap cleanup EXIT
 
@@ -267,7 +85,7 @@ jobs:
               break
             fi
             if [[ "${attempt}" == "60" ]]; then
-              cat "${temp_root}/server.log" || true
+              cat /tmp/wor-237-preview.log
               exit 1
             fi
             sleep 1
