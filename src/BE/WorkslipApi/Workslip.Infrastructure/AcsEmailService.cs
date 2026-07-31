@@ -33,6 +33,15 @@ public sealed class AcsEmailService(
     configuration["Azure:Acs:InviteBaseUrl"]
     ?? throw new InvalidOperationException("ACS endpoint is not configured. Set Acs:Endpoint or ACS_ENDPOINT."));
 
+    private readonly string _otcHeaderText = configuration["Azure:Acs:OtcHeaderText"]
+        ?? throw new InvalidOperationException("ACS OTC header text is not configured. Set Azure:Acs:OtcHeaderText.");
+
+    private readonly string _otcPlainText = configuration["Azure:Acs:OtcPlainText"]
+        ?? throw new InvalidOperationException("ACS OTC plain text is not configured. Set Azure:Acs:OtcPlainText.");
+
+    private readonly string _otcHtmlText = configuration["Azure:Acs:OtcHtmlText"]
+        ?? throw new InvalidOperationException("ACS OTC HTML text is not configured. Set Azure:Acs:OtcHtmlText.");
+
     public async Task SendInviteEmailAsync(string toEmail, string token, CancellationToken cancellationToken)
     {
         var emailClient = new EmailClient(_acsEndpoint);
@@ -76,28 +85,10 @@ public sealed class AcsEmailService(
     {
         var emailClient = new EmailClient(_acsEndpoint);
 
-        var emailContent = new EmailContent("Din midlertidige adgangskode til Workslip")
+        var emailContent = new EmailContent(_otcHeaderText)
         {
-            Html = $"""
-            <html>
-              <body style="font-family: Arial, sans-serif; padding: 24px;">
-                <h2>Midlertidig adgangskode</h2>
-                <p>Du har anmodet om en midlertidig adgangskode til Workslip.</p>
-                <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 16px; background-color: #f5f5f5; border-radius: 8px;">
-                  {code}
-                </p>
-                <p>Koden udløber om 10 minutter.</p>
-                <p>Hvis du ikke har bedt om denne kode, kan du ignorere denne email.</p>
-                <hr/>
-                <p style="color: #666; font-size: 12px;">Workslip – midlertidig adgangskode</p>
-              </body>
-            </html>
-            """,
-            PlainText = $"""
-            Din midlertidige adgangskode til Workslip: {code}
-            Koden udløber om 10 minutter.
-            Hvis du ikke har bedt om denne kode, kan du ignorere denne email.
-            """
+            Html = _otcHtmlText.Replace("{otcCode}", code),
+            PlainText = _otcPlainText.Replace("{otcCode}", code)
         };
 
         var message = new EmailMessage(

@@ -84,7 +84,7 @@ const SimpleJobCreate = () => {
 
   const handleGoToCreatedJob = () => {
     if (!createdJobId) return;
-    navigate(`/app/job/${createdJobId}`, { replace: true, state: { from: '/app' } });
+    navigate(`/app/completed/${createdJobId}`, { replace: true, state: { from: '/app' } });
   };
 
   const hasValidHours = localWorksheets.some(ts => {
