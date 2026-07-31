@@ -30,20 +30,23 @@ export function AddressAutocomplete({
   const suppressNextOpen = useRef(false);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) return;
     const text = e.target.value;
     onTextChange(text);
     search(text);
     setIsOpen(true);
-  }, [onTextChange, search]);
+  }, [onTextChange, readOnly, search]);
 
   const handleSelect = useCallback((suggestion: AddressSuggestion) => {
+    if (readOnly) return;
     suppressNextOpen.current = true;
     onSelectSuggestion(suggestion);
     clear();
     setIsOpen(false);
-  }, [onSelectSuggestion, clear]);
+  }, [onSelectSuggestion, clear, readOnly]);
 
   const handleFocus = useCallback(() => {
+    if (readOnly) return;
     if (suppressNextOpen.current) {
       suppressNextOpen.current = false;
       return;
@@ -52,7 +55,7 @@ export function AddressAutocomplete({
       search(value);
       setIsOpen(true);
     }
-  }, [value, search]);
+  }, [readOnly, value, search]);
 
   const handleBlur = useCallback((e: React.FocusEvent) => {
     if (wrapperRef.current?.contains(e.relatedTarget)) return;
@@ -74,14 +77,14 @@ export function AddressAutocomplete({
           readOnly={readOnly}
           autoComplete="off"
         />
-        {isLoading && <Loader2 size={16} className="address-spinner" />}
-        {!isLoading && value && onClear && (
+        {!readOnly && isLoading && <Loader2 size={16} className="address-spinner" />}
+        {!readOnly && !isLoading && value && onClear && (
           <button type="button" className="address-clear-btn" title="Fjern adresse" onClick={onClear}>
             <X size={16} />
           </button>
         )}
       </div>
-      {isOpen && suggestions.length > 0 && (
+      {!readOnly && isOpen && suggestions.length > 0 && (
         <ul className="address-suggestions" role="listbox">
           {suggestions.map((s) => (
             <li
