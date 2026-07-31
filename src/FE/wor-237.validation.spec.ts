@@ -139,16 +139,25 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
   await page.getByRole('button', { name: 'Åbn organisation' }).click();
 
   await expect.poll(() => sessionRequests).toBe(1);
-  await expect.poll(async () => page.evaluate((keys) => ({
-    activeToken: localStorage.getItem('authToken'),
-    homeToken: localStorage.getItem(keys.homeToken),
-    organizationId: localStorage.getItem(keys.organizationId),
-    organizationName: localStorage.getItem(keys.organizationName),
-  }), {
-    homeToken: HOME_AUTH_TOKEN_KEY,
-    organizationId: ORGANIZATION_SESSION_ID_KEY,
-    organizationName: ORGANIZATION_SESSION_NAME_KEY,
-  })).toEqual({
+  await page.waitForURL(/\/app$/, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('load');
+
+  await expect.poll(async () => {
+    try {
+      return await page.evaluate((keys) => ({
+        activeToken: localStorage.getItem('authToken'),
+        homeToken: localStorage.getItem(keys.homeToken),
+        organizationId: localStorage.getItem(keys.organizationId),
+        organizationName: localStorage.getItem(keys.organizationName),
+      }), {
+        homeToken: HOME_AUTH_TOKEN_KEY,
+        organizationId: ORGANIZATION_SESSION_ID_KEY,
+        organizationName: ORGANIZATION_SESSION_NAME_KEY,
+      });
+    } catch {
+      return null;
+    }
+  }).toEqual({
     activeToken: delegatedToken,
     homeToken,
     organizationId: CUSTOMER_ORGANIZATION_ID,
@@ -159,12 +168,11 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
   const sessionBanner = page.locator('.organization-session-banner');
   const exitSessionButton = page.getByRole('button', { name: 'Afslut organisationssession' });
 
-  await expect(page).toHaveURL(/\/app$/);
   await expect(sessionBanner).toContainText('NP Teknik');
   await expect(exitSessionButton).toBeVisible();
 
   await exitSessionButton.click();
-  await expect(page).toHaveURL(/\/superadmin$/);
+  await page.waitForURL(/\/superadmin$/, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Superadmin' })).toBeVisible();
 
   expect(consoleErrors).toEqual([]);
