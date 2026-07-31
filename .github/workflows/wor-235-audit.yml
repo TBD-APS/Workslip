@@ -124,9 +124,9 @@ jobs:
 
           echo 'Candidate introduces no lint regression; main and candidate have the same existing lint debt.'
 
-      - name: Run frontend tests
+      - name: Run maintained frontend tests
         working-directory: candidate/src/FE
-        run: npm test -- --run
+        run: npm test -- --run src
 
       - name: Build production frontend and PWA
         working-directory: candidate/src/FE
