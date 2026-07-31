@@ -5,7 +5,6 @@ import {
   registerPushSubscription,
   type RegisterPushSubscriptionPayload,
 } from '../api/pushSubscriptions';
-import { isSuperadminAuthToken } from '../../superadmin/organizationSession';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -95,12 +94,6 @@ export function usePushNotifications() {
   });
 
   const register = useCallback(async () => {
-    // Platform operators retain their own identity while changing effective
-    // organization. Never subscribe that device to a tenant notification feed.
-    if (isSuperadminAuthToken()) {
-      return;
-    }
-
     try {
       const payload = await ensurePushSubscription();
       if (!payload) return;
