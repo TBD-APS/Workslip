@@ -29,6 +29,7 @@ const delegatedToken = token({
 
 test.use({
   channel: 'chrome',
+  serviceWorkers: 'block',
   viewport: { width: 390, height: 844 },
   userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/149.0.0.0 Mobile Safari/537.36',
 });
@@ -118,8 +119,12 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
       return;
     }
 
-    if (path.startsWith('/api/jobs')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    if (path === '/api/jobs' || path === '/api/jobs/') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [], totalCount: 0 }),
+      });
       return;
     }
 
@@ -172,6 +177,7 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
 
   await expect(sessionBanner).toContainText('NP Teknik');
   await expect(exitSessionButton).toBeVisible();
+  await expect(page.getByText('Ingen sager fundet')).toBeVisible();
 
   await exitSessionButton.click();
   await page.waitForURL(/\/superadmin$/, { waitUntil: 'domcontentloaded' });
