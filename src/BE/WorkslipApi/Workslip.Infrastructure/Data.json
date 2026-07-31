@@ -289,17 +289,6 @@
       "sortOrder": 3,
       "categories": [
         {
-          "categoryKey": "forundersoegelse",
-          "controlPoints": [
-            {
-              "key": "ventilation-forundersoegelse-ansoegning-paa-ventilation",
-              "label": "Ansøgning på ventilation",
-              "sortOrder": 1,
-              "isRequired": true
-            }
-          ]
-        },
-        {
           "categoryKey": "modtagekontrol",
           "controlPoints": [
             {
