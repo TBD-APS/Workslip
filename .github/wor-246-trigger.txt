@@ -1,1 +1,0 @@
-Trigger WOR-246 implementation after focused validation repairs.
