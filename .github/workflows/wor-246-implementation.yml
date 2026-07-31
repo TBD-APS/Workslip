@@ -43,6 +43,7 @@ jobs:
             src/BE/WorkslipApi/Workslip.Tests/Jobs/JobViewTypesTests.cs \
             src/FE/src/features/jobs/routes/CompletedJobReport.tsx \
             src/FE/src/features/jobs/routes/CompletedJobReport.seen-state.test.tsx \
+            src/FE/src/features/jobs/routes/JobList.tsx \
             src/FE/src/features/jobs/utils/markJobSeen.ts
           git commit -m 'RBJ-246: show completed jobs as unread to assigned users'
           git push origin HEAD:rbj--246-user-completed-dot
