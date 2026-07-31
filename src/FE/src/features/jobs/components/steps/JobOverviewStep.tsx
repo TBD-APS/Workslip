@@ -72,7 +72,7 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         placeholder="Notér oplysninger til kunden..."
       />
       <TextAreaBlock
-        icon={<Wrench size={18} />
+        icon={<Wrench size={18} />}
         title="Tekniske observationer"
         value={details.form.technicalObservations}
         onChange={details.updateTechnicalObservations}
