@@ -15,23 +15,13 @@ import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
+import { getJobListReportDate } from './jobListReportDate';
 
 
 const PAGE_SIZE = 20;
 
 const isReadonlyState = (status: JobStatus) =>
   status === JobStatus.InReview || status === JobStatus.Approved;
-
-type JobListReportDateSource = {
-  jobType?: string | null;
-  reportDate?: string | null;
-  createdAt: string;
-};
-
-export function getJobListReportDate(job: JobListReportDateSource): string | null | undefined {
-  if (job.reportDate) return job.reportDate;
-  return job.jobType === 'Diverse' ? job.createdAt : null;
-}
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
