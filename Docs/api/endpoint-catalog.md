@@ -77,6 +77,18 @@ All `/api/users` routes are in the admin route group. Additional user requiremen
 
 Job status values implemented by the current domain are `Draft`, `InReview`, `Approved` and `Rejected`.
 
+The status endpoint remains in the user route group because ordinary users submit work through it. The application service enforces this role-aware transition matrix before persistence, history or notification side effects:
+
+| Current status | Target status | Allowed roles |
+|---|---|---|
+| `Draft` | `InReview` | User, Admin, Superadmin |
+| `Rejected` | `InReview` | User, Admin, Superadmin |
+| `InReview` | `Approved` | Admin, Superadmin |
+| `InReview` | `Rejected` | Admin, Superadmin |
+| Same status | Same status | Roles authorized for that target; treated idempotently |
+
+Targeting `Draft` or any other source/target combination returns `409 Conflict`. A caller lacking permission for the requested target returns `403 Forbidden`. Job lookup remains scoped to the effective organization, so a cross-tenant ID returns `404` before role details are evaluated.
+
 ## Customers
 
 | Method | Path | Access | Notes |
@@ -112,13 +124,14 @@ Customer imports map `Nr.` to `customerNumber`, preserve separate address/ZIP/ci
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/api/push-subscriptions/` | User, excluding Superadmin | Browser push endpoint and keys → mapped result |
+| GET | `/api/push-subscriptions/public-key` | User | Active private-key-derived VAPID public key; `Cache-Control: no-store` |
+| POST | `/api/push-subscriptions/` | User, excluding Superadmin | Browser endpoint and keys; optional `replacedEndpoint` deactivates exactly one stale subscription |
 | GET | `/api/notifications/` | User | `limit`, `offset` → notification history |
 | PATCH | `/api/notifications/{id}/read` | User | Marks one notification read → `204` |
 | POST | `/api/notifications/read-all` | User | Marks all read → `204` |
 | DELETE | `/api/notifications/{id}` | User | Deletes one owned notification → mapped result |
 
-Superadmins are blocked from push registration so a device used during a delegated organization session is never attached to a tenant notification stream.
+The backend derives the active public key from `Vapid:PrivateKey`; independently configured public-key values are diagnostic only. During authenticated startup, the frontend compares the browser subscription's `applicationServerKey` with this endpoint. A mismatch recreates the browser subscription and supplies the old endpoint as `replacedEndpoint`, preserving other device subscriptions. Superadmins are blocked from push registration so a device used during a delegated organization session is never attached to a tenant notification stream.
 
 ## Operations
 

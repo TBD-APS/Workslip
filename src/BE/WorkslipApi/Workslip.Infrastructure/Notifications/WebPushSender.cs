@@ -1,43 +1,51 @@
-using System.Net;
-using Microsoft.Extensions.Options;
 using WebPush;
 using Workslip.Application.Notifications;
 using Workslip.Domain.Models;
-using Workslip.Infrastructure.Configuration;
 
 namespace Workslip.Infrastructure.Notifications;
 
-public sealed class WebPushSender : IPushSender
+public sealed class WebPushSender(VapidKeyMaterial keyMaterial) : IPushSender
 {
-    private readonly VapidOptions _options;
-
-    public WebPushSender(IOptions<VapidOptions> options)
-    {
-        _options = options.Value;
-    }
-
-    public async Task<PushSenderResult> SendNotificationAsync(PushSubscriptionRow subscription, string payloadJson, CancellationToken cancellationToken)
+    public async Task<PushSenderResult> SendNotificationAsync(
+        PushSubscriptionRow subscription,
+        string payloadJson,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var pushSubscription = new WebPush.PushSubscription(subscription.Endpoint, subscription.P256Dh, subscription.Auth);
-            var subject = string.IsNullOrWhiteSpace(_options.Subject) ? "mailto:push@workslip.app" : _options.Subject;
-            var vapidDetails = new VapidDetails(subject, _options.PublicKey, _options.PrivateKey);
-            
-            var webPushClient = new WebPushClient();
-            await webPushClient.SendNotificationAsync(pushSubscription, payloadJson, vapidDetails, cancellationToken);
-            
+            var pushSubscription = new WebPush.PushSubscription(
+                subscription.Endpoint,
+                subscription.P256Dh,
+                subscription.Auth);
+            var vapidDetails = new VapidDetails(
+                keyMaterial.Subject,
+                keyMaterial.PublicKey,
+                keyMaterial.PrivateKey);
+
+            using var webPushClient = new WebPushClient();
+            await webPushClient.SendNotificationAsync(
+                pushSubscription,
+                payloadJson,
+                vapidDetails,
+                cancellationToken);
+
             return new PushSenderResult(true, null, false);
         }
-        catch (WebPushException ex)
+        catch (WebPushException exception)
         {
-            var statusCode = (int)ex.StatusCode;
-            var isExpired = statusCode == 404 || statusCode == 410;
-            return new PushSenderResult(false, $"WebPush error (HTTP {statusCode}): {ex.Message}", isExpired);
+            var statusCode = (int)exception.StatusCode;
+            var isExpired = statusCode is 404 or 410;
+            return new PushSenderResult(
+                false,
+                $"WebPush error (HTTP {statusCode}): {exception.Message}",
+                isExpired);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            return new PushSenderResult(false, $"Unexpected error sending push notification: {ex.Message}", false);
+            return new PushSenderResult(
+                false,
+                $"Unexpected error sending push notification: {exception.Message}",
+                false);
         }
     }
 }
