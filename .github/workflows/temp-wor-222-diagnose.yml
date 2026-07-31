@@ -1,0 +1,35 @@
+name: TEMP — Diagnose WOR-222 NuGet vulnerabilities
+
+on:
+  push:
+    branches:
+      - rbj--222-resolve-nuget-vulnerabilities
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore backend test graph
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+
+      - name: List vulnerable packages
+        run: dotnet package list --project src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --vulnerable --include-transitive
+
+      - name: Trace SQLite dependency
+        run: dotnet nuget why src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj SQLitePCLRaw.lib.e_sqlite3 --framework net10.0
+
+      - name: Trace XML crypto dependency
+        run: dotnet nuget why src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj System.Security.Cryptography.Xml --framework net10.0
