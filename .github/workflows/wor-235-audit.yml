@@ -1,88 +1,46 @@
-name: TEMP - WOR-235 validated candidates
+name: TEMP - WOR-235 apply dependency override
 
 on:
   push:
     branches:
       - rbj--235-frontend-audit-vulnerabilities
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
-  contents: read
-
-env:
-  OPENAPI_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+  contents: write
 
 jobs:
-  candidates:
+  apply:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        candidate:
-          - brace-expansion-5.0.8
-          - filelist-2.0.2
-          - jake-11.9.5
-          - ejs-5.0.1
     defaults:
       run:
         working-directory: src/FE
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: rbj--235-frontend-audit-vulnerabilities
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
-      - name: Apply candidate override
-        env:
-          CANDIDATE: ${{ matrix.candidate }}
+      - name: Apply EJS security override
         run: |
           node <<'NODE'
           const fs = require('node:fs');
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          switch (process.env.CANDIDATE) {
-            case 'brace-expansion-5.0.8':
-              pkg.overrides = { 'brace-expansion': '5.0.8' };
-              break;
-            case 'filelist-2.0.2':
-              pkg.overrides = { filelist: '2.0.2' };
-              break;
-            case 'jake-11.9.5':
-              pkg.overrides = { jake: '11.9.5' };
-              break;
-            case 'ejs-5.0.1':
-              pkg.overrides = { ejs: '5.0.1' };
-              break;
-          }
+          pkg.overrides = { ...(pkg.overrides ?? {}), ejs: '5.0.1' };
           fs.writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
           NODE
-      - name: Install candidate
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Generate frontend API client
-        run: npx orval --config orval.config.ts
-        env:
-          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
-      - name: Audit candidate
-        env:
-          CANDIDATE: ${{ matrix.candidate }}
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Commit dependency resolution
         run: |
-          npm audit --json > npm-audit.json || true
-          npm audit --omit=dev --json > npm-audit-production.json || true
-          node <<'NODE'
-          const fs = require('node:fs');
-          const all = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
-          const prod = JSON.parse(fs.readFileSync('npm-audit-production.json', 'utf8'));
-          console.log(`AUDIT_SUMMARY ${JSON.stringify({
-            candidate: process.env.CANDIDATE,
-            all: all.metadata?.vulnerabilities,
-            allPackages: Object.keys(all.vulnerabilities ?? {}),
-            production: prod.metadata?.vulnerabilities,
-            productionPackages: Object.keys(prod.vulnerabilities ?? {}),
-          })}`);
-          NODE
-      - name: Build candidate
-        run: npm run build
+          if git diff --quiet -- package.json package-lock.json; then
+            echo 'Dependency files already current.'
+            exit 0
+          fi
+          git config user.name 'workslip-validation-bot'
+          git config user.email 'workslip-validation-bot@users.noreply.github.com'
+          git add package.json package-lock.json
+          git commit -m 'RBJ-235: override vulnerable EJS build dependency'
+          git push origin HEAD:rbj--235-frontend-audit-vulnerabilities
