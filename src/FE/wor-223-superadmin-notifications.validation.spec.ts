@@ -239,7 +239,7 @@ test('Superadmin registers push and uses notification UI before and during deleg
   await homeBell.click();
   const homeDrawer = page.getByRole('dialog', { name: 'Notifikationer' });
   await expect(homeDrawer).toBeVisible();
-  await expect(homeDrawer.getByText('Ny sag')).toBeVisible();
+  await expect(homeDrawer.getByRole('button', { name: 'Ny sag, ulæst' })).toBeVisible();
   await page.getByRole('button', { name: 'Tilbage fra notifikationer' }).click();
   await expect(homeDrawer).not.toHaveClass(/open/);
 
@@ -275,7 +275,7 @@ test('Superadmin registers push and uses notification UI before and during deleg
   await delegatedBell.click();
   const delegatedDrawer = page.getByRole('dialog', { name: 'Notifikationer' });
   await expect(delegatedDrawer).toBeVisible();
-  await expect(delegatedDrawer.getByText('Ny sag')).toBeVisible();
+  await expect(delegatedDrawer.getByRole('button', { name: 'Ny sag, ulæst' })).toBeVisible();
 
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);
