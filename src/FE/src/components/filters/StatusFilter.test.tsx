@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StatusFilter } from './StatusFilter';
 
 type TestStatus = 'Draft' | 'Rejected' | 'InReview';
@@ -8,6 +8,18 @@ const options = [
   { value: ['Draft', 'Rejected'] as const, label: 'Aktive og afviste' },
   { value: 'InReview' as const, label: 'Til gennemsyn' },
 ];
+
+beforeAll(() => {
+  vi.stubGlobal('ResizeObserver', class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  });
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('StatusFilter grouped options', () => {
   it('selects every status in a grouped option without removing other selections', () => {
