@@ -21,11 +21,15 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore
-        run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
+      - name: Restore test graph
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --nologo
 
-      - name: Build Release
-        run: dotnet build src/BE/WorkslipApi/Workslip.Api.csproj --configuration Release --no-restore --nologo
+      - name: Build test graph in Release
+        run: >-
+          dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-restore
+          --nologo
 
       - name: Run focused Web Push regression tests
         run: >-
