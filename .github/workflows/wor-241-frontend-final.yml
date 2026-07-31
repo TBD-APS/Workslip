@@ -1,0 +1,99 @@
+name: TEMP — WOR-241 frontend final
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: rbj--241-red-dot-follows-status
+          fetch-depth: 0
+
+      - name: Apply product patch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/wor-241-pr-validation.yml').read_text(encoding='utf-8')
+          marker = "python3 - <<'PY'\n"
+          script = workflow.split(marker, 1)[1].split('\n          PY', 1)[0]
+          normalized = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in script.splitlines()
+          )
+          exec(normalized, {})
+          PY
+
+          if grep -R "RejectedAssignment" \
+            src/FE/src/features/jobs/routes/JobDetail.tsx \
+            src/FE/src/features/jobs/routes/CompletedJobReport.tsx \
+            src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs \
+            src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfAssignmentRepository.cs; then
+            echo "::error::Rejected indicators must not depend on rejected seen-state."
+            exit 1
+          fi
+          git diff --check
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Generate API client
+        working-directory: src/FE
+        env:
+          VITE_API_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+        run: npx orval --config orval.config.ts
+
+      - name: Lint affected frontend files
+        working-directory: src/FE
+        run: >-
+          npx eslint
+          src/features/jobs/routes/JobDetail.tsx
+          src/features/jobs/routes/JobDetail.test.tsx
+          src/features/jobs/routes/CompletedJobReport.tsx
+          src/features/jobs/routes/CompletedJobReport.seen-state.test.tsx
+
+      - name: Test seen-state routes
+        working-directory: src/FE
+        run: >-
+          npm test -- --run
+          src/features/jobs/routes/JobDetail.test.tsx
+          src/features/jobs/routes/CompletedJobReport.seen-state.test.tsx
+
+      - name: Build frontend
+        working-directory: src/FE
+        run: npm run build
+
+      - name: Commit validated implementation and remove temporary files
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm .github/workflows/wor-241-status-dot.yml
+          rm .github/workflows/wor-241-pr-validation.yml
+          rm .github/workflows/wor-241-final-validation.yml
+          rm .github/workflows/wor-241-frontend-final.yml
+          rm .github/wor-241-trigger.txt
+          git config user.name "Workslip Validation Bot"
+          git config user.email "workslip-validation@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(WOR-241): keep rejected indicator until status changes"
+          git push origin HEAD:rbj--241-red-dot-follows-status
