@@ -131,11 +131,15 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
   await organizationButton.click();
   await page.getByRole('button', { name: 'Åbn organisation' }).click();
 
+  const sessionBanner = page.locator('.organization-session-banner');
+  const exitSessionButton = page.getByRole('button', { name: 'Afslut organisationssession' });
+
   await expect(page).toHaveURL(/\/app$/);
-  await expect(page.getByText(/Du arbejder i/)).toContainText('NP Teknik');
+  await expect(sessionBanner).toContainText('NP Teknik');
+  await expect(exitSessionButton).toBeVisible();
   expect(sessionRequests).toBe(1);
 
-  await page.getByRole('button', { name: 'Afslut organisationssession' }).click();
+  await exitSessionButton.click();
   await expect(page).toHaveURL(/\/superadmin$/);
   await expect(page.getByRole('heading', { name: 'Superadmin' })).toBeVisible();
 
