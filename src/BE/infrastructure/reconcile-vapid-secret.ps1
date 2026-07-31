@@ -122,6 +122,10 @@ function Assert-VapidPrivateKey {
     $parameters.D = $privateKeyBytes
 
     $ecdsa = [System.Security.Cryptography.ECDsa]::Create()
+    if ($null -eq $ecdsa) {
+        throw 'The current .NET runtime could not create an ECDSA provider.'
+    }
+
     try {
         $ecdsa.ImportParameters($parameters)
         $publicParameters = $ecdsa.ExportParameters($false)
@@ -139,12 +143,14 @@ function Assert-VapidPrivateKey {
 }
 
 function New-VapidPrivateKey {
-    $ecdsa = [System.Security.Cryptography.ECDsa]::Create(
-        [System.Security.Cryptography.ECCurve]::NamedCurves.nistP256
-    )
-    $parameters = $null
+    $ecdsa = [System.Security.Cryptography.ECDsa]::Create()
+    if ($null -eq $ecdsa) {
+        throw 'The current .NET runtime could not create an ECDSA provider.'
+    }
 
+    $parameters = $null
     try {
+        $ecdsa.GenerateKey([System.Security.Cryptography.ECCurve]::NamedCurves.nistP256)
         $parameters = $ecdsa.ExportParameters($true)
         if ($null -eq $parameters.D -or $parameters.D.Length -ne 32) {
             throw 'Unable to generate a 32-byte P-256 VAPID private key.'
