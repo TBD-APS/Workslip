@@ -22,23 +22,140 @@ jobs:
           ref: rbj--241-red-dot-follows-status
           fetch-depth: 0
 
-      - name: Apply implementation from temporary workflow
+      - name: Apply status-driven rejection indicator
         shell: bash
         run: |
           set -Eeuo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          workflow = Path('.github/workflows/wor-241-status-dot.yml').read_text(encoding='utf-8')
-          marker = "python3 - <<'PY'\n"
-          if marker not in workflow:
-              raise SystemExit('Implementation script marker not found')
-          script = workflow.split(marker, 1)[1].split('\n          PY', 1)[0]
-          normalized = '\n'.join(
-              line[10:] if line.startswith('          ') else line
-              for line in script.splitlines()
+          def replace_once(path: str, old: str, new: str) -> None:
+              file_path = Path(path)
+              content = file_path.read_text(encoding='utf-8')
+              count = content.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one match in {path}, found {count}: {old!r}')
+              file_path.write_text(content.replace(old, new, 1), encoding='utf-8')
+
+          job_repository = 'src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs'
+          replace_once(job_repository, '        HashSet<Guid> rejectedSeenJobIds = [];\n', '')
+          replace_once(
+              job_repository,
+              '''
+            var rejectedViewed = await _jobViewRepo.GetViewedJobIdsAsync(
+                query.CurrentUserId.Value, reportIds, ["RejectedAssignment"], cancellationToken);
+            rejectedSeenJobIds = new HashSet<Guid>(rejectedViewed);
+''',
+              '',
           )
-          exec(normalized, {})
+          replace_once(
+              job_repository,
+              '''                && isAssignedToCurrentUser
+                && !rejectedSeenJobIds.Contains(x.Id);''',
+              '''                && isAssignedToCurrentUser;''',
+          )
+
+          assignment_repository = 'src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfAssignmentRepository.cs'
+          replace_once(
+              assignment_repository,
+              '''
+        var rejectedSeenJobIds = await _jobViewRepo.GetViewedJobIdsAsync(userId, reportIds, ["RejectedAssignment"], cancellationToken);
+        var rejectedSeenSet = new HashSet<Guid>(rejectedSeenJobIds);
+''',
+              '',
+          )
+          replace_once(
+              assignment_repository,
+              '            var isNewRejection = status == JobStatus.Rejected && !rejectedSeenSet.Contains(x.Id);',
+              '            var isNewRejection = status == JobStatus.Rejected;',
+          )
+
+          replace_once(
+              'src/FE/src/features/jobs/routes/JobDetail.tsx',
+              '''    if (jobStatus === JobStatus.Rejected) {
+      markJobAsSeen(id, queryClient, 'RejectedAssignment');
+    }
+''',
+              '',
+          )
+
+          replace_once(
+              'src/FE/src/features/jobs/routes/CompletedJobReport.tsx',
+              '''  useEffect(() => {
+    if (!id || (isAdmin && job?.status === JobStatus.Rejected)) return;
+    markJobAsSeen(id, queryClient);
+    if (job?.status === JobStatus.Rejected) {
+      markJobAsSeen(id, queryClient, 'RejectedAssignment');
+    }
+  }, [id, job?.status, isAdmin, queryClient]);
+''',
+              '''  useEffect(() => {
+    if (!id) return;
+    markJobAsSeen(id, queryClient);
+  }, [id, queryClient]);
+''',
+          )
+
+          replace_once(
+              'src/FE/src/features/jobs/routes/JobDetail.test.tsx',
+              '''    expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', queryClient);
+    expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', queryClient, 'RejectedAssignment');
+''',
+              '''    expect(mocks.markJobAsSeen).toHaveBeenCalledOnce();
+    expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', queryClient);
+''',
+          )
+
+          completed_test = 'src/FE/src/features/jobs/routes/CompletedJobReport.seen-state.test.tsx'
+          replace_once(
+              completed_test,
+              '''  it('does not clear a rejected assignment indicator when an admin opens the report', async () => {
+    renderReport();
+
+    await waitFor(() => {
+      expect(mocks.markJobAsSeen).not.toHaveBeenCalled();
+    });
+  });
+''',
+              '''  it('marks a rejected report as normally seen when an admin opens it', async () => {
+    renderReport();
+
+    await waitFor(() => {
+      expect(mocks.markJobAsSeen).toHaveBeenCalledOnce();
+    });
+    expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', expect.any(QueryClient));
+  });
+''',
+          )
+          replace_once(
+              completed_test,
+              '''  it('marks a rejected assignment as seen for an ordinary user', async () => {
+    mocks.isAdmin = false;
+    renderReport();
+
+    await waitFor(() => {
+      expect(mocks.markJobAsSeen).toHaveBeenCalledTimes(2);
+    });
+    expect(mocks.markJobAsSeen).toHaveBeenNthCalledWith(1, 'job-1', expect.any(QueryClient));
+    expect(mocks.markJobAsSeen).toHaveBeenNthCalledWith(
+      2,
+      'job-1',
+      expect.any(QueryClient),
+      'RejectedAssignment',
+    );
+  });
+''',
+              '''  it('marks a rejected report as normally seen for an ordinary user', async () => {
+    mocks.isAdmin = false;
+    renderReport();
+
+    await waitFor(() => {
+      expect(mocks.markJobAsSeen).toHaveBeenCalledOnce();
+    });
+    expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', expect.any(QueryClient));
+  });
+''',
+          )
           PY
 
           if grep -R "RejectedAssignment" \
