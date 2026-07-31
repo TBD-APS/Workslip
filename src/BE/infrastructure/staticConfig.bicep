@@ -62,5 +62,4 @@ var appConfigValues = {
     {inviteLink}
     Linket udløber om 7 dage.
   '''
-
 }

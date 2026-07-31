@@ -137,10 +137,9 @@ public sealed class JobService(
         var query = BuildJobQuery(organizationId.Value, statuses, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, currentUser.UserId);
 
         var cacheKey = BuildJobListCacheKey(query);
-        var jobList = await _jobRepository.ListAsync(query, cancellationToken);
         var result = await cache.GetOrCreateAsync(
             cacheKey,
-            async token => jobList,
+            async token => await _jobRepository.ListAsync(query, token),
             JobListCacheOptions,
             tags: ["all", "jobs", JobListTag(query.OrganizationId)],
             cancellationToken: cancellationToken);
@@ -868,7 +867,9 @@ public sealed class JobService(
             ? string.Join(",", query.Statuses.OrderBy(x => x).Select(x => x.ToString()))
             : "all";
     
-        return $"jobs:list:organization={query.OrganizationId:N}:status={statusKey}" +
+        var currentUserKey = query.CurrentUserId?.ToString("N") ?? "none";
+
+        return $"jobs:list:organization={query.OrganizationId:N}:currentUser={currentUserKey}:status={statusKey}" +
             $":reportNumber={query.ReportNumber ?? "none"}:customerName={query.CustomerName ?? "none"}" +
             $":customerEmail={query.CustomerEmail ?? "none"}:customerAddress={query.CustomerAddress ?? "none"}" +
             $":search={query.Search ?? "none"}" +
