@@ -28,14 +28,17 @@ jobs:
           set -Eeuo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import textwrap
 
           workflow = Path('.github/workflows/wor-241-status-dot.yml').read_text(encoding='utf-8')
           marker = "python3 - <<'PY'\n"
           if marker not in workflow:
               raise SystemExit('Implementation script marker not found')
           script = workflow.split(marker, 1)[1].split('\n          PY', 1)[0]
-          exec(textwrap.dedent(script), {})
+          normalized = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in script.splitlines()
+          )
+          exec(normalized, {})
           PY
 
           if grep -R "RejectedAssignment" \
