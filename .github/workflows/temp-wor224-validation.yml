@@ -1,0 +1,91 @@
+name: TEMP WOR-224 drawer history validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/FE/src/components/common/Drawer.tsx'
+      - 'src/FE/src/components/common/Drawer.history.test.tsx'
+      - 'src/FE/src/features/auth/routes/Login.tsx'
+      - 'src/FE/src/features/auth/routes/Login.history.test.tsx'
+      - 'src/FE/wor-224.validation.spec.ts'
+      - '.github/workflows/temp-wor224-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Frontend build and mobile drawer navigation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: src/FE
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint affected frontend files
+        run: >-
+          npx eslint
+          src/components/common/Drawer.tsx
+          src/components/common/Drawer.history.test.tsx
+          src/features/auth/routes/Login.tsx
+          src/features/auth/routes/Login.history.test.tsx
+
+      - name: Run focused regression tests
+        run: >-
+          npm test -- --run
+          src/components/common/Drawer.history.test.tsx
+          src/features/auth/routes/Login.history.test.tsx
+
+      - name: Build production frontend
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:4173
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run mobile browser validation
+        run: |
+          set -Eeuo pipefail
+
+          npm run preview -- --host 127.0.0.1 --port 4173 --strictPort > /tmp/wor-224-preview.log 2>&1 &
+          preview_pid=$!
+
+          cleanup() {
+            kill "${preview_pid}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4173/app; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "${ready}" != "true" ]]; then
+            cat /tmp/wor-224-preview.log || true
+            echo "::error::Frontend preview did not become ready."
+            exit 1
+          fi
+
+          npx playwright test wor-224.validation.spec.ts --reporter=line --workers=1
