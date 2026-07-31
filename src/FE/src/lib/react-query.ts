@@ -21,7 +21,13 @@ export const queryClient = new QueryClient({
 
 // The jobs home screen should render cached data immediately when revisited,
 // then refresh in the background once the short freshness window has elapsed.
+// `refetchInterval` silently picks up new assignments and status changes while
+// the app is open; `refetchOnWindowFocus` catches the case where the user
+// switched tabs for several minutes. Both default to false globally, so they
+// must be re-enabled explicitly for this query family.
 queryClient.setQueryDefaults(['/api/jobs'], {
   staleTime: JOB_LIST_STALE_TIME_MS,
   gcTime: JOB_LIST_GC_TIME_MS,
+  refetchInterval: 60_000,
+  refetchOnWindowFocus: true,
 });
