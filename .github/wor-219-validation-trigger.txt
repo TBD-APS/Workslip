@@ -1,1 +1,1 @@
-Trigger WOR-219 pull-request validation after the workflow was added.
+Trigger WOR-219 pull-request validation after removing the stale fixture workaround.
