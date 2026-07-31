@@ -39,7 +39,7 @@ var appConfigValues = {
   'Authorization:RoleHierarchy:Admin:0': 'User'
 
   'Azure:Acs:InviteBaseUrl': 'https://app.mrsoftware.dk/invite'
-  'Azure:Acs:PLainHeaderText': 'Du er blevet inviteret til Workslip'
+  'Azure:Acs:PLainHeaderText': 'Du er blevet inviteret til Workslip af MR Software'
   'Azure:Acs:HtmlInviteText': '''
   <html>
   <body style="font-family: Arial, sans-serif; padding: 24px;">
@@ -62,6 +62,4 @@ var appConfigValues = {
     {inviteLink}
     Linket udløber om 7 dage.
   '''
-
-  'Vapid:PublicKey': 'BK5wzcorbTV2rLqLYyPdWYMXmtY0Vr5xLzW4suFnbZH3bdvYM8Ddp_XqEFh8dwRwdEtNlO3YMMZe3ZQTOZVVLgY'
 }
