@@ -8,12 +8,3 @@ export function getAuthenticatedHomePath(role: string | null | undefined): strin
     ? AUDITOR_AUTHENTICATED_PATH
     : DEFAULT_AUTHENTICATED_PATH;
 }
-
-export function resolveAuthenticatedReturnTo(
-  returnTo: string,
-  role: string | null | undefined,
-): string {
-  return returnTo === DEFAULT_AUTHENTICATED_PATH
-    ? getAuthenticatedHomePath(role)
-    : returnTo;
-}
