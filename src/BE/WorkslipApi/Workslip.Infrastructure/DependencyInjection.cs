@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using WebPush;
 using Workslip.Application;
 using Workslip.Application.Common;
 using Workslip.Application.Customers;
@@ -70,7 +69,6 @@ public static class DependencyInjection
         services.AddSingleton<VapidKeyMaterial>();
         services.AddSingleton<IVapidPublicKeyProvider>(serviceProvider =>
             serviceProvider.GetRequiredService<VapidKeyMaterial>());
-        services.AddScoped<IWebPushClient>(_ => new WebPushClient());
         services.AddScoped<IPushSender, WebPushSender>();
         services.AddHostedService<JobDeletionCleanupService>();
         services.AddHostedService<InviteEntraCleanupService>();
