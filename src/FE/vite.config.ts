@@ -46,6 +46,10 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
       injectManifest: {
         // Install only the navigation shell and bootstrap JavaScript. CSS,
         // fonts, images and lazy chunks are cached when the browser actually
