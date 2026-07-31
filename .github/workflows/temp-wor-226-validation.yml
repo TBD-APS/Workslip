@@ -1,0 +1,272 @@
+name: TEMP — Validate WOR-226 customer option visibility
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  OPENAPI_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: src/FE
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate frontend API client
+        run: npx orval --config orval.config.ts
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
+
+      - name: Lint affected files
+        run: >-
+          npx eslint
+          src/features/jobs/components/steps/CreateOverviewStep.tsx
+          src/features/jobs/components/steps/JobOverviewStep.tsx
+          src/features/jobs/components/steps/CustomerCreationVisibility.test.tsx
+
+      - name: Run focused regression tests
+        run: npm test -- --run src/features/jobs/components/steps/CustomerCreationVisibility.test.tsx
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Create browser validation harness
+        run: |
+          set -Eeuo pipefail
+          rm -rf .tmp-wor-226
+          mkdir -p .tmp-wor-226/src
+
+          cat > .tmp-wor-226/index.html <<'HTML'
+          <!doctype html>
+          <html lang="da">
+            <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+            <body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
+          </html>
+          HTML
+
+          cat > .tmp-wor-226/src/main.tsx <<'TSX'
+          import { useMemo, useState } from 'react';
+          import { createRoot } from 'react-dom/client';
+          import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+          import { AuthContext, type AuthContextType } from '../../src/providers/authContextValue';
+          import { CreateOverviewStep } from '../../src/features/jobs/components/steps/CreateOverviewStep';
+          import { JobOverviewStep } from '../../src/features/jobs/components/steps/JobOverviewStep';
+          import '../../src/base.css';
+
+          const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+          });
+
+          function ValidationApp() {
+            const params = new URLSearchParams(window.location.search);
+            const role = params.get('role') === 'Admin' ? 'Admin' : 'User';
+            const flow = params.get('flow') === 'edit' ? 'edit' : 'create';
+            const isAdmin = role === 'Admin';
+            const [createCustomer, setCreateCustomer] = useState(false);
+
+            const auth = useMemo<AuthContextType>(() => ({
+              hasAuthToken: true,
+              isAuthenticated: true,
+              user: {
+                id: 'user-1',
+                displayName: role === 'Admin' ? 'Testadmin' : 'Testbruger',
+                role,
+                roleDisplayName: role,
+              } as never,
+              isLoading: false,
+              login: async () => true,
+              devLogin: async () => true,
+              logout: () => undefined,
+              clearLocalSession: () => undefined,
+              updateUser: () => undefined,
+              meQuery: {
+                isPending: false,
+                isError: false,
+                refetch: async () => undefined,
+                data: null,
+              },
+            }), [role]);
+
+            const form = {
+              customerId: null,
+              customerSnapshot: {
+                name: 'Testkunde',
+                email: 'kunde@example.com',
+                phone: '12345678',
+                address: 'Testvej 1, 8000 Aarhus C',
+                contactPerson: 'Testperson',
+              },
+              editSnapshot: true,
+              createCustomer,
+              reportNumber: '',
+              destinationAddress: 'Testvej 1',
+              destinationZipCode: '8000',
+              destinationCity: 'Aarhus C',
+              jobType: 'KLS',
+              taskDescription: '',
+              customerObservations: '',
+              technicalObservations: '',
+            };
+
+            const shared = {
+              form,
+              assignedUserIds: ['user-1'],
+              assignableUsers: [],
+              isLoadingUsers: false,
+              linkedJobIds: [],
+              fieldErrors: {},
+              updateDestinationAddress: () => undefined,
+              updateDestinationZipCode: () => undefined,
+              updateDestinationCity: () => undefined,
+              updateCreateCustomer: setCreateCustomer,
+              selectCustomer: () => undefined,
+              createNewCustomer: () => undefined,
+              updateSnapshotField: () => undefined,
+              updateEditSnapshot: () => undefined,
+              updateAssignedUsers: () => undefined,
+              updateLinkedJobs: () => undefined,
+              updateTaskDescription: () => undefined,
+              updateCustomerObservations: () => undefined,
+              updateTechnicalObservations: () => undefined,
+            };
+
+            const details = {
+              ...shared,
+              isAdmin,
+              job: { assignedUsers: [{ id: 'user-1', displayName: 'Testbruger' }] },
+              linkableJobs: [],
+              isLoadingJobs: false,
+            };
+
+            return (
+              <AuthContext.Provider value={auth}>
+                <QueryClientProvider client={queryClient}>
+                  <main className="page-container" data-role={role} data-flow={flow}>
+                    <h1>WOR-226 validation</h1>
+                    {flow === 'create' ? (
+                      <CreateOverviewStep create={shared as never} linkableJobs={[]} isLoadingJobs={false} />
+                    ) : (
+                      <JobOverviewStep details={details as never} />
+                    )}
+                  </main>
+                </QueryClientProvider>
+              </AuthContext.Provider>
+            );
+          }
+
+          createRoot(document.getElementById('root')!).render(<ValidationApp />);
+          TSX
+
+          cat > .tmp-wor-226/playwright.config.ts <<'TS'
+          import { defineConfig } from '@playwright/test';
+
+          export default defineConfig({
+            testDir: '.',
+            timeout: 30_000,
+            use: {
+              baseURL: 'http://127.0.0.1:4173',
+              browserName: 'chromium',
+              trace: 'retain-on-failure',
+            },
+          });
+          TS
+
+          cat > .tmp-wor-226/visibility.spec.ts <<'TS'
+          import { expect, test, type Page } from '@playwright/test';
+
+          async function assertCleanBrowser(page: Page) {
+            const failures: string[] = [];
+            page.on('console', message => {
+              if (message.type() === 'error') failures.push(`console: ${message.text()}`);
+            });
+            page.on('pageerror', error => failures.push(`pageerror: ${error.message}`));
+            page.on('requestfailed', request => failures.push(`requestfailed: ${request.url()} ${request.failure()?.errorText ?? ''}`));
+            page.on('response', response => {
+              if (response.status() >= 400) failures.push(`response: ${response.status()} ${response.url()}`);
+            });
+            await page.route('**/api/**', route => route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: '[]',
+            }));
+            return failures;
+          }
+
+          for (const viewport of [
+            { name: 'desktop', width: 1440, height: 1000 },
+            { name: 'mobile', width: 390, height: 844 },
+          ]) {
+            for (const flow of ['create', 'edit'] as const) {
+              test(`${viewport.name} ${flow}: User cannot see create-customer option`, async ({ page }) => {
+                const failures = await assertCleanBrowser(page);
+                await page.setViewportSize({ width: viewport.width, height: viewport.height });
+                await page.goto(`/?role=User&flow=${flow}`);
+                await expect(page.getByRole('heading', { name: 'WOR-226 validation' })).toBeVisible();
+                await expect(page.getByRole('checkbox', { name: /Opret kunde/ })).toHaveCount(0);
+                expect(failures).toEqual([]);
+              });
+
+              test(`${viewport.name} ${flow}: Admin retains functional create-customer option`, async ({ page }) => {
+                const failures = await assertCleanBrowser(page);
+                await page.setViewportSize({ width: viewport.width, height: viewport.height });
+                await page.goto(`/?role=Admin&flow=${flow}`);
+                const checkbox = page.getByRole('checkbox', { name: /Opret kunde/ });
+                await expect(checkbox).toBeVisible();
+                await checkbox.check();
+                await expect(checkbox).toBeChecked();
+                expect(failures).toEqual([]);
+              });
+            }
+          }
+          TS
+
+      - name: Run Playwright role and viewport scenarios
+        run: |
+          set -Eeuo pipefail
+          npx vite .tmp-wor-226 --host 127.0.0.1 --port 4173 --config vite.config.ts > .tmp-wor-226/vite.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "${server_pid}" 2>/dev/null || true
+            rm -rf .tmp-wor-226
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4173/; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "${ready}" != "true" ]]; then
+            cat .tmp-wor-226/vite.log || true
+            exit 1
+          fi
+
+          npx playwright test --config .tmp-wor-226/playwright.config.ts --reporter=line --workers=1
