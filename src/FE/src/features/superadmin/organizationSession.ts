@@ -4,10 +4,6 @@ import {
   REAUTH_IN_FLIGHT_KEY,
   USER_EMAIL_KEY,
 } from '../../providers/authContextValue';
-import {
-  assertDesktopSuperadminAvailable,
-  isDesktopPlatform,
-} from '../../lib/platform';
 
 const HOME_AUTH_TOKEN_KEY = 'workslip.superadmin.homeAuthToken';
 const ORGANIZATION_SESSION_ID_KEY = 'workslip.superadmin.organizationSessionId';
@@ -28,24 +24,12 @@ export interface OrganizationSession {
   name: string;
 }
 
-export type SuperadminSessionNormalizationResult =
-  | 'unchanged'
-  | 'delegation-cleared'
-  | 'home-restored'
-  | 'authentication-cleared';
-
 interface StoredOrganizationSessionState {
   activeToken: string | null;
   homeToken: string | null;
   organizationId: string | null;
   organizationName: string | null;
 }
-
-type NormalizationAction =
-  | 'unchanged'
-  | 'clear-delegation'
-  | 'restore-home'
-  | 'clear-authentication';
 
 export function getOrganizationSession(): OrganizationSession | null {
   const id = AuthStorage.getItem(ORGANIZATION_SESSION_ID_KEY)?.trim();
@@ -72,8 +56,6 @@ export function activateOrganizationSession(
   organization: OrganizationSession,
   delegatedToken: string,
 ): void {
-  assertDesktopSuperadminAvailable();
-
   const currentToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
   const savedHomeToken = AuthStorage.getItem(HOME_AUTH_TOKEN_KEY);
   const homeToken = savedHomeToken ?? currentToken;
@@ -148,92 +130,10 @@ export function restoreHomeOrganizationSession(): boolean {
   }
 }
 
-/**
- * Normalizes persisted Superadmin state before AuthProvider can read the
- * active token. It is synchronous by design: an unsupported device must never
- * bootstrap `/api/auth/me` with a delegated customer token.
- */
-export function normalizeSuperadminSessionForCurrentPlatform(): SuperadminSessionNormalizationResult {
-  if (isDesktopPlatform()) return 'unchanged';
-
-  while (true) {
-    const snapshot = readStoredState();
-    const action = selectNormalizationAction(snapshot);
-    if (action === 'unchanged') {
-      if (storedStateMatches(snapshot)) return 'unchanged';
-      continue;
-    }
-
-    // localStorage is shared between tabs. Re-read every relevant value before
-    // mutation so this tab cannot erase a token/session another tab just wrote.
-    if (!storedStateMatches(snapshot)) continue;
-
-    switch (action) {
-      case 'restore-home':
-        AuthStorage.setItem(AUTH_TOKEN_KEY, snapshot.homeToken!);
-        AuthStorage.removeItem(REAUTH_IN_FLIGHT_KEY);
-        clearOrganizationSession();
-        return 'home-restored';
-      case 'clear-delegation':
-        clearOrganizationSession();
-        return 'delegation-cleared';
-      case 'clear-authentication':
-        clearAuthenticationAndOrganizationSession();
-        return 'authentication-cleared';
-    }
-  }
-}
-
 export function clearOrganizationSession(): void {
   AuthStorage.removeItem(HOME_AUTH_TOKEN_KEY);
   AuthStorage.removeItem(ORGANIZATION_SESSION_ID_KEY);
   AuthStorage.removeItem(ORGANIZATION_SESSION_NAME_KEY);
-}
-
-function selectNormalizationAction(
-  state: StoredOrganizationSessionState,
-): NormalizationAction {
-  const hasDelegationMetadata = Boolean(
-    state.homeToken || state.organizationId || state.organizationName,
-  );
-
-  if (!state.activeToken) {
-    return hasDelegationMetadata ? 'clear-delegation' : 'unchanged';
-  }
-
-  const activePayload = readTokenPayload(state.activeToken);
-  if (
-    !activePayload
-    || !hasNumericExpiry(activePayload)
-    || readRole(activePayload) === null
-  ) {
-    return 'clear-authentication';
-  }
-
-  const delegated = readDelegatedClaim(activePayload);
-  const looksLikeDelegatedState = Boolean(
-    readStringClaim(activePayload, HOME_ORGANIZATION_ID_CLAIM),
-  );
-  if (delegated === null && looksLikeDelegatedState) {
-    return 'clear-authentication';
-  }
-
-  if (delegated === true) {
-    const homePayload = readTokenPayload(state.homeToken);
-    if (
-      !homePayload
-      || !isValidRecoveryPair(activePayload, homePayload)
-      || !storedOrganizationMatchesPayload(state.organizationId, activePayload)
-    ) {
-      return 'clear-authentication';
-    }
-
-    return 'restore-home';
-  }
-
-  if (!isUnexpiredPayload(activePayload)) return 'clear-authentication';
-
-  return hasDelegationMetadata ? 'clear-delegation' : 'unchanged';
 }
 
 function isValidRecoveryPair(

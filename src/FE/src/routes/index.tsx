@@ -6,7 +6,6 @@ import { useAuth } from '../providers/useAuth';
 import { RoleGuard } from '../providers/permissions';
 import { Login } from '../features/auth/routes/Login';
 import { reportFrontendError } from '../applicationInsights';
-import { DesktopOnlySuperadminBoundary } from '../features/superadmin/components/DesktopOnlySuperadmin';
 
 const AUTH_STARTUP_GRACE_MS = 6_000;
 
@@ -227,9 +226,7 @@ export const router = createBrowserRouter([
         path: '/app',
         element: (
           <ProtectedRoute>
-            <DesktopOnlySuperadminBoundary>
-              <AppLayout />
-            </DesktopOnlySuperadminBoundary>
+            <AppLayout />
           </ProtectedRoute>
         ),
         children: [
@@ -256,9 +253,7 @@ export const router = createBrowserRouter([
         path: '/superadmin',
         element: (
           <ProtectedRoute>
-            <DesktopOnlySuperadminBoundary>
-              <AppLayout />
-            </DesktopOnlySuperadminBoundary>
+            <AppLayout />
           </ProtectedRoute>
         ),
         children: [

@@ -15,63 +15,15 @@ vi.mock('../../lib/axios', () => ({
   },
 }));
 
-function useDevice(device: 'mobile' | 'desktop'): void {
-  vi.stubGlobal('navigator', device === 'mobile'
-    ? {
+describe('Superadmin API', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('uses all organization endpoints from a mobile browser', async () => {
+    vi.stubGlobal('navigator', {
       userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9)',
       maxTouchPoints: 5,
-    }
-    : {
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      maxTouchPoints: 0,
     });
-}
 
-describe('Superadmin API device defense', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.unstubAllGlobals();
-  });
-
-  it('issues zero organization requests on mobile', async () => {
-    useDevice('mobile');
-
-    await expect(getOrganizations()).rejects.toThrow(
-      'Superadmin er kun tilgængelig på computer.',
-    );
-    await expect(createOrganization({
-      name: 'Organisation',
-      cvr: '12345678',
-      adminDisplayName: 'Administrator',
-    })).rejects.toThrow('Superadmin er kun tilgængelig på computer.');
-    await expect(createOrganizationSession('organization-id')).rejects.toThrow(
-      'Superadmin er kun tilgængelig på computer.',
-    );
-    await expect(inviteOrganizationAdmin({
-      organizationId: 'organization-id',
-      email: 'admin@example.com',
-      displayName: 'Administrator',
-      phone: '',
-    })).rejects.toThrow('Superadmin er kun tilgængelig på computer.');
-
-    expect(apiClient.get).not.toHaveBeenCalled();
-    expect(apiClient.post).not.toHaveBeenCalled();
-    expect(apiClient.put).not.toHaveBeenCalled();
-  });
-
-  it('uses the Vercel-compatible organization list path on desktop', async () => {
-    useDevice('desktop');
-    vi.mocked(apiClient.get).mockResolvedValue([]);
-
-    await expect(getOrganizations()).resolves.toEqual([]);
-    expect(apiClient.get).toHaveBeenCalledOnce();
-    expect(apiClient.get).toHaveBeenCalledWith('/api/organizations', {
-      skipGlobalErrorToast: true,
-    });
-  });
-
-  it('uses the Vercel-compatible organization create path on desktop', async () => {
-    useDevice('desktop');
     const onboarding = {
       organization: {
         id: 'organization-id',
@@ -88,16 +40,52 @@ describe('Superadmin API device defense', () => {
         entraInvitationSent: false,
       },
     };
-    vi.mocked(apiClient.post).mockResolvedValue(onboarding);
+    const session = {
+      token: 'delegated-token',
+      tokenType: 'Bearer',
+      expiresIn: 900,
+      user: {
+        userId: 'user-id',
+        organizationId: 'organization-id',
+        email: 'superadmin@example.com',
+        displayName: 'Super Admin',
+        role: 'Superadmin',
+      },
+    };
+    const admin = {
+      id: 'admin-id',
+      organizationId: 'organization-id',
+      displayName: 'Administrator',
+      email: 'admin@example.com',
+      phone: null,
+      role: 'Admin',
+      entraInvitationSent: true,
+    };
 
+    vi.mocked(apiClient.get).mockResolvedValue([]);
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce(onboarding)
+      .mockResolvedValueOnce(session);
+    vi.mocked(apiClient.put).mockResolvedValue(admin);
+
+    await expect(getOrganizations()).resolves.toEqual([]);
     await expect(createOrganization({
       name: ' Organisation ',
       cvr: ' 12345678 ',
       adminDisplayName: ' Administrator ',
     })).resolves.toEqual(onboarding);
+    await expect(createOrganizationSession('organization-id')).resolves.toEqual(session);
+    await expect(inviteOrganizationAdmin({
+      organizationId: 'organization-id',
+      email: ' admin@example.com ',
+      displayName: ' Administrator ',
+      phone: '',
+    })).resolves.toEqual(admin);
 
-    expect(apiClient.post).toHaveBeenCalledOnce();
-    expect(apiClient.post).toHaveBeenCalledWith('/api/organizations', {
+    expect(apiClient.get).toHaveBeenCalledWith('/api/organizations', {
+      skipGlobalErrorToast: true,
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, '/api/organizations', {
       name: 'Organisation',
       cvr: '12345678',
       adminDisplayName: 'Administrator',
@@ -106,5 +94,20 @@ describe('Superadmin API device defense', () => {
     }, {
       skipGlobalErrorToast: true,
     });
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      '/api/organizations/organization-id/session',
+      undefined,
+      { skipGlobalErrorToast: true },
+    );
+    expect(apiClient.put).toHaveBeenCalledWith(
+      '/api/organizations/organization-id/admin',
+      {
+        email: 'admin@example.com',
+        displayName: 'Administrator',
+        phone: null,
+      },
+      { skipGlobalErrorToast: true },
+    );
   });
 });
