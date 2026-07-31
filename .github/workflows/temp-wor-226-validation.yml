@@ -1,4 +1,4 @@
-name: TEMP — Validate WOR-226 browser behavior
+name: TEMP — Final WOR-226 validation
 
 on:
   pull_request:
@@ -11,9 +11,9 @@ env:
   OPENAPI_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
 
 jobs:
-  browser:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: src/FE
@@ -29,14 +29,31 @@ jobs:
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
 
-      - name: Install dependencies and browser
-        run: |
-          npm ci
-          npx orval --config orval.config.ts
-          npm install --no-save --package-lock=false @playwright/test@1.55.0
-          npx playwright install --with-deps chromium
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate frontend API client
+        run: npx orval --config orval.config.ts
         env:
           VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
+
+      - name: Lint affected files
+        run: >-
+          npx eslint
+          src/features/jobs/components/steps/CreateOverviewStep.tsx
+          src/features/jobs/components/steps/JobOverviewStep.tsx
+          src/features/jobs/components/steps/CustomerCreationVisibility.test.tsx
+
+      - name: Run focused regression tests
+        run: npm test -- --run src/features/jobs/components/steps/CustomerCreationVisibility.test.tsx
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
 
       - name: Create actual-component browser harness
         run: |
@@ -188,13 +205,6 @@ jobs:
             return failures;
           }
 
-          async function expectHarness(page: Page, failures: string[]) {
-            const heading = page.getByRole('heading', { name: 'WOR-226 validation' });
-            if (!(await heading.isVisible().catch(() => false))) {
-              throw new Error(`Harness did not render.\n${failures.join('\n')}\n${await page.content()}`);
-            }
-          }
-
           for (const viewport of [
             { name: 'desktop', width: 1440, height: 1000 },
             { name: 'mobile', width: 390, height: 844 },
@@ -204,7 +214,7 @@ jobs:
                 const failures = await installDiagnostics(page);
                 await page.setViewportSize({ width: viewport.width, height: viewport.height });
                 await page.goto(`/?role=User&flow=${flow}`);
-                await expectHarness(page, failures);
+                await expect(page.getByRole('heading', { name: 'WOR-226 validation' })).toBeVisible();
                 await expect(page.getByRole('checkbox', { name: /Opret kunde/ })).toHaveCount(0);
                 expect(failures).toEqual([]);
               });
@@ -213,7 +223,6 @@ jobs:
                 const failures = await installDiagnostics(page);
                 await page.setViewportSize({ width: viewport.width, height: viewport.height });
                 await page.goto(`/?role=Admin&flow=${flow}`);
-                await expectHarness(page, failures);
                 const checkbox = page.getByRole('checkbox', { name: /Opret kunde/ });
                 await expect(checkbox).toBeVisible();
                 await checkbox.check();
@@ -231,15 +240,16 @@ jobs:
           server_pid=$!
           cleanup() { kill "${server_pid}" 2>/dev/null || true; rm -rf .tmp-wor-226 src/wor226Validation.tsx; }
           trap cleanup EXIT
+          ready=false
           for attempt in $(seq 1 60); do
-            curl --fail --silent --output /dev/null http://127.0.0.1:4173/ && break
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4173/; then
+              ready=true
+              break
+            fi
             sleep 1
           done
-          set +e
-          npx playwright test --config .tmp-wor-226/playwright.config.ts --reporter=line --workers=1
-          status=$?
-          set -e
-          if [[ $status -ne 0 ]]; then
+          if [[ "${ready}" != "true" ]]; then
             cat .tmp-wor-226/vite.log || true
-            exit $status
+            exit 1
           fi
+          npx playwright test --config .tmp-wor-226/playwright.config.ts --reporter=line --workers=1
