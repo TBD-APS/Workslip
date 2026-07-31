@@ -9,11 +9,11 @@ import {
 import { prefetchInitialJobList } from '../features/jobs/queries/jobListQuery';
 import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
 import { queryClient } from '../lib/react-query';
-import { hasPermission } from './permissions';
 import {
   AuthContext,
   type AuthContextType,
 } from './authContextValue';
+import { canUseSessionNotifications } from './sessionFeaturePolicy';
 
 interface AuthenticatedAppProviderProps {
   children: ReactNode;
@@ -49,7 +49,7 @@ function AuthenticatedSessionProvider({
 
   const user = meQuery.data ?? null;
   const isAuthenticated = Boolean(user);
-  const canUseNotifications = hasPermission(user?.role, 'notification:use');
+  const canUseNotifications = canUseSessionNotifications(user?.role);
   const usesPrimaryJobList = getAuthenticatedHomePath(user?.role) === DEFAULT_AUTHENTICATED_PATH;
 
   useEffect(() => {
