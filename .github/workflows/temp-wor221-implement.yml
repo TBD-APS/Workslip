@@ -28,7 +28,6 @@ jobs:
 
           login_path = Path('src/FE/src/features/auth/routes/Login.tsx')
           login = login_path.read_text(encoding='utf-8')
-
           replacements = [
               (
                   "import { lazy, Suspense, useEffect, useRef, useState } from 'react';",
@@ -56,11 +55,11 @@ jobs:
               ),
               (
                   "    const isCallback = hasEntraLoginCallback();\n    const isReauthRequest = params.get('reauth') === '1';\n    if (!isCallback && !isReauthRequest) return;\n    reauthStartedRef.current = true;\n\n    const returnTo = sanitizeReturnTo(params.get('returnTo'));\n    const recoverToLogin = (message: string) => {\n      clearReauthInFlight();\n      clearEntraLoginSession();\n      window.history.replaceState(null, '', '/login');\n      setErrorMsg(message);\n      setIsSubmitting(false);\n      setIsReauth(false);\n    };",
-                  "    const isCallback = hasEntraLoginCallback();\n    const isReauthRequest = params.get('reauth') === '1';\n    if (!isCallback && hasEntraLoginSession() && isBackForwardNavigation()) {\n      recoverToLogin(LOGIN_INTERRUPTED_MESSAGE);\n      return;\n    }\n    if (!isCallback && !isReauthRequest) return;\n    reauthStartedRef.current = true;\n\n    const returnTo = sanitizeReturnTo(params.get('returnTo'));",
+                  "    const isCallback = hasEntraLoginCallback();\n    const isReauthRequest = params.get('reauth') === '1';\n    if (historyInterruptedLogin) {\n      clearReauthInFlight();\n      clearEntraLoginSession();\n      window.history.replaceState(null, '', '/login');\n      return;\n    }\n    if (!isCallback && !isReauthRequest) return;\n    reauthStartedRef.current = true;\n\n    const returnTo = sanitizeReturnTo(params.get('returnTo'));",
               ),
               (
                   "  }, []);\n\n  const handleMicrosoftLogin = async () => {",
-                  "  }, [recoverToLogin]);\n\n  const handleMicrosoftLogin = async () => {",
+                  "  }, [historyInterruptedLogin, recoverToLogin]);\n\n  const handleMicrosoftLogin = async () => {",
               ),
               (
                   "    } catch (err: unknown) {\n      const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';",
@@ -73,7 +72,6 @@ jobs:
               if count != 1:
                   raise SystemExit(f'Login.tsx replacement expected once, found {count}: {old[:80]!r}')
               login = login.replace(old, new, 1)
-
           login_path.write_text(login, encoding='utf-8')
 
           entra_path = Path('src/FE/src/features/auth/api/entraLogin.ts')
@@ -84,8 +82,17 @@ jobs:
               raise SystemExit('entraLogin.ts insertion point did not match exactly once')
           entra_path.write_text(entra.replace(old, new, 1), encoding='utf-8')
 
-          test_path = Path('src/FE/src/features/auth/routes/Login.history.test.tsx')
-          test_path.write_text("""import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+          readme_path = Path('src/FE/README.md')
+          readme = readme_path.read_text(encoding='utf-8')
+          old = "The login route clears the PKCE state after success, cancellation or callback failure. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters."
+          new = "The login route clears the PKCE state after success, cancellation or callback failure. It also treats a browser-history return from Microsoft with pending PKCE state as a cancellation: cached pages recover on `pageshow`, non-cached `back_forward` loads do not restart reauthentication, and the login form becomes interactive again. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters."
+          if readme.count(old) != 1:
+              raise SystemExit('README authentication paragraph did not match exactly once')
+          readme_path.write_text(readme.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          cat > src/FE/src/features/auth/routes/Login.history.test.tsx <<'EOF'
+          import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
           import { createMemoryRouter, RouterProvider } from 'react-router-dom';
           import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
           import { Login } from './Login';
@@ -148,7 +155,6 @@ jobs:
           describe('Login browser history handling', () => {
             it('replaces the login entry when an authenticated user is redirected', async () => {
               const router = renderLogin(['/before', '/login'], 1);
-
               expect(await screen.findByText('App')).toBeInTheDocument();
 
               await act(async () => {
@@ -170,14 +176,10 @@ jobs:
               entraMocks.hasEntraLoginSession.mockReturnValue(true);
               const pageShow = new Event('pageshow') as PageTransitionEvent;
               Object.defineProperty(pageShow, 'persisted', { value: true });
-
-              act(() => {
-                window.dispatchEvent(pageShow);
-              });
+              act(() => window.dispatchEvent(pageShow));
 
               expect(await screen.findByText('Login afbrudt. Klik på knappen for at prøve igen.')).toBeInTheDocument();
-              const loginButton = screen.getByRole('button', { name: 'Log ind med Microsoft passkey' });
-              expect(loginButton).toBeEnabled();
+              expect(screen.getByRole('button', { name: 'Log ind med Microsoft passkey' })).toBeEnabled();
               expect(entraMocks.clearEntraLoginSession).toHaveBeenCalled();
             });
 
@@ -199,16 +201,8 @@ jobs:
               expect(screen.getByRole('button', { name: 'Log ind med Microsoft passkey' })).toBeEnabled();
             });
           });
-          """.replace('          ', ''), encoding='utf-8')
-
-          readme_path = Path('src/FE/README.md')
-          readme = readme_path.read_text(encoding='utf-8')
-          old = "The login route clears the PKCE state after success, cancellation or callback failure. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters."
-          new = "The login route clears the PKCE state after success, cancellation or callback failure. It also treats a browser-history return from Microsoft with pending PKCE state as a cancellation: cached pages recover on `pageshow`, non-cached `back_forward` loads do not restart reauthentication, and the login form becomes interactive again. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters."
-          if readme.count(old) != 1:
-              raise SystemExit('README authentication paragraph did not match exactly once')
-          readme_path.write_text(readme.replace(old, new, 1), encoding='utf-8')
-          PY
+          EOF
+          sed -i 's/^          //' src/FE/src/features/auth/routes/Login.history.test.tsx
 
       - name: Setup Node
         uses: actions/setup-node@v4
