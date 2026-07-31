@@ -3,6 +3,9 @@ import { expect, test } from '@playwright/test';
 const ACTOR_ID = '11111111-1111-4111-8111-111111111111';
 const HOME_ORGANIZATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const CUSTOMER_ORGANIZATION_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const HOME_AUTH_TOKEN_KEY = 'workslip.superadmin.homeAuthToken';
+const ORGANIZATION_SESSION_ID_KEY = 'workslip.superadmin.organizationSessionId';
+const ORGANIZATION_SESSION_NAME_KEY = 'workslip.superadmin.organizationSessionName';
 
 function token(payload: Record<string, unknown>) {
   return `header.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.signature`;
@@ -25,6 +28,7 @@ const delegatedToken = token({
 });
 
 test.use({
+  channel: 'chrome',
   viewport: { width: 390, height: 844 },
   userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/149.0.0.0 Mobile Safari/537.36',
 });
@@ -33,6 +37,7 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   const failedRequests: string[] = [];
+  const authMeBearerTokens: string[] = [];
   let organizationListRequests = 0;
   let sessionRequests = 0;
 
@@ -53,7 +58,9 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
     const path = new URL(request.url()).pathname;
 
     if (path === '/api/auth/me') {
-      const delegated = request.headers().authorization?.includes(delegatedToken) ?? false;
+      const authorization = request.headers().authorization ?? '';
+      authMeBearerTokens.push(authorization);
+      const delegated = authorization === `Bearer ${delegatedToken}`;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -131,13 +138,30 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
   await organizationButton.click();
   await page.getByRole('button', { name: 'Åbn organisation' }).click();
 
+  await expect.poll(() => sessionRequests).toBe(1);
+  await expect.poll(async () => page.evaluate((keys) => ({
+    activeToken: localStorage.getItem('authToken'),
+    homeToken: localStorage.getItem(keys.homeToken),
+    organizationId: localStorage.getItem(keys.organizationId),
+    organizationName: localStorage.getItem(keys.organizationName),
+  }), {
+    homeToken: HOME_AUTH_TOKEN_KEY,
+    organizationId: ORGANIZATION_SESSION_ID_KEY,
+    organizationName: ORGANIZATION_SESSION_NAME_KEY,
+  })).toEqual({
+    activeToken: delegatedToken,
+    homeToken,
+    organizationId: CUSTOMER_ORGANIZATION_ID,
+    organizationName: 'NP Teknik',
+  });
+  await expect.poll(() => authMeBearerTokens.includes(`Bearer ${delegatedToken}`)).toBe(true);
+
   const sessionBanner = page.locator('.organization-session-banner');
   const exitSessionButton = page.getByRole('button', { name: 'Afslut organisationssession' });
 
   await expect(page).toHaveURL(/\/app$/);
   await expect(sessionBanner).toContainText('NP Teknik');
   await expect(exitSessionButton).toBeVisible();
-  expect(sessionRequests).toBe(1);
 
   await exitSessionButton.click();
   await expect(page).toHaveURL(/\/superadmin$/);
