@@ -423,7 +423,7 @@ export const JobList = () => {
   );
 };
 
-export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: () => void; isAdmin: boolean }) {
+export export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: () => void; isAdmin: boolean }) {
   return (
     <button className="job-card" onClick={onOpen} type="button">
       <div className="job-card-top">
