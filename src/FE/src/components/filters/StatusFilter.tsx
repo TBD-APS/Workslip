@@ -2,6 +2,7 @@
 
 const LAST_ACTIVE_KEY = 'statusFilter:lastActive';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getSavedStatusFilter<T extends string>(sectionKey: string, defaults: T[]): T[] {
   try {
     const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
@@ -22,15 +23,19 @@ export function getSavedStatusFilter<T extends string>(sectionKey: string, defau
         return parsed as T[];
       }
     }
-  } catch {}
+  } catch {
+    // Fall back to the supplied defaults when browser storage is unavailable or invalid.
+  }
   return defaults;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function saveStatusFilter(sectionKey: string, statuses: string[]) {
   sessionStorage.setItem(`statusFilter:${sectionKey}`, JSON.stringify(statuses));
 }
 
 /** Call on mount on pages that are section boundaries (e.g. UserList, any page outside the filter's section). */
+// eslint-disable-next-line react-refresh/only-export-components
 export function announceSection(sectionKey: string) {
   const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
   sessionStorage.setItem(LAST_ACTIVE_KEY, sectionKey);
