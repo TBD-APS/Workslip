@@ -119,14 +119,16 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
 
   await page.goto('http://127.0.0.1:4173/app');
 
+  const organizationButton = page.getByRole('button', { name: /NP Teknik CVR/ });
+
   await expect(page).toHaveURL(/\/superadmin$/);
   await expect(page.getByRole('heading', { name: 'Superadmin' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Superadmin' })).toBeVisible();
-  await expect(page.getByText('NP Teknik', { exact: true })).toBeVisible();
+  await expect(organizationButton).toBeVisible();
   await expect(page.getByText('Superadmin er kun tilgængelig på computer')).toHaveCount(0);
   expect(organizationListRequests).toBeGreaterThan(0);
 
-  await page.getByRole('button', { name: /NP Teknik/ }).click();
+  await organizationButton.click();
   await page.getByRole('button', { name: 'Åbn organisation' }).click();
 
   await expect(page).toHaveURL(/\/app$/);
