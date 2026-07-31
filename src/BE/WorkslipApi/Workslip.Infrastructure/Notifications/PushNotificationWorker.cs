@@ -178,12 +178,9 @@ public sealed class PushNotificationWorker : BackgroundService
             else
             {
                 lastErrorMessage = result.ErrorMessage;
-                if (result.ShouldDeactivateSubscription)
+                if (result.IsExpired)
                 {
-                    _logger.LogInformation(
-                        "Subscription {SubscriptionId} is no longer valid for user {UserId}. Disabling.",
-                        sub.Id,
-                        notification.UserId);
+                    _logger.LogInformation("Subscription {SubscriptionId} expired for user {UserId}. Disabling.", sub.Id, notification.UserId);
                     await repo.UpdateSubscriptionActiveStatusAsync(sub.Id, false, stoppingToken);
                 }
                 else
