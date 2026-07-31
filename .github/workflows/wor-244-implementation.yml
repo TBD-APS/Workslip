@@ -7,6 +7,7 @@ on:
       - '.github/workflows/wor-244-implementation.yml'
       - 'tools/temp-wor-244-apply.py'
       - 'tools/temp-wor-244-fix-anchor.py'
+      - 'tools/temp-wor-244-fix-playwright.py'
       - 'src/BE/WorkslipApi/**'
       - 'src/FE/**'
       - 'Docs/api/contract.md'
@@ -33,6 +34,7 @@ jobs:
         run: |
           python3 tools/temp-wor-244-fix-anchor.py
           python3 tools/temp-wor-244-apply.py
+          python3 tools/temp-wor-244-fix-playwright.py
 
       - name: Verify role boundaries and scope
         run: |
