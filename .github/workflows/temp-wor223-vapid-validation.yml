@@ -1,0 +1,65 @@
+name: TEMP WOR-223 VAPID deployment validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/BE/infrastructure/deploy.ps1'
+      - 'src/BE/infrastructure/reconcile-vapid-secret.ps1'
+      - 'src/BE/infrastructure/staticConfig.bicep'
+      - 'src/BE/infrastructure/main.bicep'
+      - '.github/workflows/temp-wor223-vapid-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse changed PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($path in @(
+            'src/BE/infrastructure/deploy.ps1',
+            'src/BE/infrastructure/reconcile-vapid-secret.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | ForEach-Object { Write-Error "$path: $($_.Message)" }
+            }
+          }
+
+          if ($failed) { exit 1 }
+
+      - name: Exercise P-256 VAPID generation
+        shell: pwsh
+        run: ./src/BE/infrastructure/reconcile-vapid-secret.ps1 -ValidateOnly
+
+      - name: Build Bicep template
+        uses: azure/cli@v2
+        with:
+          inlineScript: az bicep build --file src/BE/infrastructure/main.bicep --stdout > /dev/null
+
+      - name: Reject committed VAPID key material
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if grep -R -n --exclude='reconcile-vapid-secret.ps1' --exclude='*.md' \
+            -E "Vapid:PublicKey|Vapid:PrivateKey.*[A-Za-z0-9_-]{40,}" \
+            src/BE/infrastructure; then
+            echo 'Committed or duplicate VAPID key material found.' >&2
+            exit 1
+          fi
