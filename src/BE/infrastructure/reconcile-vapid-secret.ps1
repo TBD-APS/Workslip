@@ -15,6 +15,7 @@ $WebApiName = "api-$CompanyName-$NormalizedEnvironment"
 $VapidPrivateKeySecretName = 'Vapid--PrivateKey'
 $VapidPrivateKeyConfigurationKey = 'Vapid:PrivateKey'
 $LegacyVapidPublicKeyConfigurationKey = 'Vapid:PublicKey'
+$P256ObjectIdentifier = '1.2.840.10045.3.1.7'
 
 function Initialize-AzureCliInvocation {
     $azureCliCommand = Get-Command az -CommandType Application -ErrorAction Stop |
@@ -82,6 +83,10 @@ function Invoke-AzureCli {
     }
 }
 
+function Get-P256Curve {
+    return [System.Security.Cryptography.ECCurve]::CreateFromValue($P256ObjectIdentifier)
+}
+
 function ConvertTo-Base64Url {
     param([Parameter(Mandatory = $true)][byte[]]$Bytes)
 
@@ -118,7 +123,7 @@ function Assert-VapidPrivateKey {
     }
 
     $parameters = [System.Security.Cryptography.ECParameters]::new()
-    $parameters.Curve = [System.Security.Cryptography.ECCurve]::NamedCurves.nistP256
+    $parameters.Curve = Get-P256Curve
     $parameters.D = $privateKeyBytes
 
     $ecdsa = [System.Security.Cryptography.ECDsa]::Create()
@@ -150,7 +155,7 @@ function New-VapidPrivateKey {
 
     $parameters = $null
     try {
-        $ecdsa.GenerateKey([System.Security.Cryptography.ECCurve]::NamedCurves.nistP256)
+        $ecdsa.GenerateKey((Get-P256Curve))
         $parameters = $ecdsa.ExportParameters($true)
         if ($null -eq $parameters.D -or $parameters.D.Length -ne 32) {
             throw 'Unable to generate a 32-byte P-256 VAPID private key.'
