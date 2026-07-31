@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../providers/useAuth';
@@ -12,6 +12,7 @@ import {
   clearEntraLoginSession,
   completeEntraLogin,
   hasEntraLoginCallback,
+  hasEntraLoginSession,
   InteractiveLoginRequiredError,
   LoginCancelledError,
   sanitizeReturnTo,
@@ -22,27 +23,59 @@ const OneTimeCodeLogin = lazy(() =>
   import('../components/OneTimeCodeLogin').then((module) => ({ default: module.OneTimeCodeLogin })),
 );
 
+const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve igen.';
+
+const isBackForwardNavigation = () =>
+  typeof performance !== 'undefined' &&
+  typeof performance.getEntriesByType === 'function' &&
+  (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
+
 export const Login = () => {
   const navigate = useNavigate();
   const { isAuthenticated, devLogin } = useAuth();
+  const [historyInterruptedLogin] = useState(() =>
+    !hasEntraLoginCallback() && hasEntraLoginSession() && isBackForwardNavigation(),
+  );
   const [isSubmitting, setIsSubmitting] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return hasEntraLoginCallback() || params.get('reauth') === '1';
+    return !historyInterruptedLogin && (hasEntraLoginCallback() || params.get('reauth') === '1');
   });
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(
+    historyInterruptedLogin ? LOGIN_INTERRUPTED_MESSAGE : null,
+  );
   const [showOtcLogin, setShowOtcLogin] = useState(false);
   // True when we arrived via the silent-reauth redirect (axios interceptor
   // sent us here because the JWT expired). While true we hide the login form
   // entirely and show only a spinner, so the user never sees the Microsoft
   // / passkey buttons flash before being sent to Microsoft.
   const [isReauth, setIsReauth] = useState(
-    () => new URLSearchParams(window.location.search).get('reauth') === '1',
+    () => !historyInterruptedLogin && new URLSearchParams(window.location.search).get('reauth') === '1',
   );
   // Guards against React.StrictMode's double-mount in dev (and against any
   // edge case where this effect runs twice). The first call navigates the
   // browser to Microsoft; the second must be a no-op to avoid generating
   // a second PKCE state that overwrites the first.
   const reauthStartedRef = useRef(false);
+
+  const recoverToLogin = useCallback((message: string) => {
+    clearReauthInFlight();
+    clearEntraLoginSession();
+    reauthStartedRef.current = false;
+    window.history.replaceState(null, '', '/login');
+    setErrorMsg(message);
+    setIsSubmitting(false);
+    setIsReauth(false);
+  }, []);
+
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted || hasEntraLoginCallback() || !hasEntraLoginSession()) return;
+      recoverToLogin(LOGIN_INTERRUPTED_MESSAGE);
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [recoverToLogin]);
 
   // Combined callback + reauth effect.
   //
@@ -54,18 +87,16 @@ export const Login = () => {
     const params = new URLSearchParams(window.location.search);
     const isCallback = hasEntraLoginCallback();
     const isReauthRequest = params.get('reauth') === '1';
+    if (historyInterruptedLogin) {
+      clearReauthInFlight();
+      clearEntraLoginSession();
+      window.history.replaceState(null, '', '/login');
+      return;
+    }
     if (!isCallback && !isReauthRequest) return;
     reauthStartedRef.current = true;
 
     const returnTo = sanitizeReturnTo(params.get('returnTo'));
-    const recoverToLogin = (message: string) => {
-      clearReauthInFlight();
-      clearEntraLoginSession();
-      window.history.replaceState(null, '', '/login');
-      setErrorMsg(message);
-      setIsSubmitting(false);
-      setIsReauth(false);
-    };
 
     if (isCallback) {
       completeEntraLogin()
@@ -107,7 +138,7 @@ export const Login = () => {
       }
       recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
     });
-  }, []);
+  }, [historyInterruptedLogin, recoverToLogin]);
 
   const handleMicrosoftLogin = async () => {
     setErrorMsg(null);
@@ -116,6 +147,7 @@ export const Login = () => {
       const returnTo = sanitizeReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
       await startEntraLogin({ returnTo });
     } catch (err: unknown) {
+      clearEntraLoginSession();
       const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
       setErrorMsg(message);
       setIsSubmitting(false);

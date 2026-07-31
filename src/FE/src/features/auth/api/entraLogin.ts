@@ -98,6 +98,8 @@ export const hasEntraLoginCallback = () => {
   return params.has('code') || params.has('error');
 };
 
+export const hasEntraLoginSession = () => loadPkceState() !== null;
+
 export const startEntraLogin = async (options: StartEntraLoginOptions = {}) => {
   const config = getOAuthConfig();
   const codeVerifier = randomUrlSafe(64);
