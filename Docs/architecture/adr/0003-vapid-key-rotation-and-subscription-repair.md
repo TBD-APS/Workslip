@@ -7,32 +7,30 @@
 
 ## Context
 
-Workslip delivers in-app notification history from the SQL notification outbox and out-of-app notifications through Web Push. Web Push requires the browser subscription and the server sender to use the same VAPID P-256 key pair.
+Workslip delivers in-app notification history from the SQL notification outbox and out-of-app notifications through Web Push. Web Push requires the browser subscription and server sender to use the same VAPID P-256 key pair.
 
-The previous implementation configured the frontend public key, backend public key and backend private key independently. The browser reused any existing `PushSubscription` without comparing its `applicationServerKey` with the currently configured key. Rotating the private key could therefore leave both an unmatched server key pair and browser subscriptions permanently tied to the previous key. In-app history could continue working while every external delivery failed.
+The previous implementation configured public and private key material independently. The exposed private key was removed from committed infrastructure, but the supported deployment path did not create its secure replacement. Production could therefore continue writing in-app notifications while all Web Push delivery failed.
 
 ## Decision
 
-1. `Vapid:PrivateKey` is the authoritative VAPID key material.
-2. The backend derives the uncompressed P-256 public key from that private key at runtime.
-3. `Vapid:PublicKey` is treated only as a migration diagnostic. A mismatch is logged without exposing either key, and the derived public key is used for sending.
-4. The authenticated push-subscription API exposes the active derived public key. The frontend no longer depends on a separately managed `VITE_VAPID_PUBLIC_KEY` value.
-5. During authenticated startup, the frontend compares the existing browser subscription's `applicationServerKey` with the active server key.
-6. A stale subscription is unsubscribed and recreated with the active key. The replacement request includes the old endpoint so the backend can deactivate exactly that database row without disabling other devices.
-7. Push delivery continues to use the notification outbox and existing retry worker. Key rotation repair occurs before future notifications are queued for that browser.
+1. `Vapid:PrivateKey` is the authoritative VAPID credential.
+2. The backend derives the matching public key at runtime and exposes it through the authenticated push-subscription API.
+3. The frontend compares the existing browser subscription with the active derived key and replaces stale subscriptions.
+4. Full infrastructure deployment preserves an enabled Key Vault secret named `Vapid--PrivateKey` and generates a valid P-256 private scalar only when that secret is missing or disabled.
+5. Deployment creates the versionless App Configuration Key Vault reference `Vapid:PrivateKey` and restarts the API.
+6. Deployment does not read, update or delete separately configured `Vapid:PublicKey` state. The historical Bicep declaration is removed, and any existing Azure value is an operator cleanup action.
 
 ## Consequences
 
-- A private-key rotation automatically produces the matching public key used by both sender and browser.
-- Existing installed PWAs repair their subscription on the next authenticated startup without asking the user to re-enable notification permission.
-- Independent devices remain active because only the explicitly replaced endpoint is disabled.
-- A missing or malformed private key produces an actionable configuration failure instead of silent use of an invalid key pair.
-- The first successful login after deployment must reach the API and the browser push service before that device is repaired.
-- Real out-of-app delivery still requires a deployed smoke test because browser push providers and the production secret cannot be proven by unit tests alone.
+- Missing private key material is repaired by the normal full deployment.
+- Ordinary deployments preserve the existing key and do not invalidate browser subscriptions.
+- A newly generated key requires each installed PWA to open once so its browser subscription can be repaired.
+- Private key material is never committed or printed by deployment.
+- Real OS-level delivery still requires a deployed smoke test.
 
 ## Rejected alternatives
 
-- Keep separate public-key values in Azure and Vercel: rejected because they can drift during rotation.
-- Reuse every existing browser subscription: rejected because subscriptions are bound to their original application server key.
-- Disable every other subscription for the user during repair: rejected because it would remove legitimate additional devices.
-- Treat HTTP 401/403 push responses as expired subscriptions: rejected because those responses may represent server key configuration failure rather than an invalid endpoint.
+- Generate a new VAPID key on every deployment: rejected because every browser subscription would become stale on every release.
+- Store the private key in Bicep or source control: rejected because it is a credential.
+- Keep independently managed frontend and backend public-key settings: rejected because they can drift from the private key.
+- Disable all subscriptions during repair: rejected because users may have legitimate subscriptions on several devices.
