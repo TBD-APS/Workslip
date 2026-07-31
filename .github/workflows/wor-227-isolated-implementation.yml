@@ -24,208 +24,219 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+          import textwrap
 
           service_path = Path('src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs')
           service = service_path.read_text(encoding='utf-8')
 
-          old_factory = '''        var cacheKey = BuildJobListCacheKey(query);
-          var jobList = await _jobRepository.ListAsync(query, cancellationToken);
-          var result = await cache.GetOrCreateAsync(
-              cacheKey,
-              async token => jobList,
-          '''
-          new_factory = '''        var cacheKey = BuildJobListCacheKey(query);
-          var result = await cache.GetOrCreateAsync(
-              cacheKey,
-              token => _jobRepository.ListAsync(query, token),
-          '''
+          factory_pattern = re.compile(
+              r'(?m)^(?P<indent>\s*)var cacheKey = BuildJobListCacheKey\(query\);\n'
+              r'(?P=indent)var jobList = await _jobRepository\.ListAsync\(query, cancellationToken\);\n'
+              r'(?P=indent)var result = await cache\.GetOrCreateAsync\(\n'
+              r'(?P=indent)    cacheKey,\n'
+              r'(?P=indent)    async token => jobList,\n'
+          )
 
-          if old_factory in service:
-              service = service.replace(old_factory, new_factory, 1)
-          elif new_factory not in service:
+          def replace_factory(match: re.Match[str]) -> str:
+              indent = match.group('indent')
+              return (
+                  f'{indent}var cacheKey = BuildJobListCacheKey(query);\n'
+                  f'{indent}var result = await cache.GetOrCreateAsync(\n'
+                  f'{indent}    cacheKey,\n'
+                  f'{indent}    token => _jobRepository.ListAsync(query, token),\n'
+              )
+
+          service, factory_count = factory_pattern.subn(replace_factory, service, count=1)
+          if factory_count == 0 and 'token => _jobRepository.ListAsync(query, token),' not in service:
               raise SystemExit('Expected eager job-list cache factory was not found.')
 
-          old_key = '''        return $"jobs:list:organization={query.OrganizationId:N}:status={statusKey}" +
-          '''
-          new_key = '''        var currentUserKey = query.CurrentUserId?.ToString("N") ?? "none";
+          key_pattern = re.compile(
+              r'(?m)^(?P<indent>\s*)return \$"jobs:list:organization=\{query\.OrganizationId:N\}:status=\{statusKey\}" \+'
+          )
 
-          return $"jobs:list:organization={query.OrganizationId:N}:currentUser={currentUserKey}:status={statusKey}" +
-          '''
+          def replace_key(match: re.Match[str]) -> str:
+              indent = match.group('indent')
+              return (
+                  f'{indent}var currentUserKey = query.CurrentUserId?.ToString("N") ?? "none";\n\n'
+                  f'{indent}return $"jobs:list:organization={{query.OrganizationId:N}}:currentUser={{currentUserKey}}:status={{statusKey}}" +'
+              )
 
-          if old_key in service:
-              service = service.replace(old_key, new_key, 1)
-          elif new_key not in service:
+          service, key_count = key_pattern.subn(replace_key, service, count=1)
+          if key_count == 0 and ':currentUser={currentUserKey}:status={statusKey}' not in service:
               raise SystemExit('Expected shared job-list cache key was not found.')
 
           service_path.write_text(service, encoding='utf-8')
 
           test_path = Path('src/BE/WorkslipApi/Workslip.Tests/Jobs/JobListCacheIsolationTests.cs')
-          test_path.write_text('''using Microsoft.Extensions.Caching.Hybrid;
-          using Microsoft.Extensions.DependencyInjection;
-          using Microsoft.Extensions.Logging.Abstractions;
-          using Workslip.Application.Auth;
-          using Workslip.Application.Jobs;
-          using Workslip.Domain;
-          using Xunit;
+          test_path.write_text(textwrap.dedent('''\
+              using Microsoft.Extensions.Caching.Hybrid;
+              using Microsoft.Extensions.DependencyInjection;
+              using Microsoft.Extensions.Logging.Abstractions;
+              using Workslip.Application.Auth;
+              using Workslip.Application.Jobs;
+              using Workslip.Domain;
+              using Xunit;
 
-          namespace Workslip.Tests.Jobs;
+              namespace Workslip.Tests.Jobs;
 
-          public sealed class JobListCacheIsolationTests
-          {
-              [Fact]
-              public async Task ListAsync_DoesNotReuseSeenStateAcrossUsers()
+              public sealed class JobListCacheIsolationTests
               {
-                  var organizationId = Guid.NewGuid();
-                  var seenUserId = Guid.NewGuid();
-                  var unseenUserId = Guid.NewGuid();
-                  var repository = new UserAwareJobRepository(organizationId, seenUserId);
-
-                  using var services = CreateCacheServices();
-                  var cache = services.GetRequiredService<HybridCache>();
-                  var seenUserService = CreateService(repository, cache, organizationId, seenUserId);
-                  var unseenUserService = CreateService(repository, cache, organizationId, unseenUserId);
-
-                  var seenResult = await ListDraftsAsync(seenUserService);
-                  var unseenResult = await ListDraftsAsync(unseenUserService);
-
-                  Assert.True(seenResult.IsSuccess);
-                  Assert.True(unseenResult.IsSuccess);
-                  Assert.True(seenResult.Value.Items.Single().IsSeenByCurrentUser);
-                  Assert.False(unseenResult.Value.Items.Single().IsSeenByCurrentUser);
-              }
-
-              [Fact]
-              public async Task ListAsync_ReusesCacheForTheSameUser()
-              {
-                  var organizationId = Guid.NewGuid();
-                  var userId = Guid.NewGuid();
-                  var repository = new UserAwareJobRepository(organizationId, userId);
-
-                  using var services = CreateCacheServices();
-                  var service = CreateService(
-                      repository,
-                      services.GetRequiredService<HybridCache>(),
-                      organizationId,
-                      userId);
-
-                  await ListDraftsAsync(service);
-                  await ListDraftsAsync(service);
-
-                  Assert.Equal(1, repository.ListCallCount);
-              }
-
-              private static ServiceProvider CreateCacheServices()
-              {
-                  var services = new ServiceCollection();
-                  services.AddHybridCache();
-                  return services.BuildServiceProvider();
-              }
-
-              private static Task<Ardalis.Result.Result<JobListResponse>> ListDraftsAsync(JobService service) =>
-                  service.ListAsync(
-                      [JobStatus.Draft],
-                      reportNumber: null,
-                      customerName: null,
-                      customerEmail: null,
-                      customerAddress: null,
-                      search: null,
-                      sortBy: null,
-                      sortDirection: null,
-                      limit: 20,
-                      offset: 0,
-                      CancellationToken.None);
-
-              private static JobService CreateService(
-                  IJobRepository repository,
-                  HybridCache cache,
-                  Guid organizationId,
-                  Guid userId) =>
-                  new(
-                      repository,
-                      null!,
-                      null!,
-                      null!,
-                      null!,
-                      null!,
-                      null!,
-                      cache,
-                      null!,
-                      null!,
-                      null!,
-                      new TestCurrentUserContext(userId, organizationId, Roles.User),
-                      NullLogger<JobService>.Instance,
-                      null!,
-                      null!,
-                      null!);
-
-              private sealed record TestCurrentUserContext(
-                  Guid? UserId,
-                  Guid? OrganizationId,
-                  string? Role) : ICurrentUserContext;
-
-              private sealed class UserAwareJobRepository(Guid organizationId, Guid seenUserId) : IJobRepository
-              {
-                  private readonly Guid jobId = Guid.NewGuid();
-
-                  internal int ListCallCount { get; private set; }
-
-                  public Task<JobListResponse> ListAsync(JobQuery query, CancellationToken cancellationToken)
+                  [Fact]
+                  public async Task ListAsync_DoesNotReuseSeenStateAcrossUsers()
                   {
-                      ListCallCount++;
-                      var now = DateTimeOffset.UtcNow;
-                      var item = new JobListItemResponse(
-                          jobId,
-                          organizationId,
-                          Customer: null,
-                          ReportNumber: "0001",
-                          Status: JobStatus.Draft,
-                          ReportDate: null,
-                          JobType: JobType.KLS,
-                          DestinationAddress: null,
-                          DestinationZipCode: null,
-                          DestinationCity: null,
-                          TaskDescription: null,
-                          InstallationTypes: [],
-                          WorkKind: null,
-                          CreatedAt: now,
-                          UpdatedAt: now,
-                          AssignedUsers: [],
-                          SoftDeleted: false,
-                          DeletionScheduledAt: null,
-                          TotalHours: null,
-                          IsSeenByCurrentUser: query.CurrentUserId == seenUserId,
-                          IsNewRejection: false,
-                          RejectionNote: null);
+                      var organizationId = Guid.NewGuid();
+                      var seenUserId = Guid.NewGuid();
+                      var unseenUserId = Guid.NewGuid();
+                      var repository = new UserAwareJobRepository(organizationId, seenUserId);
 
-                      return Task.FromResult(new JobListResponse([item], 1));
+                      using var services = CreateCacheServices();
+                      var cache = services.GetRequiredService<HybridCache>();
+                      var seenUserService = CreateService(repository, cache, organizationId, seenUserId);
+                      var unseenUserService = CreateService(repository, cache, organizationId, unseenUserId);
+
+                      var seenResult = await ListDraftsAsync(seenUserService);
+                      var unseenResult = await ListDraftsAsync(unseenUserService);
+
+                      Assert.True(seenResult.IsSuccess);
+                      Assert.True(unseenResult.IsSuccess);
+                      Assert.True(seenResult.Value.Items.Single().IsSeenByCurrentUser);
+                      Assert.False(unseenResult.Value.Items.Single().IsSeenByCurrentUser);
+                      Assert.Equal(2, repository.ListCallCount);
                   }
 
-                  public Task<JobReportResponse> CreateAsync(Guid organizationId, CreateJobRequest request, IReadOnlyList<Guid> assignedUserIds, Guid? actorId, CancellationToken cancellationToken) =>
-                      throw new NotSupportedException();
+                  [Fact]
+                  public async Task ListAsync_ReusesCacheForTheSameUser()
+                  {
+                      var organizationId = Guid.NewGuid();
+                      var userId = Guid.NewGuid();
+                      var repository = new UserAwareJobRepository(organizationId, userId);
 
-                  public Task<JobReportResponse?> GetSingleJobAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
-                      throw new NotSupportedException();
+                      using var services = CreateCacheServices();
+                      var service = CreateService(
+                          repository,
+                          services.GetRequiredService<HybridCache>(),
+                          organizationId,
+                          userId);
 
-                  public Task<IReadOnlyList<JobHistoryResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
-                      throw new NotSupportedException();
+                      await ListDraftsAsync(service);
+                      await ListDraftsAsync(service);
 
-                  public Task<JobReportResponse?> UpdateAsync(Guid id, Guid organizationId, UpdateJobRequest request, CancellationToken cancellationToken) =>
-                      throw new NotSupportedException();
+                      Assert.Equal(1, repository.ListCallCount);
+                  }
 
-                  public Task<JobTransitionResult?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, string? rejectionNote, CancellationToken cancellationToken) =>
-                      throw new NotSupportedException();
+                  private static ServiceProvider CreateCacheServices()
+                  {
+                      var services = new ServiceCollection();
+                      services.AddHybridCache();
+                      return services.BuildServiceProvider();
+                  }
 
-                  public Task<JobDeleteRepositoryResult> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
-                      throw new NotSupportedException();
+                  private static Task<Ardalis.Result.Result<JobListResponse>> ListDraftsAsync(JobService service) =>
+                      service.ListAsync(
+                          [JobStatus.Draft],
+                          reportNumber: null,
+                          customerName: null,
+                          customerEmail: null,
+                          customerAddress: null,
+                          search: null,
+                          sortBy: null,
+                          sortDirection: null,
+                          limit: 20,
+                          offset: 0,
+                          CancellationToken.None);
 
-                  public Task<JobReportResponse?> RestoreDeletionAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
-                      throw new NotSupportedException();
+                  private static JobService CreateService(
+                      IJobRepository repository,
+                      HybridCache cache,
+                      Guid organizationId,
+                      Guid userId) =>
+                      new(
+                          repository,
+                          null!,
+                          null!,
+                          null!,
+                          null!,
+                          null!,
+                          null!,
+                          cache,
+                          null!,
+                          null!,
+                          null!,
+                          new TestCurrentUserContext(userId, organizationId, Roles.User),
+                          NullLogger<JobService>.Instance,
+                          null!,
+                          null!,
+                          null!);
 
-                  public Task<int> PurgeDeletionScheduledBeforeAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>
-                      throw new NotSupportedException();
+                  private sealed record TestCurrentUserContext(
+                      Guid? UserId,
+                      Guid? OrganizationId,
+                      string? Role) : ICurrentUserContext;
+
+                  private sealed class UserAwareJobRepository(Guid organizationId, Guid seenUserId) : IJobRepository
+                  {
+                      private readonly Guid jobId = Guid.NewGuid();
+
+                      internal int ListCallCount { get; private set; }
+
+                      public Task<JobListResponse> ListAsync(JobQuery query, CancellationToken cancellationToken)
+                      {
+                          ListCallCount++;
+                          var now = DateTimeOffset.UtcNow;
+                          var item = new JobListItemResponse(
+                              jobId,
+                              organizationId,
+                              Customer: null,
+                              ReportNumber: "0001",
+                              Status: JobStatus.Draft,
+                              ReportDate: null,
+                              JobType: JobType.KLS,
+                              DestinationAddress: null,
+                              DestinationZipCode: null,
+                              DestinationCity: null,
+                              TaskDescription: null,
+                              InstallationTypes: [],
+                              WorkKind: null,
+                              CreatedAt: now,
+                              UpdatedAt: now,
+                              AssignedUsers: [],
+                              SoftDeleted: false,
+                              DeletionScheduledAt: null,
+                              TotalHours: null,
+                              IsSeenByCurrentUser: query.CurrentUserId == seenUserId,
+                              IsNewRejection: false,
+                              RejectionNote: null);
+
+                          return Task.FromResult(new JobListResponse([item], 1));
+                      }
+
+                      public Task<JobReportResponse> CreateAsync(Guid organizationId, CreateJobRequest request, IReadOnlyList<Guid> assignedUserIds, Guid? actorId, CancellationToken cancellationToken) =>
+                          throw new NotSupportedException();
+
+                      public Task<JobReportResponse?> GetSingleJobAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
+                          throw new NotSupportedException();
+
+                      public Task<IReadOnlyList<JobHistoryResponse>?> GetEventsAsync(Guid id, Guid organizationId, int limit, int offset, CancellationToken cancellationToken) =>
+                          throw new NotSupportedException();
+
+                      public Task<JobReportResponse?> UpdateAsync(Guid id, Guid organizationId, UpdateJobRequest request, CancellationToken cancellationToken) =>
+                          throw new NotSupportedException();
+
+                      public Task<JobTransitionResult?> TransitionAsync(Guid id, Guid organizationId, JobStatus nextStatus, Guid? actorId, string? rejectionNote, CancellationToken cancellationToken) =>
+                          throw new NotSupportedException();
+
+                      public Task<JobDeleteRepositoryResult> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
+                          throw new NotSupportedException();
+
+                      public Task<JobReportResponse?> RestoreDeletionAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
+                          throw new NotSupportedException();
+
+                      public Task<int> PurgeDeletionScheduledBeforeAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>
+                          throw new NotSupportedException();
+                  }
               }
-          }
-          '''.replace('          ', ''), encoding='utf-8')
+              '''), encoding='utf-8')
           PY
 
           git diff --check
