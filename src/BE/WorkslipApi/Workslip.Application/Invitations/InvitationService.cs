@@ -25,10 +25,20 @@ public sealed class InvitationService(
             return Result<InviteUsersResponse>.Unauthorized();
         }
 
+        var role = NormalizeInviteRole(request.Role);
+        if (role is null)
+        {
+            return Result<InviteUsersResponse>.Invalid(new ValidationError
+            {
+                Identifier = nameof(InviteUsersRequest.Role),
+                ErrorMessage = "Rollen skal være User eller Auditor."
+            });
+        }
+
         var results = new List<InviteUserResult>();
         foreach (var email in request.Emails)
         {
-            var result = await ProcessInviteEmailAsync(email, organizationId.Value, request.Role, cancellationToken);
+            var result = await ProcessInviteEmailAsync(email, organizationId.Value, role, cancellationToken);
             results.Add(result);
         }
 
@@ -142,7 +152,7 @@ public sealed class InvitationService(
     private async Task<InviteUserResult> ProcessInviteEmailAsync(
         string email,
         Guid organizationId,
-        string? role,
+        string role,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(email))
@@ -178,12 +188,17 @@ public sealed class InvitationService(
                 inviteId = existingInvite.Id;
                 existingInvite.ExpiresAt = DateTimeOffset.UtcNow.AddDays(7);
                 existingInvite.Token = token;
+                existingInvite.Role = role;
                 existingInvite.Consumed = false;
                 await inviteRepository.UpdateAsync(existingInvite, cancellationToken);
             }
 
             await emailService.SendInviteEmailAsync(normalizedEmail, token, cancellationToken);
-            logger.LogInformation("Invite sent. InviteId: {InviteId}. OrganizationId: {OrganizationId}", inviteId, organizationId);
+            logger.LogInformation(
+                "Invite sent. InviteId: {InviteId}. OrganizationId: {OrganizationId}. Role: {Role}.",
+                inviteId,
+                organizationId,
+                role);
 
             // The token is delivered only to the recipient by email and must not be returned by the API.
             return new InviteUserResult(normalizedEmail, true, null, null);
@@ -336,6 +351,27 @@ public sealed class InvitationService(
     {
         invite.EntraCleanedAt = DateTimeOffset.UtcNow;
         await inviteRepository.UpdateAsync(invite, cancellationToken);
+    }
+
+    private static string? NormalizeInviteRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+        {
+            return Roles.User;
+        }
+
+        var normalized = role.Trim();
+        if (normalized.Equals(Roles.User, StringComparison.OrdinalIgnoreCase))
+        {
+            return Roles.User;
+        }
+
+        if (normalized.Equals(Roles.Auditor, StringComparison.OrdinalIgnoreCase))
+        {
+            return Roles.Auditor;
+        }
+
+        return null;
     }
 
     private static UserDataRow BuildUserFromInvite(InviteTokenRow invite, string displayName, string? phone) =>

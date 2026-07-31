@@ -20,10 +20,15 @@ import { ErrorState } from '../../../components/ErrorState';
 import { usePostApiAuthInvite } from '../../../api/generated/auth/auth';
 import { useDeleteApiAuthInvite, useGetApiAuthInvites, type InviteTokenResponse } from '../api';
 
+type InviteRole = 'User' | 'Auditor';
+
+const getInviteRoleLabel = (role: string | null) => role === 'Auditor' ? 'Revisor' : 'Medarbejder';
+
 export const Settings = () => {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [emails, setEmails] = useState<string[]>([]);
+  const [inviteRole, setInviteRole] = useState<InviteRole>('User');
   const [clearingInviteId, setClearingInviteId] = useState<string | null>(null);
 
   const invitesQuery = useGetApiAuthInvites();
@@ -68,7 +73,7 @@ export const Settings = () => {
       await inviteMutation.mutateAsync({
         data: {
           emails,
-          role: null,
+          role: inviteRole,
           inviteBaseUrl: window.location.origin,
         },
       });
@@ -118,6 +123,25 @@ export const Settings = () => {
           <MailPlus size={18} />
           Inviter brugere
         </h3>
+
+        <div className="form-group invite-role-field">
+          <label className="form-label" htmlFor="invite-role">
+            Rolle for invitationerne
+          </label>
+          <select
+            id="invite-role"
+            className="form-input"
+            value={inviteRole}
+            onChange={(event) => setInviteRole(event.target.value as InviteRole)}
+            disabled={inviteMutation.isPending}
+          >
+            <option value="User">Medarbejder (User)</option>
+            <option value="Auditor">Revisor (Auditor)</option>
+          </select>
+          <p className="form-help-text">
+            Alle e-mailadresser i denne invitation får den valgte rolle.
+          </p>
+        </div>
 
         <div className="invite-input-row">
           <input
@@ -208,6 +232,7 @@ export const Settings = () => {
                       <Icon size={12} />
                       {st.label}
                     </span>
+                    <span className="invite-role-badge">{getInviteRoleLabel(invite.role)}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <span className="invite-status-date">

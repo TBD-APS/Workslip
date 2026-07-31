@@ -1,4 +1,4 @@
-﻿@charset "UTF-8";
+@charset "UTF-8";
 
 /* Sonner Toast â€” force safe-area-inset-top via CSS (env() in inline styles unreliable on iOS) */
 [data-sonner-toaster][data-y-position="top"] {
@@ -4746,6 +4746,16 @@
   background: var(--surface-selected-strong);
 }
 
+.invite-role-field {
+  margin-bottom: 1rem;
+}
+
+.invite-role-field .form-help-text {
+  margin: 0.4rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
 .invite-input-row {
   display: flex;
   gap: 0.5rem;
@@ -4801,6 +4811,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);
+}
+
+.invite-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
 }
 
 .invite-status-badge {

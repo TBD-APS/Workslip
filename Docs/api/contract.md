@@ -93,12 +93,15 @@ The display field is additive. Clients that do not yet understand it may continu
 
 ## Invitation administration
 
-Admin-authorized invitation status operations are:
+Admin-authorized invitation operations are:
 
 ```text
+POST   /api/auth/invite
 GET    /api/auth/invites
 DELETE /api/auth/invites/{inviteId}
 ```
+
+`POST /api/auth/invite` accepts one or more e-mail addresses and an invitation role. The only assignable roles are canonical `User` and `Auditor`; missing or blank roles retain the backward-compatible `User` default. Any other value, including `Admin` and `Superadmin`, is rejected before an invitation or e-mail side effect occurs. Resending a pending invitation replaces its role with the latest valid selection.
 
 The delete operation is tenant-scoped by the authenticated organization. A pending invitation is atomically revoked and its token rotated before any external cleanup starts, so concurrent enrollment and clearing cannot both succeed. When Workslip created an Entra guest specifically for that pending invitation, the guest is removed before the revoked status row is deleted. If Graph cleanup fails, the revoked row remains as durable retry state. Accepted invitations only have their historical status row removed; the enrolled user is not deleted.
 
