@@ -132,7 +132,7 @@ describe('push subscription registration', () => {
       await result.current.register();
     });
 
-    expect(registerPushSubscription).toHaveBeenCalledWith({
+    expect(vi.mocked(registerPushSubscription).mock.calls[0]?.[0]).toEqual({
       endpoint: 'https://push.example/superadmin',
       keys: {
         p256Dh: 'BAUG',
