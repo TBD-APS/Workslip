@@ -24,7 +24,7 @@ Cross-organization operational access is not represented by moving the row, maki
 
 Development startup preflights the complete reserved organization identity, canonical IDs and normalized emails, platform-tenant contamination, and all user-bound operational references before it changes local data or calls Microsoft Graph. Platform/demo creation and canonical user reconciliation run in one serializable relational transaction. Graph identities are resolved before canonical local writes; any newly created identities are tracked and deleted in reverse order if a later Graph call, concurrency-guarded user update, database write, or commit fails. The local transaction is rolled back on the same failure. Moving a canonical Superadmin therefore never silently moves tenant data or leaves a partially reconciled platform identity.
 
-The frontend stores the original Superadmin token separately, clears tenant query state when entering or leaving a delegated session, and displays the active organization. The delegated token expires after 15 minutes by default and has no refresh flow. Superadmins cannot register tenant push subscriptions during this flow.
+The frontend stores the original Superadmin token separately, clears tenant query state when entering or leaving a delegated session, and displays the active organization. The delegated token expires after 15 minutes by default and has no refresh flow. Push subscriptions, notification queue rows, history and delivery lookup remain scoped to the real actor's `UserId`; delegated organization selection does not broaden notification targeting.
 
 ## Foreign-key deletion behavior
 
