@@ -1,0 +1,122 @@
+name: TEMP — WOR-223 final validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/wor-223-final-validation.yml'
+      - 'src/FE/src/features/users/hooks/usePushNotifications.ts'
+      - 'src/FE/src/features/users/hooks/usePushNotifications.test.ts'
+      - 'src/FE/src/providers/permissions/permissions.ts'
+      - 'src/FE/src/providers/sessionFeaturePolicy.test.ts'
+      - 'src/BE/WorkslipApi/Endpoints/PushNotificationEndpoints.cs'
+      - 'src/BE/WorkslipApi/Workslip.Tests/Notifications/PushNotificationEndpointsTests.cs'
+      - 'Docs/api/contract.md'
+      - 'Docs/api/endpoint-catalog.md'
+      - 'Docs/architecture/adr/0003-vapid-key-rotation-and-subscription-repair.md'
+      - 'Docs/architecture/domain-and-dataflows.md'
+
+permissions:
+  contents: read
+
+env:
+  OPENAPI_BASE_URL: 'https://api-mrsoftware-prod.azurewebsites.net'
+
+jobs:
+  frontend:
+    name: Final frontend validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - name: Install dependencies
+        working-directory: src/FE
+        run: npm ci
+      - name: Generate API client
+        working-directory: src/FE
+        run: npx orval --config orval.config.ts
+        env:
+          VITE_API_BASE_URL: ${{ env.OPENAPI_BASE_URL }}
+      - name: Lint affected files
+        working-directory: src/FE
+        run: >-
+          npx eslint
+          src/providers/permissions/permissions.ts
+          src/providers/sessionFeaturePolicy.test.ts
+          src/features/users/hooks/usePushNotifications.ts
+          src/features/users/hooks/usePushNotifications.test.ts
+      - name: Run focused tests
+        working-directory: src/FE
+        run: >-
+          npm test -- --run
+          src/providers/sessionFeaturePolicy.test.ts
+          src/features/users/hooks/usePushNotifications.test.ts
+      - name: Build production frontend
+        working-directory: src/FE
+        run: npm run build
+
+  backend:
+    name: Final backend validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore tests
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+      - name: Build Release
+        run: >-
+          dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-restore
+      - name: Run focused tests
+        run: >-
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+          --configuration Release
+          --no-build
+          --filter FullyQualifiedName~PushNotificationEndpointsTests
+
+  documentation:
+    name: Final documentation and scope validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Compare documentation baseline
+        run: |
+          set +e
+          python3 tools/docs/check_docs.py > /tmp/branch-docs.log 2>&1
+          branch_status=$?
+          set -e
+          git worktree add --detach /tmp/workslip-main origin/main
+          set +e
+          (cd /tmp/workslip-main && python3 tools/docs/check_docs.py) > /tmp/main-docs.log 2>&1
+          main_status=$?
+          set -e
+          if [[ "${branch_status}" != "${main_status}" ]]; then
+            cat /tmp/branch-docs.log
+            exit 1
+          fi
+          diff -u /tmp/main-docs.log /tmp/branch-docs.log
+      - name: Verify final product diff
+        run: |
+          git diff --check origin/main...HEAD
+          test "$(git diff --name-only origin/main...HEAD | grep -E '^\.github/workflows/|^src/FE/wor-223-' | wc -l)" -eq 1
+          if grep -q 'isSuperadminAuthToken' src/FE/src/features/users/hooks/usePushNotifications.ts; then
+            exit 1
+          fi
+          if grep -q 'Roles.Superadmin' src/BE/WorkslipApi/Endpoints/PushNotificationEndpoints.cs; then
+            exit 1
+          fi
+          if grep -R -n 'Superadmins cannot register tenant push subscriptions' Docs/api Docs/architecture; then
+            exit 1
+          fi
