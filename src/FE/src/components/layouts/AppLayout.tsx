@@ -50,6 +50,10 @@ export const AppLayout = () => {
   const handleLogout = () => {
     clearOrganizationSession();
     logout();
+    // Navigate immediately rather than waiting for ProtectedRoute to render
+    // a <Navigate to="/login"> — avoids a single frame of protected content
+    // still being visible after the user clicked logout, and prevents a
+    // browser-back race where the protected URL is briefly visible again.
     navigate('/login', { replace: true });
   };
 
@@ -59,6 +63,8 @@ export const AppLayout = () => {
       return;
     }
 
+    // A full navigation recreates AuthProvider with the restored token and
+    // clears all in-memory tenant queries before the Superadmin page renders.
     window.location.assign('/superadmin');
   };
 
@@ -76,6 +82,8 @@ export const AppLayout = () => {
         window.clearTimeout(focusCheckTimeoutId);
       }
 
+      // Allow the next element to receive focus before deciding whether the
+      // mobile keyboard-dependent layout should be restored.
       focusCheckTimeoutId = window.setTimeout(handleFocusChange, 50);
     };
 
@@ -111,6 +119,7 @@ export const AppLayout = () => {
   return (
     <DropdownProvider>
       <div className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
+        {/* Top Header for Mobile */}
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
           <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -217,10 +226,12 @@ export const AppLayout = () => {
         </div>
       )}
 
+      {/* Main Content Area */}
       <main className="app-content">
         <Outlet />
       </main>
 
+      {/* Bottom Navigation (Mobile First) */}
       <nav className="bottom-nav">
         <NavLink to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
           <ClipboardList size={24} />
@@ -246,6 +257,7 @@ export const AppLayout = () => {
         </Can>
       </nav>
 
+      {/* Floating Create Button - only on Sager list */}
       {location.pathname === '/app' && (
         <Can permission="job:create">
           <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
