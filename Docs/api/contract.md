@@ -73,7 +73,7 @@ On success it returns the standard `AuthTokenResponse` with a short-lived local 
 
 The delegated token expires after 15 minutes by default. `Jwt:OrganizationSessionExpiryMinutes` may configure a value from 1 through 30 minutes. It has no refresh flow. Selecting an organization does not update the user row, create a membership, modify Entra, or change any tenant service contract.
 
-The frontend preserves the original Superadmin token, clears tenant query state before entering or leaving an organization, displays the effective organization continuously, and restores the original token on explicit exit or delegated-token expiry. Superadmins cannot register tenant push subscriptions, and tenant notification/profile UI is hidden during delegated use.
+The frontend preserves the original Superadmin token, clears tenant query state before entering or leaving an organization, displays the effective organization continuously, and restores the original token on explicit exit or delegated-token expiry. Push subscriptions and notification history remain scoped to the real authenticated actor's `UserId`, so Superadmin notification registration and UI remain available during delegated use without creating a tenant-wide feed. Profile UI remains hidden for Superadmins.
 
 The official frontend exposes Superadmin organization administration and delegated
 organization sessions across desktop browsers, mobile browsers, and installed PWA
