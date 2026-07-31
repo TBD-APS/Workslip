@@ -1,9 +1,9 @@
 name: TEMP — Diagnose WOR-222 NuGet vulnerabilities
 
 on:
-  push:
+  pull_request:
     branches:
-      - rbj--222-resolve-nuget-vulnerabilities
+      - main
 
 permissions:
   contents: read
