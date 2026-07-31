@@ -1,4 +1,4 @@
-name: TEMP — Diagnose WOR-222 NuGet vulnerabilities
+name: TEMP — Validate WOR-222 NuGet security updates
 
 on:
   pull_request:
@@ -9,9 +9,9 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -22,14 +22,37 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore backend test graph
-        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+      - name: Restore without vulnerability warnings
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj 2>&1 | tee restore.log
+          if grep -q 'NU1903' restore.log; then
+            echo 'NU1903 remains after package updates.'
+            exit 1
+          fi
 
-      - name: List vulnerable packages
-        run: dotnet package list --project src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --vulnerable --include-transitive
+      - name: Verify vulnerable package list is empty
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet package list --project src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --vulnerable --include-transitive 2>&1 | tee vulnerable-packages.log
+          if grep -Eq 'SQLitePCLRaw\.lib\.e_sqlite3[[:space:]]+2\.1\.11|System\.Security\.Cryptography\.Xml[[:space:]]+10\.0\.7' vulnerable-packages.log; then
+            echo 'A known vulnerable package version remains in the restored graph.'
+            exit 1
+          fi
 
-      - name: Trace SQLite dependency
-        run: dotnet nuget why src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj SQLitePCLRaw.lib.e_sqlite3 --framework net10.0
+      - name: Verify resolved dependency versions
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet nuget why src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj SQLitePCLRaw.lib.e_sqlite3 --framework net10.0 | tee sqlite-dependency.log
+          dotnet nuget why src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj System.Security.Cryptography.Xml --framework net10.0 | tee xml-dependency.log
+          grep -q 'SQLitePCLRaw.lib.e_sqlite3 (v2.1.12)' sqlite-dependency.log
+          grep -q 'System.Security.Cryptography.Xml (v10.0.10)' xml-dependency.log
 
-      - name: Trace XML crypto dependency
-        run: dotnet nuget why src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj System.Security.Cryptography.Xml --framework net10.0
+      - name: Build backend tests in Release
+        run: dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-restore
+
+      - name: Run backend and relational tests
+        run: dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-build
