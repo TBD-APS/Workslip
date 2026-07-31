@@ -233,7 +233,14 @@ test.describe('Admin desktop', () => {
 });
 
 test.describe('User mobile', () => {
-  test.use(devices['Pixel 7']);
+  const pixel7 = devices['Pixel 7'];
+  test.use({
+    viewport: pixel7.viewport,
+    userAgent: pixel7.userAgent,
+    deviceScaleFactor: pixel7.deviceScaleFactor,
+    isMobile: pixel7.isMobile,
+    hasTouch: pixel7.hasTouch,
+  });
 
   test('shows assigned active and rejected jobs in one filter', async ({ page }) => {
     await validateCombinedFilter(page, users.user, 'Rejected');
