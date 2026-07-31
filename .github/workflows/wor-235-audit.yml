@@ -1,0 +1,51 @@
+name: TEMP - WOR-235 frontend audit
+
+on:
+  push:
+    branches:
+      - rbj--235-frontend-audit-vulnerabilities
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/FE
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - run: npm ci
+      - name: Capture maintained dependency audit
+        run: npm audit --json > npm-audit.json || true
+      - name: Print actionable audit summary
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const audit = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
+          console.log(JSON.stringify(audit.metadata, null, 2));
+          for (const [name, item] of Object.entries(audit.vulnerabilities ?? {})) {
+            console.log(`\nPACKAGE ${name}`);
+            console.log(JSON.stringify({
+              severity: item.severity,
+              isDirect: item.isDirect,
+              via: item.via,
+              effects: item.effects,
+              range: item.range,
+              nodes: item.nodes,
+              fixAvailable: item.fixAvailable,
+            }, null, 2));
+          }
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wor-235-npm-audit
+          path: src/FE/npm-audit.json
+          if-no-files-found: error
