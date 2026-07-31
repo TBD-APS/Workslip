@@ -1,1 +1,1 @@
-Trigger the current WOR-246 implementation workflow after the idempotent repair.
+Trigger WOR-246 implementation after focused validation repairs.
