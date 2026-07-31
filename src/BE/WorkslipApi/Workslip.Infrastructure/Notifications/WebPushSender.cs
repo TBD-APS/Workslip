@@ -1,11 +1,16 @@
+using System.Text.Json;
 using WebPush;
 using Workslip.Application.Notifications;
 using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Notifications;
 
-public sealed class WebPushSender(VapidKeyMaterial keyMaterial) : IPushSender
+public sealed class WebPushSender(
+    VapidKeyMaterial keyMaterial,
+    IWebPushClient webPushClient) : IPushSender
 {
+    private const string VapidPublicKeyMismatchReason = "VapidPkHashMismatch";
+
     public async Task<PushSenderResult> SendNotificationAsync(
         PushSubscriptionRow subscription,
         string payloadJson,
@@ -22,7 +27,6 @@ public sealed class WebPushSender(VapidKeyMaterial keyMaterial) : IPushSender
                 keyMaterial.PublicKey,
                 keyMaterial.PrivateKey);
 
-            using var webPushClient = new WebPushClient();
             await webPushClient.SendNotificationAsync(
                 pushSubscription,
                 payloadJson,
@@ -34,11 +38,14 @@ public sealed class WebPushSender(VapidKeyMaterial keyMaterial) : IPushSender
         catch (WebPushException exception)
         {
             var statusCode = (int)exception.StatusCode;
-            var isExpired = statusCode is 404 or 410;
+            var shouldDeactivateSubscription = statusCode is 404 or 410
+                || statusCode == 400
+                && await HasVapidPublicKeyMismatchReasonAsync(exception, cancellationToken);
+
             return new PushSenderResult(
                 false,
                 $"WebPush error (HTTP {statusCode}): {exception.Message}",
-                isExpired);
+                shouldDeactivateSubscription);
         }
         catch (Exception exception)
         {
@@ -46,6 +53,34 @@ public sealed class WebPushSender(VapidKeyMaterial keyMaterial) : IPushSender
                 false,
                 $"Unexpected error sending push notification: {exception.Message}",
                 false);
+        }
+    }
+
+    private static async Task<bool> HasVapidPublicKeyMismatchReasonAsync(
+        WebPushException exception,
+        CancellationToken cancellationToken)
+    {
+        if (exception.HttpResponseMessage.Content is null)
+        {
+            return false;
+        }
+
+        var details = await exception.HttpResponseMessage.Content
+            .ReadAsStringAsync(cancellationToken);
+
+        try
+        {
+            using var document = JsonDocument.Parse(details);
+            return document.RootElement.TryGetProperty("reason", out var reason)
+                && reason.ValueKind == JsonValueKind.String
+                && string.Equals(
+                    reason.GetString(),
+                    VapidPublicKeyMismatchReason,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 }
