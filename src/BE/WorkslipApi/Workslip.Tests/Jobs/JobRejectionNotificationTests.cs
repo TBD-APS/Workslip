@@ -29,7 +29,9 @@ public sealed class JobRejectionNotificationTests
             new AssignedUserResponse(submitterId, "Montør"));
         var notifications = new RecordingNotificationService();
 
-        using var services = new ServiceCollection().AddHybridCache().BuildServiceProvider();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddHybridCache();
+        using var services = serviceCollection.BuildServiceProvider();
         var service = CreateService(
             repository,
             assignments,
@@ -63,7 +65,9 @@ public sealed class JobRejectionNotificationTests
         var assignments = new RecordingAssignmentRepository(organizationId, submitter: null);
         var notifications = new RecordingNotificationService();
 
-        using var services = new ServiceCollection().AddHybridCache().BuildServiceProvider();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddHybridCache();
+        using var services = serviceCollection.BuildServiceProvider();
         var service = CreateService(
             repository,
             assignments,
