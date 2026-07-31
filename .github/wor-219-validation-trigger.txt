@@ -1,1 +1,0 @@
-Trigger WOR-219 pull-request validation after removing the stale fixture workaround.
