@@ -40,6 +40,10 @@ export const JobDetail = () => {
     document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
   }, [jobStatus, currentStep, setCurrentStep, isAdmin]);
 
+  if (id && details.job?.jobType === 'Diverse') {
+    return <Navigate to={`/app/completed/${id}`} replace state={{ from }} />;
+  }
+
   if (id && isAdmin && jobStatus === JobStatus.Rejected) {
     return <Navigate to={`/app/completed/${id}`} replace state={{ from }} />;
   }
