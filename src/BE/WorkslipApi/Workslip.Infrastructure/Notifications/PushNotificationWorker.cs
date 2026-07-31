@@ -181,7 +181,7 @@ public sealed class PushNotificationWorker : BackgroundService
                 if (result.ShouldDeactivateSubscription)
                 {
                     _logger.LogInformation(
-                        "Subscription {SubscriptionId} is no longer valid for the active VAPID key for user {UserId}. Disabling.",
+                        "Subscription {SubscriptionId} is no longer valid for user {UserId}. Disabling.",
                         sub.Id,
                         notification.UserId);
                     await repo.UpdateSubscriptionActiveStatusAsync(sub.Id, false, stoppingToken);
