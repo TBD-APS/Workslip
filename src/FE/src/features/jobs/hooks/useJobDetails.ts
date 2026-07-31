@@ -141,6 +141,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
   // Auto-redirect to worksheets step if user is assigned, has a worksheet, and all prior steps are complete
   useEffect(() => {
     if (!job || !referenceData || !user || autoRedirectDoneRef.current) return;
+    if (job.status === JobStatus.Rejected) return;
 
     const isAssigned = job.assignedUsers.some((u) => u.id === user.id);
     const hasWorksheet = job.worksheets.some((ws) => ws.userId === user.id);
@@ -154,9 +155,11 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
 
     if (jobFormValid && workValid && controlPointsValid) {
       autoRedirectDoneRef.current = true;
+      // Auto-navigation intentionally follows asynchronous job/reference-data resolution.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentStep(3);
     }
-  }, [job, referenceData, user]);
+  }, [job, referenceData, user, isAdmin]);
 
   const assignmentMutation = usePostApiJobsIdAssign({
     mutation: {

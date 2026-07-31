@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.45.15.27210",
+      "templateHash": "17620776573283809077"
+    }
+  },
+  "parameters": {
+    "appConfigurationName": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "appConfigValues": {
+      "Azure:Domain:BaseUrl": "https://app.mrsoftware.dk",
+      "Cors:AllowedOrigins:0": "https://app.mrsoftware.dk",
+      "Cors:AllowedOrigins:1": "https://workslip-v2-0.vercel.app",
+      "Azure:AdOAuth:TenantId": "[tenant().tenantId]",
+      "Azure:AdOAuth:Instance": "[environment().authentication.loginEndpoint]",
+      "Jwt:Issuer": "WorkslipApi",
+      "Jwt:Audience": "WorkslipClient",
+      "Jwt:ExpiryMinutes": "60",
+      "Authorization:Policies:RequireSuperadmin": "Superadmin",
+      "Authorization:Policies:RequireAdmin": "Admin",
+      "Authorization:Policies:RequireAuditor": "Auditor",
+      "Authorization:Policies:RequireReadAccess": "User|Auditor",
+      "Authorization:Policies:RequireUser": "User",
+      "Azure:DocumentFileStorage:ContainerName": "report-attachments",
+      "Azure:DocumentFileStorage:LocalRootPath": "UploadedFiles",
+      "Authorization:RoleHierarchy:Superadmin:0": "Admin",
+      "Authorization:RoleHierarchy:Admin:0": "User",
+      "Azure:Acs:InviteBaseUrl": "https://app.mrsoftware.dk/invite",
+      "Azure:Acs:PLainHeaderText": "Du er blevet inviteret til Workslip af MR Software",
+      "Azure:Acs:HtmlInviteText": "  <html>\r\n  <body style=\"font-family: Arial, sans-serif; padding: 24px;\">\r\n    <h2>Velkommen til Workslip</h2>\r\n    <p>Du er blevet inviteret til at deltage i Workslip.</p>\r\n    <p>\r\n      <a href=\"{inviteLink}\"\r\n         style=\"display: inline-block; padding: 12px 24px; background-color: #0057b7; color: #fff; text-decoration: none; border-radius: 6px;\">\r\n        Accepter invitation\r\n      </a>\r\n    </p>\r\n    <p>Linket udløber om 7 dage.</p>\r\n    <hr/>\r\n    <p style=\"color: #666; font-size: 12px;\">Workslip – automatisk invitation</p>\r\n  </body>\r\n  </html>",
+      "Azure:Acs:PlainInviteText": "    Du er blevet inviteret til Workslip.\r\n    Klik på følgende link for at acceptere invitationen:\r\n    {inviteLink}\r\n    Linket udløber om 7 dage.\r\n  ",
+      "Azure:Acs:OtcHeaderText": "Din midlertidige adgangskode til Workslip",
+      "Azure:Acs:OtcHtmlText": "  <html>\r\n  <body style=\"font-family: Arial, sans-serif; padding: 24px;\">\r\n    <h2>Midlertidig adgangskode</h2>\r\n    <p>Du har anmodet om en midlertidig adgangskode til Workslip. Din adgangskode er:</p>\r\n    <p style=\"font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 16px; background-color: #f5f5f5; border-radius: 8px;\">\r\n      {otcCode}\r\n    </p>\r\n    <p>Koden udløber om 10 minutter og kan kun bruges én gang.</p>\r\n    <p>Hvis du ikke har bedt om denne kode, kan du ignorere denne email.</p>\r\n    <hr/>\r\n    <p style=\"color: #666; font-size: 12px;\">Workslip af MR Software</p>\r\n  </body>\r\n  </html>",
+      "Azure:Acs:OtcPlainText": "    Du har anmodet om en midlertidig adgangskode til Workslip.\r\n\r\n    Din adgangskode er: {otcCode}\r\n\r\n    Koden udløber om 10 minutter og kan kun bruges én gang.\r\n    Hvis du ikke har bedt om denne kode, kan du ignorere denne email.\r\n\r\n    Workslip af MR Software\r\n  "
+    }
+  },
+  "resources": [
+    {
+      "copy": {
+        "name": "staticConfigValues",
+        "count": "[length(items(variables('appConfigValues')))]"
+      },
+      "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+      "apiVersion": "2024-05-01",
+      "name": "[format('{0}/{1}', parameters('appConfigurationName'), items(variables('appConfigValues'))[copyIndex()].key)]",
+      "properties": {
+        "value": "[string(items(variables('appConfigValues'))[copyIndex()].value)]"
+      }
+    }
+  ]
+}
