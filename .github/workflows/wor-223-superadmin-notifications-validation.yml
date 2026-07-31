@@ -81,16 +81,14 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          # The current main manifest references two absent PNG files. Provide
-          # valid test-only placeholders so WOR-242 does not mask this flow.
+          # Isolate known production-hosted assets that local Vite preview does
+          # not serve. WOR-242 tracks the missing manifest PNGs separately.
           icon='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
           printf '%s' "${icon}" | base64 --decode > dist/pwa-192x192.png
           printf '%s' "${icon}" | base64 --decode > dist/pwa-512x512.png
-
-          # The preview environment emits two generic static-resource 404
-          # console messages unrelated to API calls. Page exceptions and failed
-          # network requests remain strict assertions in the browser scenario.
-          sed -i '/expect(consoleErrors).toEqual(\[\]);/d' wor-223-superadmin-notifications.validation.spec.ts
+          mkdir -p dist/_vercel/speed-insights dist/_vercel/insights
+          printf 'void 0;' > dist/_vercel/speed-insights/script.js
+          printf 'void 0;' > dist/_vercel/insights/script.js
 
           npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/wor-223-preview.log 2>&1 &
           preview_pid=$!
