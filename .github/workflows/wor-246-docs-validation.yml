@@ -1,0 +1,23 @@
+name: TEMP — Documentation Validation — WOR-246
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Docs/architecture/domain-and-dataflows.md'
+      - '.github/workflows/wor-246-docs-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    name: Maintained documentation checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate maintained documentation
+        run: python3 tools/docs/check_docs.py
