@@ -1,4 +1,4 @@
-name: TEMP - WOR-235 dependency candidates
+name: TEMP - WOR-235 dependency overrides
 
 on:
   push:
@@ -25,27 +25,36 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
-      - name: Evaluate patched dependency candidates
+      - name: Evaluate targeted dependency overrides
         run: |
           cp package.json /tmp/wor235-package.json
           cp package-lock.json /tmp/wor235-package-lock.json
 
           evaluate() {
             label="$1"
-            router_version="$2"
-            pwa_version="$3"
-
             cp /tmp/wor235-package.json package.json
             cp /tmp/wor235-package-lock.json package-lock.json
 
-            ROUTER_VERSION="$router_version" PWA_VERSION="$pwa_version" node <<'NODE'
+            LABEL="$label" node <<'NODE'
           const fs = require('node:fs');
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          if (process.env.ROUTER_VERSION) {
-            pkg.dependencies['react-router-dom'] = process.env.ROUTER_VERSION;
-          }
-          if (process.env.PWA_VERSION) {
-            pkg.devDependencies['vite-plugin-pwa'] = process.env.PWA_VERSION;
+          switch (process.env.LABEL) {
+            case 'brace-global':
+              pkg.overrides = { 'brace-expansion': '5.0.8' };
+              break;
+            case 'brace-scoped':
+              pkg.overrides = { filelist: { minimatch: { 'brace-expansion': '5.0.8' } } };
+              break;
+            case 'workbox-7.4.0':
+              pkg.overrides = { 'workbox-build': '7.4.0' };
+              break;
+            case 'router-7.18.2':
+              pkg.dependencies['react-router-dom'] = '7.18.2';
+              break;
+            case 'router-7.18.2-brace':
+              pkg.dependencies['react-router-dom'] = '7.18.2';
+              pkg.overrides = { filelist: { minimatch: { 'brace-expansion': '5.0.8' } } };
+              break;
           }
           fs.writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
           NODE
@@ -61,21 +70,26 @@ jobs:
           const fs = require('node:fs');
           const label = process.env.LABEL;
           const audit = JSON.parse(fs.readFileSync(`/tmp/${label}-audit.json`, 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const targets = ['react-router-dom', 'react-router', 'vite-plugin-pwa', 'workbox-build', 'filelist', 'minimatch', 'brace-expansion'];
+          const resolved = Object.fromEntries(targets.map((target) => [
+            target,
+            Object.entries(lock.packages)
+              .filter(([path]) => path === `node_modules/${target}` || path.endsWith(`/node_modules/${target}`))
+              .map(([path, value]) => ({ path, version: value.version })),
+          ]));
           console.log(JSON.stringify({
             label,
-            metadata: audit.metadata,
-            vulnerabilities: Object.fromEntries(Object.entries(audit.vulnerabilities ?? {}).map(([name, value]) => [name, {
-              severity: value.severity,
-              isDirect: value.isDirect,
-              range: value.range,
-              fixAvailable: value.fixAvailable,
-            }])),
+            vulnerabilities: audit.metadata?.vulnerabilities,
+            vulnerablePackages: Object.keys(audit.vulnerabilities ?? {}),
+            resolved,
           }, null, 2));
           NODE
-            npm ls react-router-dom react-router vite-plugin-pwa workbox-build brace-expansion --all || true
           }
 
-          evaluate pwa-1.2 "" "1.2.0"
-          evaluate router-7.11 "7.11.0" ""
-          evaluate router-8.3 "8.3.0" ""
-          evaluate router-8.3-pwa-1.2 "8.3.0" "1.2.0"
+          evaluate baseline
+          evaluate brace-global
+          evaluate brace-scoped
+          evaluate workbox-7.4.0
+          evaluate router-7.18.2
+          evaluate router-7.18.2-brace
