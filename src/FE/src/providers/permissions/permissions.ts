@@ -23,6 +23,7 @@ export type Permission =
   | 'report:view'
   | 'customer:view'
   | 'customer:edit'
+  | 'notification:use'
   | 'organization:manage';
 
 const ADMIN_PERMISSIONS: readonly Role[] = [ROLES.Admin, ROLES.Superadmin];
@@ -30,6 +31,7 @@ const SUPERADMIN_PERMISSIONS: readonly Role[] = [ROLES.Superadmin];
 const CUSTOMER_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
 const AUDITOR_PERMISSIONS: readonly Role[] = [ROLES.Auditor, ROLES.Admin, ROLES.Superadmin];
 const USER_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin, ROLES.Superadmin];
+const NOTIFICATION_PERMISSIONS: readonly Role[] = [ROLES.User, ROLES.Admin];
 
 const PERMISSIONS: Record<Permission, readonly Role[]> = {
   'job:create': USER_PERMISSIONS,
@@ -42,6 +44,7 @@ const PERMISSIONS: Record<Permission, readonly Role[]> = {
   'report:view': AUDITOR_PERMISSIONS,
   'customer:view': CUSTOMER_PERMISSIONS,
   'customer:edit': ADMIN_PERMISSIONS,
+  'notification:use': NOTIFICATION_PERMISSIONS,
   'organization:manage': SUPERADMIN_PERMISSIONS,
 };
 
