@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/wor-245-implementation.yml'
       - 'tools/temp-wor-245-apply.py'
+      - 'tools/temp-wor-245-fix-tests.py'
       - 'src/BE/WorkslipApi/**'
       - 'Docs/architecture/domain-and-dataflows.md'
 
@@ -24,7 +25,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply deterministic product patch
-        run: python3 tools/temp-wor-245-apply.py
+        run: |
+          python3 tools/temp-wor-245-apply.py
+          python3 tools/temp-wor-245-fix-tests.py
 
       - name: Verify scope and obsolete dependency removal
         run: |
