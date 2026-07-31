@@ -40,7 +40,7 @@ export function announceSection(sectionKey: string) {
 }
 
 type StatusOption<T extends string> = {
-  value: T;
+  value: T | readonly T[];
   label: string;
 };
 
@@ -49,6 +49,10 @@ type StatusFilterProps<T extends string> = {
   selected: T[];
   onChange: (selected: T[]) => void;
 };
+
+function getOptionValues<T extends string>(option: StatusOption<T>): readonly T[] {
+  return Array.isArray(option.value) ? option.value : [option.value as T];
+}
 
 export function StatusFilter<T extends string>({
   options,
@@ -84,12 +88,19 @@ export function StatusFilter<T extends string>({
     };
   }, [options, updateScrollState]);
 
-  const toggle = (value: T) => {
-    if (selected.includes(value)) {
-      onChange(selected.filter((s) => s !== value));
-    } else {
-      onChange([...selected, value]);
+  const toggle = (option: StatusOption<T>) => {
+    const values = getOptionValues(option);
+    const allSelected = values.every((value) => selected.includes(value));
+
+    if (allSelected) {
+      onChange(selected.filter((status) => !values.includes(status)));
+      return;
     }
+
+    onChange([
+      ...selected,
+      ...values.filter((value) => !selected.includes(value)),
+    ]);
   };
 
   return (
@@ -99,17 +110,22 @@ export function StatusFilter<T extends string>({
       data-scroll-right={canScrollRight}
     >
       <div className="status-filter" ref={scrollRef}>
-        {options.map((option) => (
-          <button
-            key={option.value}
-            className={`status-filter-btn${selected.includes(option.value) ? ' selected' : ''}`}
-            type="button"
-            onClick={() => toggle(option.value)}
-            aria-pressed={selected.includes(option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
+        {options.map((option) => {
+          const values = getOptionValues(option);
+          const isSelected = values.every((value) => selected.includes(value));
+
+          return (
+            <button
+              key={values.join('|')}
+              className={`status-filter-btn${isSelected ? ' selected' : ''}`}
+              type="button"
+              onClick={() => toggle(option)}
+              aria-pressed={isSelected}
+            >
+              {option.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
