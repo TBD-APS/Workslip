@@ -59,11 +59,52 @@ describe('Superadmin API device defense', () => {
     expect(apiClient.put).not.toHaveBeenCalled();
   });
 
-  it('keeps the desktop organization request path available', async () => {
+  it('uses the Vercel-compatible organization list path on desktop', async () => {
     useDevice('desktop');
     vi.mocked(apiClient.get).mockResolvedValue([]);
 
     await expect(getOrganizations()).resolves.toEqual([]);
     expect(apiClient.get).toHaveBeenCalledOnce();
+    expect(apiClient.get).toHaveBeenCalledWith('/api/organizations', {
+      skipGlobalErrorToast: true,
+    });
+  });
+
+  it('uses the Vercel-compatible organization create path on desktop', async () => {
+    useDevice('desktop');
+    const onboarding = {
+      organization: {
+        id: 'organization-id',
+        name: 'Organisation',
+        cvr: '12345678',
+      },
+      user: {
+        id: 'user-id',
+        organizationId: 'organization-id',
+        displayName: 'Administrator',
+        email: null,
+        phone: null,
+        role: 'Admin',
+        entraInvitationSent: false,
+      },
+    };
+    vi.mocked(apiClient.post).mockResolvedValue(onboarding);
+
+    await expect(createOrganization({
+      name: ' Organisation ',
+      cvr: ' 12345678 ',
+      adminDisplayName: ' Administrator ',
+    })).resolves.toEqual(onboarding);
+
+    expect(apiClient.post).toHaveBeenCalledOnce();
+    expect(apiClient.post).toHaveBeenCalledWith('/api/organizations', {
+      name: 'Organisation',
+      cvr: '12345678',
+      adminDisplayName: 'Administrator',
+      adminEmail: null,
+      adminPhone: null,
+    }, {
+      skipGlobalErrorToast: true,
+    });
   });
 });
