@@ -15,10 +15,7 @@ const adminUser = {
   hoursBiweekly: null,
 };
 
-test.use({
-  ...devices['Pixel 7'],
-  serviceWorkers: 'block',
-});
+test.use(devices['Pixel 7']);
 
 test('browser back closes an open drawer without leaving the current route', async ({ page }) => {
   const consoleErrors: string[] = [];
