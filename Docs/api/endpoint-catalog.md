@@ -77,6 +77,18 @@ All `/api/users` routes are in the admin route group. Additional user requiremen
 
 Job status values implemented by the current domain are `Draft`, `InReview`, `Approved` and `Rejected`.
 
+The status endpoint remains in the user route group because ordinary users submit work through it. The application service enforces this role-aware transition matrix before persistence, history or notification side effects:
+
+| Current status | Target status | Allowed roles |
+|---|---|---|
+| `Draft` | `InReview` | User, Admin, Superadmin |
+| `Rejected` | `InReview` | User, Admin, Superadmin |
+| `InReview` | `Approved` | Admin, Superadmin |
+| `InReview` | `Rejected` | Admin, Superadmin |
+| Same status | Same status | Roles authorized for that target; treated idempotently |
+
+Targeting `Draft` or any other source/target combination returns `409 Conflict`. A caller lacking permission for the requested target returns `403 Forbidden`. Job lookup remains scoped to the effective organization, so a cross-tenant ID returns `404` before role details are evaluated.
+
 ## Customers
 
 | Method | Path | Access | Notes |
