@@ -51,32 +51,34 @@ public static class PushNotificationEndpoints
             return Results.Ok(new VapidPublicKeyViewModel(keyProvider.PublicKey));
         });
 
-        group.MapPost("/", async (
-            RegisterPushSubscriptionRequest request,
-            ICurrentUserContext currentUser,
-            IPushSubscriptionService subscriptionService,
-            HttpContext httpContext,
-            CancellationToken cancellationToken) =>
-        {
-            var userId = currentUser.UserId;
-            if (userId is null)
-            {
-                return Results.Unauthorized();
-            }
-
-            var result = await subscriptionService.RegisterSubscriptionAsync(
-                userId.Value,
-                request.Endpoint,
-                request.Keys.P256Dh,
-                request.Keys.Auth,
-                httpContext.Request.Headers.UserAgent.ToString(),
-                request.ReplacedEndpoint,
-                cancellationToken);
-
-            return ResultExtensions.ToHttpResult(result);
-        });
+        group.MapPost("/", RegisterSubscriptionAsync);
 
         return app;
+    }
+
+    public static async Task<IResult> RegisterSubscriptionAsync(
+        RegisterPushSubscriptionRequest request,
+        ICurrentUserContext currentUser,
+        IPushSubscriptionService subscriptionService,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUser.UserId;
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await subscriptionService.RegisterSubscriptionAsync(
+            userId.Value,
+            request.Endpoint,
+            request.Keys.P256Dh,
+            request.Keys.Auth,
+            httpContext.Request.Headers.UserAgent.ToString(),
+            request.ReplacedEndpoint,
+            cancellationToken);
+
+        return ResultExtensions.ToHttpResult(result);
     }
 }
 
