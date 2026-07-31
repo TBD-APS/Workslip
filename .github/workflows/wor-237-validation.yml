@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/wor-237-validation.yml'
       - 'src/FE/scripts/wor-237-transform.py'
+      - 'src/FE/scripts/wor-237-post-transform.py'
       - 'src/FE/wor-237.validation.spec.ts'
       - 'src/FE/src/**'
       - 'Docs/api/contract.md'
@@ -35,7 +36,9 @@ jobs:
           cache-dependency-path: src/FE/package-lock.json
 
       - name: Apply scoped implementation
-        run: python3 src/FE/scripts/wor-237-transform.py
+        run: |
+          python3 src/FE/scripts/wor-237-transform.py
+          python3 src/FE/scripts/wor-237-post-transform.py
 
       - name: Install frontend dependencies
         working-directory: src/FE
