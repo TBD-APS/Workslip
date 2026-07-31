@@ -1,6 +1,16 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getVapidPublicKey } from '../api/pushSubscriptions';
-import { pushSubscriptionInternals } from './usePushNotifications';
+import { AUTH_TOKEN_KEY } from '../../../providers/authContextValue';
+import {
+  getVapidPublicKey,
+  registerPushSubscription,
+} from '../api/pushSubscriptions';
+import {
+  pushSubscriptionInternals,
+  usePushNotifications,
+} from './usePushNotifications';
 
 vi.mock('../api/pushSubscriptions', () => ({
   getVapidPublicKey: vi.fn(),
@@ -32,7 +42,10 @@ function createSubscription(
 
 describe('push subscription registration', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
     vi.mocked(getVapidPublicKey).mockResolvedValue(currentPublicKey);
+    vi.mocked(registerPushSubscription).mockResolvedValue(undefined);
     Object.defineProperty(window, 'PushManager', {
       configurable: true,
       value: class PushManager {},
@@ -92,6 +105,38 @@ describe('push subscription registration', () => {
     expect(payload).toMatchObject({
       endpoint: 'https://push.example/current',
       replacedEndpoint: 'https://push.example/stale',
+    });
+  });
+
+  it('registers the current device when the authenticated role is Superadmin', async () => {
+    localStorage.setItem(
+      AUTH_TOKEN_KEY,
+      `header.${btoa(JSON.stringify({ role: 'Superadmin' }))}.signature`,
+    );
+    const subscription = createSubscription(
+      'https://push.example/superadmin',
+      Uint8Array.from([1, 2, 3]).buffer,
+    );
+    installServiceWorkerRegistration(subscription, vi.fn());
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const { result } = renderHook(() => usePushNotifications(), { wrapper });
+
+    await act(async () => {
+      await result.current.register();
+    });
+
+    expect(registerPushSubscription).toHaveBeenCalledWith({
+      endpoint: 'https://push.example/superadmin',
+      keys: {
+        p256Dh: 'BAUG',
+        auth: 'BwgJ',
+      },
     });
   });
 });
