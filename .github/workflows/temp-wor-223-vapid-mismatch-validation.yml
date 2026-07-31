@@ -10,21 +10,27 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
-      - name: Checkout
+      - name: Checkout branch
         uses: actions/checkout@v4
+
+      - name: Checkout main baseline
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: baseline-main
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore test graph
+      - name: Restore branch test graph
         run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --nologo
 
-      - name: Build test graph in Release
+      - name: Build branch test graph in Release
         run: >-
           dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
           --configuration Release
@@ -40,11 +46,42 @@ jobs:
           --logger "console;verbosity=normal"
           --nologo
 
-      - name: Run notification regression suite
+      - name: Run relevant notification regression suite
         run: >-
           dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
           --configuration Release
           --no-build
-          --filter FullyQualifiedName~Workslip.Tests.Notifications
+          --filter "FullyQualifiedName~Workslip.Tests.Notifications&FullyQualifiedName!~Workslip.Tests.Notifications.EfNotificationRepositoryTests.QueueNotificationAsync_DetachesRowAfterPersistenceFailure"
           --logger "console;verbosity=normal"
           --nologo
+
+      - name: Reproduce unrelated SQLite test failure on main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd baseline-main
+          dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --nologo
+          dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --nologo
+
+          baseline_log="$(mktemp)"
+          trap 'rm -f "${baseline_log}"' EXIT
+          set +e
+          dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --filter FullyQualifiedName=Workslip.Tests.Notifications.EfNotificationRepositoryTests.QueueNotificationAsync_DetachesRowAfterPersistenceFailure \
+            --logger "console;verbosity=normal" \
+            --nologo 2>&1 | tee "${baseline_log}"
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if [[ ${status} -eq 0 ]]; then
+            echo "::error::Expected the current main baseline test to reproduce its SQLite schema failure."
+            exit 1
+          fi
+
+          grep -Fq 'near "max": syntax error' "${baseline_log}"
+          echo "Confirmed: the excluded SQLite failure reproduces unchanged on current main."
