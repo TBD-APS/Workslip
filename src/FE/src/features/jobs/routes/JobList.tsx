@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } fr
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { formatJobType } from '../statusLabels';
 import { SearchBar } from '../../../components/filters/SearchBar';
-import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
+import { StatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
 import { PaginationControls } from '../../../components/pagination/PaginationControls';
 import { usePaginatedList } from '../../../hooks/usePaginatedList';
@@ -15,7 +15,11 @@ import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
-
+import {
+  getSavedJobListStatuses,
+  JOB_LIST_FILTER_KEY,
+  JOB_LIST_STATUS_OPTIONS,
+} from '../jobListStatusFilters';
 
 const PAGE_SIZE = 20;
 
@@ -41,9 +45,7 @@ export const JobList = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
-  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() =>
-    getSavedStatusFilter('mine-jobs', [JobStatus.Draft]),
-  );
+  const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(getSavedJobListStatuses);
   const { handleMouseDown } = useColumnResize();
   const sortScrollRef = useRef<HTMLDivElement>(null);
   const [sortCanScrollLeft, setSortCanScrollLeft] = useState(false);
@@ -72,7 +74,7 @@ export const JobList = () => {
 
   const handleStatusChange = useCallback((statuses: JobStatus[]) => {
     setSelectedStatuses(statuses);
-    saveStatusFilter('mine-jobs', statuses);
+    saveStatusFilter(JOB_LIST_FILTER_KEY, statuses);
   }, []);
 
   const fetchJobsPage = useCallback(
@@ -134,13 +136,13 @@ export const JobList = () => {
   const showPageLoading = isDesktop && isFetchingNextPage && !isPageDataLoaded;
 
   useEffect(() => {
-    announceSection('mine-jobs');
+    announceSection(JOB_LIST_FILTER_KEY);
   }, []);
 
   useEffect(() => {
     const handler = (e: PageTransitionEvent) => {
       if (e.persisted) {
-        setSelectedStatuses(getSavedStatusFilter('mine-jobs', [JobStatus.Draft]));
+        setSelectedStatuses(getSavedJobListStatuses());
       }
     };
     window.addEventListener('pageshow', handler);
@@ -175,21 +177,7 @@ export const JobList = () => {
       </div>
 
       <StatusFilter
-        options={
-          isAdmin
-            ? [
-                { value: JobStatus.Draft, label: 'Aktiv' },
-                { value: JobStatus.InReview, label: 'Til gennemsyn' },
-                { value: JobStatus.Approved, label: 'Godkendt' },
-                { value: JobStatus.Rejected, label: 'Afvist' },
-              ]
-            : [
-                { value: JobStatus.Draft, label: 'Aktiv' },
-                { value: JobStatus.InReview, label: 'Til gennemsyn' },
-                { value: JobStatus.Approved, label: 'Godkendt' },
-                { value: JobStatus.Rejected, label: 'Afvist' },
-              ]
-        }
+        options={JOB_LIST_STATUS_OPTIONS}
         selected={selectedStatuses}
         onChange={handleStatusChange}
       />
@@ -454,7 +442,7 @@ function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: 
 
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="\u00c5bn sag">
+        <span className="btn-icon" aria-label="Åbn sag">
           <ChevronRight size={20} />
         </span>
       </div>
