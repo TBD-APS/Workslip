@@ -1,0 +1,109 @@
+name: TEMP — WOR-241 pull request implementation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  implement-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: rbj--241-red-dot-follows-status
+          fetch-depth: 0
+
+      - name: Apply implementation from temporary workflow
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/wor-241-status-dot.yml').read_text(encoding='utf-8')
+          marker = "python3 - <<'PY'\n"
+          if marker not in workflow:
+              raise SystemExit('Implementation script marker not found')
+          script = workflow.split(marker, 1)[1].split('\n          PY', 1)[0]
+          exec(textwrap.dedent(script), {})
+          PY
+
+          if grep -R "RejectedAssignment" \
+            src/FE/src/features/jobs/routes/JobDetail.tsx \
+            src/FE/src/features/jobs/routes/CompletedJobReport.tsx \
+            src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs \
+            src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfAssignmentRepository.cs; then
+            echo "::error::Rejected indicators must not depend on rejected seen-state."
+            exit 1
+          fi
+          git diff --check
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore backend
+        working-directory: src/BE/WorkslipApi
+        run: dotnet restore Workslip.slnx --nologo
+
+      - name: Build backend
+        working-directory: src/BE/WorkslipApi
+        run: dotnet build Workslip.slnx --configuration Release --no-restore --nologo
+
+      - name: Test backend
+        working-directory: src/BE/WorkslipApi
+        run: dotnet test Workslip.slnx --configuration Release --no-build --nologo
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Lint affected frontend files
+        working-directory: src/FE
+        run: >-
+          npx eslint
+          src/features/jobs/routes/JobDetail.tsx
+          src/features/jobs/routes/JobDetail.test.tsx
+          src/features/jobs/routes/CompletedJobReport.tsx
+          src/features/jobs/routes/CompletedJobReport.seen-state.test.tsx
+
+      - name: Test seen-state routes
+        working-directory: src/FE
+        run: >-
+          npm test -- --run
+          src/features/jobs/routes/JobDetail.test.tsx
+          src/features/jobs/routes/CompletedJobReport.seen-state.test.tsx
+
+      - name: Build frontend
+        working-directory: src/FE
+        run: npm run build
+
+      - name: Commit validated implementation and remove temporary workflows
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm .github/workflows/wor-241-status-dot.yml
+          rm .github/workflows/wor-241-pr-validation.yml
+          git config user.name "Workslip Validation Bot"
+          git config user.email "workslip-validation@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(WOR-241): keep rejected indicator until status changes"
+          git push origin HEAD:rbj--241-red-dot-follows-status
