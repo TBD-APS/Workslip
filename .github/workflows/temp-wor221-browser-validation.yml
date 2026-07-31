@@ -1,0 +1,107 @@
+name: TEMP WOR-221 browser validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/FE/src/features/auth/api/entraLogin.ts'
+      - 'src/FE/src/features/auth/routes/Login.tsx'
+      - 'src/FE/src/features/auth/routes/Login.history.test.tsx'
+      - 'src/FE/wor-221.validation.spec.ts'
+      - '.github/workflows/temp-wor221-browser-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: src/FE
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate frontend API client
+        run: |
+          set -Eeuo pipefail
+          ready=false
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --output /dev/null "${OPENAPI_BASE_URL}/openapi/v1.json"; then
+              ready=true
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${ready}" != "true" ]]; then
+            echo "::error::Production OpenAPI endpoint did not become ready."
+            exit 1
+          fi
+          npx orval --config orval.config.ts
+        env:
+          OPENAPI_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+          VITE_API_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+
+      - name: Lint permanent and validation files
+        run: >-
+          npx eslint
+          src/features/auth/api/entraLogin.ts
+          src/features/auth/routes/Login.tsx
+          src/features/auth/routes/Login.history.test.tsx
+          wor-221.validation.spec.ts
+
+      - name: Run focused login history tests
+        run: npm test -- --run src/features/auth/routes/Login.history.test.tsx
+
+      - name: Build production frontend
+        run: npm run build
+        env:
+          VITE_AZURE_AD_TENANT_ID: validation-tenant
+          VITE_AZURE_AD_CLIENT_ID: validation-client
+          VITE_AZURE_AD_SCOPE: api://validation/access
+          VITE_AZURE_AD_LOGIN_REDIRECT_URI: http://127.0.0.1:4173/login
+          VITE_API_BASE_URL: http://127.0.0.1:4173
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run desktop and mobile browser validation
+        run: |
+          set -Eeuo pipefail
+          npm run preview -- --host 127.0.0.1 --port 4173 --strictPort > /tmp/wor-221-preview.log 2>&1 &
+          preview_pid=$!
+          cleanup() {
+            kill "${preview_pid}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4173/login; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "${ready}" != "true" ]]; then
+            cat /tmp/wor-221-preview.log || true
+            echo "::error::Frontend preview did not become ready."
+            exit 1
+          fi
+
+          npx playwright test wor-221.validation.spec.ts --reporter=line --workers=1
