@@ -62,12 +62,12 @@ export const CompletedJobReport = () => {
   const isDiverseInReview = job?.jobType === 'Diverse' && job?.status === JobStatus.InReview;
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || (isAdmin && job?.status === JobStatus.Rejected)) return;
     markJobAsSeen(id, queryClient);
     if (job?.status === JobStatus.Rejected) {
       markJobAsSeen(id, queryClient, 'RejectedAssignment');
     }
-  }, [id, job?.status]);
+  }, [id, job?.status, isAdmin, queryClient]);
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
