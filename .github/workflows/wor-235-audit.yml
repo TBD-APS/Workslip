@@ -1,9 +1,9 @@
 name: TEMP - WOR-235 apply dependency override
 
 on:
-  push:
+  pull_request:
     branches:
-      - rbj--235-frontend-audit-vulnerabilities
+      - main
   workflow_dispatch:
 
 permissions:
