@@ -442,7 +442,7 @@ function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: 
 
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="Åbn sag">
+        <span className="btn-icon" aria-label="\u00c5bn sag">
           <ChevronRight size={20} />
         </span>
       </div>
