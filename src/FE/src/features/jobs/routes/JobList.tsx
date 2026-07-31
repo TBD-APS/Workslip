@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
@@ -21,6 +21,17 @@ const PAGE_SIZE = 20;
 
 const isReadonlyState = (status: JobStatus) =>
   status === JobStatus.InReview || status === JobStatus.Approved;
+
+type JobListReportDateSource = {
+  jobType?: string | null;
+  reportDate?: string | null;
+  createdAt: string;
+};
+
+export function getJobListReportDate(job: JobListReportDateSource): string | null | undefined {
+  if (job.reportDate) return job.reportDate;
+  return job.jobType === 'Diverse' ? job.createdAt : null;
+}
 
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
@@ -337,7 +348,7 @@ export const JobList = () => {
                     {formatJobStatus(job.status)}
                   </span>
                 </td>
-                <td className="cell-date">{formatDateLong(job.reportDate)}</td>
+                <td className="cell-date">{formatDateLong(getJobListReportDate(job))}</td>
                 <td className="cell-date">{formatDateLong(job.updatedAt)}</td>
                 <td className="col-actions">
                   <ChevronRight size={16} className="row-link-icon" />
@@ -454,7 +465,7 @@ function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: 
 
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="\u00c5bn sag">
+        <span className="btn-icon" aria-label="Åbn sag">
           <ChevronRight size={20} />
         </span>
       </div>
