@@ -61,13 +61,14 @@ export const CompletedJobReport = () => {
   const previewUrlRef = useRef<string | null>(null);
 
   const job = details.job;
-  const isDiverseInReview = job?.jobType === 'Diverse' && job?.status === JobStatus.InReview;
+  const jobStatus = job?.status;
+  const isDiverseInReview = job?.jobType === 'Diverse' && jobStatus === JobStatus.InReview;
 
   useEffect(() => {
-    if (!id || !job) return;
-    const viewType = job.status === JobStatus.Approved ? COMPLETED_JOB_VIEW_TYPE : undefined;
+    if (!id || !jobStatus) return;
+    const viewType = jobStatus === JobStatus.Approved ? COMPLETED_JOB_VIEW_TYPE : undefined;
     markJobAsSeen(id, queryClient, viewType);
-  }, [id, job?.status, queryClient]);
+  }, [id, jobStatus, queryClient]);
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
