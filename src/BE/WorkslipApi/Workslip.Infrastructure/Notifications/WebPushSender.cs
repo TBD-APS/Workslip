@@ -4,8 +4,12 @@ using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Notifications;
 
-public sealed class WebPushSender(VapidKeyMaterial keyMaterial) : IPushSender
+public sealed class WebPushSender(
+    VapidKeyMaterial keyMaterial,
+    IWebPushClient webPushClient) : IPushSender
 {
+    private const string VapidPublicKeyMismatchReason = "VapidPkHashMismatch";
+
     public async Task<PushSenderResult> SendNotificationAsync(
         PushSubscriptionRow subscription,
         string payloadJson,
@@ -22,7 +26,6 @@ public sealed class WebPushSender(VapidKeyMaterial keyMaterial) : IPushSender
                 keyMaterial.PublicKey,
                 keyMaterial.PrivateKey);
 
-            using var webPushClient = new WebPushClient();
             await webPushClient.SendNotificationAsync(
                 pushSubscription,
                 payloadJson,
@@ -34,11 +37,15 @@ public sealed class WebPushSender(VapidKeyMaterial keyMaterial) : IPushSender
         catch (WebPushException exception)
         {
             var statusCode = (int)exception.StatusCode;
-            var isExpired = statusCode is 404 or 410;
+            var shouldDeactivateSubscription = statusCode is 404 or 410
+                || statusCode == 400 && exception.Message.Contains(
+                    VapidPublicKeyMismatchReason,
+                    StringComparison.OrdinalIgnoreCase);
+
             return new PushSenderResult(
                 false,
                 $"WebPush error (HTTP {statusCode}): {exception.Message}",
-                isExpired);
+                shouldDeactivateSubscription);
         }
         catch (Exception exception)
         {
