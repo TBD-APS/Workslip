@@ -1,6 +1,5 @@
 using System.Formats.Asn1;
 using System.Security.Cryptography;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Workslip.Application.Notifications;
 using Workslip.Infrastructure.Configuration;
@@ -11,7 +10,7 @@ public sealed class VapidKeyMaterial : IVapidPublicKeyProvider
 {
     private const string P256ObjectIdentifier = "1.2.840.10045.3.1.7";
 
-    public VapidKeyMaterial(IOptions<VapidOptions> options, ILogger<VapidKeyMaterial> logger)
+    public VapidKeyMaterial(IOptions<VapidOptions> options)
     {
         var configured = options.Value;
         var privateKeyBytes = DecodeBase64Url(configured.PrivateKey, "Vapid:PrivateKey");
@@ -20,22 +19,11 @@ public sealed class VapidKeyMaterial : IVapidPublicKeyProvider
             throw new InvalidOperationException("Vapid:PrivateKey must be a 32-byte P-256 private key.");
         }
 
-        var publicKeyBytes = DerivePublicKey(privateKeyBytes);
-        PublicKey = EncodeBase64Url(publicKeyBytes);
+        PublicKey = EncodeBase64Url(DerivePublicKey(privateKeyBytes));
         PrivateKey = EncodeBase64Url(privateKeyBytes);
         Subject = string.IsNullOrWhiteSpace(configured.Subject)
             ? "mailto:push@workslip.app"
             : configured.Subject.Trim();
-
-        if (!string.IsNullOrWhiteSpace(configured.PublicKey))
-        {
-            var configuredPublicKey = DecodeBase64Url(configured.PublicKey, "Vapid:PublicKey");
-            if (!CryptographicOperations.FixedTimeEquals(configuredPublicKey, publicKeyBytes))
-            {
-                logger.LogWarning(
-                    "Configured Vapid:PublicKey does not match Vapid:PrivateKey. The private-key-derived public key is authoritative.");
-            }
-        }
     }
 
     public string PublicKey { get; }
