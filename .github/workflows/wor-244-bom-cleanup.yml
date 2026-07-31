@@ -1,0 +1,39 @@
+name: TEMP — WOR-244 BOM cleanup
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/wor-244-bom-cleanup.yml'
+      - 'tools/temp-wor-244-restore-bom.py'
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: rbj--244-invitation-role
+          fetch-depth: 0
+
+      - name: Restore original App.css BOM
+        run: python3 tools/temp-wor-244-restore-bom.py
+
+      - name: Commit BOM-only correction
+        run: |
+          git config user.name 'workslip-validation-bot'
+          git config user.email 'workslip-validation-bot@users.noreply.github.com'
+          git add src/FE/src/App.css
+          if ! git diff --cached --quiet; then
+            git commit -m 'RBJ-244: preserve App.css encoding'
+            git push origin HEAD:rbj--244-invitation-role
+          fi
+
+      - name: Verify intended diff
+        run: |
+          git diff --check origin/main...HEAD
+          git diff --numstat origin/main...HEAD -- src/FE/src/App.css
