@@ -62,6 +62,4 @@ var appConfigValues = {
     {inviteLink}
     Linket udløber om 7 dage.
   '''
-
-  'Vapid:PublicKey': 'BK5wzcorbTV2rLqLYyPdWYMXmtY0Vr5xLzW4suFnbZH3bdvYM8Ddp_XqEFh8dwRwdEtNlO3YMMZe3ZQTOZVVLgY'
 }
