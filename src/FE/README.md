@@ -188,7 +188,7 @@ The browser PKCE flow stores the complete temporary login state in `sessionStora
 
 Do not replace this with an in-memory map or store only an opaque reference. Microsoft login performs a full-page navigation, which destroys module memory before the callback is processed. Invalid or legacy stored values must be discarded rather than used.
 
-The login route clears the PKCE state after success, cancellation or callback failure. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters.
+The login route clears the PKCE state after success, cancellation or callback failure. It also treats a browser-history return from Microsoft with pending PKCE state as a cancellation: cached pages recover on `pageshow`, non-cached `back_forward` loads do not restart reauthentication, and the login form becomes interactive again. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters.
 
 ## PWA caution
 
