@@ -3,8 +3,8 @@
 **Status:** Active  
 **Owner:** Workslip repository owner  
 **Source of truth:** this directory, `main.bicep`, the deployment scripts and accepted infrastructure ADRs  
-**Review cadence:** whenever Azure, Entra, SQL, GitHub OIDC or secret handling changes  
-**Linear:** WOR-190
+**Review cadence:** whenever Azure, Entra, SQL, GitHub OIDC, monitoring or secret handling changes  
+**Linear:** WOR-190, WOR-212
 
 Workslip has exactly three supported deployment entry points:
 
@@ -84,6 +84,8 @@ Vercel cache-purge credentials and project configuration are outside the Azure i
 
 `grant-web-api-sql-access.ps1` is called by `deploy-infrastructure.ps1`. It is an implementation helper, not a standalone operator command.
 
+The helper temporarily allows the deployment machine's public IPv4 address while running `sqlcmd`, then deletes the rule through `az sql server firewall-rule delete`. Azure SQL's delete command does not accept the `--yes` option; do not copy confirmation flags from MySQL or App Configuration CLI commands into this cleanup path.
+
 ## Runtime SQL authentication
 
 Production API connections use the user-assigned managed identity:
@@ -126,6 +128,22 @@ The Azure-managed domain remains linked in production as an emergency rollback r
 
 DNS verification must remain valid for Domain, SPF, DKIM and DKIM2. See `../../../Docs/acs-email-setup.md` for maintenance and smoke-test procedures.
 
+## Azure Monitor API alerts
+
+`monitoring.bicep` provisions one Azure Monitor Action Group and three stateful API alert rules:
+
+| Alert | Condition | Severity |
+|---|---|---|
+| API unavailable | The public `/health` endpoint fails from at least three of five Azure test locations during a five-minute window. | Critical (0) |
+| HTTP 5xx | The App Service emits one or more HTTP 5xx responses during a five-minute window. | Error (1) |
+| Slow API | Average App Service response time exceeds five seconds during a five-minute window. | Warning (2) |
+
+The availability test runs every five minutes from five regions, has retries enabled and validates HTTP 200, TLS validity and certificate lifetime. Standard availability tests are billable Azure Monitor executions; review Azure pricing before deploying additional environments or locations.
+
+Alert recipients are maintained in `monitoring.config.json`. This is intentionally deployment-time operations configuration rather than a query against the Workslip database: alerts must still be deliverable when the API or SQL database is unavailable. Keep the list aligned with the people expected to respond to production incidents. Do not place credentials or notification-service secrets in this file.
+
+After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert. Tune the response-time threshold if the F1 App Service cold-start behaviour creates repeated non-actionable notifications.
+
 ## Required post-deployment verification
 
 A successful script exit is not sufficient release evidence. Verify:
@@ -136,6 +154,10 @@ A successful script exit is not sufficient release evidence. Verify:
 4. Microsoft login and one authenticated API request succeed.
 5. The legacy OAuth credential display name is absent from the OAuth application after a full deployment.
 6. In production, `Azure:Acs:SenderAddress` is `noreply@mrsoftware.dk` and the ACS domain verification states remain successful; non-production uses its Azure-managed sender.
-7. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
+7. The temporary SQL firewall rule `AllowSqlProvisioningScript` is absent after deployment.
+8. The API Action Group contains the intended operations recipients and its test notification is received.
+9. The availability test reports successful executions from all configured locations.
+10. The API unavailable, HTTP 5xx and slow-response alert rules are enabled and reference the same Action Group.
+11. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
 
-Production Azure execution, DNS changes and secret rotation are explicit operator actions; repository changes alone do not prove they succeeded.
+Production Azure execution, DNS changes, alert testing and secret rotation are explicit operator actions; repository changes alone do not prove they succeeded.
