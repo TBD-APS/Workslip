@@ -1,0 +1,98 @@
+name: TEMP — Isolated Implementation — WOR-227 v3
+
+on:
+  pull_request:
+    branches: [rbj--227-validation-base]
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Apply cache isolation fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs')
+          source = path.read_text(encoding='utf-8')
+
+          factory = re.compile(
+              r'(?m)^(?P<i>[ \t]*)var cacheKey = BuildJobListCacheKey\(query\);\n'
+              r'(?P=i)var jobList = await _jobRepository\.ListAsync\(query, cancellationToken\);\n'
+              r'(?P=i)var result = await cache\.GetOrCreateAsync\(\n'
+              r'(?P=i)    cacheKey,\n'
+              r'(?P=i)    async token => jobList,\n'
+          )
+
+          def factory_replacement(match):
+              i = match.group('i')
+              return (
+                  f'{i}var cacheKey = BuildJobListCacheKey(query);\n'
+                  f'{i}var result = await cache.GetOrCreateAsync(\n'
+                  f'{i}    cacheKey,\n'
+                  f'{i}    async token => await _jobRepository.ListAsync(query, token),\n'
+              )
+
+          source, count = factory.subn(factory_replacement, source, count=1)
+          if count == 0 and 'async token => await _jobRepository.ListAsync(query, token),' not in source:
+              raise SystemExit('Job-list cache factory not found')
+
+          key = re.compile(
+              r'(?m)^(?P<i>[ \t]*)return \$"jobs:list:organization=\{query\.OrganizationId:N\}:status=\{statusKey\}" \+'
+          )
+
+          def key_replacement(match):
+              i = match.group('i')
+              return (
+                  f'{i}var currentUserKey = query.CurrentUserId?.ToString("N") ?? "none";\n\n'
+                  f'{i}return $"jobs:list:organization={{query.OrganizationId:N}}:currentUser={{currentUserKey}}:status={{statusKey}}" +'
+              )
+
+          source, count = key.subn(key_replacement, source, count=1)
+          if count == 0 and ':currentUser={currentUserKey}:status={statusKey}' not in source:
+              raise SystemExit('Job-list cache key not found')
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+          git diff --check
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore backend tests
+        run: dotnet restore src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+
+      - name: Build backend tests
+        run: dotnet build src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-restore
+
+      - name: Run focused regression tests
+        run: dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj --configuration Release --no-build --filter FullyQualifiedName~JobListCacheIsolationTests
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          git config user.name "Hermes Agent"
+          git config user.email "hermes-agent@local"
+          git add src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs
+          if git diff --cached --quiet; then
+            echo "Implementation already committed."
+            exit 0
+          fi
+          git commit -m "RBJ-227: isolate job list cache by user"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
