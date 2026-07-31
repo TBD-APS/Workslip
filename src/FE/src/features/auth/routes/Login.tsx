@@ -73,7 +73,7 @@ export const Login = () => {
           clearReauthInFlight();
           clearEntraLoginSession();
           window.history.replaceState(null, '', '/login');
-          window.location.assign(result.returnTo);
+          window.location.replace(result.returnTo);
         })
         .catch((err: unknown) => {
           if (err instanceof InteractiveLoginRequiredError) {
@@ -122,7 +122,7 @@ export const Login = () => {
   };
 
   if (isAuthenticated) {
-    return <Navigate to="/app" />;
+    return <Navigate to="/app" replace />;
   }
 
   return (
@@ -222,7 +222,7 @@ export const Login = () => {
                           setIsSubmitting(true);
                           try {
                             const success = await devLogin(entry.email);
-                            if (success) navigate(entry.redirect);
+                            if (success) navigate(entry.redirect, { replace: true });
                             else setErrorMsg(`Dev login failed - ${entry.email} not found`);
                           } catch {
                             setErrorMsg('Dev login failed');
