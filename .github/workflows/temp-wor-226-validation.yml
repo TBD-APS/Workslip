@@ -69,6 +69,22 @@ jobs:
           </html>
           HTML
 
+          cat > .tmp-wor-226/vite.config.ts <<'TS'
+          import { defineConfig } from 'vite';
+          import react from '@vitejs/plugin-react';
+          import { fileURLToPath, URL } from 'node:url';
+
+          export default defineConfig({
+            root: fileURLToPath(new URL('.', import.meta.url)),
+            plugins: [react()],
+            server: {
+              fs: {
+                allow: [fileURLToPath(new URL('..', import.meta.url))],
+              },
+            },
+          });
+          TS
+
           cat > .tmp-wor-226/src/main.tsx <<'TSX'
           import { useMemo, useState } from 'react';
           import { createRoot } from 'react-dom/client';
@@ -199,7 +215,7 @@ jobs:
           cat > .tmp-wor-226/visibility.spec.ts <<'TS'
           import { expect, test, type Page } from '@playwright/test';
 
-          async function assertCleanBrowser(page: Page) {
+          async function installDiagnostics(page: Page) {
             const failures: string[] = [];
             page.on('console', message => {
               if (message.type() === 'error') failures.push(`console: ${message.text()}`);
@@ -217,24 +233,34 @@ jobs:
             return failures;
           }
 
+          async function expectHarness(page: Page, failures: string[]) {
+            const heading = page.getByRole('heading', { name: 'WOR-226 validation' });
+            try {
+              await expect(heading).toBeVisible({ timeout: 10_000 });
+            } catch (error) {
+              throw new Error(`${String(error)}\nBrowser failures: ${failures.join(' | ')}\nHTML: ${await page.content()}`);
+            }
+          }
+
           for (const viewport of [
             { name: 'desktop', width: 1440, height: 1000 },
             { name: 'mobile', width: 390, height: 844 },
           ]) {
             for (const flow of ['create', 'edit'] as const) {
               test(`${viewport.name} ${flow}: User cannot see create-customer option`, async ({ page }) => {
-                const failures = await assertCleanBrowser(page);
+                const failures = await installDiagnostics(page);
                 await page.setViewportSize({ width: viewport.width, height: viewport.height });
                 await page.goto(`/?role=User&flow=${flow}`);
-                await expect(page.getByRole('heading', { name: 'WOR-226 validation' })).toBeVisible();
+                await expectHarness(page, failures);
                 await expect(page.getByRole('checkbox', { name: /Opret kunde/ })).toHaveCount(0);
                 expect(failures).toEqual([]);
               });
 
               test(`${viewport.name} ${flow}: Admin retains functional create-customer option`, async ({ page }) => {
-                const failures = await assertCleanBrowser(page);
+                const failures = await installDiagnostics(page);
                 await page.setViewportSize({ width: viewport.width, height: viewport.height });
                 await page.goto(`/?role=Admin&flow=${flow}`);
+                await expectHarness(page, failures);
                 const checkbox = page.getByRole('checkbox', { name: /Opret kunde/ });
                 await expect(checkbox).toBeVisible();
                 await checkbox.check();
@@ -248,7 +274,7 @@ jobs:
       - name: Run Playwright role and viewport scenarios
         run: |
           set -Eeuo pipefail
-          npx vite .tmp-wor-226 --host 127.0.0.1 --port 4173 --config vite.config.ts > .tmp-wor-226/vite.log 2>&1 &
+          npx vite --host 127.0.0.1 --port 4173 --config .tmp-wor-226/vite.config.ts > .tmp-wor-226/vite.log 2>&1 &
           server_pid=$!
           cleanup() {
             kill "${server_pid}" 2>/dev/null || true
