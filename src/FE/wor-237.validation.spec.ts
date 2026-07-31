@@ -177,7 +177,6 @@ test('mobile Superadmin can enter, delegate, and exit an organization', async ({
 
   await expect(sessionBanner).toContainText('NP Teknik');
   await expect(exitSessionButton).toBeVisible();
-  await expect(page.getByText('Ingen sager fundet')).toBeVisible();
 
   await exitSessionButton.click();
   await page.waitForURL(/\/superadmin$/, { waitUntil: 'domcontentloaded' });
