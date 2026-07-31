@@ -24,13 +24,13 @@ jobs:
           git status --short --branch
           echo
           echo '=== direct terminology matches ==='
-          rg -n -i -C 8 'rapport.?dato|report.?date|reportdate|diverse|miscellaneous' src/BE src/FE || true
+          grep -RInE -C 6 'RapportDato|rapport.?dato|ReportDate|reportDate|report.?date|Diverse|diverse|Miscellaneous|miscellaneous' src/BE src/FE || true
           echo
-          echo '=== job list / summary projection matches ==='
-          rg -n -C 8 'JobSummary|JobList|GetJobs|ListJobs|ToSummary|JobViewModel|JobSummaryViewModel' src/BE/WorkslipApi src/FE/src || true
+          echo '=== list and summary contracts ==='
+          grep -RInE -C 6 'JobListItemResponse|JobListItemViewModel|JobListResponse|ListAsyncCoreAsync|JobReportMapper|ToResponse' src/BE/WorkslipApi src/FE/src || true
           echo
-          echo '=== date-like job fields ==='
-          rg -n -i -C 6 'completedat|completiondate|createdat|updatedat|report|date' src/BE/WorkslipApi/Workslip.Core src/BE/WorkslipApi/Workslip.Application src/BE/WorkslipApi/Workslip.Infrastructure src/BE/WorkslipApi/Endpoints 2>/dev/null || true
+          echo '=== worksheet date derivation candidates ==='
+          grep -RInE -C 6 'WorkDate|workDate|Timesheets|timesheets|Min\(|Max\(|OrderBy\(' src/BE/WorkslipApi/Workslip.Application src/BE/WorkslipApi/Workslip.Infrastructure src/FE/src/features/jobs || true
           echo
-          echo '=== likely source files ==='
-          find src/BE/WorkslipApi src/FE/src -type f \( -iname '*job*' -o -iname '*report*' \) | sort
+          echo '=== report-date tests ==='
+          grep -RInE -C 6 'ReportDate|reportDate|Diverse' src/BE/WorkslipApi/Workslip.Tests src/FE/src --include='*test*' --include='*.cs' --include='*.tsx' --include='*.ts' || true
