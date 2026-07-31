@@ -51,12 +51,12 @@ export function NavigationGuard({
     try {
       const saved = await save();
       if (saved === false) {
-        blocker.reset();
+        blocker.reset?.();
         return;
       }
       blocker.proceed?.();
     } catch {
-      blocker.reset();
+      blocker.reset?.();
     }
   }, [blocker]);
 
@@ -98,7 +98,7 @@ export function NavigationGuard({
     <div
       className="modal-backdrop"
       onClick={() => {
-        if (!isSaving && !isAutoSaveMode) blocker.reset();
+        if (!isSaving && !isAutoSaveMode) blocker.reset?.();
       }}
     >
       <div
@@ -120,20 +120,20 @@ export function NavigationGuard({
               {onSave ? (
                 <>
                   <div className="modal-actions--double">
-                    <button type="button" className="btn btn-secondary" onClick={() => blocker.proceed()}>
+                    <button type="button" className="btn btn-secondary" onClick={() => blocker.proceed?.()}>
                       Forlad uden at gemme
                     </button>
                     <button type="button" className="btn btn-primary" onClick={handleSaveAndLeave}>
                       Gem og forlad
                     </button>
                   </div>
-                  <button type="button" className="btn btn-secondary" onClick={() => blocker.reset()}>
+                  <button type="button" className="btn btn-secondary" onClick={() => blocker.reset?.()}>
                     Annuller
                   </button>
                 </>
               ) : (
                 <div className="modal-actions--double">
-                  <button type="button" className="btn btn-secondary" onClick={() => blocker.reset()}>
+                  <button type="button" className="btn btn-secondary" onClick={() => blocker.reset?.()}>
                     Annuller
                   </button>
                   <button type="button" className="btn btn-primary" onClick={handleSaveAndLeave}>
