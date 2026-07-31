@@ -71,12 +71,15 @@ describe('NavigationGuard autosave navigation', () => {
   it('waits for an active autosave before flushing the latest draft', async () => {
     const deferred = deferredBoolean();
     const autoSaveOnLeave = vi.fn(() => deferred.promise);
-    let finishPendingSave: (() => void) | undefined;
 
     function PendingPage() {
       const [pending, setPending] = useState(true);
-      finishPendingSave = () => setPending(false);
-      return <GuardedPage autoSaveOnLeave={autoSaveOnLeave} autoSavePending={pending} />;
+      return (
+        <>
+          <button type="button" onClick={() => setPending(false)}>Afslut aktiv gemning</button>
+          <GuardedPage autoSaveOnLeave={autoSaveOnLeave} autoSavePending={pending} />
+        </>
+      );
     }
 
     renderGuardedPage(<PendingPage />);
@@ -85,7 +88,7 @@ describe('NavigationGuard autosave navigation', () => {
     expect(await screen.findByRole('dialog', { name: 'Gemmer ændringer' })).toBeInTheDocument();
     expect(autoSaveOnLeave).not.toHaveBeenCalled();
 
-    act(() => finishPendingSave?.());
+    fireEvent.click(screen.getByRole('button', { name: 'Afslut aktiv gemning' }));
     await waitFor(() => expect(autoSaveOnLeave).toHaveBeenCalledTimes(1));
 
     await act(async () => {
