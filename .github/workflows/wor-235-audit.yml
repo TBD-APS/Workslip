@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - rbj--235-frontend-audit-vulnerabilities
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
