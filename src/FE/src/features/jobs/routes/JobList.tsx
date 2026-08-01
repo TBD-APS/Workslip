@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, RefreshCw, Timer, User } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Clock, MapPin, RefreshCw, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { formatJobType } from '../statusLabels';
 import { SearchBar } from '../../../components/filters/SearchBar';
@@ -14,7 +14,7 @@ import { apiClient } from '../../../lib/axios';
 import { useAuth } from '../../../providers/useAuth';
 import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
-import { formatDateLong } from '../../../lib/formatDate';
+import { formatDateLong, formatDateTimeShort } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
 
 
@@ -473,6 +473,9 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
             <Timer size={14} /> {job.totalHours} 
           </span>
         )}
+        <span className="meta-item meta-updated">
+          <Clock size={14} /> Opdateret {formatDateTimeShort(job.updatedAt)}
+        </span>
       </div>
 
       <div className="job-card-footer">
