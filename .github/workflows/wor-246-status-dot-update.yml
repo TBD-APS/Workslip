@@ -168,9 +168,12 @@ jobs:
               page.on('pageerror', (error) => errors.push(error.message));
 
               await page.goto('http://127.0.0.1:4173');
+              await page.locator('.job-card').waitFor({ state: 'visible' });
+              await page.locator('.approved-dot').waitFor({ state: 'visible' });
               assert.equal(await page.locator('.approved-dot').count(), 1, `${viewport.name}: completed dot missing initially`);
 
               await page.locator('.job-card').click();
+              await page.locator('#opened').waitFor({ state: 'visible' });
               assert.equal(await page.locator('#opened').textContent(), '1', `${viewport.name}: card interaction failed`);
               assert.equal(await page.locator('.approved-dot').count(), 1, `${viewport.name}: completed dot disappeared after open`);
 
