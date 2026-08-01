@@ -65,6 +65,7 @@ vi.mock('../hooks/useJobDetails', () => ({
 }));
 
 vi.mock('../utils/markJobSeen', () => ({
+  COMPLETED_JOB_VIEW_TYPE: 'Completed',
   markJobAsSeen: mocks.markJobAsSeen,
 }));
 
@@ -198,4 +199,20 @@ describe('CompletedJobReport seen-state handling', () => {
     });
     expect(mocks.markJobAsSeen).toHaveBeenCalledWith('job-1', expect.any(QueryClient));
   });
+
+  it('marks an approved report with the completed view type for an ordinary user', async () => {
+    mocks.isAdmin = false;
+    mocks.job = createJob(JobStatus.Approved);
+    renderReport();
+
+    await waitFor(() => {
+      expect(mocks.markJobAsSeen).toHaveBeenCalledOnce();
+    });
+    expect(mocks.markJobAsSeen).toHaveBeenCalledWith(
+      'job-1',
+      expect.any(QueryClient),
+      'Completed',
+    );
+  });
+
 });

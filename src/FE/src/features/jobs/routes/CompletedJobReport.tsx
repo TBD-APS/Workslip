@@ -14,7 +14,7 @@ import { validateControlPoints } from '../components/steps/controlPointsValidati
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { NavigationGuard } from '../../../components/forms/NavigationGuard';
 import { useJobDetailsState } from '../hooks/useJobDetails';
-import { markJobAsSeen } from '../utils/markJobSeen';
+import { COMPLETED_JOB_VIEW_TYPE, markJobAsSeen } from '../utils/markJobSeen';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
 
 import { formatJobStatus } from '../statusLabels';
@@ -61,12 +61,17 @@ export const CompletedJobReport = () => {
   const previewUrlRef = useRef<string | null>(null);
 
   const job = details.job;
-  const isDiverseInReview = job?.jobType === 'Diverse' && job?.status === JobStatus.InReview;
+  const jobStatus = job?.status;
+  const isDiverseInReview = job?.jobType === 'Diverse' && jobStatus === JobStatus.InReview;
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !jobStatus) return;
+    if (jobStatus === JobStatus.Approved) {
+      markJobAsSeen(id, queryClient, COMPLETED_JOB_VIEW_TYPE);
+      return;
+    }
     markJobAsSeen(id, queryClient);
-  }, [id, queryClient]);
+  }, [id, jobStatus, queryClient]);
 
   const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
   const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
