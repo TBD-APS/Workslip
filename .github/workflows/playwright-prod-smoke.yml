@@ -26,35 +26,48 @@ permissions:
   contents: read
 
 concurrency:
-  group: playwright-critical-flows-${{ inputs.scenario }}
+  group: playwright-critical-flows-${{ github.ref }}-${{ inputs.scenario }}
   cancel-in-progress: false
 
 jobs:
   smoke:
-    name: Mobile critical flow (${{ inputs.scenario }})
+    name: Mobile critical flow (${{ matrix.scenario }})
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 35
+
+    container:
+      image: mcr.microsoft.com/playwright:v1.55.0-noble
+      options: --ipc=host
+
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        scenario: ${{ fromJSON(inputs.scenario == 'all-critical' && '["auth-session","kls-lifecycle","rejection-loop","draft-recovery","role-tenant-isolation","invitation-onboarding","assignment-lifecycle","customer-lifecycle","worksheet-integrity","diverse-lifecycle"]' || format('["{0}"]', inputs.scenario)) }}
 
     defaults:
       run:
         working-directory: src/FE
 
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      PROD_URL: https://app.mrsoftware.dk
+      SCENARIO: ${{ matrix.scenario }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: src/FE/package-lock.json
-
-      - name: Install Playwright temporarily
-        run: npm install --no-save --ignore-scripts playwright@1.55.0
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install lightweight Playwright runtime
+        run: >-
+          npm install
+          --prefix scripts
+          --no-save
+          --package-lock=false
+          --ignore-scripts
+          --no-audit
+          --no-fund
+          playwright@1.55.0
 
       - name: Validate test sources
         run: |
@@ -66,16 +79,13 @@ jobs:
           node -e "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8'))"
 
       - name: Run Playwright scenario
-        env:
-          PROD_URL: https://app.mrsoftware.dk
-          SCENARIO: ${{ inputs.scenario }}
         run: node scripts/playwright-prod-smoke.mjs
 
       - name: Upload Playwright evidence
-        if: always()
+        if: ${{ always() && env.ACT != 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-critical-flows-${{ inputs.scenario }}
+          name: playwright-critical-flows-${{ matrix.scenario }}
           path: artifacts/playwright-prod-smoke
           if-no-files-found: warn
           retention-days: 7
