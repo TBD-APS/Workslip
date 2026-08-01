@@ -257,7 +257,7 @@ async function checkForServiceWorkerUpdate(
 
 if (serviceWorkerSupported) {
   // Native controller changes and the plugin's controlling callback both feed
-  // this single guarded reload coordinator. The worker never navigates clients.
+  // this single guarded reload coordinator.
   navigator.serviceWorker.addEventListener('controllerchange', reloadForUpdate);
 }
 
