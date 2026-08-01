@@ -2,11 +2,11 @@
 
 **Status:** Active, manually triggered  
 **Owner:** Frontend/API maintainers  
-**Source of truth:** Runtime UI, runtime OpenAPI, endpoint code, `src/BE/WorkslipApi/Postman/postman_collection.json`, and GitHub Actions run evidence
+**Source of truth:** Runtime UI, runtime OpenAPI, endpoint code, `src/BE/WorkslipApi/Postman/postman_collection.json`, local run evidence, and GitHub Actions run evidence
 
 ## Purpose
 
-`.github/workflows/playwright-prod-smoke.yml` runs mobile Chromium against `https://app.mrsoftware.dk`, which is currently the shared development environment. The workflow is manual and is not a required pull-request check.
+`.github/workflows/playwright-prod-smoke.yml` runs mobile Chromium against `https://app.mrsoftware.dk`, which is currently the shared development environment. The workflow is manual and is not a pull-request check or deployment step. It therefore adds no time to normal frontend or backend deployment.
 
 The suite covers these selectable scenarios:
 
@@ -21,7 +21,15 @@ The suite covers these selectable scenarios:
 9. `worksheet-integrity`
 10. `diverse-lifecycle`
 
-`all-critical` executes all ten scenarios in isolated browser contexts and continues after individual failures so the artifact contains the complete result set. `public-smoke` remains a write-free availability check.
+`all-critical` expands into ten independent GitHub Actions matrix jobs with `max-parallel: 4`. Each flow has its own browser process, report, screenshots, cleanup, result, and artifact. This reduces wall-clock time without hiding individual failures. `public-smoke` remains a write-free availability check.
+
+## Runtime optimization
+
+The workflow uses Microsoft's version-matched `mcr.microsoft.com/playwright:v1.55.0-noble` image. Chromium and its Linux system dependencies are already in that image, so the job does not run `playwright install --with-deps` on every invocation.
+
+Only the isolated `playwright@1.55.0` Node runtime is installed under `src/FE/scripts/node_modules`. The full frontend dependency graph is not installed for a deployed smoke run. The per-flow timeout is 35 minutes rather than the previous 90-minute suite timeout.
+
+The first local Docker run must download the Playwright image. Later runs reuse Docker's local image cache. GitHub-hosted timing must be measured from a real workflow run before making a specific duration claim.
 
 ## Data and contract rules
 
@@ -44,7 +52,7 @@ All generated fixtures include a `PLAYWRIGHT` marker and unique run identifier. 
 
 ## Authentication and sensitive evidence
 
-The suite uses the deployed dev-login controls. Tokens are kept in memory and are never written to artifacts.
+The suite uses the deployed dev-login controls. The authenticated scenarios fail when those controls or the dev-token endpoint are unavailable; they must not silently switch to embedded credentials or assumed users. Tokens are kept in memory and are never written to artifacts.
 
 Authenticated Playwright traces are not uploaded because they can contain authorization headers, request bodies, and personal data. Artifacts contain redacted JSON reports and selected screenshots. Login steps do not take screenshots.
 
@@ -54,8 +62,70 @@ The invitation scenario verifies the real UI through the Microsoft handoff. Comp
 
 The current rejection dialog and `ChangeJobStatusRequest` do not contain a rejection-reason field. The `rejection-loop` scenario therefore verifies the status transition, correction, resubmission, approval, and history, but it cannot verify a reason that the product does not currently store. The product correction is tracked in WOR-292.
 
-## Running
+## Local Windows validation
 
-Open **Actions → Playwright critical flows → Run workflow**, choose a scenario, and run it from the default branch. The resulting artifact is named `playwright-critical-flows-<scenario>` and is retained for seven days.
+Use `tools/playwright/run-critical-local.ps1` from the repository root. It supports two modes.
+
+### Fast direct run
+
+This runs the exact Node scenario implementation without Docker or GitHub Actions emulation. It validates source syntax, parses the Postman collection, installs only the isolated Playwright runtime and Chromium when missing, runs the selected scenario, and opens the local evidence folder.
+
+Prerequisite: Node.js 20 or newer; Node.js 22 is recommended.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
+  -Mode Direct `
+  -Scenario public-smoke
+```
+
+After the public smoke passes, run one authenticated flow:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
+  -Mode Direct `
+  -Scenario kls-lifecycle
+```
+
+The direct `all-critical` mode remains sequential inside one local process. Use it only after individual flows work.
+
+### Actual YAML through `act`
+
+This executes `.github/workflows/playwright-prod-smoke.yml` locally through Docker. It validates the workflow wiring, matrix expression, container image, runtime installation, source validation, environment variables, and scenario command.
+
+Prerequisites:
+
+- Docker Desktop is installed and running.
+- `act` is installed.
+
+```powershell
+winget install Docker.DockerDesktop
+winget install nektos.act
+```
+
+Run the write-free workflow first:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
+  -Mode Workflow `
+  -Scenario public-smoke
+```
+
+Then run one authenticated scenario:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
+  -Mode Workflow `
+  -Scenario kls-lifecycle
+```
+
+The helper creates the `workflow_dispatch` event JSON in the temporary directory, pre-pulls the version-matched Playwright image when necessary, calls `act`, removes the event file, and opens `artifacts/playwright-prod-smoke`.
+
+`act` sets `ACT=true`. The workflow therefore skips GitHub's artifact-upload action locally while preserving screenshots and `report.json` in the mounted repository workspace. Local evidence is ignored by Git.
+
+A successful `act` run proves that the workflow can execute in the local Docker emulation. It does not prove that GitHub-hosted runner permissions, network access, or the target environment are identical. One real GitHub Actions run is still required before merge-readiness can be claimed.
+
+## GitHub Actions run
+
+Open **Actions → Playwright critical flows → Run workflow**, choose a scenario, and run it from the default branch. A single scenario produces `playwright-critical-flows-<scenario>`. `all-critical` produces one artifact per scenario, retained for seven days.
 
 A passing workflow is evidence only for the selected scenario, deployed revision, environment, browser, and viewport recorded in the artifact.
