@@ -1,8 +1,10 @@
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Azure.Core;
+using Microsoft.ApplicationInsights;
 using Microsoft.Graph;
 using Workslip.Api.Services;
+using Workslip.Api.Telemetry;
 using Workslip.Application;
 using Workslip.Application.Common;
 using Workslip.Infrastructure;
@@ -17,11 +19,14 @@ public static class ServiceConfiguration
         builder.Services.AddHybridCache();
         builder.Services.AddMemoryCache();
         builder.Services.AddHttpClient("vercel-cache");
-        builder.Services.AddSingleton<ICacheDiagnostics>(_ => new CacheDiagnostics(
+        builder.Services.AddSingleton(_ => new CacheDiagnostics(
         [
             new CacheRegionDefinition(CacheRegionNames.ReferenceData, "HybridCache", 600),
             new CacheRegionDefinition(CacheRegionNames.AuthenticatedUsers, "IMemoryCache", 3600)
         ]));
+        builder.Services.AddSingleton<ICacheDiagnostics>(services => new TelemetryCacheDiagnostics(
+            services.GetRequiredService<CacheDiagnostics>(),
+            services.GetService<TelemetryClient>()));
         builder.Services.AddScoped<IdempotencyStore>();
         builder.Services.AddScoped<IdempotentMutationService>();
 
