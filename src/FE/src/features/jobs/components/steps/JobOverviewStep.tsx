@@ -22,6 +22,7 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         onZipCodeChange={details.updateDestinationZipCode}
         onCityChange={details.updateDestinationCity}
         required={details.isAdmin}
+        readOnly={!details.isAdmin}
       />
 
       <CustomerDetailsBlock
