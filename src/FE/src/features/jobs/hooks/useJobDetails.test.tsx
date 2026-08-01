@@ -10,6 +10,10 @@ const testState = vi.hoisted(() => ({
   job: undefined as JobReportSummaryViewModel | undefined,
   referenceData: undefined as ReferenceDataResponse | undefined,
   user: { id: 'user-1' },
+  sameForm: true,
+  sameFormWithoutWork: true,
+  controlPointsValid: true,
+  patchOnSuccess: undefined as ((data: JobReportSummaryViewModel) => void) | undefined,
 }));
 
 const mutation = vi.hoisted(() => ({
@@ -29,7 +33,10 @@ vi.mock('../../../api/generated/jobs/jobs', () => ({
     isLoading: false,
     refetch: vi.fn(),
   }),
-  usePatchApiJobsId: () => mutation,
+  usePatchApiJobsId: (options: { mutation: { onSuccess: (data: JobReportSummaryViewModel) => void } }) => {
+    testState.patchOnSuccess = options.mutation.onSuccess;
+    return mutation;
+  },
   usePostApiJobsIdAssign: () => mutation,
   usePostApiJobsIdLinks: () => mutation,
   usePostApiJobsIdStatus: () => mutation,
@@ -99,15 +106,18 @@ vi.mock('../utils', () => {
     getWorkValidationMessage: () => null,
     isValidJobForm: () => true,
     isValidWork: () => true,
-    sameForm: () => true,
-    sameFormWithoutWork: () => true,
+    sameForm: () => testState.sameForm,
+    sameFormWithoutWork: () => testState.sameFormWithoutWork,
     toForm: () => form,
     toUpdateRequest: vi.fn(),
   };
 });
 
 vi.mock('../components/steps/controlPointsValidation', () => ({
-  validateControlPoints: () => ({ valid: true }),
+  validateControlPoints: () => ({
+    valid: testState.controlPointsValid,
+    error: testState.controlPointsValid ? undefined : 'Kontrolpunkter mangler',
+  }),
 }));
 
 const referenceData = {
@@ -181,6 +191,11 @@ describe('useJobDetailsState worksheet shortcut', () => {
     vi.clearAllMocks();
     testState.job = undefined;
     testState.referenceData = undefined;
+    testState.sameForm = true;
+    testState.sameFormWithoutWork = true;
+    testState.controlPointsValid = true;
+    testState.patchOnSuccess = undefined;
+    mutation.mutateAsync.mockResolvedValue(undefined);
   });
 
   it('does not redirect a rejected assigned job when reference data resolves later', async () => {
@@ -228,5 +243,70 @@ describe('useJobDetailsState worksheet shortcut', () => {
     });
 
     await waitFor(() => expect(result.current.currentStep).toBe(3));
+  });
+
+  it('saves an incomplete control-point draft when navigation skips completion validation', async () => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    testState.controlPointsValid = false;
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.updateTechnicalObservations('Changed');
+    });
+
+    let saved = false;
+    await act(async () => {
+      saved = await result.current.saveAllChanges({ validateControlPoints: false });
+    });
+
+    expect(saved).toBe(true);
+    expect(mutation.mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps control-point completion validation strict by default', async () => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    testState.controlPointsValid = false;
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    await act(async () => {
+      result.current.updateTechnicalObservations('Changed');
+    });
+
+    let saved = true;
+    await act(async () => {
+      saved = await result.current.saveAllChanges();
+    });
+
+    expect(saved).toBe(false);
+    expect(mutation.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('preserves newer work changes when a non-work autosave completes', async () => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => {
+      result.current.toggleControlPoint('cp-1');
+    });
+    act(() => {
+      testState.patchOnSuccess?.(createAssignedJob(JobStatus.Draft));
+    });
+
+    expect(result.current.form.work.controlPointSelections['cp-1']).toBe(true);
   });
 });

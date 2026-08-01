@@ -168,7 +168,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
     <div className="page-container job-detail-page">
       <NavigationGuard
         when={details.hasUnsavedChanges}
-        autoSaveOnLeave={() => details.saveAllChanges()}
+        autoSaveOnLeave={() => details.saveAllChanges({ validateControlPoints: false })}
         autoSavePending={details.saveStatus === 'saving'}
       />
       <JobDetailsHeader

@@ -106,6 +106,15 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
         const currentDraft = draftRef.current;
         if (currentDraft && !sameFormWithoutWork(newInitialForm, currentDraft.form)) {
           setDraft(currentDraft);
+        } else if (currentDraft && !sameForm(newInitialForm, currentDraft.form)) {
+          setDraft({
+            jobId: currentDraft.jobId,
+            form: {
+              ...newInitialForm,
+              work: currentDraft.form.work,
+              editSnapshot: currentDraft.form.editSnapshot,
+            },
+          });
         } else if (currentDraft?.form.editSnapshot) {
           setDraft({
             jobId: currentDraft.jobId,
@@ -544,7 +553,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     return true;
   };
 
-  const saveAllChanges = async () => {
+  const saveAllChanges = async (options: { validateControlPoints?: boolean } = {}) => {
     clearTimeout(debounceTimerRef.current);
     if (!draft || !initialForm || !job || !jobId) return true;
     if (sameForm(initialForm, draft.form)) {
@@ -564,13 +573,15 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
       return false;
     }
 
-    const cpValidation = validateControlPoints(draft.form, referenceData);
-    if (!cpValidation.valid) {
-      setSaveStatus('error');
-      notify.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter', {
-        id: 'job-cp-validation-error',
-      });
-      return false;
+    if (options.validateControlPoints !== false) {
+      const cpValidation = validateControlPoints(draft.form, referenceData);
+      if (!cpValidation.valid) {
+        setSaveStatus('error');
+        notify.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter', {
+          id: 'job-cp-validation-error',
+        });
+        return false;
+      }
     }
 
     setSaveStatus('saving');
