@@ -2,8 +2,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium, devices } from 'playwright';
-import { createFlowHelpers } from './playwright-critical-helpers.mjs';
-import { createScenarioHandlers } from './playwright-critical-scenarios.mjs';
+import { createContractHelpers } from './playwright-critical-contract.mjs';
+import { createDomainHelpers } from './playwright-critical-domain.mjs';
+import { createCoreScenarioHandlers } from './playwright-scenarios-core.mjs';
+import { createAdminScenarioHandlers } from './playwright-scenarios-admin.mjs';
 
 const APP_URL = (process.env.PROD_URL ?? '').replace(/\/+$/, '');
 const SCENARIO = process.env.SCENARIO ?? 'public-smoke';
@@ -53,11 +55,17 @@ const report = {
 
 const browser = await chromium.launch();
 const helperEnv = { APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, ARTIFACT_DIR, postman, browser, devices, report };
-const helpers = createFlowHelpers(helperEnv);
-const { buildPostmanContract, buildDataFactory, validateContract, serializeError, redact, safeUrl, fileSafe, assertNoBrowserErrors } = helpers;
+const contractHelpers = createContractHelpers(helperEnv);
+const domainHelpers = createDomainHelpers(helperEnv, contractHelpers);
+const helpers = { ...contractHelpers, ...domainHelpers };
+const { buildPostmanContract, buildDataFactory, validateContract, serializeError, redact, safeUrl, fileSafe, assertNoBrowserErrors } = contractHelpers;
 const postmanContract = buildPostmanContract(postman);
 const dataFactory = buildDataFactory(postman, RUN_ID);
-const handlers = createScenarioHandlers({ APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, browser, devices, report }, helpers);
+const scenarioEnv = { APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, browser, devices, report };
+const handlers = {
+  ...createCoreScenarioHandlers(scenarioEnv, helpers),
+  ...createAdminScenarioHandlers(scenarioEnv, helpers),
+};
 let suiteFailure = null;
 
 try {
