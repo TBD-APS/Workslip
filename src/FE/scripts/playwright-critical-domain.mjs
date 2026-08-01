@@ -228,17 +228,19 @@ async function createMinimalJobFixtureViaApi(session, customer) {
 }
 
 async function ensureAssignableUsers(session, count) {
+  const bodyTemplate = postmanBody(postman, '/api/users');
+  const requiredRole = String(bodyTemplate.role);
+  if (!requiredRole) throw new Error('Postman /api/users request must define a role.');
   let users = unwrapCollection(await session.apiExpect('GET', '/api/users/', undefined, [200]))
-    .filter((user) => user.id && user.email && user.displayName && String(user.role).toLowerCase() === 'user');
+    .filter((user) => user.id && user.email && user.displayName && String(user.role).toLowerCase() === requiredRole.toLowerCase());
   while (users.length < count) {
     const index = users.length + 1;
-    const bodyTemplate = postmanBody(postman, '/api/users');
     const body = {
       ...bodyTemplate,
       email: session.data.userEmail(index),
       displayName: `${session.data.userDisplayName} ${index}`,
       phone: session.data.phone,
-      role: 'User',
+      role: requiredRole,
     };
     const created = await session.apiExpect('POST', '/api/users/', body, [200, 201]);
     session.fixtures.users.push(created.id);
