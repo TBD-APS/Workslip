@@ -1,0 +1,262 @@
+name: TEMP — WOR-248 notification navigation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/scripts/wor-248-finalize.py'
+      - '.github/workflows/wor-248-validation.yml'
+      - 'src/FE/src/pwa/notificationNavigation.ts'
+      - 'src/FE/src/pwa/notificationNavigation.test.ts'
+      - 'src/FE/src/sw.ts'
+      - 'src/FE/README.md'
+
+permissions:
+  contents: write
+
+env:
+  OPENAPI_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+
+jobs:
+  validate:
+    name: Validate notification navigation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Apply maintained documentation update
+        run: python3 .github/scripts/wor-248-finalize.py
+
+      - name: Check patch
+        run: git diff --check
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Generate frontend API client
+        working-directory: src/FE
+        env:
+          VITE_API_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+        run: npx orval --config orval.config.ts
+
+      - name: Lint affected frontend files
+        working-directory: src/FE
+        run: npx eslint src/sw.ts src/pwa/notificationNavigation.ts src/pwa/notificationNavigation.test.ts
+
+      - name: Run focused regression tests
+        working-directory: src/FE
+        run: npm test -- --run src/pwa/notificationNavigation.test.ts
+
+      - name: Type-check service worker
+        working-directory: src/FE
+        run: npm run typecheck:sw
+
+      - name: Build production PWA
+        working-directory: src/FE
+        run: npm run build
+
+      - name: Install standalone Chromium harness
+        working-directory: src/FE
+        run: |
+          npm install --no-save --no-package-lock playwright@1.62.1
+          npx playwright install --with-deps chromium
+
+      - name: Create browser harness
+        working-directory: src/FE
+        run: |
+          mkdir -p .tmp-wor248
+          cat > .tmp-wor248/index.html <<'EOF'
+          <!doctype html>
+          <html lang="da">
+            <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+            <body><main id="status">WOR-248</main><script type="module" src="/main.ts"></script></body>
+          </html>
+          EOF
+          cat > .tmp-wor248/main.ts <<'EOF'
+          import {
+            navigateNotificationTarget,
+            type NotificationWindowClient,
+          } from '../src/pwa/notificationNavigation';
+
+          declare global {
+            interface Window {
+              wor248: {
+                runOpenClientScenario: () => Promise<unknown>;
+                runClosedClientScenario: () => Promise<unknown>;
+              };
+            }
+          }
+
+          window.wor248 = {
+            async runOpenClientScenario() {
+              const events: string[] = [];
+              let resolveNavigation: ((client: NotificationWindowClient) => void) | undefined;
+              const client: NotificationWindowClient = {
+                focused: true,
+                visibilityState: 'visible',
+                navigate(url) {
+                  events.push(`navigate:${url}`);
+                  return new Promise((resolve) => {
+                    resolveNavigation = (value) => resolve(value);
+                  });
+                },
+                async focus() {
+                  events.push('focus');
+                  return client;
+                },
+              };
+              const opened: string[] = [];
+
+              const navigation = navigateNotificationTarget(
+                [client],
+                async (url) => {
+                  opened.push(url);
+                  return null;
+                },
+                '/app/job/job-1',
+                window.location.origin,
+              );
+
+              await Promise.resolve();
+              const eventsBeforeNavigationResolved = [...events];
+              resolveNavigation?.(client);
+              await navigation;
+
+              return { eventsBeforeNavigationResolved, events, opened };
+            },
+
+            async runClosedClientScenario() {
+              const opened: string[] = [];
+              await navigateNotificationTarget(
+                [],
+                async (url) => {
+                  opened.push(url);
+                  return null;
+                },
+                '/app/completed/job-2',
+                window.location.origin,
+              );
+              return { opened };
+            },
+          };
+          EOF
+          cat > .tmp-wor248/vite.config.ts <<'EOF'
+          import { defineConfig } from 'vite';
+          import path from 'node:path';
+
+          export default defineConfig({
+            root: __dirname,
+            server: {
+              host: '127.0.0.1',
+              port: 4174,
+              strictPort: true,
+              fs: { allow: [path.resolve(__dirname, '..')] },
+            },
+          });
+          EOF
+          cat > .tmp-wor248/browser-check.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import { chromium } from 'playwright';
+
+          for (const viewport of [
+            { name: 'desktop', width: 1280, height: 900 },
+            { name: 'mobile', width: 390, height: 844 },
+          ]) {
+            const browser = await chromium.launch();
+            try {
+              const page = await browser.newPage({ viewport });
+              const errors = [];
+              page.on('console', (message) => {
+                if (message.type() === 'error') errors.push(message.text());
+              });
+              page.on('pageerror', (error) => errors.push(error.message));
+
+              await page.goto('http://127.0.0.1:4174');
+              await page.waitForFunction(() => Boolean(window.wor248));
+
+              const openResult = await page.evaluate(() => window.wor248.runOpenClientScenario());
+              assert.deepEqual(openResult, {
+                eventsBeforeNavigationResolved: [
+                  'navigate:http://127.0.0.1:4174/app/job/job-1',
+                ],
+                events: [
+                  'navigate:http://127.0.0.1:4174/app/job/job-1',
+                  'focus',
+                ],
+                opened: [],
+              }, `${viewport.name}: existing-client navigation sequence was incorrect`);
+
+              const closedResult = await page.evaluate(() => window.wor248.runClosedClientScenario());
+              assert.deepEqual(closedResult, {
+                opened: ['http://127.0.0.1:4174/app/completed/job-2'],
+              }, `${viewport.name}: closed-app navigation opened an incorrect target`);
+
+              assert.deepEqual(errors, [], `${viewport.name}: browser errors: ${errors.join(' | ')}`);
+            } finally {
+              await browser.close();
+            }
+          }
+          EOF
+
+      - name: Run Chromium behavior validation
+        working-directory: src/FE
+        run: |
+          set -Eeuo pipefail
+          npx vite --config .tmp-wor248/vite.config.ts > /tmp/wor248-vite.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            rm -rf .tmp-wor248
+          }
+          trap cleanup EXIT
+          for _ in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4174 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4174 >/dev/null || { cat /tmp/wor248-vite.log; exit 1; }
+          node .tmp-wor248/browser-check.mjs
+
+      - name: Validate documentation baseline
+        run: |
+          set -Eeuo pipefail
+          set +e
+          python3 tools/docs/check_docs.py > /tmp/wor248-head-docs.log 2>&1
+          head_status=$?
+          set -e
+
+          git worktree add --detach /tmp/wor248-main origin/main
+          set +e
+          (cd /tmp/wor248-main && python3 tools/docs/check_docs.py) > /tmp/wor248-main-docs.log 2>&1
+          main_status=$?
+          set -e
+
+          test "$head_status" -eq "$main_status"
+          diff -u /tmp/wor248-main-docs.log /tmp/wor248-head-docs.log
+
+      - name: Commit validated implementation
+        run: |
+          set -Eeuo pipefail
+          rm -f .github/scripts/wor-248-finalize.py .github/workflows/wor-248-validation.yml
+          git diff --check
+          git fetch origin main --depth=1
+          actual="$(git diff --name-only origin/main | sort)"
+          expected=$'src/FE/README.md\nsrc/FE/src/pwa/notificationNavigation.test.ts\nsrc/FE/src/pwa/notificationNavigation.ts\nsrc/FE/src/sw.ts'
+          test "$actual" = "$expected"
+          git config user.name 'workslip-validation-bot'
+          git config user.email 'workslip-validation-bot@users.noreply.github.com'
+          git add -A
+          git commit -m 'RBJ-248: await navigation for open app notifications'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
