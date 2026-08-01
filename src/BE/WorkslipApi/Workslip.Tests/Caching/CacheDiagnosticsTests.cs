@@ -1,4 +1,5 @@
 using Workslip.Application.Common;
+using Xunit;
 
 namespace Workslip.Tests.Caching;
 
