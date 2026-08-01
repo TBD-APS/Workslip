@@ -127,13 +127,18 @@ function requiredPostmanBody(collection, requestName) {
 }
 
 function pickReferenceSelection(data) {
+  const jobTemplate = requiredPostmanBody(postman, '/api/jobs');
+  const expectedWorkKind = requiredSource(jobTemplate.work?.workKind, 'Postman job workKind template');
+  const expectedClosureFlag = requiredSource(jobTemplate.work?.closureFlags?.[0], 'Postman job closureFlag template');
   const installations = [...data.installationTypes].sort(sortByOrder);
-  const installation = installations.find((item) => item.id && item.name && item.categories?.some((category) => category.id)) ?? installations[0];
-  const workKinds = [...data.workKinds].sort(sortByOrder);
-  const workKind = workKinds.find((item) => !item.requiresCustomWorkKind) ?? workKinds[0];
-  const closureFlags = [...data.closureFlags].sort(sortByOrder);
-  const closureFlag = closureFlags[0];
-  if (!installation || !workKind || !closureFlag) throw new Error('Reference data did not contain a usable installation, work kind, and closure flag.');
+  const installation = installations.find((item) => item.id && item.name && item.categories?.some((category) => category.id));
+  const workKind = [...data.workKinds].sort(sortByOrder)
+    .find((item) => String(item.normalizedLabel).toLowerCase() === expectedWorkKind.toLowerCase());
+  const closureFlag = [...data.closureFlags].sort(sortByOrder)
+    .find((item) => String(item.normalizedLabel).toLowerCase() === expectedClosureFlag.toLowerCase());
+  if (!installation || !workKind || !closureFlag) {
+    throw new Error(`Runtime reference data does not satisfy Postman job template (${expectedWorkKind}, ${expectedClosureFlag}).`);
+  }
   return { installation, workKind, closureFlag };
 }
 
