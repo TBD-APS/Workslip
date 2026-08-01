@@ -54,6 +54,9 @@ public static class CacheEndpoints
             concrete.Compact(1.0);
         }
 
+        cacheDiagnostics.RecordGlobalClear();
+        var snapshot = cacheDiagnostics.GetSnapshot();
+
         var vercelProjectId = configuration["Vercel:ProjectId"];
         var vercelToken = configuration["Vercel:Token"];
         var vercelConfigured = !string.IsNullOrWhiteSpace(vercelProjectId)
@@ -63,32 +66,48 @@ public static class CacheEndpoints
 
         if (vercelConfigured)
         {
-            var httpClient = httpClientFactory.CreateClient("vercel-cache");
-            using var request = new HttpRequestMessage(
-                HttpMethod.Post,
-                $"https://api.vercel.com/v1/edge-cache/invalidate-by-tags?projectIdOrName={Uri.EscapeDataString(vercelProjectId!)}")
-            {
-                Content = JsonContent.Create(new { tags = new[] { "all" }, target = "production" })
-            };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", vercelToken);
+            var logger = loggerFactory.CreateLogger("CacheAdministration");
 
-            using var response = await httpClient.SendAsync(request, cancellationToken);
-            vercelCleared = response.IsSuccessStatusCode;
-
-            if (!vercelCleared)
+            try
             {
-                warning = $"Vercel cache purge failed with status {(int)response.StatusCode}.";
-                loggerFactory.CreateLogger("CacheAdministration")
-                    .LogWarning(
+                var httpClient = httpClientFactory.CreateClient("vercel-cache");
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"https://api.vercel.com/v1/edge-cache/invalidate-by-tags?projectIdOrName={Uri.EscapeDataString(vercelProjectId!)}")
+                {
+                    Content = JsonContent.Create(new { tags = new[] { "all" }, target = "production" })
+                };
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", vercelToken!);
+
+                using var response = await httpClient.SendAsync(request, cancellationToken);
+                vercelCleared = response.IsSuccessStatusCode;
+
+                if (!vercelCleared)
+                {
+                    warning = $"Vercel cache purge failed with status {(int)response.StatusCode}.";
+                    logger.LogWarning(
                         "Vercel cache purge failed with status {StatusCode}.",
                         (int)response.StatusCode);
+                }
+            }
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                warning = "Vercel cache purge timed out.";
+                logger.LogWarning(exception, "Vercel cache purge timed out after local caches were cleared.");
+            }
+            catch (HttpRequestException exception)
+            {
+                warning = "Vercel cache purge could not be reached.";
+                logger.LogWarning(exception, "Vercel cache purge failed after local caches were cleared.");
             }
         }
 
-        cacheDiagnostics.RecordGlobalClear();
-        var snapshot = cacheDiagnostics.GetSnapshot();
+        var message = warning is null
+            ? "All caches cleared."
+            : $"Local caches cleared. {warning}";
 
         return Results.Ok(new CacheClearResponse(
+            message,
             snapshot.LastClearedAt ?? DateTimeOffset.UtcNow,
             vercelConfigured,
             vercelCleared,
@@ -105,6 +124,7 @@ public sealed record CacheStatusResponse(
     bool VercelConfigured);
 
 public sealed record CacheClearResponse(
+    string Message,
     DateTimeOffset ClearedAt,
     bool VercelConfigured,
     bool VercelCleared,
