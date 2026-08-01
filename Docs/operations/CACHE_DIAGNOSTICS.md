@@ -31,6 +31,29 @@ All diagnostics responses use `Cache-Control: no-store`.
 
 Counters are process-local and reset when the API instance restarts. They are operational signals, not billing or audit records.
 
+## Historical metrics
+
+When Application Insights is configured, the same safe aggregate signals are emitted as custom metrics:
+
+- `workslip.cache.hit`
+- `workslip.cache.miss`
+- `workslip.cache.set`
+- `workslip.cache.invalidation`
+- `workslip.cache.failure`
+- `workslip.cache.load_duration_ms`
+
+The only custom property is `region`. A global clear emits the event `workslip.cache.global_clear`.
+
+Example KQL for cache activity:
+
+```kusto
+customMetrics
+| where name startswith "workslip.cache."
+| extend region = tostring(customDimensions.region)
+| summarize value = sum(valueSum) by bin(timestamp, 15m), name, region
+| order by timestamp desc
+```
+
 ## HTTP cache inspection
 
 Cache-aware API responses include `X-Workslip-Cache` so HTTP behavior is visible directly in the browser Network panel:
