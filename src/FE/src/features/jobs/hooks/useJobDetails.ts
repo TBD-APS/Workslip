@@ -43,6 +43,12 @@ import { useCustomerSnapshot } from './useCustomerSnapshot';
 type JobDetailsDraft = { jobId: string; form: JobForm };
 type AssignmentDraft = { jobId: string; userIds: string[] };
 type LinksDraft = { jobId: string; linkedJobIds: string[] };
+type JobSaveMode = 'strict' | 'draft';
+
+type SaveAllChangesOptions = {
+  mode?: JobSaveMode;
+  notifyOnSuccess?: boolean;
+};
 
 export function useJobDetails(jobId: string | undefined) {
   return useJobDetailsState(jobId);
@@ -553,27 +559,37 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     return true;
   };
 
-  const saveAllChanges = async (options: { validateControlPoints?: boolean } = {}) => {
+  const saveAllChanges = async (options: SaveAllChangesOptions = {}) => {
+    const mode = options.mode ?? 'strict';
+    const notifySaveSuccess = () => {
+      if (options.notifyOnSuccess) {
+        notify.success('Ændringerne er gemt', { id: 'job-draft-save-success' });
+      }
+    };
     clearTimeout(debounceTimerRef.current);
-    if (!draft || !initialForm || !job || !jobId) return true;
-    if (sameForm(initialForm, draft.form)) {
-      setDraft(null);
+    if (!draft || !initialForm || !job || !jobId) {
+      if (saveStatus === 'saved') notifySaveSuccess();
       return true;
     }
-    if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber), requireDestinationAddress: isAdmin })) {
-      setSaveStatus('error');
-      notify.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
-      return false;
+    if (sameForm(initialForm, draft.form)) {
+      setDraft(null);
+      notifySaveSuccess();
+      return true;
     }
-    if (!isValidWork(draft.form, referenceData)) {
-      setSaveStatus('error');
-      notify.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
-        id: 'job-work-validation-error',
-      });
-      return false;
-    }
+    if (mode === 'strict') {
+      if (!isValidJobForm(draft.form, { reportNumberReadOnly: Boolean(job?.reportNumber), requireDestinationAddress: isAdmin })) {
+        setSaveStatus('error');
+        notify.error('Udfyld kundeoplysninger', { id: 'job-form-validation-error' });
+        return false;
+      }
+      if (!isValidWork(draft.form, referenceData)) {
+        setSaveStatus('error');
+        notify.error(getWorkValidationMessage(draft.form, referenceData) ?? 'Udfyld anlægstyper og opgavetype', {
+          id: 'job-work-validation-error',
+        });
+        return false;
+      }
 
-    if (options.validateControlPoints !== false) {
       const cpValidation = validateControlPoints(draft.form, referenceData);
       if (!cpValidation.valid) {
         setSaveStatus('error');
@@ -585,11 +601,17 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     }
 
     setSaveStatus('saving');
+    const formBeingSaved = draft.form;
     try {
       await mutation.mutateAsync({
         id: jobId,
         data: toUpdateRequest(job, initialForm, draft.form, referenceData, { includeWork: true }),
       });
+      if (draftRef.current?.form !== formBeingSaved) {
+        setSaveStatus('idle');
+        return false;
+      }
+      notifySaveSuccess();
       return true;
     } catch {
       return false;
