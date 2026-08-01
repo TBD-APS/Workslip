@@ -53,7 +53,7 @@ async function klsLifecycleFlow(session) {
     await session.login('Admin');
     session.referenceData = await session.getReferenceData();
     session.address = await session.getAddress();
-    session.runtimeUsers = unwrapCollection(await session.apiExpect('GET', '/api/users/', undefined, [200]));
+    session.runtimeUsers = await ensureAssignableUsers(session, 1);
   }, { screenshot: false });
 
   const job = await createKlsDraftViaUi(session, { role: 'Admin' });
