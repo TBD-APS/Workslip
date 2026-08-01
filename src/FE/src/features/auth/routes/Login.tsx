@@ -239,7 +239,7 @@ export const Login = () => {
                 </button>
               </div>
 
-              {import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
+              {import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
                 <div className="login-dev-section">
                   <div className="login-dev-buttons">
                     {[
