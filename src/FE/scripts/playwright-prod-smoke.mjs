@@ -35,6 +35,7 @@ const report = {
   pageErrors: [],
   failedRequests: [],
   failedApiResponses: [],
+  traceIncluded: scenario === 'public-smoke',
 };
 
 const browser = await chromium.launch();
@@ -48,17 +49,17 @@ let traceStarted = false;
 
 page.on('console', (message) => {
   if (message.type() === 'error') {
-    report.consoleErrors.push(message.text());
+    report.consoleErrors.push(redact(message.text()));
   }
 });
 page.on('pageerror', (error) => {
-  report.pageErrors.push(error.message);
+  report.pageErrors.push(redact(error.message));
 });
 page.on('requestfailed', (request) => {
   const entry = {
     method: request.method(),
-    url: request.url(),
-    error: request.failure()?.errorText ?? 'unknown',
+    url: safeUrl(request.url()),
+    error: redact(request.failure()?.errorText ?? 'unknown'),
   };
   report.failedRequests.push(entry);
   if (trackAuthenticatedApiFailures && request.url().includes('/api/')) {
@@ -71,10 +72,27 @@ page.on('response', (response) => {
   }
   report.failedApiResponses.push({
     method: response.request().method(),
-    url: response.url(),
+    url: safeUrl(response.url()),
     status: response.status(),
   });
 });
+
+function redact(value) {
+  return String(value)
+    .replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED_TOKEN]');
+}
+
+function safeUrl(value) {
+  try {
+    const url = new URL(value);
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return redact(value);
+  }
+}
 
 function fileSafe(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -99,7 +117,7 @@ async function runStep(name, action, { capture = true } = {}) {
   } catch (error) {
     step.status = 'failed';
     step.completedAt = new Date().toISOString();
-    step.error = error instanceof Error ? error.message : String(error);
+    step.error = redact(error instanceof Error ? error.message : String(error));
     try {
       await screenshot(`${name}-failed`);
     } catch {
@@ -139,8 +157,10 @@ async function clickNext(nextStepLabel) {
 }
 
 try {
-  await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
-  traceStarted = true;
+  if (scenario === 'public-smoke') {
+    await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+    traceStarted = true;
+  }
 
   await runStep('01 public home', async () => {
     const response = await page.goto(baseUrl, {
@@ -163,7 +183,7 @@ try {
       ]);
       await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
       trackAuthenticatedApiFailures = true;
-    });
+    }, { capture: false });
 
     await runStep('03 create draft case', async () => {
       const response = await page.goto(`${baseUrl}/app/job/new`, {
@@ -334,7 +354,9 @@ try {
   }
 } catch (error) {
   failure = error;
-  report.failure = error instanceof Error ? { message: error.message, stack: error.stack } : { message: String(error) };
+  report.failure = error instanceof Error
+    ? { message: redact(error.message), stack: redact(error.stack ?? '') }
+    : { message: redact(String(error)) };
   try {
     await screenshot('failure');
   } catch {
@@ -342,13 +364,13 @@ try {
   }
 } finally {
   report.completedAt = new Date().toISOString();
-  report.finalUrl = page.url();
+  report.finalUrl = safeUrl(page.url());
 
   if (traceStarted) {
     try {
       await context.tracing.stop({ path: path.join(artifactDir, 'trace.zip') });
     } catch (error) {
-      report.traceError = error instanceof Error ? error.message : String(error);
+      report.traceError = redact(error instanceof Error ? error.message : String(error));
     }
   }
 
