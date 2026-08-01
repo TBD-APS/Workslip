@@ -495,7 +495,9 @@ if (request.Work.ClosureFlags is not null)
             // Changed=false inconsistent with the returned status snapshot.
             var alreadyApplied = await GetSingleJobAsync(id, organizationId, cancellationToken);
             await tx.CommitAsync(cancellationToken);
-            return alreadyApplied is null ? null : new JobTransitionResult(alreadyApplied, false);
+            return alreadyApplied is null
+                ? null
+                : new JobTransitionResult(alreadyApplied, false, existing.SubmittedByUserId);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -503,18 +505,26 @@ if (request.Work.ClosureFlags is not null)
         entry.Property(e => e.Status).CurrentValue = nextStatus.ToString();
         entry.Property(e => e.UpdatedAt).CurrentValue = now;
 
-        if (nextStatus == JobStatus.InReview && existing.SubmittedAt is null)
+        if (nextStatus == JobStatus.InReview)
         {
-            entry.Property(e => e.SubmittedAt).CurrentValue = now;
+            if (existing.SubmittedAt is null)
+            {
+                entry.Property(e => e.SubmittedAt).CurrentValue = now;
+            }
+
+            entry.Property(e => e.SubmittedByUserId).CurrentValue = actorId;
         }
 
         entry.Property(e => e.RejectionNote).CurrentValue = nextStatus == JobStatus.Rejected ? rejectionNote : null;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var submittedByUserId = entry.Property(e => e.SubmittedByUserId).CurrentValue;
         var transitioned = await GetSingleJobAsync(id, organizationId, cancellationToken);
         await tx.CommitAsync(cancellationToken);
-        return transitioned is null ? null : new JobTransitionResult(transitioned, true);
+        return transitioned is null
+            ? null
+            : new JobTransitionResult(transitioned, true, submittedByUserId);
     }
 
     public Task<JobDeleteRepositoryResult> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>

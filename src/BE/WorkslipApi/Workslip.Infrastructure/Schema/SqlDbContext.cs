@@ -580,6 +580,8 @@ entity.Property(e => e.Status)
 
         entity.Property(e => e.SubmittedAt).HasColumnType("datetimeoffset");
 
+        entity.Property(e => e.SubmittedByUserId);
+
         entity.Property(e => e.DeletionScheduledAt).HasColumnType("datetimeoffset");
 
         entity.Property(e => e.RejectionNote).HasColumnType("nvarchar(max)");
@@ -592,6 +594,20 @@ entity.Property(e => e.Status)
             .HasForeignKey(e => e.OrganizationId)
 
             .OnDelete(DeleteBehavior.Restrict);
+
+
+
+        entity.HasOne<UserDataRow>()
+
+            .WithMany()
+
+            .HasForeignKey(e => new { e.OrganizationId, e.SubmittedByUserId })
+
+            .HasPrincipalKey(e => new { e.OrganizationId, e.Id })
+
+            .OnDelete(DeleteBehavior.Restrict)
+
+            .HasConstraintName("FK_JobReports_Users_OrganizationId_SubmittedByUserId");
 
 
 
@@ -630,6 +646,14 @@ entity.Property(e => e.Status)
             .IsUnique()
 
             .HasDatabaseName("UX_JobReports_Organization_ReportNumber");
+
+
+
+        entity.HasIndex(e => new { e.OrganizationId, e.SubmittedByUserId })
+
+            .HasFilter("[SubmittedByUserId] is not null")
+
+            .HasDatabaseName("IX_JobReports_Organization_SubmittedByUserId");
 
 
 

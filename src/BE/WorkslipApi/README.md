@@ -92,17 +92,11 @@ Production SQL authentication uses the App Service user-assigned managed identit
 
 Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
 
-## Feature toggles
+## Job-deletion notifications
 
-Assigned-user notifications for deleted jobs are controlled by:
+A successful hard deletion always queues a notification for every unique user assigned to the deleted job, including the user performing the deletion when that user is assigned. This behavior is not controlled by runtime configuration and cannot be disabled through Azure App Configuration.
 
-```text
-Features:NotifyAssignedUsersOnJobDeletion
-```
-
-The toggle is disabled when the key is missing or set to `false`. When enabled, a successful hard deletion queues a push notification for each unique assigned user except the user performing the deletion. The notification links to `/app`, because the deleted job no longer has a valid detail route. A notification queue failure for one recipient is logged and does not reverse the completed deletion or prevent other recipients from being queued.
-
-For local configuration, use `Features__NotifyAssignedUsersOnJobDeletion=true`. For production, add the key with value `true` in Azure App Configuration and restart the API because configuration is loaded during startup. The key is intentionally operator-owned and is not provisioned by `staticConfig.bicep`; ordinary infrastructure deployments therefore do not reset an intentional rollout value.
+The notification links to `/app`, because the deleted job no longer has a valid detail route. A notification queue failure for one recipient is logged and does not reverse the completed deletion or prevent notifications for the remaining recipients.
 
 ## Authentication and authorization
 
