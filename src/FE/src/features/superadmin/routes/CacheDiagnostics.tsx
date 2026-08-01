@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Database, HardDrive, RefreshCw, RotateCcw, Server, Wifi } from 'lucide-react';
@@ -121,6 +121,12 @@ function formatBytes(value: number | null): string {
   }).format(value / 1024 / 1024);
 }
 
+function isCacheStatusQuery(queryKey: readonly unknown[]): boolean {
+  return queryKey.length >= 2
+    && queryKey[0] === cacheStatusQueryKey[0]
+    && queryKey[1] === cacheStatusQueryKey[1];
+}
+
 export function CacheDiagnostics() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -135,7 +141,7 @@ export function CacheDiagnostics() {
     refetchInterval: 15_000,
   });
 
-  const refreshBrowserDiagnostics = async () => {
+  const refreshBrowserDiagnostics = useCallback(async () => {
     setIsInspectingBrowser(true);
     setBrowserError(null);
     try {
@@ -145,7 +151,7 @@ export function CacheDiagnostics() {
     } finally {
       setIsInspectingBrowser(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const cache = queryClient.getQueryCache();
@@ -156,12 +162,14 @@ export function CacheDiagnostics() {
 
   useEffect(() => {
     void refreshBrowserDiagnostics();
-  }, []);
+  }, [refreshBrowserDiagnostics]);
 
   const clearMutation = useMutation({
     mutationFn: clearCaches,
     onSuccess: async (result) => {
-      queryClient.getQueryCache().clear();
+      queryClient.removeQueries({
+        predicate: (query) => !isCacheStatusQuery(query.queryKey),
+      });
 
       if ('caches' in window) {
         const names = await window.caches.keys();
