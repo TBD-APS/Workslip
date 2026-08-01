@@ -1,0 +1,209 @@
+name: TEMP — WOR-246 status-dot update
+
+on:
+  push:
+    branches: [rbj--246-user-completed-dot]
+    paths:
+      - '.github/scripts/wor-246-status-dot-update.py'
+
+permissions:
+  contents: write
+
+jobs:
+  update-and-validate:
+    name: Apply and validate persistent completed dot
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: rbj--246-user-completed-dot
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Apply simplified implementation
+        run: python3 .github/scripts/wor-246-status-dot-update.py
+
+      - name: Assert final PR scope
+        run: |
+          set -Eeuo pipefail
+          git fetch origin main --depth=1
+          actual="$(git diff --name-only origin/main | sort)"
+          expected=$'src/FE/src/features/jobs/routes/JobList.completed-dot.test.tsx\nsrc/FE/src/features/jobs/routes/JobList.tsx'
+          test "$actual" = "$expected"
+          git diff --check
+
+      - name: Install frontend dependencies
+        working-directory: src/FE
+        run: npm ci
+
+      - name: Lint affected frontend files
+        working-directory: src/FE
+        run: npx eslint src/features/jobs/routes/JobList.tsx src/features/jobs/routes/JobList.completed-dot.test.tsx
+
+      - name: Run focused frontend tests
+        working-directory: src/FE
+        run: npm test -- --run src/features/jobs/routes/JobList.completed-dot.test.tsx
+
+      - name: Build production frontend
+        working-directory: src/FE
+        run: npm run build
+
+      - name: Install Chromium
+        working-directory: src/FE
+        run: npx playwright install --with-deps chromium
+
+      - name: Create browser harness
+        working-directory: src/FE
+        run: |
+          mkdir -p .tmp-wor246
+          cat > .tmp-wor246/index.html <<'EOF'
+          <!doctype html>
+          <html lang="da">
+            <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+            <body><div id="root"></div><script type="module" src="/main.tsx"></script></body>
+          </html>
+          EOF
+          cat > .tmp-wor246/main.tsx <<'EOF'
+          import React, { useState } from 'react';
+          import ReactDOM from 'react-dom/client';
+          import { JobStatus, type JobListItemViewModel } from '../src/api/generated/models';
+          import { JobCard } from '../src/features/jobs/routes/JobList';
+          import '../src/App.css';
+
+          const baseJob: JobListItemViewModel = {
+            id: 'job-1',
+            organizationId: 'organization-1',
+            customer: {
+              customerId: 'customer-1',
+              name: 'Kunde A/S',
+              address: 'Testvej 1',
+              email: 'kunde@example.com',
+              contactPerson: 'Test Person',
+              phone: '12345678',
+            },
+            reportNumber: '0001',
+            status: JobStatus.Approved,
+            installationTypes: [],
+            assignedUsers: [{ id: 'user-1', displayName: 'Testbruger' }],
+            softDeleted: false,
+            totalHours: 1,
+            createdAt: '2026-08-01T00:00:00Z',
+            updatedAt: '2026-08-01T00:00:00Z',
+            reportDate: '2026-08-01',
+            jobType: 'KLS',
+            destinationAddress: 'Testvej 2',
+            destinationZipCode: '8000',
+            destinationCity: 'Aarhus C',
+            taskDescription: 'Testopgave',
+            isSeen: true,
+            isNewRejection: false,
+            rejectionNote: null,
+          };
+
+          function Harness() {
+            const [status, setStatus] = useState(JobStatus.Approved);
+            const [opened, setOpened] = useState(0);
+            return (
+              <main>
+                <button id="change-status" type="button" onClick={() => setStatus(JobStatus.InReview)}>Skift status</button>
+                <output id="opened">{opened}</output>
+                <JobCard
+                  job={{ ...baseJob, status }}
+                  isAdmin={false}
+                  onOpen={() => setOpened((value) => value + 1)}
+                />
+              </main>
+            );
+          }
+
+          ReactDOM.createRoot(document.getElementById('root')!).render(<Harness />);
+          EOF
+          cat > .tmp-wor246/vite.config.ts <<'EOF'
+          import { defineConfig } from 'vite';
+          import react from '@vitejs/plugin-react';
+          import path from 'node:path';
+
+          export default defineConfig({
+            root: __dirname,
+            plugins: [react()],
+            server: {
+              host: '127.0.0.1',
+              port: 4173,
+              strictPort: true,
+              fs: { allow: [path.resolve(__dirname, '..')] },
+            },
+          });
+          EOF
+          cat > .tmp-wor246/playwright.config.ts <<'EOF'
+          import { defineConfig } from '@playwright/test';
+
+          export default defineConfig({
+            testDir: __dirname,
+            use: { baseURL: 'http://127.0.0.1:4173', browserName: 'chromium' },
+            reporter: 'line',
+          });
+          EOF
+          cat > .tmp-wor246/wor246.spec.ts <<'EOF'
+          import { expect, test } from '@playwright/test';
+
+          for (const viewport of [
+            { name: 'desktop', width: 1280, height: 900 },
+            { name: 'mobile', width: 390, height: 844 },
+          ]) {
+            test(`${viewport.name}: completed dot persists until status changes`, async ({ page }) => {
+              const errors: string[] = [];
+              page.on('console', (message) => {
+                if (message.type() === 'error') errors.push(message.text());
+              });
+              page.on('pageerror', (error) => errors.push(error.message));
+
+              await page.setViewportSize({ width: viewport.width, height: viewport.height });
+              await page.goto('/');
+              await expect(page.locator('.approved-dot')).toBeVisible();
+
+              await page.locator('.job-card').click();
+              await expect(page.locator('#opened')).toHaveText('1');
+              await expect(page.locator('.approved-dot')).toBeVisible();
+
+              await page.locator('#change-status').click();
+              await expect(page.locator('.approved-dot')).toHaveCount(0);
+              expect(errors).toEqual([]);
+            });
+          }
+          EOF
+
+      - name: Run browser validation
+        working-directory: src/FE
+        run: |
+          set -Eeuo pipefail
+          npx vite --config .tmp-wor246/vite.config.ts > /tmp/wor246-vite.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            rm -rf .tmp-wor246
+          }
+          trap cleanup EXIT
+          for _ in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4173 >/dev/null || { cat /tmp/wor246-vite.log; exit 1; }
+          npx playwright test --config .tmp-wor246/playwright.config.ts
+
+      - name: Commit validated implementation
+        run: |
+          set -Eeuo pipefail
+          git diff --check
+          git config user.name 'workslip-validation-bot'
+          git config user.email 'workslip-validation-bot@users.noreply.github.com'
+          git add -A
+          git commit -m 'RBJ-246: keep completed indicator while approved'
+          git push origin HEAD:rbj--246-user-completed-dot
