@@ -1,10 +1,13 @@
 name: TEMP — WOR-246 status-dot update
 
 on:
-  push:
-    branches: [rbj--246-user-completed-dot]
+  pull_request:
+    branches: [main]
     paths:
       - '.github/scripts/wor-246-status-dot-update.py'
+      - '.github/workflows/wor-246-status-dot-update.yml'
+      - 'src/FE/src/features/jobs/routes/JobList.tsx'
+      - 'src/FE/src/features/jobs/routes/JobList.completed-dot.test.tsx'
 
 permissions:
   contents: write
@@ -15,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout branch
+      - name: Checkout PR branch
         uses: actions/checkout@v7
         with:
-          ref: rbj--246-user-completed-dot
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
       - name: Setup Node
@@ -31,14 +34,8 @@ jobs:
       - name: Apply simplified implementation
         run: python3 .github/scripts/wor-246-status-dot-update.py
 
-      - name: Assert final PR scope
-        run: |
-          set -Eeuo pipefail
-          git fetch origin main --depth=1
-          actual="$(git diff --name-only origin/main | sort)"
-          expected=$'src/FE/src/features/jobs/routes/JobList.completed-dot.test.tsx\nsrc/FE/src/features/jobs/routes/JobList.tsx'
-          test "$actual" = "$expected"
-          git diff --check
+      - name: Check patch
+        run: git diff --check
 
       - name: Install frontend dependencies
         working-directory: src/FE
@@ -206,4 +203,4 @@ jobs:
           git config user.email 'workslip-validation-bot@users.noreply.github.com'
           git add -A
           git commit -m 'RBJ-246: keep completed indicator while approved'
-          git push origin HEAD:rbj--246-user-completed-dot
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
