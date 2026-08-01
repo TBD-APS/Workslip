@@ -1,29 +1,39 @@
-name: Playwright prod smoke
+name: Playwright critical flows
 
 on:
   workflow_dispatch:
     inputs:
       scenario:
-        description: Vælg skrivefrit smoke-check eller komplet testsag i dev-miljøet
+        description: Vælg et isoleret flow eller hele den risikobaserede suite
         required: true
         default: public-smoke
         type: choice
         options:
           - public-smoke
-          - full-case
+          - auth-session
+          - kls-lifecycle
+          - rejection-loop
+          - draft-recovery
+          - role-tenant-isolation
+          - invitation-onboarding
+          - assignment-lifecycle
+          - customer-lifecycle
+          - worksheet-integrity
+          - diverse-lifecycle
+          - all-critical
 
 permissions:
   contents: read
 
 concurrency:
-  group: playwright-prod-smoke
-  cancel-in-progress: true
+  group: playwright-critical-flows-${{ inputs.scenario }}
+  cancel-in-progress: false
 
 jobs:
   smoke:
-    name: Mobile prod smoke (${{ inputs.scenario }})
+    name: Mobile critical flow (${{ inputs.scenario }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 90
 
     defaults:
       run:
@@ -46,6 +56,11 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Validate test sources
+        run: |
+          node --check scripts/playwright-prod-smoke.mjs
+          node -e "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8'))"
+
       - name: Run Playwright scenario
         env:
           PROD_URL: https://app.mrsoftware.dk
@@ -56,7 +71,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-prod-smoke-${{ inputs.scenario }}
+          name: playwright-critical-flows-${{ inputs.scenario }}
           path: artifacts/playwright-prod-smoke
           if-no-files-found: warn
           retention-days: 7
