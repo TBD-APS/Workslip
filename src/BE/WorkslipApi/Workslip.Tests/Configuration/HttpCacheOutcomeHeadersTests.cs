@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Workslip.Api.Endpoints;
+using Xunit;
 
 namespace Workslip.Tests.Configuration;
 
