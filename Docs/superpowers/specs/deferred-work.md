@@ -17,3 +17,7 @@
 ## Existing frontend lint failures
 
 - Repository-wide `npm run lint` currently reports 51 errors and 9 warnings in pre-existing files. The failures include React hook/state-effect rules, fast-refresh export rules, render-time ref access, and one `prefer-const` violation; focused lint over the desktop-only Superadmin change passes.
+
+## Repository context artifacts
+
+- Regenerate `src/repomix-output.xml` in a dedicated maintenance change. The established process currently produces roughly 71,000 lines of unrelated drift from the checked-in snapshot, so feature branches should not absorb that pre-existing repository-wide update.
