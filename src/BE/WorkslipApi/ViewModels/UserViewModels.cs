@@ -86,7 +86,7 @@ public static class UserViewModelBuilder
         Roles.Superadmin => "Superadministrator",
         Roles.Admin => "Administrator",
         Roles.User => "Medarbejder",
-        Roles.Auditor => "Revisor",
+        Roles.Auditor => "Auditør",
         _ => role
     };
 }
