@@ -58,7 +58,7 @@ jobs:
               --style xml \
               --output repomix-output.xml
 
-            if git diff --quiet -- repomix-output.xml; then
+            if [[ -z "$(git status --porcelain -- repomix-output.xml)" ]]; then
               echo "Repomix output already matches main."
               exit 0
             fi
