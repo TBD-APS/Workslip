@@ -22,7 +22,7 @@ import { useDeleteApiAuthInvite, useGetApiAuthInvites, type InviteTokenResponse 
 
 type InviteRole = 'User' | 'Auditor';
 
-const getInviteRoleLabel = (role: string | null) => role === 'Auditor' ? 'Revisor' : 'Medarbejder';
+const getInviteRoleLabel = (role: string | null) => role === 'Auditor' ? 'Auditør' : 'Medarbejder';
 
 export const Settings = () => {
   const queryClient = useQueryClient();
@@ -136,7 +136,7 @@ export const Settings = () => {
             disabled={inviteMutation.isPending}
           >
             <option value="User">Medarbejder (User)</option>
-            <option value="Auditor">Revisor (Auditor)</option>
+            <option value="Auditor">Auditør (Auditor)</option>
           </select>
           <p className="form-help-text">
             Alle e-mailadresser i denne invitation får den valgte rolle.
