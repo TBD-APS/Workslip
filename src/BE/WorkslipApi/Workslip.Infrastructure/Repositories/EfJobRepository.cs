@@ -271,12 +271,17 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 g => g.OrderBy(it => it.SortOrder).Select(it => it.InstallationTypeDefinition.Name).ToArray() as IReadOnlyList<string>,
                 cancellationToken);
 
-        HashSet<Guid> seenJobIds = [];
+        HashSet<Guid> seenNewJobIds = [];
+        HashSet<Guid> seenCompletedJobIds = [];
         if (query.CurrentUserId.HasValue && reportIds.Length > 0)
         {
-            var viewed = await _jobViewRepo.GetViewedJobIdsAsync(
-                query.CurrentUserId.Value, reportIds, ["New"], cancellationToken);
-            seenJobIds = new HashSet<Guid>(viewed);
+            var viewedNewJobs = await _jobViewRepo.GetViewedJobIdsAsync(
+                query.CurrentUserId.Value, reportIds, [JobViewTypes.New], cancellationToken);
+            seenNewJobIds = new HashSet<Guid>(viewedNewJobs);
+
+            var viewedCompletedJobs = await _jobViewRepo.GetViewedJobIdsAsync(
+                query.CurrentUserId.Value, reportIds, [JobViewTypes.Completed], cancellationToken);
+            seenCompletedJobIds = new HashSet<Guid>(viewedCompletedJobs);
         }
 
         var items = projected.Select(x =>
@@ -292,6 +297,10 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 && assignedUsers.Any(u => u.Id == query.CurrentUserId.Value);
             var isNewRejection = status == JobStatus.Rejected
                 && isAssignedToCurrentUser;
+            var isSeenByCurrentUser = JobViewTypes.IsSeen(
+                status,
+                seenNewJobIds.Contains(x.Id),
+                seenCompletedJobIds.Contains(x.Id));
 
             return new JobListItemResponse(
                 x.Id, x.OrganizationId,
@@ -307,7 +316,7 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 assignedUsers,
                 x.IsSoftDeleted, x.DeletionScheduledAt,
                 totalHoursByJob.GetValueOrDefault(x.Id),
-                seenJobIds.Contains(x.Id),
+                isSeenByCurrentUser,
                 isNewRejection,
                 x.RejectionNote);
         }).ToArray();
