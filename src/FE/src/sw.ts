@@ -1,5 +1,10 @@
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
-import { navigateNotificationTarget } from './pwa/notificationNavigation';
+import {
+  isNotificationNavigationAcknowledgement,
+  navigateNotificationTarget,
+  NOTIFICATION_NAVIGATION_REQUEST,
+  type NotificationWindowClient,
+} from './pwa/notificationNavigation';
 
 type PrecacheManifestEntry = string | {
   url: string;
@@ -18,6 +23,7 @@ const PRECACHED_URLS = new Set(
 );
 const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
 const MAX_RUNTIME_ASSET_ENTRIES = 150;
+const CLIENT_NAVIGATION_TIMEOUT_MS = 1_500;
 
 cleanupOutdatedCaches();
 precacheAndRoute(PRECACHE_MANIFEST);
@@ -108,6 +114,42 @@ self.addEventListener('push', (event) => {
   );
 });
 
+async function requestClientRouterNavigation(
+  client: NotificationWindowClient,
+  url: string,
+): Promise<boolean> {
+  const channel = new MessageChannel();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (handled: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      channel.port1.close();
+      resolve(handled);
+    };
+    const timeout = setTimeout(() => finish(false), CLIENT_NAVIGATION_TIMEOUT_MS);
+
+    channel.port1.onmessage = (event) => {
+      const acknowledgement = event.data;
+      finish(
+        isNotificationNavigationAcknowledgement(acknowledgement)
+        && acknowledgement.success,
+      );
+    };
+
+    try {
+      (client as WindowClient).postMessage({
+        type: NOTIFICATION_NAVIGATION_REQUEST,
+        url,
+      }, [channel.port2]);
+    } catch {
+      finish(false);
+    }
+  });
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -122,6 +164,7 @@ self.addEventListener('notificationclick', (event) => {
       (url) => self.clients.openWindow(url),
       event.notification.data?.url,
       self.location.origin,
+      requestClientRouterNavigation,
     );
   })());
 });

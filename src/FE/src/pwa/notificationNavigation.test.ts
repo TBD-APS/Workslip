@@ -36,28 +36,48 @@ describe('resolveNotificationTarget', () => {
 });
 
 describe('navigateNotificationTarget', () => {
-  it('awaits navigation before focusing an already open application client', async () => {
-    let resolveNavigation: ((client: NotificationWindowClient) => void) | undefined;
+  it('awaits acknowledged app-router navigation before focusing an open client', async () => {
+    let resolveNavigation: ((handled: boolean) => void) | undefined;
     const client = createClient();
-    vi.mocked(client.navigate).mockImplementation(() => new Promise((resolve) => {
-      resolveNavigation = (value) => resolve(value);
-    }));
     const openWindow = vi.fn();
+    const navigateOpenClient = vi.fn().mockImplementation(() => new Promise<boolean>((resolve) => {
+      resolveNavigation = resolve;
+    }));
 
     const navigation = navigateNotificationTarget(
       [client],
       openWindow,
       '/app/job/job-1',
       'https://app.mrsoftware.dk',
+      navigateOpenClient,
     );
 
-    expect(client.navigate).toHaveBeenCalledWith('https://app.mrsoftware.dk/app/job/job-1');
+    expect(navigateOpenClient).toHaveBeenCalledWith(
+      client,
+      'https://app.mrsoftware.dk/app/job/job-1',
+    );
+    expect(client.navigate).not.toHaveBeenCalled();
     expect(client.focus).not.toHaveBeenCalled();
     expect(openWindow).not.toHaveBeenCalled();
 
-    resolveNavigation?.(client);
+    resolveNavigation?.(true);
     await navigation;
 
+    expect(client.focus).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to document navigation when the open app cannot handle the route', async () => {
+    const client = createClient();
+
+    await navigateNotificationTarget(
+      [client],
+      vi.fn(),
+      '/app/job/job-1',
+      'https://app.mrsoftware.dk',
+      vi.fn().mockResolvedValue(false),
+    );
+
+    expect(client.navigate).toHaveBeenCalledWith('https://app.mrsoftware.dk/app/job/job-1');
     expect(client.focus).toHaveBeenCalledOnce();
   });
 
