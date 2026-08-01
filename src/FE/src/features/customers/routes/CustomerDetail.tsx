@@ -20,6 +20,10 @@ type CustomerFavoriteState = {
   isFavorite?: boolean;
 };
 
+type CustomerJobWithDestination = {
+  destinationAddress?: string | null;
+};
+
 export const CustomerDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -173,26 +177,37 @@ export const CustomerDetail = () => {
       </section>
 
       <div className="job-list">
-        {customer.jobs.map((job) => (
-          <button
-            key={job.id}
-            className="job-card"
-            onClick={() => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } })}
-            type="button"
-          >
-            <div className="job-card-top">
-              <span className="job-number">Sag-{job.reportNumber}</span>
-              <span className={`status-badge status-${job.status.toLowerCase()}`}>{formatJobStatus(job.status)}</span>
-            </div>
-            <div className="job-card-body">
-              {job.contactPerson && <span className="meta-item"><Users size={14} /><span>{job.contactPerson}</span></span>}
-              {job.contactPhone && <span className="meta-item"><Phone size={14} /><span>{job.contactPhone}</span></span>}
-            </div>
-            <div className="job-card-meta">
-              <span className="meta-item"><Clock size={14} /><span className="meta-item">Sidst opdateret: {formatDateLong(job.updatedAt)}</span></span>
-            </div>
-          </button>
-        ))}
+        {customer.jobs.map((job) => {
+          const destinationAddress = (job as typeof job & CustomerJobWithDestination).destinationAddress;
+
+          return (
+            <button
+              key={job.id}
+              className="job-card"
+              onClick={() => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } })}
+              type="button"
+            >
+              <div className="job-card-top">
+                <div>
+                  <span className="job-number">Sag-{job.reportNumber}</span>
+                  <h3 className="job-customer">{customer.name}</h3>
+                </div>
+                <span className={`status-badge status-${job.status.toLowerCase()}`}>{formatJobStatus(job.status)}</span>
+              </div>
+              <p className="job-address-row">
+                <MapPin size={14} />
+                <span className="job-address">{destinationAddress || 'Ingen destinationsadresse angivet'}</span>
+              </p>
+              <div className="job-card-body">
+                {job.contactPerson && <span className="meta-item"><Users size={14} /><span>{job.contactPerson}</span></span>}
+                {job.contactPhone && <span className="meta-item"><Phone size={14} /><span>{job.contactPhone}</span></span>}
+              </div>
+              <div className="job-card-meta">
+                <span className="meta-item"><Clock size={14} /><span className="meta-item">Sidst opdateret: {formatDateLong(job.updatedAt)}</span></span>
+              </div>
+            </button>
+          );
+        })}
 
         {customer.jobs.length === 0 && <div className="empty-state"><p>Ingen sager for denne kunde.</p></div>}
       </div>
