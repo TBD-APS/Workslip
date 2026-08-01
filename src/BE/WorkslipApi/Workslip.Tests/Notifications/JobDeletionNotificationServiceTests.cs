@@ -26,7 +26,6 @@ public sealed class JobDeletionNotificationServiceTests
                 new AssignedUserResponse(recipientId, "Duplikat"),
                 new AssignedUserResponse(secondRecipientId, "Anden montør")
             ]),
-            deletingUserId,
             CancellationToken.None);
 
         Assert.Equal(
@@ -47,7 +46,6 @@ public sealed class JobDeletionNotificationServiceTests
                 new AssignedUserResponse(failingRecipientId, "Fejlende modtager"),
                 new AssignedUserResponse(successfulRecipientId, "Gyldig modtager")
             ]),
-            deletingUserId: null,
             CancellationToken.None);
 
         Assert.Equal(new[] { failingRecipientId, successfulRecipientId }, notifications.DeletedRecipients);

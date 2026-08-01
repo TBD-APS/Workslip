@@ -11,7 +11,6 @@ public sealed class JobDeletionNotificationService(
 
     public async Task QueueAsync(
         JobReportResponse deletedJob,
-        Guid? deletingUserId,
         CancellationToken cancellationToken)
     {
         var reportNumber = deletedJob.ReportNumber ?? "Uden nummer";

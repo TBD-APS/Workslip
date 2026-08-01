@@ -608,7 +608,6 @@ public sealed class JobService(
          {
              await jobDeletionNotificationService.QueueAsync(
                  deletedJob,
-                 currentUser.UserId,
                  cancellationToken);
          }
 
