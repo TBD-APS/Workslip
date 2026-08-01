@@ -1,0 +1,232 @@
+.cache-diagnostics-page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-bottom: 6rem;
+}
+
+.cache-diagnostics-header,
+.cache-diagnostics-section-header,
+.cache-diagnostics-actions,
+.cache-diagnostics-heading {
+  display: flex;
+  align-items: center;
+}
+
+.cache-diagnostics-header {
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.cache-diagnostics-heading {
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.cache-diagnostics-heading h1,
+.cache-diagnostics-section h2 {
+  margin: 0;
+}
+
+.cache-diagnostics-heading p,
+.cache-diagnostics-section-header p {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+}
+
+.cache-diagnostics-actions {
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.cache-diagnostics-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.cache-diagnostics-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.cache-diagnostics-overview article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.7rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.cache-diagnostics-overview svg {
+  grid-row: 1 / span 3;
+  color: var(--primary);
+}
+
+.cache-diagnostics-overview span,
+.cache-diagnostics-overview small,
+.cache-diagnostics-meta,
+.cache-diagnostics-query-list span,
+.cache-diagnostics-query-list small,
+.cache-diagnostics-list span,
+.cache-diagnostics-storage {
+  color: var(--text-secondary);
+}
+
+.cache-diagnostics-overview strong {
+  font-size: 1.2rem;
+}
+
+.cache-diagnostics-section {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.cache-diagnostics-section-header {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.cache-diagnostics-meta {
+  max-width: 46%;
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.cache-diagnostics-table-wrap {
+  overflow-x: auto;
+}
+
+.cache-diagnostics-table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.cache-diagnostics-table th,
+.cache-diagnostics-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cache-diagnostics-table th {
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cache-diagnostics-query-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.cache-diagnostics-query-list article {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-input);
+}
+
+.cache-diagnostics-query-list strong,
+.cache-diagnostics-query-list span,
+.cache-diagnostics-query-list small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cache-diagnostics-browser-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.cache-diagnostics-browser-grid .cache-diagnostics-section {
+  margin-bottom: 0;
+}
+
+.cache-diagnostics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cache-diagnostics-list > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-input);
+}
+
+.cache-diagnostics-list strong,
+.cache-diagnostics-list span {
+  overflow-wrap: anywhere;
+}
+
+.cache-diagnostics-storage {
+  margin: 1rem 0 0;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .cache-diagnostics-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cache-diagnostics-browser-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .cache-diagnostics-header,
+  .cache-diagnostics-section-header,
+  .cache-diagnostics-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cache-diagnostics-actions .btn {
+    width: 100%;
+  }
+
+  .cache-diagnostics-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .cache-diagnostics-meta {
+    max-width: none;
+    text-align: left;
+  }
+
+  .cache-diagnostics-section {
+    padding: 1rem;
+  }
+}
