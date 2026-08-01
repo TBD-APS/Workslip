@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { QueryKey } from '@tanstack/react-query';
 import { useInfiniteList } from './useInfiniteList';
 import { useInfiniteScroll } from './useInfiniteScroll';
 import { useMediaQuery } from './useMediaQuery';
 import { buildPaginatedListQueryKey, getPaginatedListInitialState } from './paginatedListState';
+import { useAppScrollRestoreKey } from './useAppRouteScroll';
 
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector('.app-shell');
@@ -73,7 +74,13 @@ export function usePaginatedList<TItem>({
   const [sort, setSort] = useState(initialState.sort);
   const [viewPage, setViewPage] = useState(initialState.viewPage);
   const isDesktop = useMediaQuery('(min-width: 768px)');
+  const restoreScrollKey = useAppScrollRestoreKey();
+  const restorePendingRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    restorePendingRef.current = Boolean(restoreScrollKey);
+  }, [restoreScrollKey]);
 
   const fetchWrapped = useCallback(
     async ({ limit, offset }: { limit: number; offset: number }) => {
@@ -175,18 +182,31 @@ export function usePaginatedList<TItem>({
   // Scroll position restore on mount
   const isLoading = query.isLoading;
   useEffect(() => {
-    if (!storageKey || isLoading) return;
+    if (!storageKey || isLoading || !restoreScrollKey) return;
     const saved = sessionStorage.getItem(`${storageKey}:scroll`);
-    if (saved) {
-      requestAnimationFrame(() => getScrollContainer()?.scrollTo({ top: Number(saved) }));
+    if (!saved) {
+      restorePendingRef.current = false;
+      return;
     }
-  }, [storageKey, isLoading]);
+
+    const scrollTop = Number(saved);
+    if (!Number.isFinite(scrollTop) || scrollTop < 0) {
+      restorePendingRef.current = false;
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      getScrollContainer()?.scrollTo({ top: scrollTop });
+      restorePendingRef.current = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [storageKey, isLoading, restoreScrollKey]);
 
   // Scroll position save — debounced scroll listener with resize cooldown.
   // The scroll listener handles back-button restores reliably.
   // The resize cooldown prevents layout-triggered scroll events from
   // overwriting the saved position when the browser window is resized.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!storageKey) return;
     const container = getScrollContainer();
     if (!container) return;
@@ -195,14 +215,18 @@ export function usePaginatedList<TItem>({
     scrollTokens[storageKey] = myToken;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let latestScrollTop = container.scrollTop;
     const onScroll = () => {
+      latestScrollTop = container.scrollTop;
+      if (restorePendingRef.current) return;
       if (scrollTokens[storageKey] !== myToken) return;
       if (Date.now() < resizeCooldownUntil) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
+        if (restorePendingRef.current) return;
         if (scrollTokens[storageKey] !== myToken) return;
         if (Date.now() < resizeCooldownUntil) return;
-        sessionStorage.setItem(`${storageKey}:scroll`, String(container.scrollTop));
+        sessionStorage.setItem(`${storageKey}:scroll`, String(latestScrollTop));
       }, 200);
     };
     container.addEventListener('scroll', onScroll, { passive: true });
@@ -210,6 +234,9 @@ export function usePaginatedList<TItem>({
       if (timer) clearTimeout(timer);
       container.removeEventListener('scroll', onScroll);
       if (scrollTokens[storageKey] === myToken) {
+        if (!restorePendingRef.current) {
+          sessionStorage.setItem(`${storageKey}:scroll`, String(latestScrollTop));
+        }
         delete scrollTokens[storageKey];
       }
     };

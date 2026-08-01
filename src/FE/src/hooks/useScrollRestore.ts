@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useAppScrollRestoreKey } from './useAppRouteScroll';
 
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector('.app-shell');
@@ -19,16 +20,39 @@ window.addEventListener('resize', () => {
  * Pass a unique key (e.g. the route path or entity id).
  */
 export function useScrollRestore(key: string) {
-  // Restore on mount
+  const restoreKey = useAppScrollRestoreKey();
+  const restorePendingRef = useRef(false);
+
+  useLayoutEffect(() => {
+    restorePendingRef.current = Boolean(restoreKey);
+  }, [restoreKey]);
+
+  // Restore after mount. Scroll writes stay suppressed until this has either
+  // consumed the saved position or established that there is nothing to use.
   useEffect(() => {
+    if (!restoreKey) return;
+
     const saved = sessionStorage.getItem(`scroll:${key}`);
-    if (saved) {
-      requestAnimationFrame(() => getScrollContainer()?.scrollTo({ top: Number(saved) }));
+    if (!saved) {
+      restorePendingRef.current = false;
+      return;
     }
-  }, [key]);
+
+    const scrollTop = Number(saved);
+    if (!Number.isFinite(scrollTop) || scrollTop < 0) {
+      restorePendingRef.current = false;
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      getScrollContainer()?.scrollTo({ top: scrollTop });
+      restorePendingRef.current = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [key, restoreKey]);
 
   // Save — debounced scroll listener with resize cooldown
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = getScrollContainer();
     if (!container) return;
 
@@ -36,21 +60,30 @@ export function useScrollRestore(key: string) {
     tokens[key] = myToken;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let latestScrollTop = container.scrollTop;
     const onScroll = () => {
+      latestScrollTop = container.scrollTop;
+      if (restorePendingRef.current) return;
       if (tokens[key] !== myToken) return;
       if (Date.now() < resizeCooldownUntil) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
+        if (restorePendingRef.current) return;
         if (tokens[key] !== myToken) return;
         if (Date.now() < resizeCooldownUntil) return;
-        sessionStorage.setItem(`scroll:${key}`, String(container.scrollTop));
+        sessionStorage.setItem(`scroll:${key}`, String(latestScrollTop));
       }, 200);
     };
     container.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       if (timer) clearTimeout(timer);
       container.removeEventListener('scroll', onScroll);
-      if (tokens[key] === myToken) delete tokens[key];
+      if (tokens[key] === myToken) {
+        if (!restorePendingRef.current) {
+          sessionStorage.setItem(`scroll:${key}`, String(latestScrollTop));
+        }
+        delete tokens[key];
+      }
     };
   }, [key]);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } from 'lucide-react';
@@ -17,6 +17,7 @@ import { useSearch } from '../../../hooks/useSearch';
 import { apiClient } from '../../../lib/axios';
 import { formatDateLong } from '../../../lib/formatDate';
 import { formatJobStatus } from '../../jobs/statusLabels';
+import { useAppScrollRestoreKey } from '../../../hooks/useAppRouteScroll';
 
 const SCROLL_CONTAINER_SELECTOR = '.app-shell';
 const SCROLL_STORAGE_KEY = 'auditorReportListScrollTop';
@@ -59,6 +60,7 @@ const SkeletonCard = () => (
 
 export const AuditorReportList = () => {
   const navigate = useNavigate();
+  const restoreScrollKey = useAppScrollRestoreKey();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<JobStatus[]>(() => getSavedAuditorStatusFilter());
@@ -168,11 +170,15 @@ export const AuditorReportList = () => {
   useEffect(() => { announceSection('auditor-reports'); }, []);
   useEffect(() => { void queryClient.invalidateQueries({ queryKey: ['/api/jobs'] }); }, [queryClient]);
   useEffect(() => {
-    if (query.isLoading) return;
+    if (query.isLoading || !restoreScrollKey) return;
     const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY);
-    if (saved) getScrollContainer()?.scrollTo({ top: Number(saved) });
-  }, [query.isLoading]);
-  useEffect(() => {
+    if (!saved) return;
+
+    const scrollTop = Number(saved);
+    if (!Number.isFinite(scrollTop) || scrollTop < 0) return;
+    getScrollContainer()?.scrollTo({ top: scrollTop });
+  }, [query.isLoading, restoreScrollKey]);
+  useLayoutEffect(() => {
     return () => {
       const top = getScrollContainer()?.scrollTop;
       if (top != null) sessionStorage.setItem(SCROLL_STORAGE_KEY, String(top));

@@ -2,7 +2,7 @@ import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-route
 import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
@@ -19,6 +19,10 @@ import {
 import '../../features/superadmin/organizationSession.css';
 import '../../authenticated-base.css';
 import '../../App.css';
+import {
+  AppScrollRestoreBoundary,
+  useAppRouteScrollManager,
+} from '../../hooks/useAppRouteScroll';
 
 export const AppLayout = () => {
   const navigate = useNavigate();
@@ -35,10 +39,13 @@ export const AppLayout = () => {
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const restoreScrollKey = useAppRouteScrollManager(scrollContainerRef);
 
   const scrollToTopIfActive = (path: string) => {
     if (location.pathname === path) {
-      document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -109,8 +116,9 @@ export const AppLayout = () => {
     : 'Notifikationer';
 
   return (
+    <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
     <DropdownProvider>
-      <div className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
+      <div ref={scrollContainerRef} className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
         {/* Top Header for Mobile */}
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
@@ -265,5 +273,6 @@ export const AppLayout = () => {
       )}
     </div>
     </DropdownProvider>
+    </AppScrollRestoreBoundary>
   );
 };

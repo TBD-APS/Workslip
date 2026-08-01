@@ -6,6 +6,7 @@ import { ErrorState } from '../../../components/ErrorState';
 import { apiClient } from '../../../lib/axios';
 import { abbreviateName } from '../../../lib/formatUtils';
 import { useIsAdmin } from '../../../providers/permissions';
+import { useAppScrollRestoreKey } from '../../../hooks/useAppRouteScroll';
 
 type MyWorksheetEntryResponse = {
   workDate: string;
@@ -164,8 +165,9 @@ function AdminWeeklyOverview({
 export function MyWorksheets() {
   const navigate = useNavigate();
   const isAdmin = useIsAdmin();
+  const restoreScrollKey = useAppScrollRestoreKey();
   const savedState = useRef(readTimerOverviewState());
-  const hasRestoredScroll = useRef(false);
+  const restoredScrollKey = useRef<string | null>(null);
   const [cursor, setCursor] = useState<MonthCursor>(() => savedState.current?.cursor ?? getCurrentMonthCursor());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(() => {
     const saved = savedState.current?.expandedWeeks;
@@ -193,14 +195,17 @@ export function MyWorksheets() {
   }, [cursor, expandedWeeks]);
 
   useEffect(() => {
-    if (!data || hasRestoredScroll.current) {
+    if (!data || !restoreScrollKey || restoredScrollKey.current === restoreScrollKey) {
       return;
     }
 
-    hasRestoredScroll.current = true;
     const scrollTop = savedState.current?.scrollTop ?? 0;
-    requestAnimationFrame(() => setAppScrollTop(scrollTop));
-  }, [data]);
+    const frame = requestAnimationFrame(() => {
+      setAppScrollTop(scrollTop);
+      restoredScrollKey.current = restoreScrollKey;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [data, restoreScrollKey]);
 
   const selectMonth = (nextCursor: MonthCursor) => {
     setCursor(nextCursor);
