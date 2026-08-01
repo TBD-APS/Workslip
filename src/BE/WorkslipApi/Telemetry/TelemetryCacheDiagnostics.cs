@@ -53,6 +53,11 @@ public sealed class TelemetryCacheDiagnostics(
             return;
         }
 
+        foreach (var region in inner.GetSnapshot().Regions)
+        {
+            TrackMetric("workslip.cache.invalidation", 1, region.Name);
+        }
+
         telemetryClient.TrackEvent(new EventTelemetry("workslip.cache.global_clear"));
     }
 
