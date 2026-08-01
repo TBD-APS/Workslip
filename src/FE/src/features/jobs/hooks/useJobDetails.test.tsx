@@ -10,6 +10,12 @@ const testState = vi.hoisted(() => ({
   job: undefined as JobReportSummaryViewModel | undefined,
   referenceData: undefined as ReferenceDataResponse | undefined,
   user: { id: 'user-1' },
+  sameForm: true,
+  sameFormWithoutWork: true,
+  jobFormValid: true,
+  workValid: true,
+  controlPointsValid: true,
+  patchOnSuccess: undefined as ((data: JobReportSummaryViewModel) => void) | undefined,
 }));
 
 const mutation = vi.hoisted(() => ({
@@ -17,6 +23,11 @@ const mutation = vi.hoisted(() => ({
   isPending: false,
   mutate: vi.fn(),
   mutateAsync: vi.fn(),
+}));
+
+const notify = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
 }));
 
 vi.mock('../../../api/generated/jobs/jobs', () => ({
@@ -29,7 +40,27 @@ vi.mock('../../../api/generated/jobs/jobs', () => ({
     isLoading: false,
     refetch: vi.fn(),
   }),
-  usePatchApiJobsId: () => mutation,
+  usePatchApiJobsId: (options: {
+    mutation: {
+      onError: (error: unknown) => void;
+      onSuccess: (data: JobReportSummaryViewModel) => void;
+    };
+  }) => {
+    testState.patchOnSuccess = options.mutation.onSuccess;
+    return {
+      ...mutation,
+      mutateAsync: async (...args: unknown[]) => {
+        try {
+          const data = await mutation.mutateAsync(...args) as JobReportSummaryViewModel;
+          options.mutation.onSuccess(data);
+          return data;
+        } catch (error) {
+          options.mutation.onError(error);
+          throw error;
+        }
+      },
+    };
+  },
   usePostApiJobsIdAssign: () => mutation,
   usePostApiJobsIdLinks: () => mutation,
   usePostApiJobsIdStatus: () => mutation,
@@ -56,7 +87,7 @@ vi.mock('../../../lib/axios', () => ({
 }));
 
 vi.mock('../../../lib/toast', () => ({
-  notify: { error: vi.fn(), success: vi.fn() },
+  notify,
 }));
 
 vi.mock('../../../providers/permissions', () => ({
@@ -97,17 +128,20 @@ vi.mock('../utils', () => {
     emptyForm: form,
     getLinkableJobs: () => [],
     getWorkValidationMessage: () => null,
-    isValidJobForm: () => true,
-    isValidWork: () => true,
-    sameForm: () => true,
-    sameFormWithoutWork: () => true,
+    isValidJobForm: () => testState.jobFormValid,
+    isValidWork: () => testState.workValid,
+    sameForm: () => testState.sameForm,
+    sameFormWithoutWork: () => testState.sameFormWithoutWork,
     toForm: () => form,
     toUpdateRequest: vi.fn(),
   };
 });
 
 vi.mock('../components/steps/controlPointsValidation', () => ({
-  validateControlPoints: () => ({ valid: true }),
+  validateControlPoints: () => ({
+    valid: testState.controlPointsValid,
+    error: testState.controlPointsValid ? undefined : 'Kontrolpunkter mangler',
+  }),
 }));
 
 const referenceData = {
@@ -176,11 +210,18 @@ function createWrapper() {
   );
 }
 
-describe('useJobDetailsState worksheet shortcut', () => {
+describe('useJobDetailsState', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     testState.job = undefined;
     testState.referenceData = undefined;
+    testState.sameForm = true;
+    testState.sameFormWithoutWork = true;
+    testState.jobFormValid = true;
+    testState.workValid = true;
+    testState.controlPointsValid = true;
+    testState.patchOnSuccess = undefined;
+    mutation.mutateAsync.mockResolvedValue(createAssignedJob(JobStatus.Draft));
   });
 
   it('does not redirect a rejected assigned job when reference data resolves later', async () => {
@@ -228,5 +269,200 @@ describe('useJobDetailsState worksheet shortcut', () => {
     });
 
     await waitFor(() => expect(result.current.currentStep).toBe(3));
+  });
+
+  it.each([
+    ['customer', 'jobFormValid'],
+    ['work', 'workValid'],
+    ['control-point', 'controlPointsValid'],
+  ] as const)('bypasses the %s required-field gate in draft mode', async (_gate, validityKey) => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    testState[validityKey] = false;
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => {
+      result.current.updateTechnicalObservations('Changed');
+    });
+
+    let saved = false;
+    await act(async () => {
+      saved = await result.current.saveAllChanges({ mode: 'draft' });
+    });
+
+    expect(saved).toBe(true);
+    expect(mutation.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(notify.error).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['customer', 'jobFormValid'],
+    ['work', 'workValid'],
+    ['control-point', 'controlPointsValid'],
+  ] as const)('keeps the %s required-field gate strict by default', async (_gate, validityKey) => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    testState[validityKey] = false;
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => {
+      result.current.updateTechnicalObservations('Changed');
+    });
+
+    let saved = true;
+    await act(async () => {
+      saved = await result.current.saveAllChanges();
+    });
+
+    expect(saved).toBe(false);
+    expect(mutation.mutateAsync).not.toHaveBeenCalled();
+    expect(notify.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the leave-save success notification only after the API confirms persistence', async () => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    let confirmSave: ((job: JobReportSummaryViewModel) => void) | undefined;
+    mutation.mutateAsync.mockReturnValue(new Promise((resolve) => {
+      confirmSave = resolve;
+    }));
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => {
+      result.current.updateTechnicalObservations('Changed');
+    });
+
+    let savePromise: Promise<boolean>;
+    act(() => {
+      savePromise = result.current.saveAllChanges({ mode: 'draft', notifyOnSuccess: true });
+    });
+
+    expect(notify.success).not.toHaveBeenCalled();
+
+    await act(async () => {
+      confirmSave?.(createAssignedJob(JobStatus.Draft));
+      await savePromise!;
+    });
+
+    expect(notify.success).toHaveBeenCalledWith('Ændringerne er gemt', { id: 'job-draft-save-success' });
+  });
+
+  it('keeps a failed draft save blocking and does not show a success notification', async () => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    mutation.mutateAsync.mockRejectedValue(new Error('Save failed'));
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => {
+      result.current.updateTechnicalObservations('Changed');
+    });
+
+    let saved = true;
+    await act(async () => {
+      saved = await result.current.saveAllChanges({ mode: 'draft', notifyOnSuccess: true });
+    });
+
+    expect(saved).toBe(false);
+    expect(result.current.hasUnsavedChanges).toBe(true);
+    expect(result.current.saveStatus).toBe('error');
+    expect(notify.error).toHaveBeenCalledWith('Kunne ikke gemme ændringer', { id: 'job-save-error' });
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it('notifies when an active autosave completed before the leave-save callback runs', async () => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => {
+      result.current.updateTechnicalObservations('Changed');
+    });
+    act(() => {
+      testState.patchOnSuccess?.(createAssignedJob(JobStatus.Draft));
+    });
+
+    let saved = false;
+    await act(async () => {
+      saved = await result.current.saveAllChanges({ mode: 'draft', notifyOnSuccess: true });
+    });
+
+    expect(saved).toBe(true);
+    expect(notify.success).toHaveBeenCalledWith('Ændringerne er gemt', { id: 'job-draft-save-success' });
+  });
+
+  it('keeps navigation blocked when the draft changes during the leave-save request', async () => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    let confirmSave: ((job: JobReportSummaryViewModel) => void) | undefined;
+    mutation.mutateAsync.mockReturnValue(new Promise((resolve) => {
+      confirmSave = resolve;
+    }));
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => {
+      result.current.updateTechnicalObservations('Changed');
+    });
+    let savePromise: Promise<boolean>;
+    act(() => {
+      savePromise = result.current.saveAllChanges({ mode: 'draft', notifyOnSuccess: true });
+    });
+    act(() => {
+      result.current.updateCustomerObservations('Newer change');
+      testState.sameFormWithoutWork = false;
+    });
+
+    let saved = true;
+    await act(async () => {
+      confirmSave?.(createAssignedJob(JobStatus.Draft));
+      saved = await savePromise!;
+    });
+
+    expect(saved).toBe(false);
+    expect(result.current.hasUnsavedChanges).toBe(true);
+    expect(result.current.saveStatus).toBe('idle');
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it('preserves newer work changes when a non-work autosave completes', async () => {
+    testState.job = createAssignedJob(JobStatus.Draft);
+    testState.referenceData = referenceData;
+    testState.sameForm = false;
+    const { result } = renderHook(
+      () => useJobDetailsState('job-1', { autoSave: false }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => {
+      result.current.toggleControlPoint('cp-1');
+    });
+    act(() => {
+      testState.patchOnSuccess?.(createAssignedJob(JobStatus.Draft));
+    });
+
+    expect(result.current.form.work.controlPointSelections['cp-1']).toBe(true);
   });
 });

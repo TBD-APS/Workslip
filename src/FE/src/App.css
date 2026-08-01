@@ -1034,6 +1034,10 @@
   font-weight: 400;
 }
 
+.job-card-meta .meta-updated {
+  white-space: nowrap;
+}
+
 .user-hours-row {
   display: flex;
   align-items: center;
