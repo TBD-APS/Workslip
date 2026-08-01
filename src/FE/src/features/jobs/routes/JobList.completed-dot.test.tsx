@@ -21,17 +21,13 @@ function createJob(overrides: Partial<JobListItemViewModel> = {}): JobListItemVi
     assignedUsers: [{ id: 'user-1', displayName: 'Testbruger' }],
     softDeleted: false,
     totalHours: 1,
-    createdAt: '2026-08-01T00:00:00Z',
     updatedAt: '2026-08-01T00:00:00Z',
     reportDate: '2026-08-01',
     jobType: 'KLS',
     destinationAddress: 'Testvej 2',
-    destinationZipCode: '8000',
-    destinationCity: 'Aarhus C',
     taskDescription: 'Testopgave',
     isSeen: false,
     isNewRejection: false,
-    rejectionNote: null,
     ...overrides,
   };
 }

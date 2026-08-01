@@ -215,21 +215,10 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 job.ReportDate,
                 job.JobType,
                 job.DestinationAddress,
-                job.DestinationZipCode,
-                job.DestinationCity,
                 job.TaskDescription,
-                WorkKind = job.WorkKindRow != null ? new JobWorkKindResponse(
-                    job.WorkKindRow.Id,
-                    job.WorkKindRow.NormalizedLabel,
-                    job.WorkKindRow.Label,
-                    job.WorkKindRow.RequiresCustomWorkKind,
-                    job.WorkKindRow.SortOrder,
-                    job.CustomWorkKind) : null,
                 job.CreatedAt,
                 job.UpdatedAt,
-                job.IsSoftDeleted,
-                job.DeletionScheduledAt,
-                job.RejectionNote
+                job.IsSoftDeleted
             };
 
         var totalCount = await baseQuery.CountAsync(cancellationToken);
@@ -308,17 +297,14 @@ private async Task CreateTimesheetsAsync(Guid organizationId, Guid jobReportId, 
                 x.ReportNumber, status, JobReportMapper.ToDateOnly(x.ReportDate),
                 x.JobType,
                 x.DestinationAddress,
-                x.DestinationZipCode,
-                x.DestinationCity,
                 x.TaskDescription,
-                installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
-                x.CreatedAt, x.UpdatedAt,
+                installationTypesByReport.GetValueOrDefault(x.Id) ?? [],
                 assignedUsers,
-                x.IsSoftDeleted, x.DeletionScheduledAt,
+                x.IsSoftDeleted,
                 totalHoursByJob.GetValueOrDefault(x.Id),
+                x.UpdatedAt,
                 isSeenByCurrentUser,
-                isNewRejection,
-                x.RejectionNote);
+                isNewRejection);
         }).ToArray();
 
         return new JobListResponse(items, totalCount);

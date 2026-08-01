@@ -370,27 +370,29 @@ public sealed class DevelopmentDatabaseSeeder(
         {
             throw TenantReferenceConflict(userId, "worksheets");
         }
+    }
 
-        if (await db.PushSubscriptions.AnyAsync(
-                row => row.UserId == userId,
-                cancellationToken))
+    private async Task DeleteEphemeralReferencesAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        if (db.Database.IsRelational())
         {
-            throw TenantReferenceConflict(userId, "push subscriptions");
+            await db.JobViews
+                .Where(view => view.UserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await db.PushSubscriptions
+                .Where(subscription => subscription.UserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await db.NotificationQueue
+                .Where(notification => notification.UserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
+            return;
         }
 
-        if (await db.NotificationQueue.AnyAsync(
-                row => row.UserId == userId,
-                cancellationToken))
-        {
-            throw TenantReferenceConflict(userId, "notification queue");
-        }
-
-        if (await db.JobViews.AnyAsync(
-                row => row.UserId == userId,
-                cancellationToken))
-        {
-            throw TenantReferenceConflict(userId, "job views");
-        }
+        db.JobViews.RemoveRange(db.JobViews.Where(view => view.UserId == userId));
+        db.PushSubscriptions.RemoveRange(db.PushSubscriptions.Where(subscription => subscription.UserId == userId));
+        db.NotificationQueue.RemoveRange(db.NotificationQueue.Where(notification => notification.UserId == userId));
     }
 
     private void StagePlatformOrganization(OrganizationRow? platformOrganization)
@@ -472,6 +474,11 @@ public sealed class DevelopmentDatabaseSeeder(
         }
 
         var existing = resolvedSuperadmin.ExistingUser;
+        if (existing.OrganizationId != PlatformOrganization.Id)
+        {
+            await DeleteEphemeralReferencesAsync(definition.Id, cancellationToken);
+        }
+
         var requiresUpdate = !existing.MatchesDesired(definition, entraUser);
         var reconciledUpdatedAt = requiresUpdate ? timestamp : existing.UpdatedAt;
         if (db.Database.IsRelational())
