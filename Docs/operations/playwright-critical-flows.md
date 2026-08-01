@@ -29,12 +29,12 @@ The suite must not depend on pre-existing IDs, customers, jobs, users, reference
 
 - Runtime API contracts are loaded from the deployed `/openapi/v1.json`.
 - Executable request examples and unique-value conventions are loaded from `Postman/postman_collection.json`.
-- Installation types, work kinds, closure flags, users, customers, jobs, roles, and organization context are loaded from runtime API responses.
+- Installation types, users, customers, jobs, roles, and organization context are loaded from runtime API responses. Work kind and closure flag must exist in runtime reference data and match the executable `/api/jobs` example in the Postman collection.
 - Postal addresses are selected from the DAWA autocomplete service and then entered through the real UI control.
 - Missing assignable users and isolated tenant fixtures are created through documented API contracts using unique values derived from the Postman collection.
 - User-visible state transitions are performed through the actual UI. Direct API calls are limited to fixture discovery/setup, assertions, tenant-boundary probes, and cleanup.
 
-Every direct API call is checked against runtime OpenAPI. The report also records the matching Postman request when the collection contains one.
+Every direct API call must exist in both runtime OpenAPI and the Postman collection. Missing contract coverage fails the scenario instead of falling back to guessed data or guessed request shapes.
 
 ## Test-data lifecycle
 
@@ -49,6 +49,10 @@ The suite uses the deployed dev-login controls. Tokens are kept in memory and ar
 Authenticated Playwright traces are not uploaded because they can contain authorization headers, request bodies, and personal data. Artifacts contain redacted JSON reports and selected screenshots. Login steps do not take screenshots.
 
 The invitation scenario verifies the real UI through the Microsoft handoff. Completing Microsoft enrollment requires an isolated third-party identity session and is reported as a coverage limitation when no such session is available; the suite must not commit credentials or authenticated storage state.
+
+## Known product gap
+
+The current rejection dialog and `ChangeJobStatusRequest` do not contain a rejection-reason field. The `rejection-loop` scenario therefore verifies the status transition, correction, resubmission, approval, and history, but it cannot verify a reason that the product does not currently store. The product correction is tracked in WOR-292.
 
 ## Running
 
