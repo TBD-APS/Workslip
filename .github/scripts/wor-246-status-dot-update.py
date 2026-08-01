@@ -1,45 +1,13 @@
 from pathlib import Path
-import subprocess
 
-
-def run(*args: str) -> None:
-    subprocess.run(args, check=True)
-
-
-def replace_once(path: str, old: str, new: str) -> None:
-    file_path = Path(path)
-    content = file_path.read_text(encoding="utf-8-sig")
-    count = content.count(old)
-    if count != 1:
-        raise SystemExit(f"Expected exactly one match in {path}, found {count}")
-    file_path.write_text(content.replace(old, new, 1), encoding="utf-8")
-
-
-run("git", "fetch", "origin", "main", "--depth=1")
-run(
-    "git",
-    "checkout",
-    "origin/main",
-    "--",
-    "Docs/architecture/domain-and-dataflows.md",
-    "src/BE/WorkslipApi/Workslip.Application/Jobs/JobService.cs",
-    "src/BE/WorkslipApi/Workslip.Infrastructure/Repositories/EfJobRepository.cs",
-    "src/FE/src/features/jobs/routes/CompletedJobReport.seen-state.test.tsx",
-    "src/FE/src/features/jobs/routes/CompletedJobReport.tsx",
-    "src/FE/src/features/jobs/utils/markJobSeen.ts",
-)
-
-for path in (
-    "src/BE/WorkslipApi/Workslip.Application/Jobs/JobViewTypes.cs",
-    "src/BE/WorkslipApi/Workslip.Tests/Jobs/JobViewTypesTests.cs",
-):
-    Path(path).unlink(missing_ok=True)
-
-replace_once(
-    "src/FE/src/features/jobs/routes/JobList.tsx",
-    '{job.status === JobStatus.Approved && !job.isSeen && <span className="approved-dot" />}',
-    '{job.status === JobStatus.Approved && <span className="approved-dot" />}',
-)
+job_list_path = Path("src/FE/src/features/jobs/routes/JobList.tsx")
+job_list = job_list_path.read_text(encoding="utf-8-sig")
+old = '{job.status === JobStatus.Approved && !job.isSeen && <span className="approved-dot" />}'
+new = '{job.status === JobStatus.Approved && <span className="approved-dot" />}'
+count = job_list.count(old)
+if count != 2:
+    raise SystemExit(f"Expected two approved-dot conditions, found {count}")
+job_list_path.write_text(job_list.replace(old, new), encoding="utf-8")
 
 Path("src/FE/src/features/jobs/routes/JobList.completed-dot.test.tsx").write_text(
     """import { cleanup, render } from '@testing-library/react';
