@@ -6,6 +6,7 @@ This file routes implementation agents to the scoped instructions for the part o
 
 1. [`Docs/agents/OPERATING_CONTRACT.md`](Docs/agents/OPERATING_CONTRACT.md) — repository workflow, source-of-truth order, scope discipline, security, maintainability, scalability, documentation, and completion language.
 2. [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) — mandatory validation ladder, test selection, Playwright requirements, and evidence standards.
+3. [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) — mandatory GDPR and EU AI Act change gates, data/AI governance, release blockers, and compliance evidence requirements.
 
 ## Read for the affected scope
 
@@ -16,6 +17,6 @@ This file routes implementation agents to the scoped instructions for the part o
 | Infrastructure under `src/BE/infrastructure/` | [`src/BE/infrastructure/AGENTS.md`](src/BE/infrastructure/AGENTS.md) |
 | Maintained documentation under `Docs/` | [`Docs/AGENTS.md`](Docs/AGENTS.md) |
 
-For cross-layer changes, read every applicable scoped file before editing. The closest scoped `AGENTS.md` applies in addition to the two shared documents.
+For cross-layer changes, read every applicable scoped file before editing. The closest scoped `AGENTS.md` applies in addition to the three shared documents.
 
-Do not begin implementation until the relevant instructions, Linear issue, current branch state, and applicable architecture documentation have been inspected.
+Do not begin implementation until the relevant instructions, Linear issue, current branch state, applicable architecture documentation, and compliance impact have been inspected.
