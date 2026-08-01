@@ -31,6 +31,16 @@ All diagnostics responses use `Cache-Control: no-store`.
 
 Counters are process-local and reset when the API instance restarts. They are operational signals, not billing or audit records.
 
+## HTTP cache inspection
+
+Cache-aware API responses include `X-Workslip-Cache` so HTTP behavior is visible directly in the browser Network panel:
+
+- `miss` — the response representation was returned because no matching validator was supplied;
+- `revalidated` — the supplied `If-None-Match` validator matched and the endpoint returned `304 Not Modified`;
+- `bypass` — the endpoint explicitly uses `Cache-Control: no-store`.
+
+A browser-served response that never reaches the API cannot be counted by the backend. Browser and PWA cache state is therefore inspected separately on the Superadmin page.
+
 ## Frontend diagnostics
 
 The Superadmin page shows:
