@@ -62,9 +62,11 @@ jobs:
         working-directory: src/FE
         run: npm run build
 
-      - name: Install Chromium
+      - name: Install standalone Chromium harness
         working-directory: src/FE
-        run: npx playwright install --with-deps chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.62.1
+          npx playwright install --with-deps chromium
 
       - name: Create browser harness
         working-directory: src/FE
@@ -148,41 +150,36 @@ jobs:
             },
           });
           EOF
-          cat > .tmp-wor246/playwright.config.ts <<'EOF'
-          import { defineConfig } from '@playwright/test';
-
-          export default defineConfig({
-            testDir: __dirname,
-            use: { baseURL: 'http://127.0.0.1:4173', browserName: 'chromium' },
-            reporter: 'line',
-          });
-          EOF
-          cat > .tmp-wor246/wor246.spec.ts <<'EOF'
-          import { expect, test } from '@playwright/test';
+          cat > .tmp-wor246/browser-check.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import { chromium } from 'playwright';
 
           for (const viewport of [
             { name: 'desktop', width: 1280, height: 900 },
             { name: 'mobile', width: 390, height: 844 },
           ]) {
-            test(`${viewport.name}: completed dot persists until status changes`, async ({ page }) => {
-              const errors: string[] = [];
+            const browser = await chromium.launch();
+            try {
+              const page = await browser.newPage({ viewport });
+              const errors = [];
               page.on('console', (message) => {
                 if (message.type() === 'error') errors.push(message.text());
               });
               page.on('pageerror', (error) => errors.push(error.message));
 
-              await page.setViewportSize({ width: viewport.width, height: viewport.height });
-              await page.goto('/');
-              await expect(page.locator('.approved-dot')).toBeVisible();
+              await page.goto('http://127.0.0.1:4173');
+              assert.equal(await page.locator('.approved-dot').count(), 1, `${viewport.name}: completed dot missing initially`);
 
               await page.locator('.job-card').click();
-              await expect(page.locator('#opened')).toHaveText('1');
-              await expect(page.locator('.approved-dot')).toBeVisible();
+              assert.equal(await page.locator('#opened').textContent(), '1', `${viewport.name}: card interaction failed`);
+              assert.equal(await page.locator('.approved-dot').count(), 1, `${viewport.name}: completed dot disappeared after open`);
 
               await page.locator('#change-status').click();
-              await expect(page.locator('.approved-dot')).toHaveCount(0);
-              expect(errors).toEqual([]);
-            });
+              await page.locator('.approved-dot').waitFor({ state: 'detached' });
+              assert.deepEqual(errors, [], `${viewport.name}: browser errors: ${errors.join(' | ')}`);
+            } finally {
+              await browser.close();
+            }
           }
           EOF
 
@@ -202,7 +199,7 @@ jobs:
             sleep 1
           done
           curl --fail --silent http://127.0.0.1:4173 >/dev/null || { cat /tmp/wor246-vite.log; exit 1; }
-          npx playwright test --config .tmp-wor246/playwright.config.ts
+          node .tmp-wor246/browser-check.mjs
 
       - name: Commit validated implementation
         run: |
