@@ -127,14 +127,15 @@ async function customerLifecycleFlow(session) {
     await card.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const favorite = card.getByRole('button', { name: /Tilføj til top|Fjern fra top/ }).first();
     if (await favorite.isVisible().catch(() => false)) {
+      const favoriteResponse = waitForApiResponse(session.page, 'PATCH', `/api/customers/${customer.id}/top`, [200, 204]);
       await favorite.click();
-      await session.page.waitForTimeout(500);
+      await favoriteResponse;
     }
     await card.click();
     await session.page.waitForURL((url) => url.pathname.includes(`/app/customers/${customer.id}`), { timeout: UI_TIMEOUT });
     const actions = session.page.getByRole('button', { name: 'Flere handlinger for kunde', exact: true });
     await actions.click();
-    await session.page.getByRole('button', { name: 'Rediger', exact: true }).click();
+    await session.page.getByRole('menuitem', { name: 'Rediger', exact: true }).click();
     const nameInput = session.page.locator('#edit-customer-name, #create-customer-name').first();
     await nameInput.fill(session.data.updatedCustomerName);
     const saveResponse = waitForApiResponse(session.page, 'PUT', `/api/customers/${customer.id}`, [200]);
@@ -148,7 +149,7 @@ async function customerLifecycleFlow(session) {
     const snapshotBefore = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     await session.page.goto(`${APP_URL}/app/customers/${customer.id}`, { waitUntil: 'domcontentloaded' });
     await session.page.getByRole('button', { name: 'Flere handlinger for kunde', exact: true }).click();
-    await session.page.getByRole('button', { name: 'Slet', exact: true }).click();
+    await session.page.getByRole('menuitem', { name: 'Slet', exact: true }).click();
     const deleteResponse = waitForApiResponse(session.page, 'DELETE', `/api/customers/${customer.id}`, [200, 204]);
     const dialog = session.page.getByRole('dialog');
     await dialog.getByRole('button', { name: 'Slet', exact: true }).click();
@@ -238,6 +239,7 @@ async function diverseLifecycleFlow(session) {
     assertStatus(approved, ['Approved', 'Godkendt']);
   });
 }
+
 
   return {
     'invitation-onboarding': invitationOnboardingFlow,
