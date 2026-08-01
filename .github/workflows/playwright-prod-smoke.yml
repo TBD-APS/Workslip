@@ -2,6 +2,15 @@ name: Playwright prod smoke
 
 on:
   workflow_dispatch:
+    inputs:
+      scenario:
+        description: Vælg skrivefrit smoke-check eller komplet testsag i dev-miljøet
+        required: true
+        default: public-smoke
+        type: choice
+        options:
+          - public-smoke
+          - full-case
 
 permissions:
   contents: read
@@ -12,9 +21,9 @@ concurrency:
 
 jobs:
   smoke:
-    name: Mobile prod smoke
+    name: Mobile prod smoke (${{ inputs.scenario }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     defaults:
       run:
@@ -37,70 +46,17 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Visit production site
+      - name: Run Playwright scenario
         env:
           PROD_URL: https://app.mrsoftware.dk
-        run: |
-          mkdir -p ../../artifacts/playwright-prod-smoke
-          node --input-type=module <<'EOF'
-          import { chromium, devices } from 'playwright';
-
-          const browser = await chromium.launch();
-          const context = await browser.newContext({
-            ...devices['iPhone 13'],
-          });
-          const page = await context.newPage();
-          const consoleErrors = [];
-
-          page.on('console', message => {
-            if (message.type() === 'error') {
-              consoleErrors.push(message.text());
-            }
-          });
-
-          try {
-            const response = await page.goto(process.env.PROD_URL, {
-              waitUntil: 'networkidle',
-              timeout: 45_000,
-            });
-
-            if (!response) {
-              throw new Error('Production navigation returned no HTTP response.');
-            }
-
-            if (!response.ok()) {
-              throw new Error(`Production returned HTTP ${response.status()}.`);
-            }
-
-            await page.screenshot({
-              path: '../../artifacts/playwright-prod-smoke/mobile-home.png',
-              fullPage: true,
-            });
-
-            const report = {
-              url: page.url(),
-              status: response.status(),
-              title: await page.title(),
-              viewport: devices['iPhone 13'].viewport,
-              consoleErrors,
-            };
-
-            await import('node:fs/promises').then(fs =>
-              fs.writeFile(
-                '../../artifacts/playwright-prod-smoke/report.json',
-                JSON.stringify(report, null, 2),
-              ),
-            );
-          } finally {
-            await browser.close();
-          }
-          EOF
+          SCENARIO: ${{ inputs.scenario }}
+        run: node scripts/playwright-prod-smoke.mjs
 
       - name: Upload Playwright evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-prod-smoke
+          name: playwright-prod-smoke-${{ inputs.scenario }}
           path: artifacts/playwright-prod-smoke
           if-no-files-found: warn
           retention-days: 7
