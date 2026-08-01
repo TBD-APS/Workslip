@@ -27,7 +27,18 @@ vi.mock('../api', () => ({
   useGetApiAuthInvites: () => ({
     isLoading: false,
     isError: false,
-    data: { invites: [] },
+    data: {
+      invites: [{
+        id: 'invite-1',
+        email: 'very.long.invitation.email@example.com',
+        role: 'User',
+        createdAt: '2026-08-01T08:00:00Z',
+        expiresAt: '2099-08-01T08:00:00Z',
+        consumed: false,
+        openedAt: null,
+        acceptedAt: null,
+      }],
+    },
   }),
   useDeleteApiAuthInvite: () => ({
     mutateAsync: vi.fn(),
@@ -59,6 +70,8 @@ describe('Settings invitation role', () => {
 
     const roleSelect = screen.getByRole('combobox', { name: 'Rolle for invitationerne' });
     expect(roleSelect).toHaveValue('User');
+    expect(screen.getByRole('option', { name: 'Medarbejder' })).toHaveValue('User');
+    expect(screen.getByRole('option', { name: 'Auditør' })).toHaveValue('Auditor');
 
     fireEvent.change(roleSelect, { target: { value: 'Auditor' } });
     fireEvent.change(screen.getByPlaceholderText('Skriv e-mail...'), {
@@ -76,5 +89,21 @@ describe('Settings invitation role', () => {
         },
       });
     });
+  });
+
+  it('uses the compact User role label while exposing the full role and e-mail', () => {
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Medarb.')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByText('Rolle: Medarbejder')).toHaveClass('invite-role-full-label');
+    expect(screen.getByText('Medarb.').parentElement).toHaveAttribute('title', 'Medarbejder');
+    expect(screen.getByText('very.long.invitation.email@example.com')).toHaveAttribute(
+      'title',
+      'very.long.invitation.email@example.com',
+    );
   });
 });

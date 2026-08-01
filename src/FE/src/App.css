@@ -4821,16 +4821,17 @@
 }
 
 .invite-status-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.65rem 0.75rem;
   background: var(--surface-raised);
   border-radius: var(--radius-sm);
   font-size: var(--fs-sm);
 }
 
-.invite-status-left {
+.invite-status-content {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -4842,6 +4843,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);
+  min-width: 0;
 }
 
 .invite-role-badge {
@@ -4853,6 +4855,18 @@
   color: var(--text-muted);
   font-size: var(--fs-xs);
   white-space: nowrap;
+}
+
+.invite-role-full-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .invite-status-badge {
@@ -4870,7 +4884,29 @@
   color: var(--text-muted);
   font-size: var(--fs-xs);
   flex-shrink: 0;
-  margin-left: 0.5rem;
+}
+
+.invite-status-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.invite-clear-btn {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .invite-status-content {
+    flex-wrap: wrap;
+    gap: 0.35rem 0.5rem;
+  }
+
+  .invite-status-email {
+    flex: 1 0 100%;
+  }
 }
 
 /* ------------------------------------------------------------
