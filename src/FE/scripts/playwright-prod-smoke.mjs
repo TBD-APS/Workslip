@@ -251,7 +251,7 @@ async function createSession(name, scenarioReport) {
     const methodUpper = method.toUpperCase();
     const contract = validateContract(methodUpper, pathname, auth.openApi, postmanContract);
     scenarioReport.contractChecks.push(contract);
-    const token = options.token ?? auth.token;
+    const token = Object.hasOwn(options, 'token') ? options.token : auth.token;
     const headers = { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...options.headers };
     if (token) headers.Authorization = `Bearer ${token}`;
     const response = await fetch(`${auth.apiBase}${pathname}`, {
@@ -305,18 +305,53 @@ async function createSession(name, scenarioReport) {
   }
 
   async function cleanup() {
-    if (!auth.apiBase || !auth.token) return;
-    for (const jobId of [...fixtures.jobs].reverse()) {
-      try { await apiExpect('DELETE', `/api/jobs/${jobId}`, undefined, [200, 204, 404]); }
-      catch (error) { report.cleanupFailures.push({ scenario: name, fixture: `job:${jobId}`, error: serializeError(error) }); }
+    if (fixtures.jobs.length === 0 && fixtures.customers.length === 0 && fixtures.users.length === 0) return;
+    if (!auth.apiBase) {
+      report.cleanupFailures.push({ scenario: name, fixture: 'all', error: { message: 'API base unavailable for cleanup.' } });
+      return;
     }
-    for (const customerId of [...fixtures.customers].reverse()) {
-      try { await apiExpect('DELETE', `/api/customers/${customerId}`, undefined, [200, 204, 404]); }
-      catch (error) { report.cleanupFailures.push({ scenario: name, fixture: `customer:${customerId}`, error: serializeError(error) }); }
-    }
-    for (const userId of [...fixtures.users].reverse()) {
-      try { await apiExpect('DELETE', `/api/users/${userId}`, undefined, [200, 204, 404]); }
-      catch (error) { report.cleanupFailures.push({ scenario: name, fixture: `user:${userId}`, error: serializeError(error) }); }
+
+    let cleanupContext = null;
+    try {
+      cleanupContext = await browser.newContext({ ...devices[VIEWPORT_NAME], locale: 'da-DK' });
+      const cleanupPage = await cleanupContext.newPage();
+      await cleanupPage.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      const adminButton = cleanupPage.getByRole('button', { name: 'Dev Login · Admin', exact: true });
+      await adminButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+      const tokenResponsePromise = cleanupPage.waitForResponse((response) =>
+        response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/dev/token',
+      { timeout: API_TIMEOUT });
+      await adminButton.click();
+      const tokenResponse = await tokenResponsePromise;
+      if (!tokenResponse.ok()) throw new Error(`Cleanup admin login returned HTTP ${tokenResponse.status()}.`);
+      const cleanupToken = (await tokenResponse.json())?.token;
+      if (!cleanupToken) throw new Error('Cleanup admin login returned no token.');
+
+      for (const jobId of [...fixtures.jobs].reverse()) {
+        try {
+          const job = await apiExpect('GET', `/api/jobs/${jobId}`, undefined, [200, 404], { token: cleanupToken });
+          if (job?.worksheets) {
+            for (const worksheet of [...job.worksheets].reverse()) {
+              await apiExpect('DELETE', `/api/worksheets/${worksheet.id}/jobs/${jobId}`, undefined, [200, 204, 404], { token: cleanupToken });
+            }
+          }
+          await apiExpect('DELETE', `/api/jobs/${jobId}`, undefined, [200, 204, 404], { token: cleanupToken });
+        } catch (error) {
+          report.cleanupFailures.push({ scenario: name, fixture: `job:${jobId}`, error: serializeError(error) });
+        }
+      }
+      for (const customerId of [...fixtures.customers].reverse()) {
+        try { await apiExpect('DELETE', `/api/customers/${customerId}`, undefined, [200, 204, 404], { token: cleanupToken }); }
+        catch (error) { report.cleanupFailures.push({ scenario: name, fixture: `customer:${customerId}`, error: serializeError(error) }); }
+      }
+      for (const userId of [...fixtures.users].reverse()) {
+        try { await apiExpect('DELETE', `/api/users/${userId}`, undefined, [200, 204, 404], { token: cleanupToken }); }
+        catch (error) { report.cleanupFailures.push({ scenario: name, fixture: `user:${userId}`, error: serializeError(error) }); }
+      }
+    } catch (error) {
+      report.cleanupFailures.push({ scenario: name, fixture: 'cleanup-session', error: serializeError(error) });
+    } finally {
+      await cleanupContext?.close();
     }
   }
 }
