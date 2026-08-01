@@ -59,6 +59,10 @@ jobs:
       - name: Validate test sources
         run: |
           node --check scripts/playwright-prod-smoke.mjs
+          node --check scripts/playwright-critical-contract.mjs
+          node --check scripts/playwright-critical-domain.mjs
+          node --check scripts/playwright-scenarios-core.mjs
+          node --check scripts/playwright-scenarios-admin.mjs
           node -e "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8'))"
 
       - name: Run Playwright scenario
