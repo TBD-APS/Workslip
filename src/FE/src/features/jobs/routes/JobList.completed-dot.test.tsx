@@ -1,7 +1,6 @@
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { JobListItemViewModel } from '../../../api/generated/models';
-import { JobStatus } from '../../../api/generated/models/jobStatus';
+import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
 import { JobCard } from './JobList';
 
 function createJob(overrides: Partial<JobListItemViewModel> = {}): JobListItemViewModel {
@@ -22,9 +21,9 @@ function createJob(overrides: Partial<JobListItemViewModel> = {}): JobListItemVi
     assignedUsers: [{ id: 'user-1', displayName: 'Testbruger' }],
     softDeleted: false,
     totalHours: 1,
-    createdAt: '2026-07-31T00:00:00Z',
-    updatedAt: '2026-07-31T00:00:00Z',
-    reportDate: '2026-07-31',
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+    reportDate: '2026-08-01',
     jobType: 'KLS',
     destinationAddress: 'Testvej 2',
     destinationZipCode: '8000',
@@ -42,7 +41,7 @@ afterEach(() => {
 });
 
 describe('JobCard completed indicator', () => {
-  it('shows the completed dot to a regular user until the approved job is seen', () => {
+  it('keeps the completed dot after the approved job is marked as seen', () => {
     const onOpen = vi.fn();
     const { container, rerender } = render(
       <JobCard job={createJob()} isAdmin={false} onOpen={onOpen} />,
@@ -54,13 +53,19 @@ describe('JobCard completed indicator', () => {
       <JobCard job={createJob({ isSeen: true })} isAdmin={false} onOpen={onOpen} />,
     );
 
-    expect(container.querySelector('.approved-dot')).not.toBeInTheDocument();
+    expect(container.querySelector('.approved-dot')).toBeInTheDocument();
   });
 
-  it('does not use the completed dot for a non-approved unread job', () => {
-    const { container } = render(
+  it('removes the completed dot when the job status changes', () => {
+    const { container, rerender } = render(
+      <JobCard job={createJob({ isSeen: true })} isAdmin={false} onOpen={vi.fn()} />,
+    );
+
+    expect(container.querySelector('.approved-dot')).toBeInTheDocument();
+
+    rerender(
       <JobCard
-        job={createJob({ status: JobStatus.InReview, isSeen: false })}
+        job={createJob({ status: JobStatus.InReview, isSeen: true })}
         isAdmin={false}
         onOpen={vi.fn()}
       />,
