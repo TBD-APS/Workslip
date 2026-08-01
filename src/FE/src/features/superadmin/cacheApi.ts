@@ -29,6 +29,7 @@ export interface CacheStatusResponse {
 }
 
 export interface CacheClearResponse {
+  message: string;
   clearedAt: string;
   vercelConfigured: boolean;
   vercelCleared: boolean;
