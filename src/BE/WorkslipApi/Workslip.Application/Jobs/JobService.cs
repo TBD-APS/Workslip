@@ -467,7 +467,7 @@ public sealed class JobService(
                 await notificationService.QueueJobCompletedAsync(assignedUser.Id, assignedUser.DisplayName, report.Id, reportNumber, address, cancellationToken);
             }
 
-            await _jobViewRepository.MarkAsViewedAsync(id, currentUser.UserId!.Value, "New", cancellationToken);
+            await _jobViewRepository.MarkAsViewedAsync(id, actorId.Value, JobViewTypes.Completed, cancellationToken);
         }
 
         return await ToSummaryResultAsync(report, cancellationToken);
@@ -1004,7 +1004,7 @@ public sealed class JobService(
             return Result.NotFound();
         }
 
-        await _jobViewRepository.MarkAsViewedAsync(id, userId.Value, viewType ?? "New", cancellationToken);
+        await _jobViewRepository.MarkAsViewedAsync(id, userId.Value, viewType ?? JobViewTypes.New, cancellationToken);
         await InvalidateJobCachesAsync(id, organizationId.Value, cancellationToken);
 
         logger.LogInformation("Job marked as seen. JobId: {JobId}. UserId: {UserId}. ReportNumber: {ReportNumber}", id, userId.Value, job.ReportNumber);

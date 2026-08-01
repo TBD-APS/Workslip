@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
@@ -317,7 +317,7 @@ export const JobList = () => {
                 <td>
                   <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
                   {isAdmin && job.status === JobStatus.InReview && <span className="review-dot" />}
-                  {job.status === JobStatus.Approved && !job.isSeen && <span className="approved-dot" />}
+                  {job.status === JobStatus.Approved && <span className="approved-dot" />}
                   {!job.isSeen && <span className="unread-dot" />}
                   {job.isNewRejection && <span className="rejected-dot" />}
                   {isAdmin && job.assignedUsers.length === 0 && <span className="unassigned-dot" />}
@@ -423,14 +423,14 @@ export const JobList = () => {
   );
 };
 
-function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: () => void; isAdmin: boolean }) {
+export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: () => void; isAdmin: boolean }) {
   return (
     <button className="job-card" onClick={onOpen} type="button">
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span>{formatJobType(job.jobType)}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span></span>
           {isAdmin && job.status === JobStatus.InReview && <span className="review-dot" />}
-          {job.status === JobStatus.Approved && !job.isSeen && <span className="approved-dot" />}
+          {job.status === JobStatus.Approved && <span className="approved-dot" />}
           {!job.isSeen && <span className="unread-dot" />}
           {job.isNewRejection && <span className="rejected-dot" />}
           {isAdmin && job.assignedUsers.length === 0 && <span className="unassigned-dot" />}
