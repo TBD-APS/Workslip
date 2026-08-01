@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Memory;
 using Workslip.Application.Auth;
+using Workslip.Application.Common;
 using Workslip.Application.Users;
 using Workslip.Domain;
 
@@ -10,6 +12,7 @@ namespace Workslip.Api.Helpers;
 public sealed class UserClaimsTransformation(
     IUserRepository users,
     IMemoryCache cache,
+    ICacheDiagnostics cacheDiagnostics,
     ILogger<UserClaimsTransformation> logger) : IClaimsTransformation
 {
     private const string WorkslipUserIdClaim = "workslipUserId";
@@ -50,19 +53,44 @@ public sealed class UserClaimsTransformation(
         }
 
         var cacheKeys = BuildCacheKeys(entraId, emailCandidates);
-        if (!TryGetCachedUser(cacheKeys, out var user))
-        {
-            var row = await users.GetByExternalIdentityAsync(entraId, emailCandidates, CancellationToken.None);
-            if (row is null)
-            {
-                logger.LogWarning(                    "Authenticated Entra user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
-                    !string.IsNullOrWhiteSpace(entraId),
-                    emailCandidates.Count);
-                return principal;
-            }
+        CachedWorkslipUser? user;
 
-            user = new CachedWorkslipUser(row.Id, row.OrganizationId, NormalizeRole(row.Role));
-            CacheUser(cacheKeys, user);
+        if (TryGetCachedUser(cacheKeys, out user))
+        {
+            cacheDiagnostics.RecordHit(CacheRegionNames.AuthenticatedUsers);
+        }
+        else
+        {
+            cacheDiagnostics.RecordMiss(CacheRegionNames.AuthenticatedUsers);
+            var startedAt = Stopwatch.GetTimestamp();
+
+            try
+            {
+                var row = await users.GetByExternalIdentityAsync(entraId, emailCandidates, CancellationToken.None);
+                if (row is null)
+                {
+                    logger.LogWarning(
+                        "Authenticated Entra user was not found in Workslip database. EntraIdPresent={EntraIdPresent} EmailCandidateCount={EmailCandidateCount}.",
+                        !string.IsNullOrWhiteSpace(entraId),
+                        emailCandidates.Count);
+                    return principal;
+                }
+
+                user = new CachedWorkslipUser(row.Id, row.OrganizationId, NormalizeRole(row.Role));
+                CacheUser(cacheKeys, user);
+                cacheDiagnostics.RecordSet(CacheRegionNames.AuthenticatedUsers);
+            }
+            catch
+            {
+                cacheDiagnostics.RecordFailure(CacheRegionNames.AuthenticatedUsers);
+                throw;
+            }
+            finally
+            {
+                cacheDiagnostics.RecordLoad(
+                    CacheRegionNames.AuthenticatedUsers,
+                    Stopwatch.GetElapsedTime(startedAt));
+            }
         }
 
         if (user is null)
