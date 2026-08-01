@@ -12,8 +12,7 @@ job_list_path.write_text(job_list.replace(old, new), encoding="utf-8")
 Path("src/FE/src/features/jobs/routes/JobList.completed-dot.test.tsx").write_text(
     """import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { JobListItemViewModel } from '../../../api/generated/models';
-import { JobStatus } from '../../../api/generated/models/jobStatus';
+import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
 import { JobCard } from './JobList';
 
 function createJob(overrides: Partial<JobListItemViewModel> = {}): JobListItemViewModel {
