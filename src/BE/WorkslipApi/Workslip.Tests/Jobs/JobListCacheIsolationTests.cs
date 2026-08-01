@@ -111,7 +111,6 @@ public sealed class JobListCacheIsolationTests
         public Task<JobListResponse> ListAsync(JobQuery query, CancellationToken cancellationToken)
         {
             ListCallCount++;
-            var now = DateTimeOffset.UtcNow;
             var item = new JobListItemResponse(
                 jobId,
                 organizationId,
@@ -121,20 +120,14 @@ public sealed class JobListCacheIsolationTests
                 ReportDate: null,
                 JobType: JobType.KLS,
                 DestinationAddress: null,
-                DestinationZipCode: null,
-                DestinationCity: null,
                 TaskDescription: null,
                 InstallationTypes: [],
-                WorkKind: null,
-                CreatedAt: now,
-                UpdatedAt: now,
                 AssignedUsers: [],
                 SoftDeleted: false,
-                DeletionScheduledAt: null,
                 TotalHours: null,
+                UpdatedAt: DateTimeOffset.UtcNow,
                 IsSeenByCurrentUser: query.CurrentUserId == seenUserId,
-                IsNewRejection: false,
-                RejectionNote: null);
+                IsNewRejection: false);
 
             return Task.FromResult(new JobListResponse([item], 1));
         }

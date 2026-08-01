@@ -4,6 +4,9 @@ import './base.css';
 import App from './App.tsx';
 import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
 import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
+import { queryClient } from './lib/react-query';
+import { installNotificationNavigationHandler, installNotificationReceivedInvalidator } from './pwa/notificationNavigationClient';
+import { router } from './routes';
 
 if (typeof window !== 'undefined') {
   // Vite emits this event when an already-open client references a hashed lazy
@@ -33,6 +36,18 @@ if (typeof window !== 'undefined') {
     };
     originalFocus.call(this, newOptions);
   };
+
+  if ('serviceWorker' in navigator) {
+    installNotificationNavigationHandler(
+      navigator.serviceWorker,
+      window.location.origin,
+      (target) => router.navigate(target),
+    );
+    installNotificationReceivedInvalidator(
+      navigator.serviceWorker,
+      () => queryClient.invalidateQueries({ queryKey: ['/api/jobs'] }),
+    );
+  }
 }
 
 createRoot(document.getElementById('root')!).render(

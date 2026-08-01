@@ -1,5 +1,12 @@
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
-import { navigateNotificationTarget } from './pwa/notificationNavigation';
+import {
+  isNotificationNavigationAcknowledgement,
+  navigateNotificationTarget,
+  NOTIFICATION_NAVIGATION_REQUEST,
+  NOTIFICATION_RECEIVED,
+  type NotificationReceivedMessage,
+  type NotificationWindowClient,
+} from './pwa/notificationNavigation';
 
 type PrecacheManifestEntry = string | {
   url: string;
@@ -18,6 +25,7 @@ const PRECACHED_URLS = new Set(
 );
 const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
 const MAX_RUNTIME_ASSET_ENTRIES = 150;
+const CLIENT_NAVIGATION_TIMEOUT_MS = 1_500;
 
 cleanupOutdatedCaches();
 precacheAndRoute(PRECACHE_MANIFEST);
@@ -70,15 +78,36 @@ self.addEventListener('fetch', (event) => {
   })());
 });
 
+async function notifyOpenClientsOfPush(): Promise<void> {
+  const windowClients = await self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true,
+  });
+
+  const message: NotificationReceivedMessage = { type: NOTIFICATION_RECEIVED };
+  for (const client of windowClients) {
+    try {
+      client.postMessage(message);
+    } catch {
+      // The client may have been closed or is otherwise not deliverable.
+    }
+  }
+}
+
 self.addEventListener('push', (event) => {
   console.log('[SW] Push event received', event.data);
   if (!event.data) {
     console.warn('[SW] Push event has no data — showing fallback notification');
     event.waitUntil(
-      self.registration.showNotification('Workslip', {
-        body: 'You have a new notification',
-        icon: '/logo.png',
-        badge: '/logo.png',
+      (async () => {
+        await self.registration.showNotification('Workslip', {
+          body: 'You have a new notification',
+          icon: '/logo.png',
+          badge: '/logo.png',
+        });
+        await notifyOpenClientsOfPush();
+      })().catch((error) => {
+        console.error('[SW] Fallback notification failed:', error);
       })
     );
     return;
@@ -96,17 +125,56 @@ self.addEventListener('push', (event) => {
   const options = payload.options || {};
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: options.body || '',
-      icon: options.icon || '/logo.png',
-      badge: options.badge || '/logo.png',
-      tag: options.tag || '',
-      data: options.data || {},
-    }).catch((error) => {
+    (async () => {
+      await self.registration.showNotification(title, {
+        body: options.body || '',
+        icon: options.icon || '/logo.png',
+        badge: options.badge || '/logo.png',
+        tag: options.tag || '',
+        data: options.data || {},
+      });
+      await notifyOpenClientsOfPush();
+    })().catch((error) => {
       console.error('[SW] showNotification failed:', error);
     })
   );
 });
+
+async function requestClientRouterNavigation(
+  client: NotificationWindowClient,
+  url: string,
+): Promise<boolean> {
+  const channel = new MessageChannel();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (handled: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      channel.port1.close();
+      resolve(handled);
+    };
+    const timeout = setTimeout(() => finish(false), CLIENT_NAVIGATION_TIMEOUT_MS);
+
+    channel.port1.onmessage = (event) => {
+      const acknowledgement = event.data;
+      finish(
+        isNotificationNavigationAcknowledgement(acknowledgement)
+        && acknowledgement.success,
+      );
+    };
+
+    try {
+      (client as WindowClient).postMessage({
+        type: NOTIFICATION_NAVIGATION_REQUEST,
+        url,
+      }, [channel.port2]);
+    } catch {
+      finish(false);
+    }
+  });
+}
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
@@ -122,6 +190,7 @@ self.addEventListener('notificationclick', (event) => {
       (url) => self.clients.openWindow(url),
       event.notification.data?.url,
       self.location.origin,
+      requestClientRouterNavigation,
     );
   })());
 });

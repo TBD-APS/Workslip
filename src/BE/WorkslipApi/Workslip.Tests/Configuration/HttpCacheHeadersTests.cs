@@ -148,16 +148,12 @@ public sealed class HttpCacheHeadersTests
             false,
             1.5m,
             DateTimeOffset.UnixEpoch,
-            DateTimeOffset.UnixEpoch,
             null,
             "Diverse",
             null,
             null,
-            null,
-            null,
             false,
-            false,
-            null);
+            false);
 
         return new JobListViewModel([item], 1);
     }

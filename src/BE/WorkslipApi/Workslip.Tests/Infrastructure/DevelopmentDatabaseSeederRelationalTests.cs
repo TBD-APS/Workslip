@@ -46,6 +46,26 @@ public sealed class DevelopmentDatabaseSeederRelationalTests
     }
 
     [Fact]
+    public async Task SeedAsync_DeletesEphemeralReferencesThroughRelationalPath()
+    {
+        await using var database = await RelationalTestDatabase.CreateAsync();
+        var customer = CreateOrganization();
+        database.Context.Organizations.Add(customer);
+        database.Context.Users.Add(CreateCanonicalUser(
+            CanonicalRasmusId, customer.Id, "rasmusvm6@hotmail.com", "Old Rasmus"));
+        await database.Context.SaveChangesAsync();
+        await database.Context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO JobViews (Id, UserId) VALUES ({Guid.NewGuid()}, {CanonicalRasmusId})");
+        var entra = new FakeSuperadminEntraService();
+
+        await CreateSeeder(database.Context, entra).SeedAsync();
+
+        Assert.Equal(PlatformOrganization.Id,
+            (await database.Context.Users.AsNoTracking().SingleAsync(user => user.Id == CanonicalRasmusId)).OrganizationId);
+        Assert.Equal(0, await database.Context.JobViews.CountAsync());
+    }
+
+    [Fact]
     public async Task SeedAsync_WhenSecondGraphEnsureFails_RollsBackLocalSeedAndCompensatesFirstIdentity()
     {
         await using var database = await RelationalTestDatabase.CreateAsync();
