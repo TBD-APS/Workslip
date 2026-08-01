@@ -4,6 +4,7 @@ using Azure.Core;
 using Microsoft.Graph;
 using Workslip.Api.Services;
 using Workslip.Application;
+using Workslip.Application.Common;
 using Workslip.Infrastructure;
 
 namespace Workslip.Api.Configuration;
@@ -15,6 +16,12 @@ public static class ServiceConfiguration
         builder.Services.AddOpenApi();
         builder.Services.AddHybridCache();
         builder.Services.AddMemoryCache();
+        builder.Services.AddHttpClient("vercel-cache");
+        builder.Services.AddSingleton<ICacheDiagnostics>(_ => new CacheDiagnostics(
+        [
+            new CacheRegionDefinition(CacheRegionNames.ReferenceData, "HybridCache", 600),
+            new CacheRegionDefinition(CacheRegionNames.AuthenticatedUsers, "IMemoryCache", 3600)
+        ]));
         builder.Services.AddScoped<IdempotencyStore>();
         builder.Services.AddScoped<IdempotentMutationService>();
 
@@ -36,7 +43,7 @@ public static class ServiceConfiguration
             options.AddPolicy("customer-import", httpContext =>
             {
                 var partitionKey = httpContext.User.Identity?.Name ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
-                    return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = 5,
                     QueueLimit = 0,
