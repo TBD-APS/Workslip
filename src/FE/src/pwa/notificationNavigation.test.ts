@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  isNotificationReceivedMessage,
   navigateNotificationTarget,
+  NOTIFICATION_RECEIVED,
   resolveNotificationTarget,
   type NotificationWindowClient,
 } from './notificationNavigation';
@@ -20,6 +22,18 @@ function createClient(
   vi.mocked(client.focus).mockResolvedValue(client);
   return client;
 }
+
+describe('isNotificationReceivedMessage', () => {
+  it('recognises a push-receipt message', () => {
+    expect(isNotificationReceivedMessage({ type: NOTIFICATION_RECEIVED })).toBe(true);
+  });
+
+  it('rejects unrelated messages and non-objects', () => {
+    expect(isNotificationReceivedMessage({ type: 'OTHER' })).toBe(false);
+    expect(isNotificationReceivedMessage(null)).toBe(false);
+    expect(isNotificationReceivedMessage(NOTIFICATION_RECEIVED)).toBe(false);
+  });
+});
 
 describe('resolveNotificationTarget', () => {
   it('resolves relative notification routes against the application origin', () => {

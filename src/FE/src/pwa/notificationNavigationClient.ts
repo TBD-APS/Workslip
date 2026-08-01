@@ -1,5 +1,6 @@
 import {
   isNotificationNavigationRequest,
+  isNotificationReceivedMessage,
   NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT,
   resolveNotificationTarget,
   type NotificationNavigationAcknowledgement,
@@ -40,6 +41,25 @@ export function installNotificationNavigationHandler(
       // The acknowledgement already tells the worker to use its document-
       // navigation fallback. Avoid turning that recoverable path into an
       // unhandled rejection in the open application.
+    });
+  };
+
+  serviceWorkers.addEventListener('message', handleMessage);
+  return () => serviceWorkers.removeEventListener('message', handleMessage);
+}
+
+export type NotificationListInvalidator = () => void | Promise<void>;
+
+export function installNotificationReceivedInvalidator(
+  serviceWorkers: ServiceWorkerContainer,
+  invalidate: NotificationListInvalidator,
+): () => void {
+  const handleMessage = (event: MessageEvent) => {
+    if (!isNotificationReceivedMessage(event.data)) return;
+
+    void Promise.resolve(invalidate()).catch(() => {
+      // A failed invalidation is not fatal — the regular refetch interval
+      // still picks up changes on the next tick.
     });
   };
 
