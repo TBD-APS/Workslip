@@ -3,6 +3,8 @@ import {
   isNotificationNavigationAcknowledgement,
   navigateNotificationTarget,
   NOTIFICATION_NAVIGATION_REQUEST,
+  NOTIFICATION_RECEIVED,
+  type NotificationReceivedMessage,
   type NotificationWindowClient,
 } from './pwa/notificationNavigation';
 
@@ -76,15 +78,36 @@ self.addEventListener('fetch', (event) => {
   })());
 });
 
+async function notifyOpenClientsOfPush(): Promise<void> {
+  const windowClients = await self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true,
+  });
+
+  const message: NotificationReceivedMessage = { type: NOTIFICATION_RECEIVED };
+  for (const client of windowClients) {
+    try {
+      client.postMessage(message);
+    } catch {
+      // The client may have been closed or is otherwise not deliverable.
+    }
+  }
+}
+
 self.addEventListener('push', (event) => {
   console.log('[SW] Push event received', event.data);
   if (!event.data) {
     console.warn('[SW] Push event has no data — showing fallback notification');
     event.waitUntil(
-      self.registration.showNotification('Workslip', {
-        body: 'You have a new notification',
-        icon: '/logo.png',
-        badge: '/logo.png',
+      (async () => {
+        await self.registration.showNotification('Workslip', {
+          body: 'You have a new notification',
+          icon: '/logo.png',
+          badge: '/logo.png',
+        });
+        await notifyOpenClientsOfPush();
+      })().catch((error) => {
+        console.error('[SW] Fallback notification failed:', error);
       })
     );
     return;
@@ -102,13 +125,16 @@ self.addEventListener('push', (event) => {
   const options = payload.options || {};
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: options.body || '',
-      icon: options.icon || '/logo.png',
-      badge: options.badge || '/logo.png',
-      tag: options.tag || '',
-      data: options.data || {},
-    }).catch((error) => {
+    (async () => {
+      await self.registration.showNotification(title, {
+        body: options.body || '',
+        icon: options.icon || '/logo.png',
+        badge: options.badge || '/logo.png',
+        tag: options.tag || '',
+        data: options.data || {},
+      });
+      await notifyOpenClientsOfPush();
+    })().catch((error) => {
       console.error('[SW] showNotification failed:', error);
     })
   );

@@ -7,6 +7,7 @@ export interface NotificationWindowClient {
 
 export const NOTIFICATION_NAVIGATION_REQUEST = 'WORKSLIP_NOTIFICATION_NAVIGATION';
 export const NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT = 'WORKSLIP_NOTIFICATION_NAVIGATION_ACK';
+export const NOTIFICATION_RECEIVED = 'WORKSLIP_NOTIFICATION_RECEIVED';
 
 export interface NotificationNavigationRequest {
   type: typeof NOTIFICATION_NAVIGATION_REQUEST;
@@ -16,6 +17,10 @@ export interface NotificationNavigationRequest {
 export interface NotificationNavigationAcknowledgement {
   type: typeof NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT;
   success: boolean;
+}
+
+export interface NotificationReceivedMessage {
+  type: typeof NOTIFICATION_RECEIVED;
 }
 
 export type OpenNotificationWindow = (
@@ -45,6 +50,14 @@ export function isNotificationNavigationAcknowledgement(
   const candidate = value as Partial<NotificationNavigationAcknowledgement>;
   return candidate.type === NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT
     && typeof candidate.success === 'boolean';
+}
+
+export function isNotificationReceivedMessage(
+  value: unknown,
+): value is NotificationReceivedMessage {
+  return typeof value === 'object'
+    && value !== null
+    && (value as Partial<NotificationReceivedMessage>).type === NOTIFICATION_RECEIVED;
 }
 
 export function resolveNotificationTarget(rawTarget: unknown, origin: string): string {

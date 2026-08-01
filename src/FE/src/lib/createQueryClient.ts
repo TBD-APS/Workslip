@@ -49,12 +49,16 @@ export function createQueryClient(): QueryClient {
 
   // The job list must silently pick up new assignments and status changes
   // while the app is open. `refetchInterval` handles the steady-state case;
+  // `refetchIntervalInBackground` keeps the poll running while the tab is
+  // not focused (React Query's default is to skip the interval tick there, so
+  // a backgrounded open app would otherwise show stale statuses); and
   // `refetchOnWindowFocus` catches the user who switched tabs for several
   // minutes and would otherwise be looking at stale data on return.
   client.setQueryDefaults(['/api/jobs'], {
     staleTime: JOB_LIST_STALE_TIME_MS,
     gcTime: JOB_LIST_GC_TIME_MS,
     refetchInterval: JOB_LIST_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
 

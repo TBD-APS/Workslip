@@ -4,7 +4,8 @@ import './base.css';
 import App from './App.tsx';
 import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
 import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
-import { installNotificationNavigationHandler } from './pwa/notificationNavigationClient';
+import { queryClient } from './lib/react-query';
+import { installNotificationNavigationHandler, installNotificationReceivedInvalidator } from './pwa/notificationNavigationClient';
 import { router } from './routes';
 
 if (typeof window !== 'undefined') {
@@ -41,6 +42,10 @@ if (typeof window !== 'undefined') {
       navigator.serviceWorker,
       window.location.origin,
       (target) => router.navigate(target),
+    );
+    installNotificationReceivedInvalidator(
+      navigator.serviceWorker,
+      () => queryClient.invalidateQueries({ queryKey: ['/api/jobs'] }),
     );
   }
 }
