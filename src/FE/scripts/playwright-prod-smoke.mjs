@@ -1,386 +1,314 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium, devices } from 'playwright';
+import { createFlowHelpers } from './playwright-critical-helpers.mjs';
+import { createScenarioHandlers } from './playwright-critical-scenarios.mjs';
 
-const baseUrl = (process.env.PROD_URL ?? '').replace(/\/+$/, '');
-const scenario = process.env.SCENARIO ?? 'public-smoke';
-const artifactDir = path.resolve(process.cwd(), '../../artifacts/playwright-prod-smoke');
-const viewportName = 'iPhone 13';
-const startedAt = new Date();
-const runStamp = startedAt.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-const customerName = `PLAYWRIGHT ${runStamp}`;
-const destinationAddress = 'Testvej 1, 8000 Aarhus C';
+const APP_URL = (process.env.PROD_URL ?? '').replace(/\/+$/, '');
+const SCENARIO = process.env.SCENARIO ?? 'public-smoke';
+const VIEWPORT_NAME = 'iPhone 13';
+const ARTIFACT_DIR = path.resolve(process.cwd(), '../../artifacts/playwright-prod-smoke');
+const POSTMAN_PATH = path.resolve(process.cwd(), '../BE/WorkslipApi/Postman/postman_collection.json');
+const RUN_STARTED = new Date();
+const RUN_ID = `${RUN_STARTED.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
+const API_TIMEOUT = 30_000;
+const UI_TIMEOUT = 25_000;
 
-if (!baseUrl) {
-  throw new Error('PROD_URL is required.');
-}
-if (!['public-smoke', 'full-case'].includes(scenario)) {
-  throw new Error(`Unsupported scenario: ${scenario}`);
-}
+const CRITICAL_SCENARIOS = [
+  'auth-session',
+  'kls-lifecycle',
+  'rejection-loop',
+  'draft-recovery',
+  'role-tenant-isolation',
+  'invitation-onboarding',
+  'assignment-lifecycle',
+  'customer-lifecycle',
+  'worksheet-integrity',
+  'diverse-lifecycle',
+];
+const SUPPORTED_SCENARIOS = ['public-smoke', ...CRITICAL_SCENARIOS, 'all-critical'];
 
-await mkdir(artifactDir, { recursive: true });
+if (!APP_URL) throw new Error('PROD_URL is required.');
+if (!SUPPORTED_SCENARIOS.includes(SCENARIO)) throw new Error(`Unsupported scenario: ${SCENARIO}`);
+
+await mkdir(ARTIFACT_DIR, { recursive: true });
+const postman = JSON.parse(await readFile(POSTMAN_PATH, 'utf8'));
 
 const report = {
-  scenario,
-  baseUrl,
-  startedAt: startedAt.toISOString(),
-  viewport: devices[viewportName].viewport,
-  customerName: scenario === 'full-case' ? customerName : null,
-  jobId: null,
-  reportNumber: null,
-  finalStatus: null,
-  steps: [],
-  consoleErrors: [],
-  pageErrors: [],
-  failedRequests: [],
-  failedApiResponses: [],
-  traceIncluded: scenario === 'public-smoke',
+  scenario: SCENARIO,
+  appUrl: APP_URL,
+  startedAt: RUN_STARTED.toISOString(),
+  browser: 'chromium',
+  viewport: devices[VIEWPORT_NAME].viewport,
+  contractSources: {
+    postmanCollection: path.relative(process.cwd(), POSTMAN_PATH),
+    runtimeOpenApi: null,
+  },
+  dataPolicy: 'Selectable and existing values are loaded from runtime APIs or third-party APIs. Generated test identifiers follow Postman collection templates.',
+  scenarios: [],
+  retainedFixtures: [],
+  cleanupFailures: [],
 };
 
 const browser = await chromium.launch();
-const context = await browser.newContext({
-  ...devices[viewportName],
-});
-const page = await context.newPage();
-let trackAuthenticatedApiFailures = false;
-let failure = null;
-let traceStarted = false;
-
-page.on('console', (message) => {
-  if (message.type() === 'error') {
-    report.consoleErrors.push(redact(message.text()));
-  }
-});
-page.on('pageerror', (error) => {
-  report.pageErrors.push(redact(error.message));
-});
-page.on('requestfailed', (request) => {
-  const entry = {
-    method: request.method(),
-    url: safeUrl(request.url()),
-    error: redact(request.failure()?.errorText ?? 'unknown'),
-  };
-  report.failedRequests.push(entry);
-  if (trackAuthenticatedApiFailures && request.url().includes('/api/')) {
-    report.failedApiResponses.push(entry);
-  }
-});
-page.on('response', (response) => {
-  if (!trackAuthenticatedApiFailures || !response.url().includes('/api/') || response.status() < 400) {
-    return;
-  }
-  report.failedApiResponses.push({
-    method: response.request().method(),
-    url: safeUrl(response.url()),
-    status: response.status(),
-  });
-});
-
-function redact(value) {
-  return String(value)
-    .replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
-    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED_TOKEN]');
-}
-
-function safeUrl(value) {
-  try {
-    const url = new URL(value);
-    url.search = '';
-    url.hash = '';
-    return url.toString();
-  } catch {
-    return redact(value);
-  }
-}
-
-function fileSafe(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
-
-async function screenshot(name) {
-  await page.screenshot({
-    path: path.join(artifactDir, `${fileSafe(name)}.png`),
-    fullPage: true,
-  });
-}
-
-async function runStep(name, action, { capture = true } = {}) {
-  const step = { name, startedAt: new Date().toISOString(), status: 'running' };
-  report.steps.push(step);
-  try {
-    const result = await action();
-    step.status = 'passed';
-    step.completedAt = new Date().toISOString();
-    if (capture) await screenshot(name);
-    return result;
-  } catch (error) {
-    step.status = 'failed';
-    step.completedAt = new Date().toISOString();
-    step.error = redact(error instanceof Error ? error.message : String(error));
-    try {
-      await screenshot(`${name}-failed`);
-    } catch {
-      // Preserve the original failure.
-    }
-    throw error;
-  }
-}
-
-async function waitForEnabled(locator, description, timeout = 20_000) {
-  await locator.waitFor({ state: 'visible', timeout });
-  const deadline = Date.now() + timeout;
-  while (await locator.isDisabled()) {
-    if (Date.now() > deadline) {
-      throw new Error(`${description} remained disabled.`);
-    }
-    await page.waitForTimeout(200);
-  }
-}
-
-async function expectOk(response, description) {
-  if (!response) throw new Error(`${description} returned no HTTP response.`);
-  if (!response.ok()) throw new Error(`${description} returned HTTP ${response.status()}.`);
-  return response;
-}
-
-async function waitForStep(label) {
-  await page.getByRole('button', { name: `${label} - aktuelt trin`, exact: true })
-    .waitFor({ state: 'visible', timeout: 20_000 });
-}
-
-async function clickNext(nextStepLabel) {
-  const next = page.getByRole('button', { name: 'Næste', exact: true });
-  await waitForEnabled(next, `Næste-knappen før ${nextStepLabel}`);
-  await next.click();
-  await waitForStep(nextStepLabel);
-}
+const helperEnv = { APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, ARTIFACT_DIR, postman, browser, devices, report };
+const helpers = createFlowHelpers(helperEnv);
+const { buildPostmanContract, buildDataFactory, validateContract, serializeError, redact, safeUrl, fileSafe, assertNoBrowserErrors } = helpers;
+const postmanContract = buildPostmanContract(postman);
+const dataFactory = buildDataFactory(postman, RUN_ID);
+const handlers = createScenarioHandlers({ APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, browser, devices, report }, helpers);
+let suiteFailure = null;
 
 try {
-  if (scenario === 'public-smoke') {
-    await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
-    traceStarted = true;
+  const scenarios = SCENARIO === 'all-critical' ? CRITICAL_SCENARIOS : [SCENARIO];
+  const scenarioFailures = [];
+  for (const scenarioName of scenarios) {
+    try {
+      await runScenario(scenarioName);
+    } catch (error) {
+      scenarioFailures.push({ scenarioName, error });
+      if (SCENARIO !== 'all-critical') throw error;
+    }
   }
-
-  await runStep('01 public home', async () => {
-    const response = await page.goto(baseUrl, {
-      waitUntil: 'domcontentloaded',
-      timeout: 45_000,
-    });
-    await expectOk(response, 'Production navigation');
-    await page.locator('body').waitFor({ state: 'visible', timeout: 15_000 });
-    report.initialUrl = page.url();
-    report.title = await page.title();
-  });
-
-  if (scenario === 'full-case') {
-    await runStep('02 dev login admin', async () => {
-      const loginButton = page.getByRole('button', { name: 'Dev Login · Admin', exact: true });
-      await loginButton.waitFor({ state: 'visible', timeout: 20_000 });
-      await Promise.all([
-        page.waitForURL((url) => url.pathname.startsWith('/app'), { timeout: 30_000 }),
-        loginButton.click(),
-      ]);
-      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
-      trackAuthenticatedApiFailures = true;
-    }, { capture: false });
-
-    await runStep('03 create draft case', async () => {
-      const response = await page.goto(`${baseUrl}/app/job/new`, {
-        waitUntil: 'domcontentloaded',
-        timeout: 30_000,
-      });
-      await expectOk(response, 'Create-case navigation');
-      await page.getByRole('heading', { name: 'Ny sag', exact: true })
-        .waitFor({ state: 'visible', timeout: 20_000 });
-
-      const destination = page.getByPlaceholder('Søg adresse...').first();
-      await destination.fill(destinationAddress);
-      await destination.press('Tab');
-      await page.waitForTimeout(250);
-
-      const customerPicker = page.getByRole('button', { name: 'Vælg kunde...', exact: true });
-      await waitForEnabled(customerPicker, 'Kundevælgeren');
-      await customerPicker.click();
-      await page.getByRole('option', { name: /Opret ny kunde/ }).click();
-      await page.getByPlaceholder('Kundenavn').fill(customerName);
-      await page.getByPlaceholder('Email').fill(`playwright.${runStamp}@example.com`);
-      await page.getByPlaceholder('Telefon').fill('20112233');
-      await page.getByPlaceholder('Kontaktperson').fill('Playwright QA');
-
-      const createResponsePromise = page.waitForResponse((candidate) =>
-        candidate.request().method() === 'POST'
-        && /\/api\/jobs(?:\?.*)?$/.test(candidate.url()),
-      { timeout: 30_000 });
-
-      const createButton = page.getByRole('button', { name: 'Opret sag', exact: true });
-      await waitForEnabled(createButton, 'Opret sag-knappen');
-      await createButton.click();
-
-      const createResponse = await createResponsePromise;
-      await expectOk(createResponse, 'Case creation');
-      const created = await createResponse.json();
-      if (!created?.id) throw new Error('Case creation response did not include an id.');
-      report.jobId = created.id;
-      report.reportNumber = created.reportNumber ?? null;
-
-      await page.getByRole('heading', { name: 'Sagen er oprettet', exact: true })
-        .waitFor({ state: 'visible', timeout: 30_000 });
-    });
-
-    await runStep('04 open case from list', async () => {
-      await page.getByRole('button', { name: 'Til sagslisten', exact: true }).click();
-      await page.waitForURL((url) => url.pathname === '/app', { timeout: 20_000 });
-      const search = page.getByPlaceholder('Søg opgaver...');
-      await search.waitFor({ state: 'visible', timeout: 20_000 });
-      await search.fill(customerName);
-      const card = page.locator('button.job-card').filter({ hasText: customerName }).first();
-      await card.waitFor({ state: 'visible', timeout: 20_000 });
-      await card.click();
-      await page.waitForURL((url) => url.pathname === `/app/job/${report.jobId}`, { timeout: 20_000 });
-      await page.getByRole('heading', { name: 'Rediger sag', exact: true })
-        .waitFor({ state: 'visible', timeout: 20_000 });
-      await waitForStep('Sagsdetaljer');
-    });
-
-    await runStep('05 choose installation and work type', async () => {
-      await clickNext('Anlægstyper');
-      const installationType = page.locator('button.choice-card.selection-card').first();
-      await installationType.waitFor({ state: 'visible', timeout: 20_000 });
-      await installationType.click();
-
-      const workKind = page.locator('input[name="workKind"]').first();
-      await workKind.waitFor({ state: 'visible', timeout: 20_000 });
-      await workKind.check();
-
-      const customWorkKind = page.getByPlaceholder('Skriv hvilken opgavetype der udføres');
-      if (await customWorkKind.isVisible().catch(() => false)) {
-        await customWorkKind.fill('Playwright testarbejde');
-      }
-    });
-
-    await runStep('06 mark control points irrelevant', async () => {
-      await clickNext('Kontrolpunkter');
-      const irrelevantButtons = page.locator('button[title="Marker som ikke relevant"]');
-      let safetyCounter = 0;
-      while (await irrelevantButtons.count()) {
-        if (safetyCounter++ > 50) throw new Error('Too many control-point categories to process safely.');
-        await irrelevantButtons.first().click();
-        await page.waitForTimeout(100);
-      }
-    });
-
-    await runStep('07 add worksheet', async () => {
-      await clickNext('Timesedler');
-      await page.getByRole('button', { name: 'Tilføj timeseddel', exact: true }).click();
-
-      const workerTrigger = page.locator('.worksheet-form .multi-select-trigger');
-      if (await workerTrigger.count()) {
-        const triggerText = (await workerTrigger.first().innerText()).trim();
-        if (/Vælg montør/i.test(triggerText)) {
-          await workerTrigger.first().click();
-          const firstWorker = page.locator('.worksheet-form [role="option"]').first();
-          await firstWorker.waitFor({ state: 'visible', timeout: 15_000 });
-          await firstWorker.click();
-        }
-      }
-
-      await page.getByLabel('Timer', { exact: true }).fill('1');
-      await page.getByRole('button', { name: 'Tilføj', exact: true }).click();
-      await page.locator('.worksheet-form').waitFor({ state: 'hidden', timeout: 30_000 });
-      await waitForEnabled(page.getByRole('button', { name: 'Næste', exact: true }), 'Næste-knappen efter timeseddel');
-    });
-
-    await runStep('08 complete and submit case', async () => {
-      await clickNext('Afslutning');
-      const completed = page.getByRole('button', { name: 'Færdig', exact: true });
-      await completed.waitFor({ state: 'visible', timeout: 20_000 });
-      await completed.click();
-
-      await clickNext('Attestering');
-      const confirmation = page.getByRole('checkbox', { name: /Jeg bekræfter, at sagen er gennemgået/ });
-      await confirmation.check();
-
-      const submitResponsePromise = page.waitForResponse((candidate) =>
-        candidate.request().method() === 'POST'
-        && candidate.url().includes(`/api/jobs/${report.jobId}/status`),
-      { timeout: 30_000 });
-
-      await page.getByRole('button', { name: 'Attestér og indsend', exact: true }).click();
-      await expectOk(await submitResponsePromise, 'Case submission');
-      await page.getByRole('heading', { name: 'Sag sendt til kontoret', exact: true })
-        .waitFor({ state: 'visible', timeout: 30_000 });
-    });
-
-    await runStep('09 approve submitted case', async () => {
-      const response = await page.goto(`${baseUrl}/app/completed/${report.jobId}`, {
-        waitUntil: 'domcontentloaded',
-        timeout: 30_000,
-      });
-      await expectOk(response, 'Submitted-case navigation');
-      await page.getByRole('heading', { name: 'Sagsoverblik', exact: true })
-        .waitFor({ state: 'visible', timeout: 20_000 });
-
-      const approve = page.locator('button:visible').filter({ hasText: /^Godkend$/ }).last();
-      await approve.waitFor({ state: 'visible', timeout: 20_000 });
-      await approve.click();
-
-      const dialog = page.getByRole('dialog', { name: 'Godkend sag' });
-      await dialog.waitFor({ state: 'visible', timeout: 15_000 });
-      const approveResponsePromise = page.waitForResponse((candidate) =>
-        candidate.request().method() === 'POST'
-        && candidate.url().includes(`/api/jobs/${report.jobId}/status`),
-      { timeout: 30_000 });
-      await dialog.getByRole('button', { name: 'Godkend', exact: true }).click();
-      await expectOk(await approveResponsePromise, 'Case approval');
-
-      await page.goto(`${baseUrl}/app/completed/${report.jobId}`, {
-        waitUntil: 'domcontentloaded',
-        timeout: 30_000,
-      });
-      await page.getByRole('heading', { name: 'Sagsoverblik', exact: true })
-        .waitFor({ state: 'visible', timeout: 20_000 });
-      await page.locator('.job-number').filter({ hasText: 'Godkendt' }).first()
-        .waitFor({ state: 'visible', timeout: 20_000 });
-      report.finalStatus = 'Approved';
-    });
-
-    if (report.pageErrors.length > 0) {
-      throw new Error(`Browser page errors were recorded: ${report.pageErrors.join(' | ')}`);
-    }
-    if (report.failedApiResponses.length > 0) {
-      throw new Error(`Failed authenticated API calls were recorded: ${JSON.stringify(report.failedApiResponses)}`);
-    }
+  if (scenarioFailures.length > 0) {
+    throw new AggregateError(
+      scenarioFailures.map((item) => item.error),
+      `${scenarioFailures.length} critical Playwright scenario(s) failed: ${scenarioFailures.map((item) => item.scenarioName).join(', ')}`,
+    );
   }
 } catch (error) {
-  failure = error;
-  report.failure = error instanceof Error
-    ? { message: redact(error.message), stack: redact(error.stack ?? '') }
-    : { message: redact(String(error)) };
-  try {
-    await screenshot('failure');
-  } catch {
-    // The page may already be closed or unavailable.
-  }
+  suiteFailure = error;
 } finally {
   report.completedAt = new Date().toISOString();
-  report.finalUrl = safeUrl(page.url());
-
-  if (traceStarted) {
-    try {
-      await context.tracing.stop({ path: path.join(artifactDir, 'trace.zip') });
-    } catch (error) {
-      report.traceError = redact(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  await writeFile(
-    path.join(artifactDir, 'report.json'),
-    JSON.stringify(report, null, 2),
-  );
+  report.status = suiteFailure ? 'failed' : 'passed';
+  if (suiteFailure) report.failure = serializeError(suiteFailure);
+  await writeFile(path.join(ARTIFACT_DIR, 'report.json'), JSON.stringify(report, null, 2));
   await browser.close();
 }
 
-if (failure) {
-  throw failure;
+if (suiteFailure) throw suiteFailure;
+
+async function runScenario(name) {
+  const scenarioReport = {
+    name,
+    startedAt: new Date().toISOString(),
+    status: 'running',
+    steps: [],
+    consoleErrors: [],
+    pageErrors: [],
+    failedRequests: [],
+    failedApiResponses: [],
+    contractChecks: [],
+    generatedFixtures: [],
+    coverageNotes: [],
+  };
+  report.scenarios.push(scenarioReport);
+
+  const session = await createSession(name, scenarioReport);
+  try {
+    await handlers[name](session);
+    assertNoBrowserErrors(session);
+    scenarioReport.status = 'passed';
+  } catch (error) {
+    scenarioReport.status = 'failed';
+    scenarioReport.failure = serializeError(error);
+    try { await session.screenshot('failure'); } catch { /* best effort */ }
+    throw error;
+  } finally {
+    scenarioReport.completedAt = new Date().toISOString();
+    await session.cleanup();
+    await session.context.close();
+  }
+}
+
+async function createSession(name, scenarioReport) {
+  const context = await browser.newContext({
+    ...devices[VIEWPORT_NAME],
+    locale: 'da-DK',
+    timezoneId: 'Europe/Copenhagen',
+  });
+  const page = await context.newPage();
+  const fixtures = { jobs: [], customers: [], users: [] };
+  const auth = { token: null, user: null, apiBase: null, openApi: null, role: null };
+  let captureAuthenticatedNetwork = false;
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') scenarioReport.consoleErrors.push(redact(message.text()));
+  });
+  page.on('pageerror', (error) => scenarioReport.pageErrors.push(redact(error.message)));
+  page.on('requestfailed', (request) => {
+    const entry = { method: request.method(), url: safeUrl(request.url()), error: redact(request.failure()?.errorText ?? 'unknown') };
+    scenarioReport.failedRequests.push(entry);
+    if (captureAuthenticatedNetwork && request.url().includes('/api/')) scenarioReport.failedApiResponses.push(entry);
+  });
+  page.on('response', (response) => {
+    if (!captureAuthenticatedNetwork || !response.url().includes('/api/') || response.status() < 400) return;
+    scenarioReport.failedApiResponses.push({ method: response.request().method(), url: safeUrl(response.url()), status: response.status() });
+  });
+
+  const session = {
+    name,
+    context,
+    page,
+    auth,
+    fixtures,
+    scenarioReport,
+    data: dataFactory.forScenario(name),
+    step,
+    screenshot,
+    login,
+    logout,
+    api,
+    apiExpect,
+    getReferenceData,
+    getAddress,
+    cleanup,
+    setAuthenticatedNetworkCapture(value) { captureAuthenticatedNetwork = value; },
+  };
+  return session;
+
+  async function step(label, action, { screenshot: capture = true } = {}) {
+    const entry = { label, startedAt: new Date().toISOString(), status: 'running' };
+    scenarioReport.steps.push(entry);
+    try {
+      const value = await action();
+      entry.status = 'passed';
+      entry.completedAt = new Date().toISOString();
+      if (capture) await screenshot(label);
+      return value;
+    } catch (error) {
+      entry.status = 'failed';
+      entry.completedAt = new Date().toISOString();
+      entry.error = serializeError(error);
+      try { await screenshot(`${label}-failed`); } catch { /* preserve original error */ }
+      throw error;
+    }
+  }
+
+  async function screenshot(label) {
+    await page.screenshot({
+      path: path.join(ARTIFACT_DIR, `${fileSafe(name)}-${fileSafe(label)}.png`),
+      fullPage: true,
+    });
+  }
+
+  async function login(role = 'Admin') {
+    await page.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    const button = page.getByRole('button', { name: `Dev Login · ${role}`, exact: true });
+    await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    const tokenResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/dev/token',
+    { timeout: API_TIMEOUT });
+    await button.click();
+    const tokenResponse = await tokenResponsePromise;
+    if (!tokenResponse.ok()) throw new Error(`Dev login for ${role} returned HTTP ${tokenResponse.status()}.`);
+    const tokenPayload = await tokenResponse.json();
+    if (!tokenPayload?.token || !tokenPayload?.user) throw new Error(`Dev login for ${role} did not return token and user data.`);
+    auth.token = tokenPayload.token;
+    auth.user = tokenPayload.user;
+    auth.role = tokenPayload.user.role;
+    auth.apiBase = new URL(tokenResponse.url()).origin;
+    captureAuthenticatedNetwork = true;
+    await page.waitForURL((url) => url.pathname.startsWith('/app') || url.pathname.startsWith('/superadmin'), { timeout: API_TIMEOUT });
+    await loadRuntimeContracts();
+    const me = await apiExpect('GET', '/api/auth/me', undefined, [200]);
+    if (String(me.role).toLowerCase() !== String(auth.role).toLowerCase()) {
+      throw new Error(`Dev login role mismatch. Token reported ${auth.role}; /api/auth/me reported ${me.role}.`);
+    }
+    return me;
+  }
+
+  async function logout() {
+    const button = page.getByRole('button', { name: 'Log ud', exact: true });
+    await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+    await button.click();
+    await page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
+    auth.token = null;
+    auth.user = null;
+    captureAuthenticatedNetwork = false;
+  }
+
+  async function loadRuntimeContracts() {
+    if (auth.openApi) return;
+    const response = await fetch(`${auth.apiBase}/openapi/v1.json`, { signal: AbortSignal.timeout(API_TIMEOUT) });
+    if (!response.ok) throw new Error(`Runtime OpenAPI returned HTTP ${response.status}.`);
+    auth.openApi = await response.json();
+    report.contractSources.runtimeOpenApi ??= `${auth.apiBase}/openapi/v1.json`;
+  }
+
+  async function api(method, pathname, body, options = {}) {
+    if (!auth.apiBase) throw new Error('API base is unavailable before login.');
+    await loadRuntimeContracts();
+    const methodUpper = method.toUpperCase();
+    const contract = validateContract(methodUpper, pathname, auth.openApi, postmanContract);
+    scenarioReport.contractChecks.push(contract);
+    const token = options.token ?? auth.token;
+    const headers = { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...options.headers };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`${auth.apiBase}${pathname}`, {
+      method: methodUpper,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(options.timeout ?? API_TIMEOUT),
+    });
+    let payload = null;
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('json')) payload = await response.json().catch(() => null);
+    else payload = await response.text().catch(() => null);
+    return { response, payload };
+  }
+
+  async function apiExpect(method, pathname, body, expectedStatuses = [200], options = {}) {
+    const result = await api(method, pathname, body, options);
+    if (!expectedStatuses.includes(result.response.status)) {
+      throw new Error(`${method} ${pathname} returned HTTP ${result.response.status}; expected ${expectedStatuses.join('/')}. Body: ${redact(JSON.stringify(result.payload))}`);
+    }
+    return result.payload;
+  }
+
+  async function getReferenceData() {
+    const data = await apiExpect('GET', '/api/reference-data', undefined, [200]);
+    if (!Array.isArray(data?.installationTypes) || !Array.isArray(data?.workKinds) || !Array.isArray(data?.closureFlags)) {
+      throw new Error('Runtime reference data is missing installationTypes, workKinds, or closureFlags.');
+    }
+    return data;
+  }
+
+  async function getAddress() {
+    const query = encodeURIComponent(session.data.addressQuery);
+    const response = await fetch(`https://dawa.aws.dk/adresser/autocomplete?q=${query}&per_side=5`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(API_TIMEOUT),
+    });
+    if (!response.ok) throw new Error(`DAWA autocomplete returned HTTP ${response.status}.`);
+    const suggestions = await response.json();
+    const suggestion = Array.isArray(suggestions) ? suggestions.find((item) => item?.tekst || item?.adresse?.betegnelse) : null;
+    if (!suggestion) throw new Error('DAWA returned no address suggestion.');
+    const text = suggestion.tekst ?? suggestion.adresse.betegnelse;
+    const address = suggestion.adresse ?? suggestion.data ?? {};
+    return {
+      text,
+      street: address.vejnavn && address.husnr ? `${address.vejnavn} ${address.husnr}` : text.split(',')[0],
+      zipCode: address.postnr ?? address.postnummer?.nr ?? null,
+      city: address.postnrnavn ?? address.postnummer?.navn ?? null,
+      raw: suggestion,
+    };
+  }
+
+  async function cleanup() {
+    if (!auth.apiBase || !auth.token) return;
+    for (const jobId of [...fixtures.jobs].reverse()) {
+      try { await apiExpect('DELETE', `/api/jobs/${jobId}`, undefined, [200, 204, 404]); }
+      catch (error) { report.cleanupFailures.push({ scenario: name, fixture: `job:${jobId}`, error: serializeError(error) }); }
+    }
+    for (const customerId of [...fixtures.customers].reverse()) {
+      try { await apiExpect('DELETE', `/api/customers/${customerId}`, undefined, [200, 204, 404]); }
+      catch (error) { report.cleanupFailures.push({ scenario: name, fixture: `customer:${customerId}`, error: serializeError(error) }); }
+    }
+    for (const userId of [...fixtures.users].reverse()) {
+      try { await apiExpect('DELETE', `/api/users/${userId}`, undefined, [200, 204, 404]); }
+      catch (error) { report.cleanupFailures.push({ scenario: name, fixture: `user:${userId}`, error: serializeError(error) }); }
+    }
+  }
 }
