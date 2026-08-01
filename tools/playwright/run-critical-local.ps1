@@ -76,6 +76,12 @@ function Invoke-External {
     }
 }
 
+function Reset-Evidence {
+    if (Test-Path $artifactRoot) {
+        Remove-Item $artifactRoot -Recurse -Force
+    }
+}
+
 function Open-Evidence {
     if ($NoOpenEvidence) {
         return
@@ -94,7 +100,7 @@ function Invoke-DirectRun {
     Assert-Command -Name 'node' -InstallHint 'Installér Node.js 22 LTS, eksempelvis: winget install OpenJS.NodeJS.LTS'
     Assert-Command -Name 'npm' -InstallHint 'npm følger med Node.js.'
 
-    $nodeVersion = (& node --version).Trim().TrimStart('v')
+    $nodeVersion = (& node --version).Trim().TrimStart([char]'v')
     $nodeMajor = [int]($nodeVersion.Split('.')[0])
     if ($nodeMajor -lt 20) {
         throw "Node.js $nodeVersion er for gammel. Brug Node.js 20 eller nyere; Node.js 22 anbefales."
@@ -180,8 +186,6 @@ function Invoke-DirectRun {
             $env:SCENARIO = $previousScenario
         }
     }
-
-    Open-Evidence
 }
 
 function Invoke-WorkflowRun {
@@ -211,11 +215,8 @@ function Invoke-WorkflowRun {
         }
     } | ConvertTo-Json -Depth 4
 
-    [System.IO.File]::WriteAllText(
-        $eventPath,
-        $eventJson,
-        (New-Object System.Text.UTF8Encoding($false))
-    )
+    $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+    [System.IO.File]::WriteAllText($eventPath, $eventJson, $utf8NoBom)
 
     try {
         Write-Host "Kører den faktiske GitHub Actions-YAML lokalt med act: $Scenario" -ForegroundColor Cyan
@@ -231,15 +232,19 @@ function Invoke-WorkflowRun {
     finally {
         Remove-Item $eventPath -Force -ErrorAction SilentlyContinue
     }
-
-    Open-Evidence
 }
 
 Write-Host "Workslip Playwright local runner - mode: $Mode, scenario: $Scenario" -ForegroundColor White
+Reset-Evidence
 
-if ($Mode -eq 'Workflow') {
-    Invoke-WorkflowRun
+try {
+    if ($Mode -eq 'Workflow') {
+        Invoke-WorkflowRun
+    }
+    else {
+        Invoke-DirectRun
+    }
 }
-else {
-    Invoke-DirectRun
+finally {
+    Open-Evidence
 }
