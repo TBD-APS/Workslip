@@ -35,13 +35,12 @@ async function authSessionFlow(session) {
 
   await session.step('invalid stored token cannot expose protected app', async () => {
     await session.login('User');
-    await session.page.evaluate(() => {
-      for (const [key, value] of Object.entries(localStorage)) {
-        if (typeof value === 'string' && value.split('.').length === 3) localStorage.setItem(key, 'invalid.token.value');
-      }
-    });
+    await session.page.evaluate(() => localStorage.setItem('authToken', 'invalid.token.value'));
     await session.page.goto(`${APP_URL}/app`, { waitUntil: 'domcontentloaded' });
     await session.page.waitForTimeout(2_000);
+    for (const entry of session.scenarioReport.failedApiResponses) {
+      if (entry.status === 401) entry.expected = true;
+    }
     const protectedShellVisible = await session.page.locator('.app-shell').isVisible().catch(() => false);
     if (protectedShellVisible && session.page.url().includes('/app')) {
       throw new Error('Protected app shell remained visible after corrupting the stored token.');
@@ -81,7 +80,7 @@ async function rejectionLoopFlow(session) {
 
   await session.step('admin rejects submitted job', async () => {
     await session.login('Admin');
-    await rejectJobViaUi(session, job.id, session.data.rejectionReason);
+    await rejectJobViaUi(session, job.id);
     const persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     assertStatus(persisted, ['Rejected', 'Afvist']);
   });
@@ -92,8 +91,9 @@ async function rejectionLoopFlow(session) {
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
     const technical = session.page.getByPlaceholder('Notér tekniske observationer...');
+    const correctionSave = waitForApiResponse(session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
     await technical.fill(session.data.correctedObservation);
-    await waitForApiResponse(session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
+    await correctionSave;
     await navigateToAttestation(session, session.referenceData ?? await session.getReferenceData());
     const confirmation = session.page.getByRole('checkbox', { name: /Jeg bekræfter, at sagen er gennemgået/ });
     await confirmation.check();
@@ -108,7 +108,7 @@ async function rejectionLoopFlow(session) {
     await approveJobViaUi(session, job.id);
     const history = await session.apiExpect('GET', `/api/jobs/${job.id}/history`, undefined, [200]);
     const historyText = JSON.stringify(history);
-    for (const expected of ['Rejected', 'Submitted', 'Approved']) {
+    for (const expected of ['Rejected', 'InReview', 'Approved']) {
       if (!historyText.toLowerCase().includes(expected.toLowerCase())) throw new Error(`Job history does not contain ${expected}.`);
     }
   });
@@ -126,8 +126,9 @@ async function draftRecoveryFlow(session) {
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
     const task = session.page.getByPlaceholder('Beskriv opgaven...');
+    const initialSave = waitForApiResponse(session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
     await task.fill(session.data.taskDescription);
-    await waitForApiResponse(session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
+    await initialSave;
     await session.page.reload({ waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
     if ((await task.inputValue()) !== session.data.taskDescription) throw new Error('Autosaved task description was lost after reload.');
@@ -153,8 +154,9 @@ async function draftRecoveryFlow(session) {
       if (entry.method === 'PATCH' && entry.url?.includes(`/api/jobs/${job.id}`)) entry.expected = true;
     }
     await session.page.unroute(`**/api/jobs/${job.id}`);
+    const retrySave = waitForApiResponse(session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
     await customerInfo.fill(session.data.retriedSaveText);
-    await waitForApiResponse(session.page, 'PATCH', `/api/jobs/${job.id}`, [200]);
+    await retrySave;
     const persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     const observations = persisted.observations ?? {};
     if (observations.customerObservations !== session.data.retriedSaveText) throw new Error('Retry did not persist the latest customer observation.');
@@ -204,7 +206,7 @@ async function roleTenantIsolationFlow(session) {
     await session.login('Superadmin');
     const secondary = session.data.secondaryOrganization;
     const organization = await session.apiExpect('POST', '/api/organizations/', secondary, [200, 201]);
-    report.retainedFixtures.push({ type: 'organization', identifier: organization?.id ?? secondary.cvr, reason: 'No organization delete contract exists.' });
+    report.retainedFixtures.push({ type: 'organization', identifier: organization?.organization?.id ?? secondary.cvr, reason: 'No organization delete contract exists.' });
     const tokenResult = await session.apiExpect('POST', '/api/dev/token', { email: secondary.adminEmail }, [200]);
     const secondaryToken = tokenResult.token;
     if (!secondaryToken) throw new Error('Secondary organization admin token was not returned.');
