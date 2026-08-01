@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
 import { JobCard } from './JobList';
@@ -36,7 +36,19 @@ afterEach(() => {
   cleanup();
 });
 
-describe('JobCard completed indicator', () => {
+describe('JobCard', () => {
+  it('shows the last updated date and time', () => {
+    render(
+      <JobCard
+        job={createJob({ updatedAt: '2026-08-01T12:34:00' })}
+        isAdmin={false}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Opdateret 01.08.2026, 12.34')).toBeInTheDocument();
+  });
+
   it('keeps the completed dot after the approved job is marked as seen', () => {
     const onOpen = vi.fn();
     const { container, rerender } = render(
