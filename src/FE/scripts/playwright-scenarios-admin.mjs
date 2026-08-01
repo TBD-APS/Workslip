@@ -84,16 +84,18 @@ async function assignmentLifecycleFlow(session) {
     const first = session.assignmentUsers[0];
     const second = session.assignmentUsers[1];
     await session.page.getByRole('option', { name: first.displayName, exact: true }).click();
+    const firstAssignment = waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/assign`, [200]);
     await trigger.click();
-    await waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/assign`, [200]);
+    await firstAssignment;
     let persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     if (!assignedIds(persisted).includes(first.id)) throw new Error('First assignment was not persisted.');
 
     await trigger.click();
     await session.page.getByRole('option', { name: first.displayName, exact: true }).click();
     await session.page.getByRole('option', { name: second.displayName, exact: true }).click();
+    const reassignment = waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/assign`, [200]);
     await trigger.click();
-    await waitForApiResponse(session.page, 'POST', `/api/jobs/${job.id}/assign`, [200]);
+    await reassignment;
     persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     const ids = assignedIds(persisted);
     if (ids.includes(first.id) || !ids.includes(second.id)) throw new Error('Reassignment did not replace the selected user.');
@@ -136,7 +138,7 @@ async function customerLifecycleFlow(session) {
     const nameInput = session.page.locator('#edit-customer-name, #create-customer-name').first();
     await nameInput.fill(session.data.updatedCustomerName);
     const saveResponse = waitForApiResponse(session.page, 'PUT', `/api/customers/${customer.id}`, [200]);
-    await session.page.getByRole('button', { name: 'Gem ændringer', exact: true }).click();
+    await session.page.getByRole('button', { name: 'Gem', exact: true }).click();
     await saveResponse;
   });
 
@@ -178,21 +180,23 @@ async function worksheetIntegrityFlow(session) {
   });
 
   await session.step('edit and delete worksheet without duplicates', async () => {
-    const edit = session.page.getByTitle('Rediger timeseddel').first();
-    await edit.click();
+    await session.page.getByRole('button', { name: 'Åbn handlinger for timeseddel', exact: true }).first().click();
+    await session.page.getByRole('menuitem', { name: 'Rediger', exact: true }).click();
     const hours = session.page.getByLabel('Timer', { exact: true });
     await hours.fill('2,25');
     const updateResponse = waitForApiResponse(session.page, 'POST', `/api/worksheets/jobs/${job.id}`, [200]);
-    await session.page.getByRole('button', { name: /Gem|Opdater|Tilføj/, exact: true }).last().click();
+    await session.page.getByRole('button', { name: 'Gem', exact: true }).click();
     await updateResponse;
     let persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     const matches = persisted.worksheets.filter((item) => item.userId === session.assignmentUsers[0].id && Number(item.hoursWorked) === 2.25);
     if (matches.length !== 1) throw new Error(`Expected one updated worksheet; found ${matches.length}.`);
 
-    await session.page.getByTitle('Slet timeseddel').first().click();
+    await session.page.getByRole('button', { name: 'Åbn handlinger for timeseddel', exact: true }).first().click();
+    await session.page.getByRole('menuitem', { name: 'Slet', exact: true }).click();
+    const dialog = session.page.getByRole('dialog', { name: 'Slet timeseddel' });
+    await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
     const deleteResponse = waitForApiResponse(session.page, 'DELETE', `/api/worksheets/${session.worksheetId}/jobs/${job.id}`, [200]);
-    const dialog = session.page.getByRole('dialog');
-    if (await dialog.isVisible().catch(() => false)) await dialog.getByRole('button', { name: 'Slet', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Slet', exact: true }).click();
     await deleteResponse;
     persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     if (persisted.worksheets.some((item) => item.id === session.worksheetId)) throw new Error('Deleted worksheet still exists.');
@@ -212,7 +216,7 @@ async function diverseLifecycleFlow(session) {
     await fillOverviewFields(session, { customerName: session.data.customerName, address: session.address });
     await addWorksheetViaUi(session, session.assignmentUsers[0], '1');
     const responsePromise = session.page.waitForResponse((response) =>
-      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/jobs/',
+      response.request().method() === 'POST' && ['/api/jobs', '/api/jobs/'].includes(new URL(response.url()).pathname),
     { timeout: API_TIMEOUT });
     await waitForEnabled(session.page.getByRole('button', { name: 'Opret job', exact: true }), 'Opret job');
     await session.page.getByRole('button', { name: 'Opret job', exact: true }).click();
@@ -228,13 +232,12 @@ async function diverseLifecycleFlow(session) {
   await session.step('diverse job follows review and approval lifecycle', async () => {
     const persisted = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     if (String(persisted.jobType ?? '').toLowerCase() !== 'diverse') throw new Error('Simple job was not persisted as Diverse.');
-    assertStatus(persisted, ['InReview', 'Submitted']);
+    assertStatus(persisted, ['InReview']);
     await approveJobViaUi(session, job.id);
     const approved = await session.apiExpect('GET', `/api/jobs/${job.id}`, undefined, [200]);
     assertStatus(approved, ['Approved', 'Godkendt']);
   });
 }
-
 
   return {
     'invitation-onboarding': invitationOnboardingFlow,
