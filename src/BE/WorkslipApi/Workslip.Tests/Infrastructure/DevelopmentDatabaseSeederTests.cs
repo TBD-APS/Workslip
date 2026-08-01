@@ -126,15 +126,13 @@ public sealed class DevelopmentDatabaseSeederTests
         var rasmus = CreateUser(CanonicalRasmusId, customer.Id, "rasmusvm6@hotmail.com");
         context.Organizations.Add(customer);
         context.Users.Add(rasmus);
-        context.PushSubscriptions.Add(new PushSubscriptionRow
+        context.JobAssignments.Add(new JobAssignmentRow
         {
             Id = Guid.NewGuid(),
+            OrganizationId = customer.Id,
+            ReportId = Guid.NewGuid(),
             UserId = rasmus.Id,
-            Endpoint = "https://push.example.test",
-            P256Dh = "key",
-            Auth = "auth",
-            CreatedUtc = DateTimeOffset.UtcNow,
-            LastSeenUtc = DateTimeOffset.UtcNow
+            AssignedAt = DateTimeOffset.UtcNow
         });
         await context.SaveChangesAsync();
         var entra = new FakeSuperadminEntraService();

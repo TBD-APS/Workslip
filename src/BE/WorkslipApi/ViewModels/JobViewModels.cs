@@ -29,17 +29,13 @@ public sealed record JobListItemViewModel(
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
     decimal? TotalHours,
-    DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateOnly? ReportDate,
     string JobType,
     string? DestinationAddress,
-    string? DestinationZipCode,
-    string? DestinationCity,
     string? TaskDescription,
     bool IsSeen,
-    bool IsNewRejection,
-    string? RejectionNote);
+    bool IsNewRejection);
 
 public sealed record JobListViewModel(
     IReadOnlyList<JobListItemViewModel> Items,
@@ -86,17 +82,13 @@ public static class JobViewModelBuilder
         job.AssignedUsers,
         job.SoftDeleted,
         job.TotalHours,
-        job.CreatedAt,
         job.UpdatedAt,
         job.ReportDate,
         job.JobType.ToString(),
         job.DestinationAddress,
-        job.DestinationZipCode,
-        job.DestinationCity,
         job.TaskDescription,
         job.IsSeenByCurrentUser,
-        job.IsNewRejection,
-        job.RejectionNote);
+        job.IsNewRejection);
 
     public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
         summary.Id,

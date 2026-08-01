@@ -124,22 +124,10 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 r.Status,
                 r.JobType,
                 r.DestinationAddress,
-                r.DestinationZipCode,
-                r.DestinationCity,
                 r.TaskDescription,
                 r.ReportDate,
-                WorkKind = r.WorkKindRow != null ? new JobWorkKindResponse(
-                    r.WorkKindRow.Id,
-                    r.WorkKindRow.NormalizedLabel,
-                    r.WorkKindRow.Label,
-                    r.WorkKindRow.RequiresCustomWorkKind,
-                    r.WorkKindRow.SortOrder,
-                    r.CustomWorkKind) : null,
-                r.CreatedAt,
                 r.UpdatedAt,
-                r.IsSoftDeleted,
-                r.DeletionScheduledAt,
-                r.RejectionNote
+                r.IsSoftDeleted
             }).ToListAsync(cancellationToken);
 
         var reportIds = projected.Select(x => x.Id).ToArray();
@@ -196,17 +184,14 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 x.ReportNumber, status, JobReportMapper.ToDateOnly(x.ReportDate),
                 x.JobType,
                 x.DestinationAddress,
-                x.DestinationZipCode,
-                x.DestinationCity,
                 x.TaskDescription,
-                installationTypesByReport.GetValueOrDefault(x.Id) ?? [], x.WorkKind,
-                x.CreatedAt, x.UpdatedAt,
+                installationTypesByReport.GetValueOrDefault(x.Id) ?? [],
                 assignedDictionary.GetValueOrDefault(x.Id) ?? [],
-                x.IsSoftDeleted, x.DeletionScheduledAt,
+                x.IsSoftDeleted,
                 totalHoursByJob.GetValueOrDefault(x.Id),
+                x.UpdatedAt,
                 seenSet.Contains(x.Id),
-                isNewRejection,
-                x.RejectionNote);
+                isNewRejection);
         }).ToArray();
     }
 

@@ -220,20 +220,14 @@ public sealed record JobListItemResponse(
     DateOnly? ReportDate,
     JobType JobType,
     string? DestinationAddress,
-    string? DestinationZipCode,
-    string? DestinationCity,
     string? TaskDescription,
     IReadOnlyList<string> InstallationTypes,
-    JobWorkKindResponse? WorkKind,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt,
     IReadOnlyList<AssignedUserResponse> AssignedUsers,
     bool SoftDeleted,
-    DateTimeOffset? DeletionScheduledAt,
     decimal? TotalHours,
+    DateTimeOffset UpdatedAt,
     bool IsSeenByCurrentUser,
-    bool IsNewRejection,
-    string? RejectionNote);
+    bool IsNewRejection);
 
 public sealed record JobReportResponse(
     Guid Id,

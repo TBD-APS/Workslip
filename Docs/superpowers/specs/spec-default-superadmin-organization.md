@@ -32,7 +32,8 @@ context:
 |----------|---------------|----------------------------|----------------|
 | Empty development database | No organizations or users | Create platform and demo organizations; Superadmins use platform ID; other dev users use demo ID | One atomic/idempotent seed result |
 | Existing customer database | Customer organizations exist; platform organization does not | Create platform organization and move exact canonical Superadmins to it | Preserve every non-canonical row and tenant |
-| Existing Superadmin has tenant data | Canonical Superadmin is referenced by tenant-bound operational rows | Do not create cross-tenant references or silently move operational data | Fail with an actionable startup error before Graph reconciliation |
+| Existing Superadmin has tenant data | Canonical Superadmin is referenced by operational tenant rows (job assignments, job events, worksheets) | Do not create cross-tenant references or silently move operational data | Fail with an actionable startup error before Graph reconciliation |
+| Existing Superadmin has ephemeral user state | Canonical Superadmin is referenced only by ephemeral rows (job views, push subscriptions, queued notifications) | Delete the ephemeral rows inside the seed transaction and move the Superadmin to the platform organization | Roll back with the transaction; no cross-tenant references remain |
 | Repeated startup | Platform organization and canonical users already exist | No duplicates or data churn | Stable snapshots across repeated runs |
 | Reserved identity conflict | Platform ID or reserved CVR belongs to incompatible data | Fail before partial Superadmin reconciliation | Clear startup exception identifying the conflict |
 | Customer organization listing/session | Platform organization exists | Omit it from selectable customer organizations and reject direct delegated access | Return not-found/invalid target through existing result handling |
@@ -55,7 +56,8 @@ context:
 **Execution:**
 - [x] Add a shared reserved platform organization definition with deterministic ID, name, and synthetic eight-digit CVR.
 - [x] Remove Rasmus from `DatabaseSeeder` so its demo/customer seed owns only Admin/User/Auditor identities and data.
-- [x] Make `DevelopmentDatabaseSeeder` preflight the complete reserved organization and both canonical identities before mutation, rejecting non-canonical users, operational rows, normalized email conflicts, and tenant references.
+- [x] Make `DevelopmentDatabaseSeeder` preflight the complete reserved organization and both canonical identities before mutation, rejecting non-canonical users, operational rows, normalized email conflicts, and operational tenant references.
+- [x] Delete ephemeral user state (job views, push subscriptions, queued notifications) for a canonical Superadmin being moved, inside the same serializable transaction, instead of failing startup.
 - [x] Run platform/demo creation and all canonical user writes in one serializable database transaction; resolve both Graph identities before committing local changes and compensate every newly created Graph identity if later Graph or database work fails.
 - [x] Reconcile canonical display name, phone, email, role, organization, and Entra fields without overwriting a concurrently changed row.
 - [x] Filter the reserved organization from customer administration queries and delegated lookup by reserved ID; treat a reserved-CVR collision as an integrity failure rather than silently hiding a customer.
@@ -66,6 +68,7 @@ context:
 - Given a fresh development database, when startup seeding completes, then both canonical Superadmins belong to `Workslip Platform` and ordinary demo identities belong to the demo company.
 - Given canonical Superadmins previously attached to a customer, when seeding runs, then only those exact canonical rows move to the platform organization.
 - Given a canonical Superadmin with tenant-bound operational references, when seeding runs, then startup fails before moving the row or calling Graph.
+- Given a canonical Superadmin with only ephemeral user state (job views, push subscriptions, queued notifications), when seeding runs, then the ephemeral rows are deleted in the seed transaction and the Superadmin moves to the platform organization.
 - Given the exact reserved platform ID/CVR contains non-canonical users or operational rows, when seeding runs, then startup fails without renaming or hiding that tenant.
 - Given an existing platform organization and canonical users, when seeding runs repeatedly, then organization/user counts and identity data remain stable.
 - Given the organization administration API, when it lists or resolves customer tenants, then the platform organization is not exposed as a selectable delegated tenant.
@@ -75,6 +78,7 @@ context:
 
 ## Spec Change Log
 
+- **Iteration 2 — ephemeral user state no longer blocks relocation:** The product owner renegotiated the tenant-reference boundary after startup repeatedly failed because a canonical Superadmin's own `JobViews` rows (written whenever the user opens a job in the UI) blocked the move. Operational tenant rows (job assignments, job events, worksheets) still fail preflight, because they are real tenant data that must not be silently deleted. Ephemeral user-scoped rows (job views, push subscriptions, queued notifications) now block nothing; they are deleted inside the same serializable transaction when that Superadmin is moved to the platform organization, so no cross-tenant references survive the move. The relational delete path (`ExecuteDeleteAsync`) is covered by `SeedAsync_DeletesEphemeralReferencesThroughRelationalPath`.
 - **Iteration 1 — transactional and reserved-tenant safety:** Review found that the first implementation committed the platform organization, demo seed, and each Superadmin separately, and accepted an exact reserved ID/CVR row even when it contained customer data. The execution plan now requires a serializable local transaction, compensation of all newly created Graph identities, complete reserved-organization contamination checks, consistent trimmed-email identity resolution, full canonical-field reconciliation, concurrency predicates, ID-only runtime filtering, and relational-path evidence. This avoids partial startup state, cross-tenant races, accidental conversion of a customer tenant, and silent hiding of CVR collisions. **KEEP:** deterministic platform identity, separate customer/platform seed ownership, pre-Graph identity/reference validation, customer-list/session exclusion, focused boundary tests, and architecture documentation.
 
 ## Design Notes
