@@ -42,7 +42,7 @@ interface UsePaginatedListReturn<TItem> {
   isError: boolean;
   isFetchingNextPage: boolean;
   hasNextPage: boolean;
-  refetch: () => void;
+  refetch: () => Promise<void>;
   fetchNextPage: () => void;
   search: string;
   handleSearchChange: (value: string) => void;
@@ -223,7 +223,9 @@ export function usePaginatedList<TItem>({
     isError: query.isError,
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage,
-    refetch: () => void query.refetch(),
+    refetch: async () => {
+      await query.refetch();
+    },
     fetchNextPage: () => void query.fetchNextPage(),
     search,
     handleSearchChange,

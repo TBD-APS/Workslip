@@ -309,6 +309,37 @@
   position: relative;
 }
 
+.pull-to-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  opacity: 0.85;
+  will-change: height;
+}
+
+.pull-to-refresh.ready,
+.pull-to-refresh.refreshing {
+  color: var(--primary);
+  opacity: 1;
+}
+
+@media (min-width: 768px) {
+  .pull-to-refresh {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pull-to-refresh .animate-spin {
+    animation: none;
+  }
+}
+
 .job-detail-page {
   min-height: 100%;
   display: flex;

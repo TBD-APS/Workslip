@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, RefreshCw, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { formatJobType } from '../statusLabels';
 import { SearchBar } from '../../../components/filters/SearchBar';
@@ -8,6 +8,7 @@ import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection }
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
 import { PaginationControls } from '../../../components/pagination/PaginationControls';
 import { usePaginatedList } from '../../../hooks/usePaginatedList';
+import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
 import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
 import { useAuth } from '../../../providers/useAuth';
@@ -119,6 +120,18 @@ export const JobList = () => {
     storageKey: 'jobs',
   });
 
+  const { pullDistance, isRefreshing, willRefresh } = usePullToRefresh({
+    enabled: !isDesktop,
+    onRefresh: refetch,
+  });
+  const showPullIndicator = isRefreshing || pullDistance > 0;
+  const pullIndicatorHeight = isRefreshing ? 44 : pullDistance;
+  const pullInstruction = isRefreshing
+    ? 'Opdaterer opgaver…'
+    : willRefresh
+      ? 'Slip for at opdatere'
+      : 'Træk ned for at opdatere';
+
   const displayedJobs = useMemo(() => {
     let result = items;
     if (!isAdmin) {
@@ -153,6 +166,16 @@ export const JobList = () => {
 
   return (
     <div className="page-container">
+      <div
+        className={`pull-to-refresh${isRefreshing ? ' refreshing' : ''}${willRefresh ? ' ready' : ''}`}
+        style={{ height: `${pullIndicatorHeight}px` }}
+        role="status"
+        aria-live="polite"
+        aria-hidden={!showPullIndicator}
+      >
+        <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : undefined} />
+        <span>{pullInstruction}</span>
+      </div>
       {isFetching && <div className="data-table-loading-bar" />}
       <div className="page-header">
         {showLoadingSkeleton ? (
