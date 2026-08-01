@@ -8,7 +8,7 @@ using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
 
-public sealed class EfReferenceDataRepository
+public sealed class EfReferenceDataRepository : IReferenceDataRepository
 {
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
