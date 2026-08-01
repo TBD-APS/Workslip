@@ -12,6 +12,9 @@ on:
 permissions:
   contents: write
 
+env:
+  OPENAPI_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+
 jobs:
   update-and-validate:
     name: Apply and validate persistent completed dot
@@ -40,6 +43,12 @@ jobs:
       - name: Install frontend dependencies
         working-directory: src/FE
         run: npm ci
+
+      - name: Generate frontend API client
+        working-directory: src/FE
+        env:
+          VITE_API_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+        run: npx orval --config orval.config.ts
 
       - name: Lint affected frontend files
         working-directory: src/FE
