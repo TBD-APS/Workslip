@@ -1,4 +1,5 @@
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
+import { navigateNotificationTarget } from './pwa/notificationNavigation';
 
 type PrecacheManifestEntry = string | {
   url: string;
@@ -110,18 +111,17 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || '/';
+  event.waitUntil((async () => {
+    const windowClients = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true,
+    });
 
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      const existingClient = windowClients[0];
-      if (existingClient) {
-        existingClient.navigate(urlToOpen);
-        return existingClient.focus();
-      }
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(urlToOpen);
-      }
-    })
-  );
+    await navigateNotificationTarget(
+      windowClients,
+      (url) => self.clients.openWindow(url),
+      event.notification.data?.url,
+      self.location.origin,
+    );
+  })());
 });
