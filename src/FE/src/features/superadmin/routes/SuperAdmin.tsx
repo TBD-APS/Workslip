@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Building2, CheckCircle2, Gauge, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { notify } from '../../../lib/toast';
 import {
@@ -140,19 +140,29 @@ export function SuperAdmin() {
             <p>Administrér organisationer, og åbn en tidsbegrænset organisationssession.</p>
           </div>
         </div>
-        <button
-          type="button"
-          className="btn btn-secondary superadmin-refresh"
-          onClick={() => { void organizationsQuery.refetch(); }}
-          disabled={organizationsQuery.isFetching}
-        >
-          <RefreshCw
-            size={16}
-            className={organizationsQuery.isFetching ? 'animate-spin' : undefined}
-            aria-hidden="true"
-          />
-          <span>Genindlæs</span>
-        </button>
+        <div className="superadmin-header-actions">
+          <button
+            type="button"
+            className="btn btn-secondary superadmin-refresh"
+            onClick={() => window.location.assign('/superadmin/cache')}
+          >
+            <Gauge size={16} aria-hidden="true" />
+            <span>Cache</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary superadmin-refresh"
+            onClick={() => { void organizationsQuery.refetch(); }}
+            disabled={organizationsQuery.isFetching}
+          >
+            <RefreshCw
+              size={16}
+              className={organizationsQuery.isFetching ? 'animate-spin' : undefined}
+              aria-hidden="true"
+            />
+            <span>Genindlæs</span>
+          </button>
+        </div>
       </header>
 
       {organizationsQuery.isError && (
