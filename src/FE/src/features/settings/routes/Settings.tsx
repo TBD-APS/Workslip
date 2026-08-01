@@ -24,6 +24,8 @@ type InviteRole = 'User' | 'Auditor';
 
 const getInviteRoleLabel = (role: string | null) => role === 'Auditor' ? 'Auditør' : 'Medarbejder';
 
+const getCompactInviteRoleLabel = (role: string | null) => role === 'Auditor' ? 'Auditør' : 'Medarb.';
+
 export const Settings = () => {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
@@ -135,8 +137,8 @@ export const Settings = () => {
             onChange={(event) => setInviteRole(event.target.value as InviteRole)}
             disabled={inviteMutation.isPending}
           >
-            <option value="User">Medarbejder (User)</option>
-            <option value="Auditor">Auditør (Auditor)</option>
+            <option value="User">Medarbejder</option>
+            <option value="Auditor">Auditør</option>
           </select>
           <p className="form-help-text">
             Alle e-mailadresser i denne invitation får den valgte rolle.
@@ -224,17 +226,27 @@ export const Settings = () => {
               const st = statusLabel(invite);
               const Icon = st.icon;
               const isClearing = clearingInviteId === invite.id;
+              const roleLabel = getInviteRoleLabel(invite.role);
               return (
                 <div key={invite.id} className="invite-status-row">
-                  <div className="invite-status-left">
-                    <span className="invite-status-email">{invite.email}</span>
+                  <div className="invite-status-content">
+                    <span
+                      className="invite-status-email"
+                      title={invite.email}
+                    >
+                      {invite.email}
+                    </span>
                     <span className={`invite-status-badge ${st.cls}`}>
                       <Icon size={12} />
                       {st.label}
                     </span>
-                    <span className="invite-role-badge">{getInviteRoleLabel(invite.role)}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span
+                      className="invite-role-badge"
+                      title={roleLabel}
+                    >
+                      <span aria-hidden="true">{getCompactInviteRoleLabel(invite.role)}</span>
+                      <span className="invite-role-full-label">Rolle: {roleLabel}</span>
+                    </span>
                     <span className="invite-status-date">
                       {new Date(invite.createdAt).toLocaleDateString('da-DK', {
                         day: 'numeric',
@@ -242,9 +254,11 @@ export const Settings = () => {
                         year: 'numeric',
                       })}
                     </span>
+                  </div>
+                  <div className="invite-status-action">
                     <button
                       type="button"
-                      className="btn-icon btn-icon-danger"
+                      className="btn-icon btn-icon-danger invite-clear-btn"
                       onClick={() => void handleClearInvite(invite)}
                       disabled={clearInviteMutation.isPending}
                       aria-label={`Ryd invitationsstatus for ${invite.email}`}
