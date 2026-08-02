@@ -15,10 +15,13 @@ on:
     branches: [main]
     paths:
       - 'src/BE/WorkslipApi/**'
+      - 'src/FE/config/release-environments.json'
+      - 'tools/release/**'
       - '.github/workflows/main_api-mrsoftware-prod.yml'
 
 env:
   DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
   API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
   PUBLISH_DIR: ${{ github.workspace }}/publish/api
   DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
@@ -37,9 +40,26 @@ jobs:
   build:
     name: Build API
     runs-on: ubuntu-latest
+    outputs:
+      release_phase: ${{ steps.release-target.outputs.phase }}
+      release_testing_enabled: ${{ steps.release-target.outputs.enable_development_endpoints }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve production release policy
+        id: release-target
+        run: >-
+          node tools/release/resolve-release-environment.mjs
+          --environment production
+          --require-runnable
+          --github-output
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -116,6 +136,26 @@ jobs:
           fi
 
           echo "Application Insights workspace configuration is present."
+
+      - name: Apply release-testing safety mode
+        shell: bash
+        env:
+          RELEASE_PHASE: ${{ needs.build.outputs.release_phase }}
+          RELEASE_TESTING_ENABLED: ${{ needs.build.outputs.release_testing_enabled }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${RELEASE_TESTING_ENABLED}" != 'true' && "${RELEASE_TESTING_ENABLED}" != 'false' ]]; then
+            echo "::error::Resolved release-testing state is invalid: ${RELEASE_TESTING_ENABLED}"
+            exit 1
+          fi
+
+          echo "Applying release phase ${RELEASE_PHASE}; ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}."
+          az webapp config appsettings set \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --settings "ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}" \
+            --output none
 
       - name: Inspect deployment target
         id: target

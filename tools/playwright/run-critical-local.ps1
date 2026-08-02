@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [ValidateSet(
         'public-smoke',
@@ -19,7 +19,8 @@ param(
     [ValidateSet('Direct', 'Workflow')]
     [string]$Mode = 'Direct',
 
-    [string]$AppUrl = 'https://app.mrsoftware.dk',
+    [ValidateSet('Production', 'Staging')]
+    [string]$Target = 'Production',
 
     [switch]$SkipBrowserInstall,
 
@@ -36,6 +37,8 @@ $frontendRoot = Join-Path $repoRoot 'src\FE'
 $artifactRoot = Join-Path $repoRoot 'artifacts\playwright-prod-smoke'
 $reportPath = Join-Path $artifactRoot 'report.json'
 $workflowPath = '.github/workflows/playwright-prod-smoke.yml'
+$releaseResolverPath = Join-Path $repoRoot 'tools\release\resolve-release-environment.mjs'
+$targetKey = $Target.ToLowerInvariant()
 
 function Assert-Command {
     param(
@@ -77,6 +80,30 @@ function Invoke-External {
     }
 }
 
+function Resolve-ReleaseTarget {
+    Assert-Command -Name 'node' -InstallHint 'Installér Node.js 22 LTS, eksempelvis: winget install OpenJS.NodeJS.LTS'
+
+    $output = @(
+        & node $releaseResolverPath `
+            --environment $targetKey `
+            --require-runnable 2>&1 |
+            ForEach-Object { $_.ToString() }
+    )
+    $exitCode = $LASTEXITCODE
+    $text = ($output -join [Environment]::NewLine).Trim()
+
+    if ($exitCode -ne 0) {
+        throw "Release-target kunne ikke valideres.`n$text"
+    }
+
+    try {
+        return $text | ConvertFrom-Json
+    }
+    catch {
+        throw "Release-target returnerede ugyldig JSON.`n$text"
+    }
+}
+
 function Reset-Evidence {
     if (Test-Path $artifactRoot) {
         Remove-Item $artifactRoot -Recurse -Force
@@ -89,17 +116,19 @@ function Open-Evidence {
     }
 
     if (Test-Path $artifactRoot) {
-        Write-Host "Ã…bner evidence-mappen: $artifactRoot" -ForegroundColor Green
+        Write-Host "Åbner evidence-mappen: $artifactRoot" -ForegroundColor Green
         Invoke-Item $artifactRoot
     }
     else {
-        Write-Warning "Der blev ikke oprettet en evidence-mappe pÃ¥ $artifactRoot."
+        Write-Warning "Der blev ikke oprettet en evidence-mappe på $artifactRoot."
     }
 }
 
 function Invoke-DirectRun {
-    Assert-Command -Name 'node' -InstallHint 'InstallÃ©r Node.js 22 LTS, eksempelvis: winget install OpenJS.NodeJS.LTS'
-    Assert-Command -Name 'npm' -InstallHint 'npm fÃ¸lger med Node.js.'
+    param([Parameter(Mandatory = $true)][object]$ReleaseTarget)
+
+    Assert-Command -Name 'node' -InstallHint 'Installér Node.js 22 LTS, eksempelvis: winget install OpenJS.NodeJS.LTS'
+    Assert-Command -Name 'npm' -InstallHint 'npm følger med Node.js.'
 
     $nodeVersion = (& node --version).Trim().TrimStart([char]'v')
     $nodeMajor = [int]($nodeVersion.Split('.')[0])
@@ -145,6 +174,7 @@ function Invoke-DirectRun {
     }
 
     $sourceFiles = @(
+        'scripts/playwright-release-runner.mjs',
         'scripts/playwright-prod-smoke.mjs',
         'scripts/playwright-critical-contract.mjs',
         'scripts/playwright-critical-domain.mjs',
@@ -152,7 +182,8 @@ function Invoke-DirectRun {
         'scripts/playwright-scenarios-admin.mjs'
     )
 
-    Write-Host 'Validerer Playwright-kilder og Postman collection...' -ForegroundColor Cyan
+    Write-Host 'Validerer release-policy, Playwright-kilder og Postman collection...' -ForegroundColor Cyan
+    Invoke-External -Command 'node' -Arguments @('--test', '..\..\tools\release\resolve-release-environment.test.mjs') -WorkingDirectory $frontendRoot
     foreach ($sourceFile in $sourceFiles) {
         Invoke-External -Command 'node' -Arguments @('--check', $sourceFile) -WorkingDirectory $frontendRoot
     }
@@ -162,43 +193,46 @@ function Invoke-DirectRun {
         "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8')); console.log('Postman collection JSON OK');"
     ) -WorkingDirectory $frontendRoot
 
-    $previousProdUrl = $env:PROD_URL
-    $previousScenario = $env:SCENARIO
+    $previousValues = @{
+        PROD_URL = $env:PROD_URL
+        SCENARIO = $env:SCENARIO
+        WORKSLIP_RELEASE_PHASE = $env:WORKSLIP_RELEASE_PHASE
+        WORKSLIP_TEST_TARGET = $env:WORKSLIP_TEST_TARGET
+        WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT = $env:WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT
+    }
 
     try {
-        $env:PROD_URL = $AppUrl.TrimEnd('/')
+        $env:PROD_URL = ([string]$ReleaseTarget.url).TrimEnd('/')
         $env:SCENARIO = $Scenario
+        $env:WORKSLIP_RELEASE_PHASE = [string]$ReleaseTarget.phase
+        $env:WORKSLIP_TEST_TARGET = [string]$ReleaseTarget.environment
+        $env:WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT = ([bool]$ReleaseTarget.allowDestructivePlaywright).ToString().ToLowerInvariant()
 
-        Write-Host "KÃ¸rer '$Scenario' direkte mod $($env:PROD_URL)..." -ForegroundColor Cyan
-        Invoke-External -Command 'node' -Arguments @('scripts/playwright-prod-smoke.mjs') -WorkingDirectory $frontendRoot
+        Write-Host "Kører '$Scenario' direkte mod $($env:PROD_URL) ($($env:WORKSLIP_RELEASE_PHASE)/$($env:WORKSLIP_TEST_TARGET))..." -ForegroundColor Cyan
+        Invoke-External -Command 'node' -Arguments @('scripts/playwright-release-runner.mjs') -WorkingDirectory $frontendRoot
     }
     finally {
-        if ($null -eq $previousProdUrl) {
-            Remove-Item Env:PROD_URL -ErrorAction SilentlyContinue
-        }
-        else {
-            $env:PROD_URL = $previousProdUrl
-        }
-
-        if ($null -eq $previousScenario) {
-            Remove-Item Env:SCENARIO -ErrorAction SilentlyContinue
-        }
-        else {
-            $env:SCENARIO = $previousScenario
+        foreach ($entry in $previousValues.GetEnumerator()) {
+            if ($null -eq $entry.Value) {
+                Remove-Item "Env:$($entry.Key)" -ErrorAction SilentlyContinue
+            }
+            else {
+                Set-Item "Env:$($entry.Key)" $entry.Value
+            }
         }
     }
 }
 
 function Invoke-WorkflowRun {
-    Assert-Command -Name 'docker' -InstallHint 'InstallÃ©r og start Docker Desktop: winget install Docker.DockerDesktop'
-    Assert-Command -Name 'act' -InstallHint 'InstallÃ©r act: winget install nektos.act'
+    Assert-Command -Name 'docker' -InstallHint 'Installér og start Docker Desktop: winget install Docker.DockerDesktop'
+    Assert-Command -Name 'act' -InstallHint 'Installér act: winget install nektos.act'
 
     Write-Host 'Kontrollerer Docker Desktop...' -ForegroundColor Cyan
     Invoke-External -Command 'docker' -Arguments @('info') -WorkingDirectory $repoRoot
 
     & docker image inspect $playwrightImage *> $null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Henter Playwright-image fÃ¸rste gang: $playwrightImage" -ForegroundColor Cyan
+        Write-Host "Henter Playwright-image første gang: $playwrightImage" -ForegroundColor Cyan
         Invoke-External -Command 'docker' -Arguments @('pull', $playwrightImage) -WorkingDirectory $repoRoot
     }
     else {
@@ -206,12 +240,13 @@ function Invoke-WorkflowRun {
     }
 
     if ($Scenario -eq 'all-critical') {
-        Write-Warning 'Workflow-mode starter alle ti matrix-jobs. Test public-smoke eller Ã©t kritisk flow fÃ¸rst.'
+        Write-Warning 'Workflow-mode starter alle ti matrix-jobs. Test public-smoke eller ét kritisk flow først.'
     }
 
     $eventPath = Join-Path ([System.IO.Path]::GetTempPath()) ("workslip-playwright-{0}.json" -f [Guid]::NewGuid())
     $eventJson = @{
         inputs = @{
+            target = $targetKey
             scenario = $Scenario
         }
     } | ConvertTo-Json -Depth 4
@@ -220,7 +255,7 @@ function Invoke-WorkflowRun {
     [System.IO.File]::WriteAllText($eventPath, $eventJson, $utf8NoBom)
 
     try {
-        Write-Host "KÃ¸rer den faktiske GitHub Actions-YAML lokalt med act: $Scenario" -ForegroundColor Cyan
+        Write-Host "Kører den faktiske GitHub Actions-YAML lokalt med act: $targetKey / $Scenario" -ForegroundColor Cyan
         Invoke-External -Command 'act' -Arguments @(
             'workflow_dispatch',
             '--workflows', $workflowPath,
@@ -240,7 +275,12 @@ function Invoke-WorkflowRun {
     }
 }
 
-Write-Host "Workslip Playwright local runner - mode: $Mode, scenario: $Scenario" -ForegroundColor White
+$releaseTarget = Resolve-ReleaseTarget
+if ($Scenario -ne 'public-smoke' -and -not [bool]$releaseTarget.allowDestructivePlaywright) {
+    throw "Scenario '$Scenario' kan skrive data og er blokeret for det konfigurerede miljø '$targetKey'."
+}
+
+Write-Host "Workslip Playwright local runner - mode: $Mode, target: $Target, scenario: $Scenario" -ForegroundColor White
 Reset-Evidence
 
 try {
@@ -248,10 +288,9 @@ try {
         Invoke-WorkflowRun
     }
     else {
-        Invoke-DirectRun
+        Invoke-DirectRun -ReleaseTarget $releaseTarget
     }
 }
 finally {
     Open-Evidence
 }
-
