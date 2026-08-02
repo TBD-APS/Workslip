@@ -17,11 +17,12 @@ A required or routinely triggered check must be configured, actionable and owned
 - API deployment does not invoke the post-deploy cache workflow.
 - Vercel Git deployments are enabled only for `main`; all other branch names are denied by the repository's `src/FE/vercel.json` policy.
 - Every push to `release/**` runs `.github/workflows/release-validation.yml` without path filters.
+- C# and JavaScript/TypeScript CodeQL analysis runs only inside that release workflow.
 - A successful production backend release or successful Vercel production deployment from `main` or `release/**` triggers `.github/workflows/update-repomix-after-release.yml`.
 - The Repomix workflow resolves the released branch by SHA, regenerates `repomix-output.xml`, and commits only when the generated output changed.
 - Failed, cancelled, preview, stale, or unrelated deployments do not update Repomix.
 - The repository has no general pull-request validation workflow. Relevant backend/frontend validation must be run locally or through a deliberately added, issue-scoped validation workflow that is removed again after use.
-- Existing security and review checks supplied outside these workflow files remain governed by repository rulesets and their own configuration.
+- Other security and review checks remain governed by repository rulesets and their own configuration.
 
 ## Release branch validation
 
@@ -29,12 +30,37 @@ A required or routinely triggered check must be configured, actionable and owned
 
 The workflow exposes the following separate checks:
 
-- `Backend build and tests` — restores the full backend solution, builds it in Release mode and runs the complete backend test suite;
-- `Frontend lint, tests and build` — installs from the committed lockfile, runs ESLint, runs Vitest once and builds the production frontend;
+- `Backend build, tests and CodeQL` — initializes CodeQL for C#, restores the full backend solution, performs an instrumented Release build, runs the complete backend test suite and publishes the C# analysis;
+- `Frontend lint, tests, build and CodeQL` — initializes CodeQL for JavaScript/TypeScript, installs from the committed lockfile, runs ESLint, runs Vitest once, builds the production frontend and publishes the frontend analysis;
 - `Playwright and API contract sources` — syntax-checks the maintained Playwright scenario modules and parses the Postman collection;
-- `Release gate` — succeeds only when all required workflow jobs succeeded.
+- `Release gate` — succeeds only when all required workflow jobs, including both CodeQL analyses, succeeded.
 
-Superseded pushes to the same release branch cancel the older run. NuGet and npm dependency caches are used to reduce repeat runtime. Backend TRX output is retained for three days; application builds and local browser artifacts are not committed.
+Superseded pushes to the same release branch cancel the older run. NuGet, npm and generated-font caches are used to reduce repeat runtime. Backend TRX output is retained for three days; application builds and local browser artifacts are not committed.
+
+The workflow has no `workflow_dispatch` or scheduled trigger. It runs only for pushes whose ref matches `release/**`. A failed or cancelled run can be rerun from the GitHub Actions run page without adding another trigger.
+
+### CodeQL setup
+
+Workslip uses CodeQL advanced setup inside `.github/workflows/release-validation.yml` because default setup cannot be restricted to release branches only. Default setup automatically scans the default branch, protected branches, relevant pull requests and a weekly schedule.
+
+The release workflow uses:
+
+- `github/codeql-action/init@v4` with `build-mode: manual` for C# before the existing Release build;
+- `github/codeql-action/init@v4` with `build-mode: none` for JavaScript/TypeScript;
+- `github/codeql-action/analyze@v4` inside the corresponding backend and frontend jobs;
+- workflow permissions limited to read access plus `security-events: write` for SARIF publication.
+
+Do not add a separate CodeQL workflow. Keeping analysis inside the backend and frontend release jobs avoids duplicate builds, duplicate workflow names and competing CodeQL configurations.
+
+After this workflow is merged, repository administration must complete these configuration changes before the first release push:
+
+1. disable CodeQL default setup under `Settings → Advanced Security`;
+2. remove the CodeQL code-scanning rule from the ruleset that targets only `main`, because no analysis is intentionally produced for `main`;
+3. create or update the release ruleset so it targets `refs/heads/release/**` and requires CodeQL code-scanning results at the approved severity threshold;
+4. require the stable status check `Release gate` on the same release ruleset;
+5. prove both languages upload successfully on the first real release branch.
+
+Leaving default setup enabled will create overlapping analysis and can block uploads from advanced setup. Leaving the `main` CodeQL rule active after moving analysis to release branches can block ordinary main PRs because the required analysis no longer exists there.
 
 ### Required release ruleset
 
@@ -46,9 +72,7 @@ Create or maintain a repository ruleset targeting `refs/heads/release/**` with:
 4. force pushes blocked;
 5. no broad GitHub App bypass beyond identities with a documented release need.
 
-CodeQL default setup analyzes the default branch and protected branches. Protecting `release/**` through the release ruleset is therefore part of the release-gate configuration. Do not add a second advanced CodeQL workflow while default setup is active, because competing CodeQL setup types create duplicate or stale analysis configurations.
-
-The workflow file proves intended automation only. The first push to a real `release/**` branch must prove that every job executes, that `Release gate` reports the expected result, and that a controlled failing push is blocked by the ruleset.
+The workflow file proves intended automation only. The first push to a real `release/**` branch must prove that every job executes, that both CodeQL analyses publish, that `Release gate` reports the expected result, and that a controlled failing push is blocked by the ruleset.
 
 ### Browser validation boundary
 
@@ -83,7 +107,7 @@ GitHub branch protection and repository rulesets grant bypass to actors, not ind
 
 The workflow uses `actions/create-github-app-token` to create a short-lived installation token for the current run. The default `GITHUB_TOKEN` remains read-only. Missing or invalid app credentials fail during token creation; an app without ruleset bypass fails at push with an explicit remediation message.
 
-A failure in this maintenance workflow does not roll back an already successful application release. Treat the failed workflow as repository-maintenance debt and rerun it after correcting app installation, credentials, package resolution, or branch-protection configuration.
+A failure in this maintenance workflow does not roll back an already successful application release. Treat the failed workflow as repository-maintenance debt and rerun it after correcting app installation, credentials, package resolution or branch-protection configuration.
 
 ## Removed workflow decisions
 
@@ -121,7 +145,7 @@ Do not restore a copied starter workflow with empty values.
 When adding, renaming or removing a workflow check:
 
 1. Inspect repository rulesets and branch protection for stale required-check names.
-2. Prove the new check succeeds on an ordinary pull request.
+2. Prove the new check succeeds on an ordinary release push.
 3. Prove a controlled failure blocks or reports as intended.
 4. Document ownership and remediation steps.
 5. Remove obsolete workflow files and stale required-check references together.
