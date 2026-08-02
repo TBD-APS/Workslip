@@ -79,16 +79,19 @@ The suite covers these selectable scenarios:
 2. `kls-lifecycle`
 3. `rejection-loop`
 4. `draft-recovery`
-5. `role-tenant-isolation`
-6. `invitation-onboarding`
-7. `assignment-lifecycle`
-8. `customer-lifecycle`
-9. `worksheet-integrity`
-10. `diverse-lifecycle`
+5. `notification-navigation`
+6. `role-tenant-isolation`
+7. `invitation-onboarding`
+8. `assignment-lifecycle`
+9. `customer-lifecycle`
+10. `worksheet-integrity`
+11. `diverse-lifecycle`
 
-`all-critical` expands into ten independent GitHub Actions matrix jobs with `max-parallel: 4`. Each flow has its own browser process, report, screenshots, cleanup, result, and artifact. `public-smoke` remains a write-free availability check.
+`notification-navigation` logs in through the deployed UI, waits for the deployed service worker to control the mobile Chromium page, dispatches a standards-based synthetic `PushEvent` inside that worker, and verifies that the resulting notification click routes the existing app client to the requested authenticated route without opening an extra page. It also fails if API/authenticated routes enter a service-worker cache or if the runtime asset cache contains anything outside same-origin `/assets/` and `/fonts/` resources. It validates Workslip's push handler, notification creation, click handler, router acknowledgement, and cache isolation. Document-navigation and new-window fallbacks remain covered by the notification navigation unit tests. The browser scenario does not validate the operating-system notification tray or the external push provider transport.
 
-`src/FE/scripts/playwright-release-runner.mjs` is the required entry point. It rejects authenticated/write-capable scenarios when the resolved target does not permit them. Do not bypass it by invoking the underlying scenario orchestrator directly.
+`all-critical` expands into eleven independent GitHub Actions matrix jobs with `max-parallel: 4`. Each flow has its own browser process, report, screenshots where the scenario permits them, cleanup, result, and artifact. `public-smoke` remains a write-free availability check.
+
+`src/FE/scripts/playwright-release-runner.mjs` is the required entry point. It rejects authenticated scenarios when the resolved target does not permit release-test access. Do not bypass it by invoking the underlying scenario orchestrator directly.
 
 ## Runtime optimization
 
@@ -121,7 +124,7 @@ Before customer go-live, retained fixtures and cleanup failures must be reviewed
 
 The authenticated suite uses deployed dev-login controls. The scenarios fail when those controls or the dev-token endpoint are unavailable; they must not silently switch to embedded credentials or assumed users. Tokens are kept in memory and are never written to artifacts.
 
-Authenticated Playwright traces are not uploaded because they can contain authorization headers, request bodies, and personal data. Artifacts contain redacted JSON reports and selected screenshots. Login steps do not take screenshots.
+Authenticated Playwright traces are not uploaded because they can contain authorization headers, request bodies, and personal data. Artifacts contain redacted JSON reports and selected screenshots. Login steps do not take screenshots. The `notification-navigation` scenario uploads only its redacted JSON report and does not capture authenticated screenshots.
 
 The invitation scenario verifies the real UI through the Microsoft handoff. Completing Microsoft enrollment requires an isolated third-party identity session and is reported as a coverage limitation when no such session is available.
 
@@ -150,7 +153,7 @@ During the documented pre-live phase, an authenticated production flow is allowe
 powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
   -Mode Direct `
   -Target Production `
-  -Scenario kls-lifecycle
+  -Scenario notification-navigation
 ```
 
 After the live switch, the same command is rejected. Use `-Target Staging` for authenticated/full flows.

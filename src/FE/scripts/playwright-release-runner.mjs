@@ -5,7 +5,7 @@ const phase = process.env.WORKSLIP_RELEASE_PHASE ?? '';
 const target = process.env.WORKSLIP_TEST_TARGET ?? '';
 const allowDestructive = process.env.WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT === 'true';
 const appUrl = process.env.PROD_URL ?? '';
-const isWriteFree = scenario === 'public-smoke';
+const isPublicSmoke = scenario === 'public-smoke';
 
 if (phase !== 'prelive' && phase !== 'live') {
   throw new Error('WORKSLIP_RELEASE_PHASE must be prelive or live.');
@@ -16,16 +16,20 @@ if (target !== 'production' && target !== 'staging') {
 if (!appUrl.startsWith('https://')) {
   throw new Error('PROD_URL must be a configured HTTPS release-test target.');
 }
-if (!isWriteFree && !allowDestructive) {
+if (!isPublicSmoke && !allowDestructive) {
   throw new Error(
-    `Scenario ${scenario} can write data and is blocked for the configured ${target} environment.`,
+    `Scenario ${scenario} requires an authenticated release-test environment and is blocked for the configured ${target} environment.`,
   );
 }
-if (target === 'production' && phase === 'live' && !isWriteFree) {
+if (target === 'production' && phase === 'live' && !isPublicSmoke) {
   throw new Error('Live production permits only the write-free public-smoke scenario.');
 }
 if (target === 'staging' && phase !== 'live') {
   throw new Error('Staging release testing is enabled only after the two-environment live transition.');
 }
 
-await import('./playwright-prod-smoke.mjs');
+if (scenario === 'notification-navigation') {
+  await import('./playwright-notification-navigation.mjs');
+} else {
+  await import('./playwright-prod-smoke.mjs');
+}
