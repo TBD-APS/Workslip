@@ -212,6 +212,13 @@ export function initializeApplicationInsights(): Promise<void> {
       });
       nextClient.loadAppInsights();
       client = nextClient;
+      nextClient.trackEvent({
+        name: 'telemetry.heartbeat',
+        properties: {
+          route: currentRoute(),
+          release,
+        },
+      });
     })
     .catch(() => {
       client = null;
