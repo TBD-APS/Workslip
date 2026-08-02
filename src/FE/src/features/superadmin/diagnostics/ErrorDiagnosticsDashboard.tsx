@@ -40,6 +40,44 @@ function formatTimestamp(value: string): string {
     }).format(timestamp);
 }
 
+function telemetryFreshness(value: string | null): {
+  status: 'recent' | 'delayed' | 'old' | 'missing';
+  timestamp: string;
+  description: string;
+} {
+  if (!value) {
+    return {
+      status: 'missing',
+      timestamp: 'Ikke observeret',
+      description: 'Ingen telemetry er registreret i den syv-dages health-query.',
+    };
+  }
+
+  const timestamp = new Date(value);
+  const ageMinutes = Math.max(0, Math.floor((Date.now() - timestamp.getTime()) / 60_000));
+  if (ageMinutes <= 15) {
+    return {
+      status: 'recent',
+      timestamp: formatTimestamp(value),
+      description: 'Telemetry er observeret inden for de seneste 15 minutter.',
+    };
+  }
+  if (ageMinutes <= 60) {
+    return {
+      status: 'delayed',
+      timestamp: formatTimestamp(value),
+      description: `Senest observeret for cirka ${ageMinutes} minutter siden.`,
+    };
+  }
+
+  const ageHours = Math.floor(ageMinutes / 60);
+  return {
+    status: 'old',
+    timestamp: formatTimestamp(value),
+    description: `Senest observeret for cirka ${ageHours} timer siden.`,
+  };
+}
+
 function singleAvailabilityMessage(reason: string): string {
   switch (reason) {
     case 'not_configured':
@@ -148,6 +186,12 @@ export function ErrorDiagnosticsDashboard() {
   const dataRetrievedAt = useMemo(
     () => dashboard?.dataRetrievedAtUtc ? formatTimestamp(dashboard.dataRetrievedAtUtc) : null,
     [dashboard?.dataRetrievedAtUtc],
+  );
+  const frontendTelemetry = telemetryFreshness(
+    dashboard?.telemetryHealth?.frontendLastSeenUtc ?? null,
+  );
+  const backendTelemetry = telemetryFreshness(
+    dashboard?.telemetryHealth?.backendLastSeenUtc ?? null,
   );
   const hasBackgroundRefreshError = diagnosticsQuery.isError && dashboard !== undefined;
 
@@ -289,6 +333,55 @@ export function ErrorDiagnosticsDashboard() {
         </div>
       ) : dashboard ? (
         <>
+          {dashboard.telemetryHealthAvailable && dashboard.telemetryHealth ? (
+            <section className="error-diagnostics-telemetry-health" aria-labelledby="telemetry-health-title">
+              <div className="error-diagnostics-list-heading">
+                <div>
+                  <h2 id="telemetry-health-title">Telemetry senest observeret</h2>
+                  <p>Et nul i fejltallene er kun troværdigt, når telemetry-pipelinen også kan bekræftes.</p>
+                </div>
+              </div>
+              <div className="error-diagnostics-health-grid">
+                <article className={`error-diagnostics-health-card ${frontendTelemetry.status}`}>
+                  <MonitorSmartphone size={20} aria-hidden="true" />
+                  <div>
+                    <span>Frontend heartbeat</span>
+                    {dashboard.telemetryHealth.frontendLastSeenUtc ? (
+                      <time dateTime={dashboard.telemetryHealth.frontendLastSeenUtc}>
+                        {frontendTelemetry.timestamp}
+                      </time>
+                    ) : (
+                      <strong>{frontendTelemetry.timestamp}</strong>
+                    )}
+                    <small>{frontendTelemetry.description}</small>
+                  </div>
+                </article>
+                <article className={`error-diagnostics-health-card ${backendTelemetry.status}`}>
+                  <Server size={20} aria-hidden="true" />
+                  <div>
+                    <span>Backend requests</span>
+                    {dashboard.telemetryHealth.backendLastSeenUtc ? (
+                      <time dateTime={dashboard.telemetryHealth.backendLastSeenUtc}>
+                        {backendTelemetry.timestamp}
+                      </time>
+                    ) : (
+                      <strong>{backendTelemetry.timestamp}</strong>
+                    )}
+                    <small>{backendTelemetry.description}</small>
+                  </div>
+                </article>
+              </div>
+            </section>
+          ) : (
+            <div className="error-diagnostics-state warning" role="status">
+              <AlertTriangle size={22} aria-hidden="true" />
+              <div>
+                <strong>Telemetry-pipelinen kunne ikke bekræftes</strong>
+                <span>Fejltallene må ikke læses som bevis på fejlfri drift, før health-queryen virker.</span>
+              </div>
+            </div>
+          )}
+
           {dashboard.summaryAvailable && dashboard.summary ? (
             <section className="error-diagnostics-summary" aria-label="Fejloversigt">
               <article>
