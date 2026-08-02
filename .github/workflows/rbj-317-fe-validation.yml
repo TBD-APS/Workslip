@@ -50,4 +50,6 @@ jobs:
           npm install --no-save --ignore-scripts playwright
           npx playwright install --with-deps chromium
       - name: Playwright notification navigation harness
+        env:
+          PROD_URL: https://app.mrsoftware.dk
         run: node scripts/playwright-notification-navigation.mjs
