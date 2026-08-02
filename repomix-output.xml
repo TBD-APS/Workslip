@@ -43,6 +43,7 @@ The content is organized as follows:
 .github/
   workflows/
     main_api-mrsoftware-prod.yml
+    manual-production-infrastructure.yml
     pages.yml
     playwright-prod-smoke.yml
     post-deploy-cache.yml
@@ -9174,6 +9175,131 @@ Reusable principles retained from the removed workflow:
 Current validation commands are documented in the root, frontend and backend READMEs. The maintained Postman runner can be executed deliberately against localhost or a dedicated test/staging environment.
 </file>
 
+<file path="Docs/acs-email-setup.md">
+# ACS Email Setup
+
+**Status:** Maintained  
+**Owner:** Workslip  
+**Source of truth:** `src/BE/infrastructure/main.bicep` and `Workslip.Infrastructure/AcsEmailService.cs`  
+**Review cadence:** Review whenever the ACS email domain, DNS provider, sender address, or invitation flow changes.
+
+## Purpose
+
+Workslip sends invitations and one-time login codes through Azure Communication Services Email. Production sends as:
+
+```text
+Workslip <noreply@mrsoftware.dk>
+```
+
+ACS provides outbound delivery only. This setup does not require a mailbox, mail hosting, MX records, or WHOIS add-ons.
+
+## Deployment model
+
+Every supported Azure infrastructure deployment provisions the Communication Services resource, Email Communication Service, Azure-managed domain and `DoNotReply` sender.
+
+Production additionally provisions and links the verified `mrsoftware.dk` domain, provisions the `noreply` sender and writes `Azure:Acs:SenderAddress = noreply@mrsoftware.dk` to Azure App Configuration. The Azure-managed domain remains linked as an emergency rollback resource.
+
+Non-production environments do not provision or link `mrsoftware.dk`; they write the generated Azure-managed `DoNotReply@<domain>.azurecomm.net` address instead.
+
+There is no operator activation parameter. Sender selection is derived from `environment == prod`.
+
+For the production defaults:
+
+```text
+Resource group: rg-mrsoftware-prod
+Email service: email-mrsoftware-prod
+Domain: mrsoftware.dk
+Sender: noreply@mrsoftware.dk
+```
+
+## DNS verification maintenance
+
+The authoritative DNS zone must continue to satisfy all four Azure verification checks:
+
+- `Domain`: ownership TXT record;
+- `SPF`: sender-policy TXT record;
+- `DKIM`: first CNAME record;
+- `DKIM2`: second CNAME record.
+
+Do not add MX records for this sender-only setup. If the DNS provider automatically appends `mrsoftware.dk`, enter only the host/name portion shown for that DNS zone.
+
+The Azure CLI `communication` extension requires Azure CLI 2.67 or newer. Inspect the current verification records and states with:
+
+```powershell
+az communication email domain show `
+  --resource-group rg-mrsoftware-prod `
+  --email-service-name email-mrsoftware-prod `
+  --domain-name mrsoftware.dk `
+  --query "{records:properties.verificationRecords,states:properties.verificationStates}" `
+  --output json
+```
+
+When DNS records are intentionally changed, initiate verification for each type:
+
+```powershell
+$verificationTypes = @('Domain', 'SPF', 'DKIM', 'DKIM2')
+
+foreach ($verificationType in $verificationTypes) {
+  az communication email domain initiate-verification `
+    --resource-group rg-mrsoftware-prod `
+    --email-service-name email-mrsoftware-prod `
+    --domain-name mrsoftware.dk `
+    --verification-type $verificationType
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "ACS verification could not be started for $verificationType."
+  }
+}
+```
+
+## Application configuration
+
+`AcsEmailService` reads:
+
+```text
+Azure:Acs:ConnectionString
+Azure:Acs:SenderAddress
+Azure:Acs:InviteBaseUrl
+Azure:Acs:PLainHeaderText
+Azure:Acs:PlainInviteText
+Azure:Acs:HtmlInviteText
+```
+
+Bicep owns `Azure:Acs:SenderAddress`; manual App Configuration edits are overwritten by the next deployment. Production uses `noreply@mrsoftware.dk`; non-production uses its generated Azure-managed sender address.
+
+The invitation base URL must continue to produce links under:
+
+```text
+https://app.mrsoftware.dk/invite/
+```
+
+## Post-deployment smoke test
+
+1. Confirm Domain, SPF, DKIM and DKIM2 remain verified in Azure.
+2. Send an invitation through the production Workslip UI to an external mailbox.
+3. Confirm the visible sender is `Workslip <noreply@mrsoftware.dk>`.
+4. Confirm the invitation link starts with `https://app.mrsoftware.dk/invite/`.
+5. Complete the invitation flow and verify authenticated API access.
+6. Request a one-time login code and confirm it uses the same sender.
+7. Check ACS delivery status and Application Insights for failures or bounces.
+
+## Failure and rollback policy
+
+A broken production DNS verification state is a production configuration fault. Repair the DNS records and re-run deployment. Non-production environments are unaffected because they use Azure-managed domains. Do not reintroduce an operator activation toggle.
+
+An emergency switch to the Azure-managed sender requires a dedicated reviewed infrastructure change and matching documentation update.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Correction |
+|---|---|---|
+| Domain verification is not successful | DNS record is missing, duplicated, or entered with the full zone twice | Compare authoritative DNS with `properties.verificationRecords` |
+| SPF fails | Existing SPF policy conflicts or multiple SPF TXT records exist | Merge authorized senders into one SPF policy rather than publishing multiple SPF records |
+| DKIM or DKIM2 fails | CNAME host or target was copied incorrectly | Recreate the exact selector record returned by Azure |
+| `Invalid sender address` | Custom domain is not linked, sender was not created, or App Configuration is stale | Re-run infrastructure deployment and verify `Azure:Acs:SenderAddress` |
+| Invitation arrives but link is wrong | `Azure:Acs:InviteBaseUrl` is stale | Set it to the production `app.mrsoftware.dk` invitation route and redeploy configuration |
+</file>
+
 <file path="Docs/customerdata.csv">
 Gruppe;Nr.;Navn;Adresse 1;Postnr. ;By;Land;Telfon/fax;Attention;Deres ref. ;E-mail
 Diverse;28405769;Torben Kæseler ;Damholtvej 19;7441;Bording;Danmark;;;;Yomann90@Hotmail.com
@@ -11400,6 +11526,57 @@ resource jwtSigningKeySecret 'Microsoft.AppConfiguration/configurationStores/key
   "clientAppId": "",
   "clientAppObjectId": ""
 }
+</file>
+
+<file path="src/BE/infrastructure/entraRegistrations.bicep">
+param environment string
+// Retained for compatibility with main.bicep. Application ownership is managed
+// outside Bicep because Microsoft Graph relationship updates are non-atomic.
+
+// deploy-entra.ps1 writes persistent environment-specific local state.
+// deploy-infrastructure.ps1 validates that state and writes this temporary
+// compile-time handoff before invoking main.bicep.
+var provisionedValues = loadJsonContent('./entra-provisioned.json')
+var validatedValues = provisionedValues.environment == toLower(environment)
+  ? provisionedValues
+  : fail('Entra values were not loaded for this environment. Run deploy-entra.ps1, then deploy-infrastructure.ps1.')
+
+output OAuthClientId string = validatedValues.oauthClientId
+output OAuthAppObjectId string = validatedValues.oauthAppObjectId
+// Existing callers use OAuthAppId as the API audience application/client ID.
+output OAuthAppId string = validatedValues.oauthClientId
+output ClientAppId string = validatedValues.clientAppId
+output ClientAppObjectId string = validatedValues.clientAppObjectId
+</file>
+
+<file path="src/BE/infrastructure/keyvaultConfig.bicep">
+param keyVaultName string
+param communicationServiceName string
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
+  name: keyVaultName
+}
+
+resource communicationService 'Microsoft.Communication/communicationServices@2023-03-31' existing = {
+  name: communicationServiceName
+}
+
+resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'Azure--Acs--ConnectionString'
+  properties: {
+    value: communicationService.listKeys().primaryConnectionString
+  }
+}
+
+// These secrets are reconciled by deploy-infrastructure.ps1. Versionless URIs
+// keep App Configuration references stable across secure rotations.
+var sqlConnectionStringSecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/Azure--Sql--ConnectionString'
+var jwtSigningKeySecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/Jwt--SigningKey'
+
+output acsConnectionStringSecretUri string = acsConnectionStringSecret.properties.secretUri
+output sqlConnectionstring string = sqlConnectionStringSecretUri
+output jwtSigninKey string = jwtSigningKeySecretUri
 </file>
 
 <file path="src/BE/WorkslipApi/Configuration/AuthenticationConfiguration.cs">
@@ -84774,6 +84951,183 @@ volumes:
 }
 </file>
 
+<file path=".github/workflows/manual-production-infrastructure.yml">
+name: Production infrastructure deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type DEPLOY_PROD_INFRA to reconcile production infrastructure'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: azure-infrastructure-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Reconcile production infrastructure
+    runs-on: windows-2022
+    timeout-minutes: 75
+    environment: prod
+    env:
+      AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+      AZURE_WEBAPP_NAME: api-mrsoftware-prod
+      API_IDENTITY_NAME: id-mrsoftware-prod
+      LOG_ANALYTICS_WORKSPACE_NAME: logAnal-mrsoftware-prod
+    steps:
+      - name: Verify dispatch guard
+        shell: pwsh
+        env:
+          INFRA_CLIENT_ID: ${{ secrets.AZURE_INFRA_CLIENT_ID }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ('${{ inputs.confirmation }}' -ne 'DEPLOY_PROD_INFRA') {
+            throw 'Confirmation must exactly match DEPLOY_PROD_INFRA.'
+          }
+
+          if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw "Production infrastructure may only be deployed from main. Selected ref: $env:GITHUB_REF"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:INFRA_CLIENT_ID)) {
+            throw 'GitHub environment prod is missing AZURE_INFRA_CLIENT_ID for the privileged infrastructure OIDC identity.'
+          }
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_INFRA_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure sqlcmd
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
+            choco install sqlcmd --yes --no-progress
+            if ($LASTEXITCODE -ne 0) {
+              throw "Chocolatey failed to install sqlcmd with exit code $LASTEXITCODE."
+            }
+          }
+
+          $sqlcmd = Get-Command sqlcmd -ErrorAction Stop
+          Write-Host "sqlcmd resolved at $($sqlcmd.Source)"
+
+      - name: Reconcile Azure infrastructure
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\src\BE\infrastructure\deploy-infrastructure.ps1 prod
+
+      - name: Verify diagnostics configuration and API health
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          function Invoke-AzureTsv {
+            param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+            $output = @(& az @Arguments 2>&1 | ForEach-Object { $_.ToString() })
+            if ($LASTEXITCODE -ne 0) {
+              throw "Azure CLI verification failed with exit code $LASTEXITCODE.`n$($output -join [Environment]::NewLine)"
+            }
+
+            return ($output -join [Environment]::NewLine).Trim()
+          }
+
+          $workspaceId = Invoke-AzureTsv -Arguments @(
+            'monitor', 'log-analytics', 'workspace', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--workspace-name', $env:LOG_ANALYTICS_WORKSPACE_NAME,
+            '--query', 'customerId',
+            '--output', 'tsv'
+          )
+          $workspaceResourceId = Invoke-AzureTsv -Arguments @(
+            'monitor', 'log-analytics', 'workspace', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--workspace-name', $env:LOG_ANALYTICS_WORKSPACE_NAME,
+            '--query', 'id',
+            '--output', 'tsv'
+          )
+          $configuredWorkspaceId = Invoke-AzureTsv -Arguments @(
+            'webapp', 'config', 'appsettings', 'list',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:AZURE_WEBAPP_NAME,
+            '--query', "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]",
+            '--output', 'tsv'
+          )
+
+          if ($configuredWorkspaceId -ne $workspaceId) {
+            throw 'The API workspace setting does not match the production Log Analytics workspace.'
+          }
+
+          $apiPrincipalId = Invoke-AzureTsv -Arguments @(
+            'identity', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:API_IDENTITY_NAME,
+            '--query', 'principalId',
+            '--output', 'tsv'
+          )
+          $readerAssignment = Invoke-AzureTsv -Arguments @(
+            'role', 'assignment', 'list',
+            '--assignee-object-id', $apiPrincipalId,
+            '--scope', $workspaceResourceId,
+            '--role', 'Log Analytics Data Reader',
+            '--query', '[0].id',
+            '--output', 'tsv'
+          )
+
+          if ([string]::IsNullOrWhiteSpace($readerAssignment)) {
+            throw 'The API managed identity is missing Log Analytics Data Reader on the production workspace.'
+          }
+
+          & az webapp restart `
+            --resource-group $env:AZURE_RESOURCE_GROUP `
+            --name $env:AZURE_WEBAPP_NAME `
+            --output none
+          if ($LASTEXITCODE -ne 0) {
+            throw "API restart failed with exit code $LASTEXITCODE."
+          }
+
+          $hostName = Invoke-AzureTsv -Arguments @(
+            'webapp', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:AZURE_WEBAPP_NAME,
+            '--query', 'defaultHostName',
+            '--output', 'tsv'
+          )
+          $healthUrl = "https://$hostName/health"
+
+          for ($attempt = 1; $attempt -le 15; $attempt++) {
+            try {
+              Invoke-WebRequest -Uri $healthUrl -Method Get -TimeoutSec 10 -UseBasicParsing | Out-Null
+              "Production infrastructure reconciled and API health passed: $healthUrl" |
+                Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+              break
+            }
+            catch {
+              if ($attempt -eq 15) {
+                throw "Infrastructure deployed, but API health did not recover at $healthUrl."
+              }
+
+              Start-Sleep -Seconds 10
+            }
+          }
+</file>
+
 <file path=".github/workflows/release-validation.yml">
 name: Release validation
 
@@ -86947,131 +87301,6 @@ The action column must be structurally reserved rather than rescued with hard-co
   [`deferred-work.md:21`](deferred-work.md#L21)
 </file>
 
-<file path="Docs/acs-email-setup.md">
-# ACS Email Setup
-
-**Status:** Maintained  
-**Owner:** Workslip  
-**Source of truth:** `src/BE/infrastructure/main.bicep` and `Workslip.Infrastructure/AcsEmailService.cs`  
-**Review cadence:** Review whenever the ACS email domain, DNS provider, sender address, or invitation flow changes.
-
-## Purpose
-
-Workslip sends invitations and one-time login codes through Azure Communication Services Email. Production sends as:
-
-```text
-Workslip <noreply@mrsoftware.dk>
-```
-
-ACS provides outbound delivery only. This setup does not require a mailbox, mail hosting, MX records, or WHOIS add-ons.
-
-## Deployment model
-
-Every supported Azure infrastructure deployment provisions the Communication Services resource, Email Communication Service, Azure-managed domain and `DoNotReply` sender.
-
-Production additionally provisions and links the verified `mrsoftware.dk` domain, provisions the `noreply` sender and writes `Azure:Acs:SenderAddress = noreply@mrsoftware.dk` to Azure App Configuration. The Azure-managed domain remains linked as an emergency rollback resource.
-
-Non-production environments do not provision or link `mrsoftware.dk`; they write the generated Azure-managed `DoNotReply@<domain>.azurecomm.net` address instead.
-
-There is no operator activation parameter. Sender selection is derived from `environment == prod`.
-
-For the production defaults:
-
-```text
-Resource group: rg-mrsoftware-prod
-Email service: email-mrsoftware-prod
-Domain: mrsoftware.dk
-Sender: noreply@mrsoftware.dk
-```
-
-## DNS verification maintenance
-
-The authoritative DNS zone must continue to satisfy all four Azure verification checks:
-
-- `Domain`: ownership TXT record;
-- `SPF`: sender-policy TXT record;
-- `DKIM`: first CNAME record;
-- `DKIM2`: second CNAME record.
-
-Do not add MX records for this sender-only setup. If the DNS provider automatically appends `mrsoftware.dk`, enter only the host/name portion shown for that DNS zone.
-
-The Azure CLI `communication` extension requires Azure CLI 2.67 or newer. Inspect the current verification records and states with:
-
-```powershell
-az communication email domain show `
-  --resource-group rg-mrsoftware-prod `
-  --email-service-name email-mrsoftware-prod `
-  --domain-name mrsoftware.dk `
-  --query "{records:properties.verificationRecords,states:properties.verificationStates}" `
-  --output json
-```
-
-When DNS records are intentionally changed, initiate verification for each type:
-
-```powershell
-$verificationTypes = @('Domain', 'SPF', 'DKIM', 'DKIM2')
-
-foreach ($verificationType in $verificationTypes) {
-  az communication email domain initiate-verification `
-    --resource-group rg-mrsoftware-prod `
-    --email-service-name email-mrsoftware-prod `
-    --domain-name mrsoftware.dk `
-    --verification-type $verificationType
-
-  if ($LASTEXITCODE -ne 0) {
-    throw "ACS verification could not be started for $verificationType."
-  }
-}
-```
-
-## Application configuration
-
-`AcsEmailService` reads:
-
-```text
-Azure:Acs:ConnectionString
-Azure:Acs:SenderAddress
-Azure:Acs:InviteBaseUrl
-Azure:Acs:PLainHeaderText
-Azure:Acs:PlainInviteText
-Azure:Acs:HtmlInviteText
-```
-
-Bicep owns `Azure:Acs:SenderAddress`; manual App Configuration edits are overwritten by the next deployment. Production uses `noreply@mrsoftware.dk`; non-production uses its generated Azure-managed sender address.
-
-The invitation base URL must continue to produce links under:
-
-```text
-https://app.mrsoftware.dk/invite/
-```
-
-## Post-deployment smoke test
-
-1. Confirm Domain, SPF, DKIM and DKIM2 remain verified in Azure.
-2. Send an invitation through the production Workslip UI to an external mailbox.
-3. Confirm the visible sender is `Workslip <noreply@mrsoftware.dk>`.
-4. Confirm the invitation link starts with `https://app.mrsoftware.dk/invite/`.
-5. Complete the invitation flow and verify authenticated API access.
-6. Request a one-time login code and confirm it uses the same sender.
-7. Check ACS delivery status and Application Insights for failures or bounces.
-
-## Failure and rollback policy
-
-A broken production DNS verification state is a production configuration fault. Repair the DNS records and re-run deployment. Non-production environments are unaffected because they use Azure-managed domains. Do not reintroduce an operator activation toggle.
-
-An emergency switch to the Azure-managed sender requires a dedicated reviewed infrastructure change and matching documentation update.
-
-## Troubleshooting
-
-| Symptom | Likely cause | Correction |
-|---|---|---|
-| Domain verification is not successful | DNS record is missing, duplicated, or entered with the full zone twice | Compare authoritative DNS with `properties.verificationRecords` |
-| SPF fails | Existing SPF policy conflicts or multiple SPF TXT records exist | Merge authorized senders into one SPF policy rather than publishing multiple SPF records |
-| DKIM or DKIM2 fails | CNAME host or target was copied incorrectly | Recreate the exact selector record returned by Azure |
-| `Invalid sender address` | Custom domain is not linked, sender was not created, or App Configuration is stale | Re-run infrastructure deployment and verify `Azure:Acs:SenderAddress` |
-| Invitation arrives but link is wrong | `Azure:Acs:InviteBaseUrl` is stale | Set it to the production `app.mrsoftware.dk` invitation route and redeploy configuration |
-</file>
-
 <file path="src/BE/infrastructure/AGENTS.md">
 # Workslip infrastructure instructions
 
@@ -87196,27 +87425,6 @@ Write-Host 'Phase 3/3: reconciling VAPID secret lifecycle...' -ForegroundColor C
     -CompanyName $COMPANY_NAME
 
 Write-Host 'Full deployment completed.' -ForegroundColor Green
-</file>
-
-<file path="src/BE/infrastructure/entraRegistrations.bicep">
-param environment string
-// Retained for compatibility with main.bicep. Application ownership is managed
-// outside Bicep because Microsoft Graph relationship updates are non-atomic.
-
-// deploy-entra.ps1 writes persistent environment-specific local state.
-// deploy-infrastructure.ps1 validates that state and writes this temporary
-// compile-time handoff before invoking main.bicep.
-var provisionedValues = loadJsonContent('./entra-provisioned.json')
-var validatedValues = provisionedValues.environment == toLower(environment)
-  ? provisionedValues
-  : fail('Entra values were not loaded for this environment. Run deploy-entra.ps1, then deploy-infrastructure.ps1.')
-
-output OAuthClientId string = validatedValues.oauthClientId
-output OAuthAppObjectId string = validatedValues.oauthAppObjectId
-// Existing callers use OAuthAppId as the API audience application/client ID.
-output OAuthAppId string = validatedValues.oauthClientId
-output ClientAppId string = validatedValues.clientAppId
-output ClientAppObjectId string = validatedValues.clientAppObjectId
 </file>
 
 <file path="src/BE/infrastructure/grant-web-api-sql-access.ps1">
@@ -87448,36 +87656,6 @@ finally {
         }
     }
 }
-</file>
-
-<file path="src/BE/infrastructure/keyvaultConfig.bicep">
-param keyVaultName string
-param communicationServiceName string
-
-resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
-  name: keyVaultName
-}
-
-resource communicationService 'Microsoft.Communication/communicationServices@2023-03-31' existing = {
-  name: communicationServiceName
-}
-
-resource acsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVault
-  name: 'Azure--Acs--ConnectionString'
-  properties: {
-    value: communicationService.listKeys().primaryConnectionString
-  }
-}
-
-// These secrets are reconciled by deploy-infrastructure.ps1. Versionless URIs
-// keep App Configuration references stable across secure rotations.
-var sqlConnectionStringSecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/Azure--Sql--ConnectionString'
-var jwtSigningKeySecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/Jwt--SigningKey'
-
-output acsConnectionStringSecretUri string = acsConnectionStringSecret.properties.secretUri
-output sqlConnectionstring string = sqlConnectionStringSecretUri
-output jwtSigninKey string = jwtSigningKeySecretUri
 </file>
 
 <file path="src/BE/infrastructure/monitoring.bicep">
@@ -115885,6 +116063,803 @@ Every pull request must consider documentation when it changes any of these area
 The automated Documentation Quality workflow validates maintained documents and PR documentation decisions. Reviewers must still confirm that the selected documentation and compliance decisions accurately match the change.
 </file>
 
+<file path="src/BE/infrastructure/main.bicep">
+extension microsoftGraphV1
+
+param companyName string = ''
+param environment string = ''
+param globalAdminId string = ''
+param location string = resourceGroup().location
+param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
+param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
+param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
+param webApiServerName string          = take('plan-${companyName}-${toLower(environment)}', 40)
+param webApiName string                = take('api-${companyName}-${toLower(environment)}', 60)
+param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
+@allowed([
+  'Default'
+  'Recover'
+])
+param appConfigurationCreateMode string = 'Default'
+param identityName string             = 'id-${companyName}-${toLower(environment)}'
+param githubDeploymentIdentityName string = take('id-${companyName}-${toLower(environment)}-github', 128)
+param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
+param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
+param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
+@description('Verified customer-managed ACS email domain used by production deployments.')
+param customEmailDomainName string = 'mrsoftware.dk'
+@description('Sender username used on the verified customer-managed email domain.')
+param customEmailSenderUsername string = 'noreply'
+param githubOwner string            = 'rasm105k'
+param githubOwnerId string          = '31623093'
+param githubRepository string       = 'Workslip-v2.0'
+param githubRepositoryId string     = '1245555609'
+param githubEnvironment string        = environment
+param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}group'
+
+// ── SQL admin password ────────────────────────────────────────────────────────
+// SECURITY: was previously hardcoded as 'Num64bqe!' in this file. Moved to
+// a @secure() parameter so it does not get baked into compiled main.json or
+// show up in deployment history. The legacy password is still in git history
+// from prior commits — rotate it manually in the Azure portal before reusing
+// this template on a real environment.
+@secure()
+param sqlAdminPassword string
+
+// ── Role definition IDs ───────────────────────────────────────────────────────
+// Centralised here so they're easy to audit and update.
+var roles = {
+  storageBlobContributor:  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+  appConfigurationDataReader: '516239f1-63e1-4d78-a4de-a74fb236a071'
+  logAnalyticsDataReader: '3b03c2da-16b3-4a49-8834-0f8130efdd3b'
+  keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
+  keyVaultSecretsUserRole: '4633458b-17de-408a-b874-0445c86b69e6'
+  appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
+  websiteContributor: 'de139f84-1756-47ae-9be6-808fbbe84772'
+  sqlSecurityManager: '056cd41c-7e88-42e1-933e-88ba6a50c9c3'
+  
+  UserReadWriteAll: '741f803b-c850-494e-b5df-cde7c675a1ca'
+  UserInviteAll: '09850681-111b-4a89-9bed-3f2cae46d706'
+  ApplicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
+  AppRoleAssignmentReadWriteAll: '06b708a9-e830-4db3-a914-8e69da51d44f'
+}
+
+var tags = {
+  environment: environment
+  project: companyName
+}
+
+var appInsightsConnectionString = appInsights.properties.ConnectionString
+var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
+var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
+var isProduction = toLower(environment) == 'prod'
+var acsSenderAddress = isProduction
+  ? '${customEmailSenderUsername}@${customEmailDomainName}'
+  : 'DoNotReply@${azureManagedEmailDomain.properties.mailFromSenderDomain}'
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Runtime identity
+// Used only by the API and Azure-side deployment scripts.
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: identityName
+  location: location
+  tags: tags
+}
+
+// GitHub deployment identity
+// GitHub may exchange an OIDC token only for the configured repository
+// environment. This identity has no runtime, data-plane or Graph permissions.
+resource githubDeploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: githubDeploymentIdentityName
+  location: location
+  tags: tags
+}
+
+resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
+  parent: githubDeploymentIdentity
+  name: 'github-${toLower(environment)}'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: 'https://token.actions.githubusercontent.com'
+    subject: 'repo:${githubOwner}@${githubOwnerId}/${githubRepository}@${githubRepositoryId}:environment:${githubEnvironment}'
+  }
+}
+
+resource microsoftGraphServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' existing = {
+  appId: '00000003-0000-0000-c000-000000000000'
+}
+
+resource graphUserReadWriteAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: roles.UserReadWriteAll
+  principalId: identity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+resource graphUserInviteAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: roles.UserInviteAll
+  principalId: identity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+resource graphApplicationReadAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: roles.ApplicationReadAll
+  principalId: identity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+resource graphAppRoleAssignmentReadWriteAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
+  appRoleId: roles.AppRoleAssignmentReadWriteAll
+  principalId: identity.properties.principalId
+  resourceId: microsoftGraphServicePrincipal.id
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Monitoring
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+  name: logAnalyticsName
+  location: location
+  tags: tags
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    workspaceCapping: {
+      dailyQuotaGb: 1 // <-- Mindst mulige loft i Azure. Langt under de 5 GB gratis om måneden.
+    }
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
+  }
+}
+
+resource logAnalyticsDataReaderForApiIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(logAnalyticsWorkspace.id, identity.id, roles.logAnalyticsDataReader)
+  scope: logAnalyticsWorkspace
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.logAnalyticsDataReader)
+  }
+}
+
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: appInsightsName
+  location: location
+  kind: 'web'
+  tags: tags
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logAnalyticsWorkspace.id
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Web API hosting
+// Free App Service tier with shared user-assigned managed identity.
+// The API reads App Configuration + Key Vault references through that identity.
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource webApiServer 'Microsoft.Web/serverfarms@2023-12-01' = {
+  name: webApiServerName
+  location: location
+  tags: tags
+  sku: {
+    name: 'F1'
+    tier: 'Free'
+    capacity: 1
+  }
+  properties: {}
+}
+
+resource webApi 'Microsoft.Web/sites@2023-12-01' = {
+  name: webApiName
+  location: location
+  kind: 'app'
+  tags: union(tags, {
+    'hidden-link:${appInsights.id}': 'Resource'
+  })
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
+  properties: {
+    serverFarmId: webApiServer.id
+    httpsOnly: true
+    clientAffinityEnabled: false
+    publicNetworkAccess: 'Enabled'
+    keyVaultReferenceIdentity: identity.id
+    siteConfig: {
+      alwaysOn: false
+      ftpsState: 'Disabled'
+      http20Enabled: true
+      minTlsVersion: '1.2'
+      netFrameworkVersion: 'v10.0'
+      use32BitWorkerProcess: true
+      metadata: [
+        {
+          name: 'CURRENT_STACK'
+          value: 'dotnet'
+        }
+      ]
+      appSettings: [
+        {
+          name: 'ASPNETCORE_ENVIRONMENT'
+          value: 'Production'
+        }
+        {
+          name: 'AZURE_CLIENT_ID'
+          value: identity.properties.clientId
+        }
+        {
+          name: 'Azure__ManagedIdentity__ClientId'
+          value: identity.properties.clientId
+        }
+        {
+          name: 'Azure__AppConfiguration__Endpoint'
+          value: appConfiguration.properties.endpoint
+        }
+        {
+          name: 'Azure__ApplicationInsights__ConnectionString'
+          value: appInsightsConnectionString
+        }
+        {
+          name: 'Azure__ApplicationInsights__WorkspaceId'
+          value: logAnalyticsWorkspace.properties.customerId
+        }
+        {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: appInsightsConnectionString
+        }
+        {
+          name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
+          value: appInsightsInstrumentationKey
+        }
+        {
+          name: 'ApplicationInsightsAgent_EXTENSION_VERSION'
+          value: '~3'
+        }
+        {
+          name: 'XDT_MicrosoftApplicationInsights_Mode'
+          value: 'recommended'
+        }
+      ]
+    }
+  }
+}
+
+resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(webApi.id, githubDeploymentIdentity.id, roles.websiteContributor)
+  scope: webApi
+  properties: {
+    principalId: githubDeploymentIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.websiteContributor)
+  }
+}
+
+module apiMonitoring './monitoring.bicep' = {
+  name: 'api-monitoring-alerts'
+  params: {
+    companyName: companyName
+    environment: environment
+    location: location
+    appInsightsResourceId: appInsights.id
+    webApiResourceId: webApi.id
+    healthEndpointUrl: 'https://${webApi.properties.defaultHostName}/health'
+    tags: tags
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Azure App Configuration
+// Workloads read non-secret configuration here with managed identity. Secret values
+// should be Key Vault references, resolved through the same identity.
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' = {
+  name: appConfigurationName
+  location: location
+  sku: {
+    name: 'free'
+  }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
+  tags: tags
+  properties: {
+    createMode: appConfigurationCreateMode
+    publicNetworkAccess: 'Enabled'
+    disableLocalAuth: false
+  }
+}
+
+module staticConfig './staticConfig.bicep' = {
+  name: 'static-config-values'
+  params: {
+    appConfigurationName: appConfiguration.name
+  }
+}
+
+module dynamicAppConfigValues './dynamicConfig.bicep' = {
+  name: 'app-config-values'
+  params: {
+    appConfigurationName: appConfiguration.name
+
+    jwtSigninKey: keyVaultConfigs.outputs.jwtSigninKey
+    managedIdentityClientId: identity.properties.clientId
+    appConfigurationEndpoint: 'https://${appConfiguration.name}.azconfig.io'
+
+    azureAdOAuthClientId: EntraAppRegistrations.outputs.OAuthClientId
+    clientAppId: EntraAppRegistrations.outputs.ClientAppId
+    oauthServerAppId: EntraAppRegistrations.outputs.OAuthAppId
+
+    acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
+    acsSenderAddress: acsSenderAddress
+
+    storageAccountName: storageAccount.name
+    applicationInsightsConnectionString: appInsights.properties.ConnectionString
+
+    sqlConnectionString: keyVaultConfigs.outputs.sqlConnectionstring
+  }
+}
+
+//Added so other apps can read directly from app config (azure functions, web api osv..)
+resource appConfigurationRoleIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid('${appConfiguration.id}${identity.id}${roles.appConfigurationDataReader}')
+  scope: appConfiguration
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.appConfigurationDataReader)
+  }
+}
+
+//App configuration can read key vault refs from the keyvault directly
+resource keyVaultSecretsUserForApp 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, identity.id, roles.keyVaultSecretsUserRole)
+  scope: keyVault
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.keyVaultSecretsUserRole
+    )
+  }
+}
+
+//I as admin have full control over app config
+resource appConfigurationDataOwnerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(appConfiguration.id, globalAdminId, roles.appConfigurationDataOwnerRole)
+  scope: appConfiguration
+  properties: {
+    principalId: globalAdminId
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.appConfigurationDataOwnerRole
+    )
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Key Vault
+// RBAC-mode only (no access policies). Identity gets Secrets User.
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
+  name: keyVaultName
+  location: location
+  tags: tags
+  properties: {
+    sku: { name: 'standard', family: 'A' }
+    tenantId: subscription().tenantId
+    enableRbacAuthorization: true
+    enableSoftDelete: true
+    softDeleteRetentionInDays: 7
+    enablePurgeProtection: true
+  }
+}
+
+module keyVaultConfigs './keyvaultConfig.bicep' = {
+  name: 'key-vault-secrets'
+  params: {
+    keyVaultName: keyVault.name
+    communicationServiceName: communicationService.name
+  }
+}
+
+//I as admin have full control over keyvault
+resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, globalAdminId, roles.keyVaultAdministrator)
+  scope: keyVault
+  properties: {
+    principalId: globalAdminId
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      roles.keyVaultAdministrator
+    )
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Entra App Registrations
+// OAuth setup and passkey validation.
+// ──────────────────────────────────────────────────────────────────────────────
+
+module EntraAppRegistrations './entraRegistrations.bicep' = {
+  name: 'entraApps'
+  params: {
+    environment: environment
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SQL Server + database
+// Data and stuff
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
+  uniqueName: sqlAdminGroupName
+  displayName: sqlAdminGroupName
+  description: 'Azure SQL administrators for ${environment}, and deployment automation.'
+  mailEnabled: false
+  mailNickname: sqlAdminGroupMailNickname
+  securityEnabled: true
+  owners: {
+    relationships: [
+      globalAdminId
+    ]
+  }
+}
+
+resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
+  name: 'db-${companyName}-${environment}-server'
+  location: location
+  properties: {
+    version: '12.0'
+    administratorLogin: 'rbj'
+    administratorLoginPassword: sqlAdminPassword
+    // The F1 App Service cannot use VNet integration. Restrict the public
+    // endpoint to the App Service outbound IP allowlist managed below.
+    publicNetworkAccess: 'Enabled'
+    administrators:{
+      administratorType: 'ActiveDirectory'
+      login: sqlAdminGroupName
+      sid: sqlAdminGroup.id
+      tenantId: subscription().tenantId
+      azureADOnlyAuthentication: false
+    }
+  }
+}
+
+resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
+  parent: sqlServer
+  name: 'db-${companyName}-${environment}'
+  location: location
+  sku: {
+    name: 'Basic'
+    tier: 'Basic'
+  }
+  properties: {
+    requestedBackupStorageRedundancy: 'Local'
+  }
+}
+
+resource sqlFirewallManagerForIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(sqlServer.id, identity.id, roles.sqlSecurityManager)
+  scope: sqlServer
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.sqlSecurityManager)
+  }
+}
+
+resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  name: 'sync-web-api-sql-firewall-${toLower(environment)}'
+  location: location
+  kind: 'AzureCLI'
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
+  properties: {
+    azCliVersion: '2.61.0'
+    cleanupPreference: 'OnSuccess'
+    retentionInterval: 'P1D'
+    timeout: 'PT30M'
+    forceUpdateTag: identity.id
+    environmentVariables: [
+      {
+        name: 'RESOURCE_GROUP'
+        value: resourceGroup().name
+      }
+      {
+        name: 'SQL_SERVER_NAME'
+        value: sqlServer.name
+      }
+      {
+        name: 'OUTBOUND_IPS'
+        value: webApi.properties.possibleOutboundIpAddresses
+      }
+    ]
+    scriptContent: '''
+set -euo pipefail
+
+# Cap the time we spend in any single az call so a stuck control-plane
+# response can't eat the whole deployment-script timeout.
+export AZ_HTTP_TIMEOUT=60
+
+az_with_retry() {
+  local attempt=1
+  local max_attempts=4
+
+  while true; do
+    if az "$@"; then
+      return 0
+    fi
+
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      return 1
+    fi
+
+    sleep $((attempt * 5))
+    attempt=$((attempt + 1))
+  done
+}
+
+# Read every rule owned by this script plus the two legacy broad-access rules.
+# Listing must succeed before any mutation so a control-plane failure cannot be
+# mistaken for an empty ruleset.
+list_existing() {
+  az_with_retry sql server firewall-rule list \
+    --resource-group "$RESOURCE_GROUP" \
+    --server "$SQL_SERVER_NAME" \
+    --query "[?starts_with(name, 'AllowWebApi') || name == 'AllowAzureServices' || name == 'AllowDeveloperIP'].name" \
+    --output tsv
+}
+
+create_rule() {
+  local name="$1"
+  local ip="$2"
+
+  # Azure CLI's create command is backed by create_or_update, making the
+  # deterministic IP-derived rule idempotent on later deployments.
+  az_with_retry sql server firewall-rule create \
+    --resource-group "$RESOURCE_GROUP" \
+    --server "$SQL_SERVER_NAME" \
+    --name "$name" \
+    --start-ip-address "$ip" \
+    --end-ip-address "$ip" \
+    --output none
+}
+
+valid_ips=()
+declare -A seen_ips=()
+IFS=',' read -ra candidate_ips <<< "$OUTBOUND_IPS"
+for ip in "${candidate_ips[@]}"; do
+  trimmed_ip=$(echo "$ip" | xargs)
+  valid=false
+  if [[ "$trimmed_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    IFS='.' read -ra octets <<< "$trimmed_ip"
+    valid=true
+    for octet in "${octets[@]}"; do
+      if (( 10#$octet > 255 )); then
+        valid=false
+        break
+      fi
+    done
+  fi
+
+  if [ "$valid" = true ]; then
+    if [ -z "${seen_ips[$trimmed_ip]:-}" ]; then
+      valid_ips+=("$trimmed_ip")
+      seen_ips["$trimmed_ip"]=1
+    fi
+  elif [ -n "$trimmed_ip" ]; then
+    echo "skipping non-IPv4 value: $trimmed_ip" >&2
+  fi
+done
+
+if [ "${#valid_ips[@]}" -eq 0 ]; then
+  echo "App Service returned no valid outbound IP addresses; existing SQL firewall rules were not changed." >&2
+  exit 1
+fi
+
+existing_raw=$(list_existing)
+
+# Use IP-derived names so a changed allowlist can be created completely before
+# obsolete access is removed. A partial failure therefore keeps the previous
+# working rules in place.
+declare -A desired_names=()
+for ip in "${valid_ips[@]}"; do
+  name="AllowWebApi-${ip//./-}"
+  create_rule "$name" "$ip"
+  desired_names["$name"]=1
+done
+
+# Replacements are now confirmed. Remove obsolete managed rules and the two
+# legacy broad-access rules. Deliberately configured unrelated rules remain.
+if [ -n "$existing_raw" ]; then
+  while IFS= read -r name; do
+    case "$name" in
+      AllowWebApi*|AllowAzureServices|AllowDeveloperIP)
+        if [ -z "${desired_names[$name]:-}" ]; then
+          az_with_retry sql server firewall-rule delete \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$SQL_SERVER_NAME" \
+            --name "$name" \
+            --output none
+        fi ;;
+    esac
+  done <<< "$existing_raw"
+fi
+'''
+  }
+  dependsOn: [
+    sqlFirewallManagerForIdentity
+  ]
+}
+
+// ──────────────────────────────────────────────────────────
+// Storage Account
+// Used for document storage and workflow assets.
+// Identity needs Blob contributor access for managed identity uploads.
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+  name: storageAccountName
+  location: location
+  kind: 'StorageV2'
+  sku: { name: 'Standard_LRS' }
+  tags: tags
+  properties: {
+    minimumTlsVersion: 'TLS1_2'
+    supportsHttpsTrafficOnly: true
+    allowBlobPublicAccess: false
+  }
+}
+
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
+  parent: storageAccount
+  name: 'default'
+  properties: {
+    deleteRetentionPolicy: { enabled: true, days: 7 }
+  }
+}
+
+resource uploadsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  parent: blobService
+  name: 'uploads'
+}
+
+resource documentsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  parent: blobService
+  name: 'documents'
+}
+
+resource storageRoleBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid('${storageAccount.id}${identity.id}${roles.storageBlobContributor}')
+  scope: storageAccount
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.storageBlobContributor)
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Azure Communication Services
+// Used for sending invite emails to new users via the ACS Email SDK.
+// Authenticated through the shared user-assigned managed identity.
+// ──────────────────────────────────────────────────────────────────────────────
+
+resource communicationService 'Microsoft.Communication/communicationServices@2023-04-01' = {
+  name: communicationServiceName
+  location: 'global'
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: { '${identity.id}': {} }
+  }
+  properties: {
+    dataLocation: 'europe'
+    linkedDomains: isProduction
+      ? [
+          azureManagedEmailDomain.id
+          customEmailDomain.id
+        ]
+      : [
+          azureManagedEmailDomain.id
+        ]
+  }
+}
+
+resource emailService 'Microsoft.Communication/emailServices@2023-04-01' = {
+  name: emailServiceName
+  location: 'global'
+  tags: tags
+  properties: {
+    dataLocation: 'europe'
+  }
+}
+
+// Keep the Azure-managed domain linked as an emergency rollback sender.
+resource azureManagedEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = {
+  name: 'AzureManagedDomain'
+  parent: emailService
+  location: 'global'
+  tags: tags
+  properties: {
+    domainManagement: 'AzureManaged'
+  }
+}
+
+resource azureManagedSenderUsername 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-03-31' = {
+  parent: azureManagedEmailDomain
+  name: 'DoNotReply'
+  properties: {
+    displayName: 'Workslip'
+    username: 'DoNotReply'
+  }
+}
+
+// Production DNS verification is complete. Non-production environments use the
+// Azure-managed domain and do not depend on production DNS ownership.
+resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = if (isProduction) {
+  name: customEmailDomainName
+  parent: emailService
+  location: 'global'
+  tags: tags
+  properties: {
+    domainManagement: 'CustomerManaged'
+    userEngagementTracking: 'Disabled'
+  }
+}
+
+resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (isProduction) {
+  parent: customEmailDomain
+  name: customEmailSenderUsername
+  properties: {
+    displayName: 'Workslip'
+    username: customEmailSenderUsername
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Outputs
+// ──────────────────────────────────────────────────────────────────────────────
+
+output STORAGE_ACCOUNT_NAME string             = storageAccount.name
+output WEB_API_NAME string                     = webApi.name
+output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName
+output WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'
+output WEB_API_SERVER_NAME string              = webApiServer.name
+output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
+output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
+output GITHUB_DEPLOYMENT_CLIENT_ID string      = githubDeploymentIdentity.properties.clientId
+output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
+output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
+output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
+output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
+output AZURE_APP_CONFIG_ENDPOINT string        = appConfiguration.properties.endpoint
+output AZURE_AD_OAUTH_APP_OBJECT_ID string      = EntraAppRegistrations.outputs.OAuthAppObjectId
+output AZURE_AD_OAUTH_APP_CLIENT_ID string      = EntraAppRegistrations.outputs.OAuthAppId
+output ACS_ENDPOINT string                     = 'https://${communicationService.properties.hostName}'
+output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = isProduction ? customEmailDomain.id : ''
+output ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE bool      = isProduction
+output ACS_SENDER_ADDRESS string                = acsSenderAddress
+</file>
+
 <file path="src/BE/WorkslipApi/Configuration/HttpCacheHeaders.cs">
 using System.Security.Cryptography;
 using System.Text;
@@ -123699,801 +124674,181 @@ When adding, renaming or removing a workflow check:
 A workflow file change alone does not prove that GitHub rulesets were updated. After merging WOR-194, remove a stale required check named `Validate documentation` or `Documentation Quality` if one exists. Also remove any remaining stale requirements from WOR-188: `Full Stack Validation`, `React Doctor`, `Application Validation` and `Validate Jekyll site`.
 </file>
 
-<file path="src/BE/infrastructure/main.bicep">
-extension microsoftGraphV1
-
-param companyName string = ''
-param environment string = ''
-param globalAdminId string = ''
-param location string = resourceGroup().location
-param storageAccountName string       = take('st${companyName}${toLower(environment)}', 24)
-param appInsightsName string          = 'ai-${companyName}-${toLower(environment)}'
-param logAnalyticsName string          = 'logAnal-${companyName}-${toLower(environment)}'
-param webApiServerName string          = take('plan-${companyName}-${toLower(environment)}', 40)
-param webApiName string                = take('api-${companyName}-${toLower(environment)}', 60)
-param appConfigurationName string     = take('appcs-${companyName}-${toLower(environment)}', 50)
-@allowed([
-  'Default'
-  'Recover'
-])
-param appConfigurationCreateMode string = 'Default'
-param identityName string             = 'id-${companyName}-${toLower(environment)}'
-param githubDeploymentIdentityName string = take('id-${companyName}-${toLower(environment)}-github', 128)
-param keyVaultName string             = take('kv-${companyName}-${toLower(environment)}', 24)
-param communicationServiceName string = take('acs-${companyName}-${toLower(environment)}', 64)
-param emailServiceName string         = take('email-${companyName}-${toLower(environment)}', 64)
-@description('Verified customer-managed ACS email domain used by production deployments.')
-param customEmailDomainName string = 'mrsoftware.dk'
-@description('Sender username used on the verified customer-managed email domain.')
-param customEmailSenderUsername string = 'noreply'
-param githubOwner string            = 'rasm105k'
-param githubOwnerId string          = '31623093'
-param githubRepository string       = 'Workslip-v2.0'
-param githubRepositoryId string     = '1245555609'
-param githubEnvironment string        = environment
-param sqlAdminGroupName string        = 'sql${companyName}${toLower(environment)}group'
-
-// ── SQL admin password ────────────────────────────────────────────────────────
-// SECURITY: was previously hardcoded as 'Num64bqe!' in this file. Moved to
-// a @secure() parameter so it does not get baked into compiled main.json or
-// show up in deployment history. The legacy password is still in git history
-// from prior commits — rotate it manually in the Azure portal before reusing
-// this template on a real environment.
-@secure()
-param sqlAdminPassword string
-
-// ── Role definition IDs ───────────────────────────────────────────────────────
-// Centralised here so they're easy to audit and update.
-var roles = {
-  storageBlobContributor:  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
-  appConfigurationDataReader: '516239f1-63e1-4d78-a4de-a74fb236a071'
-  logAnalyticsDataReader: '3b03c2da-16b3-4a49-8834-0f8130efdd3b'
-  keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
-  keyVaultSecretsUserRole: '4633458b-17de-408a-b874-0445c86b69e6'
-  appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
-  websiteContributor: 'de139f84-1756-47ae-9be6-808fbbe84772'
-  sqlSecurityManager: '056cd41c-7e88-42e1-933e-88ba6a50c9c3'
-  
-  UserReadWriteAll: '741f803b-c850-494e-b5df-cde7c675a1ca'
-  UserInviteAll: '09850681-111b-4a89-9bed-3f2cae46d706'
-  ApplicationReadAll: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30'
-  AppRoleAssignmentReadWriteAll: '06b708a9-e830-4db3-a914-8e69da51d44f'
-}
-
-var tags = {
-  environment: environment
-  project: companyName
-}
-
-var appInsightsConnectionString = appInsights.properties.ConnectionString
-var appInsightsInstrumentationKey = appInsights.properties.InstrumentationKey
-var sqlAdminGroupMailNickname = take(replace(sqlAdminGroupName, '-', ''), 64)
-var isProduction = toLower(environment) == 'prod'
-var acsSenderAddress = isProduction
-  ? '${customEmailSenderUsername}@${customEmailDomainName}'
-  : 'DoNotReply@${azureManagedEmailDomain.properties.mailFromSenderDomain}'
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Runtime identity
-// Used only by the API and Azure-side deployment scripts.
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: identityName
-  location: location
-  tags: tags
-}
-
-// GitHub deployment identity
-// GitHub may exchange an OIDC token only for the configured repository
-// environment. This identity has no runtime, data-plane or Graph permissions.
-resource githubDeploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: githubDeploymentIdentityName
-  location: location
-  tags: tags
-}
-
-resource githubFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
-  parent: githubDeploymentIdentity
-  name: 'github-${toLower(environment)}'
-  properties: {
-    audiences: [
-      'api://AzureADTokenExchange'
-    ]
-    issuer: 'https://token.actions.githubusercontent.com'
-    subject: 'repo:${githubOwner}@${githubOwnerId}/${githubRepository}@${githubRepositoryId}:environment:${githubEnvironment}'
-  }
-}
-
-resource microsoftGraphServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' existing = {
-  appId: '00000003-0000-0000-c000-000000000000'
-}
-
-resource graphUserReadWriteAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
-  appRoleId: roles.UserReadWriteAll
-  principalId: identity.properties.principalId
-  resourceId: microsoftGraphServicePrincipal.id
-}
-
-resource graphUserInviteAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
-  appRoleId: roles.UserInviteAll
-  principalId: identity.properties.principalId
-  resourceId: microsoftGraphServicePrincipal.id
-}
-
-resource graphApplicationReadAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
-  appRoleId: roles.ApplicationReadAll
-  principalId: identity.properties.principalId
-  resourceId: microsoftGraphServicePrincipal.id
-}
-
-resource graphAppRoleAssignmentReadWriteAllForApiIdentity 'Microsoft.Graph/appRoleAssignedTo@v1.0' = {
-  appRoleId: roles.AppRoleAssignmentReadWriteAll
-  principalId: identity.properties.principalId
-  resourceId: microsoftGraphServicePrincipal.id
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Monitoring
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: logAnalyticsName
-  location: location
-  tags: tags
-  properties: {
-    sku: {
-      name: 'PerGB2018'
-    }
-    workspaceCapping: {
-      dailyQuotaGb: 1 // <-- Mindst mulige loft i Azure. Langt under de 5 GB gratis om måneden.
-    }
-    publicNetworkAccessForIngestion: 'Enabled'
-    publicNetworkAccessForQuery: 'Enabled'
-  }
-}
-
-resource logAnalyticsDataReaderForApiIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(logAnalyticsWorkspace.id, identity.id, roles.logAnalyticsDataReader)
-  scope: logAnalyticsWorkspace
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.logAnalyticsDataReader)
-  }
-}
-
-resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: appInsightsName
-  location: location
-  kind: 'web'
-  tags: tags
-  properties: {
-    Application_Type: 'web'
-    WorkspaceResourceId: logAnalyticsWorkspace.id
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Web API hosting
-// Free App Service tier with shared user-assigned managed identity.
-// The API reads App Configuration + Key Vault references through that identity.
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource webApiServer 'Microsoft.Web/serverfarms@2023-12-01' = {
-  name: webApiServerName
-  location: location
-  tags: tags
-  sku: {
-    name: 'F1'
-    tier: 'Free'
-    capacity: 1
-  }
-  properties: {}
-}
-
-resource webApi 'Microsoft.Web/sites@2023-12-01' = {
-  name: webApiName
-  location: location
-  kind: 'app'
-  tags: union(tags, {
-    'hidden-link:${appInsights.id}': 'Resource'
-  })
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
-  }
-  properties: {
-    serverFarmId: webApiServer.id
-    httpsOnly: true
-    clientAffinityEnabled: false
-    publicNetworkAccess: 'Enabled'
-    keyVaultReferenceIdentity: identity.id
-    siteConfig: {
-      alwaysOn: false
-      ftpsState: 'Disabled'
-      http20Enabled: true
-      minTlsVersion: '1.2'
-      netFrameworkVersion: 'v10.0'
-      use32BitWorkerProcess: true
-      metadata: [
-        {
-          name: 'CURRENT_STACK'
-          value: 'dotnet'
-        }
-      ]
-      appSettings: [
-        {
-          name: 'ASPNETCORE_ENVIRONMENT'
-          value: 'Production'
-        }
-        {
-          name: 'AZURE_CLIENT_ID'
-          value: identity.properties.clientId
-        }
-        {
-          name: 'Azure__ManagedIdentity__ClientId'
-          value: identity.properties.clientId
-        }
-        {
-          name: 'Azure__AppConfiguration__Endpoint'
-          value: appConfiguration.properties.endpoint
-        }
-        {
-          name: 'Azure__ApplicationInsights__ConnectionString'
-          value: appInsightsConnectionString
-        }
-        {
-          name: 'Azure__ApplicationInsights__WorkspaceId'
-          value: logAnalyticsWorkspace.properties.customerId
-        }
-        {
-          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: appInsightsConnectionString
-        }
-        {
-          name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
-          value: appInsightsInstrumentationKey
-        }
-        {
-          name: 'ApplicationInsightsAgent_EXTENSION_VERSION'
-          value: '~3'
-        }
-        {
-          name: 'XDT_MicrosoftApplicationInsights_Mode'
-          value: 'recommended'
-        }
-      ]
-    }
-  }
-}
-
-resource webApiDeploymentRoleForGithubIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(webApi.id, githubDeploymentIdentity.id, roles.websiteContributor)
-  scope: webApi
-  properties: {
-    principalId: githubDeploymentIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.websiteContributor)
-  }
-}
-
-module apiMonitoring './monitoring.bicep' = {
-  name: 'api-monitoring-alerts'
-  params: {
-    companyName: companyName
-    environment: environment
-    location: location
-    appInsightsResourceId: appInsights.id
-    webApiResourceId: webApi.id
-    healthEndpointUrl: 'https://${webApi.properties.defaultHostName}/health'
-    tags: tags
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Azure App Configuration
-// Workloads read non-secret configuration here with managed identity. Secret values
-// should be Key Vault references, resolved through the same identity.
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-03-01' = {
-  name: appConfigurationName
-  location: location
-  sku: {
-    name: 'free'
-  }
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
-  }
-  tags: tags
-  properties: {
-    createMode: appConfigurationCreateMode
-    publicNetworkAccess: 'Enabled'
-    disableLocalAuth: false
-  }
-}
-
-module staticConfig './staticConfig.bicep' = {
-  name: 'static-config-values'
-  params: {
-    appConfigurationName: appConfiguration.name
-  }
-}
-
-module dynamicAppConfigValues './dynamicConfig.bicep' = {
-  name: 'app-config-values'
-  params: {
-    appConfigurationName: appConfiguration.name
-
-    jwtSigninKey: keyVaultConfigs.outputs.jwtSigninKey
-    managedIdentityClientId: identity.properties.clientId
-    appConfigurationEndpoint: 'https://${appConfiguration.name}.azconfig.io'
-
-    azureAdOAuthClientId: EntraAppRegistrations.outputs.OAuthClientId
-    clientAppId: EntraAppRegistrations.outputs.ClientAppId
-    oauthServerAppId: EntraAppRegistrations.outputs.OAuthAppId
-
-    acsConnectionString: keyVaultConfigs.outputs.acsConnectionStringSecretUri
-    acsSenderAddress: acsSenderAddress
-
-    storageAccountName: storageAccount.name
-    applicationInsightsConnectionString: appInsights.properties.ConnectionString
-
-    sqlConnectionString: keyVaultConfigs.outputs.sqlConnectionstring
-  }
-}
-
-//Added so other apps can read directly from app config (azure functions, web api osv..)
-resource appConfigurationRoleIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid('${appConfiguration.id}${identity.id}${roles.appConfigurationDataReader}')
-  scope: appConfiguration
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.appConfigurationDataReader)
-  }
-}
-
-//App configuration can read key vault refs from the keyvault directly
-resource keyVaultSecretsUserForApp 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, identity.id, roles.keyVaultSecretsUserRole)
-  scope: keyVault
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      roles.keyVaultSecretsUserRole
-    )
-  }
-}
-
-//I as admin have full control over app config
-resource appConfigurationDataOwnerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(appConfiguration.id, globalAdminId, roles.appConfigurationDataOwnerRole)
-  scope: appConfiguration
-  properties: {
-    principalId: globalAdminId
-    principalType: 'User'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      roles.appConfigurationDataOwnerRole
-    )
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Key Vault
-// RBAC-mode only (no access policies). Identity gets Secrets User.
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
-  name: keyVaultName
-  location: location
-  tags: tags
-  properties: {
-    sku: { name: 'standard', family: 'A' }
-    tenantId: subscription().tenantId
-    enableRbacAuthorization: true
-    enableSoftDelete: true
-    softDeleteRetentionInDays: 7
-    enablePurgeProtection: true
-  }
-}
-
-module keyVaultConfigs './keyvaultConfig.bicep' = {
-  name: 'key-vault-secrets'
-  params: {
-    keyVaultName: keyVault.name
-    communicationServiceName: communicationService.name
-  }
-}
-
-//I as admin have full control over keyvault
-resource keyVaultSecretsOfficerForAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, globalAdminId, roles.keyVaultAdministrator)
-  scope: keyVault
-  properties: {
-    principalId: globalAdminId
-    principalType: 'User'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      roles.keyVaultAdministrator
-    )
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Entra App Registrations
-// OAuth setup and passkey validation.
-// ──────────────────────────────────────────────────────────────────────────────
-
-module EntraAppRegistrations './entraRegistrations.bicep' = {
-  name: 'entraApps'
-  params: {
-    environment: environment
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// SQL Server + database
-// Data and stuff
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource sqlAdminGroup 'Microsoft.Graph/groups@v1.0' = {
-  uniqueName: sqlAdminGroupName
-  displayName: sqlAdminGroupName
-  description: 'Azure SQL administrators for ${environment}, and deployment automation.'
-  mailEnabled: false
-  mailNickname: sqlAdminGroupMailNickname
-  securityEnabled: true
-  owners: {
-    relationships: [
-      globalAdminId
-    ]
-  }
-}
-
-resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
-  name: 'db-${companyName}-${environment}-server'
-  location: location
-  properties: {
-    version: '12.0'
-    administratorLogin: 'rbj'
-    administratorLoginPassword: sqlAdminPassword
-    // The F1 App Service cannot use VNet integration. Restrict the public
-    // endpoint to the App Service outbound IP allowlist managed below.
-    publicNetworkAccess: 'Enabled'
-    administrators:{
-      administratorType: 'ActiveDirectory'
-      login: sqlAdminGroupName
-      sid: sqlAdminGroup.id
-      tenantId: subscription().tenantId
-      azureADOnlyAuthentication: false
-    }
-  }
-}
-
-resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
-  parent: sqlServer
-  name: 'db-${companyName}-${environment}'
-  location: location
-  sku: {
-    name: 'Basic'
-    tier: 'Basic'
-  }
-  properties: {
-    requestedBackupStorageRedundancy: 'Local'
-  }
-}
-
-resource sqlFirewallManagerForIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(sqlServer.id, identity.id, roles.sqlSecurityManager)
-  scope: sqlServer
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.sqlSecurityManager)
-  }
-}
-
-resource syncWebApiSqlFirewallRules 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  name: 'sync-web-api-sql-firewall-${toLower(environment)}'
-  location: location
-  kind: 'AzureCLI'
-  tags: tags
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
-  }
-  properties: {
-    azCliVersion: '2.61.0'
-    cleanupPreference: 'OnSuccess'
-    retentionInterval: 'P1D'
-    timeout: 'PT30M'
-    forceUpdateTag: identity.id
-    environmentVariables: [
-      {
-        name: 'RESOURCE_GROUP'
-        value: resourceGroup().name
-      }
-      {
-        name: 'SQL_SERVER_NAME'
-        value: sqlServer.name
-      }
-      {
-        name: 'OUTBOUND_IPS'
-        value: webApi.properties.possibleOutboundIpAddresses
-      }
-    ]
-    scriptContent: '''
-set -euo pipefail
-
-# Cap the time we spend in any single az call so a stuck control-plane
-# response can't eat the whole deployment-script timeout.
-export AZ_HTTP_TIMEOUT=60
-
-az_with_retry() {
-  local attempt=1
-  local max_attempts=4
-
-  while true; do
-    if az "$@"; then
-      return 0
-    fi
-
-    if [ "$attempt" -ge "$max_attempts" ]; then
-      return 1
-    fi
-
-    sleep $((attempt * 5))
-    attempt=$((attempt + 1))
-  done
-}
-
-# Read every rule owned by this script plus the two legacy broad-access rules.
-# Listing must succeed before any mutation so a control-plane failure cannot be
-# mistaken for an empty ruleset.
-list_existing() {
-  az_with_retry sql server firewall-rule list \
-    --resource-group "$RESOURCE_GROUP" \
-    --server "$SQL_SERVER_NAME" \
-    --query "[?starts_with(name, 'AllowWebApi') || name == 'AllowAzureServices' || name == 'AllowDeveloperIP'].name" \
-    --output tsv
-}
-
-create_rule() {
-  local name="$1"
-  local ip="$2"
-
-  # Azure CLI's create command is backed by create_or_update, making the
-  # deterministic IP-derived rule idempotent on later deployments.
-  az_with_retry sql server firewall-rule create \
-    --resource-group "$RESOURCE_GROUP" \
-    --server "$SQL_SERVER_NAME" \
-    --name "$name" \
-    --start-ip-address "$ip" \
-    --end-ip-address "$ip" \
-    --output none
-}
-
-valid_ips=()
-declare -A seen_ips=()
-IFS=',' read -ra candidate_ips <<< "$OUTBOUND_IPS"
-for ip in "${candidate_ips[@]}"; do
-  trimmed_ip=$(echo "$ip" | xargs)
-  valid=false
-  if [[ "$trimmed_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-    IFS='.' read -ra octets <<< "$trimmed_ip"
-    valid=true
-    for octet in "${octets[@]}"; do
-      if (( 10#$octet > 255 )); then
-        valid=false
-        break
-      fi
-    done
-  fi
-
-  if [ "$valid" = true ]; then
-    if [ -z "${seen_ips[$trimmed_ip]:-}" ]; then
-      valid_ips+=("$trimmed_ip")
-      seen_ips["$trimmed_ip"]=1
-    fi
-  elif [ -n "$trimmed_ip" ]; then
-    echo "skipping non-IPv4 value: $trimmed_ip" >&2
-  fi
-done
-
-if [ "${#valid_ips[@]}" -eq 0 ]; then
-  echo "App Service returned no valid outbound IP addresses; existing SQL firewall rules were not changed." >&2
-  exit 1
-fi
-
-existing_raw=$(list_existing)
-
-# Use IP-derived names so a changed allowlist can be created completely before
-# obsolete access is removed. A partial failure therefore keeps the previous
-# working rules in place.
-declare -A desired_names=()
-for ip in "${valid_ips[@]}"; do
-  name="AllowWebApi-${ip//./-}"
-  create_rule "$name" "$ip"
-  desired_names["$name"]=1
-done
-
-# Replacements are now confirmed. Remove obsolete managed rules and the two
-# legacy broad-access rules. Deliberately configured unrelated rules remain.
-if [ -n "$existing_raw" ]; then
-  while IFS= read -r name; do
-    case "$name" in
-      AllowWebApi*|AllowAzureServices|AllowDeveloperIP)
-        if [ -z "${desired_names[$name]:-}" ]; then
-          az_with_retry sql server firewall-rule delete \
-            --resource-group "$RESOURCE_GROUP" \
-            --server "$SQL_SERVER_NAME" \
-            --name "$name" \
-            --output none
-        fi ;;
-    esac
-  done <<< "$existing_raw"
-fi
-'''
-  }
-  dependsOn: [
-    sqlFirewallManagerForIdentity
-  ]
-}
-
-// ──────────────────────────────────────────────────────────
-// Storage Account
-// Used for document storage and workflow assets.
-// Identity needs Blob contributor access for managed identity uploads.
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
-  name: storageAccountName
-  location: location
-  kind: 'StorageV2'
-  sku: { name: 'Standard_LRS' }
-  tags: tags
-  properties: {
-    minimumTlsVersion: 'TLS1_2'
-    supportsHttpsTrafficOnly: true
-    allowBlobPublicAccess: false
-  }
-}
-
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
-  parent: storageAccount
-  name: 'default'
-  properties: {
-    deleteRetentionPolicy: { enabled: true, days: 7 }
-  }
-}
-
-resource uploadsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
-  parent: blobService
-  name: 'uploads'
-}
-
-resource documentsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
-  parent: blobService
-  name: 'documents'
-}
-
-resource storageRoleBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid('${storageAccount.id}${identity.id}${roles.storageBlobContributor}')
-  scope: storageAccount
-  properties: {
-    principalId: identity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.storageBlobContributor)
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Azure Communication Services
-// Used for sending invite emails to new users via the ACS Email SDK.
-// Authenticated through the shared user-assigned managed identity.
-// ──────────────────────────────────────────────────────────────────────────────
-
-resource communicationService 'Microsoft.Communication/communicationServices@2023-04-01' = {
-  name: communicationServiceName
-  location: 'global'
-  tags: tags
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: { '${identity.id}': {} }
-  }
-  properties: {
-    dataLocation: 'europe'
-    linkedDomains: isProduction
-      ? [
-          azureManagedEmailDomain.id
-          customEmailDomain.id
-        ]
-      : [
-          azureManagedEmailDomain.id
-        ]
-  }
-}
-
-resource emailService 'Microsoft.Communication/emailServices@2023-04-01' = {
-  name: emailServiceName
-  location: 'global'
-  tags: tags
-  properties: {
-    dataLocation: 'europe'
-  }
-}
-
-// Keep the Azure-managed domain linked as an emergency rollback sender.
-resource azureManagedEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = {
-  name: 'AzureManagedDomain'
-  parent: emailService
-  location: 'global'
-  tags: tags
-  properties: {
-    domainManagement: 'AzureManaged'
-  }
-}
-
-resource azureManagedSenderUsername 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-03-31' = {
-  parent: azureManagedEmailDomain
-  name: 'DoNotReply'
-  properties: {
-    displayName: 'Workslip'
-    username: 'DoNotReply'
-  }
-}
-
-// Production DNS verification is complete. Non-production environments use the
-// Azure-managed domain and do not depend on production DNS ownership.
-resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = if (isProduction) {
-  name: customEmailDomainName
-  parent: emailService
-  location: 'global'
-  tags: tags
-  properties: {
-    domainManagement: 'CustomerManaged'
-    userEngagementTracking: 'Disabled'
-  }
-}
-
-resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (isProduction) {
-  parent: customEmailDomain
-  name: customEmailSenderUsername
-  properties: {
-    displayName: 'Workslip'
-    username: customEmailSenderUsername
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Outputs
-// ──────────────────────────────────────────────────────────────────────────────
-
-output STORAGE_ACCOUNT_NAME string             = storageAccount.name
-output WEB_API_NAME string                     = webApi.name
-output WEB_API_DEFAULT_HOSTNAME string         = webApi.properties.defaultHostName
-output WEB_API_URL string                      = 'https://${webApi.properties.defaultHostName}'
-output WEB_API_SERVER_NAME string              = webApiServer.name
-output MANAGED_IDENTITY_CLIENT_ID string       = identity.properties.clientId
-output MANAGED_IDENTITY_PRINCIPAL_ID string    = identity.properties.principalId
-output GITHUB_DEPLOYMENT_CLIENT_ID string      = githubDeploymentIdentity.properties.clientId
-output SQL_ADMIN_GROUP_ID string               = sqlAdminGroup.id
-output GITHUB_FEDERATED_CREDENTIAL_SUBJECT string = githubFederatedCredential.properties.subject
-output APP_INSIGHTS_CONNECTION_STRING string   = appInsights.properties.ConnectionString
-output KEY_VAULT_URI string                    = keyVault.properties.vaultUri
-output AZURE_APP_CONFIG_ENDPOINT string        = appConfiguration.properties.endpoint
-output AZURE_AD_OAUTH_APP_OBJECT_ID string      = EntraAppRegistrations.outputs.OAuthAppObjectId
-output AZURE_AD_OAUTH_APP_CLIENT_ID string      = EntraAppRegistrations.outputs.OAuthAppId
-output ACS_ENDPOINT string                     = 'https://${communicationService.properties.hostName}'
-output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = isProduction ? customEmailDomain.id : ''
-output ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE bool      = isProduction
-output ACS_SENDER_ADDRESS string                = acsSenderAddress
+<file path="src/BE/infrastructure/README.md">
+# Infrastructure deployment
+
+**Status:** Active  
+**Owner:** Workslip repository owner  
+**Source of truth:** this directory, `main.bicep`, the deployment scripts and accepted infrastructure ADRs  
+**Review cadence:** whenever Azure, Entra, SQL, GitHub OIDC, monitoring or secret handling changes  
+**Linear:** WOR-190, WOR-212, WOR-223
+
+Workslip has exactly three supported deployment entry points:
+
+| Script | Purpose |
+|---|---|
+| `deploy.ps1` | Reconcile Entra, deploy Azure infrastructure and reconcile deployment-owned runtime secrets. |
+| `deploy-entra.ps1` | Reconcile only the Microsoft Entra application registrations and service principals. |
+| `deploy-infrastructure.ps1` | Deploy only Azure resources using existing Entra state or read-only Entra discovery. |
+
+Do not add another public deployment wrapper. Helper scripts such as `reconcile-vapid-secret.ps1` are implementation details and must not be presented as operator entry points.
+
+## Prerequisites
+
+- Azure CLI authenticated to the intended subscription and tenant.
+- An operator allowed to deploy the resource group, manage the SQL administrator group and read/write the production Key Vault and App Configuration resources.
+- Microsoft `sqlcmd` on the machine running the infrastructure phase.
+- Microsoft Graph application-management permission for the Entra phase.
+
+Production defaults are `mrsoftware`, `prod` and `westeurope`. Pass explicit values for another environment.
+
+## Full deployment
+
+Run all supported phases through the primary entry point:
+
+```powershell
+.\deploy.ps1 prod
+```
+
+The sequence is:
+
+1. `deploy-entra.ps1` reconciles the two Entra applications and service principals.
+2. `deploy-infrastructure.ps1` deploys and reconciles Azure resources.
+3. `reconcile-vapid-secret.ps1` preserves or creates the secure VAPID private key, creates its App Configuration Key Vault reference and restarts the API.
+
+The VAPID phase never prints key material. It preserves an enabled `Vapid--PrivateKey` secret and generates one valid P-256 private scalar only when the secret is missing or disabled.
+
+## Entra only
+
+Run this phase when creating an environment or changing application-registration settings:
+
+```powershell
+.\deploy-entra.ps1 prod
+```
+
+It reconciles the stable alternate keys:
+
+- `workslip-oauth-server-{environment}`
+- `workslip-client-{environment}`
+
+Resolved object and client IDs are written to the ignored local state file:
+
+```text
+entra.{environment}.local.json
+```
+
+The script preserves existing managed role/scope IDs and does not create an OAuth client secret. The browser authenticates with authorization code + PKCE; the API validates bearer tokens.
+
+## Azure infrastructure only
+
+Run Azure resource deployment without modifying Entra registrations:
+
+```powershell
+.\deploy-infrastructure.ps1 prod
+```
+
+The script uses the local Entra state when present. Otherwise, it performs read-only discovery from Azure App Configuration and the stable Graph alternate keys. It fails with an instruction to run `deploy-entra.ps1` when no valid pair can be resolved.
+
+The infrastructure phase:
+
+1. validates the environment and tenant;
+2. writes a temporary compile-time Entra handoff;
+3. deploys `main.bicep` once;
+4. reconciles Azure-owned deployment secrets without exposing them on command lines;
+5. provisions the API user-assigned managed identity in Azure SQL;
+6. restores the committed handoff placeholder.
+
+An infrastructure-only deployment does not generate the VAPID private key. Use the full `deploy.ps1` entry point when establishing a new environment or repairing a missing VAPID secret.
+
+Vercel cache-purge credentials and project configuration are outside the Azure infrastructure deployment boundary. The infrastructure scripts neither require nor reconcile them.
+
+## Internal helpers
+
+`grant-web-api-sql-access.ps1` and `reconcile-vapid-secret.ps1` are called by supported deployment entry points. They are implementation helpers, not standalone operator commands.
+
+The SQL helper temporarily allows the deployment machine's public IPv4 address while running `sqlcmd`, then deletes the rule through `az sql server firewall-rule delete`. Azure SQL's delete command does not accept the `--yes` option; do not copy confirmation flags from MySQL or App Configuration CLI commands into this cleanup path.
+
+The VAPID helper owns private-key generation, Key Vault storage, the `Vapid:PrivateKey` Key Vault reference and API restart.
+
+## Runtime SQL authentication
+
+Production API connections use the user-assigned managed identity:
+
+```text
+Authentication=Active Directory Managed Identity;User Id=<managed-identity-client-id>
+```
+
+`Azure:Sql:ConnectionString` is a Key Vault reference. It contains no SQL username or password. The SQL administrator password remains a deployment-only bootstrap credential in Key Vault secret `Azure--Sql--AdminPassword` and is used only by the controlled `sqlcmd` provisioning step.
+
+The identity currently receives `db_datareader`, `db_datawriter` and `db_ddladmin`. `db_ddladmin` is temporary while schema initialization still runs at API startup; remove it with WOR-136 when migrations move to deployment.
+
+## Secret lifecycle
+
+The full deployment owns these versionless Key Vault references:
+
+| Configuration key | Key Vault secret | Behaviour |
+|---|---|---|
+| `Jwt:SigningKey` | `Jwt--SigningKey` | Generates a cryptographically random key when missing or when the legacy short deterministic value is detected. `WORKSLIP_JWT_SIGNING_KEY` is an explicit rotation override. |
+| `Azure:Sql:ConnectionString` | `Azure--Sql--ConnectionString` | Reconciled to a passwordless managed-identity connection string after Bicep returns the identity client ID. |
+| `Vapid:PrivateKey` | `Vapid--PrivateKey` | Preserves an enabled secret and generates one valid P-256 private scalar when the secret is missing or disabled. |
+
+Secrets are written through temporary files and cleared from script variables during cleanup. A newly generated VAPID key invalidates old browser subscriptions until each installed PWA completes its authenticated subscription-repair flow.
+
+## Microsoft Graph permissions
+
+`main.bicep` is the single source of truth for API runtime Graph app-role assignments:
+
+- `User.ReadWrite.All`
+- `User.Invite.All`
+- `Application.Read.All`
+- `AppRoleAssignment.ReadWrite.All`
+
+These permissions support external-user lookup/invitation/deletion, API service-principal lookup and app-role assignment. Deployment scripts must not duplicate this assignment set.
+
+## ACS custom sender
+
+Production selects the verified `mrsoftware.dk` ACS email domain and `noreply@mrsoftware.dk` sender. Non-production environments use their Azure-managed domain and generated `DoNotReply@<domain>.azurecomm.net` sender. There is no operator activation parameter; the environment determines the sender.
+
+The Azure-managed domain remains linked in production as an emergency rollback resource. Non-production deployments do not provision or link the production custom domain.
+
+DNS verification must remain valid for Domain, SPF, DKIM and DKIM2. See `../../../Docs/acs-email-setup.md` for maintenance and smoke-test procedures.
+
+## Azure Monitor API alerts
+
+`monitoring.bicep` provisions one Azure Monitor Action Group and three stateful API alert rules:
+
+| Alert | Condition | Severity |
+|---|---|---|
+| API unavailable | The public `/health` endpoint fails from at least three of five Azure test locations during a five-minute window. | Critical (0) |
+| HTTP 5xx | The App Service emits one or more HTTP 5xx responses during a five-minute window. | Error (1) |
+| Slow API | Average App Service response time exceeds five seconds during a five-minute window. | Warning (2) |
+
+The availability test runs every five minutes from five regions, has retries enabled and validates HTTP 200, TLS validity and certificate lifetime. Standard availability tests are billable Azure Monitor executions; review Azure pricing before deploying additional environments or locations.
+
+Alert recipients are maintained in `monitoring.config.json`. This is intentionally deployment-time operations configuration rather than a query against the Workslip database: alerts must still be deliverable when the API or SQL database is unavailable. Keep the list aligned with the people expected to respond to production incidents. Do not place credentials or notification-service secrets in this file.
+
+After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert. Tune the response-time threshold if the F1 App Service cold-start behaviour creates repeated non-actionable notifications.
+
+## Required post-deployment verification
+
+A successful script exit is not sufficient release evidence. Verify:
+
+1. `Azure:Sql:ConnectionString`, `Jwt:SigningKey` and `Vapid:PrivateKey` are versionless Key Vault references in App Configuration.
+2. Key Vault contains an enabled `Vapid--PrivateKey` secret.
+3. The SQL connection secret uses managed identity and contains no `Password=` or SQL user ID.
+4. The API managed identity can connect and `/health` returns successfully after API deployment.
+5. Microsoft login and one authenticated API request succeed.
+6. Authenticated `GET /api/push-subscriptions/public-key` returns `200` without exposing private material.
+7. Open or re-authenticate one installed PWA so it registers or repairs its subscription, then background the app and verify one OS-level notification.
+8. The legacy OAuth credential display name is absent from the OAuth application after a full deployment.
+9. In production, `Azure:Acs:SenderAddress` is `noreply@mrsoftware.dk` and the ACS domain verification states remain successful; non-production uses its Azure-managed sender.
+10. The temporary SQL firewall rule `AllowSqlProvisioningScript` is absent after deployment.
+11. The API Action Group contains the intended operations recipients and its test notification is received.
+12. The availability test reports successful executions from all configured locations.
+13. The API unavailable, HTTP 5xx and slow-response alert rules are enabled and reference the same Action Group.
+14. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
+
+Production Azure execution, DNS changes, alert testing and secret rotation are explicit operator actions; repository changes alone do not prove they succeeded.
 </file>
 
 <file path="src/BE/infrastructure/staticConfig.bicep">
@@ -127310,233 +127665,6 @@ For cross-layer changes, read every applicable scoped file before editing. The c
 Do not begin implementation until the relevant instructions, Linear issue, current branch state, applicable architecture documentation, and compliance impact have been inspected.
 </file>
 
-<file path=".github/workflows/main_api-mrsoftware-prod.yml">
-name: Backend API deploy
-
-on:
-  workflow_dispatch:
-    inputs:
-      app_name:
-        description: 'Azure Web App name'
-        required: false
-        default: 'api-mrsoftware-prod'
-      environment:
-        description: 'GitHub environment name'
-        required: false
-        default: 'prod'
-  push:
-    branches: [main]
-    paths:
-      - 'src/BE/WorkslipApi/**'
-      - '.github/workflows/main_api-mrsoftware-prod.yml'
-
-env:
-  DOTNET_VERSION: '10.0.x'
-  API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
-  PUBLISH_DIR: ${{ github.workspace }}/publish/api
-  DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
-  AZURE_WEBAPP_NAME: ${{ inputs.app_name || 'api-mrsoftware-prod' }}
-  AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
-
-permissions:
-  id-token: write
-  contents: read
-
-concurrency:
-  group: azure-api-${{ inputs.environment || 'prod' }}
-  cancel-in-progress: false
-
-jobs:
-  build:
-    name: Build API
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore
-        run: dotnet restore ${{ env.API_PROJECT }} --nologo
-
-      - name: Build
-        run: dotnet build ${{ env.API_PROJECT }} --configuration Release --no-restore --nologo
-
-      - name: Publish
-        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output "${{ env.PUBLISH_DIR }}" --nologo
-
-      - name: Create deployment package
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          rm -f "${DEPLOY_PACKAGE}"
-          (
-            cd "${PUBLISH_DIR}"
-            zip -q -r "${DEPLOY_PACKAGE}" .
-          )
-          unzip -Z1 "${DEPLOY_PACKAGE}" | grep -qx 'Workslip.Api.dll'
-          package_bytes="$(stat -c '%s' "${DEPLOY_PACKAGE}")"
-          echo "Deployment package size: ${package_bytes} bytes"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: workslip-api
-          path: ${{ env.DEPLOY_PACKAGE }}
-          if-no-files-found: error
-
-  deploy:
-    name: Deploy API
-    runs-on: ubuntu-latest
-    needs: build
-    environment: ${{ inputs.environment || 'prod' }}
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: workslip-api
-          path: ${{ github.workspace }}/publish
-
-      - name: Azure login
-        uses: azure/login@v3
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Inspect deployment target
-        id: target
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          state="$(az webapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query state \
-            --output tsv)"
-          host="$(az webapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query defaultHostName \
-            --output tsv)"
-
-          if [[ -z "${host}" || "${host}" == "null" ]]; then
-            echo "::error::Azure did not return a default hostname for ${AZURE_WEBAPP_NAME}."
-            exit 1
-          fi
-
-          echo "App Service state before deployment: ${state}"
-          echo "App Service host: ${host}"
-          echo "health_url=https://${host}/health" >> "${GITHUB_OUTPUT}"
-
-      - name: Deploy package with bounded retry
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          max_attempts=3
-          deployment_log="$(mktemp)"
-          trap 'rm -f "${deployment_log}"' EXIT
-
-          for attempt in $(seq 1 "${max_attempts}"); do
-            echo "App Service deployment attempt ${attempt}/${max_attempts}"
-            : > "${deployment_log}"
-
-            if az webapp deploy \
-              --resource-group "${AZURE_RESOURCE_GROUP}" \
-              --name "${AZURE_WEBAPP_NAME}" \
-              --src-path "${DEPLOY_PACKAGE}" \
-              --type zip \
-              --clean true \
-              --restart true \
-              --enable-kudu-warmup true \
-              --enriched-errors true \
-              --track-status false \
-              --timeout 600000 2>&1 | tee "${deployment_log}"; then
-              exit 0
-            fi
-
-            disk_full=false
-            if grep -Fqi 'There is not enough space on the disk' "${deployment_log}"; then
-              disk_full=true
-              echo "::warning::Kudu reported a full local deployment disk."
-            fi
-
-            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
-              if [[ "${disk_full}" == "true" ]]; then
-                echo "Recycling ${AZURE_WEBAPP_NAME} to clear its temporary local storage before retrying."
-                az webapp restart \
-                  --resource-group "${AZURE_RESOURCE_GROUP}" \
-                  --name "${AZURE_WEBAPP_NAME}" \
-                  --output none
-                delay_seconds=30
-              else
-                delay_seconds=$((attempt * 30))
-              fi
-
-              echo "::warning::App Service deployment attempt ${attempt} failed. Retrying in ${delay_seconds} seconds."
-              sleep "${delay_seconds}"
-            fi
-          done
-
-          echo "::error::App Service deployment failed after ${max_attempts} attempts."
-          echo "Safe App Service state:"
-          az webapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
-            --output jsonc || true
-
-          echo "Recent deployment records:"
-          az webapp log deployment list \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query '[0:5]' \
-            --output jsonc || true
-
-          echo "Latest deployment log:"
-          az webapp log deployment show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --output jsonc || true
-
-          exit 1
-
-      - name: Verify API health
-        shell: bash
-        env:
-          HEALTH_URL: ${{ steps.target.outputs.health_url }}
-        run: |
-          set -Eeuo pipefail
-          max_attempts=15
-
-          for attempt in $(seq 1 "${max_attempts}"); do
-            if curl --fail --silent --show-error \
-              --connect-timeout 10 \
-              --max-time 10 \
-              --output /dev/null \
-              "${HEALTH_URL}"; then
-              echo "API health check passed: ${HEALTH_URL}"
-              exit 0
-            fi
-
-            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
-              echo "Health check attempt ${attempt}/${max_attempts} failed; retrying in 10 seconds."
-              sleep 10
-            fi
-          done
-
-          echo "::error::API deployment completed, but ${HEALTH_URL} did not become healthy."
-          az webapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
-            --output jsonc || true
-          exit 1
-</file>
-
 <file path="Docs/api/contract.md">
 # Workslip API contract
 
@@ -127787,183 +127915,6 @@ Before any constraint is replaced or added, startup validates:
 If invalid rows exist, startup fails with the constraint name, relation and row count. No data is repaired or deleted automatically. Correct the reported rows, then restart the API to roll forward.
 
 Rollback is schema-only: drop the six `WOR-150` foreign keys and recreate the former simple worksheet/customer foreign keys if an emergency rollback is required. Do not roll back by deleting rows. The composite constraints are intentionally stricter than the previous schema, so application rollback should only happen after confirming the older version will not create new cross-tenant references.
-</file>
-
-<file path="src/BE/infrastructure/README.md">
-# Infrastructure deployment
-
-**Status:** Active  
-**Owner:** Workslip repository owner  
-**Source of truth:** this directory, `main.bicep`, the deployment scripts and accepted infrastructure ADRs  
-**Review cadence:** whenever Azure, Entra, SQL, GitHub OIDC, monitoring or secret handling changes  
-**Linear:** WOR-190, WOR-212, WOR-223
-
-Workslip has exactly three supported deployment entry points:
-
-| Script | Purpose |
-|---|---|
-| `deploy.ps1` | Reconcile Entra, deploy Azure infrastructure and reconcile deployment-owned runtime secrets. |
-| `deploy-entra.ps1` | Reconcile only the Microsoft Entra application registrations and service principals. |
-| `deploy-infrastructure.ps1` | Deploy only Azure resources using existing Entra state or read-only Entra discovery. |
-
-Do not add another public deployment wrapper. Helper scripts such as `reconcile-vapid-secret.ps1` are implementation details and must not be presented as operator entry points.
-
-## Prerequisites
-
-- Azure CLI authenticated to the intended subscription and tenant.
-- An operator allowed to deploy the resource group, manage the SQL administrator group and read/write the production Key Vault and App Configuration resources.
-- Microsoft `sqlcmd` on the machine running the infrastructure phase.
-- Microsoft Graph application-management permission for the Entra phase.
-
-Production defaults are `mrsoftware`, `prod` and `westeurope`. Pass explicit values for another environment.
-
-## Full deployment
-
-Run all supported phases through the primary entry point:
-
-```powershell
-.\deploy.ps1 prod
-```
-
-The sequence is:
-
-1. `deploy-entra.ps1` reconciles the two Entra applications and service principals.
-2. `deploy-infrastructure.ps1` deploys and reconciles Azure resources.
-3. `reconcile-vapid-secret.ps1` preserves or creates the secure VAPID private key, creates its App Configuration Key Vault reference and restarts the API.
-
-The VAPID phase never prints key material. It preserves an enabled `Vapid--PrivateKey` secret and generates one valid P-256 private scalar only when the secret is missing or disabled.
-
-## Entra only
-
-Run this phase when creating an environment or changing application-registration settings:
-
-```powershell
-.\deploy-entra.ps1 prod
-```
-
-It reconciles the stable alternate keys:
-
-- `workslip-oauth-server-{environment}`
-- `workslip-client-{environment}`
-
-Resolved object and client IDs are written to the ignored local state file:
-
-```text
-entra.{environment}.local.json
-```
-
-The script preserves existing managed role/scope IDs and does not create an OAuth client secret. The browser authenticates with authorization code + PKCE; the API validates bearer tokens.
-
-## Azure infrastructure only
-
-Run Azure resource deployment without modifying Entra registrations:
-
-```powershell
-.\deploy-infrastructure.ps1 prod
-```
-
-The script uses the local Entra state when present. Otherwise, it performs read-only discovery from Azure App Configuration and the stable Graph alternate keys. It fails with an instruction to run `deploy-entra.ps1` when no valid pair can be resolved.
-
-The infrastructure phase:
-
-1. validates the environment and tenant;
-2. writes a temporary compile-time Entra handoff;
-3. deploys `main.bicep` once;
-4. reconciles Azure-owned deployment secrets without exposing them on command lines;
-5. provisions the API user-assigned managed identity in Azure SQL;
-6. restores the committed handoff placeholder.
-
-An infrastructure-only deployment does not generate the VAPID private key. Use the full `deploy.ps1` entry point when establishing a new environment or repairing a missing VAPID secret.
-
-Vercel cache-purge credentials and project configuration are outside the Azure infrastructure deployment boundary. The infrastructure scripts neither require nor reconcile them.
-
-## Internal helpers
-
-`grant-web-api-sql-access.ps1` and `reconcile-vapid-secret.ps1` are called by supported deployment entry points. They are implementation helpers, not standalone operator commands.
-
-The SQL helper temporarily allows the deployment machine's public IPv4 address while running `sqlcmd`, then deletes the rule through `az sql server firewall-rule delete`. Azure SQL's delete command does not accept the `--yes` option; do not copy confirmation flags from MySQL or App Configuration CLI commands into this cleanup path.
-
-The VAPID helper owns private-key generation, Key Vault storage, the `Vapid:PrivateKey` Key Vault reference and API restart.
-
-## Runtime SQL authentication
-
-Production API connections use the user-assigned managed identity:
-
-```text
-Authentication=Active Directory Managed Identity;User Id=<managed-identity-client-id>
-```
-
-`Azure:Sql:ConnectionString` is a Key Vault reference. It contains no SQL username or password. The SQL administrator password remains a deployment-only bootstrap credential in Key Vault secret `Azure--Sql--AdminPassword` and is used only by the controlled `sqlcmd` provisioning step.
-
-The identity currently receives `db_datareader`, `db_datawriter` and `db_ddladmin`. `db_ddladmin` is temporary while schema initialization still runs at API startup; remove it with WOR-136 when migrations move to deployment.
-
-## Secret lifecycle
-
-The full deployment owns these versionless Key Vault references:
-
-| Configuration key | Key Vault secret | Behaviour |
-|---|---|---|
-| `Jwt:SigningKey` | `Jwt--SigningKey` | Generates a cryptographically random key when missing or when the legacy short deterministic value is detected. `WORKSLIP_JWT_SIGNING_KEY` is an explicit rotation override. |
-| `Azure:Sql:ConnectionString` | `Azure--Sql--ConnectionString` | Reconciled to a passwordless managed-identity connection string after Bicep returns the identity client ID. |
-| `Vapid:PrivateKey` | `Vapid--PrivateKey` | Preserves an enabled secret and generates one valid P-256 private scalar when the secret is missing or disabled. |
-
-Secrets are written through temporary files and cleared from script variables during cleanup. A newly generated VAPID key invalidates old browser subscriptions until each installed PWA completes its authenticated subscription-repair flow.
-
-## Microsoft Graph permissions
-
-`main.bicep` is the single source of truth for API runtime Graph app-role assignments:
-
-- `User.ReadWrite.All`
-- `User.Invite.All`
-- `Application.Read.All`
-- `AppRoleAssignment.ReadWrite.All`
-
-These permissions support external-user lookup/invitation/deletion, API service-principal lookup and app-role assignment. Deployment scripts must not duplicate this assignment set.
-
-## ACS custom sender
-
-Production selects the verified `mrsoftware.dk` ACS email domain and `noreply@mrsoftware.dk` sender. Non-production environments use their Azure-managed domain and generated `DoNotReply@<domain>.azurecomm.net` sender. There is no operator activation parameter; the environment determines the sender.
-
-The Azure-managed domain remains linked in production as an emergency rollback resource. Non-production deployments do not provision or link the production custom domain.
-
-DNS verification must remain valid for Domain, SPF, DKIM and DKIM2. See `../../../Docs/acs-email-setup.md` for maintenance and smoke-test procedures.
-
-## Azure Monitor API alerts
-
-`monitoring.bicep` provisions one Azure Monitor Action Group and three stateful API alert rules:
-
-| Alert | Condition | Severity |
-|---|---|---|
-| API unavailable | The public `/health` endpoint fails from at least three of five Azure test locations during a five-minute window. | Critical (0) |
-| HTTP 5xx | The App Service emits one or more HTTP 5xx responses during a five-minute window. | Error (1) |
-| Slow API | Average App Service response time exceeds five seconds during a five-minute window. | Warning (2) |
-
-The availability test runs every five minutes from five regions, has retries enabled and validates HTTP 200, TLS validity and certificate lifetime. Standard availability tests are billable Azure Monitor executions; review Azure pricing before deploying additional environments or locations.
-
-Alert recipients are maintained in `monitoring.config.json`. This is intentionally deployment-time operations configuration rather than a query against the Workslip database: alerts must still be deliverable when the API or SQL database is unavailable. Keep the list aligned with the people expected to respond to production incidents. Do not place credentials or notification-service secrets in this file.
-
-After deployment, use Azure Monitor's **Test action group** function to verify delivery. Do not deliberately stop production or generate production errors solely to test an alert. Tune the response-time threshold if the F1 App Service cold-start behaviour creates repeated non-actionable notifications.
-
-## Required post-deployment verification
-
-A successful script exit is not sufficient release evidence. Verify:
-
-1. `Azure:Sql:ConnectionString`, `Jwt:SigningKey` and `Vapid:PrivateKey` are versionless Key Vault references in App Configuration.
-2. Key Vault contains an enabled `Vapid--PrivateKey` secret.
-3. The SQL connection secret uses managed identity and contains no `Password=` or SQL user ID.
-4. The API managed identity can connect and `/health` returns successfully after API deployment.
-5. Microsoft login and one authenticated API request succeed.
-6. Authenticated `GET /api/push-subscriptions/public-key` returns `200` without exposing private material.
-7. Open or re-authenticate one installed PWA so it registers or repairs its subscription, then background the app and verify one OS-level notification.
-8. The legacy OAuth credential display name is absent from the OAuth application after a full deployment.
-9. In production, `Azure:Acs:SenderAddress` is `noreply@mrsoftware.dk` and the ACS domain verification states remain successful; non-production uses its Azure-managed sender.
-10. The temporary SQL firewall rule `AllowSqlProvisioningScript` is absent after deployment.
-11. The API Action Group contains the intended operations recipients and its test notification is received.
-12. The availability test reports successful executions from all configured locations.
-13. The API unavailable, HTTP 5xx and slow-response alert rules are enabled and reference the same Action Group.
-14. GitHub environment `prod` still contains the current OIDC client, tenant and subscription IDs.
-
-Production Azure execution, DNS changes, alert testing and secret rotation are explicit operator actions; repository changes alone do not prove they succeeded.
 </file>
 
 <file path="src/BE/WorkslipApi/Workslip.Application/Notifications/JobDeletionNotificationService.cs">
@@ -136037,6 +135988,256 @@ export function SuperAdmin() {
 .toast-shake.toast-shake-alt [data-content] {
   animation: toast-shake-b 0.4s ease;
 }
+</file>
+
+<file path=".github/workflows/main_api-mrsoftware-prod.yml">
+name: Backend API deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'Azure Web App name'
+        required: false
+        default: 'api-mrsoftware-prod'
+      environment:
+        description: 'GitHub environment name'
+        required: false
+        default: 'prod'
+  push:
+    branches: [main]
+    paths:
+      - 'src/BE/WorkslipApi/**'
+      - '.github/workflows/main_api-mrsoftware-prod.yml'
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
+  PUBLISH_DIR: ${{ github.workspace }}/publish/api
+  DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
+  AZURE_WEBAPP_NAME: ${{ inputs.app_name || 'api-mrsoftware-prod' }}
+  AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: azure-api-${{ inputs.environment || 'prod' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.API_PROJECT }} --nologo
+
+      - name: Build
+        run: dotnet build ${{ env.API_PROJECT }} --configuration Release --no-restore --nologo
+
+      - name: Publish
+        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output "${{ env.PUBLISH_DIR }}" --nologo
+
+      - name: Create deployment package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f "${DEPLOY_PACKAGE}"
+          (
+            cd "${PUBLISH_DIR}"
+            zip -q -r "${DEPLOY_PACKAGE}" .
+          )
+          unzip -Z1 "${DEPLOY_PACKAGE}" | grep -qx 'Workslip.Api.dll'
+          package_bytes="$(stat -c '%s' "${DEPLOY_PACKAGE}")"
+          echo "Deployment package size: ${package_bytes} bytes"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: workslip-api
+          path: ${{ env.DEPLOY_PACKAGE }}
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    needs: build
+    environment: ${{ inputs.environment || 'prod' }}
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: workslip-api
+          path: ${{ github.workspace }}/publish
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify diagnostics infrastructure prerequisite
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          workspace_id="$(az webapp config appsettings list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]" \
+            --output tsv)"
+
+          if [[ -z "${workspace_id}" || "${workspace_id}" == "null" ]]; then
+            echo "::error::The API is missing Azure__ApplicationInsights__WorkspaceId. Run the 'Production infrastructure deploy' workflow from main, then rerun this API deployment."
+            echo "::error::Backend deployment is blocked so diagnostics code cannot be released without its required Azure configuration."
+            exit 1
+          fi
+
+          if [[ ! "${workspace_id}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::Azure__ApplicationInsights__WorkspaceId is present but is not a valid workspace GUID. Reconcile production infrastructure before deploying the API."
+            exit 1
+          fi
+
+          echo "Application Insights workspace configuration is present."
+
+      - name: Inspect deployment target
+        id: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          state="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query state \
+            --output tsv)"
+          host="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query defaultHostName \
+            --output tsv)"
+
+          if [[ -z "${host}" || "${host}" == "null" ]]; then
+            echo "::error::Azure did not return a default hostname for ${AZURE_WEBAPP_NAME}."
+            exit 1
+          fi
+
+          echo "App Service state before deployment: ${state}"
+          echo "App Service host: ${host}"
+          echo "health_url=https://${host}/health" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy package with bounded retry
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          max_attempts=3
+          deployment_log="$(mktemp)"
+          trap 'rm -f "${deployment_log}"' EXIT
+
+          for attempt in $(seq 1 "${max_attempts}"); do
+            echo "App Service deployment attempt ${attempt}/${max_attempts}"
+            : > "${deployment_log}"
+
+            if az webapp deploy \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --name "${AZURE_WEBAPP_NAME}" \
+              --src-path "${DEPLOY_PACKAGE}" \
+              --type zip \
+              --clean true \
+              --restart true \
+              --enable-kudu-warmup true \
+              --enriched-errors true \
+              --track-status false \
+              --timeout 600000 2>&1 | tee "${deployment_log}"; then
+              exit 0
+            fi
+
+            disk_full=false
+            if grep -Fqi 'There is not enough space on the disk' "${deployment_log}"; then
+              disk_full=true
+              echo "::warning::Kudu reported a full local deployment disk."
+            fi
+
+            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+              if [[ "${disk_full}" == "true" ]]; then
+                echo "Recycling ${AZURE_WEBAPP_NAME} to clear its temporary local storage before retrying."
+                az webapp restart \
+                  --resource-group "${AZURE_RESOURCE_GROUP}" \
+                  --name "${AZURE_WEBAPP_NAME}" \
+                  --output none
+                delay_seconds=30
+              else
+                delay_seconds=$((attempt * 30))
+              fi
+
+              echo "::warning::App Service deployment attempt ${attempt} failed. Retrying in ${delay_seconds} seconds."
+              sleep "${delay_seconds}"
+            fi
+          done
+
+          echo "::error::App Service deployment failed after ${max_attempts} attempts."
+          echo "Safe App Service state:"
+          az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
+            --output jsonc || true
+
+          echo "Recent deployment records:"
+          az webapp log deployment list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '[0:5]' \
+            --output jsonc || true
+
+          echo "Latest deployment log:"
+          az webapp log deployment show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --output jsonc || true
+
+          exit 1
+
+      - name: Verify API health
+        shell: bash
+        env:
+          HEALTH_URL: ${{ steps.target.outputs.health_url }}
+        run: |
+          set -Eeuo pipefail
+          max_attempts=15
+
+          for attempt in $(seq 1 "${max_attempts}"); do
+            if curl --fail --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 10 \
+              --output /dev/null \
+              "${HEALTH_URL}"; then
+              echo "API health check passed: ${HEALTH_URL}"
+              exit 0
+            fi
+
+            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+              echo "Health check attempt ${attempt}/${max_attempts} failed; retrying in 10 seconds."
+              sleep 10
+            fi
+          done
+
+          echo "::error::API deployment completed, but ${HEALTH_URL} did not become healthy."
+          az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
+            --output jsonc || true
+          exit 1
 </file>
 
 <file path="Docs/api/endpoint-catalog.md">
