@@ -19,9 +19,9 @@ This directory separates maintained product documentation from historical implem
 | Infrastructure deployment | [`../src/BE/infrastructure/README.md`](../src/BE/infrastructure/README.md) | Active | Repository owner | On Azure, Entra, SQL or secret changes | Bicep, deployment scripts and accepted ADRs |
 | Architecture and ADRs | [`architecture/README.md`](architecture/README.md) | Draft | Architecture owner | Monthly and on boundary changes | Deployed code, infrastructure and accepted ADRs |
 | API and integrations | [`api/README.md`](api/README.md) | Draft | API owner | On contract changes | Runtime OpenAPI, endpoint code and Postman suite |
-| Application Insights error dashboard | [`operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md`](operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md) | Active | Repository owner | On telemetry, RBAC, KQL or incident changes | Diagnostics endpoint/service, Bicep and Superadmin UI |
 | Pages and domain operations | [`operations/github-pages-domain-runbook.md`](operations/github-pages-domain-runbook.md) | Active | Repository owner | Before Pages or DNS changes | GitHub Pages settings, DNS and Pages workflow |
 | CI quality gates | [`operations/ci-quality-gates.md`](operations/ci-quality-gates.md) | Active | Repository owner | Monthly and on required-check changes | Workflows, rulesets and successful runs |
+| Application Insights error dashboard | [`operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md`](operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md) | Active | Workslip maintainers | On telemetry, Azure RBAC, KQL or incident-process changes | Diagnostics endpoint/service, frontend telemetry and Azure configuration |
 | Agent conventions | [`../AGENTS.md`](../AGENTS.md) | Active | Repository owner | On engineering-policy changes | Approved repository rules |
 
 Named owners should be replaced with actual team members when ownership is assigned in Linear. Until then, the repository owner is accountable for review.
