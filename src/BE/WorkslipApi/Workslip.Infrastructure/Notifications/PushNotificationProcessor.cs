@@ -27,7 +27,7 @@ public sealed class PushNotificationProcessor
         _logger = logger;
     }
 
-    public async Task ProcessBatchAsync(int batchSize, CancellationToken cancellationToken)
+    public async Task<int> ProcessBatchAsync(int batchSize, CancellationToken cancellationToken)
     {
         var notifications = await _notificationRepository
             .ClaimPendingNotificationsAsync(batchSize, cancellationToken);
@@ -52,6 +52,8 @@ public sealed class PushNotificationProcessor
                 await RescheduleUnexpectedFailureAsync(notification, exception, cancellationToken);
             }
         }
+
+        return notifications.Count;
     }
 
     public async Task ProcessNotificationAsync(
@@ -124,8 +126,8 @@ public sealed class PushNotificationProcessor
             options = new
             {
                 body,
-                icon = "/logo.png",
-                badge = "/logo.png",
+                icon = "/icons/icon-192.png",
+                badge = "/icons/badge.png",
                 tag = $"job-{payload.JobId}",
                 data = new { url = payload.Url }
             }
