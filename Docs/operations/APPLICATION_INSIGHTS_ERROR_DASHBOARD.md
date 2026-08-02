@@ -2,8 +2,8 @@
 
 **Status:** Active  
 **Owner:** Workslip maintainers  
-**Source of truth:** `DiagnosticsEndpoints`, `ApplicationInsightsErrorDiagnosticsService`, frontend Application Insights bootstrap, Azure monitoring configuration and the Superadmin diagnostics UI  
-**Review cadence:** On telemetry, Azure RBAC, KQL schema, error-handling or incident-process changes
+**Source of truth:** `DiagnosticsEndpoints`, `ApplicationInsightsErrorDiagnosticsService`, frontend Application Insights bootstrap, Azure monitoring configuration, the Superadmin diagnostics UI and `supportSnapshot.ts`  
+**Review cadence:** On telemetry, Azure RBAC, KQL schema, error-handling, support-export or incident-process changes
 
 ## Purpose
 
@@ -143,6 +143,23 @@ The API contract may contain only:
 
 It must never return raw exception objects, stack traces, request or response bodies, headers, authorization values, cookies, e-mail addresses, phone numbers, tenant IDs, entity IDs or complete Application Insights properties.
 
+## Explicit support export
+
+A Superadmin can use **Kopiér til ChatGPT** after a validated dashboard response has loaded. The action writes a versioned JSON support snapshot to the local clipboard. It does not call another endpoint, create a file, persist the snapshot, emit a telemetry event or transmit data to ChatGPT or another service.
+
+The export serializer reconstructs the payload from an explicit field allowlist instead of serializing the runtime object directly. Unexpected future properties on the API object or error items are therefore excluded by default. The snapshot contains only:
+
+- schema version and non-sensitive source identifier;
+- export timestamp;
+- selected range and source filters;
+- the already validated and sanitized `ErrorDiagnosticsDashboard` fields listed above.
+
+Current, partial, stale, unavailable and truncated states remain part of the snapshot. A copied stale or incomplete snapshot must not be presented as current data.
+
+Clipboard access requires a secure browser context and explicit user action. If clipboard access is unavailable or denied, the UI reports a generic failure and does not fall back to DOM selection, downloads, browser storage or network transmission.
+
+Copying is a deliberate disclosure by the signed-in Superadmin to a destination they choose. Do not paste support snapshots into public issues, unrestricted chats or external tools unless that use is approved for Workslip operational data. The export control reduces accidental over-sharing but does not replace access policy, retention, processor approval or incident handling.
+
 ## Redaction and correlation identifiers
 
 Redaction is performed in two places:
@@ -198,6 +215,8 @@ The PR must remain draft until all items below are documented:
 16. Confirm no token, e-mail, phone, GUID, payload, arbitrary correlation ID or stack trace appears in the API response or browser.
 17. Validate loading, current, empty, partial, stale, unavailable, retry, truncation, filter and narrow-mobile states with Playwright.
 18. Verify the dashboard error boundary cannot take down organization administration.
+19. Verify the copy action is disabled before a validated response exists, copies the active range/source snapshot, preserves incomplete-state warnings and excludes unexpected object fields.
+20. Verify clipboard denial shows a generic failure without persistence, download or network fallback.
 
 Do not generate destructive exceptions against real customer cases.
 
