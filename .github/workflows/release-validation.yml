@@ -1,0 +1,189 @@
+name: Release validation
+
+on:
+  push:
+    branches:
+      - 'release/**'
+
+permissions:
+  actions: read
+  contents: read
+  packages: read
+  security-events: write
+
+concurrency:
+  group: release-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
+  BACKEND_SOLUTION: src/BE/WorkslipApi/Workslip.slnx
+
+jobs:
+  backend:
+    name: Backend build, tests and CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('src/BE/WorkslipApi/**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Initialize CodeQL for C#
+        uses: github/codeql-action/init@v4
+        with:
+          languages: csharp
+          build-mode: manual
+
+      - name: Restore
+        run: dotnet restore "${BACKEND_SOLUTION}" --nologo
+
+      - name: Build Release
+        run: dotnet build "${BACKEND_SOLUTION}" --configuration Release --no-restore --nologo
+
+      - name: Run backend tests
+        run: >-
+          dotnet test "${BACKEND_SOLUTION}"
+          --configuration Release
+          --no-build
+          --nologo
+          --logger "trx;LogFileName=release-tests.trx"
+          --results-directory "${{ runner.temp }}/backend-tests"
+
+      - name: Analyze C# with CodeQL
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:csharp'
+
+      - name: Upload backend test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-backend-test-results
+          path: ${{ runner.temp }}/backend-tests
+          if-no-files-found: warn
+          retention-days: 3
+
+  frontend:
+    name: Frontend lint, tests, build and CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src/FE
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Cache generated fonts
+        uses: actions/cache@v4
+        with:
+          path: src/FE/public/fonts
+          key: fonts-${{ runner.os }}-${{ hashFiles('src/FE/scripts/sync-fonts.mjs') }}
+
+      - name: Initialize CodeQL for JavaScript and TypeScript
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run frontend tests
+        run: npm run test -- --run
+
+      - name: Build production frontend
+        run: npm run build
+
+      - name: Analyze JavaScript and TypeScript with CodeQL
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:javascript-typescript'
+
+  contracts:
+    name: Playwright and API contract sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate Playwright sources
+        working-directory: src/FE
+        run: |
+          node --check scripts/playwright-prod-smoke.mjs
+          node --check scripts/playwright-critical-contract.mjs
+          node --check scripts/playwright-critical-domain.mjs
+          node --check scripts/playwright-scenarios-core.mjs
+          node --check scripts/playwright-scenarios-admin.mjs
+
+      - name: Validate Postman collection
+        working-directory: src/FE
+        run: >-
+          node -e
+          "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8')); console.log('Postman collection JSON OK');"
+
+  release-gate:
+    name: Release gate
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - backend
+      - frontend
+      - contracts
+    timeout-minutes: 2
+
+    steps:
+      - name: Verify all required validation jobs
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          printf 'Backend: %s\n' "${BACKEND_RESULT}"
+          printf 'Frontend: %s\n' "${FRONTEND_RESULT}"
+          printf 'Contracts: %s\n' "${CONTRACTS_RESULT}"
+
+          if [[ "${BACKEND_RESULT}" != 'success' ||
+                "${FRONTEND_RESULT}" != 'success' ||
+                "${CONTRACTS_RESULT}" != 'success' ]]; then
+            echo '::error::One or more required release validation jobs did not succeed.'
+            exit 1
+          fi
+
+          echo 'All required release validation jobs, including CodeQL, succeeded.'
