@@ -1,4 +1,5 @@
 export interface NotificationWindowClient {
+  url: string;
   focused: boolean;
   visibilityState: string;
   navigate(url: string): Promise<NotificationWindowClient | null>;
@@ -75,12 +76,46 @@ export function resolveNotificationTarget(rawTarget: unknown, origin: string): s
   }
 }
 
+function isWorkslipClient(
+  client: NotificationWindowClient,
+  origin: string,
+): boolean {
+  try {
+    const url = new URL(client.url);
+    if (url.origin !== origin) return false;
+
+    return url.pathname === '/'
+      || url.pathname === '/login'
+      || url.pathname === '/app'
+      || url.pathname.startsWith('/app/')
+      || url.pathname.startsWith('/invite/')
+      || url.pathname === '/superadmin'
+      || url.pathname.startsWith('/superadmin/');
+  } catch {
+    return false;
+  }
+}
+
 function selectNotificationClient(
   clients: readonly NotificationWindowClient[],
+  origin: string,
 ): NotificationWindowClient | undefined {
-  return clients.find((client) => client.focused)
-    ?? clients.find((client) => client.visibilityState === 'visible')
-    ?? clients[0];
+  const eligibleClients = clients.filter((client) => isWorkslipClient(client, origin));
+
+  return eligibleClients.find((client) => client.focused)
+    ?? eligibleClients.find((client) => client.visibilityState === 'visible')
+    ?? eligibleClients[0];
+}
+
+function clientIsAtTarget(
+  client: NotificationWindowClient,
+  target: string,
+): boolean {
+  try {
+    return new URL(client.url).href === target;
+  } catch {
+    return false;
+  }
 }
 
 export async function navigateNotificationTarget(
@@ -91,7 +126,7 @@ export async function navigateNotificationTarget(
   navigateOpenClient?: NavigateOpenNotificationClient,
 ): Promise<NotificationWindowClient | null> {
   const target = resolveNotificationTarget(rawTarget, origin);
-  const existingClient = selectNotificationClient(clients);
+  const existingClient = selectNotificationClient(clients, origin);
 
   if (!existingClient) {
     return openWindow(target);
@@ -103,11 +138,27 @@ export async function navigateNotificationTarget(
         return existingClient.focus();
       }
     } catch {
-      // Older clients do not have the router listener. Fall back to a document
-      // navigation so notification clicks still work across deployments.
+      // Older clients do not have the router listener. Continue through the
+      // document-navigation and open-window compatibility fallbacks.
     }
   }
 
-  const navigatedClient = await existingClient.navigate(target);
-  return (navigatedClient ?? existingClient).focus();
+  try {
+    const navigatedClient = await existingClient.navigate(target);
+    if (navigatedClient && clientIsAtTarget(navigatedClient, target)) {
+      return navigatedClient.focus();
+    }
+  } catch {
+    // Some installed-PWA clients reject or ignore document navigation. The
+    // browser-level openWindow fallback below is more reliable in that state.
+  }
+
+  try {
+    const openedClient = await openWindow(target);
+    if (openedClient) return openedClient;
+  } catch {
+    // Last resort: at least bring the existing application window forward.
+  }
+
+  return existingClient.focus();
 }
