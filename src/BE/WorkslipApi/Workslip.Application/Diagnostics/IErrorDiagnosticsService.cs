@@ -23,9 +23,11 @@ public sealed record ErrorDiagnosticsDashboard(
     DateTimeOffset? DataRetrievedAtUtc,
     bool SummaryAvailable,
     bool ItemsAvailable,
+    bool TelemetryHealthAvailable,
     bool HasPartialAzureResults,
     bool IsTruncated,
     ErrorDiagnosticsSummary? Summary,
+    ErrorDiagnosticsTelemetryHealth? TelemetryHealth,
     IReadOnlyList<ErrorDiagnosticsItem> Items)
 {
     public static ErrorDiagnosticsDashboard Unavailable(string reason) =>
@@ -40,6 +42,8 @@ public sealed record ErrorDiagnosticsDashboard(
             false,
             false,
             false,
+            false,
+            null,
             null,
             []);
 
@@ -60,6 +64,10 @@ public sealed record ErrorDiagnosticsSummary(
     long Last7Days,
     long FrontendLast24Hours,
     long BackendLast24Hours);
+
+public sealed record ErrorDiagnosticsTelemetryHealth(
+    DateTimeOffset? FrontendLastSeenUtc,
+    DateTimeOffset? BackendLastSeenUtc);
 
 public sealed record ErrorDiagnosticsItem(
     DateTimeOffset TimestampUtc,
