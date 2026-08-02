@@ -24,6 +24,9 @@ const OneTimeCodeLogin = lazy(() =>
 );
 
 const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve igen.';
+const devLoginEnabled =
+  import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true'
+  && __WORKSLIP_RELEASE_TESTING_ENABLED__;
 
 const isBackForwardNavigation = () =>
   typeof performance !== 'undefined' &&
@@ -239,7 +242,7 @@ export const Login = () => {
                 </button>
               </div>
 
-              {import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
+              {devLoginEnabled && (
                 <div className="login-dev-section">
                   <div className="login-dev-buttons">
                     {[
