@@ -37,18 +37,19 @@ The Repomix snapshot is maintained as a post-release artifact rather than a rele
 
 ### Protected-branch write identity
 
-GitHub branch protection and repository rulesets grant bypass to actors, not individual files. The Repomix workflow therefore uses a dedicated identity plus workflow-level file enforcement:
+GitHub branch protection and repository rulesets grant bypass to actors, not individual files. The Repomix workflow therefore uses a dedicated GitHub App plus workflow-level file enforcement:
 
-1. Create a dedicated machine user or GitHub App used only for Repomix publishing.
-2. Grant that identity repository `Contents: Read and write` access and no broader permission than required.
-3. Store its token as the Actions repository secret `REPOMIX_BOT_TOKEN`.
-4. Add only that identity to the bypass list for the pull-request requirement covering `main` and `release/**`. Use the narrowest available bypass mode.
-5. Do not reuse `REPOMIX_BOT_TOKEN` in other workflows.
-6. Keep `.github/workflows/update-repomix-after-release.yml` protected through normal pull-request review, because this file controls how the privileged token is used.
+1. Install the dedicated Repomix GitHub App only on `Workslip-v2.0`.
+2. Grant the app repository `Contents: Read and write` access and no broader permission than required.
+3. Store the app ID as the Actions repository variable `REPOMIX_APP_ID`.
+4. Store the app private key as the Actions repository secret `REPOMIX_APP_PRIVATE_KEY`.
+5. Add only that GitHub App to the bypass list for the pull-request requirement covering `main` and `release/**`, using the narrowest available bypass mode.
+6. Do not reuse the private key in other workflows.
+7. Keep `.github/workflows/update-repomix-after-release.yml` protected through normal pull-request review, because this file controls how the privileged app identity is used.
 
-The default `GITHUB_TOKEN` deliberately remains read-only in this workflow. A missing bot secret fails before checkout with an explicit configuration error. A bot token without ruleset bypass will fail at push with an explicit branch-protection remediation message.
+The workflow uses `actions/create-github-app-token` to create a short-lived installation token for the current run. The default `GITHUB_TOKEN` remains read-only. Missing or invalid app credentials fail during token creation; an app without ruleset bypass fails at push with an explicit remediation message.
 
-A failure in this maintenance workflow does not roll back an already successful application release. Treat the failed workflow as repository-maintenance debt and rerun it after correcting token, package resolution, or branch-protection configuration.
+A failure in this maintenance workflow does not roll back an already successful application release. Treat the failed workflow as repository-maintenance debt and rerun it after correcting app installation, credentials, package resolution, or branch-protection configuration.
 
 ## Removed workflow decisions
 
