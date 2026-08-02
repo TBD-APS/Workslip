@@ -89880,53 +89880,6 @@ volumes:
 }
 </file>
 
-<file path="Docs/architecture/adr/0003-github-infrastructure-oidc-bootstrap.md">
-# ADR 0003: Separate GitHub OIDC identity for infrastructure deployment
-
-**Status:** Accepted  
-**Date:** 2026-08-02  
-**Owner:** Workslip architecture owner  
-**Linear:** WOR-315
-
-## Context
-
-Workslip already has a narrow GitHub OIDC identity for deploying an API package to the production App Service. Full infrastructure reconciliation needs materially broader Azure control-plane, RBAC, Key Vault, App Configuration and Microsoft Graph permissions.
-
-The first manual infrastructure workflow incorrectly expected `AZURE_INFRA_CLIENT_ID` as a GitHub secret even though a client ID is not credential material. More importantly, no separately authorized infrastructure identity had been bootstrapped, so the workflow could not authenticate.
-
-Using the ordinary API deployment identity would require widening an App Service-scoped identity into an infrastructure administrator. Letting the infrastructure deployment create its own initial identity is circular because authentication and permissions are required before the deployment can start.
-
-## Decision
-
-1. Keep `id-mrsoftware-prod-github` restricted to API package deployment at the App Service scope.
-2. Bootstrap a separate `id-mrsoftware-prod-infra-github` user-assigned managed identity for full infrastructure deployment.
-3. Bind its federated credential only to the immutable Workslip repository identity and protected GitHub environment `prod`.
-4. Store its client ID as the GitHub environment variable `AZURE_INFRA_CLIENT_ID`; no client secret or publish profile is created.
-5. Run the bootstrap once with an authorized human Azure/Entra identity. Later deployments use GitHub OIDC.
-6. Grant Azure permissions only at the required resource-group and data-plane scopes. Resource-provider registration uses a custom subscription role containing only provider read/register actions.
-7. Grant the infrastructure identity these Microsoft Graph application permissions because current infrastructure code requires them:
-   - `Directory.Read.All`;
-   - `Group.ReadWrite.All`;
-   - `AppRoleAssignment.ReadWrite.All`.
-8. Keep bootstrap templates and scripts separate from ordinary `main.bicep` deployment so the running identity does not own or mutate its own bootstrap trust boundary.
-
-## Consequences
-
-- Production infrastructure deployment can run without stored Azure credentials.
-- The package-deployment identity remains least-privileged.
-- A new environment requires an initial administrator deployment followed by one explicit OIDC bootstrap.
-- Azure and Graph permission propagation can delay the first GitHub-hosted run.
-- The client ID is configuration; tenant and subscription identifiers remain protected environment values according to the existing workflow configuration.
-- Removing or rotating the infrastructure identity requires coordinated GitHub variable, federation, Azure RBAC and Graph assignment updates.
-
-## Rejected alternatives
-
-- Reuse and widen `AZURE_CLIENT_ID`: rejected because package deployment and infrastructure administration have different trust boundaries.
-- Store an Azure client secret: rejected because GitHub OIDC provides short-lived federated authentication without standing credentials.
-- Grant subscription `Contributor`: rejected because only resource-provider registration requires subscription scope; all other Azure access is scoped lower.
-- Let the normal infrastructure deployment create its own initial identity: rejected because this creates an authentication bootstrap cycle.
-</file>
-
 <file path="Docs/architecture/README.md">
 # Architecture documentation
 
@@ -92152,227 +92105,6 @@ else {
 Write-Host "Infrastructure OIDC identity: $identityName" -ForegroundColor Green
 Write-Host "Federated credential subject: $subject" -ForegroundColor Green
 Write-Host "Bootstrap completed in subscription $($account.subscriptionId)." -ForegroundColor Green
-</file>
-
-<file path="src/BE/infrastructure/deploy.ps1">
-param(
-    [Parameter(Position = 0)]
-    [string]$Environment = 'prod',
-    [string]$Location = 'westeurope',
-    [string]$COMPANY_NAME = 'mrsoftware',
-    [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
-    [string]$EntraStatePath = ''
-)
-
-$ErrorActionPreference = 'Stop'
-
-$EntraScript = Join-Path $PSScriptRoot 'deploy-entra.ps1'
-$InfrastructureScript = Join-Path $PSScriptRoot 'deploy-infrastructure.ps1'
-$VapidSecretScript = Join-Path $PSScriptRoot 'reconcile-vapid-secret.ps1'
-
-foreach ($scriptPath in @($EntraScript, $InfrastructureScript, $VapidSecretScript)) {
-    if (-not (Test-Path $scriptPath)) {
-        throw "Deployment script not found: $scriptPath"
-    }
-}
-
-Write-Host 'Phase 1/3: reconciling Microsoft Entra applications...' -ForegroundColor Cyan
-& $EntraScript `
-    -Environment $Environment `
-    -StatePath $EntraStatePath
-
-Write-Host 'Phase 2/3: deploying Azure infrastructure...' -ForegroundColor Cyan
-& $InfrastructureScript `
-    -Environment $Environment `
-    -Location $Location `
-    -COMPANY_NAME $COMPANY_NAME `
-    -GlobalAdminId $GlobalAdminId `
-    -EntraStatePath $EntraStatePath
-
-Write-Host 'Phase 3/3: reconciling VAPID secret lifecycle...' -ForegroundColor Cyan
-& $VapidSecretScript `
-    -Environment $Environment `
-    -CompanyName $COMPANY_NAME
-
-Write-Host 'Full deployment completed.' -ForegroundColor Green
-</file>
-
-<file path="src/BE/infrastructure/GITHUB_INFRASTRUCTURE_OIDC.md">
-# GitHub infrastructure OIDC bootstrap
-
-**Status:** Active  
-**Owner:** Workslip repository owner  
-**Linear:** WOR-315
-
-The manual **Production infrastructure deploy** workflow uses a dedicated GitHub OIDC identity. It does not use a client secret, publish profile or the ordinary API package-deployment identity.
-
-## Identity split
-
-| Identity | Scope | Purpose |
-|---|---|---|
-| `id-mrsoftware-prod-github` | Production API App Service | Deploy an already-built API package. Its client ID remains in `AZURE_CLIENT_ID`. |
-| `id-mrsoftware-prod-infra-github` | Reviewed infrastructure scopes | Reconcile Azure resources, role assignments, Key Vault/App Configuration data and the Graph resources used by infrastructure deployment. Its client ID is `AZURE_INFRA_CLIENT_ID`. |
-
-Do not widen `id-mrsoftware-prod-github` to run infrastructure deployment.
-
-## Why bootstrap is separate
-
-The infrastructure identity cannot create its own identity, federation and permissions before it exists. A human Azure/Entra administrator therefore runs the bootstrap once. Normal later deployments run through GitHub OIDC.
-
-The production resource group, Key Vault and App Configuration store must already exist. The bootstrap does not replace the initial administrator deployment of a new environment.
-
-## One-time bootstrap
-
-Prerequisites:
-
-- Azure CLI installed and authenticated to the intended tenant/subscription;
-- an account authorized to create managed identities, custom roles and role assignments at the documented scopes;
-- an account authorized to grant Microsoft Graph application permissions;
-- optional: GitHub CLI authenticated with permission to manage environment variables.
-
-From `src/BE/infrastructure`:
-
-```powershell
-.\bootstrap-github-infrastructure-identity.ps1 prod -WhatIf
-.\bootstrap-github-infrastructure-identity.ps1 prod -ConfigureGitHubEnvironment
-```
-
-`-WhatIf` performs Azure deployment planning only and makes no Azure, Graph or GitHub mutation.
-
-Without `-ConfigureGitHubEnvironment`, the script prints the non-secret client ID. Add it in:
-
-```text
-GitHub repository
-  Settings
-    Environments
-      prod
-        Environment variables
-          AZURE_INFRA_CLIENT_ID=<client-id>
-```
-
-`AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` remain protected GitHub environment secrets. `AZURE_INFRA_CLIENT_ID` is an identifier and is stored as an environment variable, not a secret.
-
-## Granted permissions
-
-Azure:
-
-- `Contributor` on `rg-mrsoftware-prod`;
-- `Role Based Access Control Administrator` on `rg-mrsoftware-prod`;
-- `Key Vault Secrets Officer` on `kv-mrsoftware-prod`;
-- `App Configuration Data Owner` on `appcs-mrsoftware-prod`;
-- custom subscription role allowing only resource-provider read/registration.
-
-Microsoft Graph application permissions:
-
-- `Directory.Read.All`;
-- `Group.ReadWrite.All`;
-- `AppRoleAssignment.ReadWrite.All`.
-
-The bootstrap resolves Graph role IDs from Microsoft Graph by role value instead of hardcoding permission GUIDs.
-
-## Normal deployment
-
-After bootstrap and RBAC propagation:
-
-1. Open **Actions**.
-2. Select **Production infrastructure deploy**.
-3. Select `main`.
-4. Run the workflow.
-
-The workflow remains bound to the protected `prod` environment, serialized, and restricted to `main`. It logs in through OIDC and then runs `deploy-infrastructure.ps1 prod`.
-
-## Verification
-
-A bootstrap is not complete until:
-
-- the managed identity and federated credential exist;
-- the Azure role assignments above are present;
-- the three Graph app-role assignments are present;
-- GitHub environment `prod` contains `AZURE_INFRA_CLIENT_ID` as a variable;
-- the manual workflow passes Azure login;
-- infrastructure deployment completes;
-- diagnostics configuration, Log Analytics reader access and API `/health` pass.
-
-## Rollback
-
-Disable the workflow or remove `AZURE_INFRA_CLIENT_ID` before removing permissions. Do not delete the identity while a deployment is running. Remove the federated credential, Graph assignments, Azure role assignments, custom role assignment and managed identity only after confirming no workflow depends on them.
-</file>
-
-<file path="src/BE/infrastructure/githubInfrastructureBootstrap.bicep">
-targetScope = 'subscription'
-
-param companyName string = 'mrsoftware'
-param environment string = 'prod'
-param location string = 'westeurope'
-param githubOwner string = 'rasm105k'
-param githubOwnerId string = '31623093'
-param githubRepository string = 'Workslip-v2.0'
-param githubRepositoryId string = '1245555609'
-param githubEnvironment string = environment
-
-var normalizedEnvironment = toLower(environment)
-var resourceGroupName = 'rg-${companyName}-${normalizedEnvironment}'
-var identityName = take('id-${companyName}-${normalizedEnvironment}-infra-github', 128)
-var identityResourceId = resourceId(resourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', identityName)
-var providerRegistrationRoleName = 'Workslip Resource Provider Registration'
-var providerRegistrationRoleId = guid(subscription().id, providerRegistrationRoleName)
-
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' existing = {
-  name: resourceGroupName
-}
-
-module infrastructureIdentity './githubInfrastructureIdentity.bicep' = {
-  name: 'github-infrastructure-identity-${normalizedEnvironment}'
-  scope: resourceGroup
-  params: {
-    companyName: companyName
-    environment: normalizedEnvironment
-    location: location
-    githubOwner: githubOwner
-    githubOwnerId: githubOwnerId
-    githubRepository: githubRepository
-    githubRepositoryId: githubRepositoryId
-    githubEnvironment: githubEnvironment
-  }
-}
-
-resource providerRegistrationRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
-  name: providerRegistrationRoleId
-  properties: {
-    roleName: providerRegistrationRoleName
-    description: 'Allows the Workslip GitHub infrastructure identity to read and register required Azure resource providers.'
-    type: 'CustomRole'
-    permissions: [
-      {
-        actions: [
-          'Microsoft.Resources/subscriptions/providers/read'
-          'Microsoft.Resources/subscriptions/providers/register/action'
-        ]
-        notActions: []
-        dataActions: []
-        notDataActions: []
-      }
-    ]
-    assignableScopes: [
-      subscription().id
-    ]
-  }
-}
-
-resource providerRegistrationRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, identityResourceId, providerRegistrationRole.id)
-  properties: {
-    principalId: infrastructureIdentity.outputs.PRINCIPAL_ID
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: providerRegistrationRole.id
-  }
-}
-
-output IDENTITY_NAME string = infrastructureIdentity.outputs.IDENTITY_NAME
-output CLIENT_ID string = infrastructureIdentity.outputs.CLIENT_ID
-output PRINCIPAL_ID string = infrastructureIdentity.outputs.PRINCIPAL_ID
-output FEDERATED_CREDENTIAL_SUBJECT string = infrastructureIdentity.outputs.FEDERATED_CREDENTIAL_SUBJECT
-output PROVIDER_REGISTRATION_ROLE_ID string = providerRegistrationRole.id
 </file>
 
 <file path="src/BE/infrastructure/githubInfrastructureIdentity.bicep">
@@ -119313,6 +119045,55 @@ The first visible update implementation let the banner enter `Opdaterer...` befo
 - Poll more frequently than once per minute: rejected because startup, focus and online events already cover the common immediate-update paths, while tighter polling adds continuous unnecessary traffic.
 </file>
 
+<file path="Docs/architecture/adr/0003-github-infrastructure-oidc-bootstrap.md">
+# ADR 0003: Separate GitHub OIDC identity for infrastructure deployment
+
+**Status:** Accepted  
+**Date:** 2026-08-02  
+**Owner:** Workslip architecture owner  
+**Linear:** WOR-315
+
+## Context
+
+Workslip already has a narrow GitHub OIDC identity for deploying an API package to the production App Service. Full infrastructure reconciliation needs materially broader Azure control-plane, RBAC, Key Vault, App Configuration and Microsoft Graph permissions.
+
+The first manual infrastructure workflow incorrectly expected `AZURE_INFRA_CLIENT_ID` as a GitHub secret even though a client ID is not credential material. More importantly, no separately authorized infrastructure identity had been provisioned, so the workflow could not authenticate.
+
+Using the ordinary API deployment identity would require widening an App Service-scoped identity into an infrastructure administrator. The infrastructure identity also cannot create its own initial authentication trust before it exists.
+
+## Decision
+
+1. Keep `id-mrsoftware-prod-github` restricted to API package deployment at the App Service scope.
+2. Provision a separate `id-mrsoftware-prod-infra-github` user-assigned managed identity for full infrastructure deployment.
+3. Bind its federated credential only to the immutable Workslip repository identity and protected GitHub environment `prod`.
+4. Store its client ID as the GitHub environment variable `AZURE_INFRA_CLIENT_ID`; no client secret or publish profile is created.
+5. Use `deploy.ps1` as the single operator entry point. It deploys the ordinary environment first and then idempotently reconciles the infrastructure identity, federation, permissions and GitHub variable with the already-authorized human Azure/Entra session.
+6. Grant Azure permissions only at the required resource-group and data-plane scopes. Resource-provider registration uses a custom subscription role containing only provider read/register actions.
+7. Grant the infrastructure identity these Microsoft Graph application permissions because current infrastructure code requires them:
+   - `Directory.Read.All`;
+   - `Group.ReadWrite.All`;
+   - `AppRoleAssignment.ReadWrite.All`.
+8. Keep the identity bootstrap templates and implementation script separate from `main.bicep` so the GitHub infrastructure identity does not own or mutate its own trust boundary during normal workflow execution.
+
+## Consequences
+
+- Production infrastructure deployment can run without stored Azure credentials.
+- The package-deployment identity remains least-privileged.
+- An authorized operator uses one rerunnable command, `deploy.ps1`, rather than a separate bootstrap procedure.
+- The first successful run establishes the GitHub trust boundary; later runs reconcile the same resources without duplication.
+- Azure and Graph permission propagation can delay the first GitHub-hosted run.
+- GitHub CLI authentication is required for local full deployment because the client ID variable is reconciled automatically.
+- Removing or rotating the infrastructure identity requires coordinated GitHub variable, federation, Azure RBAC and Graph assignment updates.
+
+## Rejected alternatives
+
+- Reuse and widen `AZURE_CLIENT_ID`: rejected because package deployment and infrastructure administration have different trust boundaries.
+- Store an Azure client secret: rejected because GitHub OIDC provides short-lived federated authentication without standing credentials.
+- Grant subscription `Contributor`: rejected because only resource-provider registration requires subscription scope; all other Azure access is scoped lower.
+- Put the privileged identity in ordinary `main.bicep`: rejected because a normal GitHub deployment must not control the identity and federation used to authorize that same deployment.
+- Require operators to run a separate bootstrap flow: rejected because `deploy.ps1` can invoke the same idempotent reconciliation after base resources exist.
+</file>
+
 <file path="Docs/superpowers/specs/deferred-work.md">
 # Deferred Work
 
@@ -119691,6 +119472,253 @@ Every pull request must consider documentation when it changes any of these area
 - AI-system procurement, development, model/provider selection, data use, risk classification, transparency, human oversight, monitoring or incident handling.
 
 The automated Documentation Quality workflow validates maintained documents and PR documentation decisions. Reviewers must still confirm that the selected documentation and compliance decisions accurately match the change.
+</file>
+
+<file path="src/BE/infrastructure/deploy.ps1">
+param(
+    [Parameter(Position = 0)]
+    [string]$Environment = 'prod',
+    [string]$Location = 'westeurope',
+    [string]$COMPANY_NAME = 'mrsoftware',
+    [string]$GlobalAdminId = '9ea4bcd3-bf90-4249-93e0-f45070d140f7',
+    [string]$EntraStatePath = ''
+)
+
+$ErrorActionPreference = 'Stop'
+
+$EntraScript = Join-Path $PSScriptRoot 'deploy-entra.ps1'
+$InfrastructureScript = Join-Path $PSScriptRoot 'deploy-infrastructure.ps1'
+$VapidSecretScript = Join-Path $PSScriptRoot 'reconcile-vapid-secret.ps1'
+$GitHubInfrastructureIdentityScript = Join-Path $PSScriptRoot 'bootstrap-github-infrastructure-identity.ps1'
+
+foreach ($scriptPath in @(
+    $EntraScript,
+    $InfrastructureScript,
+    $VapidSecretScript,
+    $GitHubInfrastructureIdentityScript
+)) {
+    if (-not (Test-Path $scriptPath)) {
+        throw "Deployment script not found: $scriptPath"
+    }
+}
+
+$gh = Get-Command gh -CommandType Application -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+if ($null -eq $gh) {
+    throw 'GitHub CLI is required because deploy.ps1 reconciles the GitHub infrastructure OIDC identity and environment variable. Install gh and retry.'
+}
+
+& $gh.Source auth status --hostname github.com 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw 'GitHub CLI is not authenticated. Run gh auth login, then retry deploy.ps1.'
+}
+
+Write-Host 'Phase 1/4: reconciling Microsoft Entra applications...' -ForegroundColor Cyan
+& $EntraScript `
+    -Environment $Environment `
+    -StatePath $EntraStatePath
+
+Write-Host 'Phase 2/4: deploying Azure infrastructure...' -ForegroundColor Cyan
+& $InfrastructureScript `
+    -Environment $Environment `
+    -Location $Location `
+    -COMPANY_NAME $COMPANY_NAME `
+    -GlobalAdminId $GlobalAdminId `
+    -EntraStatePath $EntraStatePath
+
+Write-Host 'Phase 3/4: reconciling VAPID secret lifecycle...' -ForegroundColor Cyan
+& $VapidSecretScript `
+    -Environment $Environment `
+    -CompanyName $COMPANY_NAME
+
+Write-Host 'Phase 4/4: reconciling GitHub infrastructure OIDC identity...' -ForegroundColor Cyan
+& $GitHubInfrastructureIdentityScript `
+    -Environment $Environment `
+    -Location $Location `
+    -CompanyName $COMPANY_NAME `
+    -GitHubEnvironment $Environment `
+    -ConfigureGitHubEnvironment
+
+Write-Host 'Full deployment completed.' -ForegroundColor Green
+</file>
+
+<file path="src/BE/infrastructure/GITHUB_INFRASTRUCTURE_OIDC.md">
+# GitHub infrastructure OIDC
+
+**Status:** Active  
+**Owner:** Workslip repository owner  
+**Linear:** WOR-315
+
+The manual **Production infrastructure deploy** workflow uses a dedicated GitHub OIDC identity. It does not use a client secret, publish profile or the ordinary API package-deployment identity.
+
+## Identity split
+
+| Identity | Scope | Purpose |
+|---|---|---|
+| `id-mrsoftware-prod-github` | Production API App Service | Deploy an already-built API package. Its client ID remains in `AZURE_CLIENT_ID`. |
+| `id-mrsoftware-prod-infra-github` | Reviewed infrastructure scopes | Reconcile Azure resources, role assignments, Key Vault/App Configuration data and the Graph resources used by infrastructure deployment. Its client ID is `AZURE_INFRA_CLIENT_ID`. |
+
+Do not widen `id-mrsoftware-prod-github` to run infrastructure deployment.
+
+## Single idempotent deployment entry point
+
+Operators run one command from `src/BE/infrastructure`:
+
+```powershell
+.\deploy.ps1 prod
+```
+
+`deploy.ps1` now performs the complete reconciliation in this order:
+
+1. Microsoft Entra applications;
+2. Azure infrastructure;
+3. VAPID secret lifecycle;
+4. GitHub infrastructure OIDC identity, federation, permissions and `AZURE_INFRA_CLIENT_ID`.
+
+The separate bootstrap script remains an internal implementation component because the infrastructure identity must be created by an already-authorized Azure/Entra identity before GitHub can authenticate as that identity. Operators do not need a separate bootstrap flow.
+
+## Idempotency
+
+Repeated `deploy.ps1` runs converge on the same state:
+
+- Bicep deployments use stable resource names and deterministic role-assignment names;
+- existing managed identities and federated credentials are updated rather than duplicated;
+- Microsoft Graph roles are checked before assignment;
+- the GitHub environment variable is set to the current non-secret client ID;
+- existing Entra, Azure, VAPID and infrastructure resources follow their established reconciliation logic.
+
+A failed phase can be corrected and the same command rerun. No generated client secret, publish profile or `AZURE_CREDENTIALS` JSON is created.
+
+## Prerequisites
+
+- Azure CLI installed and authenticated to the intended tenant/subscription;
+- GitHub CLI installed and authenticated to `github.com`;
+- the Azure/Entra account has permission to deploy the existing infrastructure and assign the documented Azure and Microsoft Graph roles;
+- the GitHub account can update environment variables for `rasm105k/Workslip-v2.0`.
+
+`deploy.ps1` validates GitHub CLI authentication before making deployment changes.
+
+## Granted permissions
+
+Azure:
+
+- `Contributor` on `rg-mrsoftware-prod`;
+- `Role Based Access Control Administrator` on `rg-mrsoftware-prod`;
+- `Key Vault Secrets Officer` on `kv-mrsoftware-prod`;
+- `App Configuration Data Owner` on `appcs-mrsoftware-prod`;
+- custom subscription role allowing only resource-provider read/registration.
+
+Microsoft Graph application permissions:
+
+- `Directory.Read.All`;
+- `Group.ReadWrite.All`;
+- `AppRoleAssignment.ReadWrite.All`.
+
+The reconciliation resolves Graph role IDs from Microsoft Graph by role value instead of duplicating permission GUIDs.
+
+## Normal GitHub deployment
+
+After a successful local `deploy.ps1 prod` run and permission propagation:
+
+1. Open **Actions**.
+2. Select **Production infrastructure deploy**.
+3. Select `main`.
+4. Run the workflow.
+
+The workflow remains bound to the protected `prod` environment, serialized, and restricted to `main`. It logs in through OIDC and runs `deploy-infrastructure.ps1 prod`.
+
+## Verification
+
+The setup is complete when:
+
+- the managed identity and federated credential exist;
+- the Azure role assignments above are present;
+- the three Graph app-role assignments are present;
+- GitHub environment `prod` contains `AZURE_INFRA_CLIENT_ID` as a variable;
+- the manual workflow passes Azure login;
+- infrastructure deployment completes;
+- diagnostics configuration, Log Analytics reader access and API `/health` pass.
+
+## Rollback
+
+Disable the workflow or remove `AZURE_INFRA_CLIENT_ID` before removing permissions. Do not delete the identity while a deployment is running. Remove the federated credential, Graph assignments, Azure role assignments, custom role assignment and managed identity only after confirming no workflow depends on them.
+</file>
+
+<file path="src/BE/infrastructure/githubInfrastructureBootstrap.bicep">
+targetScope = 'subscription'
+
+param companyName string = 'mrsoftware'
+param environment string = 'prod'
+param location string = 'westeurope'
+param githubOwner string = 'rasm105k'
+param githubOwnerId string = '31623093'
+param githubRepository string = 'Workslip-v2.0'
+param githubRepositoryId string = '1245555609'
+param githubEnvironment string = environment
+
+var normalizedEnvironment = toLower(environment)
+var resourceGroupName = 'rg-${companyName}-${normalizedEnvironment}'
+var identityName = take('id-${companyName}-${normalizedEnvironment}-infra-github', 128)
+var identityResourceId = resourceId(subscription().subscriptionId, resourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', identityName)
+var providerRegistrationRoleName = 'Workslip Resource Provider Registration'
+var providerRegistrationRoleId = guid(subscription().id, providerRegistrationRoleName)
+
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' existing = {
+  name: resourceGroupName
+}
+
+module infrastructureIdentity './githubInfrastructureIdentity.bicep' = {
+  name: 'github-infrastructure-identity-${normalizedEnvironment}'
+  scope: resourceGroup
+  params: {
+    companyName: companyName
+    environment: normalizedEnvironment
+    location: location
+    githubOwner: githubOwner
+    githubOwnerId: githubOwnerId
+    githubRepository: githubRepository
+    githubRepositoryId: githubRepositoryId
+    githubEnvironment: githubEnvironment
+  }
+}
+
+resource providerRegistrationRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
+  name: providerRegistrationRoleId
+  properties: {
+    roleName: providerRegistrationRoleName
+    description: 'Allows the Workslip GitHub infrastructure identity to read and register required Azure resource providers.'
+    type: 'CustomRole'
+    permissions: [
+      {
+        actions: [
+          'Microsoft.Resources/subscriptions/providers/read'
+          'Microsoft.Resources/subscriptions/providers/register/action'
+        ]
+        notActions: []
+        dataActions: []
+        notDataActions: []
+      }
+    ]
+    assignableScopes: [
+      subscription().id
+    ]
+  }
+}
+
+resource providerRegistrationRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, identityResourceId, providerRegistrationRole.id)
+  properties: {
+    principalId: infrastructureIdentity.outputs.PRINCIPAL_ID
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: providerRegistrationRole.id
+  }
+}
+
+output IDENTITY_NAME string = infrastructureIdentity.outputs.IDENTITY_NAME
+output CLIENT_ID string = infrastructureIdentity.outputs.CLIENT_ID
+output PRINCIPAL_ID string = infrastructureIdentity.outputs.PRINCIPAL_ID
+output FEDERATED_CREDENTIAL_SUBJECT string = infrastructureIdentity.outputs.FEDERATED_CREDENTIAL_SUBJECT
+output PROVIDER_REGISTRATION_ROLE_ID string = providerRegistrationRole.id
 </file>
 
 <file path="src/BE/infrastructure/main.bicep">
@@ -131497,6 +131525,196 @@ public sealed class JobDeletionNotificationServiceTests
 }
 </file>
 
+<file path="src/BE/WorkslipApi/README.md">
+# Workslip API
+
+**Status:** Active  
+**Owner:** Backend owner  
+**Source of truth:** backend source, executable tests, runtime OpenAPI and `../infrastructure/`  
+**Review cadence:** on API, persistence, authentication or deployment changes
+
+ASP.NET Core .NET 10 API for Workslip. The solution is split into domain, application, infrastructure, API host and tests. Current code and executable tests take precedence over dated plans.
+
+## Prerequisites
+
+- .NET SDK 10
+- SQL Server-compatible database
+- Azure credentials only when configuration enables Azure App Configuration, Key Vault, Microsoft Graph or Azure-hosted integrations
+
+## Local start
+
+```bash
+cd src/BE/WorkslipApi
+dotnet restore
+dotnet run --launch-profile http
+```
+
+The HTTP profile listens on `http://localhost:5262`.
+
+Local development can use the production database location and passwordless connection details from Azure App Configuration and Key Vault. No SQL connection string or SQL password is required in local configuration.
+
+Authenticate the developer identity first:
+
+```powershell
+az login
+az account show
+```
+
+The configured identity must be permitted to connect to the Azure SQL database. Members of the configured Azure SQL administrator group can connect through their Entra identity.
+
+The Key Vault-backed value remains:
+
+```text
+Azure:Sql:ConnectionString
+```
+
+Production keeps `Authentication=Active Directory Managed Identity` and the App Service managed-identity client ID. During Development, the API changes only the in-memory authentication fields to:
+
+```text
+Authentication=Active Directory Default
+```
+
+The managed-identity `User ID` is removed locally, allowing SqlClient to use the signed-in Azure CLI, Visual Studio or other `DefaultAzureCredential` developer identity. Server name, database name, encryption settings and the Key Vault/App Configuration ownership remain unchanged. Nothing is written back to Azure.
+
+An ignored `appsettings.Development.json` value or `Azure__Sql__ConnectionString` environment variable can still override this behavior for isolated/offline database work, but neither is required for the normal Azure-backed development path.
+
+Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
+
+Health check:
+
+```bash
+curl http://localhost:5262/health
+```
+
+## Solution structure
+
+```text
+WorkslipApi/
+├── Workslip.slnx
+├── Workslip.Api.csproj
+├── Program.cs
+├── Configuration/
+├── Endpoints/
+├── Workslip.Domain/
+├── Workslip.Application/
+├── Workslip.Infrastructure/
+├── Workslip.Tests/
+└── Postman/
+```
+
+## Runtime composition
+
+`Program.cs` currently:
+
+1. loads local and Azure configuration;
+2. configures CORS, authentication, logging and services;
+3. initializes and verifies the database schema;
+4. seeds only in Development;
+5. configures middleware and maps endpoints.
+
+Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
+
+Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both remain attached to the same Development organization. The operation is idempotent. Missing identities receive one invitation that redirects to `/login`; later starts reuse the existing identities. Development startup therefore requires working Microsoft Graph credentials.
+
+Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
+
+Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
+
+## Job-deletion notifications
+
+A successful hard deletion always queues a notification for every unique user assigned to the deleted job, including the user performing the deletion when that user is assigned. This behavior is not controlled by runtime configuration and cannot be disabled through Azure App Configuration.
+
+The notification links to `/app`, because the deleted job no longer has a valid detail route. A notification queue failure for one recipient is logged and does not reverse the completed deletion or prevent notifications for the remaining recipients.
+
+## Authentication and authorization
+
+The API selects local Workslip JWT or Microsoft Entra JWT validation from the bearer-token issuer. The public browser flow uses authorization code + PKCE. The API does not require an OAuth application client secret for that flow.
+
+API runtime Microsoft Graph permissions are declared once in `../infrastructure/main.bicep`. They support user invitation/lifecycle and app-role assignment. Do not assign a competing permission set from deployment scripts.
+
+Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
+
+Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
+
+Superadmins remain attached to one permanent organization. The Superadmin-only organization session endpoint can issue a short-lived local token whose `organizationId` is a selected organization while the real actor ID and `Superadmin` role remain unchanged. The default lifetime is 15 minutes, configurable through `Jwt:OrganizationSessionExpiryMinutes` from 1 through 30 minutes. This flow performs no database or Entra mutation and does not bypass existing tenant repository filters.
+
+## Result and endpoint conventions
+
+Application services return `Ardalis.Result`. Endpoints map through `ResultExtensions.ToHttpResult`; do not introduce custom wrappers or duplicate result-to-HTTP mapping. See the root `AGENTS.md` before changing service or endpoint patterns.
+
+## HTTP caching
+
+Authenticated job GET endpoints use private browser revalidation, `Vary: Authorization` and weak ETags. Jobs-list validators are calculated from the complete mapped HTTP representation, including assignments, worksheet totals, installations and user-specific seen/rejection flags; hashing only the `JobReports.UpdatedAt` value is insufficient because those related values can change independently.
+
+The validator is evaluated after tenant-scoped service/repository work. A `304 Not Modified` therefore saves response transfer and client parsing, but it is not a server-side query cache. Do not add shared output caching or an in-memory jobs-list cache without complete organization/user/filter keys and explicit invalidation for every job, assignment, worksheet, installation and view-state mutation. Mutation responses remain `no-store`.
+
+## Build and tests
+
+```bash
+cd src/BE/WorkslipApi
+dotnet build Workslip.slnx
+dotnet test Workslip.slnx
+```
+
+Postman/Newman verification must target localhost or an isolated test/staging API:
+
+```bash
+Postman/run-integration-tests.sh https://<test-or-staging-api>
+```
+
+There is no active GitHub Actions integration-test workflow. Run the executable suite deliberately against an isolated environment; do not use production mutation tests in ordinary validation.
+
+## OpenAPI and Scalar
+
+The host registers ASP.NET Core OpenAPI and Scalar. Treat these as development/integration tooling unless production exposure is explicitly approved and protected. Runtime endpoint registrations are the API contract source; Postman is verification material.
+
+## Deployment
+
+Azure infrastructure and Entra registrations are deployed separately. See `../infrastructure/README.md`.
+
+The production API workflow is:
+
+```text
+.github/workflows/main_api-mrsoftware-prod.yml
+```
+
+It restores, builds and publishes the API, creates a ZIP whose root is the `dotnet publish` output, authenticates through GitHub OIDC and deploys the package to `api-mrsoftware-prod` with `az webapp deploy`.
+
+The deployment workflow:
+
+- preserves the `prod` environment and its scoped OIDC identity;
+- serializes production API releases through the existing concurrency group;
+- retries an App Service/Kudu deployment failure at most three times with bounded backoff;
+- records the immutable ZIP size in the build log;
+- restarts the App Service between attempts only when Kudu reports `There is not enough space on the disk`, clearing the worker's temporary local storage before retrying;
+- requests Azure CLI enriched deployment errors;
+- prints only safe App Service state and deployment-log diagnostics after a final failure;
+- verifies `https://<default-hostname>/health` before reporting success.
+
+The production App Service plan is currently F1. Its local temporary worker storage is small and may be exhausted by accumulated Kudu deployment data even when the repository and deployment workflow are unchanged. A restart clears temporary local storage. Repeated disk-full failures after that recovery indicate persistent filesystem usage or package growth and must be investigated through App Service quotas/Kudu before adding retries or changing application code.
+
+Production uses GitHub environment `prod` with:
+
+- `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
+- `AZURE_TENANT_ID`: target Entra tenant ID
+- `AZURE_SUBSCRIPTION_ID`: target subscription ID
+
+Do not add an Azure client secret, `AZURE_CREDENTIALS` JSON or App Service publish profile.
+
+After infrastructure recreation:
+
+1. run `../infrastructure/deploy.ps1 prod`;
+2. set the three GitHub `prod` environment identifiers from the deployment output;
+3. run the API workflow manually;
+4. confirm the workflow package check finds `Workslip.Api.dll` at ZIP root;
+5. confirm the deployment step succeeds and `/health` passes;
+6. verify Microsoft login and one authenticated API request.
+
+If all deployment attempts fail, use the workflow's safe App Service state, recent deployment records and latest deployment log before changing application code or infrastructure. The Node deprecation warnings emitted by third-party actions are not deployment evidence; the failing Azure/Kudu operation and its diagnostics are authoritative.
+
+Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
+</file>
+
 <file path="src/FE/src/components/layouts/AppLayout.tsx">
 import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
 import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
@@ -132257,6 +132475,598 @@ function SubmittedConfirmation({ reportNumber, submittedAt, onDone, onGoToReport
         Gå til indsendt sag
       </button>
     </section>
+  );
+}
+</file>
+
+<file path="src/FE/src/features/jobs/routes/CompletedJobReport.tsx">
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, CheckCircle2, ChevronRight, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
+import { notify } from '../../../lib/toast';
+import { ErrorState } from '../../../components/ErrorState';
+import { StatusBanner } from '../../../components/StatusBanner';
+import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
+import { JobStatus } from '../../../api/generated/models/jobStatus';
+import { useIsAdmin } from '../../../providers/permissions/usePermissions';
+import { useAuth } from '../../../providers/useAuth';
+import { validateControlPoints } from '../components/steps/controlPointsValidation';
+import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
+import { NavigationGuard } from '../../../components/forms/NavigationGuard';
+import { useJobDetailsState } from '../hooks/useJobDetails';
+import { COMPLETED_JOB_VIEW_TYPE, markJobAsSeen } from '../utils/markJobSeen';
+import { useScrollRestore } from '../../../hooks/useScrollRestore';
+
+import { formatJobStatus } from '../statusLabels';
+import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
+import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
+import { compactPairs, formatNumber, formatUnit, parseNullableNumber } from '../../../lib/formatUtils';
+import { ConfirmActionDialog } from '../components/ConfirmActionDialog';
+import { CompletedJobEditForm } from '../components/CompletedJobEditForm';
+import { DetailGrid } from '../components/DetailGrid';
+import { AssignedUsers } from '../components/AssignedUsers';
+import { LinkedJobs } from '../components/LinkedJobs';
+import { WorksheetDetailList } from '../components/WorksheetDetailList';
+import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories } from '../components/ControlPointOverview';
+import { formatReportNumber, formatWorkKind, formatInstallationTypeNames, formatClosureFlags } from '../utils/completedJobFormatters';
+
+type JobAction = 'approve' | 'reject' | 'undo-reject';
+
+function scrollToTop() {
+  document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
+}
+
+export const CompletedJobReport = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
+  const readOnly = Boolean((location.state as { readOnly?: boolean } | undefined)?.readOnly);
+  const details = useJobDetailsState(id, { autoSave: false });
+
+  useScrollRestore(`completed:${id}`);
+  const isAdmin = useIsAdmin();
+  const { user } = useAuth();
+  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const statusMutation = usePostApiJobsIdStatus();
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<JobAction | null>(null);
+  const [completedAction, setCompletedAction] = useState<JobAction | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [worksheetOpen, setWorksheetOpen] = useState(true);
+  const previewUrlRef = useRef<string | null>(null);
+
+  const job = details.job;
+  const jobStatus = job?.status;
+  const isDiverseInReview = job?.jobType === 'Diverse' && jobStatus === JobStatus.InReview;
+
+  useEffect(() => {
+    if (!id || !jobStatus) return;
+    if (jobStatus === JobStatus.Approved) {
+      markJobAsSeen(id, queryClient, COMPLETED_JOB_VIEW_TYPE);
+      return;
+    }
+    markJobAsSeen(id, queryClient);
+  }, [id, jobStatus, queryClient]);
+
+  const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
+  const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
+  const visibleWorksheets = useMemo(() => {
+    if (!isAdmin) {
+      return (job?.worksheets ?? []).filter((ws) => ws.userId === user?.id);
+    }
+    return job?.worksheets ?? [];
+  }, [job?.worksheets, isAdmin, user?.id]);
+
+  const initialLoadDone = useRef(false);
+  const editScrollDone = useRef(false);
+
+  useEffect(() => {
+    if (!job || initialLoadDone.current) return;
+    initialLoadDone.current = true;
+    scrollToTop();
+    requestAnimationFrame(() => scrollToTop());
+  }, [job]);
+
+  useEffect(() => {
+    if (!isEditing || editScrollDone.current) return;
+    editScrollDone.current = true;
+    scrollToTop();
+    requestAnimationFrame(() => scrollToTop());
+  }, [isEditing]);
+
+  useEffect(() => {
+    if (!isEditing) editScrollDone.current = false;
+  }, [isEditing]);
+
+  const handleDownloadPdf = async () => {
+    if (!job) return;
+    setIsDownloadingPdf(true);
+
+    try {
+      await downloadJobReportPdf(job);
+    } catch {
+      notify.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const handlePreviewPdf = async () => {
+    if (!job) return;
+    setIsLoadingPreview(true);
+
+    try {
+      const { url } = await createJobReportPdfPreview(job);
+      if (previewUrlRef.current) {
+        window.URL.revokeObjectURL(previewUrlRef.current);
+      }
+      previewUrlRef.current = url;
+      window.open(url, '_blank');
+      setTimeout(() => {
+        if (previewUrlRef.current === url) {
+          window.URL.revokeObjectURL(url);
+          previewUrlRef.current = null;
+        }
+      }, 60000);
+    } catch {
+      notify.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  const handleStartEdit = () => {
+    details.discardChanges();
+    setIsEditing(true);
+    scrollToTop();
+  };
+
+  const handleCancelEdit = () => {
+    details.discardChanges();
+    setIsEditing(false);
+    scrollToTop();
+  };
+
+  const handleSaveEdit = async () => {
+    const cpValidation = validateControlPoints(details.form, details.referenceData!);
+    if (!cpValidation.valid) {
+      notify.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter');
+      return;
+    }
+
+    const saved = await details.saveAllChanges();
+    if (!saved) return;
+
+    setIsEditing(false);
+    scrollToTop();
+    notify.success(`Sagen ${details.form.reportNumber} er opdateret`);
+  };
+
+  const handleApprove = () => {
+    setConfirmAction('approve');
+  };
+
+  const handleReject = () => {
+    setConfirmAction('reject');
+  };
+
+  const handleUndoRejection = () => {
+    setConfirmAction('undo-reject');
+  };
+
+  const executeConfirmAction = async (rejectionNote?: string) => {
+    if (!job || !confirmAction) return;
+
+    let targetStatus: JobStatus;
+    let note: string | null = null;
+
+    if (confirmAction === 'undo-reject') {
+      targetStatus = JobStatus.InReview;
+    } else {
+      targetStatus = confirmAction === 'approve' ? JobStatus.Approved : JobStatus.Rejected;
+      note = rejectionNote ?? null;
+    }
+
+    try {
+      const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: targetStatus, rejectionNote: note } });
+      queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), updatedJob);
+      await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
+      setConfirmAction(null);
+      setCompletedAction(confirmAction);
+    } catch {
+      const message = confirmAction === 'undo-reject'
+        ? `Kunne ikke fortryde afvisningen. Prøv igen.`
+        : confirmAction === 'approve'
+          ? `Kunne ikke godkende ${details.form.reportNumber}. Prøv igen.`
+          : `Kunne ikke afvise ${details.form.reportNumber}. Prøv igen.`;
+      notify.error(message);
+      setConfirmAction(null);
+    }
+  };
+
+  if (details.isLoading) {
+    return (
+      <div className="page-container report-overview-page">
+        <div className="detail-header report-overview-header">
+          <div className="skeleton skeleton-icon" />
+          <div>
+            <div className="skeleton" style={{ width: '10rem', height: '0.85rem', marginBottom: '0.35rem' }} />
+            <div className="skeleton" style={{ width: '8rem', height: '1.25rem' }} />
+          </div>
+        </div>
+        <div className="report-overview-toolbar" aria-label="Rapport handlinger">
+          <div className="report-overview-actions report-overview-actions--left">
+            <div className="skeleton" style={{ width: '2rem', height: '2rem', borderRadius: 'var(--radius-sm)' }} />
+            <div className="skeleton" style={{ width: '2rem', height: '2rem', borderRadius: 'var(--radius-sm)' }} />
+          </div>
+        </div>
+        <div className="report-overview-grid">
+          <div className="report-overview-colpair">
+            <section className="detail-section">
+              <div className="skeleton" style={{ width: '6rem', height: '1rem', marginBottom: '0.75rem' }} />
+              <div className="skeleton" style={{ width: '100%', height: '6rem' }} />
+            </section>
+            <section className="detail-section">
+              <div className="skeleton" style={{ width: '6rem', height: '1rem', marginBottom: '0.75rem' }} />
+              <div className="skeleton" style={{ width: '100%', height: '6rem' }} />
+            </section>
+          </div>
+          <section className="detail-section">
+            <div className="skeleton" style={{ width: '7rem', height: '1rem', marginBottom: '0.75rem' }} />
+            <div className="skeleton" style={{ width: '60%', height: '3rem' }} />
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  if (details.isError || !job) {
+    return (
+      <div className="page-container report-overview-page">
+        <ErrorState message="Kunne ikke hente sagsrapporten." onRetry={() => details.refetch()} />
+      </div>
+    );
+  }
+
+  const summaryPairs = compactPairs([
+    { label: 'Sagsnummer', value: formatReportNumber(job) },
+    { label: 'Status', value: formatJobStatus(job.status)},
+    { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
+    { label: 'Opgavetype', value: formatWorkKind(job) },
+    { label: 'Destination', value: job.destinationAddress },
+    { label: 'Afslutning', value: formatClosureFlags(job) },
+    { label: 'Afvisningsgrund', value: job.status === JobStatus.Rejected ? job.rejectionNote : undefined },
+  ]);
+  const customerPairs = compactPairs([
+    { label: 'Kunde', value: job.customerSnapshot.name },
+    { label: 'Adresse', value: job.customerSnapshot.address },
+    { label: 'Kontaktperson', value: job.customerSnapshot.contactPerson },
+    { label: 'Telefon', value: job.customerSnapshot.phone },
+    { label: 'Email', value: job.customerSnapshot.email },
+  ]);
+  const observationPairs = compactPairs([
+    { label: 'Opgave', value: job.observations.taskDescription },
+    { label: 'Kundeinfo', value: job.observations.customerObservations },
+    { label: 'Teknisk', value: job.observations.technicalObservations },
+    { label: 'Bemærkninger', value: job.work.remarks },
+  ]);
+
+  return (
+    <div className="page-container report-overview-page">
+      <NavigationGuard when={isEditing && details.hasUnsavedChanges} onSave={() => details.saveAllChanges()} />
+      <div className="detail-header report-overview-header">
+        <button className="btn-icon" type="button" onClick={() => navigate(-1)} aria-label="Tilbage til afsluttede sager">
+          <ArrowLeft size={22} />
+        </button>
+        <div>
+          <span className="job-number">{formatReportNumber(job)} - {formatJobStatus(job.status)}</span>
+          <h2 className="detail-title">Sagsoverblik</h2>
+        </div>
+      </div>
+      <div className="report-overview-toolbar" aria-label="Rapport handlinger">
+        <div className="report-overview-actions report-overview-actions--left">
+          {isEditing ? (
+            <>
+              <button className="btn btn-secondary report-overview-icon-action edit-form-cancel-btn" type="button" onClick={handleCancelEdit} aria-label="Annuller redigering" disabled={details.saveStatus === 'saving'}>
+                <X size={16} />
+              </button>
+              <button className="btn btn-primary edit-form-header-save-btn" type="button" onClick={handleSaveEdit} aria-label="Gem ændringer" disabled={details.saveStatus === 'saving'}>
+                {details.saveStatus === 'saving' ? <Loader2 size={18} className="spin" /> : <Save size={18} />}
+                <span>{details.saveStatus === 'saving' ? 'Gemmer...' : 'Gem ændringer'}</span>
+              </button>
+            </>
+          ) : (
+            isAdmin && !readOnly && (
+              <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} aria-label="Rediger sag">
+                <Pencil size={16} />
+              </button>
+            )
+          )}
+          <button
+            className={`btn btn-secondary report-overview-icon-action`}
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            disabled={isEditing}
+            aria-label="Historik"
+            title="Vis sagshistorik"
+          >
+            <History size={16} />
+          </button>
+          {isDesktop && (
+            <button
+              className="btn btn-secondary report-overview-icon-action"
+              type="button"
+              onClick={() => void handlePreviewPdf()}
+              disabled={isLoadingPreview || isEditing}
+              aria-label="Forhåndsvis PDF"
+              title="Forhåndsvis PDF"
+            >
+              {isLoadingPreview ? <Loader2 size={16} className="spin" /> : <Eye size={16} />}
+            </button>
+          )}
+          <button
+            className="btn btn-secondary report-overview-icon-action"
+            type="button"
+            onClick={() => void handleDownloadPdf()}
+            disabled={isDownloadingPdf || isEditing}
+            aria-label="Download PDF"
+            title="Download PDF"
+          >
+            {isDownloadingPdf ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
+          </button>
+        </div>
+        {isDesktop && job.status === JobStatus.InReview && isAdmin && !readOnly && !isEditing && (
+          <div className="report-overview-actions report-overview-actions--right">
+            <button className="btn btn-secondary" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
+              <X size={16} />
+              <span>Afvis</span>
+            </button>
+            <button className="btn btn-primary" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
+              {statusMutation.isPending ? <Loader2 size={16} className="spin" /> : <CheckCircle2 size={16} />}
+              <span>{statusMutation.isPending ? 'Godkender...' : 'Godkend'}</span>
+            </button>
+          </div>
+        )}
+        {isDesktop && job.status === JobStatus.Rejected && isAdmin && !readOnly && !isEditing && (
+          <div className="report-overview-actions report-overview-actions--right">
+            <button className="btn btn-secondary" type="button" onClick={handleUndoRejection} disabled={statusMutation.isPending}>
+              <X size={16} />
+              <span>Fortryd afvisning</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {isAdmin && job.status === JobStatus.InReview && !readOnly && (
+        <StatusBanner variant="info" title="Klar til review">
+          <p>Sagen er sendt til gennemgang og mangler din godkendelse.</p>
+        </StatusBanner>
+      )}
+
+      {isEditing ? (
+        <CompletedJobEditForm details={details} onCancel={handleCancelEdit} onSave={handleSaveEdit} />
+      ) : (
+        <>
+          <div className="report-overview-grid">
+            <div className="report-overview-colpair">
+              <section className="detail-section report-overview-hero">
+                <div className="section-header-row attestation-compact-header">
+                  <FileCheck2 size={18} />
+                  <h3>Sag</h3>
+                </div>
+                <DetailGrid items={summaryPairs} />
+              </section>
+              {!isDiverseInReview && (
+                <section className="detail-section">
+                  <div className="section-header-row attestation-compact-header">
+                    <User size={18} />
+                    <h3>Kunde</h3>
+                  </div>
+                  <DetailGrid items={customerPairs} />
+                </section>
+              )}
+            </div>
+
+            <section className="detail-section">
+              <button
+                className="section-header-row attestation-compact-header btn-reset"
+                type="button"
+                onClick={() => setWorksheetOpen(o => !o)}
+                aria-expanded={worksheetOpen}
+              >
+                <Timer size={18} />
+                <h3>Timesedler ({visibleWorksheets.length})</h3>
+                <ChevronRight
+                  size={18}
+                  className="chevron-icon"
+                  style={{ transform: worksheetOpen ? 'rotate(90deg)' : 'none' }}
+                />
+              </button>
+
+              {worksheetOpen && (
+                <div className="worksheet-list-section">
+                  <WorksheetDetailList worksheets={visibleWorksheets} className="report-overview-timesheet-list" />
+                  <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
+                    {parseNullableNumber(job.totalOutlay) > 0 && (
+                      <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
+                    )}
+                    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="detail-section">
+              <div className="section-header-row">
+                <User size={18} />
+                <h3>Medarbejdere</h3>
+              </div>
+              <AssignedUsers users={job.assignedUsers} />
+            </section>
+
+            {observationPairs.length > 0 ? (
+              <section className="detail-section attestation-summary-section">
+                <div className="section-header-row attestation-compact-header">
+                  <FileCheck2 size={18} />
+                  <h3>Observationer og noter</h3>
+                </div>
+                <div className="attestation-observations-list">
+                  {observationPairs.map((item) => (
+                    <div key={item.label} className="attestation-data-pair observation">
+                      <dt>{item.label}</dt>
+                      <dd>{item.value}</dd>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : (
+              <section className="detail-section">
+                <div className="section-header-row attestation-compact-header">
+                  <FileCheck2 size={18} />
+                  <h3>Observationer og noter</h3>
+                </div>
+                <p className="empty-state-text">Ingen observationer registreret.</p>
+              </section>
+            )}
+
+            {!isDiverseInReview && (
+              <section className="detail-section">
+                <div className="section-header-row attestation-compact-header">
+                  <Link2 size={18} />
+                  <h3>Tilknyttede sager</h3>
+                </div>
+                <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
+              </section>
+            )}
+
+          </div>
+
+          {!isDiverseInReview && (
+            <CollapsibleSection
+              icon={<CheckCircle2 size={18} />}
+              title="Kontrolpunkter"
+              className="kontrolpunkter-section"
+            >
+              <div className="attestation-control-section compact">
+                <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {!isDesktop && job.status === JobStatus.InReview && isAdmin && !readOnly && !isEditing && (
+            <section className="detail-section">
+              <div className="section-header-row">
+                <ShieldCheck size={18} />
+                <h3>Godkendelse</h3>
+              </div>
+              <div className="edit-form-bottom-actions">
+                <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
+                  <X size={18} />
+                  Afvis
+                </button>
+                <button className="btn btn-primary edit-form-bottom-btn" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
+                  {statusMutation.isPending ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
+                  {statusMutation.isPending ? 'Godkender...' : 'Godkend'}
+                </button>
+              </div>
+            </section>
+          )}
+
+          {!isDesktop && job.status === JobStatus.Rejected && isAdmin && !readOnly && !isEditing && (
+            <section className="detail-section">
+              <div className="section-header-row">
+                <ShieldCheck size={18} />
+                <h3>Godkendelse</h3>
+              </div>
+              <div className="edit-form-bottom-actions">
+                <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleUndoRejection} disabled={statusMutation.isPending}>
+                  <X size={18} />
+                  Fortryd afvisning
+                </button>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      <JobHistoryDrawer
+        jobId={job.id} 
+        isOpen={historyOpen} 
+        onClose={() => setHistoryOpen(false)} 
+      />
+
+      {confirmAction && (
+        <ConfirmActionDialog
+          action={confirmAction}
+          reportNumber={details.form.reportNumber}
+          isPending={statusMutation.isPending}
+          onConfirm={(note) => void executeConfirmAction(note)}
+          onClose={() => setConfirmAction(null)}
+        />
+      )}
+
+      {completedAction && (
+        <ActionSuccessDialog
+          action={completedAction}
+          reportNumber={formatReportNumber(job)}
+          onGoToJobList={() => navigate('/app', { replace: true })}
+          onGoToJob={() => {
+            setCompletedAction(null);
+            navigate(`/app/completed/${job.id}`, { replace: true });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ActionSuccessDialog({
+  action,
+  reportNumber,
+  onGoToJobList,
+  onGoToJob,
+}: {
+  action: JobAction;
+  reportNumber: string;
+  onGoToJobList: () => void;
+  onGoToJob: () => void;
+}) {
+  const isUndoReject = action === 'undo-reject';
+  const isApprove = action === 'approve';
+  const title = isUndoReject
+    ? 'Afvisningen er fortrudt'
+    : isApprove
+      ? 'Sagen er godkendt'
+      : 'Sagen er afvist';
+  const body = isUndoReject
+    ? <>Sagen <strong>{reportNumber}</strong> er sendt til gennemgang igen.</>
+    : isApprove
+      ? <>Sagen <strong>{reportNumber}</strong> er godkendt.</>
+      : <>Sagen <strong>{reportNumber}</strong> er afvist.</>;
+
+  return createPortal(
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="action-success-title">
+      <div className="modal-card">
+        <h3 id="action-success-title">{title}</h3>
+        <p>{body}</p>
+        <div className="modal-actions modal-actions--double">
+          <button className="btn btn-secondary" type="button" onClick={onGoToJobList}>
+            Til sagslisten
+          </button>
+          <button className="btn btn-primary" type="button" onClick={onGoToJob}>
+            Til sagen
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 </file>
@@ -139429,6 +140239,296 @@ The application uses `vite-plugin-pwa` with an injected service worker. The cust
 Visible update notification, optional immediate action and automatic activation after ten seconds are accepted product decisions recorded in ADR 0002. A deployment may replace an open client without waiting for dirty-form state or explicit confirmation. Update activation and page reload must remain single-owner and guarded; do not add worker-side client navigation or a direct reload path outside the coordinator. Runtime chunk retention and one-shot stale-build recovery reduce version-skew failures, but do not make API mutations offline-capable.
 </file>
 
+<file path=".github/workflows/main_api-mrsoftware-prod.yml">
+name: Backend API deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'Azure Web App name'
+        required: false
+        default: 'api-mrsoftware-prod'
+      environment:
+        description: 'GitHub environment name'
+        required: false
+        default: 'prod'
+  push:
+    branches: [main]
+    paths:
+      - 'src/BE/WorkslipApi/**'
+      - 'src/FE/config/release-environments.json'
+      - 'tools/release/**'
+      - '.github/workflows/main_api-mrsoftware-prod.yml'
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
+  API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
+  PUBLISH_DIR: ${{ github.workspace }}/publish/api
+  DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
+  AZURE_WEBAPP_NAME: ${{ inputs.app_name || 'api-mrsoftware-prod' }}
+  AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: azure-api-${{ inputs.environment || 'prod' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build API
+    runs-on: ubuntu-latest
+    outputs:
+      release_phase: ${{ steps.release-target.outputs.phase }}
+      release_testing_enabled: ${{ steps.release-target.outputs.enable_development_endpoints }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve production release policy
+        id: release-target
+        run: >-
+          node tools/release/resolve-release-environment.mjs
+          --environment production
+          --require-runnable
+          --github-output
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.API_PROJECT }} --nologo
+
+      - name: Build
+        run: dotnet build ${{ env.API_PROJECT }} --configuration Release --no-restore --nologo
+
+      - name: Publish
+        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output "${{ env.PUBLISH_DIR }}" --nologo
+
+      - name: Create deployment package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f "${DEPLOY_PACKAGE}"
+          (
+            cd "${PUBLISH_DIR}"
+            zip -q -r "${DEPLOY_PACKAGE}" .
+          )
+          unzip -Z1 "${DEPLOY_PACKAGE}" | grep -qx 'Workslip.Api.dll'
+          package_bytes="$(stat -c '%s' "${DEPLOY_PACKAGE}")"
+          echo "Deployment package size: ${package_bytes} bytes"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: workslip-api
+          path: ${{ env.DEPLOY_PACKAGE }}
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    needs: build
+    environment: ${{ inputs.environment || 'prod' }}
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: workslip-api
+          path: ${{ github.workspace }}/publish
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify diagnostics infrastructure prerequisite
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          workspace_id="$(az webapp config appsettings list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]" \
+            --output tsv)"
+
+          if [[ -z "${workspace_id}" || "${workspace_id}" == "null" ]]; then
+            echo "::error::The API is missing Azure__ApplicationInsights__WorkspaceId. Run the 'Production infrastructure deploy' workflow from main, then rerun this API deployment."
+            echo "::error::Backend deployment is blocked so diagnostics code cannot be released without its required Azure configuration."
+            exit 1
+          fi
+
+          if [[ ! "${workspace_id}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::Azure__ApplicationInsights__WorkspaceId is present but is not a valid workspace GUID. Reconcile production infrastructure before deploying the API."
+            exit 1
+          fi
+
+          echo "Application Insights workspace configuration is present."
+
+      - name: Apply release-testing safety mode
+        shell: bash
+        env:
+          RELEASE_PHASE: ${{ needs.build.outputs.release_phase }}
+          RELEASE_TESTING_ENABLED: ${{ needs.build.outputs.release_testing_enabled }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${RELEASE_TESTING_ENABLED}" != 'true' && "${RELEASE_TESTING_ENABLED}" != 'false' ]]; then
+            echo "::error::Resolved release-testing state is invalid: ${RELEASE_TESTING_ENABLED}"
+            exit 1
+          fi
+
+          echo "Applying release phase ${RELEASE_PHASE}; ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}."
+          az webapp config appsettings set \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --settings "ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}" \
+            --output none
+
+      - name: Inspect deployment target
+        id: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          state="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query state \
+            --output tsv)"
+          host="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query defaultHostName \
+            --output tsv)"
+
+          if [[ -z "${host}" || "${host}" == "null" ]]; then
+            echo "::error::Azure did not return a default hostname for ${AZURE_WEBAPP_NAME}."
+            exit 1
+          fi
+
+          echo "App Service state before deployment: ${state}"
+          echo "App Service host: ${host}"
+          echo "health_url=https://${host}/health" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy package with bounded retry
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          max_attempts=3
+          deployment_log="$(mktemp)"
+          trap 'rm -f "${deployment_log}"' EXIT
+
+          for attempt in $(seq 1 "${max_attempts}"); do
+            echo "App Service deployment attempt ${attempt}/${max_attempts}"
+            : > "${deployment_log}"
+
+            if az webapp deploy \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --name "${AZURE_WEBAPP_NAME}" \
+              --src-path "${DEPLOY_PACKAGE}" \
+              --type zip \
+              --clean true \
+              --restart true \
+              --enable-kudu-warmup true \
+              --enriched-errors true \
+              --track-status false \
+              --timeout 600000 2>&1 | tee "${deployment_log}"; then
+              exit 0
+            fi
+
+            disk_full=false
+            if grep -Fqi 'There is not enough space on the disk' "${deployment_log}"; then
+              disk_full=true
+              echo "::warning::Kudu reported a full local deployment disk."
+            fi
+
+            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+              if [[ "${disk_full}" == "true" ]]; then
+                echo "Recycling ${AZURE_WEBAPP_NAME} to clear its temporary local storage before retrying."
+                az webapp restart \
+                  --resource-group "${AZURE_RESOURCE_GROUP}" \
+                  --name "${AZURE_WEBAPP_NAME}" \
+                  --output none
+                delay_seconds=30
+              else
+                delay_seconds=$((attempt * 30))
+              fi
+
+              echo "::warning::App Service deployment attempt ${attempt} failed. Retrying in ${delay_seconds} seconds."
+              sleep "${delay_seconds}"
+            fi
+          done
+
+          echo "::error::App Service deployment failed after ${max_attempts} attempts."
+          echo "Safe App Service state:"
+          az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
+            --output jsonc || true
+
+          echo "Recent deployment records:"
+          az webapp log deployment list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '[0:5]' \
+            --output jsonc || true
+
+          echo "Latest deployment log:"
+          az webapp log deployment show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --output jsonc || true
+
+          exit 1
+
+      - name: Verify API health
+        shell: bash
+        env:
+          HEALTH_URL: ${{ steps.target.outputs.health_url }}
+        run: |
+          set -Eeuo pipefail
+          max_attempts=15
+
+          for attempt in $(seq 1 "${max_attempts}"); do
+            if curl --fail --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 10 \
+              --output /dev/null \
+              "${HEALTH_URL}"; then
+              echo "API health check passed: ${HEALTH_URL}"
+              exit 0
+            fi
+
+            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+              echo "Health check attempt ${attempt}/${max_attempts} failed; retrying in 10 seconds."
+              sleep 10
+            fi
+          done
+
+          echo "::error::API deployment completed, but ${HEALTH_URL} did not become healthy."
+          az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
+            --output jsonc || true
+          exit 1
+</file>
+
 <file path="src/BE/WorkslipApi/Configuration/ServiceConfiguration.cs">
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -140549,196 +141649,6 @@ public sealed class JobService(
 }
 </file>
 
-<file path="src/BE/WorkslipApi/README.md">
-# Workslip API
-
-**Status:** Active  
-**Owner:** Backend owner  
-**Source of truth:** backend source, executable tests, runtime OpenAPI and `../infrastructure/`  
-**Review cadence:** on API, persistence, authentication or deployment changes
-
-ASP.NET Core .NET 10 API for Workslip. The solution is split into domain, application, infrastructure, API host and tests. Current code and executable tests take precedence over dated plans.
-
-## Prerequisites
-
-- .NET SDK 10
-- SQL Server-compatible database
-- Azure credentials only when configuration enables Azure App Configuration, Key Vault, Microsoft Graph or Azure-hosted integrations
-
-## Local start
-
-```bash
-cd src/BE/WorkslipApi
-dotnet restore
-dotnet run --launch-profile http
-```
-
-The HTTP profile listens on `http://localhost:5262`.
-
-Local development can use the production database location and passwordless connection details from Azure App Configuration and Key Vault. No SQL connection string or SQL password is required in local configuration.
-
-Authenticate the developer identity first:
-
-```powershell
-az login
-az account show
-```
-
-The configured identity must be permitted to connect to the Azure SQL database. Members of the configured Azure SQL administrator group can connect through their Entra identity.
-
-The Key Vault-backed value remains:
-
-```text
-Azure:Sql:ConnectionString
-```
-
-Production keeps `Authentication=Active Directory Managed Identity` and the App Service managed-identity client ID. During Development, the API changes only the in-memory authentication fields to:
-
-```text
-Authentication=Active Directory Default
-```
-
-The managed-identity `User ID` is removed locally, allowing SqlClient to use the signed-in Azure CLI, Visual Studio or other `DefaultAzureCredential` developer identity. Server name, database name, encryption settings and the Key Vault/App Configuration ownership remain unchanged. Nothing is written back to Azure.
-
-An ignored `appsettings.Development.json` value or `Azure__Sql__ConnectionString` environment variable can still override this behavior for isolated/offline database work, but neither is required for the normal Azure-backed development path.
-
-Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
-
-Health check:
-
-```bash
-curl http://localhost:5262/health
-```
-
-## Solution structure
-
-```text
-WorkslipApi/
-├── Workslip.slnx
-├── Workslip.Api.csproj
-├── Program.cs
-├── Configuration/
-├── Endpoints/
-├── Workslip.Domain/
-├── Workslip.Application/
-├── Workslip.Infrastructure/
-├── Workslip.Tests/
-└── Postman/
-```
-
-## Runtime composition
-
-`Program.cs` currently:
-
-1. loads local and Azure configuration;
-2. configures CORS, authentication, logging and services;
-3. initializes and verifies the database schema;
-4. seeds only in Development;
-5. configures middleware and maps endpoints.
-
-Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
-
-Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both remain attached to the same Development organization. The operation is idempotent. Missing identities receive one invitation that redirects to `/login`; later starts reuse the existing identities. Development startup therefore requires working Microsoft Graph credentials.
-
-Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
-
-Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
-
-## Job-deletion notifications
-
-A successful hard deletion always queues a notification for every unique user assigned to the deleted job, including the user performing the deletion when that user is assigned. This behavior is not controlled by runtime configuration and cannot be disabled through Azure App Configuration.
-
-The notification links to `/app`, because the deleted job no longer has a valid detail route. A notification queue failure for one recipient is logged and does not reverse the completed deletion or prevent notifications for the remaining recipients.
-
-## Authentication and authorization
-
-The API selects local Workslip JWT or Microsoft Entra JWT validation from the bearer-token issuer. The public browser flow uses authorization code + PKCE. The API does not require an OAuth application client secret for that flow.
-
-API runtime Microsoft Graph permissions are declared once in `../infrastructure/main.bicep`. They support user invitation/lifecycle and app-role assignment. Do not assign a competing permission set from deployment scripts.
-
-Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
-
-Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
-
-Superadmins remain attached to one permanent organization. The Superadmin-only organization session endpoint can issue a short-lived local token whose `organizationId` is a selected organization while the real actor ID and `Superadmin` role remain unchanged. The default lifetime is 15 minutes, configurable through `Jwt:OrganizationSessionExpiryMinutes` from 1 through 30 minutes. This flow performs no database or Entra mutation and does not bypass existing tenant repository filters.
-
-## Result and endpoint conventions
-
-Application services return `Ardalis.Result`. Endpoints map through `ResultExtensions.ToHttpResult`; do not introduce custom wrappers or duplicate result-to-HTTP mapping. See the root `AGENTS.md` before changing service or endpoint patterns.
-
-## HTTP caching
-
-Authenticated job GET endpoints use private browser revalidation, `Vary: Authorization` and weak ETags. Jobs-list validators are calculated from the complete mapped HTTP representation, including assignments, worksheet totals, installations and user-specific seen/rejection flags; hashing only the `JobReports.UpdatedAt` value is insufficient because those related values can change independently.
-
-The validator is evaluated after tenant-scoped service/repository work. A `304 Not Modified` therefore saves response transfer and client parsing, but it is not a server-side query cache. Do not add shared output caching or an in-memory jobs-list cache without complete organization/user/filter keys and explicit invalidation for every job, assignment, worksheet, installation and view-state mutation. Mutation responses remain `no-store`.
-
-## Build and tests
-
-```bash
-cd src/BE/WorkslipApi
-dotnet build Workslip.slnx
-dotnet test Workslip.slnx
-```
-
-Postman/Newman verification must target localhost or an isolated test/staging API:
-
-```bash
-Postman/run-integration-tests.sh https://<test-or-staging-api>
-```
-
-There is no active GitHub Actions integration-test workflow. Run the executable suite deliberately against an isolated environment; do not use production mutation tests in ordinary validation.
-
-## OpenAPI and Scalar
-
-The host registers ASP.NET Core OpenAPI and Scalar. Treat these as development/integration tooling unless production exposure is explicitly approved and protected. Runtime endpoint registrations are the API contract source; Postman is verification material.
-
-## Deployment
-
-Azure infrastructure and Entra registrations are deployed separately. See `../infrastructure/README.md`.
-
-The production API workflow is:
-
-```text
-.github/workflows/main_api-mrsoftware-prod.yml
-```
-
-It restores, builds and publishes the API, creates a ZIP whose root is the `dotnet publish` output, authenticates through GitHub OIDC and deploys the package to `api-mrsoftware-prod` with `az webapp deploy`.
-
-The deployment workflow:
-
-- preserves the `prod` environment and its scoped OIDC identity;
-- serializes production API releases through the existing concurrency group;
-- retries an App Service/Kudu deployment failure at most three times with bounded backoff;
-- records the immutable ZIP size in the build log;
-- restarts the App Service between attempts only when Kudu reports `There is not enough space on the disk`, clearing the worker's temporary local storage before retrying;
-- requests Azure CLI enriched deployment errors;
-- prints only safe App Service state and deployment-log diagnostics after a final failure;
-- verifies `https://<default-hostname>/health` before reporting success.
-
-The production App Service plan is currently F1. Its local temporary worker storage is small and may be exhausted by accumulated Kudu deployment data even when the repository and deployment workflow are unchanged. A restart clears temporary local storage. Repeated disk-full failures after that recovery indicate persistent filesystem usage or package growth and must be investigated through App Service quotas/Kudu before adding retries or changing application code.
-
-Production uses GitHub environment `prod` with:
-
-- `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
-- `AZURE_TENANT_ID`: target Entra tenant ID
-- `AZURE_SUBSCRIPTION_ID`: target subscription ID
-
-Do not add an Azure client secret, `AZURE_CREDENTIALS` JSON or App Service publish profile.
-
-After infrastructure recreation:
-
-1. run `../infrastructure/deploy.ps1 prod`;
-2. set the three GitHub `prod` environment identifiers from the deployment output;
-3. run the API workflow manually;
-4. confirm the workflow package check finds `Workslip.Api.dll` at ZIP root;
-5. confirm the deployment step succeeds and `/health` passes;
-6. verify Microsoft login and one authenticated API request.
-
-If all deployment attempts fail, use the workflow's safe App Service state, recent deployment records and latest deployment log before changing application code or infrastructure. The Node deprecation warnings emitted by third-party actions are not deployment evidence; the failing Azure/Kudu operation and its diagnostics are authoritative.
-
-Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
-</file>
-
 <file path="src/FE/src/features/auth/routes/Login.tsx">
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
@@ -141307,888 +142217,6 @@ self.addEventListener('notificationclick', (event) => {
     );
   })());
 });
-</file>
-
-<file path=".github/workflows/main_api-mrsoftware-prod.yml">
-name: Backend API deploy
-
-on:
-  workflow_dispatch:
-    inputs:
-      app_name:
-        description: 'Azure Web App name'
-        required: false
-        default: 'api-mrsoftware-prod'
-      environment:
-        description: 'GitHub environment name'
-        required: false
-        default: 'prod'
-  push:
-    branches: [main]
-    paths:
-      - 'src/BE/WorkslipApi/**'
-      - 'src/FE/config/release-environments.json'
-      - 'tools/release/**'
-      - '.github/workflows/main_api-mrsoftware-prod.yml'
-
-env:
-  DOTNET_VERSION: '10.0.x'
-  NODE_VERSION: '24'
-  API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
-  PUBLISH_DIR: ${{ github.workspace }}/publish/api
-  DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
-  AZURE_WEBAPP_NAME: ${{ inputs.app_name || 'api-mrsoftware-prod' }}
-  AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
-
-permissions:
-  id-token: write
-  contents: read
-
-concurrency:
-  group: azure-api-${{ inputs.environment || 'prod' }}
-  cancel-in-progress: false
-
-jobs:
-  build:
-    name: Build API
-    runs-on: ubuntu-latest
-    outputs:
-      release_phase: ${{ steps.release-target.outputs.phase }}
-      release_testing_enabled: ${{ steps.release-target.outputs.enable_development_endpoints }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Resolve production release policy
-        id: release-target
-        run: >-
-          node tools/release/resolve-release-environment.mjs
-          --environment production
-          --require-runnable
-          --github-output
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore
-        run: dotnet restore ${{ env.API_PROJECT }} --nologo
-
-      - name: Build
-        run: dotnet build ${{ env.API_PROJECT }} --configuration Release --no-restore --nologo
-
-      - name: Publish
-        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output "${{ env.PUBLISH_DIR }}" --nologo
-
-      - name: Create deployment package
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          rm -f "${DEPLOY_PACKAGE}"
-          (
-            cd "${PUBLISH_DIR}"
-            zip -q -r "${DEPLOY_PACKAGE}" .
-          )
-          unzip -Z1 "${DEPLOY_PACKAGE}" | grep -qx 'Workslip.Api.dll'
-          package_bytes="$(stat -c '%s' "${DEPLOY_PACKAGE}")"
-          echo "Deployment package size: ${package_bytes} bytes"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: workslip-api
-          path: ${{ env.DEPLOY_PACKAGE }}
-          if-no-files-found: error
-
-  deploy:
-    name: Deploy API
-    runs-on: ubuntu-latest
-    needs: build
-    environment: ${{ inputs.environment || 'prod' }}
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: workslip-api
-          path: ${{ github.workspace }}/publish
-
-      - name: Azure login
-        uses: azure/login@v3
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Verify diagnostics infrastructure prerequisite
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          workspace_id="$(az webapp config appsettings list \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]" \
-            --output tsv)"
-
-          if [[ -z "${workspace_id}" || "${workspace_id}" == "null" ]]; then
-            echo "::error::The API is missing Azure__ApplicationInsights__WorkspaceId. Run the 'Production infrastructure deploy' workflow from main, then rerun this API deployment."
-            echo "::error::Backend deployment is blocked so diagnostics code cannot be released without its required Azure configuration."
-            exit 1
-          fi
-
-          if [[ ! "${workspace_id}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
-            echo "::error::Azure__ApplicationInsights__WorkspaceId is present but is not a valid workspace GUID. Reconcile production infrastructure before deploying the API."
-            exit 1
-          fi
-
-          echo "Application Insights workspace configuration is present."
-
-      - name: Apply release-testing safety mode
-        shell: bash
-        env:
-          RELEASE_PHASE: ${{ needs.build.outputs.release_phase }}
-          RELEASE_TESTING_ENABLED: ${{ needs.build.outputs.release_testing_enabled }}
-        run: |
-          set -Eeuo pipefail
-
-          if [[ "${RELEASE_TESTING_ENABLED}" != 'true' && "${RELEASE_TESTING_ENABLED}" != 'false' ]]; then
-            echo "::error::Resolved release-testing state is invalid: ${RELEASE_TESTING_ENABLED}"
-            exit 1
-          fi
-
-          echo "Applying release phase ${RELEASE_PHASE}; ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}."
-          az webapp config appsettings set \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --settings "ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}" \
-            --output none
-
-      - name: Inspect deployment target
-        id: target
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          state="$(az webapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query state \
-            --output tsv)"
-          host="$(az webapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query defaultHostName \
-            --output tsv)"
-
-          if [[ -z "${host}" || "${host}" == "null" ]]; then
-            echo "::error::Azure did not return a default hostname for ${AZURE_WEBAPP_NAME}."
-            exit 1
-          fi
-
-          echo "App Service state before deployment: ${state}"
-          echo "App Service host: ${host}"
-          echo "health_url=https://${host}/health" >> "${GITHUB_OUTPUT}"
-
-      - name: Deploy package with bounded retry
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          max_attempts=3
-          deployment_log="$(mktemp)"
-          trap 'rm -f "${deployment_log}"' EXIT
-
-          for attempt in $(seq 1 "${max_attempts}"); do
-            echo "App Service deployment attempt ${attempt}/${max_attempts}"
-            : > "${deployment_log}"
-
-            if az webapp deploy \
-              --resource-group "${AZURE_RESOURCE_GROUP}" \
-              --name "${AZURE_WEBAPP_NAME}" \
-              --src-path "${DEPLOY_PACKAGE}" \
-              --type zip \
-              --clean true \
-              --restart true \
-              --enable-kudu-warmup true \
-              --enriched-errors true \
-              --track-status false \
-              --timeout 600000 2>&1 | tee "${deployment_log}"; then
-              exit 0
-            fi
-
-            disk_full=false
-            if grep -Fqi 'There is not enough space on the disk' "${deployment_log}"; then
-              disk_full=true
-              echo "::warning::Kudu reported a full local deployment disk."
-            fi
-
-            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
-              if [[ "${disk_full}" == "true" ]]; then
-                echo "Recycling ${AZURE_WEBAPP_NAME} to clear its temporary local storage before retrying."
-                az webapp restart \
-                  --resource-group "${AZURE_RESOURCE_GROUP}" \
-                  --name "${AZURE_WEBAPP_NAME}" \
-                  --output none
-                delay_seconds=30
-              else
-                delay_seconds=$((attempt * 30))
-              fi
-
-              echo "::warning::App Service deployment attempt ${attempt} failed. Retrying in ${delay_seconds} seconds."
-              sleep "${delay_seconds}"
-            fi
-          done
-
-          echo "::error::App Service deployment failed after ${max_attempts} attempts."
-          echo "Safe App Service state:"
-          az webapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
-            --output jsonc || true
-
-          echo "Recent deployment records:"
-          az webapp log deployment list \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query '[0:5]' \
-            --output jsonc || true
-
-          echo "Latest deployment log:"
-          az webapp log deployment show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --output jsonc || true
-
-          exit 1
-
-      - name: Verify API health
-        shell: bash
-        env:
-          HEALTH_URL: ${{ steps.target.outputs.health_url }}
-        run: |
-          set -Eeuo pipefail
-          max_attempts=15
-
-          for attempt in $(seq 1 "${max_attempts}"); do
-            if curl --fail --silent --show-error \
-              --connect-timeout 10 \
-              --max-time 10 \
-              --output /dev/null \
-              "${HEALTH_URL}"; then
-              echo "API health check passed: ${HEALTH_URL}"
-              exit 0
-            fi
-
-            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
-              echo "Health check attempt ${attempt}/${max_attempts} failed; retrying in 10 seconds."
-              sleep 10
-            fi
-          done
-
-          echo "::error::API deployment completed, but ${HEALTH_URL} did not become healthy."
-          az webapp show \
-            --resource-group "${AZURE_RESOURCE_GROUP}" \
-            --name "${AZURE_WEBAPP_NAME}" \
-            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
-            --output jsonc || true
-          exit 1
-</file>
-
-<file path="src/FE/src/features/jobs/routes/CompletedJobReport.tsx">
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, ChevronRight, Download, Eye, FileCheck2, History, Link2, Loader2, Pencil, Save, ShieldCheck, Timer, User, X } from 'lucide-react';
-import { notify } from '../../../lib/toast';
-import { ErrorState } from '../../../components/ErrorState';
-import { StatusBanner } from '../../../components/StatusBanner';
-import { getGetApiJobsIdQueryKey, getGetApiJobsQueryKey, usePostApiJobsIdStatus } from '../../../api/generated/jobs/jobs';
-import { JobStatus } from '../../../api/generated/models/jobStatus';
-import { useIsAdmin } from '../../../providers/permissions/usePermissions';
-import { useAuth } from '../../../providers/useAuth';
-import { validateControlPoints } from '../components/steps/controlPointsValidation';
-import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
-import { NavigationGuard } from '../../../components/forms/NavigationGuard';
-import { useJobDetailsState } from '../hooks/useJobDetails';
-import { COMPLETED_JOB_VIEW_TYPE, markJobAsSeen } from '../utils/markJobSeen';
-import { useScrollRestore } from '../../../hooks/useScrollRestore';
-
-import { formatJobStatus } from '../statusLabels';
-import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
-import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
-import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import { compactPairs, formatNumber, formatUnit, parseNullableNumber } from '../../../lib/formatUtils';
-import { ConfirmActionDialog } from '../components/ConfirmActionDialog';
-import { CompletedJobEditForm } from '../components/CompletedJobEditForm';
-import { DetailGrid } from '../components/DetailGrid';
-import { AssignedUsers } from '../components/AssignedUsers';
-import { LinkedJobs } from '../components/LinkedJobs';
-import { WorksheetDetailList } from '../components/WorksheetDetailList';
-import { ControlPointOverview, getSelectedControlPoints, getIrrelevantCategories } from '../components/ControlPointOverview';
-import { formatReportNumber, formatWorkKind, formatInstallationTypeNames, formatClosureFlags } from '../utils/completedJobFormatters';
-
-type JobAction = 'approve' | 'reject' | 'undo-reject';
-
-function scrollToTop() {
-  document.querySelector<HTMLElement>('.app-shell')?.scrollTo(0, 0);
-}
-
-export const CompletedJobReport = () => {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const location = useLocation();
-  const from = (location.state as { from?: string } | undefined)?.from ?? '/app';
-  const readOnly = Boolean((location.state as { readOnly?: boolean } | undefined)?.readOnly);
-  const details = useJobDetailsState(id, { autoSave: false });
-
-  useScrollRestore(`completed:${id}`);
-  const isAdmin = useIsAdmin();
-  const { user } = useAuth();
-  const isDesktop = useMediaQuery('(min-width: 768px)');
-  const statusMutation = usePostApiJobsIdStatus();
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<JobAction | null>(null);
-  const [completedAction, setCompletedAction] = useState<JobAction | null>(null);
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-  const [worksheetOpen, setWorksheetOpen] = useState(true);
-  const previewUrlRef = useRef<string | null>(null);
-
-  const job = details.job;
-  const jobStatus = job?.status;
-  const isDiverseInReview = job?.jobType === 'Diverse' && jobStatus === JobStatus.InReview;
-
-  useEffect(() => {
-    if (!id || !jobStatus) return;
-    if (jobStatus === JobStatus.Approved) {
-      markJobAsSeen(id, queryClient, COMPLETED_JOB_VIEW_TYPE);
-      return;
-    }
-    markJobAsSeen(id, queryClient);
-  }, [id, jobStatus, queryClient]);
-
-  const selectedControlPoints = useMemo(() => getSelectedControlPoints(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
-  const irrelevantCategories = useMemo(() => getIrrelevantCategories(job?.work.installationTypes ?? []), [job?.work.installationTypes]);
-  const visibleWorksheets = useMemo(() => {
-    if (!isAdmin) {
-      return (job?.worksheets ?? []).filter((ws) => ws.userId === user?.id);
-    }
-    return job?.worksheets ?? [];
-  }, [job?.worksheets, isAdmin, user?.id]);
-
-  const initialLoadDone = useRef(false);
-  const editScrollDone = useRef(false);
-
-  useEffect(() => {
-    if (!job || initialLoadDone.current) return;
-    initialLoadDone.current = true;
-    scrollToTop();
-    requestAnimationFrame(() => scrollToTop());
-  }, [job]);
-
-  useEffect(() => {
-    if (!isEditing || editScrollDone.current) return;
-    editScrollDone.current = true;
-    scrollToTop();
-    requestAnimationFrame(() => scrollToTop());
-  }, [isEditing]);
-
-  useEffect(() => {
-    if (!isEditing) editScrollDone.current = false;
-  }, [isEditing]);
-
-  const handleDownloadPdf = async () => {
-    if (!job) return;
-    setIsDownloadingPdf(true);
-
-    try {
-      await downloadJobReportPdf(job);
-    } catch {
-      notify.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
-    } finally {
-      setIsDownloadingPdf(false);
-    }
-  };
-
-  const handlePreviewPdf = async () => {
-    if (!job) return;
-    setIsLoadingPreview(true);
-
-    try {
-      const { url } = await createJobReportPdfPreview(job);
-      if (previewUrlRef.current) {
-        window.URL.revokeObjectURL(previewUrlRef.current);
-      }
-      previewUrlRef.current = url;
-      window.open(url, '_blank');
-      setTimeout(() => {
-        if (previewUrlRef.current === url) {
-          window.URL.revokeObjectURL(url);
-          previewUrlRef.current = null;
-        }
-      }, 60000);
-    } catch {
-      notify.error(`Kunne ikke hente PDF for sagen ${details.form.reportNumber}`);
-    } finally {
-      setIsLoadingPreview(false);
-    }
-  };
-
-  const handleStartEdit = () => {
-    details.discardChanges();
-    setIsEditing(true);
-    scrollToTop();
-  };
-
-  const handleCancelEdit = () => {
-    details.discardChanges();
-    setIsEditing(false);
-    scrollToTop();
-  };
-
-  const handleSaveEdit = async () => {
-    const cpValidation = validateControlPoints(details.form, details.referenceData!);
-    if (!cpValidation.valid) {
-      notify.error(cpValidation.error ?? 'Udfyld venligst alle påkrævede kontrolpunkter');
-      return;
-    }
-
-    const saved = await details.saveAllChanges();
-    if (!saved) return;
-
-    setIsEditing(false);
-    scrollToTop();
-    notify.success(`Sagen ${details.form.reportNumber} er opdateret`);
-  };
-
-  const handleApprove = () => {
-    setConfirmAction('approve');
-  };
-
-  const handleReject = () => {
-    setConfirmAction('reject');
-  };
-
-  const handleUndoRejection = () => {
-    setConfirmAction('undo-reject');
-  };
-
-  const executeConfirmAction = async (rejectionNote?: string) => {
-    if (!job || !confirmAction) return;
-
-    let targetStatus: JobStatus;
-    let note: string | null = null;
-
-    if (confirmAction === 'undo-reject') {
-      targetStatus = JobStatus.InReview;
-    } else {
-      targetStatus = confirmAction === 'approve' ? JobStatus.Approved : JobStatus.Rejected;
-      note = rejectionNote ?? null;
-    }
-
-    try {
-      const updatedJob = await statusMutation.mutateAsync({ id: job.id, data: { status: targetStatus, rejectionNote: note } });
-      queryClient.setQueryData(getGetApiJobsIdQueryKey(job.id), updatedJob);
-      await queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
-      setConfirmAction(null);
-      setCompletedAction(confirmAction);
-    } catch {
-      const message = confirmAction === 'undo-reject'
-        ? `Kunne ikke fortryde afvisningen. Prøv igen.`
-        : confirmAction === 'approve'
-          ? `Kunne ikke godkende ${details.form.reportNumber}. Prøv igen.`
-          : `Kunne ikke afvise ${details.form.reportNumber}. Prøv igen.`;
-      notify.error(message);
-      setConfirmAction(null);
-    }
-  };
-
-  if (details.isLoading) {
-    return (
-      <div className="page-container report-overview-page">
-        <div className="detail-header report-overview-header">
-          <div className="skeleton skeleton-icon" />
-          <div>
-            <div className="skeleton" style={{ width: '10rem', height: '0.85rem', marginBottom: '0.35rem' }} />
-            <div className="skeleton" style={{ width: '8rem', height: '1.25rem' }} />
-          </div>
-        </div>
-        <div className="report-overview-toolbar" aria-label="Rapport handlinger">
-          <div className="report-overview-actions report-overview-actions--left">
-            <div className="skeleton" style={{ width: '2rem', height: '2rem', borderRadius: 'var(--radius-sm)' }} />
-            <div className="skeleton" style={{ width: '2rem', height: '2rem', borderRadius: 'var(--radius-sm)' }} />
-          </div>
-        </div>
-        <div className="report-overview-grid">
-          <div className="report-overview-colpair">
-            <section className="detail-section">
-              <div className="skeleton" style={{ width: '6rem', height: '1rem', marginBottom: '0.75rem' }} />
-              <div className="skeleton" style={{ width: '100%', height: '6rem' }} />
-            </section>
-            <section className="detail-section">
-              <div className="skeleton" style={{ width: '6rem', height: '1rem', marginBottom: '0.75rem' }} />
-              <div className="skeleton" style={{ width: '100%', height: '6rem' }} />
-            </section>
-          </div>
-          <section className="detail-section">
-            <div className="skeleton" style={{ width: '7rem', height: '1rem', marginBottom: '0.75rem' }} />
-            <div className="skeleton" style={{ width: '60%', height: '3rem' }} />
-          </section>
-        </div>
-      </div>
-    );
-  }
-
-  if (details.isError || !job) {
-    return (
-      <div className="page-container report-overview-page">
-        <ErrorState message="Kunne ikke hente sagsrapporten." onRetry={() => details.refetch()} />
-      </div>
-    );
-  }
-
-  const summaryPairs = compactPairs([
-    { label: 'Sagsnummer', value: formatReportNumber(job) },
-    { label: 'Status', value: formatJobStatus(job.status)},
-    { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
-    { label: 'Opgavetype', value: formatWorkKind(job) },
-    { label: 'Destination', value: job.destinationAddress },
-    { label: 'Afslutning', value: formatClosureFlags(job) },
-    { label: 'Afvisningsgrund', value: job.status === JobStatus.Rejected ? job.rejectionNote : undefined },
-  ]);
-  const customerPairs = compactPairs([
-    { label: 'Kunde', value: job.customerSnapshot.name },
-    { label: 'Adresse', value: job.customerSnapshot.address },
-    { label: 'Kontaktperson', value: job.customerSnapshot.contactPerson },
-    { label: 'Telefon', value: job.customerSnapshot.phone },
-    { label: 'Email', value: job.customerSnapshot.email },
-  ]);
-  const observationPairs = compactPairs([
-    { label: 'Opgave', value: job.observations.taskDescription },
-    { label: 'Kundeinfo', value: job.observations.customerObservations },
-    { label: 'Teknisk', value: job.observations.technicalObservations },
-    { label: 'Bemærkninger', value: job.work.remarks },
-  ]);
-
-  return (
-    <div className="page-container report-overview-page">
-      <NavigationGuard when={isEditing && details.hasUnsavedChanges} onSave={() => details.saveAllChanges()} />
-      <div className="detail-header report-overview-header">
-        <button className="btn-icon" type="button" onClick={() => navigate(-1)} aria-label="Tilbage til afsluttede sager">
-          <ArrowLeft size={22} />
-        </button>
-        <div>
-          <span className="job-number">{formatReportNumber(job)} - {formatJobStatus(job.status)}</span>
-          <h2 className="detail-title">Sagsoverblik</h2>
-        </div>
-      </div>
-      <div className="report-overview-toolbar" aria-label="Rapport handlinger">
-        <div className="report-overview-actions report-overview-actions--left">
-          {isEditing ? (
-            <>
-              <button className="btn btn-secondary report-overview-icon-action edit-form-cancel-btn" type="button" onClick={handleCancelEdit} aria-label="Annuller redigering" disabled={details.saveStatus === 'saving'}>
-                <X size={16} />
-              </button>
-              <button className="btn btn-primary edit-form-header-save-btn" type="button" onClick={handleSaveEdit} aria-label="Gem ændringer" disabled={details.saveStatus === 'saving'}>
-                {details.saveStatus === 'saving' ? <Loader2 size={18} className="spin" /> : <Save size={18} />}
-                <span>{details.saveStatus === 'saving' ? 'Gemmer...' : 'Gem ændringer'}</span>
-              </button>
-            </>
-          ) : (
-            isAdmin && !readOnly && (
-              <button className="btn btn-secondary report-overview-icon-action" type="button" onClick={handleStartEdit} aria-label="Rediger sag">
-                <Pencil size={16} />
-              </button>
-            )
-          )}
-          <button
-            className={`btn btn-secondary report-overview-icon-action`}
-            type="button"
-            onClick={() => setHistoryOpen(true)}
-            disabled={isEditing}
-            aria-label="Historik"
-            title="Vis sagshistorik"
-          >
-            <History size={16} />
-          </button>
-          {isDesktop && (
-            <button
-              className="btn btn-secondary report-overview-icon-action"
-              type="button"
-              onClick={() => void handlePreviewPdf()}
-              disabled={isLoadingPreview || isEditing}
-              aria-label="Forhåndsvis PDF"
-              title="Forhåndsvis PDF"
-            >
-              {isLoadingPreview ? <Loader2 size={16} className="spin" /> : <Eye size={16} />}
-            </button>
-          )}
-          <button
-            className="btn btn-secondary report-overview-icon-action"
-            type="button"
-            onClick={() => void handleDownloadPdf()}
-            disabled={isDownloadingPdf || isEditing}
-            aria-label="Download PDF"
-            title="Download PDF"
-          >
-            {isDownloadingPdf ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
-          </button>
-        </div>
-        {isDesktop && job.status === JobStatus.InReview && isAdmin && !readOnly && !isEditing && (
-          <div className="report-overview-actions report-overview-actions--right">
-            <button className="btn btn-secondary" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
-              <X size={16} />
-              <span>Afvis</span>
-            </button>
-            <button className="btn btn-primary" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
-              {statusMutation.isPending ? <Loader2 size={16} className="spin" /> : <CheckCircle2 size={16} />}
-              <span>{statusMutation.isPending ? 'Godkender...' : 'Godkend'}</span>
-            </button>
-          </div>
-        )}
-        {isDesktop && job.status === JobStatus.Rejected && isAdmin && !readOnly && !isEditing && (
-          <div className="report-overview-actions report-overview-actions--right">
-            <button className="btn btn-secondary" type="button" onClick={handleUndoRejection} disabled={statusMutation.isPending}>
-              <X size={16} />
-              <span>Fortryd afvisning</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {isAdmin && job.status === JobStatus.InReview && !readOnly && (
-        <StatusBanner variant="info" title="Klar til review">
-          <p>Sagen er sendt til gennemgang og mangler din godkendelse.</p>
-        </StatusBanner>
-      )}
-
-      {isEditing ? (
-        <CompletedJobEditForm details={details} onCancel={handleCancelEdit} onSave={handleSaveEdit} />
-      ) : (
-        <>
-          <div className="report-overview-grid">
-            <div className="report-overview-colpair">
-              <section className="detail-section report-overview-hero">
-                <div className="section-header-row attestation-compact-header">
-                  <FileCheck2 size={18} />
-                  <h3>Sag</h3>
-                </div>
-                <DetailGrid items={summaryPairs} />
-              </section>
-              {!isDiverseInReview && (
-                <section className="detail-section">
-                  <div className="section-header-row attestation-compact-header">
-                    <User size={18} />
-                    <h3>Kunde</h3>
-                  </div>
-                  <DetailGrid items={customerPairs} />
-                </section>
-              )}
-            </div>
-
-            <section className="detail-section">
-              <button
-                className="section-header-row attestation-compact-header btn-reset"
-                type="button"
-                onClick={() => setWorksheetOpen(o => !o)}
-                aria-expanded={worksheetOpen}
-              >
-                <Timer size={18} />
-                <h3>Timesedler ({visibleWorksheets.length})</h3>
-                <ChevronRight
-                  size={18}
-                  className="chevron-icon"
-                  style={{ transform: worksheetOpen ? 'rotate(90deg)' : 'none' }}
-                />
-              </button>
-
-              {worksheetOpen && (
-                <div className="worksheet-list-section">
-                  <WorksheetDetailList worksheets={visibleWorksheets} className="report-overview-timesheet-list" />
-                  <div className="worksheet-list-totals" aria-label="Timeseddel totaler">
-                    {parseNullableNumber(job.totalOutlay) > 0 && (
-                      <span><strong>{formatNumber(job.totalOutlay)}</strong> {formatUnit(parseNullableNumber(job.totalOutlay), 'udlæg', 'udlæg')}</span>
-                    )}
-                    <span><strong>{formatNumber(job.totalHours)}</strong> {formatUnit(parseNullableNumber(job.totalHours), 'time', 'timer')}</span>
-                  </div>
-                </div>
-              )}
-            </section>
-
-            <section className="detail-section">
-              <div className="section-header-row">
-                <User size={18} />
-                <h3>Medarbejdere</h3>
-              </div>
-              <AssignedUsers users={job.assignedUsers} />
-            </section>
-
-            {observationPairs.length > 0 ? (
-              <section className="detail-section attestation-summary-section">
-                <div className="section-header-row attestation-compact-header">
-                  <FileCheck2 size={18} />
-                  <h3>Observationer og noter</h3>
-                </div>
-                <div className="attestation-observations-list">
-                  {observationPairs.map((item) => (
-                    <div key={item.label} className="attestation-data-pair observation">
-                      <dt>{item.label}</dt>
-                      <dd>{item.value}</dd>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : (
-              <section className="detail-section">
-                <div className="section-header-row attestation-compact-header">
-                  <FileCheck2 size={18} />
-                  <h3>Observationer og noter</h3>
-                </div>
-                <p className="empty-state-text">Ingen observationer registreret.</p>
-              </section>
-            )}
-
-            {!isDiverseInReview && (
-              <section className="detail-section">
-                <div className="section-header-row attestation-compact-header">
-                  <Link2 size={18} />
-                  <h3>Tilknyttede sager</h3>
-                </div>
-                <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
-              </section>
-            )}
-
-          </div>
-
-          {!isDiverseInReview && (
-            <CollapsibleSection
-              icon={<CheckCircle2 size={18} />}
-              title="Kontrolpunkter"
-              className="kontrolpunkter-section"
-            >
-              <div className="attestation-control-section compact">
-                <ControlPointOverview selectedControlPoints={selectedControlPoints} irrelevantCategories={irrelevantCategories} />
-              </div>
-            </CollapsibleSection>
-          )}
-
-          {!isDesktop && job.status === JobStatus.InReview && isAdmin && !readOnly && !isEditing && (
-            <section className="detail-section">
-              <div className="section-header-row">
-                <ShieldCheck size={18} />
-                <h3>Godkendelse</h3>
-              </div>
-              <div className="edit-form-bottom-actions">
-                <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleReject} disabled={statusMutation.isPending}>
-                  <X size={18} />
-                  Afvis
-                </button>
-                <button className="btn btn-primary edit-form-bottom-btn" type="button" onClick={handleApprove} disabled={statusMutation.isPending}>
-                  {statusMutation.isPending ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
-                  {statusMutation.isPending ? 'Godkender...' : 'Godkend'}
-                </button>
-              </div>
-            </section>
-          )}
-
-          {!isDesktop && job.status === JobStatus.Rejected && isAdmin && !readOnly && !isEditing && (
-            <section className="detail-section">
-              <div className="section-header-row">
-                <ShieldCheck size={18} />
-                <h3>Godkendelse</h3>
-              </div>
-              <div className="edit-form-bottom-actions">
-                <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={handleUndoRejection} disabled={statusMutation.isPending}>
-                  <X size={18} />
-                  Fortryd afvisning
-                </button>
-              </div>
-            </section>
-          )}
-        </>
-      )}
-
-      <JobHistoryDrawer
-        jobId={job.id} 
-        isOpen={historyOpen} 
-        onClose={() => setHistoryOpen(false)} 
-      />
-
-      {confirmAction && (
-        <ConfirmActionDialog
-          action={confirmAction}
-          reportNumber={details.form.reportNumber}
-          isPending={statusMutation.isPending}
-          onConfirm={(note) => void executeConfirmAction(note)}
-          onClose={() => setConfirmAction(null)}
-        />
-      )}
-
-      {completedAction && (
-        <ActionSuccessDialog
-          action={completedAction}
-          reportNumber={formatReportNumber(job)}
-          onGoToJobList={() => navigate('/app', { replace: true })}
-          onGoToJob={() => {
-            setCompletedAction(null);
-            navigate(`/app/completed/${job.id}`, { replace: true });
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function ActionSuccessDialog({
-  action,
-  reportNumber,
-  onGoToJobList,
-  onGoToJob,
-}: {
-  action: JobAction;
-  reportNumber: string;
-  onGoToJobList: () => void;
-  onGoToJob: () => void;
-}) {
-  const isUndoReject = action === 'undo-reject';
-  const isApprove = action === 'approve';
-  const title = isUndoReject
-    ? 'Afvisningen er fortrudt'
-    : isApprove
-      ? 'Sagen er godkendt'
-      : 'Sagen er afvist';
-  const body = isUndoReject
-    ? <>Sagen <strong>{reportNumber}</strong> er sendt til gennemgang igen.</>
-    : isApprove
-      ? <>Sagen <strong>{reportNumber}</strong> er godkendt.</>
-      : <>Sagen <strong>{reportNumber}</strong> er afvist.</>;
-
-  return createPortal(
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="action-success-title">
-      <div className="modal-card">
-        <h3 id="action-success-title">{title}</h3>
-        <p>{body}</p>
-        <div className="modal-actions modal-actions--double">
-          <button className="btn btn-secondary" type="button" onClick={onGoToJobList}>
-            Til sagslisten
-          </button>
-          <button className="btn btn-primary" type="button" onClick={onGoToJob}>
-            Til sagen
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
 </file>
 
 <file path="src/FE/src/main.tsx">
