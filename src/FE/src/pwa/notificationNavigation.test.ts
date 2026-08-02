@@ -195,7 +195,7 @@ describe('navigateNotificationTarget', () => {
     expect(unrelatedClient.focus).not.toHaveBeenCalled();
   });
 
-  it('opens the target in a new window only when no application client exists', async () => {
+  it('opens the target when no application client exists', async () => {
     const openedClient = createClient({ focused: true, visibilityState: 'visible' });
     const openWindow = vi.fn().mockResolvedValue(openedClient);
 
