@@ -34,9 +34,10 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
         var correlationId = context.Items["CorrelationId"]?.ToString() ?? traceId;
 
         logger.LogError(exception,
-            "Unhandled exception while processing {Method} {Path}. CorrelationId: {CorrelationId} TraceId: {TraceId}",
+            "Unhandled exception while processing {Method} {Path}. ExceptionType: {ExceptionType} CorrelationId: {CorrelationId} TraceId: {TraceId}",
             context.Request.Method,
             context.Request.Path,
+            exception.GetType().Name,
             correlationId,
             traceId);
 
