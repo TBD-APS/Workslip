@@ -17,7 +17,6 @@ env:
   DOTNET_VERSION: '10.0.x'
   NODE_VERSION: '24'
   BACKEND_SOLUTION: src/BE/WorkslipApi/Workslip.slnx
-  FRONTEND_ROOT: src/FE
 
 jobs:
   backend:
@@ -72,7 +71,7 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: ${{ env.FRONTEND_ROOT }}
+        working-directory: src/FE
 
     steps:
       - name: Checkout
@@ -85,8 +84,14 @@ jobs:
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
 
+      - name: Cache generated fonts
+        uses: actions/cache@v4
+        with:
+          path: src/FE/public/fonts
+          key: fonts-${{ runner.os }}-${{ hashFiles('src/FE/scripts/sync-fonts.mjs') }}
+
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Lint
         run: npm run lint
