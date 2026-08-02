@@ -8,10 +8,12 @@ import type {
   ErrorDiagnosticsTelemetryHealth,
 } from './types';
 
+export const errorDiagnosticsQueryPrefix = ['superadmin', 'diagnostics', 'errors'] as const;
+
 export const errorDiagnosticsQueryKey = (
   range: ErrorDiagnosticsRange,
   source: ErrorDiagnosticsSource,
-) => ['superadmin', 'diagnostics', 'errors', range, source] as const;
+) => [...errorDiagnosticsQueryPrefix, range, source] as const;
 
 const invalidResponseMessage = 'Logdashboardet modtog et ugyldigt svar fra API’et.';
 
