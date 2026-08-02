@@ -105,7 +105,7 @@ jobs:
             --output tsv)"
 
           if [[ -z "${workspace_id}" || "${workspace_id}" == "null" ]]; then
-            echo "::error::The API is missing Azure__ApplicationInsights__WorkspaceId. Deploy src/BE/infrastructure/main.bicep first with .\\src\\BE\\infrastructure\\deploy-infrastructure.ps1 prod."
+            echo "::error::The API is missing Azure__ApplicationInsights__WorkspaceId. Run the 'Production infrastructure deploy' workflow from main, then rerun this API deployment."
             echo "::error::Backend deployment is blocked so diagnostics code cannot be released without its required Azure configuration."
             exit 1
           fi
