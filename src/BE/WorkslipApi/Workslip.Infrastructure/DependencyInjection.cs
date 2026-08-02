@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Workslip.Application;
 using Workslip.Application.Common;
 using Workslip.Application.Customers;
+using Workslip.Application.Diagnostics;
 using Workslip.Application.Invitations;
 using Workslip.Application.Jobs;
 using Workslip.Application.Notifications;
@@ -12,6 +13,7 @@ using Workslip.Application.Organizations;
 using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
 using Workslip.Infrastructure.Configuration;
+using Workslip.Infrastructure.Diagnostics;
 using Workslip.Infrastructure.Invitations;
 using Workslip.Infrastructure.Jobs;
 using Workslip.Infrastructure.Notifications;
@@ -64,6 +66,12 @@ public static class DependencyInjection
         services.AddScoped<IJobViewRepository, EfJobViewRepository>();
         services.AddScoped<DatabaseSchemaInitializer>();
         services.AddScoped<DevelopmentDatabaseSeeder>();
+
+        services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.loganalytics.azure.com/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
 
         services.AddScoped<IEmailService, AcsEmailService>();
         services.AddSingleton<VapidKeyMaterial>();

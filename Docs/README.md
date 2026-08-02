@@ -22,6 +22,7 @@ This directory separates maintained product documentation from historical implem
 | GDPR and EU AI Act | [`compliance/GDPR_AI_ACT_BASELINE.md`](compliance/GDPR_AI_ACT_BASELINE.md) | Active | Product owner and engineering owner | Quarterly and on data/AI changes | Applicable law, regulator guidance, contracts, deployed dataflows and compliance evidence |
 | Pages and domain operations | [`operations/github-pages-domain-runbook.md`](operations/github-pages-domain-runbook.md) | Active | Repository owner | Before Pages or DNS changes | GitHub Pages settings, DNS and Pages workflow |
 | CI quality gates | [`operations/ci-quality-gates.md`](operations/ci-quality-gates.md) | Active | Repository owner | Monthly and on required-check changes | Workflows, rulesets and successful runs |
+| Application Insights error dashboard | [`operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md`](operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md) | Active | Workslip maintainers | On telemetry, Azure RBAC, KQL or incident-process changes | Diagnostics endpoint/service, frontend telemetry and Azure configuration |
 | Agent conventions | [`../AGENTS.md`](../AGENTS.md) | Active | Repository owner | On engineering-policy changes | Approved repository rules |
 
 Named owners should be replaced with actual team members when ownership is assigned in Linear. Until then, the repository owner is accountable for review.
