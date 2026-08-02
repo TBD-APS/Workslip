@@ -1,0 +1,15 @@
+{
+  "phase": "prelive",
+  "environments": {
+    "production": {
+      "url": "https://app.mrsoftware.dk",
+      "enableDevelopmentEndpoints": true,
+      "allowDestructivePlaywright": true
+    },
+    "staging": {
+      "url": null,
+      "enableDevelopmentEndpoints": false,
+      "allowDestructivePlaywright": false
+    }
+  }
+}
