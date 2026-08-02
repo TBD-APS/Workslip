@@ -24989,6 +24989,11 @@ SOFTWARE.
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><linearGradient id="g"><stop stop-color="#11255b"/><stop offset="1" stop-color="#0a0e27"/></linearGradient></defs><path fill="url(#g)" d="M0 0h200v200H0z"/><path fill="#fff" transform="translate(45.7 144.56) scale(6.267)" d="m10.11-14.22 1.98 8.92 1.63-8.92h3.4L14.1 0h-3.55L8.64-8.11 6.78 0H3.23L.21-14.22h3.4L5.24-5.3 7.2-14.22z"/></svg>
 </file>
 
+<file path="src/FE/public/robots.txt">
+User-agent: *
+Disallow: /
+</file>
+
 <file path="src/FE/scripts/sync-fonts.mjs">
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -36596,6 +36601,91 @@ export default defineConfig({
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/sw.ts"]
+}
+</file>
+
+<file path="src/FE/vercel.json">
+{
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api-mrsoftware-prod.azurewebsites.net/api/:path*"
+    },
+    {
+      "source": "/((?!assets/|robots\\.txt$).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/fonts/(.*).woff2",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
 }
 </file>
 
@@ -107183,11 +107273,6 @@ finally
 </Project>
 </file>
 
-<file path="src/FE/public/robots.txt">
-User-agent: *
-Disallow: /
-</file>
-
 <file path="src/FE/scripts/playwright-critical-contract.mjs">
 export function createContractHelpers(env) {
   const { API_TIMEOUT, UI_TIMEOUT, postman } = env;
@@ -115903,91 +115988,6 @@ A user-visible frontend PR without successful Playwright validation is **impleme
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-</file>
-
-<file path="src/FE/vercel.json">
-{
-  "git": {
-    "deploymentEnabled": {
-      "*": false,
-      "main": true
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://api-mrsoftware-prod.azurewebsites.net/api/:path*"
-    },
-    {
-      "source": "/((?!assets/|robots\\.txt$).*)",
-      "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/api/:path*",
-      "headers": [
-        {
-          "key": "x-vercel-enable-rewrite-caching",
-          "value": "0"
-        }
-      ]
-    },
-    {
-      "source": "/robots.txt",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "text/plain; charset=utf-8"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
-    },
-    {
-      "source": "/sw.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/fonts/(.*).woff2",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    }
-  ]
-}
 </file>
 
 <file path="tools/docs/check_docs.py">
