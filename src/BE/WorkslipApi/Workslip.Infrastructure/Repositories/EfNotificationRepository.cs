@@ -10,6 +10,8 @@ namespace Workslip.Infrastructure.Repositories;
 
 public sealed class EfNotificationRepository : INotificationRepository
 {
+    private static readonly TimeSpan ProcessingLease = TimeSpan.FromMinutes(15);
+
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
 
@@ -45,13 +47,20 @@ public sealed class EfNotificationRepository : INotificationRepository
     {
         return await _retryPolicy.ExecuteAsync("notifications.claim", async token =>
         {
-            var sql = @"
-                UPDATE TOP (@BatchSize) NotificationQueue
+            const string sql = """
+                ;WITH candidates AS (
+                    SELECT TOP (@BatchSize) *
+                    FROM NotificationQueue WITH (UPDLOCK, READPAST, ROWLOCK)
+                    WHERE (Status = 'Pending' AND NextAttemptUtc <= SYSUTCDATETIME())
+                       OR (Status = 'Processing'
+                           AND (ProcessingStartedUtc IS NULL OR ProcessingStartedUtc <= @LeaseCutoffUtc))
+                    ORDER BY NextAttemptUtc, CreatedUtc
+                )
+                UPDATE candidates
                 SET Status = 'Processing',
                     ProcessingStartedUtc = SYSUTCDATETIME()
-                OUTPUT inserted.Id, inserted.UserId, inserted.NotificationType, inserted.PayloadJson, inserted.Status, inserted.RetryCount, inserted.CreatedUtc, inserted.ProcessingStartedUtc, inserted.NextAttemptUtc, inserted.CompletedUtc, inserted.LastError
-                WHERE Status = 'Pending'
-                  AND NextAttemptUtc <= SYSUTCDATETIME()";
+                OUTPUT inserted.Id, inserted.UserId, inserted.NotificationType, inserted.PayloadJson, inserted.Status, inserted.RetryCount, inserted.CreatedUtc, inserted.ProcessingStartedUtc, inserted.NextAttemptUtc, inserted.CompletedUtc, inserted.LastError;
+                """;
 
             var connection = _dbContext.Database.GetDbConnection();
             var wasClosed = connection.State == ConnectionState.Closed;
@@ -59,9 +68,18 @@ public sealed class EfNotificationRepository : INotificationRepository
             {
                 await connection.OpenAsync(token);
             }
+
             try
             {
-                var result = await connection.QueryAsync<NotificationQueueRow>(sql, new { BatchSize = batchSize });
+                var command = new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        BatchSize = batchSize,
+                        LeaseCutoffUtc = DateTimeOffset.UtcNow.Subtract(ProcessingLease)
+                    },
+                    cancellationToken: token);
+                var result = await connection.QueryAsync<NotificationQueueRow>(command);
                 return (IReadOnlyList<NotificationQueueRow>)result.ToList();
             }
             finally
@@ -115,6 +133,22 @@ public sealed class EfNotificationRepository : INotificationRepository
                 .Where(s => s.UserId == userId && s.IsActive)
                 .ToListAsync(token);
             return (IReadOnlyList<PushSubscriptionRow>)result;
+        }, cancellationToken);
+    }
+
+    public async Task<IReadOnlySet<Guid>> GetSuccessfulSubscriptionIdsAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken)
+    {
+        return await _retryPolicy.ExecuteAsync("notifications.get_successful_deliveries", async token =>
+        {
+            var subscriptionIds = await _dbContext.NotificationDeliveryLog
+                .AsNoTracking()
+                .Where(log => log.NotificationId == notificationId && log.Success)
+                .Select(log => log.SubscriptionId)
+                .Distinct()
+                .ToListAsync(token);
+            return (IReadOnlySet<Guid>)subscriptionIds.ToHashSet();
         }, cancellationToken);
     }
 
