@@ -760,7 +760,7 @@ resource customEmailDomain 'Microsoft.Communication/emailServices/domains@2023-0
   }
 }
 
-resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-03-31' = if (isProduction) {
+resource customEmailSender 'Microsoft.Communication/emailServices/domains/senderUsernames@2023-04-01' = if (isProduction) {
   parent: customEmailDomain
   name: customEmailSenderUsername
   properties: {
