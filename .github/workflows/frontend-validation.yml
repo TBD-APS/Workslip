@@ -1,0 +1,52 @@
+name: Frontend validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/actions/generate-frontend-api/**'
+      - '.github/workflows/frontend-validation.yml'
+      - 'src/BE/WorkslipApi/**'
+      - 'src/FE/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Branch-matched frontend validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: src/FE
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Generate branch-matched API client
+        uses: ./.github/actions/generate-frontend-api
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test -- --run
+
+      - name: Build
+        run: npm run build

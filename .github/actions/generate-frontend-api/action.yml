@@ -1,0 +1,42 @@
+name: Generate branch-matched frontend API client
+description: Build the backend OpenAPI document and generate the frontend Orval client from the same commit.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore API project
+      shell: bash
+      run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
+
+    - name: Generate OpenAPI document
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        output_dir="${RUNNER_TEMP}/workslip-openapi"
+        rm -rf "${output_dir}"
+        mkdir -p "${output_dir}"
+
+        dotnet build src/BE/WorkslipApi/Workslip.Api.csproj \
+          --configuration Release \
+          --no-restore \
+          --nologo \
+          -p:OpenApiGenerateDocuments=true \
+          -p:OpenApiDocumentsDirectory="${output_dir}"
+
+        document="$(find "${output_dir}" -maxdepth 1 -type f -name '*.json' -print -quit)"
+        if [[ -z "${document}" ]]; then
+          echo '::error::Backend build did not generate an OpenAPI document.'
+          exit 1
+        fi
+
+        echo "OPENAPI_DOCUMENT=${document}" >> "${GITHUB_ENV}"
+
+    - name: Generate Orval client
+      shell: bash
+      working-directory: src/FE
+      run: npx orval --config orval.config.ts
