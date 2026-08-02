@@ -4,7 +4,7 @@ Status: Active
 Owner: Workslip repository owner  
 Source of truth: `.github/workflows/`, repository rulesets and current successful workflow runs  
 Review cadence: monthly and whenever a workflow or required check changes  
-Linear: WOR-170, WOR-171, WOR-188, WOR-194, WOR-303, WOR-305, WOR-306
+Linear: WOR-170, WOR-171, WOR-188, WOR-194, WOR-303, WOR-305, WOR-306, WOR-308
 
 ## Principle
 
@@ -16,11 +16,45 @@ A required or routinely triggered check must be configured, actionable and owned
 - API deployment restores, builds, publishes and deploys the backend artifact for relevant changes on `main` or an explicit manual run.
 - API deployment does not invoke the post-deploy cache workflow.
 - Vercel Git deployments are enabled only for `main`; all other branch names are denied by the repository's `src/FE/vercel.json` policy.
+- Every push to `release/**` runs `.github/workflows/release-validation.yml` without path filters.
 - A successful production backend release or successful Vercel production deployment from `main` or `release/**` triggers `.github/workflows/update-repomix-after-release.yml`.
 - The Repomix workflow resolves the released branch by SHA, regenerates `repomix-output.xml`, and commits only when the generated output changed.
 - Failed, cancelled, preview, stale, or unrelated deployments do not update Repomix.
 - The repository has no general pull-request validation workflow. Relevant backend/frontend validation must be run locally or through a deliberately added, issue-scoped validation workflow that is removed again after use.
 - Existing security and review checks supplied outside these workflow files remain governed by repository rulesets and their own configuration.
+
+## Release branch validation
+
+`release/**` is the automatic full-code validation boundary before production promotion. The workflow runs all mandatory jobs for every push, even when only one part of the repository changed. This intentionally trades some CI time for a stable, predictable release signal.
+
+The workflow exposes the following separate checks:
+
+- `Backend build and tests` — restores the full backend solution, builds it in Release mode and runs the complete backend test suite;
+- `Frontend lint, tests and build` — installs from the committed lockfile, runs ESLint, runs Vitest once and builds the production frontend;
+- `Playwright and API contract sources` — syntax-checks the maintained Playwright scenario modules and parses the Postman collection;
+- `Release gate` — succeeds only when all required workflow jobs succeeded.
+
+Superseded pushes to the same release branch cancel the older run. NuGet and npm dependency caches are used to reduce repeat runtime. Backend TRX output is retained for three days; application builds and local browser artifacts are not committed.
+
+### Required release ruleset
+
+Create or maintain a repository ruleset targeting `refs/heads/release/**` with:
+
+1. direct pushes restricted to the intended release maintainers;
+2. required status check `Release gate`;
+3. required CodeQL code-scanning results at the approved severity threshold;
+4. force pushes blocked;
+5. no broad GitHub App bypass beyond identities with a documented release need.
+
+CodeQL default setup analyzes the default branch and protected branches. Protecting `release/**` through the release ruleset is therefore part of the release-gate configuration. Do not add a second advanced CodeQL workflow while default setup is active, because competing CodeQL setup types create duplicate or stale analysis configurations.
+
+The workflow file proves intended automation only. The first push to a real `release/**` branch must prove that every job executes, that `Release gate` reports the expected result, and that a controlled failing push is blocked by the ruleset.
+
+### Browser validation boundary
+
+The release workflow validates Playwright source and API contract material, but it does not call production and describe that as release-commit browser validation. `https://app.mrsoftware.dk` contains the currently deployed production revision, not necessarily the release branch SHA.
+
+Automatic browser validation of the exact release commit requires an isolated release/staging frontend and API with synthetic data and safe test identities. Until that environment exists and is tied to the release SHA, run the relevant Playwright scenario deliberately and report the release as browser-unvalidated. Do not use destructive production flows as a substitute.
 
 ## Post-release Repomix update
 
