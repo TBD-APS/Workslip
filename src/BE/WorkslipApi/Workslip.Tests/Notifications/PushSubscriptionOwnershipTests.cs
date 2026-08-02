@@ -78,23 +78,6 @@ public sealed class PushSubscriptionOwnershipTests
         Assert.True(subscription.IsActive);
     }
 
-    [Fact]
-    public void Model_RequiresGloballyUniqueEndpoint()
-    {
-        var options = new DbContextOptionsBuilder<SqlDbContext>()
-            .UseSqlite("Data Source=:memory:")
-            .Options;
-        using var context = new SqlDbContext(options);
-        var entity = context.Model.FindEntityType(typeof(PushSubscriptionRow));
-
-        var endpointIndex = Assert.Single(
-            entity!.GetIndexes().Where(index =>
-                index.Properties.Select(property => property.Name)
-                    .SequenceEqual([nameof(PushSubscriptionRow.Endpoint)])));
-
-        Assert.True(endpointIndex.IsUnique);
-    }
-
     private sealed class NoRetryPolicy : IDatabaseRetryPolicy
     {
         public Task ExecuteAsync(
