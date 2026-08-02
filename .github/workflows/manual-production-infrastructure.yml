@@ -162,7 +162,7 @@ jobs:
               Invoke-WebRequest -Uri $healthUrl -Method Get -TimeoutSec 10 -UseBasicParsing | Out-Null
               "Production infrastructure reconciled and API health passed: $healthUrl" |
                 Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-              exit 0
+              break
             }
             catch {
               if ($attempt -eq 15) {
