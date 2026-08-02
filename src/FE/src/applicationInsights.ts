@@ -169,10 +169,7 @@ function toError(error: unknown): Error {
 }
 
 function currentRoute(): string {
-  const segments = window.location.pathname.split('/').filter(Boolean);
-  if (segments.length === 0) return '/';
-  if (segments[0] === 'app') return '/app';
-  return `/${sanitizeText(segments[0])}`;
+  return sanitizeEndpoint(window.location.pathname || '/');
 }
 
 function sanitizeTelemetryItem(item: ITelemetryItem): boolean {
