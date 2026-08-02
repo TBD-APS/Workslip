@@ -11,11 +11,17 @@ const release = import.meta.env.VITE_APP_RELEASE?.trim() || __BUILD_TIME__;
 
 let client: ApplicationInsightsClient | null = null;
 let initializationPromise: Promise<void> | null = null;
+let initializationAttempts = 0;
 let globalHandlersInstalled = false;
+let heartbeatIntervalId: number | null = null;
 let pendingInteraction: { correlationId: string; action: string; createdAt: number } | null = null;
 const recentlyReportedErrors = new Map<string, number>();
+const pendingErrorTelemetry: IExceptionTelemetry[] = [];
 const duplicateWindowMs = 60_000;
 const interactionLifetimeMs = 5_000;
+const heartbeatIntervalMs = 5 * 60_000;
+const maxPendingErrors = 20;
+const initializationRetryDelaysMs = [30_000, 120_000] as const;
 
 const sensitiveValuePattern = /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*["']?)[^"',}\s]+(["']?)/gi;
 const sensitiveKeyPattern = /^(authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key|request|requestdata|response|payload|body|headers)$/i;
@@ -180,6 +186,39 @@ function sanitizeTelemetryItem(item: ITelemetryItem): boolean {
   return true;
 }
 
+function sendTelemetryHeartbeat(): void {
+  if (!client || document.visibilityState === 'hidden') return;
+
+  client.trackEvent({
+    name: 'telemetry.heartbeat',
+    properties: {
+      route: currentRoute(),
+      release,
+    },
+  });
+}
+
+function startTelemetryHeartbeat(): void {
+  sendTelemetryHeartbeat();
+  if (heartbeatIntervalId !== null) return;
+
+  heartbeatIntervalId = window.setInterval(sendTelemetryHeartbeat, heartbeatIntervalMs);
+}
+
+function flushPendingErrors(nextClient: ApplicationInsightsClient): void {
+  const queued = pendingErrorTelemetry.splice(0, pendingErrorTelemetry.length);
+  queued.forEach((telemetry) => nextClient.trackException(telemetry));
+}
+
+function scheduleInitializationRetry(): void {
+  const delay = initializationRetryDelaysMs[initializationAttempts - 1];
+  if (delay === undefined) return;
+
+  window.setTimeout(() => {
+    void initializeApplicationInsights();
+  }, delay);
+}
+
 export function initializeApplicationInsights(): Promise<void> {
   const localOptIn = import.meta.env.VITE_APPLICATIONINSIGHTS_ENABLE_LOCAL === 'true';
   if ((!import.meta.env.PROD && !localOptIn) || !connectionString || client) {
@@ -187,6 +226,7 @@ export function initializeApplicationInsights(): Promise<void> {
   }
   if (initializationPromise) return initializationPromise;
 
+  initializationAttempts += 1;
   initializationPromise = import('@microsoft/applicationinsights-web')
     .then(({ ApplicationInsights }) => {
       if (client) return;
@@ -212,25 +252,19 @@ export function initializeApplicationInsights(): Promise<void> {
       });
       nextClient.loadAppInsights();
       client = nextClient;
-      nextClient.trackEvent({
-        name: 'telemetry.heartbeat',
-        properties: {
-          route: currentRoute(),
-          release,
-        },
-      });
+      flushPendingErrors(nextClient);
+      startTelemetryHeartbeat();
     })
     .catch(() => {
       client = null;
       initializationPromise = null;
+      scheduleInitializationRetry();
     });
 
   return initializationPromise;
 }
 
 export function reportFrontendError(error: unknown, source: string, details: Record<string, string> = {}): void {
-  if (!client) return;
-
   const sanitizedError = sanitizeError(error);
   const route = currentRoute();
   const now = Date.now();
@@ -251,11 +285,19 @@ export function reportFrontendError(error: unknown, source: string, details: Rec
     },
   };
 
-  client.trackException(telemetry);
+  if (client) {
+    client.trackException(telemetry);
+    return;
+  }
+
+  if (pendingErrorTelemetry.length >= maxPendingErrors) {
+    pendingErrorTelemetry.shift();
+  }
+  pendingErrorTelemetry.push(telemetry);
 }
 
 export function installGlobalApplicationInsightsHandlers(): void {
-  if (!client || globalHandlersInstalled) return;
+  if (globalHandlersInstalled) return;
   globalHandlersInstalled = true;
 
   window.addEventListener('error', (event) => {
