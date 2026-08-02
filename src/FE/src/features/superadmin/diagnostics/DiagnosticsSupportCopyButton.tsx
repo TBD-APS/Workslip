@@ -24,7 +24,11 @@ function findActiveDiagnosticsQuery(queryClient: QueryClient) {
   return queryClient
     .getQueryCache()
     .findAll({ queryKey: errorDiagnosticsQueryPrefix })
-    .filter((query) => query.getObserversCount() > 0 && query.state.data !== undefined)
+    .filter((query) => (
+      query.queryKey.length === 5
+      && query.getObserversCount() > 0
+      && query.state.data !== undefined
+    ))
     .sort((left, right) => right.state.dataUpdatedAt - left.state.dataUpdatedAt)[0];
 }
 
