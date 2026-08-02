@@ -288,9 +288,9 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
             {
                 throw;
             }
-            catch (TaskCanceledException) when (attempt < MaxQueryAttempts)
+            catch (TaskCanceledException)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+                throw;
             }
             catch (HttpRequestException) when (attempt < MaxQueryAttempts)
             {
@@ -359,10 +359,19 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
             | extend PropertiesBag = todynamic(Properties)
             | where isnotempty(tostring(PropertiesBag["source"]))
             | project TimeGenerated, Source = "frontend", Weight = tolong(coalesce(ItemCount, 1));
-        let BackendErrors = AppTraces
+        let ExplicitBackendErrors = AppTraces
             | where SeverityLevel >= 3
+            | project TimeGenerated, Source = "backend", Weight = tolong(coalesce(ItemCount, 1)), OperationId;
+        let ExplicitOperationIds = ExplicitBackendErrors
+            | where isnotempty(OperationId)
+            | distinct OperationId;
+        let BackendRequestFailures = AppTraces
+            | extend PropertiesBag = todynamic(Properties)
+            | extend HttpStatusCode = toint(PropertiesBag["StatusCode"])
+            | where HttpStatusCode >= 500
+            | where isempty(OperationId) or OperationId !in (ExplicitOperationIds)
             | project TimeGenerated, Source = "backend", Weight = tolong(coalesce(ItemCount, 1));
-        union isfuzzy=true FrontendErrors, BackendErrors
+        union isfuzzy=true FrontendErrors, ExplicitBackendErrors, BackendRequestFailures
         | where TimeGenerated >= ago(7d)
         | where RequestedSource == "all" or Source == RequestedSource
         | summarize
@@ -390,7 +399,7 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
                 CorrelationId = tostring(PropertiesBag["correlationId"]),
                 TraceId = tostring(OperationId),
                 Weight = tolong(coalesce(ItemCount, 1));
-        let BackendErrors = AppTraces
+        let ExplicitBackendErrors = AppTraces
             | where SeverityLevel >= 3
             | extend PropertiesBag = todynamic(Properties)
             | project
@@ -404,8 +413,29 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
                 Release = coalesce(tostring(PropertiesBag["Release"]), tostring(AppVersion)),
                 CorrelationId = coalesce(tostring(PropertiesBag["CorrelationId"]), tostring(PropertiesBag["correlationId"])),
                 TraceId = coalesce(tostring(PropertiesBag["TraceId"]), tostring(OperationId)),
+                Weight = tolong(coalesce(ItemCount, 1)),
+                OperationId;
+        let ExplicitOperationIds = ExplicitBackendErrors
+            | where isnotempty(OperationId)
+            | distinct OperationId;
+        let BackendRequestFailures = AppTraces
+            | extend PropertiesBag = todynamic(Properties)
+            | extend HttpStatusCode = toint(PropertiesBag["StatusCode"])
+            | where HttpStatusCode >= 500
+            | where isempty(OperationId) or OperationId !in (ExplicitOperationIds)
+            | project
+                Timestamp = TimeGenerated,
+                Source = "backend",
+                Severity = "error",
+                ErrorType = strcat("HTTP ", tostring(HttpStatusCode)),
+                Message = coalesce(tostring(PropertiesBag["MessageTemplate"]), tostring(Message), "Backend request failed"),
+                Route = tostring(PropertiesBag["RequestPath"]),
+                Operation = tostring(OperationName),
+                Release = coalesce(tostring(PropertiesBag["Release"]), tostring(AppVersion)),
+                CorrelationId = coalesce(tostring(PropertiesBag["CorrelationId"]), tostring(PropertiesBag["correlationId"])),
+                TraceId = coalesce(tostring(PropertiesBag["TraceId"]), tostring(OperationId)),
                 Weight = tolong(coalesce(ItemCount, 1));
-        union isfuzzy=true FrontendErrors, BackendErrors
+        union isfuzzy=true FrontendErrors, ExplicitBackendErrors, BackendRequestFailures
         | where RequestedSource == "all" or Source == RequestedSource
         | summarize
             Occurrences = sum(Weight),
