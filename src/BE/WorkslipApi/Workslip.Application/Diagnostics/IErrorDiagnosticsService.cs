@@ -16,26 +16,50 @@ public sealed record ErrorDiagnosticsQuery(
 
 public sealed record ErrorDiagnosticsDashboard(
     bool IsAvailable,
+    bool IsComplete,
+    bool IsStale,
     string? AvailabilityReason,
     DateTimeOffset GeneratedAtUtc,
-    ErrorDiagnosticsSummary Summary,
+    DateTimeOffset? DataRetrievedAtUtc,
+    bool SummaryAvailable,
+    bool ItemsAvailable,
+    bool HasPartialAzureResults,
+    bool IsTruncated,
+    ErrorDiagnosticsSummary? Summary,
     IReadOnlyList<ErrorDiagnosticsItem> Items)
 {
     public static ErrorDiagnosticsDashboard Unavailable(string reason) =>
         new(
             false,
+            false,
+            false,
             reason,
             DateTimeOffset.UtcNow,
-            new ErrorDiagnosticsSummary(0, 0, 0, 0, 0),
+            null,
+            false,
+            false,
+            false,
+            false,
+            null,
             []);
+
+    public ErrorDiagnosticsDashboard AsStale(string reason) =>
+        this with
+        {
+            IsAvailable = true,
+            IsComplete = false,
+            IsStale = true,
+            AvailabilityReason = reason,
+            GeneratedAtUtc = DateTimeOffset.UtcNow
+        };
 }
 
 public sealed record ErrorDiagnosticsSummary(
-    int LastHour,
-    int Last24Hours,
-    int Last7Days,
-    int FrontendLast24Hours,
-    int BackendLast24Hours);
+    long LastHour,
+    long Last24Hours,
+    long Last7Days,
+    long FrontendLast24Hours,
+    long BackendLast24Hours);
 
 public sealed record ErrorDiagnosticsItem(
     DateTimeOffset TimestampUtc,
@@ -49,4 +73,4 @@ public sealed record ErrorDiagnosticsItem(
     string? Release,
     string? CorrelationId,
     string? TraceId,
-    int Occurrences);
+    long Occurrences);
