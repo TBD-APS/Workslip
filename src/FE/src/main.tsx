@@ -10,6 +10,10 @@ import { installNotificationNavigationHandler, installNotificationReceivedInvali
 import { router } from './routes';
 
 if (typeof window !== 'undefined') {
+  // Install lightweight handlers before React renders. Errors are sanitized and
+  // buffered until the deferred Application Insights client is ready.
+  installGlobalApplicationInsightsHandlers();
+
   // Vite emits this event when an already-open client references a hashed lazy
   // chunk that disappeared after deployment. Reload once for this build; if it
   // still fails, the normal error boundary handles it without a reload loop.
@@ -64,5 +68,5 @@ scheduleAfterInitialLoad(() => {
 });
 
 scheduleDeferredTelemetry(() => {
-  void initializeApplicationInsights().then(installGlobalApplicationInsightsHandlers);
+  void initializeApplicationInsights();
 });

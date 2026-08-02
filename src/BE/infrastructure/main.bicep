@@ -45,6 +45,7 @@ param sqlAdminPassword string
 var roles = {
   storageBlobContributor:  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
   appConfigurationDataReader: '516239f1-63e1-4d78-a4de-a74fb236a071'
+  logAnalyticsDataReader: '3b03c2da-16b3-4a49-8834-0f8130efdd3b'
   keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
   keyVaultSecretsUserRole: '4633458b-17de-408a-b874-0445c86b69e6'
   appConfigurationDataOwnerRole: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
@@ -150,6 +151,16 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
   }
 }
 
+resource logAnalyticsDataReaderForApiIdentity 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(logAnalyticsWorkspace.id, identity.id, roles.logAnalyticsDataReader)
+  scope: logAnalyticsWorkspace
+  properties: {
+    principalId: identity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.logAnalyticsDataReader)
+  }
+}
+
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: appInsightsName
   location: location
@@ -229,6 +240,10 @@ resource webApi 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'Azure__ApplicationInsights__ConnectionString'
           value: appInsightsConnectionString
+        }
+        {
+          name: 'Azure__ApplicationInsights__WorkspaceId'
+          value: logAnalyticsWorkspace.properties.customerId
         }
         {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
