@@ -94,6 +94,29 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Verify diagnostics infrastructure prerequisite
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          workspace_id="$(az webapp config appsettings list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]" \
+            --output tsv)"
+
+          if [[ -z "${workspace_id}" || "${workspace_id}" == "null" ]]; then
+            echo "::error::The API is missing Azure__ApplicationInsights__WorkspaceId. Deploy src/BE/infrastructure/main.bicep first with .\\src\\BE\\infrastructure\\deploy-infrastructure.ps1 prod."
+            echo "::error::Backend deployment is blocked so diagnostics code cannot be released without its required Azure configuration."
+            exit 1
+          fi
+
+          if [[ ! "${workspace_id}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::Azure__ApplicationInsights__WorkspaceId is present but is not a valid workspace GUID. Reconcile production infrastructure before deploying the API."
+            exit 1
+          fi
+
+          echo "Application Insights workspace configuration is present."
+
       - name: Inspect deployment target
         id: target
         shell: bash
