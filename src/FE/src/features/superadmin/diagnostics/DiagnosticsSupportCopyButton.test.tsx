@@ -2,8 +2,8 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { errorDiagnosticsQueryKey } from './api';
 import { DiagnosticsSupportCopyButton } from './DiagnosticsSupportCopyButton';
+import { errorDiagnosticsQueryKey } from './queryKeys';
 import type { ErrorDiagnosticsDashboard } from './types';
 
 const notify = vi.hoisted(() => ({
