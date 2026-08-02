@@ -10,6 +10,11 @@ export interface ErrorDiagnosticsSummary {
   backendLast24Hours: number;
 }
 
+export interface ErrorDiagnosticsTelemetryHealth {
+  frontendLastSeenUtc: string | null;
+  backendLastSeenUtc: string | null;
+}
+
 export interface ErrorDiagnosticsItem {
   timestampUtc: string;
   source: 'frontend' | 'backend';
@@ -34,8 +39,10 @@ export interface ErrorDiagnosticsDashboard {
   dataRetrievedAtUtc: string | null;
   summaryAvailable: boolean;
   itemsAvailable: boolean;
+  telemetryHealthAvailable: boolean;
   hasPartialAzureResults: boolean;
   isTruncated: boolean;
   summary: ErrorDiagnosticsSummary | null;
+  telemetryHealth: ErrorDiagnosticsTelemetryHealth | null;
   items: ErrorDiagnosticsItem[];
 }
