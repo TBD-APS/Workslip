@@ -34,6 +34,10 @@ const report = {
       area: 'Push delivery boundary',
       detail: 'Dispatches a standards-based PushEvent inside the deployed service worker. It validates Workslip push handling, notification creation, notificationclick routing, and cache isolation, but not the operating-system notification tray or the external push provider transport.',
     },
+    {
+      area: 'Fallback branches',
+      detail: 'This browser scenario validates the open-client router acknowledgement path. Document-navigation and new-window fallbacks remain covered by the notification navigation unit tests.',
+    },
   ],
 };
 
@@ -53,17 +57,17 @@ try {
   await context.grantPermissions(['notifications'], { origin: APP_URL });
 
   page = await context.newPage();
-  attachPageDiagnostics(page);
 
   await step('admin login', async () => {
     await page.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     const button = page.getByRole('button', { name: 'Dev Login · Admin', exact: true });
     await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
 
-    const tokenResponsePromise = page.waitForResponse((response) =>
-      response.request().method() === 'POST'
-      && new URL(response.url()).pathname === '/api/dev/token',
-    { timeout: API_TIMEOUT });
+    const tokenResponsePromise = page.waitForResponse(
+      (response) => response.request().method() === 'POST'
+        && pathname(response.url()) === '/api/dev/token',
+      { timeout: API_TIMEOUT },
+    );
 
     await button.click();
     const tokenResponse = await tokenResponsePromise;
@@ -73,6 +77,10 @@ try {
 
     await page.waitForURL((url) => url.pathname.startsWith('/app'), { timeout: API_TIMEOUT });
   });
+
+  // Diagnostics start after authentication so expected unauthenticated startup probes
+  // cannot create false failures for the service-worker regression scenario.
+  attachPageDiagnostics(page);
 
   await step('deployed service worker controls the app', async () => {
     await page.goto(`${APP_URL}/app`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
@@ -132,11 +140,8 @@ try {
     if (!pagesBefore.includes(page)) throw new Error('The authenticated application page is not open.');
 
     const clickResult = await serviceWorker.evaluate(async ({ tag, targetPath }) => {
-      const registrations = await self.registration.getNotifications({ tag });
-      await Promise.all(registrations.map((notification) => {
-        notification.close();
-        return Promise.resolve();
-      }));
+      const oldNotifications = await self.registration.getNotifications({ tag });
+      for (const notification of oldNotifications) notification.close();
 
       if (typeof PushEvent !== 'function') {
         throw new Error('PushEvent is unavailable in the deployed service-worker runtime.');
@@ -145,7 +150,7 @@ try {
         throw new Error('NotificationEvent is unavailable in the deployed service-worker runtime.');
       }
 
-      const pushEvent = new PushEvent('push', {
+      self.dispatchEvent(new PushEvent('push', {
         data: JSON.stringify({
           title: 'Workslip Playwright',
           options: {
@@ -154,14 +159,12 @@ try {
             data: { url: targetPath },
           },
         }),
-      });
-      self.dispatchEvent(pushEvent);
+      }));
 
       let notification = null;
       const deadline = Date.now() + 5_000;
       while (!notification && Date.now() < deadline) {
-        const notifications = await self.registration.getNotifications({ tag });
-        notification = notifications[0] ?? null;
+        [notification] = await self.registration.getNotifications({ tag });
         if (!notification) await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
@@ -169,13 +172,12 @@ try {
         throw new Error('The deployed service worker did not create the test notification.');
       }
 
-      const createdTarget = notification.data?.url ?? null;
-      self.dispatchEvent(new NotificationEvent('notificationclick', { notification }));
-
-      return {
-        createdTarget,
+      const result = {
+        createdTarget: notification.data?.url ?? null,
         notificationTitle: notification.title,
       };
+      self.dispatchEvent(new NotificationEvent('notificationclick', { notification }));
+      return result;
     }, { tag: NOTIFICATION_TAG, targetPath: TARGET_PATH });
 
     if (clickResult.createdTarget !== TARGET_PATH) {
@@ -204,31 +206,28 @@ try {
 
       for (const cacheName of cacheNames) {
         const cache = await caches.open(cacheName);
-        const requests = await cache.keys();
-        for (const request of requests) {
+        for (const request of await cache.keys()) {
           const url = new URL(request.url);
-          entries.push({ cacheName, url: url.href, pathname: url.pathname, origin: url.origin });
+          entries.push({
+            cacheName,
+            url: url.href,
+            pathname: url.pathname,
+            origin: url.origin,
+          });
         }
       }
-
-      const protectedEntries = entries.filter((entry) =>
-        entry.origin === origin
-        && (entry.pathname.startsWith('/api/')
-          || entry.pathname === '/login'
-          || entry.pathname === '/app'
-          || entry.pathname.startsWith('/app/')),
-      );
-      const invalidRuntimeEntries = entries.filter((entry) =>
-        entry.cacheName === runtimeCacheName
-        && (entry.origin !== origin
-          || (!entry.pathname.startsWith('/assets/') && !entry.pathname.startsWith('/fonts/'))),
-      );
 
       return {
         cacheNames,
         entryCount: entries.length,
-        protectedEntries,
-        invalidRuntimeEntries,
+        protectedEntries: entries.filter((entry) => entry.origin === origin
+          && (entry.pathname.startsWith('/api/')
+            || entry.pathname === '/login'
+            || entry.pathname === '/app'
+            || entry.pathname.startsWith('/app/'))),
+        invalidRuntimeEntries: entries.filter((entry) => entry.cacheName === runtimeCacheName
+          && (entry.origin !== origin
+            || (!entry.pathname.startsWith('/assets/') && !entry.pathname.startsWith('/fonts/')))),
       };
     }, { runtimeCacheName: RUNTIME_ASSET_CACHE });
 
@@ -296,9 +295,7 @@ function attachPageDiagnostics(targetPage) {
       error: redact(request.failure()?.errorText ?? 'unknown'),
     };
     report.failedRequests.push(entry);
-    if (pathname(request.url()).startsWith('/api/')) {
-      report.failedApiResponses.push(entry);
-    }
+    if (pathname(request.url()).startsWith('/api/')) report.failedApiResponses.push(entry);
   });
   targetPage.on('response', (response) => {
     if (!pathname(response.url()).startsWith('/api/') || response.status() < 400) return;
