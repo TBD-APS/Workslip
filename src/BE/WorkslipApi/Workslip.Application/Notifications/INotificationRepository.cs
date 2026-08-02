@@ -9,6 +9,7 @@ public interface INotificationRepository
     Task UpdateNotificationStatusAsync(Guid id, string status, int retryCount, DateTimeOffset nextAttemptUtc, string? lastError, CancellationToken cancellationToken);
     Task MarkNotificationCompletedAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyList<PushSubscriptionRow>> GetActiveSubscriptionsForUserAsync(Guid userId, CancellationToken cancellationToken);
+    Task<IReadOnlySet<Guid>> GetSuccessfulSubscriptionIdsAsync(Guid notificationId, CancellationToken cancellationToken);
     Task UpdateSubscriptionActiveStatusAsync(Guid subscriptionId, bool isActive, CancellationToken cancellationToken);
     Task LogDeliveryAttemptAsync(NotificationDeliveryLogRow log, CancellationToken cancellationToken);
     Task RegisterSubscriptionAsync(
