@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  isNotificationNavigationAcknowledgement,
+  isNotificationNavigationRequest,
   isNotificationReceivedMessage,
   navigateNotificationTarget,
+  NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT,
+  NOTIFICATION_NAVIGATION_REQUEST,
   NOTIFICATION_RECEIVED,
   resolveNotificationTarget,
   type NotificationWindowClient,
@@ -26,12 +30,40 @@ function createClient(
   return client;
 }
 
-describe('isNotificationReceivedMessage', () => {
-  it('recognises a push-receipt message', () => {
+describe('notification message guards', () => {
+  it('recognises valid request, acknowledgement and receipt messages', () => {
+    expect(isNotificationNavigationRequest({
+      type: NOTIFICATION_NAVIGATION_REQUEST,
+      url: '/app/job/job-1',
+    })).toBe(true);
+    expect(isNotificationNavigationAcknowledgement({
+      type: NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT,
+      success: true,
+    })).toBe(true);
     expect(isNotificationReceivedMessage({ type: NOTIFICATION_RECEIVED })).toBe(true);
   });
 
-  it('rejects unrelated messages and non-objects', () => {
+  it.each([
+    null,
+    NOTIFICATION_NAVIGATION_REQUEST,
+    { type: NOTIFICATION_NAVIGATION_REQUEST },
+    { type: NOTIFICATION_NAVIGATION_REQUEST, url: '' },
+    { type: NOTIFICATION_NAVIGATION_REQUEST, url: '   ' },
+    { type: NOTIFICATION_NAVIGATION_REQUEST, url: 123 },
+  ])('rejects invalid navigation requests %p', (value) => {
+    expect(isNotificationNavigationRequest(value)).toBe(false);
+  });
+
+  it.each([
+    null,
+    { type: NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT },
+    { type: NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT, success: 'yes' },
+    { type: 'OTHER', success: true },
+  ])('rejects invalid navigation acknowledgements %p', (value) => {
+    expect(isNotificationNavigationAcknowledgement(value)).toBe(false);
+  });
+
+  it('rejects unrelated push receipt messages and non-objects', () => {
     expect(isNotificationReceivedMessage({ type: 'OTHER' })).toBe(false);
     expect(isNotificationReceivedMessage(null)).toBe(false);
     expect(isNotificationReceivedMessage(NOTIFICATION_RECEIVED)).toBe(false);
@@ -44,11 +76,23 @@ describe('resolveNotificationTarget', () => {
       .toBe(`${APP_ORIGIN}/app/job/job-1`);
   });
 
-  it('rejects external and invalid notification targets', () => {
-    expect(resolveNotificationTarget('https://example.com/phishing', APP_ORIGIN))
-      .toBe(`${APP_ORIGIN}/`);
-    expect(resolveNotificationTarget('http://[invalid', APP_ORIGIN))
-      .toBe(`${APP_ORIGIN}/`);
+  it('preserves same-origin query strings and fragments', () => {
+    expect(resolveNotificationTarget(
+      `${APP_ORIGIN}/app/job/job-1?tab=history#latest`,
+      APP_ORIGIN,
+    )).toBe(`${APP_ORIGIN}/app/job/job-1?tab=history#latest`);
+  });
+
+  it.each([
+    undefined,
+    null,
+    '',
+    '   ',
+    'https://example.com/phishing',
+    'https://user:password@app.mrsoftware.dk/app/job/job-1',
+    'http://[invalid',
+  ])('falls back to the application root for unsafe target %p', (target) => {
+    expect(resolveNotificationTarget(target, APP_ORIGIN)).toBe(`${APP_ORIGIN}/`);
   });
 });
 
@@ -57,9 +101,10 @@ describe('navigateNotificationTarget', () => {
     let resolveNavigation: ((handled: boolean) => void) | undefined;
     const client = createClient();
     const openWindow = vi.fn();
-    const navigateOpenClient = vi.fn().mockImplementation(() => new Promise<boolean>((resolve) => {
-      resolveNavigation = resolve;
-    }));
+    const navigateOpenClient = vi.fn().mockImplementation(() =>
+      new Promise<boolean>((resolve) => {
+        resolveNavigation = resolve;
+      }));
 
     const navigation = navigateNotificationTarget(
       [client],
@@ -83,7 +128,7 @@ describe('navigateNotificationTarget', () => {
     expect(client.focus).toHaveBeenCalledOnce();
   });
 
-  it('uses document navigation when the open app cannot handle the route', async () => {
+  it('uses document navigation when router navigation returns false', async () => {
     const originalClient = createClient();
     const navigatedClient = createClient({
       url: `${APP_ORIGIN}/app/job/job-1`,
@@ -100,12 +145,35 @@ describe('navigateNotificationTarget', () => {
       vi.fn().mockResolvedValue(false),
     );
 
-    expect(originalClient.navigate).toHaveBeenCalledWith(`${APP_ORIGIN}/app/job/job-1`);
+    expect(originalClient.navigate).toHaveBeenCalledWith(
+      `${APP_ORIGIN}/app/job/job-1`,
+    );
     expect(navigatedClient.focus).toHaveBeenCalledOnce();
-    expect(originalClient.focus).not.toHaveBeenCalled();
   });
 
-  it('opens the target when document navigation cannot be confirmed', async () => {
+  it('uses document navigation when router navigation throws', async () => {
+    const originalClient = createClient();
+    const navigatedClient = createClient({
+      url: `${APP_ORIGIN}/app/job/job-1`,
+    });
+    vi.mocked(originalClient.navigate).mockResolvedValue(navigatedClient);
+
+    await navigateNotificationTarget(
+      [originalClient],
+      vi.fn(),
+      '/app/job/job-1',
+      APP_ORIGIN,
+      vi.fn().mockRejectedValue(new Error('old client')),
+    );
+
+    expect(originalClient.navigate).toHaveBeenCalledOnce();
+    expect(navigatedClient.focus).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['null navigation result', null],
+    ['wrong returned URL', createClient({ url: `${APP_ORIGIN}/app` })],
+  ])('opens the target after %s', async (_label, navigatedResult) => {
     const existingClient = createClient();
     const openedClient = createClient({
       url: `${APP_ORIGIN}/app/completed/job-1`,
@@ -113,7 +181,9 @@ describe('navigateNotificationTarget', () => {
       visibilityState: 'visible',
     });
     const openWindow = vi.fn().mockResolvedValue(openedClient);
-    vi.mocked(existingClient.navigate).mockResolvedValue(null);
+    vi.mocked(existingClient.navigate).mockResolvedValue(
+      navigatedResult as NotificationWindowClient | null,
+    );
 
     const result = await navigateNotificationTarget(
       [existingClient],
@@ -123,10 +193,28 @@ describe('navigateNotificationTarget', () => {
       vi.fn().mockResolvedValue(false),
     );
 
-    expect(existingClient.navigate).toHaveBeenCalledWith(`${APP_ORIGIN}/app/completed/job-1`);
-    expect(openWindow).toHaveBeenCalledWith(`${APP_ORIGIN}/app/completed/job-1`);
+    expect(openWindow).toHaveBeenCalledWith(
+      `${APP_ORIGIN}/app/completed/job-1`,
+    );
     expect(existingClient.focus).not.toHaveBeenCalled();
     expect(result).toBe(openedClient);
+  });
+
+  it('opens the target when document navigation throws', async () => {
+    const existingClient = createClient();
+    vi.mocked(existingClient.navigate).mockRejectedValue(new Error('blocked'));
+    const openedClient = createClient({ url: `${APP_ORIGIN}/app/job/job-1` });
+    const openWindow = vi.fn().mockResolvedValue(openedClient);
+
+    const result = await navigateNotificationTarget(
+      [existingClient],
+      openWindow,
+      '/app/job/job-1',
+      APP_ORIGIN,
+    );
+
+    expect(result).toBe(openedClient);
+    expect(openWindow).toHaveBeenCalledOnce();
   });
 
   it('focuses the client returned from confirmed document navigation', async () => {
@@ -149,7 +237,7 @@ describe('navigateNotificationTarget', () => {
     expect(originalClient.focus).not.toHaveBeenCalled();
   });
 
-  it('prefers the focused client and then a visible client', async () => {
+  it('prefers a focused client over visible and hidden clients', async () => {
     const hiddenClient = createClient();
     const visibleClient = createClient({ visibilityState: 'visible' });
     const focusedClient = createClient({ focused: true });
@@ -167,13 +255,61 @@ describe('navigateNotificationTarget', () => {
       focusedClient,
       `${APP_ORIGIN}/app/job/job-1`,
     );
-    expect(visibleClient.focus).not.toHaveBeenCalled();
-    expect(hiddenClient.focus).not.toHaveBeenCalled();
   });
 
-  it('ignores focused same-origin windows that are not Workslip pages', async () => {
+  it('prefers a visible client when no eligible client is focused', async () => {
+    const hiddenClient = createClient();
+    const visibleClient = createClient({ visibilityState: 'visible' });
+    const navigateOpenClient = vi.fn().mockResolvedValue(true);
+
+    await navigateNotificationTarget(
+      [hiddenClient, visibleClient],
+      vi.fn(),
+      '/app/job/job-1',
+      APP_ORIGIN,
+      navigateOpenClient,
+    );
+
+    expect(navigateOpenClient).toHaveBeenCalledWith(
+      visibleClient,
+      `${APP_ORIGIN}/app/job/job-1`,
+    );
+  });
+
+  it.each([
+    '/',
+    '/login',
+    '/app',
+    '/app/jobs',
+    '/invite/token',
+    '/superadmin',
+    '/superadmin/organizations',
+  ])('recognises %s as an eligible Workslip client route', async (path) => {
+    const client = createClient({ url: `${APP_ORIGIN}${path}` });
+    const navigateOpenClient = vi.fn().mockResolvedValue(true);
+
+    await navigateNotificationTarget(
+      [client],
+      vi.fn(),
+      '/app/job/job-1',
+      APP_ORIGIN,
+      navigateOpenClient,
+    );
+
+    expect(navigateOpenClient).toHaveBeenCalledWith(
+      client,
+      `${APP_ORIGIN}/app/job/job-1`,
+    );
+  });
+
+  it.each([
+    `${APP_ORIGIN}/robots.txt`,
+    'https://example.com/app',
+    'https://user:password@app.mrsoftware.dk/app',
+    'not-a-url',
+  ])('ignores ineligible client URL %s', async (url) => {
     const unrelatedClient = createClient({
-      url: `${APP_ORIGIN}/robots.txt`,
+      url,
       focused: true,
       visibilityState: 'visible',
     });
@@ -195,18 +331,36 @@ describe('navigateNotificationTarget', () => {
     expect(unrelatedClient.focus).not.toHaveBeenCalled();
   });
 
-  it('opens the target when no application client exists', async () => {
-    const openedClient = createClient({ focused: true, visibilityState: 'visible' });
+  it('opens a safe fallback when no app client exists and target is external', async () => {
+    const openedClient = createClient({ url: `${APP_ORIGIN}/` });
     const openWindow = vi.fn().mockResolvedValue(openedClient);
 
     const result = await navigateNotificationTarget(
       [],
       openWindow,
+      'https://example.com/phishing',
+      APP_ORIGIN,
+    );
+
+    expect(openWindow).toHaveBeenCalledWith(`${APP_ORIGIN}/`);
+    expect(result).toBe(openedClient);
+  });
+
+  it.each([
+    ['openWindow returns null', vi.fn().mockResolvedValue(null)],
+    ['openWindow throws', vi.fn().mockRejectedValue(new Error('blocked'))],
+  ])('focuses the existing app as last resort when %s', async (_label, openWindow) => {
+    const existingClient = createClient();
+    vi.mocked(existingClient.navigate).mockResolvedValue(null);
+
+    const result = await navigateNotificationTarget(
+      [existingClient],
+      openWindow,
       '/app/job/job-1',
       APP_ORIGIN,
     );
 
-    expect(openWindow).toHaveBeenCalledWith(`${APP_ORIGIN}/app/job/job-1`);
-    expect(result).toBe(openedClient);
+    expect(existingClient.focus).toHaveBeenCalledOnce();
+    expect(result).toBe(existingClient);
   });
 });
