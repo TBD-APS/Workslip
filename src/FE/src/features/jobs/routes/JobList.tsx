@@ -23,7 +23,7 @@ const PAGE_SIZE = 20;
 const isReadonlyState = (status: JobStatus) =>
   status === JobStatus.InReview || status === JobStatus.Approved;
 
-export const shouldShowReviewDot = (status: JobStatus) =>
+const shouldShowReviewDot = (status: JobStatus) =>
   status === JobStatus.InReview;
 
 const SkeletonCard = () => (
@@ -483,7 +483,7 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
 
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="Åbn sag">
+        <span className="btn-icon" aria-label="\u00c5bn sag">
           <ChevronRight size={20} />
         </span>
       </div>
