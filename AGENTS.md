@@ -8,6 +8,14 @@ This file routes implementation agents to the scoped instructions for the part o
 2. [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) — mandatory validation ladder, test selection, Playwright requirements, and evidence standards.
 3. [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) — mandatory GDPR and EU AI Act change gates, data/AI governance, release blockers, and compliance evidence requirements.
 
+## Global architecture principle
+
+Optimize for low cognitive load, explicit dependencies, predictable code placement, isolated use cases, and low hidden coupling across all layers.
+
+Use patterns only when they reduce complexity, maintenance cost, or change risk more than they introduce. Prefer thin entry points, feature-local logic, consistent contracts, and existing conventions. Avoid wrappers, interfaces, mapping layers, pipelines, and abstractions without a concrete need.
+
+Small improvements that naturally reduce technical debt are encouraged when they stay within the current task's scope. Do not start opportunistic rewrites or widen an issue to pursue an architectural pattern.
+
 ## Read for the affected scope
 
 | Scope | Required instructions |
