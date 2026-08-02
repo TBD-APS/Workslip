@@ -3,6 +3,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { ClipboardCopy } from 'lucide-react';
 import { useSyncExternalStore, useState } from 'react';
 import { notify } from '../../../lib/toast';
+import { errorDiagnosticsQueryPrefix } from './api';
 import { serializeErrorDiagnosticsSupportSnapshot } from './supportSnapshot';
 import type {
   ErrorDiagnosticsDashboard,
@@ -10,8 +11,6 @@ import type {
   ErrorDiagnosticsSource,
 } from './types';
 import './DiagnosticsSupportCopyButton.css';
-
-const diagnosticsQueryPrefix = ['superadmin', 'diagnostics', 'errors'] as const;
 
 function isErrorDiagnosticsRange(value: unknown): value is ErrorDiagnosticsRange {
   return value === '1h' || value === '24h' || value === '7d';
@@ -24,7 +23,7 @@ function isErrorDiagnosticsSource(value: unknown): value is ErrorDiagnosticsSour
 function findActiveDiagnosticsQuery(queryClient: QueryClient) {
   return queryClient
     .getQueryCache()
-    .findAll({ queryKey: diagnosticsQueryPrefix })
+    .findAll({ queryKey: errorDiagnosticsQueryPrefix })
     .filter((query) => query.getObserversCount() > 0 && query.state.data !== undefined)
     .sort((left, right) => right.state.dataUpdatedAt - left.state.dataUpdatedAt)[0];
 }
