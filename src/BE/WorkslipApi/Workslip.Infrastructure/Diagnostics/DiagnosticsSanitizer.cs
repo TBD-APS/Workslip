@@ -66,7 +66,7 @@ public static partial class DiagnosticsSanitizer
 
         var trimmed = value.Trim();
         return SafeIdentifierPattern().IsMatch(trimmed)
-            ? Truncate(trimmed, 128)
+            ? trimmed
             : null;
     }
 
@@ -113,6 +113,6 @@ public static partial class DiagnosticsSanitizer
     [GeneratedRegex("\\s+", RegexOptions.CultureInvariant)]
     private static partial Regex WhitespacePattern();
 
-    [GeneratedRegex("^[A-Za-z0-9._:/=-]{1,128}$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^[A-Fa-f0-9-]{16,64}$", RegexOptions.CultureInvariant)]
     private static partial Regex SafeIdentifierPattern();
 }
