@@ -140,9 +140,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Validate release environment policy
+        run: |
+          node --check tools/release/resolve-release-environment.mjs
+          node --test tools/release/resolve-release-environment.test.mjs
+          node tools/release/resolve-release-environment.mjs --environment production --require-runnable
+
       - name: Validate Playwright sources
         working-directory: src/FE
         run: |
+          node --check scripts/playwright-release-runner.mjs
           node --check scripts/playwright-prod-smoke.mjs
           node --check scripts/playwright-critical-contract.mjs
           node --check scripts/playwright-critical-domain.mjs
