@@ -3,6 +3,14 @@ name: Playwright critical flows
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Vælg det konfigurerede miljø, der skal testes
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
       scenario:
         description: Vælg et isoleret flow eller hele den risikobaserede suite
         required: true
@@ -26,12 +34,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: playwright-critical-flows-${{ github.ref }}-${{ inputs.scenario }}
+  group: playwright-critical-flows-${{ github.ref }}-${{ inputs.target }}-${{ inputs.scenario }}
   cancel-in-progress: false
 
 jobs:
   smoke:
-    name: Mobile critical flow (${{ matrix.scenario }})
+    name: Mobile critical flow (${{ inputs.target }} / ${{ matrix.scenario }})
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -51,12 +59,22 @@ jobs:
 
     env:
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
-      PROD_URL: https://app.mrsoftware.dk
       SCENARIO: ${{ matrix.scenario }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve release-test target
+        id: release-target
+        working-directory: .
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.target }}
+        run: >-
+          node tools/release/resolve-release-environment.mjs
+          --environment "${TARGET_ENVIRONMENT}"
+          --require-runnable
+          --github-output
 
       - name: Install lightweight Playwright runtime
         run: >-
@@ -71,6 +89,7 @@ jobs:
 
       - name: Validate test sources
         run: |
+          node --check scripts/playwright-release-runner.mjs
           node --check scripts/playwright-prod-smoke.mjs
           node --check scripts/playwright-critical-contract.mjs
           node --check scripts/playwright-critical-domain.mjs
@@ -79,13 +98,18 @@ jobs:
           node -e "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8'))"
 
       - name: Run Playwright scenario
-        run: node scripts/playwright-prod-smoke.mjs
+        env:
+          PROD_URL: ${{ steps.release-target.outputs.url }}
+          WORKSLIP_RELEASE_PHASE: ${{ steps.release-target.outputs.phase }}
+          WORKSLIP_TEST_TARGET: ${{ steps.release-target.outputs.environment }}
+          WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT: ${{ steps.release-target.outputs.allow_destructive_playwright }}
+        run: node scripts/playwright-release-runner.mjs
 
       - name: Upload Playwright evidence
         if: ${{ always() && env.ACT != 'true' && github.actor != 'nektos/act' }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-critical-flows-${{ matrix.scenario }}
+          name: playwright-critical-flows-${{ inputs.target }}-${{ matrix.scenario }}
           path: artifacts/playwright-prod-smoke
           if-no-files-found: warn
           retention-days: 7
