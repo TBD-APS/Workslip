@@ -12498,6 +12498,237 @@ public static class DevEndpoints
 public sealed record DevTokenRequest(string Email);
 </file>
 
+<file path="src/BE/WorkslipApi/Endpoints/JobEndpoints.cs">
+using Microsoft.AspNetCore.Mvc;
+using Workslip.Api.Helpers;
+using Workslip.Api.Services;
+using Workslip.Api.ViewModels;
+using Workslip.Application.Auth;
+using Workslip.Application.Jobs;
+using Workslip.Domain;
+
+namespace Workslip.Api.Endpoints;
+
+public static class JobEndpoints
+{
+    public static IEndpointRouteBuilder MapJobEndpoints(this IEndpointRouteBuilder app)
+    {
+        var (readGroup, userGroup) = app.MapReadUserGroups("/api/jobs", "jobs");
+        var adminGroup = app.MapAdminGroup("/api/jobs", "jobs");
+
+        readGroup.MapGet("/", async (
+            [FromQuery(Name = "status")] JobStatus[]? statuses,
+            [FromQuery] string? reportNumber,
+            [FromQuery] string? customerName,
+            [FromQuery] string? customerEmail,
+            [FromQuery] string? customerAddress,
+            [FromQuery] string? search,
+            [FromQuery] string? sortBy,
+            [FromQuery] string? sortDirection,
+            [FromQuery] int? limit,
+            [FromQuery] int? offset,
+            HttpContext httpContext,
+            ICurrentUserContext currentUser,
+            IJobService service,
+            CancellationToken cancellationToken) =>
+        {
+            var statusList = statuses?.ToList();
+            var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, cancellationToken);
+            return CachedOk(
+                result,
+                httpContext,
+                response => new JobListViewModel(
+                    response.Items.Select(JobViewModelBuilder.ToListItem).ToArray(),
+                    response.TotalCount),
+                response => HttpCacheHeaders.JobListEtag(
+                    response,
+                    currentUser.OrganizationId!.Value,
+                    currentUser.UserId));
+        });
+
+        readGroup.MapGet("/my-assigned", async (HttpContext httpContext, ICurrentUserContext currentUser, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetMyAssignedJobsAsync(cancellationToken);
+            return CachedOk(
+                result,
+                httpContext,
+                jobs => jobs.Select(JobViewModelBuilder.ToListItem).ToArray(),
+                jobs => HttpCacheHeaders.JobAssignedEtag(
+                    jobs,
+                    currentUser.OrganizationId!.Value,
+                    currentUser.UserId));
+        }).Produces<List<JobListItemViewModel>>();
+
+        readGroup.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetSingleJobAsync(id, cancellationToken);
+            return CachedOk(result, httpContext, report => HttpCacheHeaders.JobReportEtag(report), JobViewModelBuilder.ToSummary);
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+
+        readGroup.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetHistoryAsync(id, limit, offset, cancellationToken);
+            return CachedOk(result, httpContext, events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
+        }).Produces<List<JobHistoryResponse>>(StatusCodes.Status200OK);
+
+        readGroup.MapGet("/{id:guid}/report/pdf", async (Guid id, HttpContext httpContext, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
+        {
+            var result = await service.GetSingleJobAsync(id, cancellationToken);
+            if (!result.IsSuccess)
+                return ResultExtensions.ToHttpResult(result);
+
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var jobBaseUri = new Uri($"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/jobs/");
+            var pdf = pdfService.Generate(result.Value, result.Value.Status, jobBaseUri);
+            var reportNumber = string.IsNullOrWhiteSpace(result.Value.ReportNumber)
+                ? result.Value.Id.ToString("N")[..8]
+                : result.Value.ReportNumber;
+
+            return Results.File(pdf, "application/pdf", $"rapport-{reportNumber}.pdf");
+        });
+
+        userGroup.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            var reservation = await idempotency.StartAsync($"jobs.update:{currentUser.OrganizationId}:{currentUser.UserId}:{id}", key, request, cancellationToken);
+            var replay = IdempotencyHttp.ReplayOrReject(reservation);
+            if (replay is not null) return replay;
+
+            try
+            {
+                var result = await service.UpdateAsync(id, request, cancellationToken);
+                if (result.IsSuccess)
+                    await idempotency.CompleteAsync(reservation.Reservation!.Id, reservation.ReservationToken!, JobViewModelBuilder.ToSummary(result.Value), StatusCodes.Status200OK, cancellationToken);
+                else
+                    await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, cancellationToken);
+                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            }
+            catch
+            {
+                await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, CancellationToken.None);
+                throw;
+            }
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+
+        userGroup.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            var reservation = await idempotency.StartAsync($"jobs.status:{currentUser.OrganizationId}:{currentUser.UserId}:{id}", key, request, cancellationToken);
+            var replay = IdempotencyHttp.ReplayOrReject(reservation);
+            if (replay is not null) return replay;
+            try
+            {
+                var result = await service.ChangeStatusAsync(id, request, cancellationToken);
+                if (result.IsSuccess)
+                    await idempotency.CompleteAsync(reservation.Reservation!.Id, reservation.ReservationToken!, JobViewModelBuilder.ToSummary(result.Value), StatusCodes.Status200OK, cancellationToken);
+                else
+                    await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, cancellationToken);
+                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            }
+            catch
+            {
+                await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, CancellationToken.None);
+                throw;
+            }
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+
+        userGroup.MapPost("/", async (CreateJobRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
+        {
+            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            var reservation = await idempotency.StartAsync($"jobs.create:{currentUser.OrganizationId}:{currentUser.UserId}", key, request, cancellationToken);
+            var replay = IdempotencyHttp.ReplayOrReject(reservation);
+            if (replay is not null) return replay;
+
+            try
+            {
+                var result = await service.CreateAsync(request, cancellationToken);
+                if (result.IsSuccess)
+                    await idempotency.CompleteAsync(reservation.Reservation!.Id, reservation.ReservationToken!, JobViewModelBuilder.ToSummary(result.Value), StatusCodes.Status200OK, cancellationToken);
+                else
+                    await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, cancellationToken);
+                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+            }
+            catch
+            {
+                await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, CancellationToken.None);
+                throw;
+            }
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+
+        readGroup.MapPost("/{id:guid}/seen", async (Guid id, string? viewType, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.MarkJobAsSeenAsync(id, viewType, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        }).Produces(StatusCodes.Status204NoContent);
+
+        adminGroup.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.DeleteAsync(id, cancellationToken);
+            return result.Status == Ardalis.Result.ResultStatus.Conflict
+                ? Results.Conflict(JobDeleteErrorResponse.FromConflictError(result.Errors.FirstOrDefault()))
+                : ResultExtensions.ToHttpResult(result);
+        })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces<JobDeleteErrorResponse>(StatusCodes.Status409Conflict);
+
+        adminGroup.MapPost("/{id:guid}/restore/deletion", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
+        {
+            var result = await service.RestoreDeletionAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+
+        userGroup.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
+        {
+            var result = await jobService.AssignAsync(id, request.UserIds, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
+        })
+        .Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
+
+        return app;
+    }
+
+    private static IResult CachedOk<T, TResponse>(
+        Ardalis.Result.Result<T> result,
+        HttpContext httpContext,
+        Func<T, TResponse> map,
+        Func<TResponse, string> etagFactory)
+    {
+        if (!result.IsSuccess)
+            return ResultExtensions.ToHttpResult(result);
+
+        var response = map(result.Value);
+        var etag = etagFactory(response);
+        HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
+
+        return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
+            ? TypedResults.StatusCode(StatusCodes.Status304NotModified)
+            : TypedResults.Ok(response);
+    }
+
+    private static IResult CachedOk<T>(
+        Ardalis.Result.Result<T> result,
+        HttpContext httpContext,
+        Func<T, string> etagFactory,
+        Func<T, object?>? map = null)
+    {
+        if (!result.IsSuccess)
+            return ResultExtensions.ToHttpResult(result);
+
+        var etag = etagFactory(result.Value);
+        HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
+
+        return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
+            ? TypedResults.StatusCode(StatusCodes.Status304NotModified)
+            : TypedResults.Ok(map?.Invoke(result.Value) ?? result.Value);
+    }
+}
+</file>
+
 <file path="src/BE/WorkslipApi/Endpoints/JobLinksEndpoints.cs">
 using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
@@ -31632,6 +31863,106 @@ function getCreateErrorMessage(error: unknown) {
 }
 </file>
 
+<file path="src/FE/src/features/jobs/queries/jobListQuery.ts">
+import type { QueryClient, QueryKey } from '@tanstack/react-query';
+import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
+import { getPaginatedListInitialState, buildPaginatedListQueryKey } from '../../../hooks/paginatedListState';
+import { apiClient } from '../../../lib/axios';
+import { JOB_LIST_GC_TIME_MS, JOB_LIST_STALE_TIME_MS } from '../../../lib/react-query';
+
+export const JOB_LIST_PAGE_SIZE = 20;
+
+const JOB_LIST_STORAGE_KEY = 'jobs';
+const JOB_STATUS_SECTION_KEY = 'mine-jobs';
+const STATUS_FILTER_LAST_ACTIVE_KEY = 'statusFilter:lastActive';
+
+export interface JobListPage {
+  items: JobListItemViewModel[];
+  totalCount: number;
+}
+
+export interface JobListPageRequest {
+  limit: number;
+  offset: number;
+  search?: string;
+  sortBy?: string;
+  sortDirection?: string;
+}
+
+export function getJobListBaseQueryKey(statuses: JobStatus[]): QueryKey {
+  return ['/api/jobs', { status: statuses }];
+}
+
+export async function fetchJobListPage(
+  statuses: JobStatus[],
+  { limit, offset, search, sortBy, sortDirection }: JobListPageRequest,
+): Promise<JobListPage> {
+  const data = await apiClient.get('/api/jobs', {
+    params: {
+      status: statuses,
+      search: search || undefined,
+      sortBy: sortBy || undefined,
+      sortDirection: sortDirection || undefined,
+      limit,
+      offset,
+    },
+  }) as JobListPage;
+
+  return data;
+}
+
+function getInitialJobStatuses(): JobStatus[] {
+  const defaults = [JobStatus.Draft];
+
+  if (typeof sessionStorage === 'undefined') return defaults;
+
+  try {
+    if (sessionStorage.getItem(STATUS_FILTER_LAST_ACTIVE_KEY) !== JOB_STATUS_SECTION_KEY) {
+      return defaults;
+    }
+
+    const saved = sessionStorage.getItem(`statusFilter:${JOB_STATUS_SECTION_KEY}`);
+    if (!saved) return defaults;
+
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed as JobStatus[] : defaults;
+  } catch {
+    return defaults;
+  }
+}
+
+function getNextPageParam(lastPage: JobListPage, allPages: JobListPage[]): number | undefined {
+  const loadedCount = allPages.reduce((sum, page) => sum + page.items.length, 0);
+  return loadedCount >= lastPage.totalCount ? undefined : loadedCount;
+}
+
+export async function prefetchInitialJobList(queryClient: QueryClient): Promise<void> {
+  const statuses = getInitialJobStatuses();
+  const initialState = getPaginatedListInitialState(JOB_LIST_STORAGE_KEY);
+  const queryKey = buildPaginatedListQueryKey(
+    getJobListBaseQueryKey(statuses),
+    initialState.search,
+    initialState.sort,
+    JOB_LIST_PAGE_SIZE,
+  );
+
+  await queryClient.prefetchInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam }) => fetchJobListPage(statuses, {
+      limit: JOB_LIST_PAGE_SIZE,
+      offset: Number(pageParam),
+      search: initialState.search || undefined,
+      sortBy: initialState.sort.field || undefined,
+      sortDirection: initialState.sort.direction,
+    }),
+    initialPageParam: 0,
+    getNextPageParam,
+    staleTime: JOB_LIST_STALE_TIME_MS,
+    gcTime: JOB_LIST_GC_TIME_MS,
+  });
+}
+</file>
+
 <file path="src/FE/src/features/jobs/routes/JobCreate.tsx">
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -33528,6 +33859,68 @@ export const UserList = () => {
 };
 </file>
 
+<file path="src/FE/src/hooks/paginatedListState.ts">
+import type { QueryKey } from '@tanstack/react-query';
+
+export interface PaginatedListSort {
+  field: string;
+  direction: 'asc' | 'desc';
+}
+
+export interface PaginatedListInitialState {
+  search: string;
+  sort: PaginatedListSort;
+  viewPage: number;
+}
+
+const DEFAULT_SORT: PaginatedListSort = { field: '', direction: 'asc' };
+
+export function getPaginatedListInitialState(storageKey?: string): PaginatedListInitialState {
+  if (!storageKey || typeof sessionStorage === 'undefined') {
+    return { search: '', sort: DEFAULT_SORT, viewPage: 1 };
+  }
+
+  const search = sessionStorage.getItem(`${storageKey}:search`) ?? '';
+  let sort = DEFAULT_SORT;
+
+  try {
+    const saved = sessionStorage.getItem(`${storageKey}:sort`);
+    if (saved) {
+      const parsed = JSON.parse(saved) as Partial<PaginatedListSort>;
+      if (
+        typeof parsed.field === 'string'
+        && (parsed.direction === 'asc' || parsed.direction === 'desc')
+      ) {
+        sort = { field: parsed.field, direction: parsed.direction };
+      }
+    }
+  } catch {
+    // Ignore invalid browser state and use the default sort.
+  }
+
+  const storedPage = Number(sessionStorage.getItem(`${storageKey}:page`) ?? '1');
+  const viewPage = Number.isFinite(storedPage) && storedPage > 0 ? Math.floor(storedPage) : 1;
+
+  return { search, sort, viewPage };
+}
+
+export function buildPaginatedListQueryKey(
+  baseQueryKey: QueryKey,
+  querySearch: string,
+  sort: PaginatedListSort,
+  pageSize: number,
+): QueryKey {
+  return [
+    ...baseQueryKey,
+    {
+      search: querySearch || undefined,
+      sort,
+      limit: pageSize,
+    },
+  ];
+}
+</file>
+
 <file path="src/FE/src/hooks/useColumnResize.ts">
 import { useCallback, useRef } from 'react';
 
@@ -34261,6 +34654,39 @@ export function useCan(permission: Permission): boolean {
 }
 </file>
 
+<file path="src/FE/src/providers/AppProvider.tsx">
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { scheduleDeferredTelemetry } from '../lib/scheduleAfterInitialLoad';
+import { AuthProvider } from './AuthContext';
+import { ThemeProvider } from './ThemeProvider';
+
+const ThemedToaster = lazy(() =>
+  import('../components/common/ThemedToaster').then((module) => ({ default: module.ThemedToaster })),
+);
+
+export const AppProvider = ({ children }: { children: ReactNode }) => {
+  const [toasterEnabled, setToasterEnabled] = useState(false);
+
+  useEffect(
+    () => scheduleDeferredTelemetry(() => setToasterEnabled(true)),
+    [],
+  );
+
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        {children}
+        {toasterEnabled && (
+          <Suspense fallback={null}>
+            <ThemedToaster />
+          </Suspense>
+        )}
+      </AuthProvider>
+    </ThemeProvider>
+  );
+};
+</file>
+
 <file path="src/FE/src/providers/DropdownContext.tsx">
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
@@ -34401,6 +34827,46 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+</file>
+
+<file path="src/FE/src/routes/preloadPrimaryAppRoute.ts">
+let appLayoutModulePromise: Promise<typeof import('../components/layouts/AppLayout')> | null = null;
+let jobListModulePromise: Promise<typeof import('../features/jobs/routes/JobList')> | null = null;
+
+function loadAppLayoutModule() {
+  if (!appLayoutModulePromise) {
+    appLayoutModulePromise = import('../components/layouts/AppLayout').catch((error) => {
+      appLayoutModulePromise = null;
+      throw error;
+    });
+  }
+
+  return appLayoutModulePromise;
+}
+
+function loadJobListModule() {
+  if (!jobListModulePromise) {
+    jobListModulePromise = import('../features/jobs/routes/JobList').catch((error) => {
+      jobListModulePromise = null;
+      throw error;
+    });
+  }
+
+  return jobListModulePromise;
+}
+
+/**
+ * Warm the authenticated shell and default jobs route without mounting them.
+ * This runs only after a stored token exists, so the public Lighthouse path
+ * stays lean while authenticated startup can fetch code in parallel with
+ * session validation.
+ */
+export async function preloadPrimaryAppRoute(): Promise<void> {
+  await Promise.all([
+    loadAppLayoutModule(),
+    loadJobListModule(),
+  ]);
+}
 </file>
 
 <file path="src/FE/src/telemetry/VercelTelemetry.tsx">
@@ -36032,6 +36498,36 @@ footer {
 :root {
   --font-main: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-heading: var(--font-main);
+}
+</file>
+
+<file path="src/FE/src/public-performance.css">
+body,
+#root,
+#portal-root,
+.app-container,
+.bg-glow-wrapper,
+.bg-glow,
+.login-card,
+.reauth-card,
+.invite-card {
+  transition-property: none;
+}
+
+.bg-glow {
+  animation: none;
+  filter: blur(80px);
+}
+
+.login-card,
+.reauth-card {
+  backdrop-filter: none;
+}
+
+.login-card *,
+.reauth-card *,
+.invite-card * {
+  transition-property: none;
 }
 </file>
 
@@ -91077,6 +91573,160 @@ public static class EndpointConfiguration
 }
 </file>
 
+<file path="src/BE/WorkslipApi/Configuration/HttpCacheHeaders.cs">
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Workslip.Api.ViewModels;
+using Workslip.Application.Jobs;
+
+namespace Workslip.Api.Endpoints;
+
+public static class HttpCacheHeaders
+{
+    private const string PrivateRevalidate = "private, no-cache, max-age=0, must-revalidate";
+    private const string NoStore = "no-store";
+    private const string PublicHealth = "public, max-age=30, stale-while-revalidate=30";
+    private const string CacheStatusHeader = "X-Workslip-Cache";
+
+    public static void SetPrivateRevalidation(HttpContext httpContext, string etag)
+    {
+        httpContext.Response.Headers.CacheControl = PrivateRevalidate;
+        httpContext.Response.Headers.ETag = etag;
+        httpContext.Response.Headers.Vary = "Authorization";
+    }
+
+    public static void SetNoStore(HttpContext httpContext)
+    {
+        httpContext.Response.Headers.CacheControl = NoStore;
+        httpContext.Response.Headers.Pragma = "no-cache";
+        httpContext.Response.Headers.Expires = "0";
+        httpContext.Response.Headers[CacheStatusHeader] = "bypass";
+    }
+
+    public static void SetPublicHealthCache(HttpContext httpContext)
+    {
+        httpContext.Response.Headers.CacheControl = PublicHealth;
+    }
+
+    public static bool MatchesIfNoneMatch(HttpContext httpContext, string etag)
+    {
+        var matches = httpContext.Request.Headers.TryGetValue("If-None-Match", out var values)
+            && values.ToString()
+                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Any(value => value == "*" || string.Equals(value, etag, StringComparison.Ordinal));
+
+        httpContext.Response.Headers[CacheStatusHeader] = matches ? "revalidated" : "miss";
+        return matches;
+    }
+
+    public static string JobReportEtag(JobReportSummaryResponse report)
+    {
+        var builder = new StringBuilder()
+            .Append("job:")
+            .Append(report.OrganizationId.ToString("N"))
+            .Append(':')
+            .Append(report.Id.ToString("N"))
+            .Append(':')
+            .Append(report.UpdatedAt.UtcTicks);
+
+        foreach (var link in report.Links.OrderBy(link => link.Id))
+        {
+            builder
+                .Append("|link:")
+                .Append(link.Id.ToString("N"))
+                .Append(':')
+                .Append(link.LinkedReportId.ToString("N"))
+                .Append(':')
+                .Append(link.LinkedStatus);
+        }
+
+        foreach (var user in report.AssignedUsers.OrderBy(user => user.Id))
+        {
+            builder
+                .Append("|user:")
+                .Append(user.Id.ToString("N"));
+        }
+
+        return ToWeakEtag(builder.ToString());
+    }
+
+    public static string JobListEtag(
+        JobListViewModel response,
+        Guid organizationId,
+        Guid? currentUserId)
+    {
+        // The list contains related data that can change without updating the
+        // JobReports row itself: assignments, worksheet totals, installations
+        // and user-specific seen/rejection flags. Hash the complete mapped HTTP
+        // representation so a 304 can never hide one of those changes.
+        var representation = JsonSerializer.Serialize(response);
+        var userKey = currentUserId?.ToString("N") ?? "anon";
+        return ToWeakEtag($"jobs:list:{organizationId:N}:{userKey}:{representation}");
+    }
+
+    public static string JobAssignedEtag(
+        IReadOnlyList<JobListItemViewModel> jobs,
+        Guid organizationId,
+        Guid? currentUserId)
+    {
+        var representation = JsonSerializer.Serialize(jobs);
+        var userKey = currentUserId?.ToString("N") ?? "anon";
+        return ToWeakEtag($"jobs:assigned:{organizationId:N}:{userKey}:{representation}");
+    }
+
+    public static string JobHistoryEtag(Guid jobId, IEnumerable<JobHistoryResponse> events, int? limit, int? offset)
+    {
+        var builder = new StringBuilder()
+            .Append("jobs:history:")
+            .Append(jobId.ToString("N"))
+            .Append(':')
+            .Append(limit?.ToString() ?? "default")
+            .Append(':')
+            .Append(offset?.ToString() ?? "default");
+
+        foreach (var evt in events.OrderBy(e => e.Id))
+        {
+            builder
+                .Append('|')
+                .Append(evt.Id.ToString("N"))
+                .Append(':')
+                .Append(evt.CreatedAt.ToUnixTimeMilliseconds())
+                .Append(':')
+                .Append(evt.EventType);
+        }
+
+        return ToWeakEtag(builder.ToString());
+    }
+
+    public static string ReferenceDataEtag(ReferenceDataResponse data)
+    {
+        var sb = new StringBuilder("reference-data:");
+        foreach (var type in data.InstallationTypes)
+        {
+            sb.Append(type.Id).Append(type.SortOrder);
+            foreach (var cat in type.Categories)
+            {
+                sb.Append(cat.Id).Append(cat.SortOrder);
+                foreach (var cp in cat.ControlPoints)
+                    sb.Append(cp.Id).Append(cp.SortOrder).Append(cp.IsRequired);
+            }
+        }
+        foreach (var wk in data.WorkKinds)
+            sb.Append(wk.NormalizedLabel).Append(wk.SortOrder).Append(wk.RequiresCustomWorkKind);
+        foreach (var cf in data.ClosureFlags)
+            sb.Append(cf.Id).Append(cf.SortOrder).Append(cf.IsExclusive);
+        return ToWeakEtag(sb.ToString());
+    }
+
+    private static string ToWeakEtag(string value)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return $"W/\"{Convert.ToHexString(hash)[..24].ToLowerInvariant()}\"";
+    }
+}
+</file>
+
 <file path="src/BE/WorkslipApi/Endpoints/CacheEndpoints.cs">
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -91250,237 +91900,6 @@ public static class DiagnosticsEndpoints
         .Produces(StatusCodes.Status429TooManyRequests);
 
         return app;
-    }
-}
-</file>
-
-<file path="src/BE/WorkslipApi/Endpoints/JobEndpoints.cs">
-using Microsoft.AspNetCore.Mvc;
-using Workslip.Api.Helpers;
-using Workslip.Api.Services;
-using Workslip.Api.ViewModels;
-using Workslip.Application.Auth;
-using Workslip.Application.Jobs;
-using Workslip.Domain;
-
-namespace Workslip.Api.Endpoints;
-
-public static class JobEndpoints
-{
-    public static IEndpointRouteBuilder MapJobEndpoints(this IEndpointRouteBuilder app)
-    {
-        var (readGroup, userGroup) = app.MapReadUserGroups("/api/jobs", "jobs");
-        var adminGroup = app.MapAdminGroup("/api/jobs", "jobs");
-
-        readGroup.MapGet("/", async (
-            [FromQuery(Name = "status")] JobStatus[]? statuses,
-            [FromQuery] string? reportNumber,
-            [FromQuery] string? customerName,
-            [FromQuery] string? customerEmail,
-            [FromQuery] string? customerAddress,
-            [FromQuery] string? search,
-            [FromQuery] string? sortBy,
-            [FromQuery] string? sortDirection,
-            [FromQuery] int? limit,
-            [FromQuery] int? offset,
-            HttpContext httpContext,
-            ICurrentUserContext currentUser,
-            IJobService service,
-            CancellationToken cancellationToken) =>
-        {
-            var statusList = statuses?.ToList();
-            var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, cancellationToken);
-            return CachedOk(
-                result,
-                httpContext,
-                response => new JobListViewModel(
-                    response.Items.Select(JobViewModelBuilder.ToListItem).ToArray(),
-                    response.TotalCount),
-                response => HttpCacheHeaders.JobListEtag(
-                    response,
-                    currentUser.OrganizationId!.Value,
-                    currentUser.UserId));
-        });
-
-        readGroup.MapGet("/my-assigned", async (HttpContext httpContext, ICurrentUserContext currentUser, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.GetMyAssignedJobsAsync(cancellationToken);
-            return CachedOk(
-                result,
-                httpContext,
-                jobs => jobs.Select(JobViewModelBuilder.ToListItem).ToArray(),
-                jobs => HttpCacheHeaders.JobAssignedEtag(
-                    jobs,
-                    currentUser.OrganizationId!.Value,
-                    currentUser.UserId));
-        }).Produces<List<JobListItemViewModel>>();
-
-        readGroup.MapGet("/{id:guid}", async (Guid id, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.GetSingleJobAsync(id, cancellationToken);
-            return CachedOk(result, httpContext, report => HttpCacheHeaders.JobReportEtag(report), JobViewModelBuilder.ToSummary);
-        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
-
-        readGroup.MapGet("/{id:guid}/history", async (Guid id, int? limit, int? offset, HttpContext httpContext, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.GetHistoryAsync(id, limit, offset, cancellationToken);
-            return CachedOk(result, httpContext, events => HttpCacheHeaders.JobHistoryEtag(id, events, limit, offset));
-        }).Produces<List<JobHistoryResponse>>(StatusCodes.Status200OK);
-
-        readGroup.MapGet("/{id:guid}/report/pdf", async (Guid id, HttpContext httpContext, IJobService service, IJobReportPdfService pdfService, CancellationToken cancellationToken) =>
-        {
-            var result = await service.GetSingleJobAsync(id, cancellationToken);
-            if (!result.IsSuccess)
-                return ResultExtensions.ToHttpResult(result);
-
-            HttpCacheHeaders.SetNoStore(httpContext);
-            var jobBaseUri = new Uri($"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/jobs/");
-            var pdf = pdfService.Generate(result.Value, result.Value.Status, jobBaseUri);
-            var reportNumber = string.IsNullOrWhiteSpace(result.Value.ReportNumber)
-                ? result.Value.Id.ToString("N")[..8]
-                : result.Value.ReportNumber;
-
-            return Results.File(pdf, "application/pdf", $"rapport-{reportNumber}.pdf");
-        });
-
-        userGroup.MapPatch("/{id:guid}", async (Guid id, UpdateJobRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
-        {
-            HttpCacheHeaders.SetNoStore(httpContext);
-            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
-            var reservation = await idempotency.StartAsync($"jobs.update:{currentUser.OrganizationId}:{currentUser.UserId}:{id}", key, request, cancellationToken);
-            var replay = IdempotencyHttp.ReplayOrReject(reservation);
-            if (replay is not null) return replay;
-
-            try
-            {
-                var result = await service.UpdateAsync(id, request, cancellationToken);
-                if (result.IsSuccess)
-                    await idempotency.CompleteAsync(reservation.Reservation!.Id, reservation.ReservationToken!, JobViewModelBuilder.ToSummary(result.Value), StatusCodes.Status200OK, cancellationToken);
-                else
-                    await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, cancellationToken);
-                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-            }
-            catch
-            {
-                await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, CancellationToken.None);
-                throw;
-            }
-        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
-
-        userGroup.MapPost("/{id:guid}/status", async (Guid id, ChangeJobStatusRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
-        {
-            HttpCacheHeaders.SetNoStore(httpContext);
-            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
-            var reservation = await idempotency.StartAsync($"jobs.status:{currentUser.OrganizationId}:{currentUser.UserId}:{id}", key, request, cancellationToken);
-            var replay = IdempotencyHttp.ReplayOrReject(reservation);
-            if (replay is not null) return replay;
-            try
-            {
-                var result = await service.ChangeStatusAsync(id, request, cancellationToken);
-                if (result.IsSuccess)
-                    await idempotency.CompleteAsync(reservation.Reservation!.Id, reservation.ReservationToken!, JobViewModelBuilder.ToSummary(result.Value), StatusCodes.Status200OK, cancellationToken);
-                else
-                    await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, cancellationToken);
-                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-            }
-            catch
-            {
-                await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, CancellationToken.None);
-                throw;
-            }
-        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
-
-        userGroup.MapPost("/", async (CreateJobRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotencyStore idempotency, IJobService service, CancellationToken cancellationToken) =>
-        {
-            if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
-            var reservation = await idempotency.StartAsync($"jobs.create:{currentUser.OrganizationId}:{currentUser.UserId}", key, request, cancellationToken);
-            var replay = IdempotencyHttp.ReplayOrReject(reservation);
-            if (replay is not null) return replay;
-
-            try
-            {
-                var result = await service.CreateAsync(request, cancellationToken);
-                if (result.IsSuccess)
-                    await idempotency.CompleteAsync(reservation.Reservation!.Id, reservation.ReservationToken!, JobViewModelBuilder.ToSummary(result.Value), StatusCodes.Status200OK, cancellationToken);
-                else
-                    await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, cancellationToken);
-                return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-            }
-            catch
-            {
-                await idempotency.AbortAsync(reservation.Reservation!.Id, reservation.ReservationToken!, CancellationToken.None);
-                throw;
-            }
-        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
-
-        readGroup.MapPost("/{id:guid}/seen", async (Guid id, string? viewType, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.MarkJobAsSeenAsync(id, viewType, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
-        }).Produces(StatusCodes.Status204NoContent);
-
-        adminGroup.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.DeleteAsync(id, cancellationToken);
-            return result.Status == Ardalis.Result.ResultStatus.Conflict
-                ? Results.Conflict(JobDeleteErrorResponse.FromConflictError(result.Errors.FirstOrDefault()))
-                : ResultExtensions.ToHttpResult(result);
-        })
-        .Produces(StatusCodes.Status204NoContent)
-        .Produces<JobDeleteErrorResponse>(StatusCodes.Status409Conflict);
-
-        adminGroup.MapPost("/{id:guid}/restore/deletion", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
-        {
-            var result = await service.RestoreDeletionAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
-
-        userGroup.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
-        {
-            var result = await jobService.AssignAsync(id, request.UserIds, cancellationToken);
-            return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
-        })
-        .Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
-
-        return app;
-    }
-
-    private static IResult CachedOk<T, TResponse>(
-        Ardalis.Result.Result<T> result,
-        HttpContext httpContext,
-        Func<T, TResponse> map,
-        Func<TResponse, string> etagFactory)
-    {
-        if (!result.IsSuccess)
-            return ResultExtensions.ToHttpResult(result);
-
-        var response = map(result.Value);
-        var etag = etagFactory(response);
-        HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
-
-        return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
-            ? TypedResults.StatusCode(StatusCodes.Status304NotModified)
-            : TypedResults.Ok(response);
-    }
-
-    private static IResult CachedOk<T>(
-        Ardalis.Result.Result<T> result,
-        HttpContext httpContext,
-        Func<T, string> etagFactory,
-        Func<T, object?>? map = null)
-    {
-        if (!result.IsSuccess)
-            return ResultExtensions.ToHttpResult(result);
-
-        var etag = etagFactory(result.Value);
-        HttpCacheHeaders.SetPrivateRevalidation(httpContext, etag);
-
-        return HttpCacheHeaders.MatchesIfNoneMatch(httpContext, etag)
-            ? TypedResults.StatusCode(StatusCodes.Status304NotModified)
-            : TypedResults.Ok(map?.Invoke(result.Value) ?? result.Value);
     }
 }
 </file>
@@ -94993,6 +95412,147 @@ public sealed class TelemetryCacheDiagnostics(
         telemetry.Properties["region"] = region;
         telemetryClient.TrackMetric(telemetry);
     }
+}
+</file>
+
+<file path="src/BE/WorkslipApi/ViewModels/JobViewModels.cs">
+using Workslip.Application.Jobs;
+using Workslip.Application.Worksheets;
+using Workslip.Domain;
+
+namespace Workslip.Api.ViewModels;
+
+public sealed record CustomerViewModel(
+    Guid? CustomerId,
+    string? Name,
+    string? Address,
+    string? Email,
+    string? ContactPerson,
+    string? Phone);
+
+public sealed record CustomerSnapshotResponse(
+    string? Name,
+    string? Email,
+    string? Phone,
+    string? Address,
+    string? ContactPerson);
+
+public sealed record JobListItemViewModel(
+    Guid Id,
+    Guid OrganizationId,
+    CustomerViewModel? Customer,
+    string? ReportNumber,
+    JobStatus Status,
+    IReadOnlyList<string> InstallationTypes,
+    IReadOnlyList<AssignedUserResponse> AssignedUsers,
+    bool SoftDeleted,
+    decimal? TotalHours,
+    DateTimeOffset UpdatedAt,
+    DateOnly? ReportDate,
+    string JobType,
+    string? DestinationAddress,
+    string? TaskDescription,
+    bool IsSeen,
+    bool IsNewRejection);
+
+public sealed record JobListViewModel(
+    IReadOnlyList<JobListItemViewModel> Items,
+    int TotalCount);
+
+public sealed record JobReportSummaryViewModel(
+    Guid Id,
+    Guid OrganizationId,
+    string? ReportNumber,
+    JobStatus Status,
+    Guid? CustomerId,
+    CustomerSnapshotResponse CustomerSnapshot,
+    string? DestinationAddress,
+    string? DestinationZipCode,
+    string? DestinationCity,
+    JobReportSummaryWorkResponse Work,
+    JobReportSummaryObservationResponse Observations,
+    IReadOnlyList<JobLinkInfoResponse> Links,
+    IReadOnlyList<AssignedUserResponse> AssignedUsers,
+    IReadOnlyList<WorksheetResponse> Worksheets,
+    decimal? TotalHours, 
+    int? TotalOutlay,
+    bool SoftDeleted,
+    string JobType,
+    string? RejectionNote);
+
+public sealed record JobLinkViewModel(
+    Guid Id,
+    Guid ReportId,
+    Guid LinkedReportId,
+    string LinkedReportNumber,
+    string LinkedCustomerName,
+    string LinkedStatus);
+
+public static class JobViewModelBuilder
+{
+    public static JobListItemViewModel ToListItem(JobListItemResponse job) => new(
+        job.Id,
+        job.OrganizationId,
+        ToCustomerViewModel(job.Customer),
+        job.ReportNumber,
+        job.Status,
+        job.InstallationTypes,
+        job.AssignedUsers,
+        job.SoftDeleted,
+        job.TotalHours,
+        job.UpdatedAt,
+        job.ReportDate,
+        job.JobType.ToString(),
+        job.DestinationAddress,
+        job.TaskDescription,
+        job.IsSeenByCurrentUser,
+        job.IsNewRejection);
+
+    public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
+        summary.Id,
+        summary.OrganizationId,
+        summary.ReportNumber,
+        summary.Status,
+        summary.CustomerId,
+        new CustomerSnapshotResponse(
+            summary.CustomerSnapshot.Name,
+            summary.CustomerSnapshot.Email,
+            summary.CustomerSnapshot.Phone,
+            summary.CustomerSnapshot.Address,
+            summary.CustomerSnapshot.ContactPerson),
+        summary.DestinationAddress,
+        summary.DestinationZipCode,
+        summary.DestinationCity,
+        summary.Work,
+        summary.Observations,
+        summary.Links,
+        summary.AssignedUsers,
+        summary.Worksheets,
+        summary.TotalHours,
+        summary.TotalOutlay,
+        summary.SoftDeleted,
+        summary.JobType,
+        summary.RejectionNote);
+
+    public static JobLinkViewModel ToLink(JobLinkResponse link) => new(
+        link.Id,
+        link.ReportId,
+        link.LinkedReportId,
+        link.LinkedReportNumber,
+        link.LinkedCustomerName,
+        link.LinkedStatus);
+
+    public static List<JobLinkViewModel> ToLinkList(IReadOnlyList<JobLinkResponse> links) =>
+        links.Select(ToLink).ToList();
+
+    private static CustomerViewModel? ToCustomerViewModel(CustomerInfo? customer) =>
+        customer is null ? null : new(
+            customer.CustomerId,
+            customer.Name,
+            customer.Address,
+            customer.Email,
+            customer.ContactPerson,
+            customer.Phone);
 }
 </file>
 
@@ -103399,6 +103959,201 @@ public sealed class CacheDiagnosticsTests
 }
 </file>
 
+<file path="src/BE/WorkslipApi/Workslip.Tests/Configuration/HttpCacheHeadersTests.cs">
+using Microsoft.AspNetCore.Http;
+using Workslip.Api.Endpoints;
+using Workslip.Application.Jobs;
+using Workslip.Domain;
+using Xunit;
+using JobListItemViewModel = Workslip.Api.ViewModels.JobListItemViewModel;
+using JobListViewModel = Workslip.Api.ViewModels.JobListViewModel;
+
+namespace Workslip.Tests.Configuration;
+
+public sealed class HttpCacheHeadersTests
+{
+    private static readonly Guid CurrentUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
+    [Fact]
+    public void SetNoStore_sets_all_mutation_cache_headers()
+    {
+        var context = new DefaultHttpContext();
+
+        HttpCacheHeaders.SetNoStore(context);
+
+        Assert.Equal("no-store", context.Response.Headers.CacheControl.ToString());
+        Assert.Equal("no-cache", context.Response.Headers.Pragma.ToString());
+        Assert.Equal("0", context.Response.Headers.Expires.ToString());
+    }
+
+    [Fact]
+    public void JobReportEtag_changes_when_links_change()
+    {
+        var report = CreateReport(links: []);
+        var changedReport = report with
+        {
+            Links =
+            [
+                new JobLinkInfoResponse(Guid.NewGuid(), Guid.NewGuid(), "2026-001", "ACME", "", JobStatus.Draft.ToString())
+            ]
+        };
+
+        Assert.NotEqual(HttpCacheHeaders.JobReportEtag(report), HttpCacheHeaders.JobReportEtag(changedReport));
+    }
+
+    [Fact]
+    public void JobReportEtag_changes_when_assigned_users_change()
+    {
+        var report = CreateReport(assignedUsers: []);
+        var changedReport = report with
+        {
+            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Ada")]
+        };
+
+        Assert.NotEqual(HttpCacheHeaders.JobReportEtag(report), HttpCacheHeaders.JobReportEtag(changedReport));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_when_assignments_change()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Ada")] }]
+        };
+
+        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_when_total_hours_change()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { TotalHours = 7.5m }]
+        };
+
+        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_when_installations_change()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { InstallationTypes = ["Varmepumpe"] }]
+        };
+
+        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_when_seen_state_changes()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { IsSeen = true }]
+        };
+
+        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
+    }
+
+    [Fact]
+    public void JobListEtag_changes_between_users()
+    {
+        var response = CreateJobList();
+        var organizationId = response.Items.Single().OrganizationId;
+
+        var first = HttpCacheHeaders.JobListEtag(response, organizationId, CurrentUserId);
+        var second = HttpCacheHeaders.JobListEtag(response, organizationId, Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"));
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void JobAssignedEtag_changes_when_related_list_data_changes()
+    {
+        var response = CreateJobList();
+        var item = response.Items.Single();
+        var changed = response with
+        {
+            Items = [item with { TotalHours = 9m, InstallationTypes = ["Kedel"] }]
+        };
+
+        Assert.NotEqual(CreateAssignedJobsEtag(response), CreateAssignedJobsEtag(changed));
+    }
+
+    private static string CreateJobListEtag(JobListViewModel response) =>
+        HttpCacheHeaders.JobListEtag(response, response.Items.Single().OrganizationId, CurrentUserId);
+
+    private static string CreateAssignedJobsEtag(JobListViewModel response) =>
+        HttpCacheHeaders.JobAssignedEtag(response.Items, response.Items.Single().OrganizationId, CurrentUserId);
+
+    private static JobListViewModel CreateJobList()
+    {
+        var organizationId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var item = new JobListItemViewModel(
+            Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+            organizationId,
+            null,
+            "2026-0001",
+            JobStatus.Draft,
+            [],
+            [],
+            false,
+            1.5m,
+            DateTimeOffset.UnixEpoch,
+            null,
+            "Diverse",
+            null,
+            null,
+            false,
+            false);
+
+        return new JobListViewModel([item], 1);
+    }
+
+    private static JobReportSummaryResponse CreateReport(
+        IReadOnlyList<JobLinkInfoResponse>? links = null,
+        IReadOnlyList<AssignedUserResponse>? assignedUsers = null)
+    {
+        return new JobReportSummaryResponse(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "RBJ Teknisk",
+            "12345678",
+            "2026-000",
+            JobStatus.Draft,
+            null,
+            new CustomerSnapshotResponse(null, null, null, null, null),
+            null,
+            null,
+            null,
+            "Diverse",
+            new JobReportSummaryWorkResponse(null, [], [], null),
+            new JobReportSummaryObservationResponse(null, null, null),
+            [],
+            links ?? [],
+            DateTimeOffset.UnixEpoch,
+            DateTimeOffset.UnixEpoch,
+            null,
+            assignedUsers ?? [],
+            [],
+            null,
+            null,
+            false,
+            null);
+    }
+}
+</file>
+
 <file path="src/BE/WorkslipApi/Workslip.Tests/Configuration/HttpCacheOutcomeHeadersTests.cs">
 using Microsoft.AspNetCore.Http;
 using Workslip.Api.Endpoints;
@@ -110820,106 +111575,6 @@ function CustomerSearchDropdown({ selectedId, onSelect, onCreateNew }: CustomerS
 }
 </file>
 
-<file path="src/FE/src/features/jobs/queries/jobListQuery.ts">
-import type { QueryClient, QueryKey } from '@tanstack/react-query';
-import { JobStatus, type JobListItemViewModel } from '../../../api/generated/models';
-import { getPaginatedListInitialState, buildPaginatedListQueryKey } from '../../../hooks/paginatedListState';
-import { apiClient } from '../../../lib/axios';
-import { JOB_LIST_GC_TIME_MS, JOB_LIST_STALE_TIME_MS } from '../../../lib/react-query';
-
-export const JOB_LIST_PAGE_SIZE = 20;
-
-const JOB_LIST_STORAGE_KEY = 'jobs';
-const JOB_STATUS_SECTION_KEY = 'mine-jobs';
-const STATUS_FILTER_LAST_ACTIVE_KEY = 'statusFilter:lastActive';
-
-export interface JobListPage {
-  items: JobListItemViewModel[];
-  totalCount: number;
-}
-
-export interface JobListPageRequest {
-  limit: number;
-  offset: number;
-  search?: string;
-  sortBy?: string;
-  sortDirection?: string;
-}
-
-export function getJobListBaseQueryKey(statuses: JobStatus[]): QueryKey {
-  return ['/api/jobs', { status: statuses }];
-}
-
-export async function fetchJobListPage(
-  statuses: JobStatus[],
-  { limit, offset, search, sortBy, sortDirection }: JobListPageRequest,
-): Promise<JobListPage> {
-  const data = await apiClient.get('/api/jobs', {
-    params: {
-      status: statuses,
-      search: search || undefined,
-      sortBy: sortBy || undefined,
-      sortDirection: sortDirection || undefined,
-      limit,
-      offset,
-    },
-  }) as JobListPage;
-
-  return data;
-}
-
-function getInitialJobStatuses(): JobStatus[] {
-  const defaults = [JobStatus.Draft];
-
-  if (typeof sessionStorage === 'undefined') return defaults;
-
-  try {
-    if (sessionStorage.getItem(STATUS_FILTER_LAST_ACTIVE_KEY) !== JOB_STATUS_SECTION_KEY) {
-      return defaults;
-    }
-
-    const saved = sessionStorage.getItem(`statusFilter:${JOB_STATUS_SECTION_KEY}`);
-    if (!saved) return defaults;
-
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed as JobStatus[] : defaults;
-  } catch {
-    return defaults;
-  }
-}
-
-function getNextPageParam(lastPage: JobListPage, allPages: JobListPage[]): number | undefined {
-  const loadedCount = allPages.reduce((sum, page) => sum + page.items.length, 0);
-  return loadedCount >= lastPage.totalCount ? undefined : loadedCount;
-}
-
-export async function prefetchInitialJobList(queryClient: QueryClient): Promise<void> {
-  const statuses = getInitialJobStatuses();
-  const initialState = getPaginatedListInitialState(JOB_LIST_STORAGE_KEY);
-  const queryKey = buildPaginatedListQueryKey(
-    getJobListBaseQueryKey(statuses),
-    initialState.search,
-    initialState.sort,
-    JOB_LIST_PAGE_SIZE,
-  );
-
-  await queryClient.prefetchInfiniteQuery({
-    queryKey,
-    queryFn: ({ pageParam }) => fetchJobListPage(statuses, {
-      limit: JOB_LIST_PAGE_SIZE,
-      offset: Number(pageParam),
-      search: initialState.search || undefined,
-      sortBy: initialState.sort.field || undefined,
-      sortDirection: initialState.sort.direction,
-    }),
-    initialPageParam: 0,
-    getNextPageParam,
-    staleTime: JOB_LIST_STALE_TIME_MS,
-    gcTime: JOB_LIST_GC_TIME_MS,
-  });
-}
-</file>
-
 <file path="src/FE/src/features/jobs/routes/SimpleJobCreate.tsx">
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -114612,68 +115267,6 @@ function getCurrentWeekStart(): string {
 }
 </file>
 
-<file path="src/FE/src/hooks/paginatedListState.ts">
-import type { QueryKey } from '@tanstack/react-query';
-
-export interface PaginatedListSort {
-  field: string;
-  direction: 'asc' | 'desc';
-}
-
-export interface PaginatedListInitialState {
-  search: string;
-  sort: PaginatedListSort;
-  viewPage: number;
-}
-
-const DEFAULT_SORT: PaginatedListSort = { field: '', direction: 'asc' };
-
-export function getPaginatedListInitialState(storageKey?: string): PaginatedListInitialState {
-  if (!storageKey || typeof sessionStorage === 'undefined') {
-    return { search: '', sort: DEFAULT_SORT, viewPage: 1 };
-  }
-
-  const search = sessionStorage.getItem(`${storageKey}:search`) ?? '';
-  let sort = DEFAULT_SORT;
-
-  try {
-    const saved = sessionStorage.getItem(`${storageKey}:sort`);
-    if (saved) {
-      const parsed = JSON.parse(saved) as Partial<PaginatedListSort>;
-      if (
-        typeof parsed.field === 'string'
-        && (parsed.direction === 'asc' || parsed.direction === 'desc')
-      ) {
-        sort = { field: parsed.field, direction: parsed.direction };
-      }
-    }
-  } catch {
-    // Ignore invalid browser state and use the default sort.
-  }
-
-  const storedPage = Number(sessionStorage.getItem(`${storageKey}:page`) ?? '1');
-  const viewPage = Number.isFinite(storedPage) && storedPage > 0 ? Math.floor(storedPage) : 1;
-
-  return { search, sort, viewPage };
-}
-
-export function buildPaginatedListQueryKey(
-  baseQueryKey: QueryKey,
-  querySearch: string,
-  sort: PaginatedListSort,
-  pageSize: number,
-): QueryKey {
-  return [
-    ...baseQueryKey,
-    {
-      search: querySearch || undefined,
-      sort,
-      limit: pageSize,
-    },
-  ];
-}
-</file>
-
 <file path="src/FE/src/hooks/useAppRouteScroll.ts">
 import {
   createContext,
@@ -115058,37 +115651,145 @@ export const JOB_LIST_STALE_TIME_MS = 30_000;
 export const JOB_LIST_GC_TIME_MS = 30 * 60_000;
 </file>
 
-<file path="src/FE/src/providers/AppProvider.tsx">
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
-import { scheduleDeferredTelemetry } from '../lib/scheduleAfterInitialLoad';
-import { AuthProvider } from './AuthContext';
-import { ThemeProvider } from './ThemeProvider';
+<file path="src/FE/src/lib/react-query.ts">
+// Thin re-export module for the React Query layer.
+//
+// New code should prefer importing directly from `createQueryClient` and
+// `queryTimings` so the dependency on the singleton is explicit. This file
+// is kept as a stable surface for the existing two import sites
+// (`features/jobs/queries/jobListQuery` and
+// `providers/AuthenticatedAppProvider`) — when those are migrated, this
+// file can be removed.
 
-const ThemedToaster = lazy(() =>
-  import('../components/common/ThemedToaster').then((module) => ({ default: module.ThemedToaster })),
+export { createQueryClient } from './createQueryClient';
+export {
+  DEFAULT_QUERY_RETRY,
+  DEFAULT_STALE_TIME_MS,
+  JOB_LIST_GC_TIME_MS,
+  JOB_LIST_REFETCH_INTERVAL_MS,
+  JOB_LIST_STALE_TIME_MS,
+  MUTATION_RETRY,
+} from './queryTimings';
+
+import { createQueryClient } from './createQueryClient';
+
+export const queryClient = createQueryClient();
+</file>
+
+<file path="src/FE/src/providers/AuthContext.tsx">
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  AUTH_TOKEN_KEY,
+  AuthContext,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+  type AuthContextType,
+} from './authContextValue';
+import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
+
+const AuthenticatedAppProvider = lazy(() =>
+  import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
 );
 
-export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [toasterEnabled, setToasterEnabled] = useState(false);
+const publicMeQuery: AuthContextType['meQuery'] = {
+  isPending: false,
+  isError: false,
+  refetch: async () => null,
+  data: null,
+};
 
-  useEffect(
-    () => scheduleDeferredTelemetry(() => setToasterEnabled(true)),
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
+
+  useEffect(() => {
+    if (!authToken) return;
+
+    // Start the shell and jobs-route downloads alongside the authenticated
+    // provider and /api/auth/me request. Import failures still flow through the
+    // existing Vite stale-chunk recovery when the route is rendered.
+    void preloadPrimaryAppRoute().catch(() => undefined);
+  }, [authToken]);
+
+  const clearStoredSession = useCallback(() => {
+    AuthStorage.removeItem(AUTH_TOKEN_KEY);
+    AuthStorage.removeItem(USER_EMAIL_KEY);
+    clearReauthInFlight();
+    setAuthToken(null);
+  }, []);
+
+  const login = useCallback(
+    async (email: string, code: string): Promise<boolean> => {
+      try {
+        const { verifyAuthCode } = await import('../features/auth/api/devToken');
+        const response = await verifyAuthCode(email, code);
+        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        setAuthToken(response.token);
+        clearReauthInFlight();
+        return true;
+      } catch {
+        return false;
+      }
+    },
     [],
   );
 
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        {children}
-        {toasterEnabled && (
-          <Suspense fallback={null}>
-            <ThemedToaster />
-          </Suspense>
-        )}
-      </AuthProvider>
-    </ThemeProvider>
+  const devLogin = useCallback(
+    async (email: string): Promise<boolean> => {
+      try {
+        const { getDevToken } = await import('../features/auth/api/devToken');
+        const response = await getDevToken(email);
+        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        setAuthToken(response.token);
+        clearReauthInFlight();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [],
   );
-};
+
+  const publicValue = useMemo<AuthContextType>(
+    () => ({
+      hasAuthToken: false,
+      isAuthenticated: false,
+      user: null,
+      isLoading: false,
+      login,
+      devLogin,
+      logout: clearStoredSession,
+      clearLocalSession: clearStoredSession,
+      updateUser: () => undefined,
+      meQuery: publicMeQuery,
+    }),
+    [clearStoredSession, devLogin, login],
+  );
+
+  if (!authToken) {
+    return <AuthContext.Provider value={publicValue}>{children}</AuthContext.Provider>;
+  }
+
+  return (
+    <Suspense
+      fallback={(
+        <div className="protected-route-loading" role="status" aria-live="polite">
+          Tjekker login status...
+        </div>
+      )}
+    >
+      <AuthenticatedAppProvider
+        login={login}
+        devLogin={devLogin}
+        clearSession={clearStoredSession}
+      >
+        {children}
+      </AuthenticatedAppProvider>
+    </Suspense>
+  );
+}
 </file>
 
 <file path="src/FE/src/providers/authContextValue.ts">
@@ -115188,46 +115889,6 @@ import { hasPermission } from './permissions';
 
 export function canUseSessionNotifications(role: string | null | undefined): boolean {
   return hasPermission(role, 'notification:use');
-}
-</file>
-
-<file path="src/FE/src/routes/preloadPrimaryAppRoute.ts">
-let appLayoutModulePromise: Promise<typeof import('../components/layouts/AppLayout')> | null = null;
-let jobListModulePromise: Promise<typeof import('../features/jobs/routes/JobList')> | null = null;
-
-function loadAppLayoutModule() {
-  if (!appLayoutModulePromise) {
-    appLayoutModulePromise = import('../components/layouts/AppLayout').catch((error) => {
-      appLayoutModulePromise = null;
-      throw error;
-    });
-  }
-
-  return appLayoutModulePromise;
-}
-
-function loadJobListModule() {
-  if (!jobListModulePromise) {
-    jobListModulePromise = import('../features/jobs/routes/JobList').catch((error) => {
-      jobListModulePromise = null;
-      throw error;
-    });
-  }
-
-  return jobListModulePromise;
-}
-
-/**
- * Warm the authenticated shell and default jobs route without mounting them.
- * This runs only after a stored token exists, so the public Lighthouse path
- * stays lean while authenticated startup can fetch code in parallel with
- * session validation.
- */
-export async function preloadPrimaryAppRoute(): Promise<void> {
-  await Promise.all([
-    loadAppLayoutModule(),
-    loadJobListModule(),
-  ]);
 }
 </file>
 
@@ -115695,36 +116356,6 @@ export function installGlobalApplicationInsightsHandlers(): void {
       ?? target.textContent?.trim();
     if (action) beginUserInteraction(action.slice(0, 120));
   }, true);
-}
-</file>
-
-<file path="src/FE/src/public-performance.css">
-body,
-#root,
-#portal-root,
-.app-container,
-.bg-glow-wrapper,
-.bg-glow,
-.login-card,
-.reauth-card,
-.invite-card {
-  transition-property: none;
-}
-
-.bg-glow {
-  animation: none;
-  filter: blur(80px);
-}
-
-.login-card,
-.reauth-card {
-  backdrop-filter: none;
-}
-
-.login-card *,
-.reauth-card *,
-.invite-card * {
-  transition-property: none;
 }
 </file>
 
@@ -117807,301 +118438,6 @@ output ACS_ENDPOINT string                     = 'https://${communicationService
 output ACS_CUSTOM_EMAIL_DOMAIN_ID string        = isProduction ? customEmailDomain.id : ''
 output ACS_CUSTOM_EMAIL_DOMAIN_ACTIVE bool      = isProduction
 output ACS_SENDER_ADDRESS string                = acsSenderAddress
-</file>
-
-<file path="src/BE/WorkslipApi/Configuration/HttpCacheHeaders.cs">
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
-using Workslip.Api.ViewModels;
-using Workslip.Application.Jobs;
-
-namespace Workslip.Api.Endpoints;
-
-public static class HttpCacheHeaders
-{
-    private const string PrivateRevalidate = "private, no-cache, max-age=0, must-revalidate";
-    private const string NoStore = "no-store";
-    private const string PublicHealth = "public, max-age=30, stale-while-revalidate=30";
-    private const string CacheStatusHeader = "X-Workslip-Cache";
-
-    public static void SetPrivateRevalidation(HttpContext httpContext, string etag)
-    {
-        httpContext.Response.Headers.CacheControl = PrivateRevalidate;
-        httpContext.Response.Headers.ETag = etag;
-        httpContext.Response.Headers.Vary = "Authorization";
-    }
-
-    public static void SetNoStore(HttpContext httpContext)
-    {
-        httpContext.Response.Headers.CacheControl = NoStore;
-        httpContext.Response.Headers.Pragma = "no-cache";
-        httpContext.Response.Headers.Expires = "0";
-        httpContext.Response.Headers[CacheStatusHeader] = "bypass";
-    }
-
-    public static void SetPublicHealthCache(HttpContext httpContext)
-    {
-        httpContext.Response.Headers.CacheControl = PublicHealth;
-    }
-
-    public static bool MatchesIfNoneMatch(HttpContext httpContext, string etag)
-    {
-        var matches = httpContext.Request.Headers.TryGetValue("If-None-Match", out var values)
-            && values.ToString()
-                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                .Any(value => value == "*" || string.Equals(value, etag, StringComparison.Ordinal));
-
-        httpContext.Response.Headers[CacheStatusHeader] = matches ? "revalidated" : "miss";
-        return matches;
-    }
-
-    public static string JobReportEtag(JobReportSummaryResponse report)
-    {
-        var builder = new StringBuilder()
-            .Append("job:")
-            .Append(report.OrganizationId.ToString("N"))
-            .Append(':')
-            .Append(report.Id.ToString("N"))
-            .Append(':')
-            .Append(report.UpdatedAt.UtcTicks);
-
-        foreach (var link in report.Links.OrderBy(link => link.Id))
-        {
-            builder
-                .Append("|link:")
-                .Append(link.Id.ToString("N"))
-                .Append(':')
-                .Append(link.LinkedReportId.ToString("N"))
-                .Append(':')
-                .Append(link.LinkedStatus);
-        }
-
-        foreach (var user in report.AssignedUsers.OrderBy(user => user.Id))
-        {
-            builder
-                .Append("|user:")
-                .Append(user.Id.ToString("N"));
-        }
-
-        return ToWeakEtag(builder.ToString());
-    }
-
-    public static string JobListEtag(
-        JobListViewModel response,
-        Guid organizationId,
-        Guid? currentUserId)
-    {
-        // The list contains related data that can change without updating the
-        // JobReports row itself: assignments, worksheet totals, installations
-        // and user-specific seen/rejection flags. Hash the complete mapped HTTP
-        // representation so a 304 can never hide one of those changes.
-        var representation = JsonSerializer.Serialize(response);
-        var userKey = currentUserId?.ToString("N") ?? "anon";
-        return ToWeakEtag($"jobs:list:{organizationId:N}:{userKey}:{representation}");
-    }
-
-    public static string JobAssignedEtag(
-        IReadOnlyList<JobListItemViewModel> jobs,
-        Guid organizationId,
-        Guid? currentUserId)
-    {
-        var representation = JsonSerializer.Serialize(jobs);
-        var userKey = currentUserId?.ToString("N") ?? "anon";
-        return ToWeakEtag($"jobs:assigned:{organizationId:N}:{userKey}:{representation}");
-    }
-
-    public static string JobHistoryEtag(Guid jobId, IEnumerable<JobHistoryResponse> events, int? limit, int? offset)
-    {
-        var builder = new StringBuilder()
-            .Append("jobs:history:")
-            .Append(jobId.ToString("N"))
-            .Append(':')
-            .Append(limit?.ToString() ?? "default")
-            .Append(':')
-            .Append(offset?.ToString() ?? "default");
-
-        foreach (var evt in events.OrderBy(e => e.Id))
-        {
-            builder
-                .Append('|')
-                .Append(evt.Id.ToString("N"))
-                .Append(':')
-                .Append(evt.CreatedAt.ToUnixTimeMilliseconds())
-                .Append(':')
-                .Append(evt.EventType);
-        }
-
-        return ToWeakEtag(builder.ToString());
-    }
-
-    public static string ReferenceDataEtag(ReferenceDataResponse data)
-    {
-        var sb = new StringBuilder("reference-data:");
-        foreach (var type in data.InstallationTypes)
-        {
-            sb.Append(type.Id).Append(type.SortOrder);
-            foreach (var cat in type.Categories)
-            {
-                sb.Append(cat.Id).Append(cat.SortOrder);
-                foreach (var cp in cat.ControlPoints)
-                    sb.Append(cp.Id).Append(cp.SortOrder).Append(cp.IsRequired);
-            }
-        }
-        foreach (var wk in data.WorkKinds)
-            sb.Append(wk.NormalizedLabel).Append(wk.SortOrder).Append(wk.RequiresCustomWorkKind);
-        foreach (var cf in data.ClosureFlags)
-            sb.Append(cf.Id).Append(cf.SortOrder).Append(cf.IsExclusive);
-        return ToWeakEtag(sb.ToString());
-    }
-
-    private static string ToWeakEtag(string value)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
-        return $"W/\"{Convert.ToHexString(hash)[..24].ToLowerInvariant()}\"";
-    }
-}
-</file>
-
-<file path="src/BE/WorkslipApi/ViewModels/JobViewModels.cs">
-using Workslip.Application.Jobs;
-using Workslip.Application.Worksheets;
-using Workslip.Domain;
-
-namespace Workslip.Api.ViewModels;
-
-public sealed record CustomerViewModel(
-    Guid? CustomerId,
-    string? Name,
-    string? Address,
-    string? Email,
-    string? ContactPerson,
-    string? Phone);
-
-public sealed record CustomerSnapshotResponse(
-    string? Name,
-    string? Email,
-    string? Phone,
-    string? Address,
-    string? ContactPerson);
-
-public sealed record JobListItemViewModel(
-    Guid Id,
-    Guid OrganizationId,
-    CustomerViewModel? Customer,
-    string? ReportNumber,
-    JobStatus Status,
-    IReadOnlyList<string> InstallationTypes,
-    IReadOnlyList<AssignedUserResponse> AssignedUsers,
-    bool SoftDeleted,
-    decimal? TotalHours,
-    DateTimeOffset UpdatedAt,
-    DateOnly? ReportDate,
-    string JobType,
-    string? DestinationAddress,
-    string? TaskDescription,
-    bool IsSeen,
-    bool IsNewRejection);
-
-public sealed record JobListViewModel(
-    IReadOnlyList<JobListItemViewModel> Items,
-    int TotalCount);
-
-public sealed record JobReportSummaryViewModel(
-    Guid Id,
-    Guid OrganizationId,
-    string? ReportNumber,
-    JobStatus Status,
-    Guid? CustomerId,
-    CustomerSnapshotResponse CustomerSnapshot,
-    string? DestinationAddress,
-    string? DestinationZipCode,
-    string? DestinationCity,
-    JobReportSummaryWorkResponse Work,
-    JobReportSummaryObservationResponse Observations,
-    IReadOnlyList<JobLinkInfoResponse> Links,
-    IReadOnlyList<AssignedUserResponse> AssignedUsers,
-    IReadOnlyList<WorksheetResponse> Worksheets,
-    decimal? TotalHours, 
-    int? TotalOutlay,
-    bool SoftDeleted,
-    string JobType,
-    string? RejectionNote);
-
-public sealed record JobLinkViewModel(
-    Guid Id,
-    Guid ReportId,
-    Guid LinkedReportId,
-    string LinkedReportNumber,
-    string LinkedCustomerName,
-    string LinkedStatus);
-
-public static class JobViewModelBuilder
-{
-    public static JobListItemViewModel ToListItem(JobListItemResponse job) => new(
-        job.Id,
-        job.OrganizationId,
-        ToCustomerViewModel(job.Customer),
-        job.ReportNumber,
-        job.Status,
-        job.InstallationTypes,
-        job.AssignedUsers,
-        job.SoftDeleted,
-        job.TotalHours,
-        job.UpdatedAt,
-        job.ReportDate,
-        job.JobType.ToString(),
-        job.DestinationAddress,
-        job.TaskDescription,
-        job.IsSeenByCurrentUser,
-        job.IsNewRejection);
-
-    public static JobReportSummaryViewModel ToSummary(JobReportSummaryResponse summary) => new(
-        summary.Id,
-        summary.OrganizationId,
-        summary.ReportNumber,
-        summary.Status,
-        summary.CustomerId,
-        new CustomerSnapshotResponse(
-            summary.CustomerSnapshot.Name,
-            summary.CustomerSnapshot.Email,
-            summary.CustomerSnapshot.Phone,
-            summary.CustomerSnapshot.Address,
-            summary.CustomerSnapshot.ContactPerson),
-        summary.DestinationAddress,
-        summary.DestinationZipCode,
-        summary.DestinationCity,
-        summary.Work,
-        summary.Observations,
-        summary.Links,
-        summary.AssignedUsers,
-        summary.Worksheets,
-        summary.TotalHours,
-        summary.TotalOutlay,
-        summary.SoftDeleted,
-        summary.JobType,
-        summary.RejectionNote);
-
-    public static JobLinkViewModel ToLink(JobLinkResponse link) => new(
-        link.Id,
-        link.ReportId,
-        link.LinkedReportId,
-        link.LinkedReportNumber,
-        link.LinkedCustomerName,
-        link.LinkedStatus);
-
-    public static List<JobLinkViewModel> ToLinkList(IReadOnlyList<JobLinkResponse> links) =>
-        links.Select(ToLink).ToList();
-
-    private static CustomerViewModel? ToCustomerViewModel(CustomerInfo? customer) =>
-        customer is null ? null : new(
-            customer.CustomerId,
-            customer.Name,
-            customer.Address,
-            customer.Email,
-            customer.ContactPerson,
-            customer.Phone);
-}
 </file>
 
 <file path="src/BE/WorkslipApi/Workslip.Application/Jobs/JobContracts.cs">
@@ -120620,201 +120956,6 @@ public sealed class DevelopmentDatabaseSeeder(
             Role == Roles.Superadmin &&
             EntraId == entraUser.EntraUserId &&
             EntraEmail == entraUser.EntraMail;
-    }
-}
-</file>
-
-<file path="src/BE/WorkslipApi/Workslip.Tests/Configuration/HttpCacheHeadersTests.cs">
-using Microsoft.AspNetCore.Http;
-using Workslip.Api.Endpoints;
-using Workslip.Application.Jobs;
-using Workslip.Domain;
-using Xunit;
-using JobListItemViewModel = Workslip.Api.ViewModels.JobListItemViewModel;
-using JobListViewModel = Workslip.Api.ViewModels.JobListViewModel;
-
-namespace Workslip.Tests.Configuration;
-
-public sealed class HttpCacheHeadersTests
-{
-    private static readonly Guid CurrentUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-
-    [Fact]
-    public void SetNoStore_sets_all_mutation_cache_headers()
-    {
-        var context = new DefaultHttpContext();
-
-        HttpCacheHeaders.SetNoStore(context);
-
-        Assert.Equal("no-store", context.Response.Headers.CacheControl.ToString());
-        Assert.Equal("no-cache", context.Response.Headers.Pragma.ToString());
-        Assert.Equal("0", context.Response.Headers.Expires.ToString());
-    }
-
-    [Fact]
-    public void JobReportEtag_changes_when_links_change()
-    {
-        var report = CreateReport(links: []);
-        var changedReport = report with
-        {
-            Links =
-            [
-                new JobLinkInfoResponse(Guid.NewGuid(), Guid.NewGuid(), "2026-001", "ACME", "", JobStatus.Draft.ToString())
-            ]
-        };
-
-        Assert.NotEqual(HttpCacheHeaders.JobReportEtag(report), HttpCacheHeaders.JobReportEtag(changedReport));
-    }
-
-    [Fact]
-    public void JobReportEtag_changes_when_assigned_users_change()
-    {
-        var report = CreateReport(assignedUsers: []);
-        var changedReport = report with
-        {
-            AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Ada")]
-        };
-
-        Assert.NotEqual(HttpCacheHeaders.JobReportEtag(report), HttpCacheHeaders.JobReportEtag(changedReport));
-    }
-
-    [Fact]
-    public void JobListEtag_changes_when_assignments_change()
-    {
-        var response = CreateJobList();
-        var item = response.Items.Single();
-        var changed = response with
-        {
-            Items = [item with { AssignedUsers = [new AssignedUserResponse(Guid.NewGuid(), "Ada")] }]
-        };
-
-        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
-    }
-
-    [Fact]
-    public void JobListEtag_changes_when_total_hours_change()
-    {
-        var response = CreateJobList();
-        var item = response.Items.Single();
-        var changed = response with
-        {
-            Items = [item with { TotalHours = 7.5m }]
-        };
-
-        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
-    }
-
-    [Fact]
-    public void JobListEtag_changes_when_installations_change()
-    {
-        var response = CreateJobList();
-        var item = response.Items.Single();
-        var changed = response with
-        {
-            Items = [item with { InstallationTypes = ["Varmepumpe"] }]
-        };
-
-        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
-    }
-
-    [Fact]
-    public void JobListEtag_changes_when_seen_state_changes()
-    {
-        var response = CreateJobList();
-        var item = response.Items.Single();
-        var changed = response with
-        {
-            Items = [item with { IsSeen = true }]
-        };
-
-        Assert.NotEqual(CreateJobListEtag(response), CreateJobListEtag(changed));
-    }
-
-    [Fact]
-    public void JobListEtag_changes_between_users()
-    {
-        var response = CreateJobList();
-        var organizationId = response.Items.Single().OrganizationId;
-
-        var first = HttpCacheHeaders.JobListEtag(response, organizationId, CurrentUserId);
-        var second = HttpCacheHeaders.JobListEtag(response, organizationId, Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"));
-
-        Assert.NotEqual(first, second);
-    }
-
-    [Fact]
-    public void JobAssignedEtag_changes_when_related_list_data_changes()
-    {
-        var response = CreateJobList();
-        var item = response.Items.Single();
-        var changed = response with
-        {
-            Items = [item with { TotalHours = 9m, InstallationTypes = ["Kedel"] }]
-        };
-
-        Assert.NotEqual(CreateAssignedJobsEtag(response), CreateAssignedJobsEtag(changed));
-    }
-
-    private static string CreateJobListEtag(JobListViewModel response) =>
-        HttpCacheHeaders.JobListEtag(response, response.Items.Single().OrganizationId, CurrentUserId);
-
-    private static string CreateAssignedJobsEtag(JobListViewModel response) =>
-        HttpCacheHeaders.JobAssignedEtag(response.Items, response.Items.Single().OrganizationId, CurrentUserId);
-
-    private static JobListViewModel CreateJobList()
-    {
-        var organizationId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-        var item = new JobListItemViewModel(
-            Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-            organizationId,
-            null,
-            "2026-0001",
-            JobStatus.Draft,
-            [],
-            [],
-            false,
-            1.5m,
-            DateTimeOffset.UnixEpoch,
-            null,
-            "Diverse",
-            null,
-            null,
-            false,
-            false);
-
-        return new JobListViewModel([item], 1);
-    }
-
-    private static JobReportSummaryResponse CreateReport(
-        IReadOnlyList<JobLinkInfoResponse>? links = null,
-        IReadOnlyList<AssignedUserResponse>? assignedUsers = null)
-    {
-        return new JobReportSummaryResponse(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "RBJ Teknisk",
-            "12345678",
-            "2026-000",
-            JobStatus.Draft,
-            null,
-            new CustomerSnapshotResponse(null, null, null, null, null),
-            null,
-            null,
-            null,
-            "Diverse",
-            new JobReportSummaryWorkResponse(null, [], [], null),
-            new JobReportSummaryObservationResponse(null, null, null),
-            [],
-            links ?? [],
-            DateTimeOffset.UnixEpoch,
-            DateTimeOffset.UnixEpoch,
-            null,
-            assignedUsers ?? [],
-            [],
-            null,
-            null,
-            false,
-            null);
     }
 }
 </file>
@@ -124049,6 +124190,281 @@ export const pushSubscriptionInternals = {
 };
 </file>
 
+<file path="src/FE/src/hooks/usePaginatedList.ts">
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { QueryKey } from '@tanstack/react-query';
+import { useInfiniteList } from './useInfiniteList';
+import { useInfiniteScroll } from './useInfiniteScroll';
+import { useMediaQuery } from './useMediaQuery';
+import { buildPaginatedListQueryKey, getPaginatedListInitialState } from './paginatedListState';
+import { useAppScrollRestoreKey } from './useAppRouteScroll';
+
+function getScrollContainer(): HTMLElement | null {
+  return document.querySelector('.app-shell');
+}
+
+// Global scroll write tokens — one per storageKey.
+// Only the component holding the current token may write to sessionStorage.
+const scrollTokens: Record<string, symbol> = {};
+
+// Resize cooldown: after a resize event, ignore scroll saves for this long.
+// This prevents layout-triggered scroll events from overwriting saved positions.
+let resizeCooldownUntil = 0;
+window.addEventListener('resize', () => {
+  resizeCooldownUntil = Date.now() + 500;
+}, { passive: true });
+
+interface UsePaginatedListOptions<TItem> {
+  queryKey: QueryKey;
+  fetchPage: (params: {
+    limit: number;
+    offset: number;
+    search?: string;
+    sortBy?: string;
+    sortDirection?: string;
+  }) => Promise<{ items: TItem[]; totalCount: number }>;
+  pageSize?: number;
+  enabled?: boolean;
+  storageKey?: string;
+}
+
+interface UsePaginatedListReturn<TItem> {
+  items: TItem[];
+  totalCount: number;
+  isLoading: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  isFetchingNextPage: boolean;
+  hasNextPage: boolean;
+  refetch: () => Promise<void>;
+  fetchNextPage: () => void;
+  search: string;
+  handleSearchChange: (value: string) => void;
+  sortBy: string;
+  sortDirection: string;
+  handleSort: (field: string) => void;
+  viewPage: number;
+  setViewPage: (page: number | ((prev: number) => number)) => void;
+  totalPages: number;
+  safeViewPage: number;
+  pageStart: number;
+  pageEnd: number;
+  pageItems: TItem[];
+  sentinelRef: (node: HTMLDivElement | null) => void;
+  isDesktop: boolean;
+}
+
+export function usePaginatedList<TItem>({
+  queryKey,
+  fetchPage,
+  pageSize = 20,
+  enabled = true,
+  storageKey,
+}: UsePaginatedListOptions<TItem>): UsePaginatedListReturn<TItem> {
+  const [initialState] = useState(() => getPaginatedListInitialState(storageKey));
+  const [search, setSearch] = useState(initialState.search);
+  const [querySearch, setQuerySearch] = useState(initialState.search);
+  const [sort, setSort] = useState(initialState.sort);
+  const [viewPage, setViewPage] = useState(initialState.viewPage);
+  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const restoreScrollKey = useAppScrollRestoreKey();
+  const restorePendingRef = useRef(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    restorePendingRef.current = Boolean(restoreScrollKey);
+  }, [restoreScrollKey]);
+
+  const fetchWrapped = useCallback(
+    async ({ limit, offset }: { limit: number; offset: number }) => {
+      const data = await fetchPage({
+        limit,
+        offset,
+        search: querySearch || undefined,
+        sortBy: sort.field || undefined,
+        sortDirection: sort.direction || undefined,
+      });
+      return data;
+    },
+    [fetchPage, querySearch, sort],
+  );
+
+  const query = useInfiniteList<TItem>({
+    queryKey: buildPaginatedListQueryKey(queryKey, querySearch, sort, pageSize),
+    fetchPage: fetchWrapped,
+    pageSize,
+    enabled,
+  });
+
+  const { sentinelRef } = useInfiniteScroll({
+    onReachEnd: () => {
+      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
+        void query.fetchNextPage();
+      }
+    },
+    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
+  });
+
+  const items = query.items;
+  const totalCount = query.totalCount;
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(totalCount / pageSize)),
+    [totalCount, pageSize],
+  );
+  const safeViewPage = useMemo(
+    () => Math.min(viewPage, totalPages),
+    [viewPage, totalPages],
+  );
+  const pageStart = (safeViewPage - 1) * pageSize;
+  const pageEnd = pageStart + pageSize;
+  const pageItems = isDesktop ? items.slice(pageStart, pageEnd) : items;
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setViewPage(1);
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+
+    if (value.length === 0) {
+      setQuerySearch('');
+    } else if (value.length >= 3) {
+      debounceTimerRef.current = setTimeout(() => {
+        setQuerySearch(value);
+      }, 300);
+    }
+  }, []);
+
+  const handleSort = useCallback(
+    (field: string) => {
+      setSort((prev) => ({
+        field,
+        direction: prev.field === field
+          ? (prev.direction === 'asc' ? 'desc' : 'asc')
+          : 'asc',
+      }));
+      setViewPage(1);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    if (items.length >= pageEnd || !query.hasNextPage || query.isFetchingNextPage || query.isLoading) return;
+    void query.fetchNextPage();
+  }, [pageEnd, items.length, query.hasNextPage, query.isFetchingNextPage, query.isLoading, isDesktop]);
+
+  const prevSearchRef = useRef(search);
+  const prevSortRef = useRef(JSON.stringify(sort));
+
+  useEffect(() => {
+    if (search !== prevSearchRef.current || JSON.stringify(sort) !== prevSortRef.current) {
+      setViewPage(1);
+      prevSearchRef.current = search;
+      prevSortRef.current = JSON.stringify(sort);
+    }
+  }, [search, sort]);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    sessionStorage.setItem(`${storageKey}:search`, search);
+    sessionStorage.setItem(`${storageKey}:sort`, JSON.stringify(sort));
+    sessionStorage.setItem(`${storageKey}:page`, String(viewPage));
+  }, [storageKey, search, sort, viewPage]);
+
+  // Scroll position restore on mount
+  const isLoading = query.isLoading;
+  useEffect(() => {
+    if (!storageKey || isLoading || !restoreScrollKey) return;
+    const saved = sessionStorage.getItem(`${storageKey}:scroll`);
+    if (!saved) {
+      restorePendingRef.current = false;
+      return;
+    }
+
+    const scrollTop = Number(saved);
+    if (!Number.isFinite(scrollTop) || scrollTop < 0) {
+      restorePendingRef.current = false;
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      getScrollContainer()?.scrollTo({ top: scrollTop });
+      restorePendingRef.current = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [storageKey, isLoading, restoreScrollKey]);
+
+  // Scroll position save — debounced scroll listener with resize cooldown.
+  // The scroll listener handles back-button restores reliably.
+  // The resize cooldown prevents layout-triggered scroll events from
+  // overwriting the saved position when the browser window is resized.
+  useLayoutEffect(() => {
+    if (!storageKey) return;
+    const container = getScrollContainer();
+    if (!container) return;
+
+    const myToken = Symbol();
+    scrollTokens[storageKey] = myToken;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let latestScrollTop = container.scrollTop;
+    const onScroll = () => {
+      latestScrollTop = container.scrollTop;
+      if (restorePendingRef.current) return;
+      if (scrollTokens[storageKey] !== myToken) return;
+      if (Date.now() < resizeCooldownUntil) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (restorePendingRef.current) return;
+        if (scrollTokens[storageKey] !== myToken) return;
+        if (Date.now() < resizeCooldownUntil) return;
+        sessionStorage.setItem(`${storageKey}:scroll`, String(latestScrollTop));
+      }, 200);
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      if (timer) clearTimeout(timer);
+      container.removeEventListener('scroll', onScroll);
+      if (scrollTokens[storageKey] === myToken) {
+        if (!restorePendingRef.current) {
+          sessionStorage.setItem(`${storageKey}:scroll`, String(latestScrollTop));
+        }
+        delete scrollTokens[storageKey];
+      }
+    };
+  }, [storageKey]);
+
+  return {
+    items,
+    totalCount,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    isError: query.isError,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasNextPage: query.hasNextPage,
+    refetch: async () => {
+      await query.refetch();
+    },
+    fetchNextPage: () => void query.fetchNextPage(),
+    search,
+    handleSearchChange,
+    sortBy: sort.field,
+    sortDirection: sort.direction,
+    handleSort,
+    viewPage,
+    setViewPage,
+    totalPages,
+    safeViewPage,
+    pageStart,
+    pageEnd,
+    pageItems,
+    sentinelRef,
+    isDesktop,
+  };
+}
+</file>
+
 <file path="src/FE/src/lib/axios.ts">
 import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
@@ -124379,31 +124795,6 @@ export function requestPwaUpdate() {
 }
 </file>
 
-<file path="src/FE/src/lib/react-query.ts">
-// Thin re-export module for the React Query layer.
-//
-// New code should prefer importing directly from `createQueryClient` and
-// `queryTimings` so the dependency on the singleton is explicit. This file
-// is kept as a stable surface for the existing two import sites
-// (`features/jobs/queries/jobListQuery` and
-// `providers/AuthenticatedAppProvider`) — when those are migrated, this
-// file can be removed.
-
-export { createQueryClient } from './createQueryClient';
-export {
-  DEFAULT_QUERY_RETRY,
-  DEFAULT_STALE_TIME_MS,
-  JOB_LIST_GC_TIME_MS,
-  JOB_LIST_REFETCH_INTERVAL_MS,
-  JOB_LIST_STALE_TIME_MS,
-  MUTATION_RETRY,
-} from './queryTimings';
-
-import { createQueryClient } from './createQueryClient';
-
-export const queryClient = createQueryClient();
-</file>
-
 <file path="src/FE/src/providers/permissions/permissions.ts">
 /**
  * Permission catalogue.
@@ -124463,118 +124854,140 @@ export function hasPermission(role: string | null | undefined, permission: Permi
 }
 </file>
 
-<file path="src/FE/src/providers/AuthContext.tsx">
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+<file path="src/FE/src/providers/AuthenticatedAppProvider.tsx">
+import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
+import type { UserViewModel } from '../api/generated/models';
 import {
-  AUTH_TOKEN_KEY,
+  DEFAULT_AUTHENTICATED_PATH,
+  getAuthenticatedHomePath,
+} from '../features/auth/authenticatedDestination';
+import { prefetchInitialJobList } from '../features/jobs/queries/jobListQuery';
+import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
+import { queryClient } from '../lib/react-query';
+import {
   AuthContext,
-  USER_EMAIL_KEY,
-  AuthStorage,
-  clearReauthInFlight,
   type AuthContextType,
 } from './authContextValue';
-import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
+import { canUseSessionNotifications } from './sessionFeaturePolicy';
 
-const AuthenticatedAppProvider = lazy(() =>
-  import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
-);
+interface AuthenticatedAppProviderProps {
+  children: ReactNode;
+  login: AuthContextType['login'];
+  devLogin: AuthContextType['devLogin'];
+  clearSession: () => void;
+}
 
-const publicMeQuery: AuthContextType['meQuery'] = {
-  isPending: false,
-  isError: false,
-  refetch: async () => null,
-  data: null,
-};
+function shouldPrefetchJobs(): boolean {
+  return window.location.pathname === '/'
+    || window.location.pathname === '/login'
+    || window.location.pathname === '/app'
+    || window.location.pathname === '/app/';
+}
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
+function AuthenticatedSessionProvider({
+  children,
+  login,
+  devLogin,
+  clearSession,
+}: AuthenticatedAppProviderProps) {
+  const { register: registerPush } = usePushNotifications();
+
+  const meQuery = useGetApiAuthMe({
+    query: {
+      enabled: true,
+      retry: 1,
+      retryDelay: 500,
+      refetchOnReconnect: true,
+      staleTime: 5 * 60 * 1000,
+    },
+  });
+
+  const user = meQuery.data ?? null;
+  const isAuthenticated = Boolean(user);
+  const canUseNotifications = canUseSessionNotifications(user?.role);
+  const usesPrimaryJobList = getAuthenticatedHomePath(user?.role) === DEFAULT_AUTHENTICATED_PATH;
 
   useEffect(() => {
-    if (!authToken) return;
+    if (isAuthenticated && canUseNotifications) {
+      registerPush().catch((error) => {
+        console.error('[Auth] Failed to register push notifications:', error);
+      });
+    }
+    // The push hook currently returns a function tied to its mutation object.
+    // Including it would re-run registration on every provider render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canUseNotifications, isAuthenticated]);
 
-    // Start the shell and jobs-route downloads alongside the authenticated
-    // provider and /api/auth/me request. Import failures still flow through the
-    // existing Vite stale-chunk recovery when the route is rendered.
-    void preloadPrimaryAppRoute().catch(() => undefined);
-  }, [authToken]);
+  useEffect(() => {
+    if (!isAuthenticated || !usesPrimaryJobList || !shouldPrefetchJobs()) return;
 
-  const clearStoredSession = useCallback(() => {
-    AuthStorage.removeItem(AUTH_TOKEN_KEY);
-    AuthStorage.removeItem(USER_EMAIL_KEY);
-    clearReauthInFlight();
-    setAuthToken(null);
-  }, []);
+    // The token and current user are now validated. Populate the same query key
+    // used by JobList so the home route can render cached data immediately.
+    void prefetchInitialJobList(queryClient).catch(() => undefined);
+  }, [isAuthenticated, usesPrimaryJobList]);
 
-  const login = useCallback(
-    async (email: string, code: string): Promise<boolean> => {
-      try {
-        const { verifyAuthCode } = await import('../features/auth/api/devToken');
-        const response = await verifyAuthCode(email, code);
-        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-        setAuthToken(response.token);
-        clearReauthInFlight();
-        return true;
-      } catch {
-        return false;
-      }
+  const clearLocalSession = useCallback(() => {
+    queryClient.clear();
+    clearSession();
+  }, [clearSession]);
+
+  const logout = useCallback(() => {
+    // Keep explicit logout separate from internal session clearing so a future
+    // provider-specific sign-out cannot affect invitation or recovery flows.
+    clearLocalSession();
+  }, [clearLocalSession]);
+
+  const updateUser = useCallback(
+    (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => {
+      queryClient.setQueryData(getGetApiAuthMeQueryKey(), (old: UserViewModel | undefined) => {
+        if (!old) return old;
+        return { ...old, ...partial };
+      });
     },
     [],
   );
 
-  const devLogin = useCallback(
-    async (email: string): Promise<boolean> => {
-      try {
-        const { getDevToken } = await import('../features/auth/api/devToken');
-        const response = await getDevToken(email);
-        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-        setAuthToken(response.token);
-        clearReauthInFlight();
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [],
-  );
+  const retryMe = useCallback(async (): Promise<unknown> => {
+    await queryClient.cancelQueries({ queryKey: getGetApiAuthMeQueryKey() });
+    return meQuery.refetch();
+  }, [meQuery.refetch]);
 
-  const publicValue = useMemo<AuthContextType>(
+  const publicMeQuery = useMemo(
     () => ({
-      hasAuthToken: false,
-      isAuthenticated: false,
-      user: null,
-      isLoading: false,
+      isPending: meQuery.isPending,
+      isError: meQuery.isError,
+      refetch: retryMe,
+      data: meQuery.data ?? null,
+    }),
+    [meQuery.isPending, meQuery.isError, meQuery.data, retryMe],
+  );
+
+  const value = useMemo<AuthContextType>(
+    () => ({
+      hasAuthToken: true,
+      isAuthenticated,
+      user,
+      isLoading: meQuery.isPending,
       login,
       devLogin,
-      logout: clearStoredSession,
-      clearLocalSession: clearStoredSession,
-      updateUser: () => undefined,
+      logout,
+      clearLocalSession,
+      updateUser,
       meQuery: publicMeQuery,
     }),
-    [clearStoredSession, devLogin, login],
+    [clearLocalSession, devLogin, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
   );
 
-  if (!authToken) {
-    return <AuthContext.Provider value={publicValue}>{children}</AuthContext.Provider>;
-  }
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
+export function AuthenticatedAppProvider(props: AuthenticatedAppProviderProps) {
   return (
-    <Suspense
-      fallback={(
-        <div className="protected-route-loading" role="status" aria-live="polite">
-          Tjekker login status...
-        </div>
-      )}
-    >
-      <AuthenticatedAppProvider
-        login={login}
-        devLogin={devLogin}
-        clearSession={clearStoredSession}
-      >
-        {children}
-      </AuthenticatedAppProvider>
-    </Suspense>
+    <QueryClientProvider client={queryClient}>
+      <AuthenticatedSessionProvider {...props} />
+    </QueryClientProvider>
   );
 }
 </file>
@@ -127342,419 +127755,6 @@ export function getSuperadminErrorMessage(error: unknown): string {
 }
 </file>
 
-<file path="src/FE/src/hooks/usePaginatedList.ts">
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { QueryKey } from '@tanstack/react-query';
-import { useInfiniteList } from './useInfiniteList';
-import { useInfiniteScroll } from './useInfiniteScroll';
-import { useMediaQuery } from './useMediaQuery';
-import { buildPaginatedListQueryKey, getPaginatedListInitialState } from './paginatedListState';
-import { useAppScrollRestoreKey } from './useAppRouteScroll';
-
-function getScrollContainer(): HTMLElement | null {
-  return document.querySelector('.app-shell');
-}
-
-// Global scroll write tokens — one per storageKey.
-// Only the component holding the current token may write to sessionStorage.
-const scrollTokens: Record<string, symbol> = {};
-
-// Resize cooldown: after a resize event, ignore scroll saves for this long.
-// This prevents layout-triggered scroll events from overwriting saved positions.
-let resizeCooldownUntil = 0;
-window.addEventListener('resize', () => {
-  resizeCooldownUntil = Date.now() + 500;
-}, { passive: true });
-
-interface UsePaginatedListOptions<TItem> {
-  queryKey: QueryKey;
-  fetchPage: (params: {
-    limit: number;
-    offset: number;
-    search?: string;
-    sortBy?: string;
-    sortDirection?: string;
-  }) => Promise<{ items: TItem[]; totalCount: number }>;
-  pageSize?: number;
-  enabled?: boolean;
-  storageKey?: string;
-}
-
-interface UsePaginatedListReturn<TItem> {
-  items: TItem[];
-  totalCount: number;
-  isLoading: boolean;
-  isFetching: boolean;
-  isError: boolean;
-  isFetchingNextPage: boolean;
-  hasNextPage: boolean;
-  refetch: () => Promise<void>;
-  fetchNextPage: () => void;
-  search: string;
-  handleSearchChange: (value: string) => void;
-  sortBy: string;
-  sortDirection: string;
-  handleSort: (field: string) => void;
-  viewPage: number;
-  setViewPage: (page: number | ((prev: number) => number)) => void;
-  totalPages: number;
-  safeViewPage: number;
-  pageStart: number;
-  pageEnd: number;
-  pageItems: TItem[];
-  sentinelRef: (node: HTMLDivElement | null) => void;
-  isDesktop: boolean;
-}
-
-export function usePaginatedList<TItem>({
-  queryKey,
-  fetchPage,
-  pageSize = 20,
-  enabled = true,
-  storageKey,
-}: UsePaginatedListOptions<TItem>): UsePaginatedListReturn<TItem> {
-  const [initialState] = useState(() => getPaginatedListInitialState(storageKey));
-  const [search, setSearch] = useState(initialState.search);
-  const [querySearch, setQuerySearch] = useState(initialState.search);
-  const [sort, setSort] = useState(initialState.sort);
-  const [viewPage, setViewPage] = useState(initialState.viewPage);
-  const isDesktop = useMediaQuery('(min-width: 768px)');
-  const restoreScrollKey = useAppScrollRestoreKey();
-  const restorePendingRef = useRef(false);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useLayoutEffect(() => {
-    restorePendingRef.current = Boolean(restoreScrollKey);
-  }, [restoreScrollKey]);
-
-  const fetchWrapped = useCallback(
-    async ({ limit, offset }: { limit: number; offset: number }) => {
-      const data = await fetchPage({
-        limit,
-        offset,
-        search: querySearch || undefined,
-        sortBy: sort.field || undefined,
-        sortDirection: sort.direction || undefined,
-      });
-      return data;
-    },
-    [fetchPage, querySearch, sort],
-  );
-
-  const query = useInfiniteList<TItem>({
-    queryKey: buildPaginatedListQueryKey(queryKey, querySearch, sort, pageSize),
-    fetchPage: fetchWrapped,
-    pageSize,
-    enabled,
-  });
-
-  const { sentinelRef } = useInfiniteScroll({
-    onReachEnd: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage && !query.isLoading) {
-        void query.fetchNextPage();
-      }
-    },
-    enabled: Boolean(query.hasNextPage) && !query.isFetchingNextPage && !query.isLoading,
-  });
-
-  const items = query.items;
-  const totalCount = query.totalCount;
-
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(totalCount / pageSize)),
-    [totalCount, pageSize],
-  );
-  const safeViewPage = useMemo(
-    () => Math.min(viewPage, totalPages),
-    [viewPage, totalPages],
-  );
-  const pageStart = (safeViewPage - 1) * pageSize;
-  const pageEnd = pageStart + pageSize;
-  const pageItems = isDesktop ? items.slice(pageStart, pageEnd) : items;
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearch(value);
-    setViewPage(1);
-
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-
-    if (value.length === 0) {
-      setQuerySearch('');
-    } else if (value.length >= 3) {
-      debounceTimerRef.current = setTimeout(() => {
-        setQuerySearch(value);
-      }, 300);
-    }
-  }, []);
-
-  const handleSort = useCallback(
-    (field: string) => {
-      setSort((prev) => ({
-        field,
-        direction: prev.field === field
-          ? (prev.direction === 'asc' ? 'desc' : 'asc')
-          : 'asc',
-      }));
-      setViewPage(1);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!isDesktop) return;
-    if (items.length >= pageEnd || !query.hasNextPage || query.isFetchingNextPage || query.isLoading) return;
-    void query.fetchNextPage();
-  }, [pageEnd, items.length, query.hasNextPage, query.isFetchingNextPage, query.isLoading, isDesktop]);
-
-  const prevSearchRef = useRef(search);
-  const prevSortRef = useRef(JSON.stringify(sort));
-
-  useEffect(() => {
-    if (search !== prevSearchRef.current || JSON.stringify(sort) !== prevSortRef.current) {
-      setViewPage(1);
-      prevSearchRef.current = search;
-      prevSortRef.current = JSON.stringify(sort);
-    }
-  }, [search, sort]);
-
-  useEffect(() => {
-    if (!storageKey) return;
-    sessionStorage.setItem(`${storageKey}:search`, search);
-    sessionStorage.setItem(`${storageKey}:sort`, JSON.stringify(sort));
-    sessionStorage.setItem(`${storageKey}:page`, String(viewPage));
-  }, [storageKey, search, sort, viewPage]);
-
-  // Scroll position restore on mount
-  const isLoading = query.isLoading;
-  useEffect(() => {
-    if (!storageKey || isLoading || !restoreScrollKey) return;
-    const saved = sessionStorage.getItem(`${storageKey}:scroll`);
-    if (!saved) {
-      restorePendingRef.current = false;
-      return;
-    }
-
-    const scrollTop = Number(saved);
-    if (!Number.isFinite(scrollTop) || scrollTop < 0) {
-      restorePendingRef.current = false;
-      return;
-    }
-
-    const frame = requestAnimationFrame(() => {
-      getScrollContainer()?.scrollTo({ top: scrollTop });
-      restorePendingRef.current = false;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [storageKey, isLoading, restoreScrollKey]);
-
-  // Scroll position save — debounced scroll listener with resize cooldown.
-  // The scroll listener handles back-button restores reliably.
-  // The resize cooldown prevents layout-triggered scroll events from
-  // overwriting the saved position when the browser window is resized.
-  useLayoutEffect(() => {
-    if (!storageKey) return;
-    const container = getScrollContainer();
-    if (!container) return;
-
-    const myToken = Symbol();
-    scrollTokens[storageKey] = myToken;
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let latestScrollTop = container.scrollTop;
-    const onScroll = () => {
-      latestScrollTop = container.scrollTop;
-      if (restorePendingRef.current) return;
-      if (scrollTokens[storageKey] !== myToken) return;
-      if (Date.now() < resizeCooldownUntil) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (restorePendingRef.current) return;
-        if (scrollTokens[storageKey] !== myToken) return;
-        if (Date.now() < resizeCooldownUntil) return;
-        sessionStorage.setItem(`${storageKey}:scroll`, String(latestScrollTop));
-      }, 200);
-    };
-    container.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      if (timer) clearTimeout(timer);
-      container.removeEventListener('scroll', onScroll);
-      if (scrollTokens[storageKey] === myToken) {
-        if (!restorePendingRef.current) {
-          sessionStorage.setItem(`${storageKey}:scroll`, String(latestScrollTop));
-        }
-        delete scrollTokens[storageKey];
-      }
-    };
-  }, [storageKey]);
-
-  return {
-    items,
-    totalCount,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isError: query.isError,
-    isFetchingNextPage: query.isFetchingNextPage,
-    hasNextPage: query.hasNextPage,
-    refetch: async () => {
-      await query.refetch();
-    },
-    fetchNextPage: () => void query.fetchNextPage(),
-    search,
-    handleSearchChange,
-    sortBy: sort.field,
-    sortDirection: sort.direction,
-    handleSort,
-    viewPage,
-    setViewPage,
-    totalPages,
-    safeViewPage,
-    pageStart,
-    pageEnd,
-    pageItems,
-    sentinelRef,
-    isDesktop,
-  };
-}
-</file>
-
-<file path="src/FE/src/providers/AuthenticatedAppProvider.tsx">
-import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
-import type { UserViewModel } from '../api/generated/models';
-import {
-  DEFAULT_AUTHENTICATED_PATH,
-  getAuthenticatedHomePath,
-} from '../features/auth/authenticatedDestination';
-import { prefetchInitialJobList } from '../features/jobs/queries/jobListQuery';
-import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
-import { queryClient } from '../lib/react-query';
-import {
-  AuthContext,
-  type AuthContextType,
-} from './authContextValue';
-import { canUseSessionNotifications } from './sessionFeaturePolicy';
-
-interface AuthenticatedAppProviderProps {
-  children: ReactNode;
-  login: AuthContextType['login'];
-  devLogin: AuthContextType['devLogin'];
-  clearSession: () => void;
-}
-
-function shouldPrefetchJobs(): boolean {
-  return window.location.pathname === '/'
-    || window.location.pathname === '/login'
-    || window.location.pathname === '/app'
-    || window.location.pathname === '/app/';
-}
-
-function AuthenticatedSessionProvider({
-  children,
-  login,
-  devLogin,
-  clearSession,
-}: AuthenticatedAppProviderProps) {
-  const { register: registerPush } = usePushNotifications();
-
-  const meQuery = useGetApiAuthMe({
-    query: {
-      enabled: true,
-      retry: 1,
-      retryDelay: 500,
-      refetchOnReconnect: true,
-      staleTime: 5 * 60 * 1000,
-    },
-  });
-
-  const user = meQuery.data ?? null;
-  const isAuthenticated = Boolean(user);
-  const canUseNotifications = canUseSessionNotifications(user?.role);
-  const usesPrimaryJobList = getAuthenticatedHomePath(user?.role) === DEFAULT_AUTHENTICATED_PATH;
-
-  useEffect(() => {
-    if (isAuthenticated && canUseNotifications) {
-      registerPush().catch((error) => {
-        console.error('[Auth] Failed to register push notifications:', error);
-      });
-    }
-    // The push hook currently returns a function tied to its mutation object.
-    // Including it would re-run registration on every provider render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canUseNotifications, isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !usesPrimaryJobList || !shouldPrefetchJobs()) return;
-
-    // The token and current user are now validated. Populate the same query key
-    // used by JobList so the home route can render cached data immediately.
-    void prefetchInitialJobList(queryClient).catch(() => undefined);
-  }, [isAuthenticated, usesPrimaryJobList]);
-
-  const clearLocalSession = useCallback(() => {
-    queryClient.clear();
-    clearSession();
-  }, [clearSession]);
-
-  const logout = useCallback(() => {
-    // Keep explicit logout separate from internal session clearing so a future
-    // provider-specific sign-out cannot affect invitation or recovery flows.
-    clearLocalSession();
-  }, [clearLocalSession]);
-
-  const updateUser = useCallback(
-    (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => {
-      queryClient.setQueryData(getGetApiAuthMeQueryKey(), (old: UserViewModel | undefined) => {
-        if (!old) return old;
-        return { ...old, ...partial };
-      });
-    },
-    [],
-  );
-
-  const retryMe = useCallback(async (): Promise<unknown> => {
-    await queryClient.cancelQueries({ queryKey: getGetApiAuthMeQueryKey() });
-    return meQuery.refetch();
-  }, [meQuery.refetch]);
-
-  const publicMeQuery = useMemo(
-    () => ({
-      isPending: meQuery.isPending,
-      isError: meQuery.isError,
-      refetch: retryMe,
-      data: meQuery.data ?? null,
-    }),
-    [meQuery.isPending, meQuery.isError, meQuery.data, retryMe],
-  );
-
-  const value = useMemo<AuthContextType>(
-    () => ({
-      hasAuthToken: true,
-      isAuthenticated,
-      user,
-      isLoading: meQuery.isPending,
-      login,
-      devLogin,
-      logout,
-      clearLocalSession,
-      updateUser,
-      meQuery: publicMeQuery,
-    }),
-    [clearLocalSession, devLogin, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
-  );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function AuthenticatedAppProvider(props: AuthenticatedAppProviderProps) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthenticatedSessionProvider {...props} />
-    </QueryClientProvider>
-  );
-}
-</file>
-
 <file path="src/FE/src/pwa/notificationNavigation.ts">
 export interface NotificationWindowClient {
   focused: boolean;
@@ -129368,6 +129368,100 @@ if (request.Work.ClosureFlags is not null)
     private static string? ValueOrNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+}
+</file>
+
+<file path="src/BE/WorkslipApi/Workslip.Infrastructure/DependencyInjection.cs">
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Workslip.Application;
+using Workslip.Application.Common;
+using Workslip.Application.Customers;
+using Workslip.Application.Diagnostics;
+using Workslip.Application.Invitations;
+using Workslip.Application.Jobs;
+using Workslip.Application.Notifications;
+using Workslip.Application.Organizations;
+using Workslip.Application.Users;
+using Workslip.Application.Worksheets;
+using Workslip.Infrastructure.Configuration;
+using Workslip.Infrastructure.Diagnostics;
+using Workslip.Infrastructure.Invitations;
+using Workslip.Infrastructure.Jobs;
+using Workslip.Infrastructure.Notifications;
+using Workslip.Infrastructure.Repositories;
+using Workslip.Infrastructure.Resilience;
+using Workslip.Infrastructure.Schema;
+using Workslip.Infrastructure.Transactions;
+
+namespace Workslip.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddWorkslipInfrastructure(this IServiceCollection services)
+    {
+        services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
+        services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+        services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
+
+        services.AddScoped<JobStatusTransitionInterceptor>();
+        services.AddScoped<AuditInterceptor>();
+
+        services.AddDbContext<SqlDbContext>((sp, options) =>
+        {
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
+            options.UseSqlServer(connectionString, b =>
+                b.MigrationsAssembly("Workslip.Api")
+            );
+
+            var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
+            var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
+            options.AddInterceptors(transitionInterceptor, auditInterceptor);
+
+            options.ConfigureWarnings(warnings =>
+                warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
+        });
+
+        services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
+        services.AddScoped<ICustomerRepository, EfCustomerRepository>();
+        services.AddScoped<IInviteRepository, EfInviteRepository>();
+        services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
+        services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
+        services.AddScoped<IJobRepository, EfJobRepository>();
+        services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
+        services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
+        services.AddScoped<IUserRepository, EfUserRepository>();
+        services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
+        services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
+        services.AddScoped<INotificationRepository, EfNotificationRepository>();
+        services.AddScoped<IJobViewRepository, EfJobViewRepository>();
+        services.AddScoped<DatabaseSchemaInitializer>();
+        services.AddScoped<DevelopmentDatabaseSeeder>();
+
+        services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.loganalytics.azure.com/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
+        services.AddScoped<IEmailService, AcsEmailService>();
+        services.AddSingleton<VapidKeyMaterial>();
+        services.AddSingleton<IVapidPublicKeyProvider>(serviceProvider =>
+            serviceProvider.GetRequiredService<VapidKeyMaterial>());
+        services.AddScoped<IPushSender, WebPushSender>();
+        services.AddHostedService<JobDeletionCleanupService>();
+        services.AddHostedService<InviteEntraCleanupService>();
+        services.AddHostedService<PushNotificationWorker>();
+
+        services.AddOptions<VapidOptions>()
+            .Configure<IConfiguration>((options, config) =>
+                config.GetSection(VapidOptions.SectionName).Bind(options));
+
+        return services;
+    }
 }
 </file>
 
@@ -138041,98 +138135,194 @@ public sealed class JobService(
 }
 </file>
 
-<file path="src/BE/WorkslipApi/Workslip.Infrastructure/DependencyInjection.cs">
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Workslip.Application;
-using Workslip.Application.Common;
-using Workslip.Application.Customers;
-using Workslip.Application.Diagnostics;
-using Workslip.Application.Invitations;
-using Workslip.Application.Jobs;
-using Workslip.Application.Notifications;
-using Workslip.Application.Organizations;
-using Workslip.Application.Users;
-using Workslip.Application.Worksheets;
-using Workslip.Infrastructure.Configuration;
-using Workslip.Infrastructure.Diagnostics;
-using Workslip.Infrastructure.Invitations;
-using Workslip.Infrastructure.Jobs;
-using Workslip.Infrastructure.Notifications;
-using Workslip.Infrastructure.Repositories;
-using Workslip.Infrastructure.Resilience;
-using Workslip.Infrastructure.Schema;
-using Workslip.Infrastructure.Transactions;
+<file path="src/BE/WorkslipApi/README.md">
+# Workslip API
 
-namespace Workslip.Infrastructure;
+**Status:** Active  
+**Owner:** Backend owner  
+**Source of truth:** backend source, executable tests, runtime OpenAPI and `../infrastructure/`  
+**Review cadence:** on API, persistence, authentication or deployment changes
 
-public static class DependencyInjection
-{
-    public static IServiceCollection AddWorkslipInfrastructure(this IServiceCollection services)
-    {
-        services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
-        services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
-        services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
+ASP.NET Core .NET 10 API for Workslip. The solution is split into domain, application, infrastructure, API host and tests. Current code and executable tests take precedence over dated plans.
 
-        services.AddScoped<JobStatusTransitionInterceptor>();
-        services.AddScoped<AuditInterceptor>();
+## Prerequisites
 
-        services.AddDbContext<SqlDbContext>((sp, options) =>
-        {
-            var configuration = sp.GetRequiredService<IConfiguration>();
-            var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
-            options.UseSqlServer(connectionString, b =>
-                b.MigrationsAssembly("Workslip.Api")
-            );
+- .NET SDK 10
+- SQL Server-compatible database
+- Azure credentials only when configuration enables Azure App Configuration, Key Vault, Microsoft Graph or Azure-hosted integrations
 
-            var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
-            var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
-            options.AddInterceptors(transitionInterceptor, auditInterceptor);
+## Local start
 
-            options.ConfigureWarnings(warnings =>
-                warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
-        });
+```bash
+cd src/BE/WorkslipApi
+dotnet restore
+dotnet run --launch-profile http
+```
 
-        services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
-        services.AddScoped<ICustomerRepository, EfCustomerRepository>();
-        services.AddScoped<IInviteRepository, EfInviteRepository>();
-        services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
-        services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
-        services.AddScoped<IJobRepository, EfJobRepository>();
-        services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
-        services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
-        services.AddScoped<IUserRepository, EfUserRepository>();
-        services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
-        services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
-        services.AddScoped<INotificationRepository, EfNotificationRepository>();
-        services.AddScoped<IJobViewRepository, EfJobViewRepository>();
-        services.AddScoped<DatabaseSchemaInitializer>();
-        services.AddScoped<DevelopmentDatabaseSeeder>();
+The HTTP profile listens on `http://localhost:5262`.
 
-        services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>
-        {
-            client.BaseAddress = new Uri("https://api.loganalytics.azure.com/");
-            client.Timeout = TimeSpan.FromSeconds(15);
-        });
+Local development can use the production database location and passwordless connection details from Azure App Configuration and Key Vault. No SQL connection string or SQL password is required in local configuration.
 
-        services.AddScoped<IEmailService, AcsEmailService>();
-        services.AddSingleton<VapidKeyMaterial>();
-        services.AddSingleton<IVapidPublicKeyProvider>(serviceProvider =>
-            serviceProvider.GetRequiredService<VapidKeyMaterial>());
-        services.AddScoped<IPushSender, WebPushSender>();
-        services.AddHostedService<JobDeletionCleanupService>();
-        services.AddHostedService<InviteEntraCleanupService>();
-        services.AddHostedService<PushNotificationWorker>();
+Authenticate the developer identity first:
 
-        services.AddOptions<VapidOptions>()
-            .Configure<IConfiguration>((options, config) =>
-                config.GetSection(VapidOptions.SectionName).Bind(options));
+```powershell
+az login
+az account show
+```
 
-        return services;
-    }
-}
+The configured identity must be permitted to connect to the Azure SQL database. Members of the configured Azure SQL administrator group can connect through their Entra identity.
+
+The Key Vault-backed value remains:
+
+```text
+Azure:Sql:ConnectionString
+```
+
+Production keeps `Authentication=Active Directory Managed Identity` and the App Service managed-identity client ID. During Development, the API changes only the in-memory authentication fields to:
+
+```text
+Authentication=Active Directory Default
+```
+
+The managed-identity `User ID` is removed locally, allowing SqlClient to use the signed-in Azure CLI, Visual Studio or other `DefaultAzureCredential` developer identity. Server name, database name, encryption settings and the Key Vault/App Configuration ownership remain unchanged. Nothing is written back to Azure.
+
+An ignored `appsettings.Development.json` value or `Azure__Sql__ConnectionString` environment variable can still override this behavior for isolated/offline database work, but neither is required for the normal Azure-backed development path.
+
+Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
+
+Health check:
+
+```bash
+curl http://localhost:5262/health
+```
+
+## Solution structure
+
+```text
+WorkslipApi/
+├── Workslip.slnx
+├── Workslip.Api.csproj
+├── Program.cs
+├── Configuration/
+├── Endpoints/
+├── Workslip.Domain/
+├── Workslip.Application/
+├── Workslip.Infrastructure/
+├── Workslip.Tests/
+└── Postman/
+```
+
+## Runtime composition
+
+`Program.cs` currently:
+
+1. loads local and Azure configuration;
+2. configures CORS, authentication, logging and services;
+3. initializes and verifies the database schema;
+4. seeds only in Development;
+5. configures middleware and maps endpoints.
+
+Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
+
+Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both remain attached to the same Development organization. The operation is idempotent. Missing identities receive one invitation that redirects to `/login`; later starts reuse the existing identities. Development startup therefore requires working Microsoft Graph credentials.
+
+Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
+
+Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
+
+## Job-deletion notifications
+
+A successful hard deletion always queues a notification for every unique user assigned to the deleted job, including the user performing the deletion when that user is assigned. This behavior is not controlled by runtime configuration and cannot be disabled through Azure App Configuration.
+
+The notification links to `/app`, because the deleted job no longer has a valid detail route. A notification queue failure for one recipient is logged and does not reverse the completed deletion or prevent notifications for the remaining recipients.
+
+## Authentication and authorization
+
+The API selects local Workslip JWT or Microsoft Entra JWT validation from the bearer-token issuer. The public browser flow uses authorization code + PKCE. The API does not require an OAuth application client secret for that flow.
+
+API runtime Microsoft Graph permissions are declared once in `../infrastructure/main.bicep`. They support user invitation/lifecycle and app-role assignment. Do not assign a competing permission set from deployment scripts.
+
+Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
+
+Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
+
+Superadmins remain attached to one permanent organization. The Superadmin-only organization session endpoint can issue a short-lived local token whose `organizationId` is a selected organization while the real actor ID and `Superadmin` role remain unchanged. The default lifetime is 15 minutes, configurable through `Jwt:OrganizationSessionExpiryMinutes` from 1 through 30 minutes. This flow performs no database or Entra mutation and does not bypass existing tenant repository filters.
+
+## Result and endpoint conventions
+
+Application services return `Ardalis.Result`. Endpoints map through `ResultExtensions.ToHttpResult`; do not introduce custom wrappers or duplicate result-to-HTTP mapping. See the root `AGENTS.md` before changing service or endpoint patterns.
+
+## HTTP caching
+
+Authenticated job GET endpoints use private browser revalidation, `Vary: Authorization` and weak ETags. Jobs-list validators are calculated from the complete mapped HTTP representation, including assignments, worksheet totals, installations and user-specific seen/rejection flags; hashing only the `JobReports.UpdatedAt` value is insufficient because those related values can change independently.
+
+The validator is evaluated after tenant-scoped service/repository work. A `304 Not Modified` therefore saves response transfer and client parsing, but it is not a server-side query cache. Do not add shared output caching or an in-memory jobs-list cache without complete organization/user/filter keys and explicit invalidation for every job, assignment, worksheet, installation and view-state mutation. Mutation responses remain `no-store`.
+
+## Build and tests
+
+```bash
+cd src/BE/WorkslipApi
+dotnet build Workslip.slnx
+dotnet test Workslip.slnx
+```
+
+Postman/Newman verification must target localhost or an isolated test/staging API:
+
+```bash
+Postman/run-integration-tests.sh https://<test-or-staging-api>
+```
+
+There is no active GitHub Actions integration-test workflow. Run the executable suite deliberately against an isolated environment; do not use production mutation tests in ordinary validation.
+
+## OpenAPI and Scalar
+
+The host registers ASP.NET Core OpenAPI and Scalar. Treat these as development/integration tooling unless production exposure is explicitly approved and protected. Runtime endpoint registrations are the API contract source; Postman is verification material.
+
+## Deployment
+
+Azure infrastructure and Entra registrations are deployed separately. See `../infrastructure/README.md`.
+
+The production API workflow is:
+
+```text
+.github/workflows/main_api-mrsoftware-prod.yml
+```
+
+It restores, builds and publishes the API, creates a ZIP whose root is the `dotnet publish` output, authenticates through GitHub OIDC and deploys the package to `api-mrsoftware-prod` with `az webapp deploy`.
+
+The deployment workflow:
+
+- preserves the `prod` environment and its scoped OIDC identity;
+- serializes production API releases through the existing concurrency group;
+- retries an App Service/Kudu deployment failure at most three times with bounded backoff;
+- records the immutable ZIP size in the build log;
+- restarts the App Service between attempts only when Kudu reports `There is not enough space on the disk`, clearing the worker's temporary local storage before retrying;
+- requests Azure CLI enriched deployment errors;
+- prints only safe App Service state and deployment-log diagnostics after a final failure;
+- verifies `https://<default-hostname>/health` before reporting success.
+
+The production App Service plan is currently F1. Its local temporary worker storage is small and may be exhausted by accumulated Kudu deployment data even when the repository and deployment workflow are unchanged. A restart clears temporary local storage. Repeated disk-full failures after that recovery indicate persistent filesystem usage or package growth and must be investigated through App Service quotas/Kudu before adding retries or changing application code.
+
+Production uses GitHub environment `prod` with:
+
+- `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
+- `AZURE_TENANT_ID`: target Entra tenant ID
+- `AZURE_SUBSCRIPTION_ID`: target subscription ID
+
+Do not add an Azure client secret, `AZURE_CREDENTIALS` JSON or App Service publish profile.
+
+After infrastructure recreation:
+
+1. run `../infrastructure/deploy.ps1 prod`;
+2. set the three GitHub `prod` environment identifiers from the deployment output;
+3. run the API workflow manually;
+4. confirm the workflow package check finds `Workslip.Api.dll` at ZIP root;
+5. confirm the deployment step succeeds and `/health` passes;
+6. verify Microsoft login and one authenticated API request.
+
+If all deployment attempts fail, use the workflow's safe App Service state, recent deployment records and latest deployment log before changing application code or infrastructure. The Node deprecation warnings emitted by third-party actions are not deployment evidence; the failing Azure/Kudu operation and its diagnostics are authoritative.
+
+Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
 </file>
 
 <file path="src/FE/src/components/layouts/AppLayout.tsx">
@@ -139227,196 +139417,6 @@ registerSW({
     console.error('[PWA] Registration failed:', error);
   },
 });
-</file>
-
-<file path="src/BE/WorkslipApi/README.md">
-# Workslip API
-
-**Status:** Active  
-**Owner:** Backend owner  
-**Source of truth:** backend source, executable tests, runtime OpenAPI and `../infrastructure/`  
-**Review cadence:** on API, persistence, authentication or deployment changes
-
-ASP.NET Core .NET 10 API for Workslip. The solution is split into domain, application, infrastructure, API host and tests. Current code and executable tests take precedence over dated plans.
-
-## Prerequisites
-
-- .NET SDK 10
-- SQL Server-compatible database
-- Azure credentials only when configuration enables Azure App Configuration, Key Vault, Microsoft Graph or Azure-hosted integrations
-
-## Local start
-
-```bash
-cd src/BE/WorkslipApi
-dotnet restore
-dotnet run --launch-profile http
-```
-
-The HTTP profile listens on `http://localhost:5262`.
-
-Local development can use the production database location and passwordless connection details from Azure App Configuration and Key Vault. No SQL connection string or SQL password is required in local configuration.
-
-Authenticate the developer identity first:
-
-```powershell
-az login
-az account show
-```
-
-The configured identity must be permitted to connect to the Azure SQL database. Members of the configured Azure SQL administrator group can connect through their Entra identity.
-
-The Key Vault-backed value remains:
-
-```text
-Azure:Sql:ConnectionString
-```
-
-Production keeps `Authentication=Active Directory Managed Identity` and the App Service managed-identity client ID. During Development, the API changes only the in-memory authentication fields to:
-
-```text
-Authentication=Active Directory Default
-```
-
-The managed-identity `User ID` is removed locally, allowing SqlClient to use the signed-in Azure CLI, Visual Studio or other `DefaultAzureCredential` developer identity. Server name, database name, encryption settings and the Key Vault/App Configuration ownership remain unchanged. Nothing is written back to Azure.
-
-An ignored `appsettings.Development.json` value or `Azure__Sql__ConnectionString` environment variable can still override this behavior for isolated/offline database work, but neither is required for the normal Azure-backed development path.
-
-Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
-
-Health check:
-
-```bash
-curl http://localhost:5262/health
-```
-
-## Solution structure
-
-```text
-WorkslipApi/
-├── Workslip.slnx
-├── Workslip.Api.csproj
-├── Program.cs
-├── Configuration/
-├── Endpoints/
-├── Workslip.Domain/
-├── Workslip.Application/
-├── Workslip.Infrastructure/
-├── Workslip.Tests/
-└── Postman/
-```
-
-## Runtime composition
-
-`Program.cs` currently:
-
-1. loads local and Azure configuration;
-2. configures CORS, authentication, logging and services;
-3. initializes and verifies the database schema;
-4. seeds only in Development;
-5. configures middleware and maps endpoints.
-
-Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
-
-Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both remain attached to the same Development organization. The operation is idempotent. Missing identities receive one invitation that redirects to `/login`; later starts reuse the existing identities. Development startup therefore requires working Microsoft Graph credentials.
-
-Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
-
-Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
-
-## Job-deletion notifications
-
-A successful hard deletion always queues a notification for every unique user assigned to the deleted job, including the user performing the deletion when that user is assigned. This behavior is not controlled by runtime configuration and cannot be disabled through Azure App Configuration.
-
-The notification links to `/app`, because the deleted job no longer has a valid detail route. A notification queue failure for one recipient is logged and does not reverse the completed deletion or prevent notifications for the remaining recipients.
-
-## Authentication and authorization
-
-The API selects local Workslip JWT or Microsoft Entra JWT validation from the bearer-token issuer. The public browser flow uses authorization code + PKCE. The API does not require an OAuth application client secret for that flow.
-
-API runtime Microsoft Graph permissions are declared once in `../infrastructure/main.bicep`. They support user invitation/lifecycle and app-role assignment. Do not assign a competing permission set from deployment scripts.
-
-Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
-
-Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
-
-Superadmins remain attached to one permanent organization. The Superadmin-only organization session endpoint can issue a short-lived local token whose `organizationId` is a selected organization while the real actor ID and `Superadmin` role remain unchanged. The default lifetime is 15 minutes, configurable through `Jwt:OrganizationSessionExpiryMinutes` from 1 through 30 minutes. This flow performs no database or Entra mutation and does not bypass existing tenant repository filters.
-
-## Result and endpoint conventions
-
-Application services return `Ardalis.Result`. Endpoints map through `ResultExtensions.ToHttpResult`; do not introduce custom wrappers or duplicate result-to-HTTP mapping. See the root `AGENTS.md` before changing service or endpoint patterns.
-
-## HTTP caching
-
-Authenticated job GET endpoints use private browser revalidation, `Vary: Authorization` and weak ETags. Jobs-list validators are calculated from the complete mapped HTTP representation, including assignments, worksheet totals, installations and user-specific seen/rejection flags; hashing only the `JobReports.UpdatedAt` value is insufficient because those related values can change independently.
-
-The validator is evaluated after tenant-scoped service/repository work. A `304 Not Modified` therefore saves response transfer and client parsing, but it is not a server-side query cache. Do not add shared output caching or an in-memory jobs-list cache without complete organization/user/filter keys and explicit invalidation for every job, assignment, worksheet, installation and view-state mutation. Mutation responses remain `no-store`.
-
-## Build and tests
-
-```bash
-cd src/BE/WorkslipApi
-dotnet build Workslip.slnx
-dotnet test Workslip.slnx
-```
-
-Postman/Newman verification must target localhost or an isolated test/staging API:
-
-```bash
-Postman/run-integration-tests.sh https://<test-or-staging-api>
-```
-
-There is no active GitHub Actions integration-test workflow. Run the executable suite deliberately against an isolated environment; do not use production mutation tests in ordinary validation.
-
-## OpenAPI and Scalar
-
-The host registers ASP.NET Core OpenAPI and Scalar. Treat these as development/integration tooling unless production exposure is explicitly approved and protected. Runtime endpoint registrations are the API contract source; Postman is verification material.
-
-## Deployment
-
-Azure infrastructure and Entra registrations are deployed separately. See `../infrastructure/README.md`.
-
-The production API workflow is:
-
-```text
-.github/workflows/main_api-mrsoftware-prod.yml
-```
-
-It restores, builds and publishes the API, creates a ZIP whose root is the `dotnet publish` output, authenticates through GitHub OIDC and deploys the package to `api-mrsoftware-prod` with `az webapp deploy`.
-
-The deployment workflow:
-
-- preserves the `prod` environment and its scoped OIDC identity;
-- serializes production API releases through the existing concurrency group;
-- retries an App Service/Kudu deployment failure at most three times with bounded backoff;
-- records the immutable ZIP size in the build log;
-- restarts the App Service between attempts only when Kudu reports `There is not enough space on the disk`, clearing the worker's temporary local storage before retrying;
-- requests Azure CLI enriched deployment errors;
-- prints only safe App Service state and deployment-log diagnostics after a final failure;
-- verifies `https://<default-hostname>/health` before reporting success.
-
-The production App Service plan is currently F1. Its local temporary worker storage is small and may be exhausted by accumulated Kudu deployment data even when the repository and deployment workflow are unchanged. A restart clears temporary local storage. Repeated disk-full failures after that recovery indicate persistent filesystem usage or package growth and must be investigated through App Service quotas/Kudu before adding retries or changing application code.
-
-Production uses GitHub environment `prod` with:
-
-- `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
-- `AZURE_TENANT_ID`: target Entra tenant ID
-- `AZURE_SUBSCRIPTION_ID`: target subscription ID
-
-Do not add an Azure client secret, `AZURE_CREDENTIALS` JSON or App Service publish profile.
-
-After infrastructure recreation:
-
-1. run `../infrastructure/deploy.ps1 prod`;
-2. set the three GitHub `prod` environment identifiers from the deployment output;
-3. run the API workflow manually;
-4. confirm the workflow package check finds `Workslip.Api.dll` at ZIP root;
-5. confirm the deployment step succeeds and `/health` passes;
-6. verify Microsoft login and one authenticated API request.
-
-If all deployment attempts fail, use the workflow's safe App Service state, recent deployment records and latest deployment log before changing application code or infrastructure. The Node deprecation warnings emitted by third-party actions are not deployment evidence; the failing Azure/Kudu operation and its diagnostics are authoritative.
-
-Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
 </file>
 
 <file path="src/FE/src/features/auth/routes/Login.tsx">
