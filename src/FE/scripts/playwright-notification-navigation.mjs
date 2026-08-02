@@ -40,6 +40,7 @@ const report = {
 let browser;
 let context;
 let page;
+let serviceWorker;
 let suiteFailure = null;
 
 try {
@@ -73,7 +74,6 @@ try {
     await page.waitForURL((url) => url.pathname.startsWith('/app'), { timeout: API_TIMEOUT });
   });
 
-  let serviceWorker;
   await step('deployed service worker controls the app', async () => {
     await page.goto(`${APP_URL}/app`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
 
@@ -241,15 +241,17 @@ try {
     }
   });
 
-  await serviceWorker.evaluate(async ({ tag }) => {
-    const notifications = await self.registration.getNotifications({ tag });
-    for (const notification of notifications) notification.close();
-  }, { tag: NOTIFICATION_TAG });
-
   assertNoBrowserFailures();
 } catch (error) {
   suiteFailure = error;
 } finally {
+  if (serviceWorker) {
+    await serviceWorker.evaluate(async ({ tag }) => {
+      const notifications = await self.registration.getNotifications({ tag });
+      for (const notification of notifications) notification.close();
+    }, { tag: NOTIFICATION_TAG }).catch(() => undefined);
+  }
+
   report.completedAt = new Date().toISOString();
   report.status = suiteFailure ? 'failed' : 'passed';
   if (suiteFailure) report.failure = serializeError(suiteFailure);
@@ -294,13 +296,12 @@ function attachPageDiagnostics(targetPage) {
       error: redact(request.failure()?.errorText ?? 'unknown'),
     };
     report.failedRequests.push(entry);
-    if (new URL(request.url()).pathname.startsWith('/api/')) {
+    if (pathname(request.url()).startsWith('/api/')) {
       report.failedApiResponses.push(entry);
     }
   });
   targetPage.on('response', (response) => {
-    const url = new URL(response.url());
-    if (!url.pathname.startsWith('/api/') || response.status() < 400) return;
+    if (!pathname(response.url()).startsWith('/api/') || response.status() < 400) return;
     report.failedApiResponses.push({
       method: response.request().method(),
       url: safeUrl(response.url()),
@@ -318,6 +319,14 @@ function assertNoBrowserFailures() {
   }
   if (report.failedApiResponses.length > 0) {
     throw new Error(`Failed API traffic: ${JSON.stringify(report.failedApiResponses)}`);
+  }
+}
+
+function pathname(rawUrl) {
+  try {
+    return new URL(rawUrl).pathname;
+  } catch {
+    return '';
   }
 }
 
