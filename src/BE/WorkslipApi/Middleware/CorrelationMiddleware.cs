@@ -1,6 +1,8 @@
 public sealed class CorrelationIdMiddleware
 {
     private const string HeaderName = "X-Correlation-ID";
+    private const int MinimumAcceptedLength = 16;
+    private const int MaximumAcceptedLength = 64;
     private readonly RequestDelegate _next;
     private readonly ILogger<CorrelationIdMiddleware> _logger;
 
@@ -14,11 +16,12 @@ public sealed class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var correlationId =
-            context.Request.Headers.TryGetValue(HeaderName, out var value) &&
-            !string.IsNullOrWhiteSpace(value.ToString())
-                ? value.ToString()
-                : Guid.NewGuid().ToString("N");
+        var requestedCorrelationId = context.Request.Headers.TryGetValue(HeaderName, out var value)
+            ? value.ToString().Trim()
+            : string.Empty;
+        var correlationId = IsSafeCorrelationId(requestedCorrelationId)
+            ? requestedCorrelationId
+            : Guid.NewGuid().ToString("N");
 
         context.Items["CorrelationId"] = correlationId;
         context.Response.Headers[HeaderName] = correlationId;
@@ -31,4 +34,8 @@ public sealed class CorrelationIdMiddleware
             await _next(context);
         }
     }
+
+    private static bool IsSafeCorrelationId(string value) =>
+        value.Length is >= MinimumAcceptedLength and <= MaximumAcceptedLength
+        && value.All(character => char.IsAsciiHexDigit(character) || character == '-');
 }
