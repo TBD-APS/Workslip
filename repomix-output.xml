@@ -115564,6 +115564,244 @@ export function useScrollRestore(key: string) {
 }
 </file>
 
+<file path="src/FE/src/lib/axios.ts">
+import axios from 'axios';
+import type { InternalAxiosRequestConfig } from 'axios';
+import { notify } from './toast';
+import {
+  consumePendingInteraction,
+  createCorrelationId,
+  trackApiDependency,
+  trackUserInteraction,
+} from '../applicationInsights';
+import {
+  isDelegatedOrganizationSessionToken,
+  restoreHomeOrganizationSession,
+} from '../features/superadmin/organizationSession';
+
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    skipGlobalErrorToast?: boolean;
+    correlationId?: string;
+    telemetryAction?: string;
+    telemetryStartedAt?: number;
+    idempotencyKey?: string;
+  }
+}
+import qs from 'qs';
+import {
+  AUTH_TOKEN_KEY,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+  isReauthInFlight,
+  setReauthInFlight,
+} from '../providers/authContextValue';
+
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? '';
+const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
+const isVercelHosted = hostname === 'app.mrsoftware.dk' || hostname.endsWith('.vercel.app');
+const apiUrl = isVercelHosted ? '' : configuredApiUrl;
+const AUTH_ME_TIMEOUT_MS = 6_000;
+
+const isAuthMeRequest = (url: string | undefined): boolean => {
+  const normalizedUrl = (url ?? '')
+    .split('?')[0]
+    .toLowerCase()
+    .replace(/\/+$/, '');
+
+  return normalizedUrl.endsWith('/api/auth/me');
+};
+
+const getRequestBearerToken = (config: InternalAxiosRequestConfig | undefined): string | null => {
+  const authorization = config?.headers?.get?.('Authorization') ?? config?.headers?.Authorization;
+  if (typeof authorization !== 'string') return null;
+
+  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
+  return match?.[1] ?? null;
+};
+
+export const apiClient = axios.create({
+  baseURL: apiUrl,
+  paramsSerializer: {
+    serialize: (params) =>
+      qs.stringify(params, {
+        arrayFormat: 'repeat',
+      }),
+  },
+});
+
+const mutatingMethods = new Set(['post', 'put', 'patch', 'delete']);
+const inFlightKeys = new Set<string>();
+
+function requestKey(config: InternalAxiosRequestConfig): string {
+  return `${(config.method ?? 'get').toUpperCase()} ${config.url}`;
+}
+
+function releaseKey(config: InternalAxiosRequestConfig): void {
+  const method = config.method ?? 'get';
+  if (mutatingMethods.has(method)) {
+    inFlightKeys.delete(requestKey(config));
+  }
+}
+
+const DUPLICATE_REQUEST_ERROR = '__DUPLICATE_REQUEST__';
+
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Bound only the startup identity request. Other reports and mutations retain
+  // their existing timeout behaviour.
+  if (isAuthMeRequest(config.url) && (!config.timeout || config.timeout <= 0)) {
+    config.timeout = AUTH_ME_TIMEOUT_MS;
+    config.skipGlobalErrorToast = true;
+  }
+
+  const token = AuthStorage.getItem(AUTH_TOKEN_KEY);
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  config.headers.Accept = 'application/json';
+
+  const interaction = consumePendingInteraction();
+  const method = (config.method ?? 'get').toLowerCase();
+  config.correlationId = config.correlationId ?? interaction?.correlationId ?? createCorrelationId();
+  config.telemetryAction = config.telemetryAction ?? interaction?.action;
+  config.telemetryStartedAt = Date.now();
+  config.headers['X-Correlation-ID'] = config.correlationId;
+  if (mutatingMethods.has(method)) {
+    config.idempotencyKey = config.idempotencyKey ?? config.correlationId;
+    config.headers['Idempotency-Key'] = config.idempotencyKey;
+  }
+
+  if (interaction && mutatingMethods.has(method)) {
+    trackUserInteraction(interaction.action, interaction.correlationId);
+  }
+
+  const requestMethod = (config.method ?? 'get').toLowerCase();
+  if (mutatingMethods.has(requestMethod)) {
+    const key = requestKey(config);
+    if (inFlightKeys.has(key)) {
+      return Promise.reject(new Error(DUPLICATE_REQUEST_ERROR));
+    }
+    inFlightKeys.add(key);
+  }
+
+  return config;
+});
+
+apiClient.interceptors.response.use(
+  (response) => {
+    releaseKey(response.config);
+    if (mutatingMethods.has(response.config.method ?? 'get')) {
+      trackApiDependency({
+        correlationId: response.config.correlationId!,
+        action: response.config.telemetryAction,
+        method: response.config.method ?? 'get',
+        url: response.config.url ?? '',
+        durationMs: Date.now() - (response.config.telemetryStartedAt ?? Date.now()),
+        responseCode: response.status,
+        success: response.status >= 200 && response.status < 400,
+      });
+    }
+    if (response.config.responseType === 'blob') {
+      return response;
+    }
+    return response.data;
+  },
+  (error) => {
+    if (error.config) releaseKey(error.config);
+    if (error.config && mutatingMethods.has(error.config.method ?? 'get')) {
+      trackApiDependency({
+        correlationId: error.config.correlationId!,
+        action: error.config.telemetryAction,
+        method: error.config.method ?? 'get',
+        url: error.config.url ?? '',
+        durationMs: Date.now() - (error.config.telemetryStartedAt ?? Date.now()),
+        responseCode: error.response?.status,
+        success: false,
+      });
+    }
+
+    const isCanceled =
+      axios.isCancel(error) ||
+      error?.name === 'CanceledError' ||
+      error?.code === 'ERR_CANCELED' ||
+      error?.message === 'canceled';
+
+    if (isCanceled) {
+      return Promise.reject(error);
+    }
+
+    if (error?.message === DUPLICATE_REQUEST_ERROR) {
+      return Promise.reject(error);
+    }
+
+    const message = error.response?.data?.message || error.message;
+    const requestUrl = (error.config?.url ?? '').toLowerCase();
+    const isAuthApi = requestUrl.includes('/api/auth/');
+    const isAuthRoute = window.location.pathname.includes('/login') || window.location.pathname.includes('/invite');
+    const isMeEndpoint = isAuthMeRequest(error.config?.url);
+
+    if (error.response?.status === 401) {
+      const requestToken = getRequestBearerToken(error.config);
+      const activeToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
+      const isStaleUnauthorizedResponse = Boolean(
+        requestToken && activeToken && requestToken !== activeToken,
+      );
+      const shouldHandleSessionExpiry = isMeEndpoint || (!isAuthApi && !isAuthRoute);
+
+      if (isStaleUnauthorizedResponse) {
+        return Promise.reject(error);
+      }
+
+      if (
+        shouldHandleSessionExpiry
+        && isDelegatedOrganizationSessionToken(requestToken)
+        && restoreHomeOrganizationSession()
+      ) {
+        clearReauthInFlight();
+        notify.dismiss();
+        notify.info('Organisationssessionen er udløbet. Du er tilbage i Superadmin.');
+        window.location.replace('/superadmin');
+        return Promise.reject(error);
+      }
+
+      // A 401 from /api/auth/me definitively rejects the stored JWT. Treat it
+      // like any other expired authenticated request instead of leaving the user
+      // on the startup recovery screen. Timeouts and 5xx responses remain
+      // recoverable without deleting a potentially valid session.
+      if (shouldHandleSessionExpiry) {
+        AuthStorage.removeItem(AUTH_TOKEN_KEY);
+        AuthStorage.removeItem(USER_EMAIL_KEY);
+
+        const isReauthRoute = window.location.pathname.includes('/login')
+          && new URLSearchParams(window.location.search).get('reauth') === '1';
+        if (!isReauthRoute && !isReauthInFlight()) {
+          setReauthInFlight();
+          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          notify.dismiss();
+          window.location.replace(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
+        }
+      }
+    } else if (isMeEndpoint || error.config?.skipGlobalErrorToast) {
+      // ProtectedRoute renders recovery only for timeouts, network failures and
+      // temporary server errors where the stored token may still be valid.
+    } else if (error.response?.status === 403) {
+      notify.error('Du har ikke adgang til denne handling');
+    } else if (error.response?.status === 400 && error.response?.data?.errors) {
+      notify.error('Ugyldig indtastning. Tjek venligst felterne.');
+    } else if (error.response?.status === 409) {
+      notify.error(`Konflikt: ${error.response.data.error || message}`);
+    } else if (message) {
+      notify.error(message);
+    } else {
+      notify.error('Der opstod en uventet fejl');
+    }
+
+    return Promise.reject(error);
+  }
+);
+</file>
+
 <file path="src/FE/src/lib/formatDate.ts">
 const DATE_FORMATTER_LONG = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short', year: 'numeric' });
 const DATE_TIME_FORMATTER_SHORT = new Intl.DateTimeFormat('da-DK', { dateStyle: 'short', timeStyle: 'short' });
@@ -124463,244 +124701,6 @@ export function usePaginatedList<TItem>({
     isDesktop,
   };
 }
-</file>
-
-<file path="src/FE/src/lib/axios.ts">
-import axios from 'axios';
-import type { InternalAxiosRequestConfig } from 'axios';
-import { notify } from './toast';
-import {
-  consumePendingInteraction,
-  createCorrelationId,
-  trackApiDependency,
-  trackUserInteraction,
-} from '../applicationInsights';
-import {
-  isDelegatedOrganizationSessionToken,
-  restoreHomeOrganizationSession,
-} from '../features/superadmin/organizationSession';
-
-declare module 'axios' {
-  export interface AxiosRequestConfig {
-    skipGlobalErrorToast?: boolean;
-    correlationId?: string;
-    telemetryAction?: string;
-    telemetryStartedAt?: number;
-    idempotencyKey?: string;
-  }
-}
-import qs from 'qs';
-import {
-  AUTH_TOKEN_KEY,
-  USER_EMAIL_KEY,
-  AuthStorage,
-  clearReauthInFlight,
-  isReauthInFlight,
-  setReauthInFlight,
-} from '../providers/authContextValue';
-
-const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? '';
-const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
-const isVercelHosted = hostname === 'app.mrsoftware.dk' || hostname.endsWith('.vercel.app');
-const apiUrl = isVercelHosted ? '' : configuredApiUrl;
-const AUTH_ME_TIMEOUT_MS = 6_000;
-
-const isAuthMeRequest = (url: string | undefined): boolean => {
-  const normalizedUrl = (url ?? '')
-    .split('?')[0]
-    .toLowerCase()
-    .replace(/\/+$/, '');
-
-  return normalizedUrl.endsWith('/api/auth/me');
-};
-
-const getRequestBearerToken = (config: InternalAxiosRequestConfig | undefined): string | null => {
-  const authorization = config?.headers?.get?.('Authorization') ?? config?.headers?.Authorization;
-  if (typeof authorization !== 'string') return null;
-
-  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
-  return match?.[1] ?? null;
-};
-
-export const apiClient = axios.create({
-  baseURL: apiUrl,
-  paramsSerializer: {
-    serialize: (params) =>
-      qs.stringify(params, {
-        arrayFormat: 'repeat',
-      }),
-  },
-});
-
-const mutatingMethods = new Set(['post', 'put', 'patch', 'delete']);
-const inFlightKeys = new Set<string>();
-
-function requestKey(config: InternalAxiosRequestConfig): string {
-  return `${(config.method ?? 'get').toUpperCase()} ${config.url}`;
-}
-
-function releaseKey(config: InternalAxiosRequestConfig): void {
-  const method = config.method ?? 'get';
-  if (mutatingMethods.has(method)) {
-    inFlightKeys.delete(requestKey(config));
-  }
-}
-
-const DUPLICATE_REQUEST_ERROR = '__DUPLICATE_REQUEST__';
-
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Bound only the startup identity request. Other reports and mutations retain
-  // their existing timeout behaviour.
-  if (isAuthMeRequest(config.url) && (!config.timeout || config.timeout <= 0)) {
-    config.timeout = AUTH_ME_TIMEOUT_MS;
-    config.skipGlobalErrorToast = true;
-  }
-
-  const token = AuthStorage.getItem(AUTH_TOKEN_KEY);
-  if (token && !config.headers.Authorization) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  config.headers.Accept = 'application/json';
-
-  const interaction = consumePendingInteraction();
-  const method = (config.method ?? 'get').toLowerCase();
-  config.correlationId = config.correlationId ?? interaction?.correlationId ?? createCorrelationId();
-  config.telemetryAction = config.telemetryAction ?? interaction?.action;
-  config.telemetryStartedAt = Date.now();
-  config.headers['X-Correlation-ID'] = config.correlationId;
-  if (mutatingMethods.has(method)) {
-    config.idempotencyKey = config.idempotencyKey ?? config.correlationId;
-    config.headers['Idempotency-Key'] = config.idempotencyKey;
-  }
-
-  if (interaction && mutatingMethods.has(method)) {
-    trackUserInteraction(interaction.action, interaction.correlationId);
-  }
-
-  const requestMethod = (config.method ?? 'get').toLowerCase();
-  if (mutatingMethods.has(requestMethod)) {
-    const key = requestKey(config);
-    if (inFlightKeys.has(key)) {
-      return Promise.reject(new Error(DUPLICATE_REQUEST_ERROR));
-    }
-    inFlightKeys.add(key);
-  }
-
-  return config;
-});
-
-apiClient.interceptors.response.use(
-  (response) => {
-    releaseKey(response.config);
-    if (mutatingMethods.has(response.config.method ?? 'get')) {
-      trackApiDependency({
-        correlationId: response.config.correlationId!,
-        action: response.config.telemetryAction,
-        method: response.config.method ?? 'get',
-        url: response.config.url ?? '',
-        durationMs: Date.now() - (response.config.telemetryStartedAt ?? Date.now()),
-        responseCode: response.status,
-        success: response.status >= 200 && response.status < 400,
-      });
-    }
-    if (response.config.responseType === 'blob') {
-      return response;
-    }
-    return response.data;
-  },
-  (error) => {
-    if (error.config) releaseKey(error.config);
-    if (error.config && mutatingMethods.has(error.config.method ?? 'get')) {
-      trackApiDependency({
-        correlationId: error.config.correlationId!,
-        action: error.config.telemetryAction,
-        method: error.config.method ?? 'get',
-        url: error.config.url ?? '',
-        durationMs: Date.now() - (error.config.telemetryStartedAt ?? Date.now()),
-        responseCode: error.response?.status,
-        success: false,
-      });
-    }
-
-    const isCanceled =
-      axios.isCancel(error) ||
-      error?.name === 'CanceledError' ||
-      error?.code === 'ERR_CANCELED' ||
-      error?.message === 'canceled';
-
-    if (isCanceled) {
-      return Promise.reject(error);
-    }
-
-    if (error?.message === DUPLICATE_REQUEST_ERROR) {
-      return Promise.reject(error);
-    }
-
-    const message = error.response?.data?.message || error.message;
-    const requestUrl = (error.config?.url ?? '').toLowerCase();
-    const isAuthApi = requestUrl.includes('/api/auth/');
-    const isAuthRoute = window.location.pathname.includes('/login') || window.location.pathname.includes('/invite');
-    const isMeEndpoint = isAuthMeRequest(error.config?.url);
-
-    if (error.response?.status === 401) {
-      const requestToken = getRequestBearerToken(error.config);
-      const activeToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
-      const isStaleUnauthorizedResponse = Boolean(
-        requestToken && activeToken && requestToken !== activeToken,
-      );
-      const shouldHandleSessionExpiry = isMeEndpoint || (!isAuthApi && !isAuthRoute);
-
-      if (isStaleUnauthorizedResponse) {
-        return Promise.reject(error);
-      }
-
-      if (
-        shouldHandleSessionExpiry
-        && isDelegatedOrganizationSessionToken(requestToken)
-        && restoreHomeOrganizationSession()
-      ) {
-        clearReauthInFlight();
-        notify.dismiss();
-        notify.info('Organisationssessionen er udløbet. Du er tilbage i Superadmin.');
-        window.location.replace('/superadmin');
-        return Promise.reject(error);
-      }
-
-      // A 401 from /api/auth/me definitively rejects the stored JWT. Treat it
-      // like any other expired authenticated request instead of leaving the user
-      // on the startup recovery screen. Timeouts and 5xx responses remain
-      // recoverable without deleting a potentially valid session.
-      if (shouldHandleSessionExpiry) {
-        AuthStorage.removeItem(AUTH_TOKEN_KEY);
-        AuthStorage.removeItem(USER_EMAIL_KEY);
-
-        const isReauthRoute = window.location.pathname.includes('/login')
-          && new URLSearchParams(window.location.search).get('reauth') === '1';
-        if (!isReauthRoute && !isReauthInFlight()) {
-          setReauthInFlight();
-          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          notify.dismiss();
-          window.location.replace(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
-        }
-      }
-    } else if (isMeEndpoint || error.config?.skipGlobalErrorToast) {
-      // ProtectedRoute renders recovery only for timeouts, network failures and
-      // temporary server errors where the stored token may still be valid.
-    } else if (error.response?.status === 403) {
-      notify.error('Du har ikke adgang til denne handling');
-    } else if (error.response?.status === 400 && error.response?.data?.errors) {
-      notify.error('Ugyldig indtastning. Tjek venligst felterne.');
-    } else if (error.response?.status === 409) {
-      notify.error(`Konflikt: ${error.response.data.error || message}`);
-    } else if (message) {
-      notify.error(message);
-    } else {
-      notify.error('Der opstod en uventet fejl');
-    }
-
-    return Promise.reject(error);
-  }
-);
 </file>
 
 <file path="src/FE/src/lib/createQueryClient.ts">
@@ -138606,6 +138606,290 @@ export const AppLayout = () => {
 };
 </file>
 
+<file path="src/FE/src/features/auth/routes/Login.tsx">
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Loader2, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../../../providers/useAuth';
+import {
+  AUTH_TOKEN_KEY,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+} from '../../../providers/authContextValue';
+import {
+  clearEntraLoginSession,
+  completeEntraLogin,
+  hasEntraLoginCallback,
+  hasEntraLoginSession,
+  InteractiveLoginRequiredError,
+  LoginCancelledError,
+  sanitizeReturnTo,
+  startEntraLogin,
+} from '../api/entraLogin';
+
+const OneTimeCodeLogin = lazy(() =>
+  import('../components/OneTimeCodeLogin').then((module) => ({ default: module.OneTimeCodeLogin })),
+);
+
+const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve igen.';
+
+const isBackForwardNavigation = () =>
+  typeof performance !== 'undefined' &&
+  typeof performance.getEntriesByType === 'function' &&
+  (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
+
+export const Login = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated, devLogin } = useAuth();
+  const [historyInterruptedLogin] = useState(() =>
+    !hasEntraLoginCallback() && hasEntraLoginSession() && isBackForwardNavigation(),
+  );
+  const [isSubmitting, setIsSubmitting] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return !historyInterruptedLogin && (hasEntraLoginCallback() || params.get('reauth') === '1');
+  });
+  const [errorMsg, setErrorMsg] = useState<string | null>(
+    historyInterruptedLogin ? LOGIN_INTERRUPTED_MESSAGE : null,
+  );
+  const [showOtcLogin, setShowOtcLogin] = useState(false);
+  // True when we arrived via the silent-reauth redirect (axios interceptor
+  // sent us here because the JWT expired). While true we hide the login form
+  // entirely and show only a spinner, so the user never sees the Microsoft
+  // / passkey buttons flash before being sent to Microsoft.
+  const [isReauth, setIsReauth] = useState(
+    () => !historyInterruptedLogin && new URLSearchParams(window.location.search).get('reauth') === '1',
+  );
+  // Guards against React.StrictMode's double-mount in dev (and against any
+  // edge case where this effect runs twice). The first call navigates the
+  // browser to Microsoft; the second must be a no-op to avoid generating
+  // a second PKCE state that overwrites the first.
+  const reauthStartedRef = useRef(false);
+
+  const recoverToLogin = useCallback((message: string) => {
+    clearReauthInFlight();
+    clearEntraLoginSession();
+    reauthStartedRef.current = false;
+    window.history.replaceState(null, '', '/login');
+    setErrorMsg(message);
+    setIsSubmitting(false);
+    setIsReauth(false);
+  }, []);
+
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted || hasEntraLoginCallback() || !hasEntraLoginSession()) return;
+      recoverToLogin(LOGIN_INTERRUPTED_MESSAGE);
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [recoverToLogin]);
+
+  // Combined callback + reauth effect.
+  //
+  // Splitting these into two effects races when Microsoft redirects back with
+  // BOTH `?reauth=1` and `?code=`. Keeping them in one effect makes the
+  // callback and fresh-reauth branches explicit.
+  useEffect(() => {
+    if (reauthStartedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const isCallback = hasEntraLoginCallback();
+    const isReauthRequest = params.get('reauth') === '1';
+    if (historyInterruptedLogin) {
+      clearReauthInFlight();
+      clearEntraLoginSession();
+      window.history.replaceState(null, '', '/login');
+      return;
+    }
+    if (!isCallback && !isReauthRequest) return;
+    reauthStartedRef.current = true;
+
+    const returnTo = sanitizeReturnTo(params.get('returnTo'));
+
+    if (isCallback) {
+      completeEntraLogin()
+        .then((result) => {
+          AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
+          AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
+          clearReauthInFlight();
+          clearEntraLoginSession();
+          window.history.replaceState(null, '', '/login');
+          window.location.replace(result.returnTo);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof InteractiveLoginRequiredError) {
+            clearReauthInFlight();
+            clearEntraLoginSession();
+            window.history.replaceState(null, '', '/login');
+            startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
+              recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+            });
+            return;
+          }
+          if (err instanceof LoginCancelledError) {
+            recoverToLogin('Login afbrudt. Klik på knappen for at prøve igen.');
+            return;
+          }
+          const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
+          recoverToLogin(message);
+        });
+      return;
+    }
+
+    startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
+      if (err instanceof InteractiveLoginRequiredError) {
+        clearReauthInFlight();
+        startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
+          recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+        });
+        return;
+      }
+      recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+    });
+  }, [historyInterruptedLogin, recoverToLogin]);
+
+  const handleMicrosoftLogin = async () => {
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    try {
+      const returnTo = sanitizeReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
+      await startEntraLogin({ returnTo });
+    } catch (err: unknown) {
+      clearEntraLoginSession();
+      const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
+      setErrorMsg(message);
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isAuthenticated) {
+    return <Navigate to="/app" replace />;
+  }
+
+  return (
+    <div className="app-container app-container-center">
+      <div className="bg-glow-wrapper">
+        <div className="bg-glow bg-glow-1" />
+        <div className="bg-glow bg-glow-2" />
+      </div>
+
+      {isReauth && (
+        <div className="reauth-card">
+          <Loader2 className="animate-spin" size={32} />
+          <p>Genindlæser login...</p>
+          <button
+            type="button"
+            onClick={() => {
+              clearReauthInFlight();
+              clearEntraLoginSession();
+              window.history.replaceState(null, '', '/login');
+              setIsReauth(false);
+              setIsSubmitting(false);
+            }}
+            className="reauth-cancel-btn"
+          >
+            Annuller
+          </button>
+        </div>
+      )}
+
+      {!isReauth && (
+        <div className="login-card">
+          {showOtcLogin ? (
+            <Suspense
+              fallback={(
+                <div className="login-email-step" role="status" aria-live="polite">
+                  <Loader2 className="animate-spin" size={24} />
+                  <span>Vent venligst.. Indlæser modul</span>
+                </div>
+              )}
+            >
+              <OneTimeCodeLogin onBack={() => setShowOtcLogin(false)} />
+            </Suspense>
+          ) : (
+            <>
+              <div className="login-card-header">
+                <div className="logo logo-center">
+                  <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <h2>Log ind på Workslip</h2>
+                <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
+              </div>
+
+              {errorMsg && (
+                <div className="login-error-banner">
+                  <Loader2 size={16} />
+                  {errorMsg}
+                </div>
+              )}
+
+              <div className="login-email-step">
+                <button
+                  type="button"
+                  className="btn btn-primary login-submit-btn"
+                  onClick={handleMicrosoftLogin}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
+                  <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOtcLogin(true)}
+                  className="login-otc-btn"
+                >
+                  Mistet dit login? Modtag engangskode
+                </button>
+              </div>
+
+              {import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
+                <div className="login-dev-section">
+                  <div className="login-dev-buttons">
+                    {[
+                      { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
+                      { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
+                      { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
+                      { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' },
+                    ].map((entry) => (
+                      <button
+                        key={entry.email}
+                        onClick={async () => {
+                          setErrorMsg(null);
+                          setIsSubmitting(true);
+                          try {
+                            const success = await devLogin(entry.email);
+                            if (success) navigate(entry.redirect, { replace: true });
+                            else setErrorMsg(`Dev login failed - ${entry.email} not found`);
+                          } catch {
+                            setErrorMsg('Dev login failed');
+                          } finally {
+                            setIsSubmitting(false);
+                          }
+                        }}
+                        disabled={isSubmitting}
+                        className="btn btn-secondary login-dev-btn"
+                      >
+                        {entry.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+</file>
+
 <file path="src/FE/src/features/jobs/components/JobDetails.tsx">
 import { useState } from 'react';
 import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
@@ -139417,290 +139701,6 @@ registerSW({
     console.error('[PWA] Registration failed:', error);
   },
 });
-</file>
-
-<file path="src/FE/src/features/auth/routes/Login.tsx">
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { Loader2, ShieldCheck } from 'lucide-react';
-import { useAuth } from '../../../providers/useAuth';
-import {
-  AUTH_TOKEN_KEY,
-  USER_EMAIL_KEY,
-  AuthStorage,
-  clearReauthInFlight,
-} from '../../../providers/authContextValue';
-import {
-  clearEntraLoginSession,
-  completeEntraLogin,
-  hasEntraLoginCallback,
-  hasEntraLoginSession,
-  InteractiveLoginRequiredError,
-  LoginCancelledError,
-  sanitizeReturnTo,
-  startEntraLogin,
-} from '../api/entraLogin';
-
-const OneTimeCodeLogin = lazy(() =>
-  import('../components/OneTimeCodeLogin').then((module) => ({ default: module.OneTimeCodeLogin })),
-);
-
-const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve igen.';
-
-const isBackForwardNavigation = () =>
-  typeof performance !== 'undefined' &&
-  typeof performance.getEntriesByType === 'function' &&
-  (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
-
-export const Login = () => {
-  const navigate = useNavigate();
-  const { isAuthenticated, devLogin } = useAuth();
-  const [historyInterruptedLogin] = useState(() =>
-    !hasEntraLoginCallback() && hasEntraLoginSession() && isBackForwardNavigation(),
-  );
-  const [isSubmitting, setIsSubmitting] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return !historyInterruptedLogin && (hasEntraLoginCallback() || params.get('reauth') === '1');
-  });
-  const [errorMsg, setErrorMsg] = useState<string | null>(
-    historyInterruptedLogin ? LOGIN_INTERRUPTED_MESSAGE : null,
-  );
-  const [showOtcLogin, setShowOtcLogin] = useState(false);
-  // True when we arrived via the silent-reauth redirect (axios interceptor
-  // sent us here because the JWT expired). While true we hide the login form
-  // entirely and show only a spinner, so the user never sees the Microsoft
-  // / passkey buttons flash before being sent to Microsoft.
-  const [isReauth, setIsReauth] = useState(
-    () => !historyInterruptedLogin && new URLSearchParams(window.location.search).get('reauth') === '1',
-  );
-  // Guards against React.StrictMode's double-mount in dev (and against any
-  // edge case where this effect runs twice). The first call navigates the
-  // browser to Microsoft; the second must be a no-op to avoid generating
-  // a second PKCE state that overwrites the first.
-  const reauthStartedRef = useRef(false);
-
-  const recoverToLogin = useCallback((message: string) => {
-    clearReauthInFlight();
-    clearEntraLoginSession();
-    reauthStartedRef.current = false;
-    window.history.replaceState(null, '', '/login');
-    setErrorMsg(message);
-    setIsSubmitting(false);
-    setIsReauth(false);
-  }, []);
-
-  useEffect(() => {
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (!event.persisted || hasEntraLoginCallback() || !hasEntraLoginSession()) return;
-      recoverToLogin(LOGIN_INTERRUPTED_MESSAGE);
-    };
-
-    window.addEventListener('pageshow', handlePageShow);
-    return () => window.removeEventListener('pageshow', handlePageShow);
-  }, [recoverToLogin]);
-
-  // Combined callback + reauth effect.
-  //
-  // Splitting these into two effects races when Microsoft redirects back with
-  // BOTH `?reauth=1` and `?code=`. Keeping them in one effect makes the
-  // callback and fresh-reauth branches explicit.
-  useEffect(() => {
-    if (reauthStartedRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const isCallback = hasEntraLoginCallback();
-    const isReauthRequest = params.get('reauth') === '1';
-    if (historyInterruptedLogin) {
-      clearReauthInFlight();
-      clearEntraLoginSession();
-      window.history.replaceState(null, '', '/login');
-      return;
-    }
-    if (!isCallback && !isReauthRequest) return;
-    reauthStartedRef.current = true;
-
-    const returnTo = sanitizeReturnTo(params.get('returnTo'));
-
-    if (isCallback) {
-      completeEntraLogin()
-        .then((result) => {
-          AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
-          AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
-          clearReauthInFlight();
-          clearEntraLoginSession();
-          window.history.replaceState(null, '', '/login');
-          window.location.replace(result.returnTo);
-        })
-        .catch((err: unknown) => {
-          if (err instanceof InteractiveLoginRequiredError) {
-            clearReauthInFlight();
-            clearEntraLoginSession();
-            window.history.replaceState(null, '', '/login');
-            startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
-              recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
-            });
-            return;
-          }
-          if (err instanceof LoginCancelledError) {
-            recoverToLogin('Login afbrudt. Klik på knappen for at prøve igen.');
-            return;
-          }
-          const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
-          recoverToLogin(message);
-        });
-      return;
-    }
-
-    startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
-      if (err instanceof InteractiveLoginRequiredError) {
-        clearReauthInFlight();
-        startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
-          recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
-        });
-        return;
-      }
-      recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
-    });
-  }, [historyInterruptedLogin, recoverToLogin]);
-
-  const handleMicrosoftLogin = async () => {
-    setErrorMsg(null);
-    setIsSubmitting(true);
-    try {
-      const returnTo = sanitizeReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
-      await startEntraLogin({ returnTo });
-    } catch (err: unknown) {
-      clearEntraLoginSession();
-      const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
-      setErrorMsg(message);
-      setIsSubmitting(false);
-    }
-  };
-
-  if (isAuthenticated) {
-    return <Navigate to="/app" replace />;
-  }
-
-  return (
-    <div className="app-container app-container-center">
-      <div className="bg-glow-wrapper">
-        <div className="bg-glow bg-glow-1" />
-        <div className="bg-glow bg-glow-2" />
-      </div>
-
-      {isReauth && (
-        <div className="reauth-card">
-          <Loader2 className="animate-spin" size={32} />
-          <p>Genindlæser login...</p>
-          <button
-            type="button"
-            onClick={() => {
-              clearReauthInFlight();
-              clearEntraLoginSession();
-              window.history.replaceState(null, '', '/login');
-              setIsReauth(false);
-              setIsSubmitting(false);
-            }}
-            className="reauth-cancel-btn"
-          >
-            Annuller
-          </button>
-        </div>
-      )}
-
-      {!isReauth && (
-        <div className="login-card">
-          {showOtcLogin ? (
-            <Suspense
-              fallback={(
-                <div className="login-email-step" role="status" aria-live="polite">
-                  <Loader2 className="animate-spin" size={24} />
-                  <span>Vent venligst.. Indlæser modul</span>
-                </div>
-              )}
-            >
-              <OneTimeCodeLogin onBack={() => setShowOtcLogin(false)} />
-            </Suspense>
-          ) : (
-            <>
-              <div className="login-card-header">
-                <div className="logo logo-center">
-                  <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-                <h2>Log ind på Workslip</h2>
-                <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
-              </div>
-
-              {errorMsg && (
-                <div className="login-error-banner">
-                  <Loader2 size={16} />
-                  {errorMsg}
-                </div>
-              )}
-
-              <div className="login-email-step">
-                <button
-                  type="button"
-                  className="btn btn-primary login-submit-btn"
-                  onClick={handleMicrosoftLogin}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
-                  <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowOtcLogin(true)}
-                  className="login-otc-btn"
-                >
-                  Mistet dit login? Modtag engangskode
-                </button>
-              </div>
-
-              {import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
-                <div className="login-dev-section">
-                  <div className="login-dev-buttons">
-                    {[
-                      { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
-                      { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
-                      { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
-                      { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' },
-                    ].map((entry) => (
-                      <button
-                        key={entry.email}
-                        onClick={async () => {
-                          setErrorMsg(null);
-                          setIsSubmitting(true);
-                          try {
-                            const success = await devLogin(entry.email);
-                            if (success) navigate(entry.redirect, { replace: true });
-                            else setErrorMsg(`Dev login failed - ${entry.email} not found`);
-                          } catch {
-                            setErrorMsg('Dev login failed');
-                          } finally {
-                            setIsSubmitting(false);
-                          }
-                        }}
-                        disabled={isSubmitting}
-                        className="btn btn-secondary login-dev-btn"
-                      >
-                        {entry.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
 </file>
 
 <file path="src/FE/src/main.tsx">
