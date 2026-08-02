@@ -1,0 +1,81 @@
+name: Update Repomix after production release
+
+on:
+  workflow_run:
+    workflows:
+      - Backend API deploy
+    types:
+      - completed
+  deployment_status:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: post-release-repomix-main
+  cancel-in-progress: false
+
+jobs:
+  update-repomix:
+    name: Regenerate Repomix
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.ref == 'main' &&
+       github.event.deployment.environment == 'Production' &&
+       github.event.deployment.creator.login == 'vercel[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Regenerate and publish Repomix
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git checkout -B main origin/main
+
+            npx --yes repomix@1.13.0 \
+              --style xml \
+              --output repomix-output.xml
+
+            if [[ -z "$(git status --porcelain -- repomix-output.xml)" ]]; then
+              echo "Repomix output already matches main."
+              exit 0
+            fi
+
+            git add repomix-output.xml
+            git commit -m "chore: update repomix after production release [skip ci]"
+
+            if git push origin HEAD:main; then
+              echo "Repomix output updated on main."
+              exit 0
+            fi
+
+            if [[ "${attempt}" -lt 3 ]]; then
+              echo "Main advanced while publishing; regenerating from the latest main revision."
+              sleep $((attempt * 5))
+            fi
+          done
+
+          echo "::error::Could not publish the regenerated Repomix output after 3 attempts."
+          exit 1

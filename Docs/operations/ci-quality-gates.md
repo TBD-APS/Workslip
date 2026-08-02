@@ -4,7 +4,7 @@ Status: Active
 Owner: Workslip repository owner  
 Source of truth: `.github/workflows/`, repository rulesets and current successful workflow runs  
 Review cadence: monthly and whenever a workflow or required check changes  
-Linear: WOR-170, WOR-171, WOR-188, WOR-194
+Linear: WOR-170, WOR-171, WOR-188, WOR-194, WOR-303
 
 ## Principle
 
@@ -16,8 +16,24 @@ A required or routinely triggered check must be configured, actionable and owned
 - API deployment restores, builds, publishes and deploys the backend artifact for relevant changes on `main` or an explicit manual run.
 - API deployment does not invoke the post-deploy cache workflow.
 - Vercel Git deployments are enabled only for `main`; all other branch names are denied by the repository's `src/FE/vercel.json` policy.
+- A successful production backend release or successful Vercel production deployment from `main` triggers `.github/workflows/update-repomix-after-release.yml`.
+- The Repomix workflow checks out the latest `main`, regenerates `repomix-output.xml`, and commits only when the generated output changed.
+- Failed, cancelled, preview, or non-`main` deployments do not update Repomix.
 - The repository has no general pull-request validation workflow. Relevant backend/frontend validation must be run locally or through a deliberately added, issue-scoped validation workflow that is removed again after use.
 - Existing security and review checks supplied outside these workflow files remain governed by repository rulesets and their own configuration.
+
+## Post-release Repomix update
+
+The Repomix snapshot is maintained as a post-release artifact rather than a release prerequisite:
+
+- Backend releases qualify only when `Backend API deploy` completes successfully. That workflow reports success only after the Azure deployment and API health check pass.
+- Frontend releases qualify only for a successful GitHub `deployment_status` created by `vercel[bot]`, with environment `Production` and ref `main`.
+- The workflow serializes updates, regenerates from the latest remote `main`, and retries if `main` advances while publishing.
+- Repomix is pinned to version `1.13.0` to keep generated output deterministic across runs.
+- The generated commit uses `[skip ci]` and does not modify application paths, preventing the backend workflow from retriggering.
+- If `repomix-output.xml` is unchanged, the workflow exits without creating a commit.
+
+A failure in this maintenance workflow does not roll back an already successful application release. Treat the failed workflow as repository-maintenance debt and rerun it after correcting permissions, package resolution, or branch-protection constraints.
 
 ## Removed workflow decisions
 
