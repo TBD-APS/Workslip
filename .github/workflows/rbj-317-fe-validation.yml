@@ -53,3 +53,34 @@ jobs:
         env:
           PROD_URL: https://app.mrsoftware.dk
         run: node scripts/playwright-notification-navigation.mjs
+
+  frontend-diagnostics-export:
+    if: github.head_ref == 'rbj--319-copy-diagnostics-chatgpt'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/FE
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+      - run: npm ci
+      - name: Diagnostics export unit tests
+        run: >-
+          npm test -- --run
+          src/features/superadmin/diagnostics/DiagnosticsSupportCopyButton.test.tsx
+          src/features/superadmin/diagnostics/supportSnapshot.test.ts
+      - name: Diagnostics export lint
+        run: >-
+          npx eslint
+          src/features/superadmin/diagnostics/DiagnosticsSupportCopyButton.tsx
+          src/features/superadmin/diagnostics/DiagnosticsSupportCopyButton.test.tsx
+          src/features/superadmin/diagnostics/api.ts
+          src/features/superadmin/diagnostics/supportSnapshot.ts
+          src/features/superadmin/diagnostics/supportSnapshot.test.ts
+          src/features/superadmin/routes/SuperAdmin.tsx
+      - name: Frontend production build
+        run: npm run build
