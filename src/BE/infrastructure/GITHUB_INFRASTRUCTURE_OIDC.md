@@ -58,7 +58,7 @@ Azure:
 
 - `Contributor` on `rg-mrsoftware-prod`;
 - `Role Based Access Control Administrator` on `rg-mrsoftware-prod`;
-- `Key Vault Administrator` on `kv-mrsoftware-prod`;
+- `Key Vault Secrets Officer` on `kv-mrsoftware-prod`;
 - `App Configuration Data Owner` on `appcs-mrsoftware-prod`;
 - custom subscription role allowing only resource-provider read/registration.
 
