@@ -43,11 +43,11 @@ const PRECACHED_URLS = new Set(
 );
 const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
 const MAX_RUNTIME_ASSET_ENTRIES = 150;
-const RUNTIME_CACHE_TRIM_MIN_INTERVAL_MS = 30_000;
+const RUNTIME_CACHE_TRIM_WRITE_INTERVAL = 10;
 const CLIENT_NAVIGATION_TIMEOUT_MS = 1_500;
 
+let runtimeAssetWritesSinceTrim = 0;
 let runtimeCacheTrimPromise: Promise<void> | null = null;
-let runtimeCacheTrimStartedAt = 0;
 
 cleanupOutdatedCaches();
 precacheAndRoute(PRECACHE_MANIFEST);
@@ -83,15 +83,19 @@ async function trimRuntimeAssetCache(cache: Cache) {
 }
 
 function scheduleRuntimeAssetCacheTrim(cache: Cache): Promise<void> {
-  if (runtimeCacheTrimPromise) return runtimeCacheTrimPromise;
-
-  const now = Date.now();
-  if (now - runtimeCacheTrimStartedAt < RUNTIME_CACHE_TRIM_MIN_INTERVAL_MS) {
+  runtimeAssetWritesSinceTrim += 1;
+  if (runtimeAssetWritesSinceTrim < RUNTIME_CACHE_TRIM_WRITE_INTERVAL) {
     return Promise.resolve();
   }
 
-  runtimeCacheTrimStartedAt = now;
-  const trimPromise = trimRuntimeAssetCache(cache)
+  if (runtimeCacheTrimPromise) return runtimeCacheTrimPromise;
+
+  const trimPromise = (async () => {
+    while (runtimeAssetWritesSinceTrim >= RUNTIME_CACHE_TRIM_WRITE_INTERVAL) {
+      runtimeAssetWritesSinceTrim = 0;
+      await trimRuntimeAssetCache(cache);
+    }
+  })()
     .catch((error) => {
       console.warn('[SW] Runtime asset cache trim failed:', error);
     })
