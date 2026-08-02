@@ -53,35 +53,3 @@ jobs:
         env:
           PROD_URL: https://app.mrsoftware.dk
         run: node scripts/playwright-notification-navigation.mjs
-
-  frontend-diagnostics-typecheck:
-    if: github.head_ref == 'rbj--319-copy-diagnostics-chatgpt'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/FE
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: src/FE/package-lock.json
-      - run: npm ci
-      - name: Diagnostics source typecheck
-        run: |
-          cat > tsconfig.wor319.json <<'JSON'
-          {
-            "extends": "./tsconfig.app.json",
-            "compilerOptions": {
-              "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.wor319.tsbuildinfo"
-            },
-            "include": [
-              "src/features/superadmin/diagnostics/DiagnosticsSupportCopyButton.tsx",
-              "src/features/superadmin/diagnostics/queryKeys.ts",
-              "src/features/superadmin/diagnostics/supportSnapshot.ts",
-              "src/features/superadmin/diagnostics/types.ts"
-            ]
-          }
-          JSON
-          npx tsc -p tsconfig.wor319.json
