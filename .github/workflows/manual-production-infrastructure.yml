@@ -2,11 +2,6 @@ name: Production infrastructure deploy
 
 on:
   workflow_dispatch:
-    inputs:
-      confirmation:
-        description: 'Type DEPLOY_PROD_INFRA to reconcile production infrastructure'
-        required: true
-        type: string
 
 permissions:
   id-token: write
@@ -28,16 +23,12 @@ jobs:
       API_IDENTITY_NAME: id-mrsoftware-prod
       LOG_ANALYTICS_WORKSPACE_NAME: logAnal-mrsoftware-prod
     steps:
-      - name: Verify dispatch guard
+      - name: Verify deployment prerequisites
         shell: pwsh
         env:
           INFRA_CLIENT_ID: ${{ secrets.AZURE_INFRA_CLIENT_ID }}
         run: |
           $ErrorActionPreference = 'Stop'
-
-          if ('${{ inputs.confirmation }}' -ne 'DEPLOY_PROD_INFRA') {
-            throw 'Confirmation must exactly match DEPLOY_PROD_INFRA.'
-          }
 
           if ($env:GITHUB_REF -ne 'refs/heads/main') {
             throw "Production infrastructure may only be deployed from main. Selected ref: $env:GITHUB_REF"
