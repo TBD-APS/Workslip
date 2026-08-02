@@ -78,6 +78,7 @@ public static class DependencyInjection
         services.AddSingleton<IVapidPublicKeyProvider>(serviceProvider =>
             serviceProvider.GetRequiredService<VapidKeyMaterial>());
         services.AddScoped<IPushSender, WebPushSender>();
+        services.AddScoped<PushNotificationProcessor>();
         services.AddHostedService<JobDeletionCleanupService>();
         services.AddHostedService<InviteEntraCleanupService>();
         services.AddHostedService<PushNotificationWorker>();
