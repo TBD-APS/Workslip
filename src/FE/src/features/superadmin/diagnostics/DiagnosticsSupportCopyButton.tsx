@@ -3,7 +3,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { ClipboardCopy } from 'lucide-react';
 import { useSyncExternalStore, useState } from 'react';
 import { notify } from '../../../lib/toast';
-import { errorDiagnosticsQueryPrefix } from './api';
+import { errorDiagnosticsQueryPrefix } from './queryKeys';
 import { serializeErrorDiagnosticsSupportSnapshot } from './supportSnapshot';
 import type {
   ErrorDiagnosticsDashboard,
