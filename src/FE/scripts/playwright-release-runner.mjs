@@ -28,4 +28,8 @@ if (target === 'staging' && phase !== 'live') {
   throw new Error('Staging release testing is enabled only after the two-environment live transition.');
 }
 
-await import('./playwright-prod-smoke.mjs');
+if (scenario === 'notification-navigation') {
+  await import('./playwright-notification-navigation.mjs');
+} else {
+  await import('./playwright-prod-smoke.mjs');
+}
