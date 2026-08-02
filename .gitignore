@@ -10,7 +10,6 @@ out/
 .next/
 .turbo/
 .vercel/
-/artifacts/playwright-prod-smoke/
 *.tsbuildinfo
 *.dll
 *.pdb
@@ -74,6 +73,12 @@ TestResults/
 *.trx
 *.coverage
 *.coveragexml
+
+# Playwright/local test evidence and reports
+/artifacts/
+**/playwright-report/
+**/test-results/
+**/blob-report/
 
 # Tool/generated local state
 .hermes-context
