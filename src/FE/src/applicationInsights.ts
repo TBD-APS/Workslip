@@ -9,6 +9,7 @@ import type {
 type EarlyErrorEntry =
   | {
     kind: 'error';
+    capturedAt?: unknown;
     message?: unknown;
     filename?: unknown;
     lineno?: unknown;
@@ -17,6 +18,8 @@ type EarlyErrorEntry =
   }
   | {
     kind: 'rejection';
+    capturedAt?: unknown;
+    message?: unknown;
     reason?: unknown;
   };
 
@@ -24,6 +27,7 @@ interface EarlyErrorBuffer {
   entries: EarlyErrorEntry[];
   onError: EventListener;
   onRejection: EventListener;
+  storageKey?: string;
 }
 
 declare global {
@@ -49,18 +53,18 @@ const heartbeatIntervalMs = 5 * 60_000;
 const maxPendingErrors = 20;
 const initializationRetryDelaysMs = [30_000, 120_000] as const;
 
-const sensitiveValuePattern = /((["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*["']?)[^"',}\s]+(["']?)/gi;
+const sensitiveValuePattern = /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*["']?)[^"',}\s]+(["']?)/gi;
 const sensitiveKeyPattern = /^(authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key|request|requestdata|response|payload|body|headers)$/i;
 const credentialPattern = /(authorization\s*[:=]\s*["']?(?:bearer|basic)\s+)[^"',}\s]+/gi;
 const bearerPattern = /bearer\s+[a-z0-9._~+/=-]+/gi;
 const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const phonePattern = /(?:\+?\d[\d\s().-]{7,}\d)/g;
-const quotedSensitiveValuePattern = /((["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*)(["'])(.*?)\3/gi;
+const quotedSensitiveValuePattern = /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*)(["'])(.*?)\2/gi;
 
 function sanitizeText(value: string): string {
   return value
-    .replace(quotedSensitiveValuePattern, '$1$3[REDACTED]$3')
-    .replace(sensitiveValuePattern, '$1[REDACTED]$3')
+    .replace(quotedSensitiveValuePattern, '$1$2[REDACTED]$2')
+    .replace(sensitiveValuePattern, '$1[REDACTED]$2')
     .replace(credentialPattern, '$1[REDACTED]')
     .replace(bearerPattern, 'Bearer [REDACTED]')
     .replace(/([?&](?:access[_-]?token|refresh[_-]?token|id[_-]?token|authorization|api[_-]?key)=)[^&#\s]+/gi, '$1[REDACTED]')
@@ -252,11 +256,21 @@ function drainEarlyErrorBuffer(): void {
 
   window.removeEventListener('error', buffer.onError, true);
   window.removeEventListener('unhandledrejection', buffer.onRejection);
+  if (buffer.storageKey) {
+    try {
+      sessionStorage.removeItem(buffer.storageKey);
+    } catch {
+      // Storage is optional; the in-memory queue is still drained.
+    }
+  }
   delete window.__WORKSLIP_EARLY_ERROR_BUFFER__;
 
   buffer.entries.forEach((entry) => {
     if (entry.kind === 'rejection') {
-      reportFrontendError(entry.reason, 'bootstrap.window.unhandledrejection');
+      reportFrontendError(
+        entry.reason ?? entry.message ?? 'Early promise rejection',
+        'bootstrap.window.unhandledrejection',
+      );
       return;
     }
 
