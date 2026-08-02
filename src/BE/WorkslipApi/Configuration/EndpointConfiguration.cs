@@ -25,6 +25,7 @@ public static class EndpointConfiguration
         app.MapReferenceDataEndpoints();
         app.MapPushNotificationEndpoints();
         app.MapCacheEndpoints();
+        app.MapDiagnosticsEndpoints();
 
         return app;
     }
