@@ -15,8 +15,7 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
     [Fact]
     public async Task GetAsync_UsesWeightedCountsAndGroupsSanitizedRows()
     {
-        var handler = new QueryHttpMessageHandler(request =>
-            JsonResponse(request.Body.Contains("LastHour", StringComparison.Ordinal) ? SummaryJson : DetailsJson));
+        var handler = new QueryHttpMessageHandler(SuccessfulResponse);
         using var serviceFixture = CreateService(handler);
 
         var result = await serviceFixture.Service.GetAsync(new ErrorDiagnosticsQuery("24h", "all", 50));
@@ -27,7 +26,14 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
         Assert.False(result.Value.IsStale);
         Assert.True(result.Value.SummaryAvailable);
         Assert.True(result.Value.ItemsAvailable);
+        Assert.True(result.Value.TelemetryHealthAvailable);
         Assert.Equal(7, result.Value.Summary!.Last24Hours);
+        Assert.Equal(
+            DateTimeOffset.Parse("2026-08-02T05:00:00Z"),
+            result.Value.TelemetryHealth!.FrontendLastSeenUtc);
+        Assert.Equal(
+            DateTimeOffset.Parse("2026-08-02T05:01:00Z"),
+            result.Value.TelemetryHealth.BackendLastSeenUtc);
         var item = Assert.Single(result.Value.Items);
         Assert.Equal(10, item.Occurrences);
         Assert.DoesNotContain("user@example.com", item.Message, StringComparison.Ordinal);
@@ -35,18 +41,24 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
         Assert.Equal("/api/jobs/:id", item.Route);
         Assert.Equal("safe-correlation-id", item.CorrelationId);
         Assert.Matches("^[a-f0-9]{12}$", item.Fingerprint);
-        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(3, handler.Requests.Count);
         Assert.All(handler.Requests, request =>
             Assert.Equal("Bearer test-token", request.Authorization));
         Assert.Contains(handler.Requests, request => request.Body.Contains("sumif(Weight", StringComparison.Ordinal));
         Assert.Contains(handler.Requests, request => request.Body.Contains("Occurrences = sum(Weight)", StringComparison.Ordinal));
+        Assert.Contains(handler.Requests, request =>
+            request.Body.Contains("telemetry.heartbeat", StringComparison.Ordinal)
+            && request.Body.Contains("AppRequests", StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task GetAsync_DoesNotTurnMalformedSummaryIntoZeroErrors()
     {
         var handler = new QueryHttpMessageHandler(request =>
-            JsonResponse(request.Body.Contains("LastHour", StringComparison.Ordinal) ? MalformedSummaryJson : DetailsJson));
+        {
+            if (IsHealthQuery(request)) return JsonResponse(HealthJson);
+            return JsonResponse(IsSummaryQuery(request) ? MalformedSummaryJson : DetailsJson);
+        });
         using var serviceFixture = CreateService(handler);
 
         var result = await serviceFixture.Service.GetAsync(new ErrorDiagnosticsQuery());
@@ -56,6 +68,7 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
         Assert.False(result.Value.IsComplete);
         Assert.False(result.Value.SummaryAvailable);
         Assert.True(result.Value.ItemsAvailable);
+        Assert.True(result.Value.TelemetryHealthAvailable);
         Assert.Null(result.Value.Summary);
         Assert.Equal("invalid_response", result.Value.AvailabilityReason);
         Assert.NotEmpty(result.Value.Items);
@@ -65,7 +78,10 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
     public async Task GetAsync_MarksAzurePartialErrorAsIncomplete()
     {
         var handler = new QueryHttpMessageHandler(request =>
-            JsonResponse(request.Body.Contains("LastHour", StringComparison.Ordinal) ? SummaryJson : PartialDetailsJson));
+        {
+            if (IsHealthQuery(request)) return JsonResponse(HealthJson);
+            return JsonResponse(IsSummaryQuery(request) ? SummaryJson : PartialDetailsJson);
+        });
         using var serviceFixture = CreateService(handler);
 
         var result = await serviceFixture.Service.GetAsync(new ErrorDiagnosticsQuery());
@@ -79,13 +95,32 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_DoesNotTreatMissingTelemetryAsAQueryFailure()
+    {
+        var handler = new QueryHttpMessageHandler(request =>
+        {
+            if (IsHealthQuery(request)) return JsonResponse(EmptyHealthJson);
+            return JsonResponse(IsSummaryQuery(request) ? SummaryJson : DetailsJson);
+        });
+        using var serviceFixture = CreateService(handler);
+
+        var result = await serviceFixture.Service.GetAsync(new ErrorDiagnosticsQuery());
+
+        Assert.True(result.Value.IsComplete);
+        Assert.True(result.Value.TelemetryHealthAvailable);
+        Assert.NotNull(result.Value.TelemetryHealth);
+        Assert.Null(result.Value.TelemetryHealth.FrontendLastSeenUtc);
+        Assert.Null(result.Value.TelemetryHealth.BackendLastSeenUtc);
+    }
+
+    [Fact]
     public async Task GetAsync_ReturnsLastKnownGoodSnapshotWhenAzureFails()
     {
         var fail = false;
         var handler = new QueryHttpMessageHandler(request =>
             fail
                 ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
-                : JsonResponse(request.Body.Contains("LastHour", StringComparison.Ordinal) ? SummaryJson : DetailsJson));
+                : SuccessfulResponse(request));
         using var serviceFixture = CreateService(handler);
 
         var initial = await serviceFixture.Service.GetAsync(new ErrorDiagnosticsQuery());
@@ -99,7 +134,8 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
         Assert.NotNull(fallback.Value.DataRetrievedAtUtc);
         Assert.Equal(initial.Value.DataRetrievedAtUtc, fallback.Value.DataRetrievedAtUtc);
         Assert.Equal(initial.Value.Summary, fallback.Value.Summary);
-        Assert.Equal(initial.Value.Items, fallback.Value.Items);
+        Assert.Equal(initial.Value.TelemetryHealth, fallback.Value.TelemetryHealth);
+        Assert.Equal(initial.Value.Items.ToArray(), fallback.Value.Items.ToArray());
         Assert.Equal("query_failed", fallback.Value.AvailabilityReason);
     }
 
@@ -116,7 +152,9 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
         Assert.Equal("not_configured", result.Value.AvailabilityReason);
         Assert.False(result.Value.SummaryAvailable);
         Assert.False(result.Value.ItemsAvailable);
+        Assert.False(result.Value.TelemetryHealthAvailable);
         Assert.Null(result.Value.Summary);
+        Assert.Null(result.Value.TelemetryHealth);
         Assert.Empty(result.Value.Items);
         Assert.Empty(handler.Requests);
     }
@@ -162,6 +200,19 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
         return new ServiceFixture(service, httpClient, cache);
     }
 
+    private static HttpResponseMessage SuccessfulResponse(CapturedRequest request) =>
+        JsonResponse(IsHealthQuery(request)
+            ? HealthJson
+            : IsSummaryQuery(request)
+                ? SummaryJson
+                : DetailsJson);
+
+    private static bool IsSummaryQuery(CapturedRequest request) =>
+        request.Body.Contains("LastHour", StringComparison.Ordinal);
+
+    private static bool IsHealthQuery(CapturedRequest request) =>
+        request.Body.Contains("FrontendLastSeenUtc", StringComparison.Ordinal);
+
     private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -189,6 +240,32 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
             "name": "PrimaryResult",
             "columns": [{ "name": "Unexpected", "type": "long" }],
             "rows": [[0]]
+          }]
+        }
+        """;
+
+    private const string HealthJson = """
+        {
+          "tables": [{
+            "name": "PrimaryResult",
+            "columns": [
+              { "name": "FrontendLastSeenUtc", "type": "datetime" },
+              { "name": "BackendLastSeenUtc", "type": "datetime" }
+            ],
+            "rows": [["2026-08-02T05:00:00Z", "2026-08-02T05:01:00Z"]]
+          }]
+        }
+        """;
+
+    private const string EmptyHealthJson = """
+        {
+          "tables": [{
+            "name": "PrimaryResult",
+            "columns": [
+              { "name": "FrontendLastSeenUtc", "type": "datetime" },
+              { "name": "BackendLastSeenUtc", "type": "datetime" }
+            ],
+            "rows": [[null, null]]
           }]
         }
         """;
