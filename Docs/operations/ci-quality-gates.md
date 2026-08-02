@@ -2,9 +2,9 @@
 
 Status: Active  
 Owner: Workslip repository owner  
-Source of truth: `.github/workflows/`, repository rulesets and current successful workflow runs  
-Review cadence: monthly and whenever a workflow or required check changes  
-Linear: WOR-170, WOR-171, WOR-188, WOR-194, WOR-303, WOR-305, WOR-306, WOR-308
+Source of truth: `.github/workflows/`, `config/release-environments.json`, repository rulesets and current successful workflow runs  
+Review cadence: monthly and whenever a workflow, release environment or required check changes  
+Linear: WOR-170, WOR-171, WOR-188, WOR-194, WOR-303, WOR-305, WOR-306, WOR-308, WOR-313
 
 ## Principle
 
@@ -14,10 +14,12 @@ A required or routinely triggered check must be configured, actionable and owned
 
 - Pages deployment builds and validates the Jekyll site before deploying relevant changes from `main`; there is no pull-request Jekyll workflow.
 - API deployment restores, builds, publishes and deploys the backend artifact for relevant changes on `main` or an explicit manual run.
+- API deployment resolves `config/release-environments.json` and applies the production `ReleaseTesting__Enabled` value to Azure App Service before deployment.
 - API deployment does not invoke the post-deploy cache workflow.
 - Vercel Git deployments are enabled only for `main`; all other branch names are denied by the repository's `src/FE/vercel.json` policy.
 - Every push to `release/**` runs `.github/workflows/release-validation.yml` without path filters.
 - C# and JavaScript/TypeScript CodeQL analysis runs only inside that release workflow.
+- The release workflow validates the central environment policy and release-test source guards.
 - A successful production backend release or successful Vercel production deployment from `main` or `release/**` triggers `.github/workflows/update-repomix-after-release.yml`.
 - The Repomix workflow resolves the released branch by SHA, regenerates `repomix-output.xml`, and commits only when the generated output changed.
 - Failed, cancelled, preview, stale, or unrelated deployments do not update Repomix.
@@ -32,7 +34,7 @@ The workflow exposes the following separate checks:
 
 - `Backend build, tests and CodeQL` — initializes CodeQL for C#, restores the full backend solution, performs an instrumented Release build, runs the complete backend test suite and publishes the C# analysis;
 - `Frontend lint, tests, build and CodeQL` — initializes CodeQL for JavaScript/TypeScript, installs from the committed lockfile, runs ESLint, runs Vitest once, builds the production frontend and publishes the frontend analysis;
-- `Playwright and API contract sources` — syntax-checks the maintained Playwright scenario modules and parses the Postman collection;
+- `Playwright and API contract sources` — validates `config/release-environments.json`, runs its policy regression tests, syntax-checks the maintained Playwright scenario modules and parses the Postman collection;
 - `Release gate` — succeeds only when all required workflow jobs, including both CodeQL analyses, succeeded.
 
 Superseded pushes to the same release branch cancel the older run. NuGet, npm and generated-font caches are used to reduce repeat runtime. Backend TRX output is retained for three days; application builds and local browser artifacts are not committed.
@@ -52,15 +54,15 @@ The release workflow uses:
 
 Do not add a separate CodeQL workflow. Keeping analysis inside the backend and frontend release jobs avoids duplicate builds, duplicate workflow names and competing CodeQL configurations.
 
-After this workflow is merged, repository administration must complete these configuration changes before the first release push:
+Repository administration must complete and verify WOR-310:
 
 1. disable CodeQL default setup under `Settings → Advanced Security`;
-2. remove the CodeQL code-scanning rule from the ruleset that targets only `main`, because no analysis is intentionally produced for `main`;
+2. remove the CodeQL code-scanning rule from the ruleset that targets only `main`;
 3. create or update the release ruleset so it targets `refs/heads/release/**` and requires CodeQL code-scanning results at the approved severity threshold;
 4. require the stable status check `Release gate` on the same release ruleset;
-5. prove both languages upload successfully on the first real release branch.
+5. prove both languages upload successfully on a real release branch.
 
-Leaving default setup enabled will create overlapping analysis and can block uploads from advanced setup. Leaving the `main` CodeQL rule active after moving analysis to release branches can block ordinary main PRs because the required analysis no longer exists there.
+Leaving default setup enabled creates overlapping analysis and can block uploads from advanced setup. Leaving the `main` CodeQL rule active after moving analysis to release branches can block ordinary main PRs because the required analysis no longer exists there.
 
 ### Required release ruleset
 
@@ -72,13 +74,26 @@ Create or maintain a repository ruleset targeting `refs/heads/release/**` with:
 4. force pushes blocked;
 5. no broad GitHub App bypass beyond identities with a documented release need.
 
-The workflow file proves intended automation only. The first push to a real `release/**` branch must prove that every job executes, that both CodeQL analyses publish, that `Release gate` reports the expected result, and that a controlled failing push is blocked by the ruleset.
+The workflow file proves intended automation only. A real release push must prove that every job executes, both CodeQL analyses publish, `Release gate` reports the expected result, and a controlled failing push is blocked by the ruleset.
 
-### Browser validation boundary
+### Release environment and browser boundary
 
-The release workflow validates Playwright source and API contract material, but it does not call production and describe that as release-commit browser validation. `https://app.mrsoftware.dk` contains the currently deployed production revision, not necessarily the release branch SHA.
+`config/release-environments.json` defines the current operating phase and which environment may expose release-test endpoints or run write-capable Playwright scenarios.
 
-Automatic browser validation of the exact release commit requires an isolated release/staging frontend and API with synthetic data and safe test identities. Until that environment exists and is tied to the release SHA, run the relevant Playwright scenario deliberately and report the release as browser-unvalidated. Do not use destructive production flows as a substitute.
+Before first customer go-live, the only deployed production slot contains no active customers and is intentionally the pre-live release-test environment. Full Playwright may therefore run directly against `https://app.mrsoftware.dk`, with synthetic data and cleanup, while the policy explicitly marks production as pre-live and write-enabled.
+
+This exception ends before customer access opens. The live policy is valid only when:
+
+- production development endpoints and destructive Playwright are disabled;
+- a dedicated staging HTTPS origin exists;
+- staging carries the full release-test suite;
+- production receives only write-free post-deploy smoke.
+
+The resolver rejects an unsafe live configuration without staging. The Playwright release runner rejects write-capable scenarios when the selected target does not permit them. The API deployment propagates the production endpoint setting into Azure so a source-only policy change is not left unapplied at runtime.
+
+The production Vercel setting `VITE_ENABLE_DEV_LOGIN` is still an external deployment setting and must be changed to `false` at go-live. Backend endpoint removal is the security boundary; hiding buttons is required UX hardening, not the authorization control.
+
+WOR-309 owns creation of the second environment. WOR-313 owns the fail-closed transition configuration.
 
 ## Post-release Repomix update
 
