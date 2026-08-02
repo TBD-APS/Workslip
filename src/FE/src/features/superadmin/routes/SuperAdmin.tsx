@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, ArrowRight, Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { lazy, Suspense, useMemo, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+import { reportFrontendError } from '../../../applicationInsights';
 import { notify } from '../../../lib/toast';
 import {
   createOrganization,
@@ -209,9 +211,41 @@ export function SuperAdmin() {
 
       {showDiagnostics && (
         <section id="superadmin-error-dashboard" className="superadmin-diagnostics-dashboard">
-          <Suspense fallback={<div className="superadmin-empty" role="status">Indlæser fejldashboard...</div>}>
-            <ErrorDiagnosticsDashboard />
-          </Suspense>
+          <ErrorBoundary
+            onError={(error, info) => reportFrontendError(
+              error,
+              'superadmin.diagnostics-boundary',
+              { componentStack: info.componentStack ?? '' },
+            )}
+            fallbackRender={({ resetErrorBoundary }) => (
+              <div className="superadmin-alert superadmin-alert-error" role="alert">
+                <span>Fejldashboardet kunne ikke vises. Resten af Superadmin fungerer stadig.</span>
+                <div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      resetErrorBoundary();
+                      setShowDiagnostics(false);
+                    }}
+                  >
+                    Luk dashboard
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => window.location.reload()}
+                  >
+                    Genindlæs appen
+                  </button>
+                </div>
+              </div>
+            )}
+          >
+            <Suspense fallback={<div className="superadmin-empty" role="status">Indlæser fejldashboard...</div>}>
+              <ErrorDiagnosticsDashboard />
+            </Suspense>
+          </ErrorBoundary>
         </section>
       )}
 
