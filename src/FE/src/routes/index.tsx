@@ -69,6 +69,9 @@ const LegalPage = lazy(() =>
 const SuperAdmin = lazy(() =>
   import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
 );
+const CacheDiagnostics = lazy(() =>
+  import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
+);
 
 interface StartupRecoveryProps {
   isRetrying: boolean;
@@ -262,6 +265,14 @@ export const router = createBrowserRouter([
             element: (
               <RoleGuard permission="organization:manage" redirectTo="/app">
                 <SuperAdmin />
+              </RoleGuard>
+            ),
+          },
+          {
+            path: 'cache',
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <CacheDiagnostics />
               </RoleGuard>
             ),
           },

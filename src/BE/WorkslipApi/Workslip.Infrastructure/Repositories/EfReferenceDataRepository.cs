@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
+using Workslip.Application.Common;
 using Workslip.Application.Jobs;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
@@ -11,26 +13,68 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
     private readonly HybridCache _cache;
+    private readonly ICacheDiagnostics _cacheDiagnostics;
 
     private static readonly HybridCacheEntryOptions CacheOptions = new()
     {
         LocalCacheExpiration = TimeSpan.FromMinutes(10)
     };
 
-    public EfReferenceDataRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, HybridCache cache)
+    public EfReferenceDataRepository(
+        SqlDbContext dbContext,
+        IDatabaseRetryPolicy retryPolicy,
+        HybridCache cache,
+        ICacheDiagnostics cacheDiagnostics)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
         _cache = cache;
+        _cacheDiagnostics = cacheDiagnostics;
     }
 
-    public async Task<ReferenceDataResponse> GetAsync(Guid? organizationId, CancellationToken cancellationToken) =>
-        await _cache.GetOrCreateAsync(
+    public async Task<ReferenceDataResponse> GetAsync(Guid? organizationId, CancellationToken cancellationToken)
+    {
+        var loaded = false;
+        var data = await _cache.GetOrCreateAsync(
             $"reference-data:{organizationId:N}",
-            async token => await _retryPolicy.ExecuteAsync("reference-data.get", ct => GetCoreAsync(organizationId, ct), token),
+            async token =>
+            {
+                loaded = true;
+                _cacheDiagnostics.RecordMiss(CacheRegionNames.ReferenceData);
+                var startedAt = Stopwatch.GetTimestamp();
+
+                try
+                {
+                    var value = await _retryPolicy.ExecuteAsync(
+                        "reference-data.get",
+                        ct => GetCoreAsync(organizationId, ct),
+                        token);
+                    _cacheDiagnostics.RecordSet(CacheRegionNames.ReferenceData);
+                    return value;
+                }
+                catch
+                {
+                    _cacheDiagnostics.RecordFailure(CacheRegionNames.ReferenceData);
+                    throw;
+                }
+                finally
+                {
+                    _cacheDiagnostics.RecordLoad(
+                        CacheRegionNames.ReferenceData,
+                        Stopwatch.GetElapsedTime(startedAt));
+                }
+            },
             CacheOptions,
             tags: ["all", "reference-data", $"org:{organizationId:N}"],
             cancellationToken: cancellationToken);
+
+        if (!loaded)
+        {
+            _cacheDiagnostics.RecordHit(CacheRegionNames.ReferenceData);
+        }
+
+        return data;
+    }
 
     private async Task<ReferenceDataResponse> GetCoreAsync(Guid? organizationId, CancellationToken cancellationToken)
     {
