@@ -28,23 +28,21 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Require dedicated Repomix bot token
-        shell: bash
-        env:
-          REPOMIX_BOT_TOKEN: ${{ secrets.REPOMIX_BOT_TOKEN }}
-        run: |
-          set -Eeuo pipefail
-          if [[ -z "${REPOMIX_BOT_TOKEN}" ]]; then
-            echo "::error::Repository secret REPOMIX_BOT_TOKEN is required for protected-branch writes."
-            exit 1
-          fi
+      - name: Create Repomix GitHub App token
+        id: repomix-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.REPOMIX_APP_ID }}
+          private-key: ${{ secrets.REPOMIX_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: Workslip-v2.0
 
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.REPOMIX_BOT_TOKEN }}
+          token: ${{ steps.repomix-token.outputs.token }}
 
       - name: Resolve released branch
         id: release
@@ -133,8 +131,8 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          git config user.name "workslip-repomix-bot"
-          git config user.email "workslip-repomix-bot@users.noreply.github.com"
+          git config user.name "workslip-repomix-publisher[bot]"
+          git config user.email "workslip-repomix-publisher[bot]@users.noreply.github.com"
 
           for attempt in 1 2 3; do
             git fetch origin "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
@@ -182,5 +180,5 @@ jobs:
             fi
           done
 
-          echo "::error::Could not publish the regenerated Repomix output to ${TARGET_BRANCH} after 3 attempts. Verify that the REPOMIX_BOT_TOKEN actor can bypass the protected-branch pull-request rule."
+          echo "::error::Could not publish the regenerated Repomix output to ${TARGET_BRANCH} after 3 attempts. Verify that the Repomix GitHub App is installed and has ruleset bypass."
           exit 1
