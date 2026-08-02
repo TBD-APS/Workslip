@@ -3695,6 +3695,34 @@ Deployment scripts do not assign a second competing set.
 - Assign Graph permissions from both Bicep and PowerShell: rejected because drift and partial deployment make the effective permission set unclear.
 </file>
 
+<file path="Docs/architecture/README.md">
+# Architecture documentation
+
+**State:** Draft  
+**Owner:** Architecture owner (assign in Linear)  
+**Review cadence:** Monthly and whenever trust boundaries, persistence, authentication, deployment topology or major dataflows change.
+
+This area is the maintained home for Workslip architecture and Architecture Decision Records (ADRs).
+
+The implementation is the source of truth. Until WOR-142 is completed, use backend/frontend source, infrastructure definitions and current workflows instead of assuming that dated plans describe deployed behaviour.
+
+## Maintained decisions
+
+- [`adr/0001-managed-identity-runtime-and-secret-lifecycle.md`](adr/0001-managed-identity-runtime-and-secret-lifecycle.md) — accepted deployment, SQL identity, Graph permission and secret-lifecycle decision.
+- [`adr/0002-immediate-pwa-update-activation.md`](adr/0002-immediate-pwa-update-activation.md) — accepted immediate frontend update discovery and activation policy.
+
+## Planned maintained documents
+
+- `system-context.md` — users, external systems and trust boundaries.
+- `containers.md` — frontend, API, SQL, Azure services and external integrations.
+- `domain-and-dataflows.md` — organization/tenant ownership, jobs, worksheets and central flows.
+- `adr/` — accepted technical decisions with context, alternatives and consequences.
+
+## ADR state
+
+An ADR may be `Proposed`, `Accepted`, `Superseded` or `Rejected`. A proposed ADR is not evidence that its behaviour is implemented.
+</file>
+
 <file path="Docs/brugerguide-pwa/brugerguide-pwa.tex">
 % =====================================================================
 %  Workslip — Installationsguide (iOS + Android)
@@ -35437,6 +35465,30 @@ export default defineConfig({
     "noFallthroughCasesInSwitch": true
   },
   "include": ["vite.config.ts",  "orval.config.ts", "fetcherOrval.ts", "axios.ts"]
+}
+</file>
+
+<file path="src/FE/tsconfig.sw.json">
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "WebWorker"],
+    "module": "ESNext",
+    "types": [],
+    "skipLibCheck": true,
+
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/sw.ts"]
 }
 </file>
 
@@ -87033,34 +87085,6 @@ jobs:
           echo 'All required release validation jobs, including CodeQL, succeeded.'
 </file>
 
-<file path="Docs/architecture/README.md">
-# Architecture documentation
-
-**State:** Draft  
-**Owner:** Architecture owner (assign in Linear)  
-**Review cadence:** Monthly and whenever trust boundaries, persistence, authentication, deployment topology or major dataflows change.
-
-This area is the maintained home for Workslip architecture and Architecture Decision Records (ADRs).
-
-The implementation is the source of truth. Until WOR-142 is completed, use backend/frontend source, infrastructure definitions and current workflows instead of assuming that dated plans describe deployed behaviour.
-
-## Maintained decisions
-
-- [`adr/0001-managed-identity-runtime-and-secret-lifecycle.md`](adr/0001-managed-identity-runtime-and-secret-lifecycle.md) — accepted deployment, SQL identity, Graph permission and secret-lifecycle decision.
-- [`adr/0002-immediate-pwa-update-activation.md`](adr/0002-immediate-pwa-update-activation.md) — accepted immediate frontend update discovery and activation policy.
-
-## Planned maintained documents
-
-- `system-context.md` — users, external systems and trust boundaries.
-- `containers.md` — frontend, API, SQL, Azure services and external integrations.
-- `domain-and-dataflows.md` — organization/tenant ownership, jobs, worksheets and central flows.
-- `adr/` — accepted technical decisions with context, alternatives and consequences.
-
-## ADR state
-
-An ADR may be `Proposed`, `Accepted`, `Superseded` or `Rejected`. A proposed ADR is not evidence that its behaviour is implemented.
-</file>
-
 <file path="Docs/compliance/GDPR_AI_ACT_BASELINE.md">
 # Workslip GDPR and EU AI Act compliance baseline
 
@@ -113936,6 +113960,98 @@ export function scheduleDeferredTelemetry(task: () => void, delayMs = 10_000): (
 }
 </file>
 
+<file path="src/FE/src/providers/authContextValue.ts">
+import { createContext } from 'react';
+import type { UserViewModel } from '../api/generated/models';
+
+export const AUTH_TOKEN_KEY = 'authToken';
+export const USER_EMAIL_KEY = 'userEmail';
+export const REAUTH_IN_FLIGHT_KEY = 'workslip.reauthInFlight';
+
+/**
+ * TTL on the reauthInFlight flag. If the redirect is interrupted (browser
+ * crash, network drop before reaching /login), the flag would otherwise stay
+ * set forever and silently break the next expiry cycle. 30s is well above
+ * any realistic redirect duration and well below the next possible expiry
+ * cycle (60 min JWT TTL), so a stale flag will always self-heal.
+ */
+const REAUTH_IN_FLIGHT_TTL_MS = 30_000;
+
+/**
+ * Centralized storage helper for auth tokens and short-lived OAuth flow state.
+ *
+ * Workslip is an installed PWA. `sessionStorage` is evicted by iOS/Android PWAs
+ * on backgrounding and is gone when the user comes back to the app, which makes
+ * the user look logged out at random. We persist the JWT (short-lived, 60 min
+ * default) in `localStorage` so it survives PWA eviction and reload.
+ *
+ * SECURITY NOTE: `localStorage` is readable by any JavaScript that runs on our
+ * origin. If a third-party script or vulnerable npm dependency is ever
+ * injected, an attacker could steal the JWT and impersonate the user for up
+ * to 60 minutes. The trade-off is intentional: PWA eviction with
+ * `sessionStorage` is the dominant real-world logout cause. Future migrations
+ * to HttpOnly cookies (set by the backend) or IndexedDB with a worker-held
+ * encryption key would close this gap; both are larger architectural changes.
+ *
+ * Future migrations to IndexedDB / secure cookies are a single-file change.
+ */
+const authStorage = {
+  getItem(key: string): string | null {
+    return localStorage.getItem(key);
+  },
+  setItem(key: string, value: string): void {
+    localStorage.setItem(key, value);
+  },
+  removeItem(key: string): void {
+    localStorage.removeItem(key);
+  },
+};
+
+export const AuthStorage = authStorage;
+
+export const setReauthInFlight = (): void => {
+  const expiresAt = Date.now() + REAUTH_IN_FLIGHT_TTL_MS;
+  AuthStorage.setItem(REAUTH_IN_FLIGHT_KEY, String(expiresAt));
+};
+
+export const isReauthInFlight = (): boolean => {
+  const raw = AuthStorage.getItem(REAUTH_IN_FLIGHT_KEY);
+  if (!raw) return false;
+  const expiresAt = Number(raw);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    AuthStorage.removeItem(REAUTH_IN_FLIGHT_KEY);
+    return false;
+  }
+  return true;
+};
+
+export const clearReauthInFlight = (): void => {
+  AuthStorage.removeItem(REAUTH_IN_FLIGHT_KEY);
+};
+
+export interface AuthMeQuery {
+  isPending: boolean;
+  isError: boolean;
+  refetch: () => Promise<unknown>;
+  data?: UserViewModel | null;
+}
+
+export interface AuthContextType {
+  hasAuthToken: boolean;
+  isAuthenticated: boolean;
+  user: UserViewModel | null;
+  isLoading: boolean;
+  login: (email: string, code: string) => Promise<boolean>;
+  devLogin: (email: string) => Promise<boolean>;
+  logout: () => void;
+  clearLocalSession: () => void;
+  updateUser: (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => void;
+  meQuery: AuthMeQuery;
+}
+
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+</file>
+
 <file path="src/FE/src/providers/sessionFeaturePolicy.ts">
 import { hasPermission } from './permissions';
 
@@ -115155,30 +115271,6 @@ At minimum run:
 For mobile-sensitive controls, include a narrow mobile viewport. For authentication, routing, or session changes, verify redirects, browser back, reload, console errors, and network failures.
 
 A user-visible frontend PR without successful Playwright validation is **implemented but Playwright-unvalidated** and should remain draft or explicitly blocked.
-</file>
-
-<file path="src/FE/tsconfig.sw.json">
-{
-  "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023", "WebWorker"],
-    "module": "ESNext",
-    "types": [],
-    "skipLibCheck": true,
-
-    "moduleResolution": "Bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
-  },
-  "include": ["src/sw.ts"]
-}
 </file>
 
 <file path="tools/docs/check_docs.py">
@@ -123014,6 +123106,244 @@ export const pushSubscriptionInternals = {
 };
 </file>
 
+<file path="src/FE/src/lib/axios.ts">
+import axios from 'axios';
+import type { InternalAxiosRequestConfig } from 'axios';
+import { notify } from './toast';
+import {
+  consumePendingInteraction,
+  createCorrelationId,
+  trackApiDependency,
+  trackUserInteraction,
+} from '../applicationInsights';
+import {
+  isDelegatedOrganizationSessionToken,
+  restoreHomeOrganizationSession,
+} from '../features/superadmin/organizationSession';
+
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    skipGlobalErrorToast?: boolean;
+    correlationId?: string;
+    telemetryAction?: string;
+    telemetryStartedAt?: number;
+    idempotencyKey?: string;
+  }
+}
+import qs from 'qs';
+import {
+  AUTH_TOKEN_KEY,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+  isReauthInFlight,
+  setReauthInFlight,
+} from '../providers/authContextValue';
+
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? '';
+const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
+const isVercelHosted = hostname === 'app.mrsoftware.dk' || hostname.endsWith('.vercel.app');
+const apiUrl = isVercelHosted ? '' : configuredApiUrl;
+const AUTH_ME_TIMEOUT_MS = 6_000;
+
+const isAuthMeRequest = (url: string | undefined): boolean => {
+  const normalizedUrl = (url ?? '')
+    .split('?')[0]
+    .toLowerCase()
+    .replace(/\/+$/, '');
+
+  return normalizedUrl.endsWith('/api/auth/me');
+};
+
+const getRequestBearerToken = (config: InternalAxiosRequestConfig | undefined): string | null => {
+  const authorization = config?.headers?.get?.('Authorization') ?? config?.headers?.Authorization;
+  if (typeof authorization !== 'string') return null;
+
+  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
+  return match?.[1] ?? null;
+};
+
+export const apiClient = axios.create({
+  baseURL: apiUrl,
+  paramsSerializer: {
+    serialize: (params) =>
+      qs.stringify(params, {
+        arrayFormat: 'repeat',
+      }),
+  },
+});
+
+const mutatingMethods = new Set(['post', 'put', 'patch', 'delete']);
+const inFlightKeys = new Set<string>();
+
+function requestKey(config: InternalAxiosRequestConfig): string {
+  return `${(config.method ?? 'get').toUpperCase()} ${config.url}`;
+}
+
+function releaseKey(config: InternalAxiosRequestConfig): void {
+  const method = config.method ?? 'get';
+  if (mutatingMethods.has(method)) {
+    inFlightKeys.delete(requestKey(config));
+  }
+}
+
+const DUPLICATE_REQUEST_ERROR = '__DUPLICATE_REQUEST__';
+
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Bound only the startup identity request. Other reports and mutations retain
+  // their existing timeout behaviour.
+  if (isAuthMeRequest(config.url) && (!config.timeout || config.timeout <= 0)) {
+    config.timeout = AUTH_ME_TIMEOUT_MS;
+    config.skipGlobalErrorToast = true;
+  }
+
+  const token = AuthStorage.getItem(AUTH_TOKEN_KEY);
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  config.headers.Accept = 'application/json';
+
+  const interaction = consumePendingInteraction();
+  const method = (config.method ?? 'get').toLowerCase();
+  config.correlationId = config.correlationId ?? interaction?.correlationId ?? createCorrelationId();
+  config.telemetryAction = config.telemetryAction ?? interaction?.action;
+  config.telemetryStartedAt = Date.now();
+  config.headers['X-Correlation-ID'] = config.correlationId;
+  if (mutatingMethods.has(method)) {
+    config.idempotencyKey = config.idempotencyKey ?? config.correlationId;
+    config.headers['Idempotency-Key'] = config.idempotencyKey;
+  }
+
+  if (interaction && mutatingMethods.has(method)) {
+    trackUserInteraction(interaction.action, interaction.correlationId);
+  }
+
+  const requestMethod = (config.method ?? 'get').toLowerCase();
+  if (mutatingMethods.has(requestMethod)) {
+    const key = requestKey(config);
+    if (inFlightKeys.has(key)) {
+      return Promise.reject(new Error(DUPLICATE_REQUEST_ERROR));
+    }
+    inFlightKeys.add(key);
+  }
+
+  return config;
+});
+
+apiClient.interceptors.response.use(
+  (response) => {
+    releaseKey(response.config);
+    if (mutatingMethods.has(response.config.method ?? 'get')) {
+      trackApiDependency({
+        correlationId: response.config.correlationId!,
+        action: response.config.telemetryAction,
+        method: response.config.method ?? 'get',
+        url: response.config.url ?? '',
+        durationMs: Date.now() - (response.config.telemetryStartedAt ?? Date.now()),
+        responseCode: response.status,
+        success: response.status >= 200 && response.status < 400,
+      });
+    }
+    if (response.config.responseType === 'blob') {
+      return response;
+    }
+    return response.data;
+  },
+  (error) => {
+    if (error.config) releaseKey(error.config);
+    if (error.config && mutatingMethods.has(error.config.method ?? 'get')) {
+      trackApiDependency({
+        correlationId: error.config.correlationId!,
+        action: error.config.telemetryAction,
+        method: error.config.method ?? 'get',
+        url: error.config.url ?? '',
+        durationMs: Date.now() - (error.config.telemetryStartedAt ?? Date.now()),
+        responseCode: error.response?.status,
+        success: false,
+      });
+    }
+
+    const isCanceled =
+      axios.isCancel(error) ||
+      error?.name === 'CanceledError' ||
+      error?.code === 'ERR_CANCELED' ||
+      error?.message === 'canceled';
+
+    if (isCanceled) {
+      return Promise.reject(error);
+    }
+
+    if (error?.message === DUPLICATE_REQUEST_ERROR) {
+      return Promise.reject(error);
+    }
+
+    const message = error.response?.data?.message || error.message;
+    const requestUrl = (error.config?.url ?? '').toLowerCase();
+    const isAuthApi = requestUrl.includes('/api/auth/');
+    const isAuthRoute = window.location.pathname.includes('/login') || window.location.pathname.includes('/invite');
+    const isMeEndpoint = isAuthMeRequest(error.config?.url);
+
+    if (error.response?.status === 401) {
+      const requestToken = getRequestBearerToken(error.config);
+      const activeToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
+      const isStaleUnauthorizedResponse = Boolean(
+        requestToken && activeToken && requestToken !== activeToken,
+      );
+      const shouldHandleSessionExpiry = isMeEndpoint || (!isAuthApi && !isAuthRoute);
+
+      if (isStaleUnauthorizedResponse) {
+        return Promise.reject(error);
+      }
+
+      if (
+        shouldHandleSessionExpiry
+        && isDelegatedOrganizationSessionToken(requestToken)
+        && restoreHomeOrganizationSession()
+      ) {
+        clearReauthInFlight();
+        notify.dismiss();
+        notify.info('Organisationssessionen er udløbet. Du er tilbage i Superadmin.');
+        window.location.replace('/superadmin');
+        return Promise.reject(error);
+      }
+
+      // A 401 from /api/auth/me definitively rejects the stored JWT. Treat it
+      // like any other expired authenticated request instead of leaving the user
+      // on the startup recovery screen. Timeouts and 5xx responses remain
+      // recoverable without deleting a potentially valid session.
+      if (shouldHandleSessionExpiry) {
+        AuthStorage.removeItem(AUTH_TOKEN_KEY);
+        AuthStorage.removeItem(USER_EMAIL_KEY);
+
+        const isReauthRoute = window.location.pathname.includes('/login')
+          && new URLSearchParams(window.location.search).get('reauth') === '1';
+        if (!isReauthRoute && !isReauthInFlight()) {
+          setReauthInFlight();
+          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          notify.dismiss();
+          window.location.replace(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
+        }
+      }
+    } else if (isMeEndpoint || error.config?.skipGlobalErrorToast) {
+      // ProtectedRoute renders recovery only for timeouts, network failures and
+      // temporary server errors where the stored token may still be valid.
+    } else if (error.response?.status === 403) {
+      notify.error('Du har ikke adgang til denne handling');
+    } else if (error.response?.status === 400 && error.response?.data?.errors) {
+      notify.error('Ugyldig indtastning. Tjek venligst felterne.');
+    } else if (error.response?.status === 409) {
+      notify.error(`Konflikt: ${error.response.data.error || message}`);
+    } else if (message) {
+      notify.error(message);
+    } else {
+      notify.error('Der opstod en uventet fejl');
+    }
+
+    return Promise.reject(error);
+  }
+);
+</file>
+
 <file path="src/FE/src/lib/createQueryClient.ts">
 import { QueryClient } from '@tanstack/react-query';
 import {
@@ -123223,96 +123553,120 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 };
 </file>
 
-<file path="src/FE/src/providers/authContextValue.ts">
-import { createContext } from 'react';
-import type { UserViewModel } from '../api/generated/models';
+<file path="src/FE/src/providers/AuthContext.tsx">
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  AUTH_TOKEN_KEY,
+  AuthContext,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+  type AuthContextType,
+} from './authContextValue';
+import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
 
-export const AUTH_TOKEN_KEY = 'authToken';
-export const USER_EMAIL_KEY = 'userEmail';
-export const REAUTH_IN_FLIGHT_KEY = 'workslip.reauthInFlight';
+const AuthenticatedAppProvider = lazy(() =>
+  import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
+);
 
-/**
- * TTL on the reauthInFlight flag. If the redirect is interrupted (browser
- * crash, network drop before reaching /login), the flag would otherwise stay
- * set forever and silently break the next expiry cycle. 30s is well above
- * any realistic redirect duration and well below the next possible expiry
- * cycle (60 min JWT TTL), so a stale flag will always self-heal.
- */
-const REAUTH_IN_FLIGHT_TTL_MS = 30_000;
-
-/**
- * Centralized storage helper for auth tokens and short-lived OAuth flow state.
- *
- * Workslip is an installed PWA. `sessionStorage` is evicted by iOS/Android PWAs
- * on backgrounding and is gone when the user comes back to the app, which makes
- * the user look logged out at random. We persist the JWT (short-lived, 60 min
- * default) in `localStorage` so it survives PWA eviction and reload.
- *
- * SECURITY NOTE: `localStorage` is readable by any JavaScript that runs on our
- * origin. If a third-party script or vulnerable npm dependency is ever
- * injected, an attacker could steal the JWT and impersonate the user for up
- * to 60 minutes. The trade-off is intentional: PWA eviction with
- * `sessionStorage` is the dominant real-world logout cause. Future migrations
- * to HttpOnly cookies (set by the backend) or IndexedDB with a worker-held
- * encryption key would close this gap; both are larger architectural changes.
- *
- * Future migrations to IndexedDB / secure cookies are a single-file change.
- */
-const authStorage = {
-  getItem(key: string): string | null {
-    return localStorage.getItem(key);
-  },
-  setItem(key: string, value: string): void {
-    localStorage.setItem(key, value);
-  },
-  removeItem(key: string): void {
-    localStorage.removeItem(key);
-  },
+const publicMeQuery: AuthContextType['meQuery'] = {
+  isPending: false,
+  isError: false,
+  refetch: async () => null,
+  data: null,
 };
 
-export const AuthStorage = authStorage;
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
 
-export const setReauthInFlight = (): void => {
-  const expiresAt = Date.now() + REAUTH_IN_FLIGHT_TTL_MS;
-  AuthStorage.setItem(REAUTH_IN_FLIGHT_KEY, String(expiresAt));
-};
+  useEffect(() => {
+    if (!authToken) return;
 
-export const isReauthInFlight = (): boolean => {
-  const raw = AuthStorage.getItem(REAUTH_IN_FLIGHT_KEY);
-  if (!raw) return false;
-  const expiresAt = Number(raw);
-  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-    AuthStorage.removeItem(REAUTH_IN_FLIGHT_KEY);
-    return false;
+    // Start the shell and jobs-route downloads alongside the authenticated
+    // provider and /api/auth/me request. Import failures still flow through the
+    // existing Vite stale-chunk recovery when the route is rendered.
+    void preloadPrimaryAppRoute().catch(() => undefined);
+  }, [authToken]);
+
+  const clearStoredSession = useCallback(() => {
+    AuthStorage.removeItem(AUTH_TOKEN_KEY);
+    AuthStorage.removeItem(USER_EMAIL_KEY);
+    clearReauthInFlight();
+    setAuthToken(null);
+  }, []);
+
+  const login = useCallback(
+    async (email: string, code: string): Promise<boolean> => {
+      try {
+        const { verifyAuthCode } = await import('../features/auth/api/devToken');
+        const response = await verifyAuthCode(email, code);
+        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        setAuthToken(response.token);
+        clearReauthInFlight();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
+
+  const devLogin = useCallback(
+    async (email: string): Promise<boolean> => {
+      try {
+        const { getDevToken } = await import('../features/auth/api/devToken');
+        const response = await getDevToken(email);
+        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        setAuthToken(response.token);
+        clearReauthInFlight();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
+
+  const publicValue = useMemo<AuthContextType>(
+    () => ({
+      hasAuthToken: false,
+      isAuthenticated: false,
+      user: null,
+      isLoading: false,
+      login,
+      devLogin,
+      logout: clearStoredSession,
+      clearLocalSession: clearStoredSession,
+      updateUser: () => undefined,
+      meQuery: publicMeQuery,
+    }),
+    [clearStoredSession, devLogin, login],
+  );
+
+  if (!authToken) {
+    return <AuthContext.Provider value={publicValue}>{children}</AuthContext.Provider>;
   }
-  return true;
-};
 
-export const clearReauthInFlight = (): void => {
-  AuthStorage.removeItem(REAUTH_IN_FLIGHT_KEY);
-};
-
-export interface AuthMeQuery {
-  isPending: boolean;
-  isError: boolean;
-  refetch: () => Promise<unknown>;
-  data?: UserViewModel | null;
+  return (
+    <Suspense
+      fallback={(
+        <div className="protected-route-loading" role="status" aria-live="polite">
+          Tjekker login status...
+        </div>
+      )}
+    >
+      <AuthenticatedAppProvider
+        login={login}
+        devLogin={devLogin}
+        clearSession={clearStoredSession}
+      >
+        {children}
+      </AuthenticatedAppProvider>
+    </Suspense>
+  );
 }
-
-export interface AuthContextType {
-  hasAuthToken: boolean;
-  isAuthenticated: boolean;
-  user: UserViewModel | null;
-  isLoading: boolean;
-  login: (email: string, code: string) => Promise<boolean>;
-  devLogin: (email: string) => Promise<boolean>;
-  logout: () => void;
-  clearLocalSession: () => void;
-  updateUser: (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => void;
-  meQuery: AuthMeQuery;
-}
-
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 </file>
 
 <file path="src/FE/src/pwa/notificationNavigationClient.ts">
@@ -123983,6 +124337,83 @@ body,
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+</file>
+
+<file path="src/FE/package.json">
+{
+  "name": "fe",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "predev": "npm run sync:fonts",
+    "dev": "vite",
+    "orval": "dotenv -e .env.local -- orval --config orval.config.ts",
+    "generate:api:local": "dotenv -e .env.local -- orval --config orval.config.ts",
+    "generate:api:dev": "dotenv -e .env.dev -- orval --config orval.config.ts",
+    "generate:api:prod": "dotenv -e .env.production -- orval --config orval.config.ts",
+    "sync:fonts": "node scripts/sync-fonts.mjs",
+    "typecheck:sw": "tsc -p tsconfig.sw.json",
+    "prebuild": "npm run sync:fonts",
+    "build": "tsc -b && npm run typecheck:sw && vite build",
+    "build:dev": "npm run generate:api:dev && npm run sync:fonts && tsc -b && npm run typecheck:sw && vite build",
+    "build:local": "npm run generate:api:local && npm run sync:fonts && tsc -b && npm run typecheck:sw && vite build",
+    "test": "vitest",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "generate:api:watch": "orval --watch",
+    "doctor": "npx react-doctor@latest"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "5.4.0",
+    "@microsoft/applicationinsights-web": "^3.4.3",
+    "@sentry/react": "^10.55.0",
+    "@tanstack/react-query": "^5.100.14",
+    "@tanstack/react-query-persist-client": "^5.100.14",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
+    "axios": "^1.18.0",
+    "i18next": "^26.3.0",
+    "idb-keyval": "^6.2.4",
+    "lucide-react": "^1.17.0",
+    "qs": "^6.15.2",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-error-boundary": "^6.1.2",
+    "react-hook-form": "^7.76.1",
+    "react-i18next": "^17.0.8",
+    "react-router-dom": "^7.15.1",
+    "sonner": "^2.0.7",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/node": "^24.13.1",
+    "@types/qs": "^6.15.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "dotenv-cli": "^11.0.0",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "jsdom": "26.1.0",
+    "orval": "^8.18.0",
+    "react-doctor": "^0.4.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.16",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "4.1.10"
+  },
+  "overrides": {
+    "ejs": "5.0.1"
+  }
+}
 </file>
 
 <file path="src/FE/vercel.json">
@@ -127186,360 +127617,6 @@ export function usePaginatedList<TItem>({
 }
 </file>
 
-<file path="src/FE/src/lib/axios.ts">
-import axios from 'axios';
-import type { InternalAxiosRequestConfig } from 'axios';
-import { notify } from './toast';
-import {
-  consumePendingInteraction,
-  createCorrelationId,
-  trackApiDependency,
-  trackUserInteraction,
-} from '../applicationInsights';
-import {
-  isDelegatedOrganizationSessionToken,
-  restoreHomeOrganizationSession,
-} from '../features/superadmin/organizationSession';
-
-declare module 'axios' {
-  export interface AxiosRequestConfig {
-    skipGlobalErrorToast?: boolean;
-    correlationId?: string;
-    telemetryAction?: string;
-    telemetryStartedAt?: number;
-    idempotencyKey?: string;
-  }
-}
-import qs from 'qs';
-import {
-  AUTH_TOKEN_KEY,
-  USER_EMAIL_KEY,
-  AuthStorage,
-  clearReauthInFlight,
-  isReauthInFlight,
-  setReauthInFlight,
-} from '../providers/authContextValue';
-
-const configuredApiUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? '';
-const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
-const isVercelHosted = hostname === 'app.mrsoftware.dk' || hostname.endsWith('.vercel.app');
-const apiUrl = isVercelHosted ? '' : configuredApiUrl;
-const AUTH_ME_TIMEOUT_MS = 6_000;
-
-const isAuthMeRequest = (url: string | undefined): boolean => {
-  const normalizedUrl = (url ?? '')
-    .split('?')[0]
-    .toLowerCase()
-    .replace(/\/+$/, '');
-
-  return normalizedUrl.endsWith('/api/auth/me');
-};
-
-const getRequestBearerToken = (config: InternalAxiosRequestConfig | undefined): string | null => {
-  const authorization = config?.headers?.get?.('Authorization') ?? config?.headers?.Authorization;
-  if (typeof authorization !== 'string') return null;
-
-  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
-  return match?.[1] ?? null;
-};
-
-export const apiClient = axios.create({
-  baseURL: apiUrl,
-  paramsSerializer: {
-    serialize: (params) =>
-      qs.stringify(params, {
-        arrayFormat: 'repeat',
-      }),
-  },
-});
-
-const mutatingMethods = new Set(['post', 'put', 'patch', 'delete']);
-const inFlightKeys = new Set<string>();
-
-function requestKey(config: InternalAxiosRequestConfig): string {
-  return `${(config.method ?? 'get').toUpperCase()} ${config.url}`;
-}
-
-function releaseKey(config: InternalAxiosRequestConfig): void {
-  const method = config.method ?? 'get';
-  if (mutatingMethods.has(method)) {
-    inFlightKeys.delete(requestKey(config));
-  }
-}
-
-const DUPLICATE_REQUEST_ERROR = '__DUPLICATE_REQUEST__';
-
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Bound only the startup identity request. Other reports and mutations retain
-  // their existing timeout behaviour.
-  if (isAuthMeRequest(config.url) && (!config.timeout || config.timeout <= 0)) {
-    config.timeout = AUTH_ME_TIMEOUT_MS;
-    config.skipGlobalErrorToast = true;
-  }
-
-  const token = AuthStorage.getItem(AUTH_TOKEN_KEY);
-  if (token && !config.headers.Authorization) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  config.headers.Accept = 'application/json';
-
-  const interaction = consumePendingInteraction();
-  const method = (config.method ?? 'get').toLowerCase();
-  config.correlationId = config.correlationId ?? interaction?.correlationId ?? createCorrelationId();
-  config.telemetryAction = config.telemetryAction ?? interaction?.action;
-  config.telemetryStartedAt = Date.now();
-  config.headers['X-Correlation-ID'] = config.correlationId;
-  if (mutatingMethods.has(method)) {
-    config.idempotencyKey = config.idempotencyKey ?? config.correlationId;
-    config.headers['Idempotency-Key'] = config.idempotencyKey;
-  }
-
-  if (interaction && mutatingMethods.has(method)) {
-    trackUserInteraction(interaction.action, interaction.correlationId);
-  }
-
-  const requestMethod = (config.method ?? 'get').toLowerCase();
-  if (mutatingMethods.has(requestMethod)) {
-    const key = requestKey(config);
-    if (inFlightKeys.has(key)) {
-      return Promise.reject(new Error(DUPLICATE_REQUEST_ERROR));
-    }
-    inFlightKeys.add(key);
-  }
-
-  return config;
-});
-
-apiClient.interceptors.response.use(
-  (response) => {
-    releaseKey(response.config);
-    if (mutatingMethods.has(response.config.method ?? 'get')) {
-      trackApiDependency({
-        correlationId: response.config.correlationId!,
-        action: response.config.telemetryAction,
-        method: response.config.method ?? 'get',
-        url: response.config.url ?? '',
-        durationMs: Date.now() - (response.config.telemetryStartedAt ?? Date.now()),
-        responseCode: response.status,
-        success: response.status >= 200 && response.status < 400,
-      });
-    }
-    if (response.config.responseType === 'blob') {
-      return response;
-    }
-    return response.data;
-  },
-  (error) => {
-    if (error.config) releaseKey(error.config);
-    if (error.config && mutatingMethods.has(error.config.method ?? 'get')) {
-      trackApiDependency({
-        correlationId: error.config.correlationId!,
-        action: error.config.telemetryAction,
-        method: error.config.method ?? 'get',
-        url: error.config.url ?? '',
-        durationMs: Date.now() - (error.config.telemetryStartedAt ?? Date.now()),
-        responseCode: error.response?.status,
-        success: false,
-      });
-    }
-
-    const isCanceled =
-      axios.isCancel(error) ||
-      error?.name === 'CanceledError' ||
-      error?.code === 'ERR_CANCELED' ||
-      error?.message === 'canceled';
-
-    if (isCanceled) {
-      return Promise.reject(error);
-    }
-
-    if (error?.message === DUPLICATE_REQUEST_ERROR) {
-      return Promise.reject(error);
-    }
-
-    const message = error.response?.data?.message || error.message;
-    const requestUrl = (error.config?.url ?? '').toLowerCase();
-    const isAuthApi = requestUrl.includes('/api/auth/');
-    const isAuthRoute = window.location.pathname.includes('/login') || window.location.pathname.includes('/invite');
-    const isMeEndpoint = isAuthMeRequest(error.config?.url);
-
-    if (error.response?.status === 401) {
-      const requestToken = getRequestBearerToken(error.config);
-      const activeToken = AuthStorage.getItem(AUTH_TOKEN_KEY);
-      const isStaleUnauthorizedResponse = Boolean(
-        requestToken && activeToken && requestToken !== activeToken,
-      );
-      const shouldHandleSessionExpiry = isMeEndpoint || (!isAuthApi && !isAuthRoute);
-
-      if (isStaleUnauthorizedResponse) {
-        return Promise.reject(error);
-      }
-
-      if (
-        shouldHandleSessionExpiry
-        && isDelegatedOrganizationSessionToken(requestToken)
-        && restoreHomeOrganizationSession()
-      ) {
-        clearReauthInFlight();
-        notify.dismiss();
-        notify.info('Organisationssessionen er udløbet. Du er tilbage i Superadmin.');
-        window.location.replace('/superadmin');
-        return Promise.reject(error);
-      }
-
-      // A 401 from /api/auth/me definitively rejects the stored JWT. Treat it
-      // like any other expired authenticated request instead of leaving the user
-      // on the startup recovery screen. Timeouts and 5xx responses remain
-      // recoverable without deleting a potentially valid session.
-      if (shouldHandleSessionExpiry) {
-        AuthStorage.removeItem(AUTH_TOKEN_KEY);
-        AuthStorage.removeItem(USER_EMAIL_KEY);
-
-        const isReauthRoute = window.location.pathname.includes('/login')
-          && new URLSearchParams(window.location.search).get('reauth') === '1';
-        if (!isReauthRoute && !isReauthInFlight()) {
-          setReauthInFlight();
-          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          notify.dismiss();
-          window.location.replace(`/login?reauth=1&returnTo=${encodeURIComponent(returnTo)}`);
-        }
-      }
-    } else if (isMeEndpoint || error.config?.skipGlobalErrorToast) {
-      // ProtectedRoute renders recovery only for timeouts, network failures and
-      // temporary server errors where the stored token may still be valid.
-    } else if (error.response?.status === 403) {
-      notify.error('Du har ikke adgang til denne handling');
-    } else if (error.response?.status === 400 && error.response?.data?.errors) {
-      notify.error('Ugyldig indtastning. Tjek venligst felterne.');
-    } else if (error.response?.status === 409) {
-      notify.error(`Konflikt: ${error.response.data.error || message}`);
-    } else if (message) {
-      notify.error(message);
-    } else {
-      notify.error('Der opstod en uventet fejl');
-    }
-
-    return Promise.reject(error);
-  }
-);
-</file>
-
-<file path="src/FE/src/providers/AuthContext.tsx">
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import {
-  AUTH_TOKEN_KEY,
-  AuthContext,
-  USER_EMAIL_KEY,
-  AuthStorage,
-  clearReauthInFlight,
-  type AuthContextType,
-} from './authContextValue';
-import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
-
-const AuthenticatedAppProvider = lazy(() =>
-  import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
-);
-
-const publicMeQuery: AuthContextType['meQuery'] = {
-  isPending: false,
-  isError: false,
-  refetch: async () => null,
-  data: null,
-};
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
-
-  useEffect(() => {
-    if (!authToken) return;
-
-    // Start the shell and jobs-route downloads alongside the authenticated
-    // provider and /api/auth/me request. Import failures still flow through the
-    // existing Vite stale-chunk recovery when the route is rendered.
-    void preloadPrimaryAppRoute().catch(() => undefined);
-  }, [authToken]);
-
-  const clearStoredSession = useCallback(() => {
-    AuthStorage.removeItem(AUTH_TOKEN_KEY);
-    AuthStorage.removeItem(USER_EMAIL_KEY);
-    clearReauthInFlight();
-    setAuthToken(null);
-  }, []);
-
-  const login = useCallback(
-    async (email: string, code: string): Promise<boolean> => {
-      try {
-        const { verifyAuthCode } = await import('../features/auth/api/devToken');
-        const response = await verifyAuthCode(email, code);
-        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-        setAuthToken(response.token);
-        clearReauthInFlight();
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [],
-  );
-
-  const devLogin = useCallback(
-    async (email: string): Promise<boolean> => {
-      try {
-        const { getDevToken } = await import('../features/auth/api/devToken');
-        const response = await getDevToken(email);
-        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-        setAuthToken(response.token);
-        clearReauthInFlight();
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [],
-  );
-
-  const publicValue = useMemo<AuthContextType>(
-    () => ({
-      hasAuthToken: false,
-      isAuthenticated: false,
-      user: null,
-      isLoading: false,
-      login,
-      devLogin,
-      logout: clearStoredSession,
-      clearLocalSession: clearStoredSession,
-      updateUser: () => undefined,
-      meQuery: publicMeQuery,
-    }),
-    [clearStoredSession, devLogin, login],
-  );
-
-  if (!authToken) {
-    return <AuthContext.Provider value={publicValue}>{children}</AuthContext.Provider>;
-  }
-
-  return (
-    <Suspense
-      fallback={(
-        <div className="protected-route-loading" role="status" aria-live="polite">
-          Tjekker login status...
-        </div>
-      )}
-    >
-      <AuthenticatedAppProvider
-        login={login}
-        devLogin={devLogin}
-        clearSession={clearStoredSession}
-      >
-        {children}
-      </AuthenticatedAppProvider>
-    </Suspense>
-  );
-}
-</file>
-
 <file path="src/FE/src/providers/AuthenticatedAppProvider.tsx">
 import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -127794,83 +127871,6 @@ export async function navigateNotificationTarget(
 }
 </file>
 
-<file path="src/FE/package.json">
-{
-  "name": "fe",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "predev": "npm run sync:fonts",
-    "dev": "vite",
-    "orval": "dotenv -e .env.local -- orval --config orval.config.ts",
-    "generate:api:local": "dotenv -e .env.local -- orval --config orval.config.ts",
-    "generate:api:dev": "dotenv -e .env.dev -- orval --config orval.config.ts",
-    "generate:api:prod": "dotenv -e .env.production -- orval --config orval.config.ts",
-    "sync:fonts": "node scripts/sync-fonts.mjs",
-    "typecheck:sw": "tsc -p tsconfig.sw.json",
-    "prebuild": "npm run sync:fonts",
-    "build": "tsc -b && npm run typecheck:sw && vite build",
-    "build:dev": "npm run generate:api:dev && npm run sync:fonts && tsc -b && npm run typecheck:sw && vite build",
-    "build:local": "npm run generate:api:local && npm run sync:fonts && tsc -b && npm run typecheck:sw && vite build",
-    "test": "vitest",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "generate:api:watch": "orval --watch",
-    "doctor": "npx react-doctor@latest"
-  },
-  "dependencies": {
-    "@hookform/resolvers": "5.4.0",
-    "@microsoft/applicationinsights-web": "^3.4.3",
-    "@sentry/react": "^10.55.0",
-    "@tanstack/react-query": "^5.100.14",
-    "@tanstack/react-query-persist-client": "^5.100.14",
-    "@vercel/analytics": "^2.0.1",
-    "@vercel/speed-insights": "^2.0.0",
-    "axios": "^1.18.0",
-    "i18next": "^26.3.0",
-    "idb-keyval": "^6.2.4",
-    "lucide-react": "^1.17.0",
-    "qs": "^6.15.2",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "react-error-boundary": "^6.1.2",
-    "react-hook-form": "^7.76.1",
-    "react-i18next": "^17.0.8",
-    "react-router-dom": "^7.15.1",
-    "sonner": "^2.0.7",
-    "zod": "^4.4.3",
-    "zustand": "^5.0.14"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@testing-library/jest-dom": "6.9.1",
-    "@testing-library/react": "16.3.2",
-    "@types/node": "^24.13.1",
-    "@types/qs": "^6.15.1",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
-    "dotenv-cli": "^11.0.0",
-    "eslint": "^10.3.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.6.0",
-    "jsdom": "26.1.0",
-    "orval": "^8.18.0",
-    "react-doctor": "^0.4.0",
-    "typescript": "~6.0.2",
-    "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.16",
-    "vite-plugin-pwa": "^1.3.0",
-    "vitest": "4.1.10"
-  },
-  "overrides": {
-    "ejs": "5.0.1"
-  }
-}
-</file>
-
 <file path="AGENTS.md">
 # Workslip agent instruction router
 
@@ -128054,6 +128054,80 @@ The backend derives the active public key from `Vapid:PrivateKey`; independently
 | GET | `/api/dev/debug` | Authenticated | Returns identity/claim diagnostics |
 
 The current application maps these endpoints through `ConfigureDevEnvironment`, but the environment guard is commented out. This is a verified implementation risk, not a documentation assumption.
+</file>
+
+<file path="Docs/architecture/adr/0002-immediate-pwa-update-activation.md">
+# ADR 0002: Automatic PWA update with visible fallback
+
+**Status:** Accepted  
+**Date:** 2026-07-28  
+**Amended:** 2026-07-30  
+**Owner:** Workslip architecture owner  
+**Linear:** WOR-196, WOR-213
+
+## Context
+
+Workslip is deployed as a Vite PWA with an injected custom service worker. Authenticated feature routes are dynamically imported as content-hashed chunks. Previous service-worker behaviour combined automatic registration updates, immediate worker activation and frequent polling without one documented lifecycle contract.
+
+The product owner prioritizes rapid rollout of frontend fixes over preserving unsaved browser form state during a deployment. A mandatory update confirmation would delay rollout and create a second blocking state machine alongside existing routing and form guards.
+
+Immediate activation creates a version-skew risk for clients that loaded application shell code from one deployment and later request a lazy chunk from another deployment. The implementation therefore needs explicit stale-chunk recovery and retention of previously fetched content-hashed route assets.
+
+WOR-213 verified that update discovery and worker activation were not sufficient by themselves. An installed mobile PWA could receive a new worker while the already-open document continued running the old application bundle until the app was fully closed. The lifecycle must therefore include an explicit, guarded reload after an update takes control.
+
+The first visible update implementation let the banner enter `Opdaterer...` before the service-worker coordinator confirmed that a waiting worker existed. It also retained competing navigation owners in the plugin, page, custom worker and fallback timer. Production testing showed that this could leave the installed PWA visually frozen after selecting `Opdater nu`.
+
+## Decision
+
+1. Workslip uses the plugin's `prompt` lifecycle so update activation can be coordinated with application UI.
+2. A first-time service-worker installation activates normally and does not reload the page.
+3. Update discovery runs:
+   - when service-worker registration completes;
+   - when the app returns to the foreground;
+   - when browser connectivity returns; and
+   - once per minute while the app remains open.
+4. Update checks are serialized and use no-cache service-worker requests.
+5. When a real waiting worker exists, Workslip displays a persistent `Ny version klar` banner with an `Opdater nu` action.
+6. Selecting `Opdater nu` asks the service-worker coordinator to apply the update. The banner enters `Opdaterer...` only after the coordinator has accepted an actual waiting worker. If the user does nothing, the same action runs automatically after ten seconds.
+7. The coordinator sends `SKIP_WAITING` directly to the waiting worker instead of invoking the plugin's returned update function.
+8. The newly activated worker claims clients but does not navigate window clients.
+9. One guarded client reload function is the only navigation owner. Both the browser's `controllerchange` event and the plugin's `controlling` callback feed that function, covering browser differences without allowing duplicate reloads.
+10. A five-second fallback covers installed/mobile browser contexts that omit both expected control-change signals. At most one emergency fallback reload is allowed for the currently loaded build. If that same old build still cannot complete activation after the emergency reload, the banner returns to its ready state instead of reloading again or remaining permanently disabled.
+11. The update banner is informational and cannot permanently dismiss or block the deployment.
+12. The public bootstrap shell is precached. Authenticated route chunks are loaded and cached on first use.
+13. Previously fetched content-hashed route assets remain in a capped runtime cache across deployments to support already-open clients.
+14. A Vite `vite:preloadError` triggers at most one guarded reload per build. A repeated failure reaches the normal application error boundary.
+15. The update flow does not wait for shared dirty-form state or require user confirmation.
+
+## Consequences
+
+- Users receive visible confirmation that a new version was detected and can apply it immediately.
+- A detected production deployment still applies automatically without a button press or full app close.
+- A click cannot disable the update control unless a waiting worker was actually accepted for activation.
+- Service-worker activation has one navigation owner instead of worker navigation, plugin direct reload and client reload racing each other.
+- Native and plugin lifecycle events provide redundant signals while the shared guard preserves one effective navigation.
+- An app that stays open and visible discovers a deployment within approximately one minute, followed by at most a ten-second visible grace period; reopening, refocusing or reconnecting triggers an immediate check.
+- The one-shot navigation guard and build-scoped fallback prevent duplicate lifecycle events from creating a reload loop or a permanently applying banner.
+- After a consumed emergency fallback, automatic retry pauses for that old build while the manual action remains available.
+- Unsaved in-memory form state may be lost when a deployment reloads the active client. This is an accepted product trade-off.
+- Content-hashed lazy chunks and the runtime cache reduce, but cannot eliminate, mixed-version behaviour.
+- Service-worker, update-banner and route-splitting changes require clean-profile, already-open-tab, installed-PWA and offline-revisit smoke testing.
+- A future change to make updates dismissible or dirty-form-aware requires superseding this ADR.
+
+## Rejected alternatives
+
+- Hourly-only update checks: rejected because fixes should reach an open application faster.
+- Mandatory confirmation: rejected because the product owner still requires automatic rollout without user action.
+- Invisible automatic activation only: rejected because it gives users no fallback action or confidence that an update was detected.
+- Worker-side `WindowClient.navigate`: rejected after production testing because it races client/plugin reload paths and makes effective navigation ownership ambiguous.
+- Plugin returned update function plus custom activation/reload handlers: rejected because it obscures which waiting worker is activated and can duplicate control-change handling.
+- Letting the plugin call `window.location.reload()` directly: rejected because its navigation would bypass Workslip's shared one-shot guard.
+- Two-second fallback: rejected because it can race normal service-worker activation on installed/mobile browsers.
+- Unbounded fallback reloads: rejected because a browser that never completes activation would enter a reload loop instead of returning control to the user.
+- Reload on first service-worker installation: rejected because there is no previous application version to replace.
+- Precache every authenticated route chunk: rejected because it removes the initial-load performance benefit of route splitting.
+- Delete all previous route chunks during activation: rejected because already-open clients can still reference the previous deployment's hashed assets.
+- Poll more frequently than once per minute: rejected because startup, focus and online events already cover the common immediate-update paths, while tighter polling adds continuous unnecessary traffic.
 </file>
 
 <file path="Docs/architecture/domain-and-dataflows.md">
@@ -136212,6 +136286,101 @@ export function SuperAdmin() {
 }
 </file>
 
+<file path="src/FE/vite.config.ts">
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
+import path from "node:path";
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    restoreMocks: true,
+  },
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
+  build: {
+    sourcemap: true,
+    rolldownOptions: {
+      output: {
+        // Keep the application bootstrap distinguishable from lazy route chunks
+        // so the service-worker glob cannot accidentally precache a route named
+        // index.tsx or another common chunk.
+        entryFileNames: 'assets/app-[hash].js',
+        chunkFileNames: 'assets/chunks/[name]-[hash].js',
+      },
+    },
+  },
+  server: {
+    host: '127.0.0.1',
+    port: 5270,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5262',
+        changeOrigin: true,
+        secure: false,
+      }
+    },
+    watch: {
+      usePolling: true
+    }
+  },
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'prompt',
+      includeAssets: ['favicon.svg'],
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
+      injectManifest: {
+        // Install only the navigation shell and bootstrap JavaScript. CSS,
+        // fonts, images and lazy chunks are cached when the browser actually
+        // requests them, preventing service-worker installation from downloading
+        // the entire authenticated application during a public login visit.
+        globPatterns: [
+          '**/*.html',
+          '**/*.webmanifest',
+          'assets/app-*.js',
+        ],
+      },
+      manifest: {
+        name: 'Workslip',
+        short_name: 'Workslip',
+        description: 'Den digitale arbejdsseddel til VVS',
+        theme_color: '#050505',
+        background_color: '#050505',
+        display: 'standalone',
+        icons: [
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          }
+        ]
+      }
+    })
+  ],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+})
+</file>
+
 <file path=".github/workflows/main_api-mrsoftware-prod.yml">
 name: Backend API deploy
 
@@ -136460,80 +136629,6 @@ jobs:
             --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
             --output jsonc || true
           exit 1
-</file>
-
-<file path="Docs/architecture/adr/0002-immediate-pwa-update-activation.md">
-# ADR 0002: Automatic PWA update with visible fallback
-
-**Status:** Accepted  
-**Date:** 2026-07-28  
-**Amended:** 2026-07-30  
-**Owner:** Workslip architecture owner  
-**Linear:** WOR-196, WOR-213
-
-## Context
-
-Workslip is deployed as a Vite PWA with an injected custom service worker. Authenticated feature routes are dynamically imported as content-hashed chunks. Previous service-worker behaviour combined automatic registration updates, immediate worker activation and frequent polling without one documented lifecycle contract.
-
-The product owner prioritizes rapid rollout of frontend fixes over preserving unsaved browser form state during a deployment. A mandatory update confirmation would delay rollout and create a second blocking state machine alongside existing routing and form guards.
-
-Immediate activation creates a version-skew risk for clients that loaded application shell code from one deployment and later request a lazy chunk from another deployment. The implementation therefore needs explicit stale-chunk recovery and retention of previously fetched content-hashed route assets.
-
-WOR-213 verified that update discovery and worker activation were not sufficient by themselves. An installed mobile PWA could receive a new worker while the already-open document continued running the old application bundle until the app was fully closed. The lifecycle must therefore include an explicit, guarded reload after an update takes control.
-
-The first visible update implementation let the banner enter `Opdaterer...` before the service-worker coordinator confirmed that a waiting worker existed. It also retained competing navigation owners in the plugin, page, custom worker and fallback timer. Production testing showed that this could leave the installed PWA visually frozen after selecting `Opdater nu`.
-
-## Decision
-
-1. Workslip uses the plugin's `prompt` lifecycle so update activation can be coordinated with application UI.
-2. A first-time service-worker installation activates normally and does not reload the page.
-3. Update discovery runs:
-   - when service-worker registration completes;
-   - when the app returns to the foreground;
-   - when browser connectivity returns; and
-   - once per minute while the app remains open.
-4. Update checks are serialized and use no-cache service-worker requests.
-5. When a real waiting worker exists, Workslip displays a persistent `Ny version klar` banner with an `Opdater nu` action.
-6. Selecting `Opdater nu` asks the service-worker coordinator to apply the update. The banner enters `Opdaterer...` only after the coordinator has accepted an actual waiting worker. If the user does nothing, the same action runs automatically after ten seconds.
-7. The coordinator sends `SKIP_WAITING` directly to the waiting worker instead of invoking the plugin's returned update function.
-8. The newly activated worker claims clients but does not navigate window clients.
-9. One guarded client reload function is the only navigation owner. Both the browser's `controllerchange` event and the plugin's `controlling` callback feed that function, covering browser differences without allowing duplicate reloads.
-10. A five-second fallback covers installed/mobile browser contexts that omit both expected control-change signals. At most one emergency fallback reload is allowed for the currently loaded build. If that same old build still cannot complete activation after the emergency reload, the banner returns to its ready state instead of reloading again or remaining permanently disabled.
-11. The update banner is informational and cannot permanently dismiss or block the deployment.
-12. The public bootstrap shell is precached. Authenticated route chunks are loaded and cached on first use.
-13. Previously fetched content-hashed route assets remain in a capped runtime cache across deployments to support already-open clients.
-14. A Vite `vite:preloadError` triggers at most one guarded reload per build. A repeated failure reaches the normal application error boundary.
-15. The update flow does not wait for shared dirty-form state or require user confirmation.
-
-## Consequences
-
-- Users receive visible confirmation that a new version was detected and can apply it immediately.
-- A detected production deployment still applies automatically without a button press or full app close.
-- A click cannot disable the update control unless a waiting worker was actually accepted for activation.
-- Service-worker activation has one navigation owner instead of worker navigation, plugin direct reload and client reload racing each other.
-- Native and plugin lifecycle events provide redundant signals while the shared guard preserves one effective navigation.
-- An app that stays open and visible discovers a deployment within approximately one minute, followed by at most a ten-second visible grace period; reopening, refocusing or reconnecting triggers an immediate check.
-- The one-shot navigation guard and build-scoped fallback prevent duplicate lifecycle events from creating a reload loop or a permanently applying banner.
-- After a consumed emergency fallback, automatic retry pauses for that old build while the manual action remains available.
-- Unsaved in-memory form state may be lost when a deployment reloads the active client. This is an accepted product trade-off.
-- Content-hashed lazy chunks and the runtime cache reduce, but cannot eliminate, mixed-version behaviour.
-- Service-worker, update-banner and route-splitting changes require clean-profile, already-open-tab, installed-PWA and offline-revisit smoke testing.
-- A future change to make updates dismissible or dirty-form-aware requires superseding this ADR.
-
-## Rejected alternatives
-
-- Hourly-only update checks: rejected because fixes should reach an open application faster.
-- Mandatory confirmation: rejected because the product owner still requires automatic rollout without user action.
-- Invisible automatic activation only: rejected because it gives users no fallback action or confidence that an update was detected.
-- Worker-side `WindowClient.navigate`: rejected after production testing because it races client/plugin reload paths and makes effective navigation ownership ambiguous.
-- Plugin returned update function plus custom activation/reload handlers: rejected because it obscures which waiting worker is activated and can duplicate control-change handling.
-- Letting the plugin call `window.location.reload()` directly: rejected because its navigation would bypass Workslip's shared one-shot guard.
-- Two-second fallback: rejected because it can race normal service-worker activation on installed/mobile browsers.
-- Unbounded fallback reloads: rejected because a browser that never completes activation would enter a reload loop instead of returning control to the user.
-- Reload on first service-worker installation: rejected because there is no previous application version to replace.
-- Precache every authenticated route chunk: rejected because it removes the initial-load performance benefit of route splitting.
-- Delete all previous route chunks during activation: rejected because already-open clients can still reference the previous deployment's hashed assets.
-- Poll more frequently than once per minute: rejected because startup, focus and online events already cover the common immediate-update paths, while tighter polling adds continuous unnecessary traffic.
 </file>
 
 <file path="src/BE/WorkslipApi/Configuration/ServiceConfiguration.cs">
@@ -138139,666 +138234,6 @@ function SubmittedConfirmation({ reportNumber, submittedAt, onDone, onGoToReport
 }
 </file>
 
-<file path="src/FE/vite.config.ts">
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
-import path from "node:path";
-
-export default defineConfig({
-  test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
-    restoreMocks: true,
-  },
-  define: {
-    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
-  },
-  build: {
-    sourcemap: true,
-    rolldownOptions: {
-      output: {
-        // Keep the application bootstrap distinguishable from lazy route chunks
-        // so the service-worker glob cannot accidentally precache a route named
-        // index.tsx or another common chunk.
-        entryFileNames: 'assets/app-[hash].js',
-        chunkFileNames: 'assets/chunks/[name]-[hash].js',
-      },
-    },
-  },
-  server: {
-    host: '127.0.0.1',
-    port: 5270,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5262',
-        changeOrigin: true,
-        secure: false,
-      }
-    },
-    watch: {
-      usePolling: true
-    }
-  },
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'prompt',
-      includeAssets: ['favicon.svg'],
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.ts',
-      devOptions: {
-        enabled: true,
-        type: 'module',
-      },
-      injectManifest: {
-        // Install only the navigation shell and bootstrap JavaScript. CSS,
-        // fonts, images and lazy chunks are cached when the browser actually
-        // requests them, preventing service-worker installation from downloading
-        // the entire authenticated application during a public login visit.
-        globPatterns: [
-          '**/*.html',
-          '**/*.webmanifest',
-          'assets/app-*.js',
-        ],
-      },
-      manifest: {
-        name: 'Workslip',
-        short_name: 'Workslip',
-        description: 'Den digitale arbejdsseddel til VVS',
-        theme_color: '#050505',
-        background_color: '#050505',
-        display: 'standalone',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
-      }
-    })
-  ],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-})
-</file>
-
-<file path="src/BE/WorkslipApi/Workslip.Infrastructure/DependencyInjection.cs">
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Workslip.Application;
-using Workslip.Application.Common;
-using Workslip.Application.Customers;
-using Workslip.Application.Diagnostics;
-using Workslip.Application.Invitations;
-using Workslip.Application.Jobs;
-using Workslip.Application.Notifications;
-using Workslip.Application.Organizations;
-using Workslip.Application.Users;
-using Workslip.Application.Worksheets;
-using Workslip.Infrastructure.Configuration;
-using Workslip.Infrastructure.Diagnostics;
-using Workslip.Infrastructure.Invitations;
-using Workslip.Infrastructure.Jobs;
-using Workslip.Infrastructure.Notifications;
-using Workslip.Infrastructure.Repositories;
-using Workslip.Infrastructure.Resilience;
-using Workslip.Infrastructure.Schema;
-using Workslip.Infrastructure.Transactions;
-
-namespace Workslip.Infrastructure;
-
-public static class DependencyInjection
-{
-    public static IServiceCollection AddWorkslipInfrastructure(this IServiceCollection services)
-    {
-        services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
-        services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
-        services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
-
-        services.AddScoped<JobStatusTransitionInterceptor>();
-        services.AddScoped<AuditInterceptor>();
-
-        services.AddDbContext<SqlDbContext>((sp, options) =>
-        {
-            var configuration = sp.GetRequiredService<IConfiguration>();
-            var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
-            options.UseSqlServer(connectionString, b =>
-                b.MigrationsAssembly("Workslip.Api")
-            );
-
-            var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
-            var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
-            options.AddInterceptors(transitionInterceptor, auditInterceptor);
-
-            options.ConfigureWarnings(warnings =>
-                warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
-        });
-
-        services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
-        services.AddScoped<ICustomerRepository, EfCustomerRepository>();
-        services.AddScoped<IInviteRepository, EfInviteRepository>();
-        services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
-        services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
-        services.AddScoped<IJobRepository, EfJobRepository>();
-        services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
-        services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
-        services.AddScoped<IUserRepository, EfUserRepository>();
-        services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
-        services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
-        services.AddScoped<INotificationRepository, EfNotificationRepository>();
-        services.AddScoped<IJobViewRepository, EfJobViewRepository>();
-        services.AddScoped<DatabaseSchemaInitializer>();
-        services.AddScoped<DevelopmentDatabaseSeeder>();
-
-        services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>
-        {
-            client.BaseAddress = new Uri("https://api.loganalytics.azure.com/");
-            client.Timeout = TimeSpan.FromSeconds(15);
-        });
-
-        services.AddScoped<IEmailService, AcsEmailService>();
-        services.AddSingleton<VapidKeyMaterial>();
-        services.AddSingleton<IVapidPublicKeyProvider>(serviceProvider =>
-            serviceProvider.GetRequiredService<VapidKeyMaterial>());
-        services.AddScoped<IPushSender, WebPushSender>();
-        services.AddHostedService<JobDeletionCleanupService>();
-        services.AddHostedService<InviteEntraCleanupService>();
-        services.AddHostedService<PushNotificationWorker>();
-
-        services.AddOptions<VapidOptions>()
-            .Configure<IConfiguration>((options, config) =>
-                config.GetSection(VapidOptions.SectionName).Bind(options));
-
-        return services;
-    }
-}
-</file>
-
-<file path="src/BE/WorkslipApi/README.md">
-# Workslip API
-
-**Status:** Active  
-**Owner:** Backend owner  
-**Source of truth:** backend source, executable tests, runtime OpenAPI and `../infrastructure/`  
-**Review cadence:** on API, persistence, authentication or deployment changes
-
-ASP.NET Core .NET 10 API for Workslip. The solution is split into domain, application, infrastructure, API host and tests. Current code and executable tests take precedence over dated plans.
-
-## Prerequisites
-
-- .NET SDK 10
-- SQL Server-compatible database
-- Azure credentials only when configuration enables Azure App Configuration, Key Vault, Microsoft Graph or Azure-hosted integrations
-
-## Local start
-
-```bash
-cd src/BE/WorkslipApi
-dotnet restore
-dotnet run --launch-profile http
-```
-
-The HTTP profile listens on `http://localhost:5262`.
-
-Local development can use the production database location and passwordless connection details from Azure App Configuration and Key Vault. No SQL connection string or SQL password is required in local configuration.
-
-Authenticate the developer identity first:
-
-```powershell
-az login
-az account show
-```
-
-The configured identity must be permitted to connect to the Azure SQL database. Members of the configured Azure SQL administrator group can connect through their Entra identity.
-
-The Key Vault-backed value remains:
-
-```text
-Azure:Sql:ConnectionString
-```
-
-Production keeps `Authentication=Active Directory Managed Identity` and the App Service managed-identity client ID. During Development, the API changes only the in-memory authentication fields to:
-
-```text
-Authentication=Active Directory Default
-```
-
-The managed-identity `User ID` is removed locally, allowing SqlClient to use the signed-in Azure CLI, Visual Studio or other `DefaultAzureCredential` developer identity. Server name, database name, encryption settings and the Key Vault/App Configuration ownership remain unchanged. Nothing is written back to Azure.
-
-An ignored `appsettings.Development.json` value or `Azure__Sql__ConnectionString` environment variable can still override this behavior for isolated/offline database work, but neither is required for the normal Azure-backed development path.
-
-Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
-
-Health check:
-
-```bash
-curl http://localhost:5262/health
-```
-
-## Solution structure
-
-```text
-WorkslipApi/
-├── Workslip.slnx
-├── Workslip.Api.csproj
-├── Program.cs
-├── Configuration/
-├── Endpoints/
-├── Workslip.Domain/
-├── Workslip.Application/
-├── Workslip.Infrastructure/
-├── Workslip.Tests/
-└── Postman/
-```
-
-## Runtime composition
-
-`Program.cs` currently:
-
-1. loads local and Azure configuration;
-2. configures CORS, authentication, logging and services;
-3. initializes and verifies the database schema;
-4. seeds only in Development;
-5. configures middleware and maps endpoints.
-
-Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
-
-Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both remain attached to the same Development organization. The operation is idempotent. Missing identities receive one invitation that redirects to `/login`; later starts reuse the existing identities. Development startup therefore requires working Microsoft Graph credentials.
-
-Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
-
-Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
-
-## Job-deletion notifications
-
-A successful hard deletion always queues a notification for every unique user assigned to the deleted job, including the user performing the deletion when that user is assigned. This behavior is not controlled by runtime configuration and cannot be disabled through Azure App Configuration.
-
-The notification links to `/app`, because the deleted job no longer has a valid detail route. A notification queue failure for one recipient is logged and does not reverse the completed deletion or prevent notifications for the remaining recipients.
-
-## Authentication and authorization
-
-The API selects local Workslip JWT or Microsoft Entra JWT validation from the bearer-token issuer. The public browser flow uses authorization code + PKCE. The API does not require an OAuth application client secret for that flow.
-
-API runtime Microsoft Graph permissions are declared once in `../infrastructure/main.bicep`. They support user invitation/lifecycle and app-role assignment. Do not assign a competing permission set from deployment scripts.
-
-Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
-
-Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
-
-Superadmins remain attached to one permanent organization. The Superadmin-only organization session endpoint can issue a short-lived local token whose `organizationId` is a selected organization while the real actor ID and `Superadmin` role remain unchanged. The default lifetime is 15 minutes, configurable through `Jwt:OrganizationSessionExpiryMinutes` from 1 through 30 minutes. This flow performs no database or Entra mutation and does not bypass existing tenant repository filters.
-
-## Result and endpoint conventions
-
-Application services return `Ardalis.Result`. Endpoints map through `ResultExtensions.ToHttpResult`; do not introduce custom wrappers or duplicate result-to-HTTP mapping. See the root `AGENTS.md` before changing service or endpoint patterns.
-
-## HTTP caching
-
-Authenticated job GET endpoints use private browser revalidation, `Vary: Authorization` and weak ETags. Jobs-list validators are calculated from the complete mapped HTTP representation, including assignments, worksheet totals, installations and user-specific seen/rejection flags; hashing only the `JobReports.UpdatedAt` value is insufficient because those related values can change independently.
-
-The validator is evaluated after tenant-scoped service/repository work. A `304 Not Modified` therefore saves response transfer and client parsing, but it is not a server-side query cache. Do not add shared output caching or an in-memory jobs-list cache without complete organization/user/filter keys and explicit invalidation for every job, assignment, worksheet, installation and view-state mutation. Mutation responses remain `no-store`.
-
-## Build and tests
-
-```bash
-cd src/BE/WorkslipApi
-dotnet build Workslip.slnx
-dotnet test Workslip.slnx
-```
-
-Postman/Newman verification must target localhost or an isolated test/staging API:
-
-```bash
-Postman/run-integration-tests.sh https://<test-or-staging-api>
-```
-
-There is no active GitHub Actions integration-test workflow. Run the executable suite deliberately against an isolated environment; do not use production mutation tests in ordinary validation.
-
-## OpenAPI and Scalar
-
-The host registers ASP.NET Core OpenAPI and Scalar. Treat these as development/integration tooling unless production exposure is explicitly approved and protected. Runtime endpoint registrations are the API contract source; Postman is verification material.
-
-## Deployment
-
-Azure infrastructure and Entra registrations are deployed separately. See `../infrastructure/README.md`.
-
-The production API workflow is:
-
-```text
-.github/workflows/main_api-mrsoftware-prod.yml
-```
-
-It restores, builds and publishes the API, creates a ZIP whose root is the `dotnet publish` output, authenticates through GitHub OIDC and deploys the package to `api-mrsoftware-prod` with `az webapp deploy`.
-
-The deployment workflow:
-
-- preserves the `prod` environment and its scoped OIDC identity;
-- serializes production API releases through the existing concurrency group;
-- retries an App Service/Kudu deployment failure at most three times with bounded backoff;
-- records the immutable ZIP size in the build log;
-- restarts the App Service between attempts only when Kudu reports `There is not enough space on the disk`, clearing the worker's temporary local storage before retrying;
-- requests Azure CLI enriched deployment errors;
-- prints only safe App Service state and deployment-log diagnostics after a final failure;
-- verifies `https://<default-hostname>/health` before reporting success.
-
-The production App Service plan is currently F1. Its local temporary worker storage is small and may be exhausted by accumulated Kudu deployment data even when the repository and deployment workflow are unchanged. A restart clears temporary local storage. Repeated disk-full failures after that recovery indicate persistent filesystem usage or package growth and must be investigated through App Service quotas/Kudu before adding retries or changing application code.
-
-Production uses GitHub environment `prod` with:
-
-- `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
-- `AZURE_TENANT_ID`: target Entra tenant ID
-- `AZURE_SUBSCRIPTION_ID`: target subscription ID
-
-Do not add an Azure client secret, `AZURE_CREDENTIALS` JSON or App Service publish profile.
-
-After infrastructure recreation:
-
-1. run `../infrastructure/deploy.ps1 prod`;
-2. set the three GitHub `prod` environment identifiers from the deployment output;
-3. run the API workflow manually;
-4. confirm the workflow package check finds `Workslip.Api.dll` at ZIP root;
-5. confirm the deployment step succeeds and `/health` passes;
-6. verify Microsoft login and one authenticated API request.
-
-If all deployment attempts fail, use the workflow's safe App Service state, recent deployment records and latest deployment log before changing application code or infrastructure. The Node deprecation warnings emitted by third-party actions are not deployment evidence; the failing Azure/Kudu operation and its diagnostics are authoritative.
-
-Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
-</file>
-
-<file path="src/FE/src/components/layouts/AppLayout.tsx">
-import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
-import { useAuth } from '../../providers/useAuth';
-import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
-import { useEffect, useRef, useState } from 'react';
-import { DropdownProvider } from '../../providers/DropdownContext';
-import { useTheme } from '../../providers/ThemeProvider';
-import { CreateBottomSheet } from '../common/CreateBottomSheet';
-import { NotificationsDrawer } from '../common/NotificationsDrawer';
-import {
-  AUDITOR_AUTHENTICATED_PATH,
-  getAuthenticatedHomePath,
-} from '../../features/auth/authenticatedDestination';
-import {
-  clearOrganizationSession,
-  getOrganizationSession,
-  restoreHomeOrganizationSession,
-} from '../../features/superadmin/organizationSession';
-import '../../features/superadmin/organizationSession.css';
-import '../../authenticated-base.css';
-import '../../App.css';
-import {
-  AppScrollRestoreBoundary,
-  useAppRouteScrollManager,
-} from '../../hooks/useAppRouteScroll';
-
-export const AppLayout = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { logout, user } = useAuth();
-  const isSuperadmin = useIsSuperAdmin();
-  const canUseNotifications = useCan('notification:use');
-  const organizationSession = getOrganizationSession();
-  const appHomePath = getAuthenticatedHomePath(user?.role);
-  const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  const { theme, toggle: toggleTheme } = useTheme();
-  const [createSheetOpen, setCreateSheetOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const restoreScrollKey = useAppRouteScrollManager(scrollContainerRef);
-
-  const scrollToTopIfActive = (path: string) => {
-    if (location.pathname === path) {
-      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  const handleLogout = () => {
-    clearOrganizationSession();
-    logout();
-    // Navigate immediately rather than waiting for ProtectedRoute to render
-    // a <Navigate to="/login"> — avoids a single frame of protected content
-    // still being visible after the user clicked logout, and prevents a
-    // browser-back race where the protected URL is briefly visible again.
-    navigate('/login', { replace: true });
-  };
-
-  const handleExitOrganizationSession = () => {
-    if (!restoreHomeOrganizationSession()) {
-      handleLogout();
-      return;
-    }
-
-    // A full navigation recreates AuthProvider with the restored token and
-    // clears all in-memory tenant queries before the Superadmin page renders.
-    window.location.assign('/superadmin');
-  };
-
-  useEffect(() => {
-    let focusCheckTimeoutId: number | undefined;
-
-    const handleFocusChange = () => {
-      const activeElement = document.activeElement;
-      const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
-      setIsKeyboardVisible(isInput);
-    };
-
-    const handleFocusOut = () => {
-      if (focusCheckTimeoutId !== undefined) {
-        window.clearTimeout(focusCheckTimeoutId);
-      }
-
-      // Allow the next element to receive focus before deciding whether the
-      // mobile keyboard-dependent layout should be restored.
-      focusCheckTimeoutId = window.setTimeout(handleFocusChange, 50);
-    };
-
-    document.addEventListener('focusin', handleFocusChange);
-    document.addEventListener('focusout', handleFocusOut);
-
-    return () => {
-      document.removeEventListener('focusin', handleFocusChange);
-      document.removeEventListener('focusout', handleFocusOut);
-
-      if (focusCheckTimeoutId !== undefined) {
-        window.clearTimeout(focusCheckTimeoutId);
-      }
-    };
-  }, []);
-
-
-  if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
-    return <Navigate to="/superadmin" replace />;
-  }
-
-  if (isAuditorSession && location.pathname === '/app') {
-    return <Navigate to={AUDITOR_AUTHENTICATED_PATH} replace />;
-  }
-
-  const notificationLabel = unreadNotifications > 0
-    ? `Notifikationer, ${unreadNotifications} ulæste`
-    : 'Notifikationer';
-
-  return (
-    <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
-    <DropdownProvider>
-      <div ref={scrollContainerRef} className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
-        {/* Top Header for Mobile */}
-      <header className="app-header">
-        <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
-          <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Workslip
-        </button>
-        <div className="app-header-actions">
-          <span className="app-header-user" title={user?.email ?? ''}>
-            <User size={16} />
-            <span>{user?.displayName ?? user?.email ?? ''}</span>
-          </span>
-          {canUseNotifications && (
-            <button
-              type="button"
-              onClick={() => setNotificationsOpen(true)}
-              className="user-avatar notification-bell"
-              aria-label={notificationLabel}
-              title={notificationLabel}
-            >
-              <Bell size={18} />
-              {unreadNotifications > 0 && (
-                <span className="notification-badge" aria-hidden="true">
-                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                </span>
-              )}
-            </button>
-          )}
-          <Can permission="organization:manage">
-              <button
-                type="button"
-                onClick={() => navigate('/superadmin')}
-                className="user-avatar"
-                aria-label="Superadmin"
-                title="Superadmin"
-                aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
-              >
-                <ShieldCheck size={18} />
-              </button>
-            </Can>
-          <Can permission="user:manage">
-            <button
-              type="button"
-              onClick={() => navigate('/app/settings')}
-              className="user-avatar"
-              aria-label="Indstillinger"
-              title="Indstillinger"
-            >
-              <Settings size={18} />
-            </button>
-          </Can>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="user-avatar"
-            aria-label={theme === 'night' ? 'Skift til dagtilstand' : 'Skift til nattilstand'}
-            title={theme === 'night' ? 'Dagtilstand' : 'Nattilstand'}
-          >
-            {theme === 'night' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          {!isSuperadmin && (
-            <button
-              type="button"
-              onClick={() => navigate('/app/profil')}
-              className="user-avatar"
-              aria-label="Profil"
-              title="Profil"
-            >
-              {user?.displayName ? (
-                <span className="user-avatar-initial">
-                  {user.displayName.charAt(0).toUpperCase()}
-                </span>
-              ) : (
-                <User size={18} />
-              )}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="app-header-logout"
-            aria-label="Log ud"
-            title="Log ud"
-          >
-            <LogOut size={18} />
-            <span>Log ud</span>
-          </button>
-        </div>
-      </header>
-
-      {isSuperadmin && organizationSession && (
-        <div className="organization-session-banner" role="status">
-          <span>
-            <Building2 size={17} aria-hidden="true" />
-            Du arbejder i <strong>{organizationSession.name}</strong> som Superadmin.
-          </span>
-          <button type="button" className="btn btn-secondary" onClick={handleExitOrganizationSession}>
-            Afslut organisationssession
-          </button>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      <main className="app-content">
-        <Outlet />
-      </main>
-
-      {/* Bottom Navigation (Mobile First) */}
-      <nav className="bottom-nav">
-        <NavLink to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
-          <ClipboardList size={24} />
-          <span>{isAuditorSession ? 'Rapporter' : 'Sager'}</span>
-        </NavLink>
-        <Can permission="worksheet:view">
-          <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>
-            <CalendarDays size={24} />
-            <span>Timer</span>
-          </NavLink>
-        </Can>
-        <Can permission="user:manage">
-          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
-            <Users size={24} />
-            <span>Folk</span>
-          </NavLink>
-        </Can>
-        <Can permission="customer:view">
-          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
-            <Building2 size={24} />
-            <span>Kunder</span>
-          </NavLink>
-        </Can>
-      </nav>
-
-      {/* Floating Create Button - only on Sager list */}
-      {location.pathname === '/app' && (
-        <Can permission="job:create">
-          <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
-            <PlusCircle size={22} />
-          </button>
-        </Can>
-      )}
-      <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
-      {canUseNotifications && (
-        <NotificationsDrawer
-          isOpen={notificationsOpen}
-          onClose={() => setNotificationsOpen(false)}
-          onUnreadCountChange={setUnreadNotifications}
-        />
-      )}
-    </div>
-    </DropdownProvider>
-    </AppScrollRestoreBoundary>
-  );
-};
-</file>
-
 <file path="src/FE/src/routes/index.tsx">
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 'react-router-dom';
@@ -139417,6 +138852,571 @@ registerSW({
     console.error('[PWA] Registration failed:', error);
   },
 });
+</file>
+
+<file path="src/BE/WorkslipApi/Workslip.Infrastructure/DependencyInjection.cs">
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Workslip.Application;
+using Workslip.Application.Common;
+using Workslip.Application.Customers;
+using Workslip.Application.Diagnostics;
+using Workslip.Application.Invitations;
+using Workslip.Application.Jobs;
+using Workslip.Application.Notifications;
+using Workslip.Application.Organizations;
+using Workslip.Application.Users;
+using Workslip.Application.Worksheets;
+using Workslip.Infrastructure.Configuration;
+using Workslip.Infrastructure.Diagnostics;
+using Workslip.Infrastructure.Invitations;
+using Workslip.Infrastructure.Jobs;
+using Workslip.Infrastructure.Notifications;
+using Workslip.Infrastructure.Repositories;
+using Workslip.Infrastructure.Resilience;
+using Workslip.Infrastructure.Schema;
+using Workslip.Infrastructure.Transactions;
+
+namespace Workslip.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddWorkslipInfrastructure(this IServiceCollection services)
+    {
+        services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
+        services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+        services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
+
+        services.AddScoped<JobStatusTransitionInterceptor>();
+        services.AddScoped<AuditInterceptor>();
+
+        services.AddDbContext<SqlDbContext>((sp, options) =>
+        {
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
+            options.UseSqlServer(connectionString, b =>
+                b.MigrationsAssembly("Workslip.Api")
+            );
+
+            var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
+            var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
+            options.AddInterceptors(transitionInterceptor, auditInterceptor);
+
+            options.ConfigureWarnings(warnings =>
+                warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
+        });
+
+        services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
+        services.AddScoped<ICustomerRepository, EfCustomerRepository>();
+        services.AddScoped<IInviteRepository, EfInviteRepository>();
+        services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();
+        services.AddScoped<IJobLinkRepository, EfJobLinkRepository>();
+        services.AddScoped<IJobRepository, EfJobRepository>();
+        services.AddScoped<IOrganizationRepository, EfOrganizationRepository>();
+        services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
+        services.AddScoped<IUserRepository, EfUserRepository>();
+        services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
+        services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
+        services.AddScoped<INotificationRepository, EfNotificationRepository>();
+        services.AddScoped<IJobViewRepository, EfJobViewRepository>();
+        services.AddScoped<DatabaseSchemaInitializer>();
+        services.AddScoped<DevelopmentDatabaseSeeder>();
+
+        services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.loganalytics.azure.com/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
+        services.AddScoped<IEmailService, AcsEmailService>();
+        services.AddSingleton<VapidKeyMaterial>();
+        services.AddSingleton<IVapidPublicKeyProvider>(serviceProvider =>
+            serviceProvider.GetRequiredService<VapidKeyMaterial>());
+        services.AddScoped<IPushSender, WebPushSender>();
+        services.AddHostedService<JobDeletionCleanupService>();
+        services.AddHostedService<InviteEntraCleanupService>();
+        services.AddHostedService<PushNotificationWorker>();
+
+        services.AddOptions<VapidOptions>()
+            .Configure<IConfiguration>((options, config) =>
+                config.GetSection(VapidOptions.SectionName).Bind(options));
+
+        return services;
+    }
+}
+</file>
+
+<file path="src/BE/WorkslipApi/README.md">
+# Workslip API
+
+**Status:** Active  
+**Owner:** Backend owner  
+**Source of truth:** backend source, executable tests, runtime OpenAPI and `../infrastructure/`  
+**Review cadence:** on API, persistence, authentication or deployment changes
+
+ASP.NET Core .NET 10 API for Workslip. The solution is split into domain, application, infrastructure, API host and tests. Current code and executable tests take precedence over dated plans.
+
+## Prerequisites
+
+- .NET SDK 10
+- SQL Server-compatible database
+- Azure credentials only when configuration enables Azure App Configuration, Key Vault, Microsoft Graph or Azure-hosted integrations
+
+## Local start
+
+```bash
+cd src/BE/WorkslipApi
+dotnet restore
+dotnet run --launch-profile http
+```
+
+The HTTP profile listens on `http://localhost:5262`.
+
+Local development can use the production database location and passwordless connection details from Azure App Configuration and Key Vault. No SQL connection string or SQL password is required in local configuration.
+
+Authenticate the developer identity first:
+
+```powershell
+az login
+az account show
+```
+
+The configured identity must be permitted to connect to the Azure SQL database. Members of the configured Azure SQL administrator group can connect through their Entra identity.
+
+The Key Vault-backed value remains:
+
+```text
+Azure:Sql:ConnectionString
+```
+
+Production keeps `Authentication=Active Directory Managed Identity` and the App Service managed-identity client ID. During Development, the API changes only the in-memory authentication fields to:
+
+```text
+Authentication=Active Directory Default
+```
+
+The managed-identity `User ID` is removed locally, allowing SqlClient to use the signed-in Azure CLI, Visual Studio or other `DefaultAzureCredential` developer identity. Server name, database name, encryption settings and the Key Vault/App Configuration ownership remain unchanged. Nothing is written back to Azure.
+
+An ignored `appsettings.Development.json` value or `Azure__Sql__ConnectionString` environment variable can still override this behavior for isolated/offline database work, but neither is required for the normal Azure-backed development path.
+
+Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
+
+Health check:
+
+```bash
+curl http://localhost:5262/health
+```
+
+## Solution structure
+
+```text
+WorkslipApi/
+├── Workslip.slnx
+├── Workslip.Api.csproj
+├── Program.cs
+├── Configuration/
+├── Endpoints/
+├── Workslip.Domain/
+├── Workslip.Application/
+├── Workslip.Infrastructure/
+├── Workslip.Tests/
+└── Postman/
+```
+
+## Runtime composition
+
+`Program.cs` currently:
+
+1. loads local and Azure configuration;
+2. configures CORS, authentication, logging and services;
+3. initializes and verifies the database schema;
+4. seeds only in Development;
+5. configures middleware and maps endpoints.
+
+Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
+
+Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both remain attached to the same Development organization. The operation is idempotent. Missing identities receive one invitation that redirects to `/login`; later starts reuse the existing identities. Development startup therefore requires working Microsoft Graph credentials.
+
+Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
+
+Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
+
+## Job-deletion notifications
+
+A successful hard deletion always queues a notification for every unique user assigned to the deleted job, including the user performing the deletion when that user is assigned. This behavior is not controlled by runtime configuration and cannot be disabled through Azure App Configuration.
+
+The notification links to `/app`, because the deleted job no longer has a valid detail route. A notification queue failure for one recipient is logged and does not reverse the completed deletion or prevent notifications for the remaining recipients.
+
+## Authentication and authorization
+
+The API selects local Workslip JWT or Microsoft Entra JWT validation from the bearer-token issuer. The public browser flow uses authorization code + PKCE. The API does not require an OAuth application client secret for that flow.
+
+API runtime Microsoft Graph permissions are declared once in `../infrastructure/main.bicep`. They support user invitation/lifecycle and app-role assignment. Do not assign a competing permission set from deployment scripts.
+
+Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
+
+Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
+
+Superadmins remain attached to one permanent organization. The Superadmin-only organization session endpoint can issue a short-lived local token whose `organizationId` is a selected organization while the real actor ID and `Superadmin` role remain unchanged. The default lifetime is 15 minutes, configurable through `Jwt:OrganizationSessionExpiryMinutes` from 1 through 30 minutes. This flow performs no database or Entra mutation and does not bypass existing tenant repository filters.
+
+## Result and endpoint conventions
+
+Application services return `Ardalis.Result`. Endpoints map through `ResultExtensions.ToHttpResult`; do not introduce custom wrappers or duplicate result-to-HTTP mapping. See the root `AGENTS.md` before changing service or endpoint patterns.
+
+## HTTP caching
+
+Authenticated job GET endpoints use private browser revalidation, `Vary: Authorization` and weak ETags. Jobs-list validators are calculated from the complete mapped HTTP representation, including assignments, worksheet totals, installations and user-specific seen/rejection flags; hashing only the `JobReports.UpdatedAt` value is insufficient because those related values can change independently.
+
+The validator is evaluated after tenant-scoped service/repository work. A `304 Not Modified` therefore saves response transfer and client parsing, but it is not a server-side query cache. Do not add shared output caching or an in-memory jobs-list cache without complete organization/user/filter keys and explicit invalidation for every job, assignment, worksheet, installation and view-state mutation. Mutation responses remain `no-store`.
+
+## Build and tests
+
+```bash
+cd src/BE/WorkslipApi
+dotnet build Workslip.slnx
+dotnet test Workslip.slnx
+```
+
+Postman/Newman verification must target localhost or an isolated test/staging API:
+
+```bash
+Postman/run-integration-tests.sh https://<test-or-staging-api>
+```
+
+There is no active GitHub Actions integration-test workflow. Run the executable suite deliberately against an isolated environment; do not use production mutation tests in ordinary validation.
+
+## OpenAPI and Scalar
+
+The host registers ASP.NET Core OpenAPI and Scalar. Treat these as development/integration tooling unless production exposure is explicitly approved and protected. Runtime endpoint registrations are the API contract source; Postman is verification material.
+
+## Deployment
+
+Azure infrastructure and Entra registrations are deployed separately. See `../infrastructure/README.md`.
+
+The production API workflow is:
+
+```text
+.github/workflows/main_api-mrsoftware-prod.yml
+```
+
+It restores, builds and publishes the API, creates a ZIP whose root is the `dotnet publish` output, authenticates through GitHub OIDC and deploys the package to `api-mrsoftware-prod` with `az webapp deploy`.
+
+The deployment workflow:
+
+- preserves the `prod` environment and its scoped OIDC identity;
+- serializes production API releases through the existing concurrency group;
+- retries an App Service/Kudu deployment failure at most three times with bounded backoff;
+- records the immutable ZIP size in the build log;
+- restarts the App Service between attempts only when Kudu reports `There is not enough space on the disk`, clearing the worker's temporary local storage before retrying;
+- requests Azure CLI enriched deployment errors;
+- prints only safe App Service state and deployment-log diagnostics after a final failure;
+- verifies `https://<default-hostname>/health` before reporting success.
+
+The production App Service plan is currently F1. Its local temporary worker storage is small and may be exhausted by accumulated Kudu deployment data even when the repository and deployment workflow are unchanged. A restart clears temporary local storage. Repeated disk-full failures after that recovery indicate persistent filesystem usage or package growth and must be investigated through App Service quotas/Kudu before adding retries or changing application code.
+
+Production uses GitHub environment `prod` with:
+
+- `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
+- `AZURE_TENANT_ID`: target Entra tenant ID
+- `AZURE_SUBSCRIPTION_ID`: target subscription ID
+
+Do not add an Azure client secret, `AZURE_CREDENTIALS` JSON or App Service publish profile.
+
+After infrastructure recreation:
+
+1. run `../infrastructure/deploy.ps1 prod`;
+2. set the three GitHub `prod` environment identifiers from the deployment output;
+3. run the API workflow manually;
+4. confirm the workflow package check finds `Workslip.Api.dll` at ZIP root;
+5. confirm the deployment step succeeds and `/health` passes;
+6. verify Microsoft login and one authenticated API request.
+
+If all deployment attempts fail, use the workflow's safe App Service state, recent deployment records and latest deployment log before changing application code or infrastructure. The Node deprecation warnings emitted by third-party actions are not deployment evidence; the failing Azure/Kudu operation and its diagnostics are authoritative.
+
+Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
+</file>
+
+<file path="src/FE/src/components/layouts/AppLayout.tsx">
+import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
+import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
+import { useAuth } from '../../providers/useAuth';
+import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
+import { useEffect, useRef, useState } from 'react';
+import { DropdownProvider } from '../../providers/DropdownContext';
+import { useTheme } from '../../providers/ThemeProvider';
+import { CreateBottomSheet } from '../common/CreateBottomSheet';
+import { NotificationsDrawer } from '../common/NotificationsDrawer';
+import {
+  AUDITOR_AUTHENTICATED_PATH,
+  getAuthenticatedHomePath,
+} from '../../features/auth/authenticatedDestination';
+import {
+  clearOrganizationSession,
+  getOrganizationSession,
+  restoreHomeOrganizationSession,
+} from '../../features/superadmin/organizationSession';
+import '../../features/superadmin/organizationSession.css';
+import '../../authenticated-base.css';
+import '../../App.css';
+import {
+  AppScrollRestoreBoundary,
+  useAppRouteScrollManager,
+} from '../../hooks/useAppRouteScroll';
+
+export const AppLayout = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { logout, user } = useAuth();
+  const isSuperadmin = useIsSuperAdmin();
+  const canUseNotifications = useCan('notification:use');
+  const organizationSession = getOrganizationSession();
+  const appHomePath = getAuthenticatedHomePath(user?.role);
+  const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  const { theme, toggle: toggleTheme } = useTheme();
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const restoreScrollKey = useAppRouteScrollManager(scrollContainerRef);
+
+  const scrollToTopIfActive = (path: string) => {
+    if (location.pathname === path) {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleLogout = () => {
+    clearOrganizationSession();
+    logout();
+    // Navigate immediately rather than waiting for ProtectedRoute to render
+    // a <Navigate to="/login"> — avoids a single frame of protected content
+    // still being visible after the user clicked logout, and prevents a
+    // browser-back race where the protected URL is briefly visible again.
+    navigate('/login', { replace: true });
+  };
+
+  const handleExitOrganizationSession = () => {
+    if (!restoreHomeOrganizationSession()) {
+      handleLogout();
+      return;
+    }
+
+    // A full navigation recreates AuthProvider with the restored token and
+    // clears all in-memory tenant queries before the Superadmin page renders.
+    window.location.assign('/superadmin');
+  };
+
+  useEffect(() => {
+    let focusCheckTimeoutId: number | undefined;
+
+    const handleFocusChange = () => {
+      const activeElement = document.activeElement;
+      const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
+      setIsKeyboardVisible(isInput);
+    };
+
+    const handleFocusOut = () => {
+      if (focusCheckTimeoutId !== undefined) {
+        window.clearTimeout(focusCheckTimeoutId);
+      }
+
+      // Allow the next element to receive focus before deciding whether the
+      // mobile keyboard-dependent layout should be restored.
+      focusCheckTimeoutId = window.setTimeout(handleFocusChange, 50);
+    };
+
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('focusout', handleFocusOut);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusChange);
+      document.removeEventListener('focusout', handleFocusOut);
+
+      if (focusCheckTimeoutId !== undefined) {
+        window.clearTimeout(focusCheckTimeoutId);
+      }
+    };
+  }, []);
+
+
+  if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
+    return <Navigate to="/superadmin" replace />;
+  }
+
+  if (isAuditorSession && location.pathname === '/app') {
+    return <Navigate to={AUDITOR_AUTHENTICATED_PATH} replace />;
+  }
+
+  const notificationLabel = unreadNotifications > 0
+    ? `Notifikationer, ${unreadNotifications} ulæste`
+    : 'Notifikationer';
+
+  return (
+    <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
+    <DropdownProvider>
+      <div ref={scrollContainerRef} className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
+        {/* Top Header for Mobile */}
+      <header className="app-header">
+        <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
+          <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Workslip
+        </button>
+        <div className="app-header-actions">
+          <span className="app-header-user" title={user?.email ?? ''}>
+            <User size={16} />
+            <span>{user?.displayName ?? user?.email ?? ''}</span>
+          </span>
+          {canUseNotifications && (
+            <button
+              type="button"
+              onClick={() => setNotificationsOpen(true)}
+              className="user-avatar notification-bell"
+              aria-label={notificationLabel}
+              title={notificationLabel}
+            >
+              <Bell size={18} />
+              {unreadNotifications > 0 && (
+                <span className="notification-badge" aria-hidden="true">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
+            </button>
+          )}
+          <Can permission="organization:manage">
+              <button
+                type="button"
+                onClick={() => navigate('/superadmin')}
+                className="user-avatar"
+                aria-label="Superadmin"
+                title="Superadmin"
+                aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
+              >
+                <ShieldCheck size={18} />
+              </button>
+            </Can>
+          <Can permission="user:manage">
+            <button
+              type="button"
+              onClick={() => navigate('/app/settings')}
+              className="user-avatar"
+              aria-label="Indstillinger"
+              title="Indstillinger"
+            >
+              <Settings size={18} />
+            </button>
+          </Can>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="user-avatar"
+            aria-label={theme === 'night' ? 'Skift til dagtilstand' : 'Skift til nattilstand'}
+            title={theme === 'night' ? 'Dagtilstand' : 'Nattilstand'}
+          >
+            {theme === 'night' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          {!isSuperadmin && (
+            <button
+              type="button"
+              onClick={() => navigate('/app/profil')}
+              className="user-avatar"
+              aria-label="Profil"
+              title="Profil"
+            >
+              {user?.displayName ? (
+                <span className="user-avatar-initial">
+                  {user.displayName.charAt(0).toUpperCase()}
+                </span>
+              ) : (
+                <User size={18} />
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="app-header-logout"
+            aria-label="Log ud"
+            title="Log ud"
+          >
+            <LogOut size={18} />
+            <span>Log ud</span>
+          </button>
+        </div>
+      </header>
+
+      {isSuperadmin && organizationSession && (
+        <div className="organization-session-banner" role="status">
+          <span>
+            <Building2 size={17} aria-hidden="true" />
+            Du arbejder i <strong>{organizationSession.name}</strong> som Superadmin.
+          </span>
+          <button type="button" className="btn btn-secondary" onClick={handleExitOrganizationSession}>
+            Afslut organisationssession
+          </button>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <main className="app-content">
+        <Outlet />
+      </main>
+
+      {/* Bottom Navigation (Mobile First) */}
+      <nav className="bottom-nav">
+        <NavLink to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
+          <ClipboardList size={24} />
+          <span>{isAuditorSession ? 'Rapporter' : 'Sager'}</span>
+        </NavLink>
+        <Can permission="worksheet:view">
+          <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>
+            <CalendarDays size={24} />
+            <span>Timer</span>
+          </NavLink>
+        </Can>
+        <Can permission="user:manage">
+          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
+            <Users size={24} />
+            <span>Folk</span>
+          </NavLink>
+        </Can>
+        <Can permission="customer:view">
+          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
+            <Building2 size={24} />
+            <span>Kunder</span>
+          </NavLink>
+        </Can>
+      </nav>
+
+      {/* Floating Create Button - only on Sager list */}
+      {location.pathname === '/app' && (
+        <Can permission="job:create">
+          <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
+            <PlusCircle size={22} />
+          </button>
+        </Can>
+      )}
+      <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
+      {canUseNotifications && (
+        <NotificationsDrawer
+          isOpen={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+          onUnreadCountChange={setUnreadNotifications}
+        />
+      )}
+    </div>
+    </DropdownProvider>
+    </AppScrollRestoreBoundary>
+  );
+};
 </file>
 
 <file path="src/FE/src/features/auth/routes/Login.tsx">
