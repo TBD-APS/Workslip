@@ -27,8 +27,15 @@ export interface ErrorDiagnosticsItem {
 
 export interface ErrorDiagnosticsDashboard {
   isAvailable: boolean;
+  isComplete: boolean;
+  isStale: boolean;
   availabilityReason: string | null;
   generatedAtUtc: string;
-  summary: ErrorDiagnosticsSummary;
+  dataRetrievedAtUtc: string | null;
+  summaryAvailable: boolean;
+  itemsAvailable: boolean;
+  hasPartialAzureResults: boolean;
+  isTruncated: boolean;
+  summary: ErrorDiagnosticsSummary | null;
   items: ErrorDiagnosticsItem[];
 }
