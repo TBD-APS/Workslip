@@ -459,8 +459,11 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
 
         var source = ReadRequiredString(row, "Source").ToLowerInvariant();
         var severity = ReadRequiredString(row, "Severity").ToLowerInvariant();
-        if (source is not ("frontend" or "backend") || severity is not ("error" or "critical"))
+        if ((source != "frontend" && source != "backend")
+            || (severity != "error" && severity != "critical"))
+        {
             throw new DiagnosticsResponseException();
+        }
 
         return new RawError(
             timestamp,
@@ -713,5 +716,7 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         public HttpStatusCode StatusCode { get; } = statusCode;
     }
 
-    private sealed class DiagnosticsResponseException : Exception;
+    private sealed class DiagnosticsResponseException : Exception
+    {
+    }
 }
