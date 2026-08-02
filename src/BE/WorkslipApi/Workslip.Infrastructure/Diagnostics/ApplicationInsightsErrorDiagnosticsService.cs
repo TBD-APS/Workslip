@@ -88,17 +88,37 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
             accessToken.Token,
             root => ParseItems(root, query.Limit),
             cancellationToken);
+        var telemetryHealthTask = ExecuteSectionAsync(
+            "telemetry-health",
+            workspaceId,
+            BuildTelemetryHealthQuery(),
+            "P7D",
+            accessToken.Token,
+            ParseTelemetryHealth,
+            cancellationToken);
 
-        await Task.WhenAll(summaryTask, itemsTask);
+        await Task.WhenAll(summaryTask, itemsTask, telemetryHealthTask);
 
         var summarySection = await summaryTask;
         var itemsSection = await itemsTask;
+        var telemetryHealthSection = await telemetryHealthTask;
         var now = DateTimeOffset.UtcNow;
         var summaryAvailable = summarySection.HasValue;
         var itemsAvailable = itemsSection.HasValue;
-        var hasPartialAzureResults = summarySection.IsPartial || itemsSection.IsPartial;
-        var isComplete = summaryAvailable && itemsAvailable && !hasPartialAzureResults;
-        var reason = CombineReasons(summarySection.Reason, itemsSection.Reason);
+        var telemetryHealthAvailable = telemetryHealthSection.HasValue;
+        var hasPartialAzureResults =
+            summarySection.IsPartial
+            || itemsSection.IsPartial
+            || telemetryHealthSection.IsPartial;
+        var isComplete =
+            summaryAvailable
+            && itemsAvailable
+            && telemetryHealthAvailable
+            && !hasPartialAzureResults;
+        var reason = CombineReasons(
+            summarySection.Reason,
+            itemsSection.Reason,
+            telemetryHealthSection.Reason);
 
         if (isComplete)
         {
@@ -111,9 +131,11 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
                 now,
                 true,
                 true,
+                true,
                 false,
                 itemsSection.Value!.IsTruncated,
                 summarySection.Value,
+                telemetryHealthSection.Value,
                 itemsSection.Value.Items);
 
             memoryCache.Set(cacheKey, dashboard, SnapshotLifetime);
@@ -127,18 +149,24 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
                 cached.AsStale(reason ?? "query_failed"));
         }
 
+        var anySectionAvailable =
+            summaryAvailable
+            || itemsAvailable
+            || telemetryHealthAvailable;
         var partialDashboard = new ErrorDiagnosticsDashboard(
-            summaryAvailable || itemsAvailable,
+            anySectionAvailable,
             false,
             false,
             reason ?? "query_failed",
             now,
-            summaryAvailable || itemsAvailable ? now : null,
+            anySectionAvailable ? now : null,
             summaryAvailable,
             itemsAvailable,
+            telemetryHealthAvailable,
             hasPartialAzureResults,
             itemsSection.Value?.IsTruncated ?? false,
             summarySection.Value,
+            telemetryHealthSection.Value,
             itemsSection.Value?.Items ?? []);
 
         return Result<ErrorDiagnosticsDashboard>.Success(partialDashboard);
@@ -386,6 +414,17 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         | top {{MaxRawGroups + 1}} by Timestamp desc
         """;
 
+    private static string BuildTelemetryHealthQuery() => """
+        print
+            FrontendLastSeenUtc = toscalar(
+                AppEvents
+                | where Name == "telemetry.heartbeat"
+                | summarize max(TimeGenerated)),
+            BackendLastSeenUtc = toscalar(
+                AppRequests
+                | summarize max(TimeGenerated))
+        """;
+
     private static ErrorDiagnosticsSummary ParseSummary(JsonElement root)
     {
         var rows = ReadRows(
@@ -406,6 +445,18 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
             ReadRequiredLong(row, "Last7Days", allowZero: true),
             ReadRequiredLong(row, "FrontendLast24Hours", allowZero: true),
             ReadRequiredLong(row, "BackendLast24Hours", allowZero: true));
+    }
+
+    private static ErrorDiagnosticsTelemetryHealth ParseTelemetryHealth(JsonElement root)
+    {
+        var rows = ReadRows(root, "FrontendLastSeenUtc", "BackendLastSeenUtc");
+        if (rows.Count != 1)
+            throw new DiagnosticsResponseException();
+
+        var row = rows[0];
+        return new ErrorDiagnosticsTelemetryHealth(
+            ReadOptionalTimestamp(row, "FrontendLastSeenUtc"),
+            ReadOptionalTimestamp(row, "BackendLastSeenUtc"));
     }
 
     private static DetailsParseResult ParseItems(JsonElement root, int limit)
@@ -447,15 +498,9 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
 
     private static RawError ParseRawError(IReadOnlyDictionary<string, JsonElement> row)
     {
-        var timestampText = ReadRequiredString(row, "Timestamp");
-        if (!DateTimeOffset.TryParse(
-                timestampText,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                out var timestamp))
-        {
+        var timestamp = ReadOptionalTimestamp(row, "Timestamp");
+        if (timestamp is null)
             throw new DiagnosticsResponseException();
-        }
 
         var source = ReadRequiredString(row, "Source").ToLowerInvariant();
         var severity = ReadRequiredString(row, "Severity").ToLowerInvariant();
@@ -466,7 +511,7 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         }
 
         return new RawError(
-            timestamp,
+            timestamp.Value,
             source,
             severity,
             ReadRequiredString(row, "ErrorType"),
@@ -611,6 +656,26 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         return value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : value.ToString();
+    }
+
+    private static DateTimeOffset? ReadOptionalTimestamp(
+        IReadOnlyDictionary<string, JsonElement> row,
+        string name)
+    {
+        var timestampText = ReadOptionalString(row, name);
+        if (string.IsNullOrWhiteSpace(timestampText))
+            return null;
+
+        if (!DateTimeOffset.TryParse(
+                timestampText,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var timestamp))
+        {
+            throw new DiagnosticsResponseException();
+        }
+
+        return timestamp;
     }
 
     private static long ReadRequiredLong(
