@@ -27182,6 +27182,337 @@ export const verifyInviteToken = (token: string): Promise<InviteOpenResponse> =>
 };
 </file>
 
+<file path="src/FE/src/features/auth/routes/InviteAccept.tsx">
+import { useEffect, useState, useRef, type FormEvent } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { CheckCircle2, AlertTriangle, Loader2, LogIn, ArrowRight, User, Phone } from 'lucide-react';
+import { verifyInviteToken } from '../api/inviteAccept';
+import { useAuth } from '../../../providers/useAuth';
+import { AUTH_TOKEN_KEY, USER_EMAIL_KEY, AuthStorage } from '../../../providers/authContextValue';
+import {
+  clearInviteEnrollmentSession,
+  completeEntraInviteEnrollment,
+  hasEntraCallback,
+  loadInviteEnrollmentDraft,
+  startEntraInviteSignIn,
+} from '../api/entraInviteEnrollment';
+
+type InviteState =
+  | { status: 'checking' }
+  | { status: 'invalid'; message: string }
+  | { status: 'ready' }
+  | { status: 'accepted' }
+  | { status: 'authenticating' }
+  | { status: 'enrolling' }
+  | { status: 'error'; message: string }
+  | { status: 'success' }
+  | { status: 'consumed_no_user' };
+
+const errorMessages: Record<string, string> = {
+  invite_consumed: 'Denne invitation er allerede blevet brugt.',
+  invite_expired: 'Denne invitation er udløbet. Kontakt administratoren for en ny.',
+};
+
+const resolveInviteError = (errorCode: string | undefined, fallback: string) =>
+  errorCode ? errorMessages[errorCode] ?? fallback : fallback;
+
+export const InviteAccept = () => {
+  const { token } = useParams<{ token: string }>();
+  const { meQuery, clearLocalSession, isLoading } = useAuth();
+  const [state, setState] = useState<InviteState>({ status: 'checking' });
+  const [displayName, setDisplayName] = useState('');
+  const [phone, setPhone] = useState('');
+  const calledRef = useRef(false);
+
+  useEffect(() => {
+    if (hasEntraCallback()) {
+      const draft = loadInviteEnrollmentDraft();
+      if (draft) {
+        setDisplayName(draft.displayName);
+        setPhone(draft.phone ?? '');
+      }
+
+      setState({ status: 'enrolling' });
+      completeEntraInviteEnrollment()
+        .then(response => {
+          AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+          AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+          clearInviteEnrollmentSession();
+          window.history.replaceState(null, '', window.location.pathname);
+          setState({ status: 'success' });
+          window.location.assign('/app/profil');
+        })
+        .catch((err: unknown) => {
+          window.history.replaceState(null, '', window.location.pathname);
+          const errorCode = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+          const message = errorCode
+            ? resolveInviteError(errorCode, 'Kunne ikke færdiggøre Microsoft login. Prøv igen.')
+            : (err as Error)?.message || 'Kunne ikke færdiggøre Microsoft login. Prøv igen.';
+          setState({ status: 'error', message });
+        });
+      return;
+    }
+
+    if (!token) {
+      setState({ status: 'invalid', message: 'Manglende invitationslink.' });
+      return;
+    }
+
+    // Wait for the auth context to finish resolving the existing
+    // session before we make any decisions. /api/auth/me runs on
+    // AppProvider mount; until it resolves we don't know whether the
+    // user is already logged in.
+    if (isLoading) return;
+
+    if (calledRef.current) return;
+    calledRef.current = true;
+
+    verifyInviteToken(token)
+      .then((res) => {
+        const currentUser = meQuery.data;
+
+        // Already logged in?
+        if (currentUser) {
+          const sameEmail = currentUser.email.toLowerCase() === res.email.toLowerCase();
+
+          if (sameEmail) {
+            // Already accepted — the invitation points to the user
+            // we're already authenticated as. Skip the enrollment
+            // form, drop straight into the app.
+            window.location.assign('/app');
+            return;
+          }
+
+          // Logged in as a different identity. Drop only the local Workslip
+          // session and fall through to the un-authenticated flow. This must not
+          // acquire provider-specific logout side effects.
+          clearLocalSession();
+          if (res.userExists) {
+            window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
+            return;
+          }
+          if (!res.consumed) {
+            setState({ status: 'ready' });
+            return;
+          }
+          setState({ status: 'consumed_no_user' });
+          return;
+        }
+
+        // Not logged in.
+        if (res.userExists) {
+          // Already an account — go straight to login.
+          window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
+          return;
+        }
+
+        if (!res.consumed) {
+          // Fresh invite, new user — show enrollment form.
+          setState({ status: 'ready' });
+          return;
+        }
+
+        // Consumed invite but the user record is gone (admin removed
+        // them after acceptance). Can't enroll again with this link.
+        setState({ status: 'consumed_no_user' });
+      })
+      .catch(() => setState({ status: 'invalid', message: 'Invitationen blev ikke fundet. Kontrollér linket eller kontakt administratoren.' }));
+  }, [token, isLoading, meQuery.data, clearLocalSession]);
+
+  const handleAcceptInvite = () => {
+    setState({ status: 'accepted' });
+  };
+
+  const handleContinueToMicrosoft = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!token || !displayName.trim()) return;
+    setState({ status: 'authenticating' });
+
+    try {
+      await startEntraInviteSignIn({ token, displayName: displayName.trim(), phone: phone.trim() || undefined });
+    } catch (err: unknown) {
+      const errorCode = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      const message = errorCode
+        ? resolveInviteError(errorCode, 'Kunne ikke acceptere invitationen. Prøv igen.')
+        : (err as Error)?.message || 'Kunne ikke acceptere invitationen. Prøv igen.';
+      setState({ status: 'error', message });
+    }
+  };
+
+  const isWorking = state.status === 'authenticating' || state.status === 'enrolling';
+  const showDetailsForm = state.status === 'accepted' || state.status === 'error' || isWorking;
+
+  return (
+    <div className="app-container invite-container">
+      <div className="bg-glow-wrapper">
+        <div className="bg-glow bg-glow-1" />
+        <div className="bg-glow bg-glow-2" />
+      </div>
+
+      <div className="invite-card">
+        <div className="logo invite-logo-wrapper">
+          <svg className="logo-icon" width="40" height="40" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+
+        {state.status === 'checking' && (
+          <>
+            <Loader2 className="animate-spin invite-status-icon" size={32} />
+            <p className="invite-text">Kontrollerer invitation...</p>
+          </>
+        )}
+
+        {state.status === 'invalid' && (
+          <>
+            <div className="invite-status-icon">
+              <AlertTriangle size={48} className="invite-status-icon--danger" />
+            </div>
+            <h2 className="invite-title">Ugyldig invitation</h2>
+            <p className="invite-text">
+              {state.message}
+            </p>
+            <Link to="/login" className="btn btn-primary">
+              Gå til login
+            </Link>
+          </>
+        )}
+
+        {state.status === 'ready' && (
+          <>
+            <div className="invite-status-icon">
+              <CheckCircle2 size={48} className="invite-status-icon--success" />
+            </div>
+            <h2 className="invite-title">Du er inviteret til Workslip</h2>
+            <p className="invite-text invite-text--long">
+              Acceptér invitationen for at oprette din konto. Derefter beder vi om dit navn og telefonnummer, før du fortsætter med Microsoft.
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary invite-btn invite-btn-accept"
+              onClick={handleAcceptInvite}
+            >
+              Acceptér invitation
+              <ArrowRight size={18} />
+            </button>
+          </>
+        )}
+
+        {state.status === 'success' ? (
+          <>
+            <div className="invite-status-icon">
+              <CheckCircle2 size={48} className="invite-status-icon--success" />
+            </div>
+            <h2 className="invite-title">Velkommen til Workslip</h2>
+            <p className="invite-text invite-text--long">
+              Din konto er blevet oprettet.
+            </p>
+            <a
+              href="/app/profil"
+              className="btn btn-primary invite-btn"
+            >
+              Gå til profil
+              <ArrowRight size={18} />
+            </a>
+          </>
+        ) : null}
+
+        {state.status === 'consumed_no_user' && (
+          <>
+            <div className="invite-status-icon">
+              <AlertTriangle size={48} className="invite-status-icon--danger" />
+            </div>
+            <h2 className="invite-title">Konto ikke længere aktiv</h2>
+            <p className="invite-text invite-text--long">
+              Denne invitation er allerede blevet brugt, men din konto er ikke længere tilgængelig. Kontakt din chef for at få et nyt login.
+            </p>
+            <Link to="/login" className="btn btn-secondary invite-btn">
+              Gå til login
+            </Link>
+          </>
+        )}
+
+        {showDetailsForm && (
+          <>
+            <h2 className="invite-title">Færdiggør din konto</h2>
+            <p className="invite-text invite-text--long">
+              Indtast dit fulde navn og telefonnummer. Bagefter sender vi dig til Microsoft for login og passkey-oprettelse.
+            </p>
+
+            {state.status === 'error' && (
+              <div className="invite-error-badge">
+                <AlertTriangle size={16} />
+                <span>{state.message}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleContinueToMicrosoft} className="invite-form">
+              <div className="invite-field">
+                <label htmlFor="displayName" className="invite-label">
+                  Fulde navn
+                </label>
+                <div className="invite-input-wrapper">
+                  <User size={16} className="invite-input-icon" />
+                  <input
+                    id="displayName"
+                    type="text"
+                    className="invite-input"
+                    value={displayName}
+                    onChange={e => setDisplayName(e.target.value)}
+                    placeholder="Dit fulde navn"
+                    required
+                    disabled={isWorking}
+                  />
+                </div>
+              </div>
+
+              <div className="invite-field">
+                <label htmlFor="phone" className="invite-label">
+                  Telefonnummer <span className="text-dim">(valgfrit)</span>
+                </label>
+                <div className="invite-input-wrapper">
+                  <Phone size={16} className="invite-input-icon" />
+                  <input
+                    id="phone"
+                    type="tel"
+                    className="invite-input"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    placeholder="12 34 56 78"
+                    disabled={isWorking}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary invite-btn invite-btn-submit"
+                disabled={isWorking || !displayName.trim()}
+              >
+                {isWorking ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <LogIn size={18} />
+                )}
+                <span>{state.status === 'enrolling' ? 'Opretter konto...' : state.status === 'authenticating' ? 'Sender til Microsoft...' : 'Fortsæt med Microsoft'}</span>
+              </button>
+            </form>
+
+            <div className="invite-footer">
+              <Link to="/login" className="invite-footer-link">
+                Har du allerede en konto? Log ind her
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+</file>
+
 <file path="src/FE/src/features/create/routes/Create.tsx">
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -34685,6 +35016,214 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     </ThemeProvider>
   );
 };
+</file>
+
+<file path="src/FE/src/providers/AuthContext.tsx">
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  AUTH_TOKEN_KEY,
+  AuthContext,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+  type AuthContextType,
+} from './authContextValue';
+import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
+
+const AuthenticatedAppProvider = lazy(() =>
+  import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
+);
+
+const publicMeQuery: AuthContextType['meQuery'] = {
+  isPending: false,
+  isError: false,
+  refetch: async () => null,
+  data: null,
+};
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
+
+  useEffect(() => {
+    if (!authToken) return;
+
+    // Start the shell and jobs-route downloads alongside the authenticated
+    // provider and /api/auth/me request. Import failures still flow through the
+    // existing Vite stale-chunk recovery when the route is rendered.
+    void preloadPrimaryAppRoute().catch(() => undefined);
+  }, [authToken]);
+
+  const clearStoredSession = useCallback(() => {
+    AuthStorage.removeItem(AUTH_TOKEN_KEY);
+    AuthStorage.removeItem(USER_EMAIL_KEY);
+    clearReauthInFlight();
+    setAuthToken(null);
+  }, []);
+
+  const login = useCallback(
+    async (email: string, code: string): Promise<boolean> => {
+      try {
+        const { verifyAuthCode } = await import('../features/auth/api/devToken');
+        const response = await verifyAuthCode(email, code);
+        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        setAuthToken(response.token);
+        clearReauthInFlight();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
+
+  const devLogin = useCallback(
+    async (email: string): Promise<boolean> => {
+      try {
+        const { getDevToken } = await import('../features/auth/api/devToken');
+        const response = await getDevToken(email);
+        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+        setAuthToken(response.token);
+        clearReauthInFlight();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
+
+  const publicValue = useMemo<AuthContextType>(
+    () => ({
+      hasAuthToken: false,
+      isAuthenticated: false,
+      user: null,
+      isLoading: false,
+      login,
+      devLogin,
+      logout: clearStoredSession,
+      clearLocalSession: clearStoredSession,
+      updateUser: () => undefined,
+      meQuery: publicMeQuery,
+    }),
+    [clearStoredSession, devLogin, login],
+  );
+
+  if (!authToken) {
+    return <AuthContext.Provider value={publicValue}>{children}</AuthContext.Provider>;
+  }
+
+  return (
+    <Suspense
+      fallback={(
+        <div className="protected-route-loading" role="status" aria-live="polite">
+          Tjekker login status...
+        </div>
+      )}
+    >
+      <AuthenticatedAppProvider
+        login={login}
+        devLogin={devLogin}
+        clearSession={clearStoredSession}
+      >
+        {children}
+      </AuthenticatedAppProvider>
+    </Suspense>
+  );
+}
+</file>
+
+<file path="src/FE/src/providers/authContextValue.ts">
+import { createContext } from 'react';
+import type { UserViewModel } from '../api/generated/models';
+
+export const AUTH_TOKEN_KEY = 'authToken';
+export const USER_EMAIL_KEY = 'userEmail';
+export const REAUTH_IN_FLIGHT_KEY = 'workslip.reauthInFlight';
+
+/**
+ * TTL on the reauthInFlight flag. If the redirect is interrupted (browser
+ * crash, network drop before reaching /login), the flag would otherwise stay
+ * set forever and silently break the next expiry cycle. 30s is well above
+ * any realistic redirect duration and well below the next possible expiry
+ * cycle (60 min JWT TTL), so a stale flag will always self-heal.
+ */
+const REAUTH_IN_FLIGHT_TTL_MS = 30_000;
+
+/**
+ * Centralized storage helper for auth tokens and short-lived OAuth flow state.
+ *
+ * Workslip is an installed PWA. `sessionStorage` is evicted by iOS/Android PWAs
+ * on backgrounding and is gone when the user comes back to the app, which makes
+ * the user look logged out at random. We persist the JWT (short-lived, 60 min
+ * default) in `localStorage` so it survives PWA eviction and reload.
+ *
+ * SECURITY NOTE: `localStorage` is readable by any JavaScript that runs on our
+ * origin. If a third-party script or vulnerable npm dependency is ever
+ * injected, an attacker could steal the JWT and impersonate the user for up
+ * to 60 minutes. The trade-off is intentional: PWA eviction with
+ * `sessionStorage` is the dominant real-world logout cause. Future migrations
+ * to HttpOnly cookies (set by the backend) or IndexedDB with a worker-held
+ * encryption key would close this gap; both are larger architectural changes.
+ *
+ * Future migrations to IndexedDB / secure cookies are a single-file change.
+ */
+const authStorage = {
+  getItem(key: string): string | null {
+    return localStorage.getItem(key);
+  },
+  setItem(key: string, value: string): void {
+    localStorage.setItem(key, value);
+  },
+  removeItem(key: string): void {
+    localStorage.removeItem(key);
+  },
+};
+
+export const AuthStorage = authStorage;
+
+export const setReauthInFlight = (): void => {
+  const expiresAt = Date.now() + REAUTH_IN_FLIGHT_TTL_MS;
+  AuthStorage.setItem(REAUTH_IN_FLIGHT_KEY, String(expiresAt));
+};
+
+export const isReauthInFlight = (): boolean => {
+  const raw = AuthStorage.getItem(REAUTH_IN_FLIGHT_KEY);
+  if (!raw) return false;
+  const expiresAt = Number(raw);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    AuthStorage.removeItem(REAUTH_IN_FLIGHT_KEY);
+    return false;
+  }
+  return true;
+};
+
+export const clearReauthInFlight = (): void => {
+  AuthStorage.removeItem(REAUTH_IN_FLIGHT_KEY);
+};
+
+export interface AuthMeQuery {
+  isPending: boolean;
+  isError: boolean;
+  refetch: () => Promise<unknown>;
+  data?: UserViewModel | null;
+}
+
+export interface AuthContextType {
+  hasAuthToken: boolean;
+  isAuthenticated: boolean;
+  user: UserViewModel | null;
+  isLoading: boolean;
+  login: (email: string, code: string) => Promise<boolean>;
+  devLogin: (email: string) => Promise<boolean>;
+  logout: () => void;
+  clearLocalSession: () => void;
+  updateUser: (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => void;
+  meQuery: AuthMeQuery;
+}
+
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 </file>
 
 <file path="src/FE/src/providers/DropdownContext.tsx">
@@ -110300,337 +110839,6 @@ const base64Url = (bytes: Uint8Array) =>
     .replace(/=+$/g, '');
 </file>
 
-<file path="src/FE/src/features/auth/routes/InviteAccept.tsx">
-import { useEffect, useState, useRef, type FormEvent } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { CheckCircle2, AlertTriangle, Loader2, LogIn, ArrowRight, User, Phone } from 'lucide-react';
-import { verifyInviteToken } from '../api/inviteAccept';
-import { useAuth } from '../../../providers/useAuth';
-import { AUTH_TOKEN_KEY, USER_EMAIL_KEY, AuthStorage } from '../../../providers/authContextValue';
-import {
-  clearInviteEnrollmentSession,
-  completeEntraInviteEnrollment,
-  hasEntraCallback,
-  loadInviteEnrollmentDraft,
-  startEntraInviteSignIn,
-} from '../api/entraInviteEnrollment';
-
-type InviteState =
-  | { status: 'checking' }
-  | { status: 'invalid'; message: string }
-  | { status: 'ready' }
-  | { status: 'accepted' }
-  | { status: 'authenticating' }
-  | { status: 'enrolling' }
-  | { status: 'error'; message: string }
-  | { status: 'success' }
-  | { status: 'consumed_no_user' };
-
-const errorMessages: Record<string, string> = {
-  invite_consumed: 'Denne invitation er allerede blevet brugt.',
-  invite_expired: 'Denne invitation er udløbet. Kontakt administratoren for en ny.',
-};
-
-const resolveInviteError = (errorCode: string | undefined, fallback: string) =>
-  errorCode ? errorMessages[errorCode] ?? fallback : fallback;
-
-export const InviteAccept = () => {
-  const { token } = useParams<{ token: string }>();
-  const { meQuery, clearLocalSession, isLoading } = useAuth();
-  const [state, setState] = useState<InviteState>({ status: 'checking' });
-  const [displayName, setDisplayName] = useState('');
-  const [phone, setPhone] = useState('');
-  const calledRef = useRef(false);
-
-  useEffect(() => {
-    if (hasEntraCallback()) {
-      const draft = loadInviteEnrollmentDraft();
-      if (draft) {
-        setDisplayName(draft.displayName);
-        setPhone(draft.phone ?? '');
-      }
-
-      setState({ status: 'enrolling' });
-      completeEntraInviteEnrollment()
-        .then(response => {
-          AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-          AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-          clearInviteEnrollmentSession();
-          window.history.replaceState(null, '', window.location.pathname);
-          setState({ status: 'success' });
-          window.location.assign('/app/profil');
-        })
-        .catch((err: unknown) => {
-          window.history.replaceState(null, '', window.location.pathname);
-          const errorCode = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-          const message = errorCode
-            ? resolveInviteError(errorCode, 'Kunne ikke færdiggøre Microsoft login. Prøv igen.')
-            : (err as Error)?.message || 'Kunne ikke færdiggøre Microsoft login. Prøv igen.';
-          setState({ status: 'error', message });
-        });
-      return;
-    }
-
-    if (!token) {
-      setState({ status: 'invalid', message: 'Manglende invitationslink.' });
-      return;
-    }
-
-    // Wait for the auth context to finish resolving the existing
-    // session before we make any decisions. /api/auth/me runs on
-    // AppProvider mount; until it resolves we don't know whether the
-    // user is already logged in.
-    if (isLoading) return;
-
-    if (calledRef.current) return;
-    calledRef.current = true;
-
-    verifyInviteToken(token)
-      .then((res) => {
-        const currentUser = meQuery.data;
-
-        // Already logged in?
-        if (currentUser) {
-          const sameEmail = currentUser.email.toLowerCase() === res.email.toLowerCase();
-
-          if (sameEmail) {
-            // Already accepted — the invitation points to the user
-            // we're already authenticated as. Skip the enrollment
-            // form, drop straight into the app.
-            window.location.assign('/app');
-            return;
-          }
-
-          // Logged in as a different identity. Drop only the local Workslip
-          // session and fall through to the un-authenticated flow. This must not
-          // acquire provider-specific logout side effects.
-          clearLocalSession();
-          if (res.userExists) {
-            window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
-            return;
-          }
-          if (!res.consumed) {
-            setState({ status: 'ready' });
-            return;
-          }
-          setState({ status: 'consumed_no_user' });
-          return;
-        }
-
-        // Not logged in.
-        if (res.userExists) {
-          // Already an account — go straight to login.
-          window.location.assign(`/login?email=${encodeURIComponent(res.email)}`);
-          return;
-        }
-
-        if (!res.consumed) {
-          // Fresh invite, new user — show enrollment form.
-          setState({ status: 'ready' });
-          return;
-        }
-
-        // Consumed invite but the user record is gone (admin removed
-        // them after acceptance). Can't enroll again with this link.
-        setState({ status: 'consumed_no_user' });
-      })
-      .catch(() => setState({ status: 'invalid', message: 'Invitationen blev ikke fundet. Kontrollér linket eller kontakt administratoren.' }));
-  }, [token, isLoading, meQuery.data, clearLocalSession]);
-
-  const handleAcceptInvite = () => {
-    setState({ status: 'accepted' });
-  };
-
-  const handleContinueToMicrosoft = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!token || !displayName.trim()) return;
-    setState({ status: 'authenticating' });
-
-    try {
-      await startEntraInviteSignIn({ token, displayName: displayName.trim(), phone: phone.trim() || undefined });
-    } catch (err: unknown) {
-      const errorCode = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      const message = errorCode
-        ? resolveInviteError(errorCode, 'Kunne ikke acceptere invitationen. Prøv igen.')
-        : (err as Error)?.message || 'Kunne ikke acceptere invitationen. Prøv igen.';
-      setState({ status: 'error', message });
-    }
-  };
-
-  const isWorking = state.status === 'authenticating' || state.status === 'enrolling';
-  const showDetailsForm = state.status === 'accepted' || state.status === 'error' || isWorking;
-
-  return (
-    <div className="app-container invite-container">
-      <div className="bg-glow-wrapper">
-        <div className="bg-glow bg-glow-1" />
-        <div className="bg-glow bg-glow-2" />
-      </div>
-
-      <div className="invite-card">
-        <div className="logo invite-logo-wrapper">
-          <svg className="logo-icon" width="40" height="40" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
-
-        {state.status === 'checking' && (
-          <>
-            <Loader2 className="animate-spin invite-status-icon" size={32} />
-            <p className="invite-text">Kontrollerer invitation...</p>
-          </>
-        )}
-
-        {state.status === 'invalid' && (
-          <>
-            <div className="invite-status-icon">
-              <AlertTriangle size={48} className="invite-status-icon--danger" />
-            </div>
-            <h2 className="invite-title">Ugyldig invitation</h2>
-            <p className="invite-text">
-              {state.message}
-            </p>
-            <Link to="/login" className="btn btn-primary">
-              Gå til login
-            </Link>
-          </>
-        )}
-
-        {state.status === 'ready' && (
-          <>
-            <div className="invite-status-icon">
-              <CheckCircle2 size={48} className="invite-status-icon--success" />
-            </div>
-            <h2 className="invite-title">Du er inviteret til Workslip</h2>
-            <p className="invite-text invite-text--long">
-              Acceptér invitationen for at oprette din konto. Derefter beder vi om dit navn og telefonnummer, før du fortsætter med Microsoft.
-            </p>
-            <button
-              type="button"
-              className="btn btn-primary invite-btn invite-btn-accept"
-              onClick={handleAcceptInvite}
-            >
-              Acceptér invitation
-              <ArrowRight size={18} />
-            </button>
-          </>
-        )}
-
-        {state.status === 'success' ? (
-          <>
-            <div className="invite-status-icon">
-              <CheckCircle2 size={48} className="invite-status-icon--success" />
-            </div>
-            <h2 className="invite-title">Velkommen til Workslip</h2>
-            <p className="invite-text invite-text--long">
-              Din konto er blevet oprettet.
-            </p>
-            <a
-              href="/app/profil"
-              className="btn btn-primary invite-btn"
-            >
-              Gå til profil
-              <ArrowRight size={18} />
-            </a>
-          </>
-        ) : null}
-
-        {state.status === 'consumed_no_user' && (
-          <>
-            <div className="invite-status-icon">
-              <AlertTriangle size={48} className="invite-status-icon--danger" />
-            </div>
-            <h2 className="invite-title">Konto ikke længere aktiv</h2>
-            <p className="invite-text invite-text--long">
-              Denne invitation er allerede blevet brugt, men din konto er ikke længere tilgængelig. Kontakt din chef for at få et nyt login.
-            </p>
-            <Link to="/login" className="btn btn-secondary invite-btn">
-              Gå til login
-            </Link>
-          </>
-        )}
-
-        {showDetailsForm && (
-          <>
-            <h2 className="invite-title">Færdiggør din konto</h2>
-            <p className="invite-text invite-text--long">
-              Indtast dit fulde navn og telefonnummer. Bagefter sender vi dig til Microsoft for login og passkey-oprettelse.
-            </p>
-
-            {state.status === 'error' && (
-              <div className="invite-error-badge">
-                <AlertTriangle size={16} />
-                <span>{state.message}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleContinueToMicrosoft} className="invite-form">
-              <div className="invite-field">
-                <label htmlFor="displayName" className="invite-label">
-                  Fulde navn
-                </label>
-                <div className="invite-input-wrapper">
-                  <User size={16} className="invite-input-icon" />
-                  <input
-                    id="displayName"
-                    type="text"
-                    className="invite-input"
-                    value={displayName}
-                    onChange={e => setDisplayName(e.target.value)}
-                    placeholder="Dit fulde navn"
-                    required
-                    disabled={isWorking}
-                  />
-                </div>
-              </div>
-
-              <div className="invite-field">
-                <label htmlFor="phone" className="invite-label">
-                  Telefonnummer <span className="text-dim">(valgfrit)</span>
-                </label>
-                <div className="invite-input-wrapper">
-                  <Phone size={16} className="invite-input-icon" />
-                  <input
-                    id="phone"
-                    type="tel"
-                    className="invite-input"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    placeholder="12 34 56 78"
-                    disabled={isWorking}
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary invite-btn invite-btn-submit"
-                disabled={isWorking || !displayName.trim()}
-              >
-                {isWorking ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <LogIn size={18} />
-                )}
-                <span>{state.status === 'enrolling' ? 'Opretter konto...' : state.status === 'authenticating' ? 'Sender til Microsoft...' : 'Fortsæt med Microsoft'}</span>
-              </button>
-            </form>
-
-            <div className="invite-footer">
-              <Link to="/login" className="invite-footer-link">
-                Har du allerede en konto? Log ind her
-              </Link>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
-</file>
-
 <file path="src/FE/src/features/auth/authenticatedDestination.ts">
 import { hasRole, ROLES } from '../../providers/permissions';
 
@@ -115914,212 +116122,142 @@ import { createQueryClient } from './createQueryClient';
 export const queryClient = createQueryClient();
 </file>
 
-<file path="src/FE/src/providers/AuthContext.tsx">
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+<file path="src/FE/src/providers/AuthenticatedAppProvider.tsx">
+import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
+import type { UserViewModel } from '../api/generated/models';
 import {
-  AUTH_TOKEN_KEY,
+  DEFAULT_AUTHENTICATED_PATH,
+  getAuthenticatedHomePath,
+} from '../features/auth/authenticatedDestination';
+import { prefetchInitialJobList } from '../features/jobs/queries/jobListQuery';
+import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
+import { queryClient } from '../lib/react-query';
+import {
   AuthContext,
-  USER_EMAIL_KEY,
-  AuthStorage,
-  clearReauthInFlight,
   type AuthContextType,
 } from './authContextValue';
-import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
+import { canUseSessionNotifications } from './sessionFeaturePolicy';
 
-const AuthenticatedAppProvider = lazy(() =>
-  import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
-);
+interface AuthenticatedAppProviderProps {
+  children: ReactNode;
+  login: AuthContextType['login'];
+  devLogin: AuthContextType['devLogin'];
+  clearSession: () => void;
+}
 
-const publicMeQuery: AuthContextType['meQuery'] = {
-  isPending: false,
-  isError: false,
-  refetch: async () => null,
-  data: null,
-};
+function shouldPrefetchJobs(): boolean {
+  return window.location.pathname === '/'
+    || window.location.pathname === '/login'
+    || window.location.pathname === '/app'
+    || window.location.pathname === '/app/';
+}
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authToken, setAuthToken] = useState<string | null>(() => AuthStorage.getItem(AUTH_TOKEN_KEY));
+function AuthenticatedSessionProvider({
+  children,
+  login,
+  devLogin,
+  clearSession,
+}: AuthenticatedAppProviderProps) {
+  const { register: registerPush } = usePushNotifications();
+
+  const meQuery = useGetApiAuthMe({
+    query: {
+      enabled: true,
+      retry: 1,
+      retryDelay: 500,
+      refetchOnReconnect: true,
+      staleTime: 5 * 60 * 1000,
+    },
+  });
+
+  const user = meQuery.data ?? null;
+  const isAuthenticated = Boolean(user);
+  const canUseNotifications = canUseSessionNotifications(user?.role);
+  const usesPrimaryJobList = getAuthenticatedHomePath(user?.role) === DEFAULT_AUTHENTICATED_PATH;
 
   useEffect(() => {
-    if (!authToken) return;
+    if (isAuthenticated && canUseNotifications) {
+      registerPush().catch((error) => {
+        console.error('[Auth] Failed to register push notifications:', error);
+      });
+    }
+    // The push hook currently returns a function tied to its mutation object.
+    // Including it would re-run registration on every provider render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canUseNotifications, isAuthenticated]);
 
-    // Start the shell and jobs-route downloads alongside the authenticated
-    // provider and /api/auth/me request. Import failures still flow through the
-    // existing Vite stale-chunk recovery when the route is rendered.
-    void preloadPrimaryAppRoute().catch(() => undefined);
-  }, [authToken]);
+  useEffect(() => {
+    if (!isAuthenticated || !usesPrimaryJobList || !shouldPrefetchJobs()) return;
 
-  const clearStoredSession = useCallback(() => {
-    AuthStorage.removeItem(AUTH_TOKEN_KEY);
-    AuthStorage.removeItem(USER_EMAIL_KEY);
-    clearReauthInFlight();
-    setAuthToken(null);
-  }, []);
+    // The token and current user are now validated. Populate the same query key
+    // used by JobList so the home route can render cached data immediately.
+    void prefetchInitialJobList(queryClient).catch(() => undefined);
+  }, [isAuthenticated, usesPrimaryJobList]);
 
-  const login = useCallback(
-    async (email: string, code: string): Promise<boolean> => {
-      try {
-        const { verifyAuthCode } = await import('../features/auth/api/devToken');
-        const response = await verifyAuthCode(email, code);
-        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-        setAuthToken(response.token);
-        clearReauthInFlight();
-        return true;
-      } catch {
-        return false;
-      }
+  const clearLocalSession = useCallback(() => {
+    queryClient.clear();
+    clearSession();
+  }, [clearSession]);
+
+  const logout = useCallback(() => {
+    // Keep explicit logout separate from internal session clearing so a future
+    // provider-specific sign-out cannot affect invitation or recovery flows.
+    clearLocalSession();
+  }, [clearLocalSession]);
+
+  const updateUser = useCallback(
+    (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => {
+      queryClient.setQueryData(getGetApiAuthMeQueryKey(), (old: UserViewModel | undefined) => {
+        if (!old) return old;
+        return { ...old, ...partial };
+      });
     },
     [],
   );
 
-  const devLogin = useCallback(
-    async (email: string): Promise<boolean> => {
-      try {
-        const { getDevToken } = await import('../features/auth/api/devToken');
-        const response = await getDevToken(email);
-        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-        setAuthToken(response.token);
-        clearReauthInFlight();
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [],
-  );
+  const retryMe = useCallback(async (): Promise<unknown> => {
+    await queryClient.cancelQueries({ queryKey: getGetApiAuthMeQueryKey() });
+    return meQuery.refetch();
+  }, [meQuery.refetch]);
 
-  const publicValue = useMemo<AuthContextType>(
+  const publicMeQuery = useMemo(
     () => ({
-      hasAuthToken: false,
-      isAuthenticated: false,
-      user: null,
-      isLoading: false,
+      isPending: meQuery.isPending,
+      isError: meQuery.isError,
+      refetch: retryMe,
+      data: meQuery.data ?? null,
+    }),
+    [meQuery.isPending, meQuery.isError, meQuery.data, retryMe],
+  );
+
+  const value = useMemo<AuthContextType>(
+    () => ({
+      hasAuthToken: true,
+      isAuthenticated,
+      user,
+      isLoading: meQuery.isPending,
       login,
       devLogin,
-      logout: clearStoredSession,
-      clearLocalSession: clearStoredSession,
-      updateUser: () => undefined,
+      logout,
+      clearLocalSession,
+      updateUser,
       meQuery: publicMeQuery,
     }),
-    [clearStoredSession, devLogin, login],
+    [clearLocalSession, devLogin, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
   );
 
-  if (!authToken) {
-    return <AuthContext.Provider value={publicValue}>{children}</AuthContext.Provider>;
-  }
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
+export function AuthenticatedAppProvider(props: AuthenticatedAppProviderProps) {
   return (
-    <Suspense
-      fallback={(
-        <div className="protected-route-loading" role="status" aria-live="polite">
-          Tjekker login status...
-        </div>
-      )}
-    >
-      <AuthenticatedAppProvider
-        login={login}
-        devLogin={devLogin}
-        clearSession={clearStoredSession}
-      >
-        {children}
-      </AuthenticatedAppProvider>
-    </Suspense>
+    <QueryClientProvider client={queryClient}>
+      <AuthenticatedSessionProvider {...props} />
+    </QueryClientProvider>
   );
 }
-</file>
-
-<file path="src/FE/src/providers/authContextValue.ts">
-import { createContext } from 'react';
-import type { UserViewModel } from '../api/generated/models';
-
-export const AUTH_TOKEN_KEY = 'authToken';
-export const USER_EMAIL_KEY = 'userEmail';
-export const REAUTH_IN_FLIGHT_KEY = 'workslip.reauthInFlight';
-
-/**
- * TTL on the reauthInFlight flag. If the redirect is interrupted (browser
- * crash, network drop before reaching /login), the flag would otherwise stay
- * set forever and silently break the next expiry cycle. 30s is well above
- * any realistic redirect duration and well below the next possible expiry
- * cycle (60 min JWT TTL), so a stale flag will always self-heal.
- */
-const REAUTH_IN_FLIGHT_TTL_MS = 30_000;
-
-/**
- * Centralized storage helper for auth tokens and short-lived OAuth flow state.
- *
- * Workslip is an installed PWA. `sessionStorage` is evicted by iOS/Android PWAs
- * on backgrounding and is gone when the user comes back to the app, which makes
- * the user look logged out at random. We persist the JWT (short-lived, 60 min
- * default) in `localStorage` so it survives PWA eviction and reload.
- *
- * SECURITY NOTE: `localStorage` is readable by any JavaScript that runs on our
- * origin. If a third-party script or vulnerable npm dependency is ever
- * injected, an attacker could steal the JWT and impersonate the user for up
- * to 60 minutes. The trade-off is intentional: PWA eviction with
- * `sessionStorage` is the dominant real-world logout cause. Future migrations
- * to HttpOnly cookies (set by the backend) or IndexedDB with a worker-held
- * encryption key would close this gap; both are larger architectural changes.
- *
- * Future migrations to IndexedDB / secure cookies are a single-file change.
- */
-const authStorage = {
-  getItem(key: string): string | null {
-    return localStorage.getItem(key);
-  },
-  setItem(key: string, value: string): void {
-    localStorage.setItem(key, value);
-  },
-  removeItem(key: string): void {
-    localStorage.removeItem(key);
-  },
-};
-
-export const AuthStorage = authStorage;
-
-export const setReauthInFlight = (): void => {
-  const expiresAt = Date.now() + REAUTH_IN_FLIGHT_TTL_MS;
-  AuthStorage.setItem(REAUTH_IN_FLIGHT_KEY, String(expiresAt));
-};
-
-export const isReauthInFlight = (): boolean => {
-  const raw = AuthStorage.getItem(REAUTH_IN_FLIGHT_KEY);
-  if (!raw) return false;
-  const expiresAt = Number(raw);
-  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-    AuthStorage.removeItem(REAUTH_IN_FLIGHT_KEY);
-    return false;
-  }
-  return true;
-};
-
-export const clearReauthInFlight = (): void => {
-  AuthStorage.removeItem(REAUTH_IN_FLIGHT_KEY);
-};
-
-export interface AuthMeQuery {
-  isPending: boolean;
-  isError: boolean;
-  refetch: () => Promise<unknown>;
-  data?: UserViewModel | null;
-}
-
-export interface AuthContextType {
-  hasAuthToken: boolean;
-  isAuthenticated: boolean;
-  user: UserViewModel | null;
-  isLoading: boolean;
-  login: (email: string, code: string) => Promise<boolean>;
-  devLogin: (email: string) => Promise<boolean>;
-  logout: () => void;
-  clearLocalSession: () => void;
-  updateUser: (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => void;
-  meQuery: AuthMeQuery;
-}
-
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 </file>
 
 <file path="src/FE/src/providers/sessionFeaturePolicy.ts">
@@ -124854,144 +124992,6 @@ export function hasPermission(role: string | null | undefined, permission: Permi
 }
 </file>
 
-<file path="src/FE/src/providers/AuthenticatedAppProvider.tsx">
-import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { useGetApiAuthMe, getGetApiAuthMeQueryKey } from '../api/generated/auth/auth';
-import type { UserViewModel } from '../api/generated/models';
-import {
-  DEFAULT_AUTHENTICATED_PATH,
-  getAuthenticatedHomePath,
-} from '../features/auth/authenticatedDestination';
-import { prefetchInitialJobList } from '../features/jobs/queries/jobListQuery';
-import { usePushNotifications } from '../features/users/hooks/usePushNotifications';
-import { queryClient } from '../lib/react-query';
-import {
-  AuthContext,
-  type AuthContextType,
-} from './authContextValue';
-import { canUseSessionNotifications } from './sessionFeaturePolicy';
-
-interface AuthenticatedAppProviderProps {
-  children: ReactNode;
-  login: AuthContextType['login'];
-  devLogin: AuthContextType['devLogin'];
-  clearSession: () => void;
-}
-
-function shouldPrefetchJobs(): boolean {
-  return window.location.pathname === '/'
-    || window.location.pathname === '/login'
-    || window.location.pathname === '/app'
-    || window.location.pathname === '/app/';
-}
-
-function AuthenticatedSessionProvider({
-  children,
-  login,
-  devLogin,
-  clearSession,
-}: AuthenticatedAppProviderProps) {
-  const { register: registerPush } = usePushNotifications();
-
-  const meQuery = useGetApiAuthMe({
-    query: {
-      enabled: true,
-      retry: 1,
-      retryDelay: 500,
-      refetchOnReconnect: true,
-      staleTime: 5 * 60 * 1000,
-    },
-  });
-
-  const user = meQuery.data ?? null;
-  const isAuthenticated = Boolean(user);
-  const canUseNotifications = canUseSessionNotifications(user?.role);
-  const usesPrimaryJobList = getAuthenticatedHomePath(user?.role) === DEFAULT_AUTHENTICATED_PATH;
-
-  useEffect(() => {
-    if (isAuthenticated && canUseNotifications) {
-      registerPush().catch((error) => {
-        console.error('[Auth] Failed to register push notifications:', error);
-      });
-    }
-    // The push hook currently returns a function tied to its mutation object.
-    // Including it would re-run registration on every provider render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canUseNotifications, isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !usesPrimaryJobList || !shouldPrefetchJobs()) return;
-
-    // The token and current user are now validated. Populate the same query key
-    // used by JobList so the home route can render cached data immediately.
-    void prefetchInitialJobList(queryClient).catch(() => undefined);
-  }, [isAuthenticated, usesPrimaryJobList]);
-
-  const clearLocalSession = useCallback(() => {
-    queryClient.clear();
-    clearSession();
-  }, [clearSession]);
-
-  const logout = useCallback(() => {
-    // Keep explicit logout separate from internal session clearing so a future
-    // provider-specific sign-out cannot affect invitation or recovery flows.
-    clearLocalSession();
-  }, [clearLocalSession]);
-
-  const updateUser = useCallback(
-    (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => {
-      queryClient.setQueryData(getGetApiAuthMeQueryKey(), (old: UserViewModel | undefined) => {
-        if (!old) return old;
-        return { ...old, ...partial };
-      });
-    },
-    [],
-  );
-
-  const retryMe = useCallback(async (): Promise<unknown> => {
-    await queryClient.cancelQueries({ queryKey: getGetApiAuthMeQueryKey() });
-    return meQuery.refetch();
-  }, [meQuery.refetch]);
-
-  const publicMeQuery = useMemo(
-    () => ({
-      isPending: meQuery.isPending,
-      isError: meQuery.isError,
-      refetch: retryMe,
-      data: meQuery.data ?? null,
-    }),
-    [meQuery.isPending, meQuery.isError, meQuery.data, retryMe],
-  );
-
-  const value = useMemo<AuthContextType>(
-    () => ({
-      hasAuthToken: true,
-      isAuthenticated,
-      user,
-      isLoading: meQuery.isPending,
-      login,
-      devLogin,
-      logout,
-      clearLocalSession,
-      updateUser,
-      meQuery: publicMeQuery,
-    }),
-    [clearLocalSession, devLogin, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
-  );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function AuthenticatedAppProvider(props: AuthenticatedAppProviderProps) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthenticatedSessionProvider {...props} />
-    </QueryClientProvider>
-  );
-}
-</file>
-
 <file path="src/FE/src/pwa/notificationNavigationClient.ts">
 import {
   isNotificationNavigationRequest,
@@ -127871,6 +127871,296 @@ export async function navigateNotificationTarget(
 }
 </file>
 
+<file path="src/FE/src/routes/index.tsx">
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 'react-router-dom';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorFallback } from '../providers/ErrorFallback';
+import { useAuth } from '../providers/useAuth';
+import { RoleGuard } from '../providers/permissions';
+import { Login } from '../features/auth/routes/Login';
+import { reportFrontendError } from '../applicationInsights';
+
+const AUTH_STARTUP_GRACE_MS = 6_000;
+
+const InviteAccept = lazy(() =>
+  import('../features/auth/routes/InviteAccept').then((module) => ({ default: module.InviteAccept })),
+);
+const AppLayout = lazy(() =>
+  import('../components/layouts/AppLayout').then((module) => ({ default: module.AppLayout })),
+);
+const JobList = lazy(() =>
+  import('../features/jobs/routes/JobList').then((module) => ({ default: module.JobList })),
+);
+const JobDetail = lazy(() =>
+  import('../features/jobs/routes/JobDetail').then((module) => ({ default: module.JobDetail })),
+);
+const JobCreate = lazy(() =>
+  import('../features/jobs/routes/JobCreate').then((module) => ({ default: module.JobCreate })),
+);
+const SimpleJobCreate = lazy(() =>
+  import('../features/jobs/routes/SimpleJobCreate').then((module) => ({ default: module.SimpleJobCreate })),
+);
+const CompletedJobReport = lazy(() =>
+  import('../features/jobs/routes/CompletedJobReport').then((module) => ({ default: module.CompletedJobReport })),
+);
+const Create = lazy(() =>
+  import('../features/create/routes/Create').then((module) => ({ default: module.Create })),
+);
+const UserList = lazy(() =>
+  import('../features/users/routes/UserList').then((module) => ({ default: module.UserList })),
+);
+const UserDetail = lazy(() =>
+  import('../features/users/routes/UserDetail').then((module) => ({ default: module.UserDetail })),
+);
+const CustomerList = lazy(() =>
+  import('../features/customers/routes/CustomerList').then((module) => ({ default: module.CustomerList })),
+);
+const CreateCustomerPage = lazy(() =>
+  import('../features/customers/routes/CreateCustomerPage').then((module) => ({ default: module.CreateCustomerPage })),
+);
+const EditCustomerPage = lazy(() =>
+  import('../features/customers/routes/EditCustomerPage').then((module) => ({ default: module.EditCustomerPage })),
+);
+const MyWorksheets = lazy(() =>
+  import('../features/worksheets/routes/MyWorksheets').then((module) => ({ default: module.MyWorksheets })),
+);
+const CustomerDetail = lazy(() =>
+  import('../features/customers/routes/CustomerDetail').then((module) => ({ default: module.CustomerDetail })),
+);
+const Settings = lazy(() =>
+  import('../features/settings/routes/Settings').then((module) => ({ default: module.Settings })),
+);
+const AuditorReportList = lazy(() =>
+  import('../features/auditor/routes/AuditorReportList').then((module) => ({ default: module.AuditorReportList })),
+);
+const Profile = lazy(() =>
+  import('../features/settings/routes/Profile').then((module) => ({ default: module.Profile })),
+);
+const LegalPage = lazy(() =>
+  import('../features/legal').then((module) => ({ default: module.LegalPage })),
+);
+const SuperAdmin = lazy(() =>
+  import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
+);
+const CacheDiagnostics = lazy(() =>
+  import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
+);
+
+interface StartupRecoveryProps {
+  isRetrying: boolean;
+  onRetry: () => void;
+  onReload: () => void;
+  onLogin: () => void;
+}
+
+const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupRecoveryProps) => (
+  <div className="app-container app-container-center" role="alert" aria-live="polite">
+    <div className="login-card">
+      <div className="login-card-header">
+        <h2>Forbindelsen tager længere tid end normalt</h2>
+        <p>Serveren kan være ved at starte efter en deployment. Dit gemte login er ikke blevet slettet.</p>
+      </div>
+      <div className="login-email-step">
+        <button
+          type="button"
+          className="btn btn-primary login-submit-btn"
+          onClick={onRetry}
+          disabled={isRetrying}
+        >
+          {isRetrying ? 'Prøver igen...' : 'Prøv igen'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary login-submit-btn"
+          onClick={onReload}
+          disabled={isRetrying}
+        >
+          Genindlæs appen
+        </button>
+        <button
+          type="button"
+          className="login-back-btn"
+          onClick={onLogin}
+          disabled={isRetrying}
+        >
+          Log ind igen
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+/**
+ * A stored token and a loaded user are separate states. Temporary API startup
+ * failures must not clear a potentially valid session or leave the app spinning
+ * indefinitely.
+ */
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { hasAuthToken, isAuthenticated, isLoading, clearLocalSession, meQuery } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [startupTimedOut, setStartupTimedOut] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const returnTo = `${location.pathname}${location.search}${location.hash}`;
+  const loginUrl = `/login?returnTo=${encodeURIComponent(returnTo)}`;
+
+  useEffect(() => {
+    if (!hasAuthToken || isAuthenticated) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setStartupTimedOut(true);
+    }, AUTH_STARTUP_GRACE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [hasAuthToken, isAuthenticated, retryAttempt]);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    setStartupTimedOut(false);
+    setRetryAttempt((attempt) => attempt + 1);
+
+    try {
+      await meQuery.refetch();
+    } catch {
+      // Query state keeps the recovery screen visible.
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const handleLogin = () => {
+    clearLocalSession();
+    navigate(loginUrl, { replace: true });
+  };
+
+  if (isAuthenticated) {
+    return <>{children}</>;
+  }
+
+  if (!hasAuthToken) {
+    return <Navigate to={loginUrl} replace />;
+  }
+
+  if (startupTimedOut || meQuery.isError) {
+    return (
+      <StartupRecovery
+        isRetrying={isRetrying}
+        onRetry={() => { void handleRetry(); }}
+        onReload={() => window.location.reload()}
+        onLogin={handleLogin}
+      />
+    );
+  }
+
+  if (isLoading || meQuery.isPending) {
+    return (
+      <div className="protected-route-loading" role="status" aria-live="polite">
+        Tjekker login status...
+      </div>
+    );
+  }
+
+  return (
+    <StartupRecovery
+      isRetrying={isRetrying}
+      onRetry={() => { void handleRetry(); }}
+      onReload={() => window.location.reload()}
+      onLogin={handleLogin}
+    />
+  );
+};
+
+function RouteLoadingFallback() {
+  return <div className="protected-route-loading">Indlæser siden...</div>;
+}
+
+function RootErrorBoundary() {
+  return (
+    <ErrorBoundary
+      FallbackComponent={ErrorFallback}
+      onError={(error, info) => reportFrontendError(error, 'react.error-boundary', { componentStack: info.componentStack ?? '' })}
+      onReset={() => window.location.reload()}
+    >
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Outlet />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+export const router = createBrowserRouter([
+  {
+    element: <RootErrorBoundary />,
+    children: [
+      { path: '/', element: <Login /> },
+      { path: '/login', element: <Login /> },
+      { path: '/invite/callback', element: <InviteAccept /> },
+      { path: '/invite/:token', element: <InviteAccept /> },
+      {
+        path: '/app',
+        element: (
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        ),
+        children: [
+          { index: true, element: <JobList /> },
+          { path: 'timer', element: <MyWorksheets /> },
+          { path: 'create', element: <Create /> },
+          { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
+          { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
+          { path: 'job/:id', element: <JobDetail /> },
+          { path: 'completed/:id', element: <CompletedJobReport /> },
+          { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
+          { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
+          { path: 'customers', element: <RoleGuard permission="customer:view"><CustomerList /></RoleGuard> },
+          { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /></RoleGuard> },
+          { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /></RoleGuard> },
+          { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
+          { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
+          { path: 'profil', element: <Profile /> },
+          { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
+          { path: 'legal/:type', element: <LegalPage /> },
+        ],
+      },
+      {
+        path: '/superadmin',
+        element: (
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        ),
+        children: [
+          {
+            index: true,
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <SuperAdmin />
+              </RoleGuard>
+            ),
+          },
+          {
+            path: 'cache',
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <CacheDiagnostics />
+              </RoleGuard>
+            ),
+          },
+        ],
+      },
+      {
+        path: '*',
+        element: <ErrorFallback error={new Error('Siden blev ikke fundet (404)')} resetErrorBoundary={() => {}} />,
+      },
+    ],
+  },
+]);
+</file>
+
 <file path="src/FE/vite.config.ts">
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
@@ -130043,296 +130333,6 @@ export function SuperAdmin() {
     </div>
   );
 }
-</file>
-
-<file path="src/FE/src/routes/index.tsx">
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 'react-router-dom';
-import { ErrorBoundary } from 'react-error-boundary';
-import { ErrorFallback } from '../providers/ErrorFallback';
-import { useAuth } from '../providers/useAuth';
-import { RoleGuard } from '../providers/permissions';
-import { Login } from '../features/auth/routes/Login';
-import { reportFrontendError } from '../applicationInsights';
-
-const AUTH_STARTUP_GRACE_MS = 6_000;
-
-const InviteAccept = lazy(() =>
-  import('../features/auth/routes/InviteAccept').then((module) => ({ default: module.InviteAccept })),
-);
-const AppLayout = lazy(() =>
-  import('../components/layouts/AppLayout').then((module) => ({ default: module.AppLayout })),
-);
-const JobList = lazy(() =>
-  import('../features/jobs/routes/JobList').then((module) => ({ default: module.JobList })),
-);
-const JobDetail = lazy(() =>
-  import('../features/jobs/routes/JobDetail').then((module) => ({ default: module.JobDetail })),
-);
-const JobCreate = lazy(() =>
-  import('../features/jobs/routes/JobCreate').then((module) => ({ default: module.JobCreate })),
-);
-const SimpleJobCreate = lazy(() =>
-  import('../features/jobs/routes/SimpleJobCreate').then((module) => ({ default: module.SimpleJobCreate })),
-);
-const CompletedJobReport = lazy(() =>
-  import('../features/jobs/routes/CompletedJobReport').then((module) => ({ default: module.CompletedJobReport })),
-);
-const Create = lazy(() =>
-  import('../features/create/routes/Create').then((module) => ({ default: module.Create })),
-);
-const UserList = lazy(() =>
-  import('../features/users/routes/UserList').then((module) => ({ default: module.UserList })),
-);
-const UserDetail = lazy(() =>
-  import('../features/users/routes/UserDetail').then((module) => ({ default: module.UserDetail })),
-);
-const CustomerList = lazy(() =>
-  import('../features/customers/routes/CustomerList').then((module) => ({ default: module.CustomerList })),
-);
-const CreateCustomerPage = lazy(() =>
-  import('../features/customers/routes/CreateCustomerPage').then((module) => ({ default: module.CreateCustomerPage })),
-);
-const EditCustomerPage = lazy(() =>
-  import('../features/customers/routes/EditCustomerPage').then((module) => ({ default: module.EditCustomerPage })),
-);
-const MyWorksheets = lazy(() =>
-  import('../features/worksheets/routes/MyWorksheets').then((module) => ({ default: module.MyWorksheets })),
-);
-const CustomerDetail = lazy(() =>
-  import('../features/customers/routes/CustomerDetail').then((module) => ({ default: module.CustomerDetail })),
-);
-const Settings = lazy(() =>
-  import('../features/settings/routes/Settings').then((module) => ({ default: module.Settings })),
-);
-const AuditorReportList = lazy(() =>
-  import('../features/auditor/routes/AuditorReportList').then((module) => ({ default: module.AuditorReportList })),
-);
-const Profile = lazy(() =>
-  import('../features/settings/routes/Profile').then((module) => ({ default: module.Profile })),
-);
-const LegalPage = lazy(() =>
-  import('../features/legal').then((module) => ({ default: module.LegalPage })),
-);
-const SuperAdmin = lazy(() =>
-  import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
-);
-const CacheDiagnostics = lazy(() =>
-  import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
-);
-
-interface StartupRecoveryProps {
-  isRetrying: boolean;
-  onRetry: () => void;
-  onReload: () => void;
-  onLogin: () => void;
-}
-
-const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupRecoveryProps) => (
-  <div className="app-container app-container-center" role="alert" aria-live="polite">
-    <div className="login-card">
-      <div className="login-card-header">
-        <h2>Forbindelsen tager længere tid end normalt</h2>
-        <p>Serveren kan være ved at starte efter en deployment. Dit gemte login er ikke blevet slettet.</p>
-      </div>
-      <div className="login-email-step">
-        <button
-          type="button"
-          className="btn btn-primary login-submit-btn"
-          onClick={onRetry}
-          disabled={isRetrying}
-        >
-          {isRetrying ? 'Prøver igen...' : 'Prøv igen'}
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary login-submit-btn"
-          onClick={onReload}
-          disabled={isRetrying}
-        >
-          Genindlæs appen
-        </button>
-        <button
-          type="button"
-          className="login-back-btn"
-          onClick={onLogin}
-          disabled={isRetrying}
-        >
-          Log ind igen
-        </button>
-      </div>
-    </div>
-  </div>
-);
-
-/**
- * A stored token and a loaded user are separate states. Temporary API startup
- * failures must not clear a potentially valid session or leave the app spinning
- * indefinitely.
- */
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { hasAuthToken, isAuthenticated, isLoading, clearLocalSession, meQuery } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [startupTimedOut, setStartupTimedOut] = useState(false);
-  const [retryAttempt, setRetryAttempt] = useState(0);
-  const [isRetrying, setIsRetrying] = useState(false);
-
-  const returnTo = `${location.pathname}${location.search}${location.hash}`;
-  const loginUrl = `/login?returnTo=${encodeURIComponent(returnTo)}`;
-
-  useEffect(() => {
-    if (!hasAuthToken || isAuthenticated) return undefined;
-
-    const timer = window.setTimeout(() => {
-      setStartupTimedOut(true);
-    }, AUTH_STARTUP_GRACE_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [hasAuthToken, isAuthenticated, retryAttempt]);
-
-  const handleRetry = async () => {
-    setIsRetrying(true);
-    setStartupTimedOut(false);
-    setRetryAttempt((attempt) => attempt + 1);
-
-    try {
-      await meQuery.refetch();
-    } catch {
-      // Query state keeps the recovery screen visible.
-    } finally {
-      setIsRetrying(false);
-    }
-  };
-
-  const handleLogin = () => {
-    clearLocalSession();
-    navigate(loginUrl, { replace: true });
-  };
-
-  if (isAuthenticated) {
-    return <>{children}</>;
-  }
-
-  if (!hasAuthToken) {
-    return <Navigate to={loginUrl} replace />;
-  }
-
-  if (startupTimedOut || meQuery.isError) {
-    return (
-      <StartupRecovery
-        isRetrying={isRetrying}
-        onRetry={() => { void handleRetry(); }}
-        onReload={() => window.location.reload()}
-        onLogin={handleLogin}
-      />
-    );
-  }
-
-  if (isLoading || meQuery.isPending) {
-    return (
-      <div className="protected-route-loading" role="status" aria-live="polite">
-        Tjekker login status...
-      </div>
-    );
-  }
-
-  return (
-    <StartupRecovery
-      isRetrying={isRetrying}
-      onRetry={() => { void handleRetry(); }}
-      onReload={() => window.location.reload()}
-      onLogin={handleLogin}
-    />
-  );
-};
-
-function RouteLoadingFallback() {
-  return <div className="protected-route-loading">Indlæser siden...</div>;
-}
-
-function RootErrorBoundary() {
-  return (
-    <ErrorBoundary
-      FallbackComponent={ErrorFallback}
-      onError={(error, info) => reportFrontendError(error, 'react.error-boundary', { componentStack: info.componentStack ?? '' })}
-      onReset={() => window.location.reload()}
-    >
-      <Suspense fallback={<RouteLoadingFallback />}>
-        <Outlet />
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
-
-export const router = createBrowserRouter([
-  {
-    element: <RootErrorBoundary />,
-    children: [
-      { path: '/', element: <Login /> },
-      { path: '/login', element: <Login /> },
-      { path: '/invite/callback', element: <InviteAccept /> },
-      { path: '/invite/:token', element: <InviteAccept /> },
-      {
-        path: '/app',
-        element: (
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        ),
-        children: [
-          { index: true, element: <JobList /> },
-          { path: 'timer', element: <MyWorksheets /> },
-          { path: 'create', element: <Create /> },
-          { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
-          { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
-          { path: 'job/:id', element: <JobDetail /> },
-          { path: 'completed/:id', element: <CompletedJobReport /> },
-          { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
-          { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
-          { path: 'customers', element: <RoleGuard permission="customer:view"><CustomerList /></RoleGuard> },
-          { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /></RoleGuard> },
-          { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /></RoleGuard> },
-          { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
-          { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
-          { path: 'profil', element: <Profile /> },
-          { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
-          { path: 'legal/:type', element: <LegalPage /> },
-        ],
-      },
-      {
-        path: '/superadmin',
-        element: (
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        ),
-        children: [
-          {
-            index: true,
-            element: (
-              <RoleGuard permission="organization:manage" redirectTo="/app">
-                <SuperAdmin />
-              </RoleGuard>
-            ),
-          },
-          {
-            path: 'cache',
-            element: (
-              <RoleGuard permission="organization:manage" redirectTo="/app">
-                <CacheDiagnostics />
-              </RoleGuard>
-            ),
-          },
-        ],
-      },
-      {
-        path: '*',
-        element: <ErrorFallback error={new Error('Siden blev ikke fundet (404)')} resetErrorBoundary={() => {}} />,
-      },
-    ],
-  },
-]);
 </file>
 
 <file path="src/FE/src/App.css">
@@ -139977,6 +139977,206 @@ self.addEventListener('notificationclick', (event) => {
 });
 </file>
 
+<file path="src/FE/README.md">
+# Workslip frontend
+
+React 19, TypeScript and Vite PWA for Workslip.
+
+## Prerequisites
+
+- Node.js 22
+- npm
+- Workslip API running locally on `http://localhost:5262`, or an explicit API base URL
+- outbound access to the pinned Fontsource files on `cdn.jsdelivr.net` when fonts are not already present locally
+
+## Install and run
+
+```bash
+npm ci
+npm run dev
+```
+
+The development server listens on `http://127.0.0.1:5270`. Requests to `/api` are proxied to `http://localhost:5262` by `vite.config.ts`.
+
+To call a different API locally, set `VITE_API_BASE_URL` in an uncommitted environment file such as `.env.local`.
+
+`npm run dev` and production builds run `scripts/sync-fonts.mjs`. The script downloads the pinned Inter and Outfit variable WOFF2 files into `public/fonts/` only when valid local copies are missing. The generated binaries are ignored by Git; the license notice remains tracked.
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Synchronize fonts and start the Vite development server |
+| `npm run sync:fonts` | Download and validate the pinned local font assets |
+| `npm run typecheck:sw` | Type-check the custom service worker with Web Worker types |
+| `npm run lint` | Run ESLint |
+| `npm run build` | Synchronize fonts, type-check the app and service worker, and create a production build |
+| `npm run preview` | Preview the production build |
+| `npm run generate:api:local` | Generate the API client using `.env.local` |
+| `npm run generate:api:dev` | Generate the API client using `.env.dev` |
+| `npm run generate:api:prod` | Generate the API client using `.env.production` |
+| `npm run doctor` | Run React Doctor diagnostics |
+
+API generation uses Orval. Generated output must be regenerated from the current OpenAPI contract rather than edited as the contract source.
+
+## Architecture
+
+- `src/routes/` defines application routing and access guards.
+- `src/features/` contains feature-oriented UI, hooks and API usage.
+- `src/components/` contains shared UI and form components.
+- `src/components/common/PwaUpdateBanner.tsx` presents the visible update fallback while keeping deployment activation automatic.
+- `src/lib/pwaUpdateEvents.ts` is the small event contract between deferred service-worker registration and the mounted update banner.
+- `src/lib/axios.ts` configures the API client, auth header, correlation ID and mutation idempotency header.
+- `src/providers/AuthContext.tsx` provides the lightweight public auth contract and loads login helpers only when used.
+- `src/providers/AuthenticatedAppProvider.tsx` owns React Query, the generated current-user client, push registration and authenticated auth state; it is loaded only when a stored token exists.
+- `src/routes/preloadPrimaryAppRoute.ts` warms the authenticated layout and default jobs route only after a token exists, allowing their code to download alongside session validation without affecting the anonymous login path.
+- `src/features/jobs/queries/jobListQuery.ts` owns the authenticated jobs prefetch request, cache lifetime and initial browser-state key.
+- `src/hooks/paginatedListState.ts` keeps paginated list storage and query-key construction consistent between prefetching and rendered lists.
+- `src/base.css` contains the small global reset, variables and shared public controls.
+- `src/public-*.css` contains only login, invitation, recovery, error and public paint/font rules.
+- `src/pwa-update.css` contains the cross-route update-banner layout and mobile safe-area handling.
+- `src/authenticated-base.css` defines authenticated-only globals and the Inter/Outfit font faces.
+- `src/App.css` contains the authenticated application styling and is imported only by the lazy `AppLayout` boundary.
+- `src/features/auth/components/OneTimeCodeLogin.tsx` isolates React Hook Form, Zod and one-time-code API code from the default passkey screen.
+- `public/robots.txt` is the static crawler policy for the authenticated app domain and must not be handled by the SPA rewrite.
+- `scripts/sync-fonts.mjs` materializes pinned WOFF2 files before development and production builds.
+- `src/sw.ts` and `src/registerSW.ts` contain service-worker behaviour.
+- `tsconfig.sw.json` isolates Web Worker types from the browser application type environment.
+- `vite.config.ts` defines the local proxy and PWA manifest/build settings.
+- `vercel.json` defines the Git deployment policy, production rewrites and response-cache policy.
+
+Authenticated feature routes and invitation enrollment are loaded through dynamic imports. The default passkey login remains in the initial application shell. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
+
+The public shell does not import the old marketing stylesheet, authenticated application CSS, branded web fonts, one-time-code form dependencies, invitation enrollment, React Query, generated authenticated clients or axios. It uses the system font and static background effects. A stored token loads `AuthenticatedAppProvider`, which installs QueryClient context and resolves `/api/auth/me`; at the same time, the authenticated layout and default jobs route are warmed in parallel. Optional one-time-code/dev-login actions load their API module only when invoked.
+
+When authentication resolves on `/`, `/login` or the `/app` home route, the default jobs query is prefetched with the same status, search and sort key used by the rendered list. Jobs data is fresh for 30 seconds and retained in memory for 30 minutes, so revisiting `/app` displays cached rows immediately and revalidates stale data in the background. This cache is not persisted to IndexedDB or local storage and is cleared on logout to prevent data crossing user sessions. Deep links to other authenticated sections do not speculatively request the jobs list.
+
+Explicit logout and internal session recovery are separate auth-context operations. Both clear local credentials and, while authenticated, clear React Query before removing the token. Invitation account switching and startup recovery use `clearLocalSession`; user-facing logout controls use `logout`. The current logout implementation is local-only and does not navigate through a Microsoft logout endpoint.
+
+The SPA root is served directly without a Vercel redirect. The client router renders login for unauthenticated users and moves an already authenticated user to `/app`.
+
+Service-worker registration is scheduled after the initial window load and an idle callback. Application Insights, Vercel Analytics, Speed Insights and the Sonner toaster are loaded after the first pointer/keyboard interaction or a ten-second fallback, then scheduled during idle time. The Application Insights SDK itself remains a dynamic import. Once registered, the service worker discovers deployments on startup, focus, connectivity recovery and a one-minute interval. A waiting update displays `Ny version klar`; `Opdater nu` applies it immediately, and the same action runs automatically after ten seconds if untouched.
+
+A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout, and authenticated routing shows the explicit retry/reload/login recovery screen after the same six-second grace period rather than clearing a potentially valid token or showing an endless spinner.
+
+## Form conventions
+
+Follow the repository `AGENTS.md` rules:
+
+- reuse components in `src/components/forms/`;
+- use `NumericInput` instead of raw `<input type="number">`;
+- normalize Danish decimal comma at the caller boundary;
+- keep authorization enforcement on the backend; frontend guards are UX only.
+
+## Validation
+
+```bash
+npm ci
+npm run sync:fonts
+npm run lint
+npm run build
+```
+
+There is currently no general `npm test` script in `package.json`. Do not claim broad frontend test coverage from isolated test files. Add a documented test command when the test runner is standardized.
+
+For routing, performance or PWA cache changes, also validate with a clean browser profile:
+
+1. `/` must return the SPA document directly rather than redirecting to `/app`.
+2. `/robots.txt` must return plain text containing valid robots directives and must never return the SPA HTML document.
+3. An unauthenticated `/login` visit must not request authenticated feature chunks, invitation enrollment, `App.css`, Inter/Outfit, React Hook Form, Zod, Sonner, telemetry SDKs, React Query, generated authenticated clients or axios before interaction.
+4. Opening the one-time-code option must load and render its isolated form/API chunk.
+5. Invitation routes must load their isolated route chunk and remain fully styled.
+6. Login, invitation, startup recovery and public error states must remain fully styled and responsive without inherited color/background transitions on their root containers.
+7. A stored-token `/app` visit must start downloading `AuthenticatedAppProvider`, `AppLayout` and `JobList` in parallel with session validation, then load the existing jobs query without duplicate route downloads.
+8. After `/api/auth/me` succeeds on a primary jobs destination, the initial jobs query must use the exact key later consumed by `JobList`; an already-running request must be deduplicated.
+9. Revisiting Jobs within 30 minutes must show cached data immediately; after 30 seconds it must refresh in the background without replacing rows with the full-page skeleton.
+10. Explicit logout and internal session clearing during invitation account switching or startup recovery must clear React Query data before another user can authenticate in the same browser; explicit logout must remain on Workslip rather than visiting a provider logout endpoint.
+11. Login, dev login, user updates, push registration and current-user retry must retain their existing behaviour.
+12. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
+13. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
+14. A route visited once online must remain available on an offline revisit under the supported PWA flow.
+15. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded update/preload recovery paths.
+16. Service-worker update checks must not overlap; a waiting worker must show the persistent update banner rather than activating invisibly.
+17. Selecting `Opdater nu` must apply the waiting update immediately and produce one effective navigation/reload.
+18. Leaving the update banner untouched must apply the same update automatically after ten seconds without a full app close.
+19. A first-time service-worker installation must not show the update banner or trigger an update reload fallback.
+20. Installed mobile PWA, browser refocus and connectivity recovery must follow the same visible/manual/automatic update lifecycle.
+21. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
+22. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
+
+## Vercel deployment policy
+
+The Vercel project root must remain `src/FE`.
+
+- Automatic Git deployments are disabled for every branch except `main`.
+- Production deployments come from `main`.
+- Every push or merge to `main` is eligible for a normal production deployment.
+- Manual production redeploys are not filtered by a repository `ignoreCommand`.
+- `https://app.mrsoftware.dk` is the canonical production frontend origin.
+- `/` is handled by the SPA rewrite; the router decides between login and the authenticated app without an HTTP redirect.
+- `/robots.txt` is excluded from the SPA rewrite and disallows crawler indexing of the authenticated app domain.
+
+Branch suppression is configured through `git.deploymentEnabled` in `vercel.json` with a wildcard deny and an explicit `main` allow. There is no repository-level ignored-build command.
+
+A preview can still be created deliberately through the Vercel dashboard or CLI, but branch pushes do not create previews automatically. A manually created preview uses the production-specific API rewrite in this configuration and must therefore be treated as production-connected. To restore automatic previews, add a reviewed explicit allow rule for the intended branches rather than removing the wildcard deny accidentally.
+
+### DNS
+
+Cloudflare remains the authoritative DNS provider. The `app.mrsoftware.dk` CNAME must point to the Vercel-provided target and remain **DNS only**. Cloudflare must not proxy the app in front of Vercel.
+
+### Production API route
+
+Browsers running on `app.mrsoftware.dk` or a deliberately created `*.vercel.app` deployment use relative `/api/*` URLs regardless of an embedded `VITE_API_BASE_URL`. Vercel rewrites those requests to:
+
+```text
+https://api-mrsoftware-prod.azurewebsites.net/api/*
+```
+
+The browser therefore keeps a single origin and avoids browser CORS preflight for Workslip API requests. Vercel rewrite caching is explicitly disabled for `/api/*`; authenticated API responses must not be stored at the edge.
+
+The rewrite target is production-specific. A future separate frontend environment must define its own Vercel project configuration or make the upstream target environment-aware before it is enabled.
+
+### Cache and update policy
+
+- SPA HTML: `public, max-age=0, must-revalidate`
+- robots policy: `text/plain; charset=utf-8`, `public, max-age=0, must-revalidate`, `nosniff`
+- service worker: `public, max-age=0, must-revalidate`
+- hashed Vite assets: `public, max-age=31536000, immutable`
+- versioned self-hosted fonts: `public, max-age=31536000, immutable`
+- authenticated jobs HTTP responses: private browser revalidation through response-complete ETags; no CDN caching
+- jobs React Query data: 30-second freshness, 30-minute in-memory retention, clear on logout
+- API rewrite: CDN caching disabled
+
+The service worker precaches only the SPA document, web manifest and bootstrap JavaScript. CSS, fonts, images and lazy chunks are cached only after the browser requests them. Same-origin assets below `/assets/` and `/fonts/` use the stable capped runtime cache. This prevents a public login visit from downloading the authenticated application during service-worker installation while retaining offline revisits for resources that were actually used.
+
+Registration is deferred until after the initial page load and an idle callback. Update discovery then runs when the service worker registers, when the browser regains connectivity, whenever the app returns to the foreground, and once per minute while the app remains open. Checks are serialized while a worker installs. A waiting worker remains pending while the update banner is visible. The button or ten-second automatic timer asks the client coordinator to activate the actual `registration.waiting` worker with `SKIP_WAITING`; the banner enters its applying state only after that request is accepted. The plugin's controlling callback and the browser's native `controllerchange` event both feed one guarded reload function, while a five-second fallback covers browsers that omit both signals. The service worker claims clients. Push-notification clicks send same-origin targets to the focused or visible Workslip window, wait for the application router to acknowledge navigation, and then focus that client. A document navigation remains as a compatibility fallback for older clients, and a new window is opened only when no application client exists. First-time installation is excluded from all update-banner and reload paths.
+
+Vite dynamic-import preload failures trigger one automatic reload per build. Repeated failure in the same build falls through to the normal React error boundary instead of creating a reload loop.
+
+## Environment and secrets
+
+Only variables prefixed with `VITE_` can be embedded into the browser bundle. Never place client secrets, database credentials or privileged tokens in frontend environment files.
+
+Common runtime configuration includes:
+
+- `VITE_API_BASE_URL` — optional local/non-Vercel API base URL and OpenAPI-generation source. Vercel-hosted runtime traffic uses the same-origin `/api` rewrite instead.
+- Entra/Application Insights settings referenced by frontend source — treat these as public client configuration, not secrets.
+
+## Microsoft login callback state
+
+The browser PKCE flow stores the complete temporary login state in `sessionStorage` under `workslip.loginPkce` before navigating to Microsoft. The stored object includes the OAuth state value, PKCE verifier, redirect URI and return target.
+
+Do not replace this with an in-memory map or store only an opaque reference. Microsoft login performs a full-page navigation, which destroys module memory before the callback is processed. Invalid or legacy stored values must be discarded rather than used.
+
+The login route clears the PKCE state after success, cancellation or callback failure. It also treats a browser-history return from Microsoft with pending PKCE state as a cancellation: cached pages recover on `pageshow`, non-cached `back_forward` loads do not restart reauthentication, and the login form becomes interactive again. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters.
+
+## PWA caution
+
+The application uses `vite-plugin-pwa` with an injected service worker. The custom service worker is type-checked separately and must not be excluded through `@ts-nocheck` again.
+
+Visible update notification, optional immediate action and automatic activation after ten seconds are accepted product decisions recorded in ADR 0002. A deployment may replace an open client without waiting for dirty-form state or explicit confirmation. Update activation and page reload must remain single-owner and guarded; do not add worker-side client navigation or a direct reload path outside the coordinator. Runtime chunk retention and one-shot stale-build recovery reduce version-skew failures, but do not make API mutations offline-capable.
+</file>
+
 <file path="src/FE/src/features/jobs/routes/CompletedJobReport.tsx">
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -140567,206 +140767,6 @@ function ActionSuccessDialog({
     document.body,
   );
 }
-</file>
-
-<file path="src/FE/README.md">
-# Workslip frontend
-
-React 19, TypeScript and Vite PWA for Workslip.
-
-## Prerequisites
-
-- Node.js 22
-- npm
-- Workslip API running locally on `http://localhost:5262`, or an explicit API base URL
-- outbound access to the pinned Fontsource files on `cdn.jsdelivr.net` when fonts are not already present locally
-
-## Install and run
-
-```bash
-npm ci
-npm run dev
-```
-
-The development server listens on `http://127.0.0.1:5270`. Requests to `/api` are proxied to `http://localhost:5262` by `vite.config.ts`.
-
-To call a different API locally, set `VITE_API_BASE_URL` in an uncommitted environment file such as `.env.local`.
-
-`npm run dev` and production builds run `scripts/sync-fonts.mjs`. The script downloads the pinned Inter and Outfit variable WOFF2 files into `public/fonts/` only when valid local copies are missing. The generated binaries are ignored by Git; the license notice remains tracked.
-
-## Commands
-
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Synchronize fonts and start the Vite development server |
-| `npm run sync:fonts` | Download and validate the pinned local font assets |
-| `npm run typecheck:sw` | Type-check the custom service worker with Web Worker types |
-| `npm run lint` | Run ESLint |
-| `npm run build` | Synchronize fonts, type-check the app and service worker, and create a production build |
-| `npm run preview` | Preview the production build |
-| `npm run generate:api:local` | Generate the API client using `.env.local` |
-| `npm run generate:api:dev` | Generate the API client using `.env.dev` |
-| `npm run generate:api:prod` | Generate the API client using `.env.production` |
-| `npm run doctor` | Run React Doctor diagnostics |
-
-API generation uses Orval. Generated output must be regenerated from the current OpenAPI contract rather than edited as the contract source.
-
-## Architecture
-
-- `src/routes/` defines application routing and access guards.
-- `src/features/` contains feature-oriented UI, hooks and API usage.
-- `src/components/` contains shared UI and form components.
-- `src/components/common/PwaUpdateBanner.tsx` presents the visible update fallback while keeping deployment activation automatic.
-- `src/lib/pwaUpdateEvents.ts` is the small event contract between deferred service-worker registration and the mounted update banner.
-- `src/lib/axios.ts` configures the API client, auth header, correlation ID and mutation idempotency header.
-- `src/providers/AuthContext.tsx` provides the lightweight public auth contract and loads login helpers only when used.
-- `src/providers/AuthenticatedAppProvider.tsx` owns React Query, the generated current-user client, push registration and authenticated auth state; it is loaded only when a stored token exists.
-- `src/routes/preloadPrimaryAppRoute.ts` warms the authenticated layout and default jobs route only after a token exists, allowing their code to download alongside session validation without affecting the anonymous login path.
-- `src/features/jobs/queries/jobListQuery.ts` owns the authenticated jobs prefetch request, cache lifetime and initial browser-state key.
-- `src/hooks/paginatedListState.ts` keeps paginated list storage and query-key construction consistent between prefetching and rendered lists.
-- `src/base.css` contains the small global reset, variables and shared public controls.
-- `src/public-*.css` contains only login, invitation, recovery, error and public paint/font rules.
-- `src/pwa-update.css` contains the cross-route update-banner layout and mobile safe-area handling.
-- `src/authenticated-base.css` defines authenticated-only globals and the Inter/Outfit font faces.
-- `src/App.css` contains the authenticated application styling and is imported only by the lazy `AppLayout` boundary.
-- `src/features/auth/components/OneTimeCodeLogin.tsx` isolates React Hook Form, Zod and one-time-code API code from the default passkey screen.
-- `public/robots.txt` is the static crawler policy for the authenticated app domain and must not be handled by the SPA rewrite.
-- `scripts/sync-fonts.mjs` materializes pinned WOFF2 files before development and production builds.
-- `src/sw.ts` and `src/registerSW.ts` contain service-worker behaviour.
-- `tsconfig.sw.json` isolates Web Worker types from the browser application type environment.
-- `vite.config.ts` defines the local proxy and PWA manifest/build settings.
-- `vercel.json` defines the Git deployment policy, production rewrites and response-cache policy.
-
-Authenticated feature routes and invitation enrollment are loaded through dynamic imports. The default passkey login remains in the initial application shell. The application entry is emitted as `assets/app-*.js`, while lazy chunks are emitted below `assets/chunks/`, so the PWA precache boundary is deterministic.
-
-The public shell does not import the old marketing stylesheet, authenticated application CSS, branded web fonts, one-time-code form dependencies, invitation enrollment, React Query, generated authenticated clients or axios. It uses the system font and static background effects. A stored token loads `AuthenticatedAppProvider`, which installs QueryClient context and resolves `/api/auth/me`; at the same time, the authenticated layout and default jobs route are warmed in parallel. Optional one-time-code/dev-login actions load their API module only when invoked.
-
-When authentication resolves on `/`, `/login` or the `/app` home route, the default jobs query is prefetched with the same status, search and sort key used by the rendered list. Jobs data is fresh for 30 seconds and retained in memory for 30 minutes, so revisiting `/app` displays cached rows immediately and revalidates stale data in the background. This cache is not persisted to IndexedDB or local storage and is cleared on logout to prevent data crossing user sessions. Deep links to other authenticated sections do not speculatively request the jobs list.
-
-Explicit logout and internal session recovery are separate auth-context operations. Both clear local credentials and, while authenticated, clear React Query before removing the token. Invitation account switching and startup recovery use `clearLocalSession`; user-facing logout controls use `logout`. The current logout implementation is local-only and does not navigate through a Microsoft logout endpoint.
-
-The SPA root is served directly without a Vercel redirect. The client router renders login for unauthenticated users and moves an already authenticated user to `/app`.
-
-Service-worker registration is scheduled after the initial window load and an idle callback. Application Insights, Vercel Analytics, Speed Insights and the Sonner toaster are loaded after the first pointer/keyboard interaction or a ten-second fallback, then scheduled during idle time. The Application Insights SDK itself remains a dynamic import. Once registered, the service worker discovers deployments on startup, focus, connectivity recovery and a one-minute interval. A waiting update displays `Ny version klar`; `Opdater nu` applies it immediately, and the same action runs automatically after ten seconds if untouched.
-
-A stored authentication token and a successfully loaded current user are separate startup states. `/api/auth/me` has a six-second request timeout, and authenticated routing shows the explicit retry/reload/login recovery screen after the same six-second grace period rather than clearing a potentially valid token or showing an endless spinner.
-
-## Form conventions
-
-Follow the repository `AGENTS.md` rules:
-
-- reuse components in `src/components/forms/`;
-- use `NumericInput` instead of raw `<input type="number">`;
-- normalize Danish decimal comma at the caller boundary;
-- keep authorization enforcement on the backend; frontend guards are UX only.
-
-## Validation
-
-```bash
-npm ci
-npm run sync:fonts
-npm run lint
-npm run build
-```
-
-There is currently no general `npm test` script in `package.json`. Do not claim broad frontend test coverage from isolated test files. Add a documented test command when the test runner is standardized.
-
-For routing, performance or PWA cache changes, also validate with a clean browser profile:
-
-1. `/` must return the SPA document directly rather than redirecting to `/app`.
-2. `/robots.txt` must return plain text containing valid robots directives and must never return the SPA HTML document.
-3. An unauthenticated `/login` visit must not request authenticated feature chunks, invitation enrollment, `App.css`, Inter/Outfit, React Hook Form, Zod, Sonner, telemetry SDKs, React Query, generated authenticated clients or axios before interaction.
-4. Opening the one-time-code option must load and render its isolated form/API chunk.
-5. Invitation routes must load their isolated route chunk and remain fully styled.
-6. Login, invitation, startup recovery and public error states must remain fully styled and responsive without inherited color/background transitions on their root containers.
-7. A stored-token `/app` visit must start downloading `AuthenticatedAppProvider`, `AppLayout` and `JobList` in parallel with session validation, then load the existing jobs query without duplicate route downloads.
-8. After `/api/auth/me` succeeds on a primary jobs destination, the initial jobs query must use the exact key later consumed by `JobList`; an already-running request must be deduplicated.
-9. Revisiting Jobs within 30 minutes must show cached data immediately; after 30 seconds it must refresh in the background without replacing rows with the full-page skeleton.
-10. Explicit logout and internal session clearing during invitation account switching or startup recovery must clear React Query data before another user can authenticate in the same browser; explicit logout must remain on Workslip rather than visiting a provider logout endpoint.
-11. Login, dev login, user updates, push registration and current-user retry must retain their existing behaviour.
-12. Application Insights, Vercel Analytics, Speed Insights and service-worker registration must not block the first render.
-13. Service-worker installation must not proactively download application CSS, fonts, images or lazy chunks.
-14. A route visited once online must remain available on an offline revisit under the supported PWA flow.
-15. A deployment with an already-open tab must either keep serving the previously cached lazy chunk or reload once through the guarded update/preload recovery paths.
-16. Service-worker update checks must not overlap; a waiting worker must show the persistent update banner rather than activating invisibly.
-17. Selecting `Opdater nu` must apply the waiting update immediately and produce one effective navigation/reload.
-18. Leaving the update banner untouched must apply the same update automatically after ten seconds without a full app close.
-19. A first-time service-worker installation must not show the update banner or trigger an update reload fallback.
-20. Installed mobile PWA, browser refocus and connectivity recovery must follow the same visible/manual/automatic update lifecycle.
-21. A temporary `/api/auth/me` outage must retain the stored token and show recovery within six seconds.
-22. A production Lighthouse rerun must confirm the generated public critical path rather than relying only on source inspection.
-
-## Vercel deployment policy
-
-The Vercel project root must remain `src/FE`.
-
-- Automatic Git deployments are disabled for every branch except `main`.
-- Production deployments come from `main`.
-- Every push or merge to `main` is eligible for a normal production deployment.
-- Manual production redeploys are not filtered by a repository `ignoreCommand`.
-- `https://app.mrsoftware.dk` is the canonical production frontend origin.
-- `/` is handled by the SPA rewrite; the router decides between login and the authenticated app without an HTTP redirect.
-- `/robots.txt` is excluded from the SPA rewrite and disallows crawler indexing of the authenticated app domain.
-
-Branch suppression is configured through `git.deploymentEnabled` in `vercel.json` with a wildcard deny and an explicit `main` allow. There is no repository-level ignored-build command.
-
-A preview can still be created deliberately through the Vercel dashboard or CLI, but branch pushes do not create previews automatically. A manually created preview uses the production-specific API rewrite in this configuration and must therefore be treated as production-connected. To restore automatic previews, add a reviewed explicit allow rule for the intended branches rather than removing the wildcard deny accidentally.
-
-### DNS
-
-Cloudflare remains the authoritative DNS provider. The `app.mrsoftware.dk` CNAME must point to the Vercel-provided target and remain **DNS only**. Cloudflare must not proxy the app in front of Vercel.
-
-### Production API route
-
-Browsers running on `app.mrsoftware.dk` or a deliberately created `*.vercel.app` deployment use relative `/api/*` URLs regardless of an embedded `VITE_API_BASE_URL`. Vercel rewrites those requests to:
-
-```text
-https://api-mrsoftware-prod.azurewebsites.net/api/*
-```
-
-The browser therefore keeps a single origin and avoids browser CORS preflight for Workslip API requests. Vercel rewrite caching is explicitly disabled for `/api/*`; authenticated API responses must not be stored at the edge.
-
-The rewrite target is production-specific. A future separate frontend environment must define its own Vercel project configuration or make the upstream target environment-aware before it is enabled.
-
-### Cache and update policy
-
-- SPA HTML: `public, max-age=0, must-revalidate`
-- robots policy: `text/plain; charset=utf-8`, `public, max-age=0, must-revalidate`, `nosniff`
-- service worker: `public, max-age=0, must-revalidate`
-- hashed Vite assets: `public, max-age=31536000, immutable`
-- versioned self-hosted fonts: `public, max-age=31536000, immutable`
-- authenticated jobs HTTP responses: private browser revalidation through response-complete ETags; no CDN caching
-- jobs React Query data: 30-second freshness, 30-minute in-memory retention, clear on logout
-- API rewrite: CDN caching disabled
-
-The service worker precaches only the SPA document, web manifest and bootstrap JavaScript. CSS, fonts, images and lazy chunks are cached only after the browser requests them. Same-origin assets below `/assets/` and `/fonts/` use the stable capped runtime cache. This prevents a public login visit from downloading the authenticated application during service-worker installation while retaining offline revisits for resources that were actually used.
-
-Registration is deferred until after the initial page load and an idle callback. Update discovery then runs when the service worker registers, when the browser regains connectivity, whenever the app returns to the foreground, and once per minute while the app remains open. Checks are serialized while a worker installs. A waiting worker remains pending while the update banner is visible. The button or ten-second automatic timer asks the client coordinator to activate the actual `registration.waiting` worker with `SKIP_WAITING`; the banner enters its applying state only after that request is accepted. The plugin's controlling callback and the browser's native `controllerchange` event both feed one guarded reload function, while a five-second fallback covers browsers that omit both signals. The service worker claims clients. Push-notification clicks send same-origin targets to the focused or visible Workslip window, wait for the application router to acknowledge navigation, and then focus that client. A document navigation remains as a compatibility fallback for older clients, and a new window is opened only when no application client exists. First-time installation is excluded from all update-banner and reload paths.
-
-Vite dynamic-import preload failures trigger one automatic reload per build. Repeated failure in the same build falls through to the normal React error boundary instead of creating a reload loop.
-
-## Environment and secrets
-
-Only variables prefixed with `VITE_` can be embedded into the browser bundle. Never place client secrets, database credentials or privileged tokens in frontend environment files.
-
-Common runtime configuration includes:
-
-- `VITE_API_BASE_URL` — optional local/non-Vercel API base URL and OpenAPI-generation source. Vercel-hosted runtime traffic uses the same-origin `/api` rewrite instead.
-- Entra/Application Insights settings referenced by frontend source — treat these as public client configuration, not secrets.
-
-## Microsoft login callback state
-
-The browser PKCE flow stores the complete temporary login state in `sessionStorage` under `workslip.loginPkce` before navigating to Microsoft. The stored object includes the OAuth state value, PKCE verifier, redirect URI and return target.
-
-Do not replace this with an in-memory map or store only an opaque reference. Microsoft login performs a full-page navigation, which destroys module memory before the callback is processed. Invalid or legacy stored values must be discarded rather than used.
-
-The login route clears the PKCE state after success, cancellation or callback failure. It also treats a browser-history return from Microsoft with pending PKCE state as a cancellation: cached pages recover on `pageshow`, non-cached `back_forward` loads do not restart reauthentication, and the login form becomes interactive again. Never persist the verifier in `localStorage`, logs, telemetry or URL parameters.
-
-## PWA caution
-
-The application uses `vite-plugin-pwa` with an injected service worker. The custom service worker is type-checked separately and must not be excluded through `@ts-nocheck` again.
-
-Visible update notification, optional immediate action and automatic activation after ten seconds are accepted product decisions recorded in ADR 0002. A deployment may replace an open client without waiting for dirty-form state or explicit confirmation. Update activation and page reload must remain single-owner and guarded; do not add worker-side client navigation or a direct reload path outside the coordinator. Runtime chunk retention and one-shot stale-build recovery reduce version-skew failures, but do not make API mutations offline-capable.
 </file>
 
 </files>
