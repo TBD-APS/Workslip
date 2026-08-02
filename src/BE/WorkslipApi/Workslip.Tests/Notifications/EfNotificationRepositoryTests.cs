@@ -99,8 +99,72 @@ public sealed class EfNotificationRepositoryTests
             .ToListAsync();
 
         Assert.Equal(2, subscriptions.Count);
-        Assert.False(subscriptions.Single(subscription => subscription.Endpoint == oldEndpoint).IsActive);
-        Assert.True(subscriptions.Single(subscription => subscription.Endpoint == newEndpoint).IsActive);
+        Assert.False(subscriptions.Single(subscription =>
+            subscription.Endpoint == oldEndpoint).IsActive);
+        Assert.True(subscriptions.Single(subscription =>
+            subscription.Endpoint == newEndpoint).IsActive);
+    }
+
+    [Fact]
+    public async Task GetSuccessfulSubscriptionIdsAsync_FiltersByNotificationAndSuccess()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<SqlDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var userId = Guid.NewGuid();
+        var targetNotification = CreateNotification(Guid.NewGuid());
+        targetNotification.UserId = userId;
+        var otherNotification = CreateNotification(Guid.NewGuid());
+        otherNotification.UserId = userId;
+        var successfulSubscription = CreateSubscription(userId, "success");
+        var failedSubscription = CreateSubscription(userId, "failure");
+
+        await using (var setupContext = new SqlDbContext(options))
+        {
+            await setupContext.Database.EnsureCreatedAsync();
+            setupContext.NotificationQueue.AddRange(targetNotification, otherNotification);
+            setupContext.PushSubscriptions.AddRange(
+                successfulSubscription,
+                failedSubscription);
+            setupContext.NotificationDeliveryLog.AddRange(
+                new NotificationDeliveryLogRow
+                {
+                    Id = Guid.NewGuid(),
+                    NotificationId = targetNotification.Id,
+                    SubscriptionId = successfulSubscription.Id,
+                    Success = true,
+                    SentUtc = DateTimeOffset.UtcNow
+                },
+                new NotificationDeliveryLogRow
+                {
+                    Id = Guid.NewGuid(),
+                    NotificationId = targetNotification.Id,
+                    SubscriptionId = failedSubscription.Id,
+                    Success = false,
+                    SentUtc = DateTimeOffset.UtcNow,
+                    ErrorMessage = "temporary"
+                },
+                new NotificationDeliveryLogRow
+                {
+                    Id = Guid.NewGuid(),
+                    NotificationId = otherNotification.Id,
+                    SubscriptionId = failedSubscription.Id,
+                    Success = true,
+                    SentUtc = DateTimeOffset.UtcNow
+                });
+            await setupContext.SaveChangesAsync();
+        }
+
+        await using var context = new SqlDbContext(options);
+        var repository = new EfNotificationRepository(context, new NoRetryPolicy());
+
+        var successfulIds = await repository.GetSuccessfulSubscriptionIdsAsync(
+            targetNotification.Id,
+            CancellationToken.None);
+
+        Assert.Equal([successfulSubscription.Id], successfulIds);
     }
 
     private static NotificationQueueRow CreateNotification(Guid id) => new()
@@ -113,6 +177,20 @@ public sealed class EfNotificationRepositoryTests
         RetryCount = 0,
         CreatedUtc = DateTimeOffset.UtcNow,
         NextAttemptUtc = DateTimeOffset.UtcNow
+    };
+
+    private static PushSubscriptionRow CreateSubscription(
+        Guid userId,
+        string suffix) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = userId,
+        Endpoint = $"https://push.example/{suffix}",
+        P256Dh = "key",
+        Auth = "auth",
+        IsActive = true,
+        CreatedUtc = DateTimeOffset.UtcNow,
+        LastSeenUtc = DateTimeOffset.UtcNow
     };
 
     private sealed class NoRetryPolicy : IDatabaseRetryPolicy
