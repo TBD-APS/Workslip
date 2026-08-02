@@ -2,7 +2,7 @@
 
 Status: Active  
 Owner: Workslip repository owner  
-Source of truth: `.github/workflows/`, `config/release-environments.json`, repository rulesets and current successful workflow runs  
+Source of truth: `.github/workflows/`, `src/FE/config/release-environments.json`, repository rulesets and current successful workflow runs  
 Review cadence: monthly and whenever a workflow, release environment or required check changes  
 Linear: WOR-170, WOR-171, WOR-188, WOR-194, WOR-303, WOR-305, WOR-306, WOR-308, WOR-313
 
@@ -14,7 +14,7 @@ A required or routinely triggered check must be configured, actionable and owned
 
 - Pages deployment builds and validates the Jekyll site before deploying relevant changes from `main`; there is no pull-request Jekyll workflow.
 - API deployment restores, builds, publishes and deploys the backend artifact for relevant changes on `main` or an explicit manual run.
-- API deployment resolves `config/release-environments.json` and applies the production `ReleaseTesting__Enabled` value to Azure App Service before deployment.
+- API deployment resolves `src/FE/config/release-environments.json` and applies the production `ReleaseTesting__Enabled` value to Azure App Service before deployment.
 - API deployment does not invoke the post-deploy cache workflow.
 - Vercel Git deployments are enabled only for `main`; all other branch names are denied by the repository's `src/FE/vercel.json` policy.
 - Every push to `release/**` runs `.github/workflows/release-validation.yml` without path filters.
@@ -34,7 +34,7 @@ The workflow exposes the following separate checks:
 
 - `Backend build, tests and CodeQL` — initializes CodeQL for C#, restores the full backend solution, performs an instrumented Release build, runs the complete backend test suite and publishes the C# analysis;
 - `Frontend lint, tests, build and CodeQL` — initializes CodeQL for JavaScript/TypeScript, installs from the committed lockfile, runs ESLint, runs Vitest once, builds the production frontend and publishes the frontend analysis;
-- `Playwright and API contract sources` — validates `config/release-environments.json`, runs its policy regression tests, syntax-checks the maintained Playwright scenario modules and parses the Postman collection;
+- `Playwright and API contract sources` — validates `src/FE/config/release-environments.json`, runs its policy regression tests, syntax-checks the maintained Playwright scenario modules and parses the Postman collection;
 - `Release gate` — succeeds only when all required workflow jobs, including both CodeQL analyses, succeeded.
 
 Superseded pushes to the same release branch cancel the older run. NuGet, npm and generated-font caches are used to reduce repeat runtime. Backend TRX output is retained for three days; application builds and local browser artifacts are not committed.
@@ -78,7 +78,7 @@ The workflow file proves intended automation only. A real release push must prov
 
 ### Release environment and browser boundary
 
-`config/release-environments.json` defines the current operating phase and which environment may expose release-test endpoints or run write-capable Playwright scenarios.
+`src/FE/config/release-environments.json` defines the current operating phase and which environment may expose release-test endpoints or run write-capable Playwright scenarios. It lives inside the Vercel project root so the frontend build always receives the reviewed policy without relying on optional access to parent directories. Backend and CI workflows consume the same file.
 
 Before first customer go-live, the only deployed production slot contains no active customers and is intentionally the pre-live release-test environment. Full Playwright may therefore run directly against `https://app.mrsoftware.dk`, with synthetic data and cleanup, while the policy explicitly marks production as pre-live and write-enabled.
 
@@ -91,7 +91,9 @@ This exception ends before customer access opens. The live policy is valid only 
 
 The resolver rejects an unsafe live configuration without staging. The Playwright release runner rejects write-capable scenarios when the selected target does not permit them. The API deployment propagates the production endpoint setting into Azure so a source-only policy change is not left unapplied at runtime.
 
-The production Vercel setting `VITE_ENABLE_DEV_LOGIN` is still an external deployment setting and must be changed to `false` at go-live. Backend endpoint removal is the security boundary; hiding buttons is required UX hardening, not the authorization control.
+The Vite build also consumes the policy. Dev-login controls require both the committed target policy and `VITE_ENABLE_DEV_LOGIN=true`. An invalid or absent `VITE_RELEASE_TARGET` falls back to production. The future staging frontend must explicitly set `VITE_RELEASE_TARGET=staging`; production should set `VITE_ENABLE_DEV_LOGIN=false` at go-live as defense in depth.
+
+Backend endpoint removal remains the security boundary; hiding frontend controls is UX hardening and protection against deployment-variable drift, not authorization.
 
 WOR-309 owns creation of the second environment. WOR-313 owns the fail-closed transition configuration.
 
