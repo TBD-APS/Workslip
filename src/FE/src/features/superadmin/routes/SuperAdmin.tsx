@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Activity, ArrowRight, Building2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { notify } from '../../../lib/toast';
 import {
   createOrganization,
@@ -23,6 +23,13 @@ import type {
   OrganizationAdmin,
 } from '../types';
 import './SuperAdmin.css';
+import './SuperAdminDiagnosticsEntry.css';
+
+const ErrorDiagnosticsDashboard = lazy(() =>
+  import('../diagnostics/ErrorDiagnosticsDashboard').then((module) => ({
+    default: module.ErrorDiagnosticsDashboard,
+  })),
+);
 
 export function SuperAdmin() {
   const queryClient = useQueryClient();
@@ -31,6 +38,7 @@ export function SuperAdmin() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [lastAdminResult, setLastAdminResult] = useState<OrganizationAdmin | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const organizationsQuery = useQuery({
     queryKey: superadminOrganizationQueryKey,
@@ -178,6 +186,34 @@ export function SuperAdmin() {
           <strong>{activeOrganizationSession?.name ?? 'Superadmin-hjemmeorganisation'}</strong>
         </div>
       </div>
+
+      <section className="superadmin-diagnostics-entry" aria-labelledby="diagnostics-entry-title">
+        <span className="superadmin-card-icon" aria-hidden="true">
+          <Activity size={21} />
+        </span>
+        <div>
+          <h2 id="diagnostics-entry-title">Fejl og driftshændelser</h2>
+          <p>Se sanitiserede frontend- og backendfejl fra Application Insights.</p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => setShowDiagnostics((current) => !current)}
+          aria-expanded={showDiagnostics}
+          aria-controls="superadmin-error-dashboard"
+        >
+          {showDiagnostics ? 'Skjul dashboard' : 'Åbn dashboard'}
+          <ArrowRight size={16} aria-hidden="true" />
+        </button>
+      </section>
+
+      {showDiagnostics && (
+        <section id="superadmin-error-dashboard" className="superadmin-diagnostics-dashboard">
+          <Suspense fallback={<div className="superadmin-empty" role="status">Indlæser fejldashboard...</div>}>
+            <ErrorDiagnosticsDashboard />
+          </Suspense>
+        </section>
+      )}
 
       <div className="superadmin-grid">
         <div>
