@@ -82,5 +82,7 @@ jobs:
           src/features/superadmin/diagnostics/supportSnapshot.ts
           src/features/superadmin/diagnostics/supportSnapshot.test.ts
           src/features/superadmin/routes/SuperAdmin.tsx
+      - name: Generate production API client
+        run: npm run generate:api:prod
       - name: Frontend production build
         run: npm run build
