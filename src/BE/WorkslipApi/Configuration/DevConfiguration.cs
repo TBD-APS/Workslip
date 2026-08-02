@@ -5,12 +5,14 @@ namespace Workslip.Api.Configuration;
 
 public static class DevConfiguration
 {
-    public static WebApplication ConfigureDevEnvironment(this WebApplication app)
+    public static WebApplication ConfigureDevEnvironment(
+        this WebApplication app,
+        bool releaseTestingEnabled)
     {
         if (app.Environment.IsDevelopment())
             app.UseDeveloperExceptionPage();
 
-        if (!ReleaseTestingConfiguration.IsEnabled(app.Environment, app.Configuration))
+        if (!releaseTestingEnabled)
         {
             app.Logger.LogInformation(
                 "Development and release-testing endpoints are disabled. Environment={EnvironmentName}",
