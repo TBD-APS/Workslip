@@ -45,5 +45,9 @@ jobs:
           src/pwa/pushNotificationPayload.ts
           src/pwa/pushNotificationPayload.test.ts
           src/sw.ts
+      - name: Install Playwright harness dependency
+        run: |
+          npm install --no-save --ignore-scripts playwright
+          npx playwright install --with-deps chromium
       - name: Playwright notification navigation harness
         run: node scripts/playwright-notification-navigation.mjs
