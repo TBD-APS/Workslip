@@ -15,7 +15,7 @@ interface ReleasePolicy {
 }
 
 const releasePolicy = JSON.parse(
-  readFileSync(path.resolve(__dirname, '../../config/release-environments.json'), 'utf8'),
+  readFileSync(path.resolve(__dirname, './config/release-environments.json'), 'utf8'),
 ) as ReleasePolicy
 const requestedReleaseTarget = process.env.VITE_RELEASE_TARGET
 const releaseTarget: ReleaseTarget = requestedReleaseTarget === 'staging' ? 'staging' : 'production'
