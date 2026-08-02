@@ -84,7 +84,7 @@ jobs:
           src/features/superadmin/routes/SuperAdmin.tsx
       - name: Generate production API client
         env:
-          VITE_API_BASE_URL: https://api-mrsoftware-prod.azurewebsites.net
+          VITE_API_BASE_URL: https://app.mrsoftware.dk/api
         run: npm run generate:api:prod
       - name: Frontend production build
         run: npm run build
