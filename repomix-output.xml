@@ -27519,6 +27519,427 @@ export const verifyInviteToken = (token: string): Promise<InviteOpenResponse> =>
 };
 </file>
 
+<file path="src/FE/src/features/auth/components/OneTimeCodeInput.css">
+.otp-input {
+  position: relative;
+  width: 100%;
+}
+
+.otp-input-native {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  opacity: 1;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: transparent;
+  background: transparent;
+  font-size: 16px;
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+.otp-input-native:focus {
+  outline: none;
+}
+
+.otp-input-cells {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.otp-input-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: clamp(2.75rem, 13vw, 3.25rem);
+  background: var(--surface-input);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.otp-input-cell-filled {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.otp-input:focus-within .otp-input-cell-active {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 24%, transparent);
+}
+
+[data-theme="day"] .otp-input-cell-filled,
+[data-theme="day"] .otp-input:focus-within .otp-input-cell-active {
+  background: var(--surface-input);
+}
+
+.otp-input-invalid .otp-input-cell,
+.otp-input-invalid:focus-within .otp-input-cell-active {
+  border-color: var(--danger);
+}
+
+.otp-input-invalid:focus-within .otp-input-cell-active {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.otp-input-disabled {
+  opacity: 0.7;
+}
+
+.otp-input-disabled .otp-input-native {
+  cursor: wait;
+}
+
+@media (max-width: 360px) {
+  .otp-input-cells {
+    gap: 0.35rem;
+  }
+
+  .otp-input-cell {
+    border-radius: 10px;
+    font-size: 1.25rem;
+  }
+}
+</file>
+
+<file path="src/FE/src/features/auth/components/OneTimeCodeInput.tsx">
+import { forwardRef, useState, type InputHTMLAttributes } from 'react';
+import './OneTimeCodeInput.css';
+
+const CODE_LENGTH = 6;
+
+interface OneTimeCodeInputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'type' | 'inputMode' | 'maxLength' | 'value' | 'onChange' | 'className'
+> {
+  value: string;
+  onValueChange: (value: string) => void;
+  hasError?: boolean;
+}
+
+export const OneTimeCodeInput = forwardRef<HTMLInputElement, OneTimeCodeInputProps>(
+  function OneTimeCodeInput(
+    {
+      value,
+      onValueChange,
+      hasError = false,
+      disabled = false,
+      onBlur,
+      onFocus,
+      onPaste,
+      ...inputProps
+    },
+    ref,
+  ) {
+    const [isFocused, setIsFocused] = useState(false);
+    const normalizedValue = value.replace(/\D/g, '').slice(0, CODE_LENGTH);
+    const activeIndex = Math.min(normalizedValue.length, CODE_LENGTH - 1);
+
+    return (
+      <div
+        className={`otp-input${hasError ? ' otp-input-invalid' : ''}${disabled ? ' otp-input-disabled' : ''}`}
+      >
+        <input
+          {...inputProps}
+          ref={ref}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={CODE_LENGTH}
+          autoComplete="one-time-code"
+          value={normalizedValue}
+          disabled={disabled}
+          className="otp-input-native"
+          onChange={(event) => {
+            onValueChange(event.currentTarget.value.replace(/\D/g, '').slice(0, CODE_LENGTH));
+          }}
+          onPaste={(event) => {
+            onPaste?.(event);
+            if (event.defaultPrevented) return;
+
+            const clipboardText = event.clipboardData.getData('text');
+            const completeCode = clipboardText.match(/(?:^|\D)(\d{6})(?:\D|$)/)?.[1];
+            const pastedDigits = completeCode ?? clipboardText.replace(/\D/g, '').slice(0, CODE_LENGTH);
+
+            if (!pastedDigits) return;
+
+            event.preventDefault();
+            onValueChange(pastedDigits);
+          }}
+          onFocus={(event) => {
+            setIsFocused(true);
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setIsFocused(false);
+            onBlur?.(event);
+          }}
+        />
+
+        <div className="otp-input-cells" aria-hidden="true">
+          {Array.from({ length: CODE_LENGTH }, (_, index) => {
+            const digit = normalizedValue[index] ?? '';
+            const isActive = isFocused && index === activeIndex;
+
+            return (
+              <span
+                key={index}
+                className={`otp-input-cell${digit ? ' otp-input-cell-filled' : ''}${isActive ? ' otp-input-cell-active' : ''}`}
+              >
+                {digit}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    );
+  },
+);
+</file>
+
+<file path="src/FE/src/features/auth/components/OneTimeCodeLogin.tsx">
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { ArrowLeft, Loader2, Mail } from 'lucide-react';
+import { notify } from '../../../lib/toast';
+import { clearReauthInFlight } from '../../../providers/authContextValue';
+import { useAuth } from '../../../providers/useAuth';
+import { sendAuthCode } from '../api/devToken';
+import { OneTimeCodeInput } from './OneTimeCodeInput';
+
+const EmailSchema = z.object({
+  email: z.string().email({ message: 'Ugyldig email adresse' }),
+});
+
+const CodeSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, { message: 'Koden skal bestå af 6 cifre' }),
+});
+
+type EmailFormValues = z.infer<typeof EmailSchema>;
+type CodeFormValues = z.infer<typeof CodeSchema>;
+
+interface OneTimeCodeLoginProps {
+  onBack: () => void;
+}
+
+export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+
+  const emailForm = useForm<EmailFormValues>({
+    resolver: zodResolver(EmailSchema),
+    defaultValues: {
+      email: new URLSearchParams(window.location.search).get('email') || '',
+    },
+  });
+
+  const codeForm = useForm<CodeFormValues>({
+    resolver: zodResolver(CodeSchema),
+    defaultValues: {
+      code: '',
+    },
+  });
+
+  useEffect(() => {
+    if (step !== 'code' || !codeInputRef.current) return undefined;
+
+    const focusTimer = window.setTimeout(() => codeInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(focusTimer);
+  }, [step]);
+
+  const handleSendCode = async (data: EmailFormValues) => {
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    try {
+      await sendAuthCode(data.email);
+      setEmail(data.email);
+      setStep('code');
+      notify.success('Tjek din indbakke – en kode er sendt.');
+    } catch {
+      notify.error('Kunne ikke sende kode. Prøv igen.');
+      setErrorMsg('Kunne ikke sende kode. Prøv igen.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyCode = async (data: CodeFormValues) => {
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    try {
+      const success = await login(email, data.code);
+      if (success) {
+        clearReauthInFlight();
+        navigate('/app');
+      } else {
+        setErrorMsg('Ugyldig kode. Prøv igen.');
+        notify.error('Ugyldig kode. Prøv igen.');
+      }
+    } catch {
+      setErrorMsg('Ugyldig kode. Prøv igen.');
+      notify.error('Ugyldig kode. Prøv igen.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="login-card-header">
+        <div className="logo logo-center">
+          <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <h2>Log ind på Workslip</h2>
+        {step === 'email' ? (
+          <p>Indtast din email for at modtage en engangskode.</p>
+        ) : (
+          <div>
+            <p>En kode er sendt til</p>
+            <p className="login-email-info">{email}</p>
+            <p id="otc-code-help">Kan du ikke finde mailen? Tjek spam eller uønsket post.</p>
+          </div>
+        )}
+      </div>
+
+      {errorMsg && (
+        <div className="login-error-banner">
+          <Loader2 size={16} />
+          {errorMsg}
+        </div>
+      )}
+
+      {step === 'email' ? (
+        <form onSubmit={emailForm.handleSubmit(handleSendCode)} className="login-form">
+          <div className="form-group">
+            <label htmlFor="otc-email">Email</label>
+            <input
+              {...emailForm.register('email')}
+              id="otc-email"
+              type="email"
+              placeholder="din@email.dk"
+              className={`form-input${emailForm.formState.errors.email ? ' form-input-invalid' : ''}`}
+              autoComplete="email"
+            />
+            {emailForm.formState.errors.email && (
+              <span className="form-error-text">
+                {emailForm.formState.errors.email.message}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn-primary login-submit-btn"
+            disabled={isSubmitting}
+          >
+            {isSubmitting && (
+              <span className="login-submit-btn-overlay">
+                <Loader2 className="animate-spin" size={18} />
+              </span>
+            )}
+            <Mail size={18} />
+            <span>{isSubmitting ? 'Sender kode...' : 'Send kode'}</span>
+          </button>
+
+          <button type="button" onClick={onBack} className="login-back-btn">
+            <ArrowLeft size={16} />
+            Tilbage til passkey login
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} className="login-form">
+          <div className="form-group">
+            <label htmlFor="otc-code">Engangskode</label>
+            <Controller
+              name="code"
+              control={codeForm.control}
+              render={({ field }) => (
+                <OneTimeCodeInput
+                  id="otc-code"
+                  name={field.name}
+                  ref={(element) => {
+                    field.ref(element);
+                    codeInputRef.current = element;
+                  }}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  onBlur={field.onBlur}
+                  hasError={Boolean(codeForm.formState.errors.code)}
+                  aria-invalid={Boolean(codeForm.formState.errors.code)}
+                  aria-describedby={codeForm.formState.errors.code ? 'otc-code-help otc-code-error' : 'otc-code-help'}
+                  disabled={isSubmitting}
+                />
+              )}
+            />
+            {codeForm.formState.errors.code && (
+              <span id="otc-code-error" className="form-error-text">
+                {codeForm.formState.errors.code.message}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn-primary login-submit-btn"
+            disabled={isSubmitting}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+              <polyline points="10 17 15 12 10 7" />
+              <line x1="15" y1="12" x2="3" y2="12" />
+            </svg>
+            <span>Log ind</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMsg(null);
+              codeForm.reset();
+              setStep('email');
+              onBack();
+            }}
+            className="login-back-btn"
+          >
+            <ArrowLeft size={16} />
+            Tilbage til login
+          </button>
+        </form>
+      )}
+    </>
+  );
+}
+</file>
+
 <file path="src/FE/src/features/auth/routes/InviteAccept.tsx">
 import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -110918,427 +111339,6 @@ const base64Url = (bytes: Uint8Array) =>
     .replace(/=+$/g, '');
 </file>
 
-<file path="src/FE/src/features/auth/components/OneTimeCodeInput.css">
-.otp-input {
-  position: relative;
-  width: 100%;
-}
-
-.otp-input-native {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  opacity: 1;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  caret-color: transparent;
-  background: transparent;
-  font-size: 16px;
-  cursor: text;
-  -webkit-user-select: text;
-  user-select: text;
-  -webkit-touch-callout: default;
-}
-
-.otp-input-native:focus {
-  outline: none;
-}
-
-.otp-input-cells {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0.5rem;
-  pointer-events: none;
-}
-
-.otp-input-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  height: clamp(2.75rem, 13vw, 3.25rem);
-  background: var(--surface-input);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--text);
-  font-family: var(--font-main);
-  font-size: 1.5rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.otp-input-cell-filled {
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.otp-input:focus-within .otp-input-cell-active {
-  background: rgba(0, 0, 0, 0.3);
-  border-color: var(--focus-ring);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 24%, transparent);
-}
-
-[data-theme="day"] .otp-input-cell-filled,
-[data-theme="day"] .otp-input:focus-within .otp-input-cell-active {
-  background: var(--surface-input);
-}
-
-.otp-input-invalid .otp-input-cell,
-.otp-input-invalid:focus-within .otp-input-cell-active {
-  border-color: var(--danger);
-}
-
-.otp-input-invalid:focus-within .otp-input-cell-active {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
-}
-
-.otp-input-disabled {
-  opacity: 0.7;
-}
-
-.otp-input-disabled .otp-input-native {
-  cursor: wait;
-}
-
-@media (max-width: 360px) {
-  .otp-input-cells {
-    gap: 0.35rem;
-  }
-
-  .otp-input-cell {
-    border-radius: 10px;
-    font-size: 1.25rem;
-  }
-}
-</file>
-
-<file path="src/FE/src/features/auth/components/OneTimeCodeInput.tsx">
-import { forwardRef, useState, type InputHTMLAttributes } from 'react';
-import './OneTimeCodeInput.css';
-
-const CODE_LENGTH = 6;
-
-interface OneTimeCodeInputProps extends Omit<
-  InputHTMLAttributes<HTMLInputElement>,
-  'type' | 'inputMode' | 'maxLength' | 'value' | 'onChange' | 'className'
-> {
-  value: string;
-  onValueChange: (value: string) => void;
-  hasError?: boolean;
-}
-
-export const OneTimeCodeInput = forwardRef<HTMLInputElement, OneTimeCodeInputProps>(
-  function OneTimeCodeInput(
-    {
-      value,
-      onValueChange,
-      hasError = false,
-      disabled = false,
-      onBlur,
-      onFocus,
-      onPaste,
-      ...inputProps
-    },
-    ref,
-  ) {
-    const [isFocused, setIsFocused] = useState(false);
-    const normalizedValue = value.replace(/\D/g, '').slice(0, CODE_LENGTH);
-    const activeIndex = Math.min(normalizedValue.length, CODE_LENGTH - 1);
-
-    return (
-      <div
-        className={`otp-input${hasError ? ' otp-input-invalid' : ''}${disabled ? ' otp-input-disabled' : ''}`}
-      >
-        <input
-          {...inputProps}
-          ref={ref}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={CODE_LENGTH}
-          autoComplete="one-time-code"
-          value={normalizedValue}
-          disabled={disabled}
-          className="otp-input-native"
-          onChange={(event) => {
-            onValueChange(event.currentTarget.value.replace(/\D/g, '').slice(0, CODE_LENGTH));
-          }}
-          onPaste={(event) => {
-            onPaste?.(event);
-            if (event.defaultPrevented) return;
-
-            const clipboardText = event.clipboardData.getData('text');
-            const completeCode = clipboardText.match(/(?:^|\D)(\d{6})(?:\D|$)/)?.[1];
-            const pastedDigits = completeCode ?? clipboardText.replace(/\D/g, '').slice(0, CODE_LENGTH);
-
-            if (!pastedDigits) return;
-
-            event.preventDefault();
-            onValueChange(pastedDigits);
-          }}
-          onFocus={(event) => {
-            setIsFocused(true);
-            onFocus?.(event);
-          }}
-          onBlur={(event) => {
-            setIsFocused(false);
-            onBlur?.(event);
-          }}
-        />
-
-        <div className="otp-input-cells" aria-hidden="true">
-          {Array.from({ length: CODE_LENGTH }, (_, index) => {
-            const digit = normalizedValue[index] ?? '';
-            const isActive = isFocused && index === activeIndex;
-
-            return (
-              <span
-                key={index}
-                className={`otp-input-cell${digit ? ' otp-input-cell-filled' : ''}${isActive ? ' otp-input-cell-active' : ''}`}
-              >
-                {digit}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-    );
-  },
-);
-</file>
-
-<file path="src/FE/src/features/auth/components/OneTimeCodeLogin.tsx">
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { ArrowLeft, Loader2, Mail } from 'lucide-react';
-import { notify } from '../../../lib/toast';
-import { clearReauthInFlight } from '../../../providers/authContextValue';
-import { useAuth } from '../../../providers/useAuth';
-import { sendAuthCode } from '../api/devToken';
-import { OneTimeCodeInput } from './OneTimeCodeInput';
-
-const EmailSchema = z.object({
-  email: z.string().email({ message: 'Ugyldig email adresse' }),
-});
-
-const CodeSchema = z.object({
-  code: z.string().regex(/^\d{6}$/, { message: 'Koden skal bestå af 6 cifre' }),
-});
-
-type EmailFormValues = z.infer<typeof EmailSchema>;
-type CodeFormValues = z.infer<typeof CodeSchema>;
-
-interface OneTimeCodeLoginProps {
-  onBack: () => void;
-}
-
-export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
-  const navigate = useNavigate();
-  const { login } = useAuth();
-  const [step, setStep] = useState<'email' | 'code'>('email');
-  const [email, setEmail] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const codeInputRef = useRef<HTMLInputElement>(null);
-
-  const emailForm = useForm<EmailFormValues>({
-    resolver: zodResolver(EmailSchema),
-    defaultValues: {
-      email: new URLSearchParams(window.location.search).get('email') || '',
-    },
-  });
-
-  const codeForm = useForm<CodeFormValues>({
-    resolver: zodResolver(CodeSchema),
-    defaultValues: {
-      code: '',
-    },
-  });
-
-  useEffect(() => {
-    if (step !== 'code' || !codeInputRef.current) return undefined;
-
-    const focusTimer = window.setTimeout(() => codeInputRef.current?.focus(), 50);
-    return () => window.clearTimeout(focusTimer);
-  }, [step]);
-
-  const handleSendCode = async (data: EmailFormValues) => {
-    setErrorMsg(null);
-    setIsSubmitting(true);
-    try {
-      await sendAuthCode(data.email);
-      setEmail(data.email);
-      setStep('code');
-      notify.success('Tjek din indbakke – en kode er sendt.');
-    } catch {
-      notify.error('Kunne ikke sende kode. Prøv igen.');
-      setErrorMsg('Kunne ikke sende kode. Prøv igen.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleVerifyCode = async (data: CodeFormValues) => {
-    setErrorMsg(null);
-    setIsSubmitting(true);
-    try {
-      const success = await login(email, data.code);
-      if (success) {
-        clearReauthInFlight();
-        navigate('/app');
-      } else {
-        setErrorMsg('Ugyldig kode. Prøv igen.');
-        notify.error('Ugyldig kode. Prøv igen.');
-      }
-    } catch {
-      setErrorMsg('Ugyldig kode. Prøv igen.');
-      notify.error('Ugyldig kode. Prøv igen.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <>
-      <div className="login-card-header">
-        <div className="logo logo-center">
-          <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-        <h2>Log ind på Workslip</h2>
-        {step === 'email' ? (
-          <p>Indtast din email for at modtage en engangskode.</p>
-        ) : (
-          <div>
-            <p>En kode er sendt til</p>
-            <p className="login-email-info">{email}</p>
-            <p id="otc-code-help">Kan du ikke finde mailen? Tjek spam eller uønsket post.</p>
-          </div>
-        )}
-      </div>
-
-      {errorMsg && (
-        <div className="login-error-banner">
-          <Loader2 size={16} />
-          {errorMsg}
-        </div>
-      )}
-
-      {step === 'email' ? (
-        <form onSubmit={emailForm.handleSubmit(handleSendCode)} className="login-form">
-          <div className="form-group">
-            <label htmlFor="otc-email">Email</label>
-            <input
-              {...emailForm.register('email')}
-              id="otc-email"
-              type="email"
-              placeholder="din@email.dk"
-              className={`form-input${emailForm.formState.errors.email ? ' form-input-invalid' : ''}`}
-              autoComplete="email"
-            />
-            {emailForm.formState.errors.email && (
-              <span className="form-error-text">
-                {emailForm.formState.errors.email.message}
-              </span>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary login-submit-btn"
-            disabled={isSubmitting}
-          >
-            {isSubmitting && (
-              <span className="login-submit-btn-overlay">
-                <Loader2 className="animate-spin" size={18} />
-              </span>
-            )}
-            <Mail size={18} />
-            <span>{isSubmitting ? 'Sender kode...' : 'Send kode'}</span>
-          </button>
-
-          <button type="button" onClick={onBack} className="login-back-btn">
-            <ArrowLeft size={16} />
-            Tilbage til passkey login
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} className="login-form">
-          <div className="form-group">
-            <label htmlFor="otc-code">Engangskode</label>
-            <Controller
-              name="code"
-              control={codeForm.control}
-              render={({ field }) => (
-                <OneTimeCodeInput
-                  id="otc-code"
-                  name={field.name}
-                  ref={(element) => {
-                    field.ref(element);
-                    codeInputRef.current = element;
-                  }}
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  onBlur={field.onBlur}
-                  hasError={Boolean(codeForm.formState.errors.code)}
-                  aria-invalid={Boolean(codeForm.formState.errors.code)}
-                  aria-describedby={codeForm.formState.errors.code ? 'otc-code-help otc-code-error' : 'otc-code-help'}
-                  disabled={isSubmitting}
-                />
-              )}
-            />
-            {codeForm.formState.errors.code && (
-              <span id="otc-code-error" className="form-error-text">
-                {codeForm.formState.errors.code.message}
-              </span>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary login-submit-btn"
-            disabled={isSubmitting}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-              <polyline points="10 17 15 12 10 7" />
-              <line x1="15" y1="12" x2="3" y2="12" />
-            </svg>
-            <span>Log ind</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setErrorMsg(null);
-              codeForm.reset();
-              setStep('email');
-              onBack();
-            }}
-            className="login-back-btn"
-          >
-            <ArrowLeft size={16} />
-            Tilbage til login
-          </button>
-        </form>
-      )}
-    </>
-  );
-}
-</file>
-
 <file path="src/FE/src/features/auth/authenticatedDestination.ts">
 import { hasRole, ROLES } from '../../providers/permissions';
 
@@ -127789,122 +127789,6 @@ export function getSuperadminErrorMessage(error: unknown): string {
 }
 </file>
 
-<file path="src/FE/src/pwa/notificationNavigation.ts">
-export interface NotificationWindowClient {
-  focused: boolean;
-  visibilityState: string;
-  navigate(url: string): Promise<NotificationWindowClient | null>;
-  focus(): Promise<NotificationWindowClient>;
-}
-
-export const NOTIFICATION_NAVIGATION_REQUEST = 'WORKSLIP_NOTIFICATION_NAVIGATION';
-export const NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT = 'WORKSLIP_NOTIFICATION_NAVIGATION_ACK';
-export const NOTIFICATION_RECEIVED = 'WORKSLIP_NOTIFICATION_RECEIVED';
-
-export interface NotificationNavigationRequest {
-  type: typeof NOTIFICATION_NAVIGATION_REQUEST;
-  url: string;
-}
-
-export interface NotificationNavigationAcknowledgement {
-  type: typeof NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT;
-  success: boolean;
-}
-
-export interface NotificationReceivedMessage {
-  type: typeof NOTIFICATION_RECEIVED;
-}
-
-export type OpenNotificationWindow = (
-  url: string,
-) => Promise<NotificationWindowClient | null>;
-
-export type NavigateOpenNotificationClient = (
-  client: NotificationWindowClient,
-  url: string,
-) => Promise<boolean>;
-
-export function isNotificationNavigationRequest(
-  value: unknown,
-): value is NotificationNavigationRequest {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const candidate = value as Partial<NotificationNavigationRequest>;
-  return candidate.type === NOTIFICATION_NAVIGATION_REQUEST
-    && typeof candidate.url === 'string';
-}
-
-export function isNotificationNavigationAcknowledgement(
-  value: unknown,
-): value is NotificationNavigationAcknowledgement {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const candidate = value as Partial<NotificationNavigationAcknowledgement>;
-  return candidate.type === NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT
-    && typeof candidate.success === 'boolean';
-}
-
-export function isNotificationReceivedMessage(
-  value: unknown,
-): value is NotificationReceivedMessage {
-  return typeof value === 'object'
-    && value !== null
-    && (value as Partial<NotificationReceivedMessage>).type === NOTIFICATION_RECEIVED;
-}
-
-export function resolveNotificationTarget(rawTarget: unknown, origin: string): string {
-  const fallback = new URL('/', origin);
-
-  if (typeof rawTarget !== 'string' || rawTarget.trim() === '') {
-    return fallback.href;
-  }
-
-  try {
-    const target = new URL(rawTarget, fallback);
-    return target.origin === fallback.origin ? target.href : fallback.href;
-  } catch {
-    return fallback.href;
-  }
-}
-
-function selectNotificationClient(
-  clients: readonly NotificationWindowClient[],
-): NotificationWindowClient | undefined {
-  return clients.find((client) => client.focused)
-    ?? clients.find((client) => client.visibilityState === 'visible')
-    ?? clients[0];
-}
-
-export async function navigateNotificationTarget(
-  clients: readonly NotificationWindowClient[],
-  openWindow: OpenNotificationWindow,
-  rawTarget: unknown,
-  origin: string,
-  navigateOpenClient?: NavigateOpenNotificationClient,
-): Promise<NotificationWindowClient | null> {
-  const target = resolveNotificationTarget(rawTarget, origin);
-  const existingClient = selectNotificationClient(clients);
-
-  if (!existingClient) {
-    return openWindow(target);
-  }
-
-  if (navigateOpenClient) {
-    try {
-      if (await navigateOpenClient(existingClient, target)) {
-        return existingClient.focus();
-      }
-    } catch {
-      // Older clients do not have the router listener. Fall back to a document
-      // navigation so notification clicks still work across deployments.
-    }
-  }
-
-  const navigatedClient = await existingClient.navigate(target);
-  return (navigatedClient ?? existingClient).focus();
-}
-</file>
-
 <file path="src/FE/src/routes/index.tsx">
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 'react-router-dom';
@@ -130176,6 +130060,290 @@ export const AppLayout = () => {
 };
 </file>
 
+<file path="src/FE/src/features/auth/routes/Login.tsx">
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Loader2, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../../../providers/useAuth';
+import {
+  AUTH_TOKEN_KEY,
+  USER_EMAIL_KEY,
+  AuthStorage,
+  clearReauthInFlight,
+} from '../../../providers/authContextValue';
+import {
+  clearEntraLoginSession,
+  completeEntraLogin,
+  hasEntraLoginCallback,
+  hasEntraLoginSession,
+  InteractiveLoginRequiredError,
+  LoginCancelledError,
+  sanitizeReturnTo,
+  startEntraLogin,
+} from '../api/entraLogin';
+
+const OneTimeCodeLogin = lazy(() =>
+  import('../components/OneTimeCodeLogin').then((module) => ({ default: module.OneTimeCodeLogin })),
+);
+
+const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve igen.';
+
+const isBackForwardNavigation = () =>
+  typeof performance !== 'undefined' &&
+  typeof performance.getEntriesByType === 'function' &&
+  (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
+
+export const Login = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated, devLogin } = useAuth();
+  const [historyInterruptedLogin] = useState(() =>
+    !hasEntraLoginCallback() && hasEntraLoginSession() && isBackForwardNavigation(),
+  );
+  const [isSubmitting, setIsSubmitting] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return !historyInterruptedLogin && (hasEntraLoginCallback() || params.get('reauth') === '1');
+  });
+  const [errorMsg, setErrorMsg] = useState<string | null>(
+    historyInterruptedLogin ? LOGIN_INTERRUPTED_MESSAGE : null,
+  );
+  const [showOtcLogin, setShowOtcLogin] = useState(false);
+  // True when we arrived via the silent-reauth redirect (axios interceptor
+  // sent us here because the JWT expired). While true we hide the login form
+  // entirely and show only a spinner, so the user never sees the Microsoft
+  // / passkey buttons flash before being sent to Microsoft.
+  const [isReauth, setIsReauth] = useState(
+    () => !historyInterruptedLogin && new URLSearchParams(window.location.search).get('reauth') === '1',
+  );
+  // Guards against React.StrictMode's double-mount in dev (and against any
+  // edge case where this effect runs twice). The first call navigates the
+  // browser to Microsoft; the second must be a no-op to avoid generating
+  // a second PKCE state that overwrites the first.
+  const reauthStartedRef = useRef(false);
+
+  const recoverToLogin = useCallback((message: string) => {
+    clearReauthInFlight();
+    clearEntraLoginSession();
+    reauthStartedRef.current = false;
+    window.history.replaceState(null, '', '/login');
+    setErrorMsg(message);
+    setIsSubmitting(false);
+    setIsReauth(false);
+  }, []);
+
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted || hasEntraLoginCallback() || !hasEntraLoginSession()) return;
+      recoverToLogin(LOGIN_INTERRUPTED_MESSAGE);
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, [recoverToLogin]);
+
+  // Combined callback + reauth effect.
+  //
+  // Splitting these into two effects races when Microsoft redirects back with
+  // BOTH `?reauth=1` and `?code=`. Keeping them in one effect makes the
+  // callback and fresh-reauth branches explicit.
+  useEffect(() => {
+    if (reauthStartedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const isCallback = hasEntraLoginCallback();
+    const isReauthRequest = params.get('reauth') === '1';
+    if (historyInterruptedLogin) {
+      clearReauthInFlight();
+      clearEntraLoginSession();
+      window.history.replaceState(null, '', '/login');
+      return;
+    }
+    if (!isCallback && !isReauthRequest) return;
+    reauthStartedRef.current = true;
+
+    const returnTo = sanitizeReturnTo(params.get('returnTo'));
+
+    if (isCallback) {
+      completeEntraLogin()
+        .then((result) => {
+          AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
+          AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
+          clearReauthInFlight();
+          clearEntraLoginSession();
+          window.history.replaceState(null, '', '/login');
+          window.location.replace(result.returnTo);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof InteractiveLoginRequiredError) {
+            clearReauthInFlight();
+            clearEntraLoginSession();
+            window.history.replaceState(null, '', '/login');
+            startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
+              recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+            });
+            return;
+          }
+          if (err instanceof LoginCancelledError) {
+            recoverToLogin('Login afbrudt. Klik på knappen for at prøve igen.');
+            return;
+          }
+          const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
+          recoverToLogin(message);
+        });
+      return;
+    }
+
+    startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
+      if (err instanceof InteractiveLoginRequiredError) {
+        clearReauthInFlight();
+        startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
+          recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+        });
+        return;
+      }
+      recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+    });
+  }, [historyInterruptedLogin, recoverToLogin]);
+
+  const handleMicrosoftLogin = async () => {
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    try {
+      const returnTo = sanitizeReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
+      await startEntraLogin({ returnTo });
+    } catch (err: unknown) {
+      clearEntraLoginSession();
+      const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
+      setErrorMsg(message);
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isAuthenticated) {
+    return <Navigate to="/app" replace />;
+  }
+
+  return (
+    <div className="app-container app-container-center">
+      <div className="bg-glow-wrapper">
+        <div className="bg-glow bg-glow-1" />
+        <div className="bg-glow bg-glow-2" />
+      </div>
+
+      {isReauth && (
+        <div className="reauth-card">
+          <Loader2 className="animate-spin" size={32} />
+          <p>Genindlæser login...</p>
+          <button
+            type="button"
+            onClick={() => {
+              clearReauthInFlight();
+              clearEntraLoginSession();
+              window.history.replaceState(null, '', '/login');
+              setIsReauth(false);
+              setIsSubmitting(false);
+            }}
+            className="reauth-cancel-btn"
+          >
+            Annuller
+          </button>
+        </div>
+      )}
+
+      {!isReauth && (
+        <div className="login-card">
+          {showOtcLogin ? (
+            <Suspense
+              fallback={(
+                <div className="login-email-step" role="status" aria-live="polite">
+                  <Loader2 className="animate-spin" size={24} />
+                  <span>Vent venligst.. Indlæser modul</span>
+                </div>
+              )}
+            >
+              <OneTimeCodeLogin onBack={() => setShowOtcLogin(false)} />
+            </Suspense>
+          ) : (
+            <>
+              <div className="login-card-header">
+                <div className="logo logo-center">
+                  <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <h2>Log ind på Workslip</h2>
+                <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
+              </div>
+
+              {errorMsg && (
+                <div className="login-error-banner">
+                  <Loader2 size={16} />
+                  {errorMsg}
+                </div>
+              )}
+
+              <div className="login-email-step">
+                <button
+                  type="button"
+                  className="btn btn-primary login-submit-btn"
+                  onClick={handleMicrosoftLogin}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
+                  <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOtcLogin(true)}
+                  className="login-otc-btn"
+                >
+                  Mistet dit login? Modtag engangskode
+                </button>
+              </div>
+
+              {import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
+                <div className="login-dev-section">
+                  <div className="login-dev-buttons">
+                    {[
+                      { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
+                      { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
+                      { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
+                      { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' },
+                    ].map((entry) => (
+                      <button
+                        key={entry.email}
+                        onClick={async () => {
+                          setErrorMsg(null);
+                          setIsSubmitting(true);
+                          try {
+                            const success = await devLogin(entry.email);
+                            if (success) navigate(entry.redirect, { replace: true });
+                            else setErrorMsg(`Dev login failed - ${entry.email} not found`);
+                          } catch {
+                            setErrorMsg('Dev login failed');
+                          } finally {
+                            setIsSubmitting(false);
+                          }
+                        }}
+                        disabled={isSubmitting}
+                        className="btn btn-secondary login-dev-btn"
+                      >
+                        {entry.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+</file>
+
 <file path="src/FE/src/features/jobs/routes/JobDetail.tsx">
 import { useEffect, useRef } from 'react';
 import { Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
@@ -130614,6 +130782,173 @@ export function SuperAdmin() {
       </section>
     </div>
   );
+}
+</file>
+
+<file path="src/FE/src/pwa/notificationNavigation.ts">
+export interface NotificationWindowClient {
+  url: string;
+  focused: boolean;
+  visibilityState: string;
+  navigate(url: string): Promise<NotificationWindowClient | null>;
+  focus(): Promise<NotificationWindowClient>;
+}
+
+export const NOTIFICATION_NAVIGATION_REQUEST = 'WORKSLIP_NOTIFICATION_NAVIGATION';
+export const NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT = 'WORKSLIP_NOTIFICATION_NAVIGATION_ACK';
+export const NOTIFICATION_RECEIVED = 'WORKSLIP_NOTIFICATION_RECEIVED';
+
+export interface NotificationNavigationRequest {
+  type: typeof NOTIFICATION_NAVIGATION_REQUEST;
+  url: string;
+}
+
+export interface NotificationNavigationAcknowledgement {
+  type: typeof NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT;
+  success: boolean;
+}
+
+export interface NotificationReceivedMessage {
+  type: typeof NOTIFICATION_RECEIVED;
+}
+
+export type OpenNotificationWindow = (
+  url: string,
+) => Promise<NotificationWindowClient | null>;
+
+export type NavigateOpenNotificationClient = (
+  client: NotificationWindowClient,
+  url: string,
+) => Promise<boolean>;
+
+export function isNotificationNavigationRequest(
+  value: unknown,
+): value is NotificationNavigationRequest {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const candidate = value as Partial<NotificationNavigationRequest>;
+  return candidate.type === NOTIFICATION_NAVIGATION_REQUEST
+    && typeof candidate.url === 'string';
+}
+
+export function isNotificationNavigationAcknowledgement(
+  value: unknown,
+): value is NotificationNavigationAcknowledgement {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const candidate = value as Partial<NotificationNavigationAcknowledgement>;
+  return candidate.type === NOTIFICATION_NAVIGATION_ACKNOWLEDGEMENT
+    && typeof candidate.success === 'boolean';
+}
+
+export function isNotificationReceivedMessage(
+  value: unknown,
+): value is NotificationReceivedMessage {
+  return typeof value === 'object'
+    && value !== null
+    && (value as Partial<NotificationReceivedMessage>).type === NOTIFICATION_RECEIVED;
+}
+
+export function resolveNotificationTarget(rawTarget: unknown, origin: string): string {
+  const fallback = new URL('/', origin);
+
+  if (typeof rawTarget !== 'string' || rawTarget.trim() === '') {
+    return fallback.href;
+  }
+
+  try {
+    const target = new URL(rawTarget, fallback);
+    return target.origin === fallback.origin ? target.href : fallback.href;
+  } catch {
+    return fallback.href;
+  }
+}
+
+function isWorkslipClient(
+  client: NotificationWindowClient,
+  origin: string,
+): boolean {
+  try {
+    const url = new URL(client.url);
+    if (url.origin !== origin) return false;
+
+    return url.pathname === '/'
+      || url.pathname === '/login'
+      || url.pathname === '/app'
+      || url.pathname.startsWith('/app/')
+      || url.pathname.startsWith('/invite/')
+      || url.pathname === '/superadmin'
+      || url.pathname.startsWith('/superadmin/');
+  } catch {
+    return false;
+  }
+}
+
+function selectNotificationClient(
+  clients: readonly NotificationWindowClient[],
+  origin: string,
+): NotificationWindowClient | undefined {
+  const eligibleClients = clients.filter((client) => isWorkslipClient(client, origin));
+
+  return eligibleClients.find((client) => client.focused)
+    ?? eligibleClients.find((client) => client.visibilityState === 'visible')
+    ?? eligibleClients[0];
+}
+
+function clientIsAtTarget(
+  client: NotificationWindowClient,
+  target: string,
+): boolean {
+  try {
+    return new URL(client.url).href === target;
+  } catch {
+    return false;
+  }
+}
+
+export async function navigateNotificationTarget(
+  clients: readonly NotificationWindowClient[],
+  openWindow: OpenNotificationWindow,
+  rawTarget: unknown,
+  origin: string,
+  navigateOpenClient?: NavigateOpenNotificationClient,
+): Promise<NotificationWindowClient | null> {
+  const target = resolveNotificationTarget(rawTarget, origin);
+  const existingClient = selectNotificationClient(clients, origin);
+
+  if (!existingClient) {
+    return openWindow(target);
+  }
+
+  if (navigateOpenClient) {
+    try {
+      if (await navigateOpenClient(existingClient, target)) {
+        return existingClient.focus();
+      }
+    } catch {
+      // Older clients do not have the router listener. Continue through the
+      // document-navigation and open-window compatibility fallbacks.
+    }
+  }
+
+  try {
+    const navigatedClient = await existingClient.navigate(target);
+    if (navigatedClient && clientIsAtTarget(navigatedClient, target)) {
+      return navigatedClient.focus();
+    }
+  } catch {
+    // Some installed-PWA clients reject or ignore document navigation. The
+    // browser-level openWindow fallback below is more reliable in that state.
+  }
+
+  try {
+    const openedClient = await openWindow(target);
+    if (openedClient) return openedClient;
+  } catch {
+    // Last resort: at least bring the existing application window forward.
+  }
+
+  return existingClient.focus();
 }
 </file>
 
@@ -138607,290 +138942,6 @@ If all deployment attempts fail, use the workflow's safe App Service state, rece
 Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
 </file>
 
-<file path="src/FE/src/features/auth/routes/Login.tsx">
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { Loader2, ShieldCheck } from 'lucide-react';
-import { useAuth } from '../../../providers/useAuth';
-import {
-  AUTH_TOKEN_KEY,
-  USER_EMAIL_KEY,
-  AuthStorage,
-  clearReauthInFlight,
-} from '../../../providers/authContextValue';
-import {
-  clearEntraLoginSession,
-  completeEntraLogin,
-  hasEntraLoginCallback,
-  hasEntraLoginSession,
-  InteractiveLoginRequiredError,
-  LoginCancelledError,
-  sanitizeReturnTo,
-  startEntraLogin,
-} from '../api/entraLogin';
-
-const OneTimeCodeLogin = lazy(() =>
-  import('../components/OneTimeCodeLogin').then((module) => ({ default: module.OneTimeCodeLogin })),
-);
-
-const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve igen.';
-
-const isBackForwardNavigation = () =>
-  typeof performance !== 'undefined' &&
-  typeof performance.getEntriesByType === 'function' &&
-  (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
-
-export const Login = () => {
-  const navigate = useNavigate();
-  const { isAuthenticated, devLogin } = useAuth();
-  const [historyInterruptedLogin] = useState(() =>
-    !hasEntraLoginCallback() && hasEntraLoginSession() && isBackForwardNavigation(),
-  );
-  const [isSubmitting, setIsSubmitting] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return !historyInterruptedLogin && (hasEntraLoginCallback() || params.get('reauth') === '1');
-  });
-  const [errorMsg, setErrorMsg] = useState<string | null>(
-    historyInterruptedLogin ? LOGIN_INTERRUPTED_MESSAGE : null,
-  );
-  const [showOtcLogin, setShowOtcLogin] = useState(false);
-  // True when we arrived via the silent-reauth redirect (axios interceptor
-  // sent us here because the JWT expired). While true we hide the login form
-  // entirely and show only a spinner, so the user never sees the Microsoft
-  // / passkey buttons flash before being sent to Microsoft.
-  const [isReauth, setIsReauth] = useState(
-    () => !historyInterruptedLogin && new URLSearchParams(window.location.search).get('reauth') === '1',
-  );
-  // Guards against React.StrictMode's double-mount in dev (and against any
-  // edge case where this effect runs twice). The first call navigates the
-  // browser to Microsoft; the second must be a no-op to avoid generating
-  // a second PKCE state that overwrites the first.
-  const reauthStartedRef = useRef(false);
-
-  const recoverToLogin = useCallback((message: string) => {
-    clearReauthInFlight();
-    clearEntraLoginSession();
-    reauthStartedRef.current = false;
-    window.history.replaceState(null, '', '/login');
-    setErrorMsg(message);
-    setIsSubmitting(false);
-    setIsReauth(false);
-  }, []);
-
-  useEffect(() => {
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (!event.persisted || hasEntraLoginCallback() || !hasEntraLoginSession()) return;
-      recoverToLogin(LOGIN_INTERRUPTED_MESSAGE);
-    };
-
-    window.addEventListener('pageshow', handlePageShow);
-    return () => window.removeEventListener('pageshow', handlePageShow);
-  }, [recoverToLogin]);
-
-  // Combined callback + reauth effect.
-  //
-  // Splitting these into two effects races when Microsoft redirects back with
-  // BOTH `?reauth=1` and `?code=`. Keeping them in one effect makes the
-  // callback and fresh-reauth branches explicit.
-  useEffect(() => {
-    if (reauthStartedRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const isCallback = hasEntraLoginCallback();
-    const isReauthRequest = params.get('reauth') === '1';
-    if (historyInterruptedLogin) {
-      clearReauthInFlight();
-      clearEntraLoginSession();
-      window.history.replaceState(null, '', '/login');
-      return;
-    }
-    if (!isCallback && !isReauthRequest) return;
-    reauthStartedRef.current = true;
-
-    const returnTo = sanitizeReturnTo(params.get('returnTo'));
-
-    if (isCallback) {
-      completeEntraLogin()
-        .then((result) => {
-          AuthStorage.setItem(AUTH_TOKEN_KEY, result.auth.token);
-          AuthStorage.setItem(USER_EMAIL_KEY, result.auth.user.email);
-          clearReauthInFlight();
-          clearEntraLoginSession();
-          window.history.replaceState(null, '', '/login');
-          window.location.replace(result.returnTo);
-        })
-        .catch((err: unknown) => {
-          if (err instanceof InteractiveLoginRequiredError) {
-            clearReauthInFlight();
-            clearEntraLoginSession();
-            window.history.replaceState(null, '', '/login');
-            startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
-              recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
-            });
-            return;
-          }
-          if (err instanceof LoginCancelledError) {
-            recoverToLogin('Login afbrudt. Klik på knappen for at prøve igen.');
-            return;
-          }
-          const message = (err as Error)?.message || 'Microsoft login fejlede. Prøv engangskode hvis passkey ikke virker.';
-          recoverToLogin(message);
-        });
-      return;
-    }
-
-    startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
-      if (err instanceof InteractiveLoginRequiredError) {
-        clearReauthInFlight();
-        startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
-          recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
-        });
-        return;
-      }
-      recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
-    });
-  }, [historyInterruptedLogin, recoverToLogin]);
-
-  const handleMicrosoftLogin = async () => {
-    setErrorMsg(null);
-    setIsSubmitting(true);
-    try {
-      const returnTo = sanitizeReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
-      await startEntraLogin({ returnTo });
-    } catch (err: unknown) {
-      clearEntraLoginSession();
-      const message = (err as Error)?.message || 'Kunne ikke starte Microsoft login.';
-      setErrorMsg(message);
-      setIsSubmitting(false);
-    }
-  };
-
-  if (isAuthenticated) {
-    return <Navigate to="/app" replace />;
-  }
-
-  return (
-    <div className="app-container app-container-center">
-      <div className="bg-glow-wrapper">
-        <div className="bg-glow bg-glow-1" />
-        <div className="bg-glow bg-glow-2" />
-      </div>
-
-      {isReauth && (
-        <div className="reauth-card">
-          <Loader2 className="animate-spin" size={32} />
-          <p>Genindlæser login...</p>
-          <button
-            type="button"
-            onClick={() => {
-              clearReauthInFlight();
-              clearEntraLoginSession();
-              window.history.replaceState(null, '', '/login');
-              setIsReauth(false);
-              setIsSubmitting(false);
-            }}
-            className="reauth-cancel-btn"
-          >
-            Annuller
-          </button>
-        </div>
-      )}
-
-      {!isReauth && (
-        <div className="login-card">
-          {showOtcLogin ? (
-            <Suspense
-              fallback={(
-                <div className="login-email-step" role="status" aria-live="polite">
-                  <Loader2 className="animate-spin" size={24} />
-                  <span>Vent venligst.. Indlæser modul</span>
-                </div>
-              )}
-            >
-              <OneTimeCodeLogin onBack={() => setShowOtcLogin(false)} />
-            </Suspense>
-          ) : (
-            <>
-              <div className="login-card-header">
-                <div className="logo logo-center">
-                  <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-                <h2>Log ind på Workslip</h2>
-                <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
-              </div>
-
-              {errorMsg && (
-                <div className="login-error-banner">
-                  <Loader2 size={16} />
-                  {errorMsg}
-                </div>
-              )}
-
-              <div className="login-email-step">
-                <button
-                  type="button"
-                  className="btn btn-primary login-submit-btn"
-                  onClick={handleMicrosoftLogin}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
-                  <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowOtcLogin(true)}
-                  className="login-otc-btn"
-                >
-                  Mistet dit login? Modtag engangskode
-                </button>
-              </div>
-
-              {import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' && (
-                <div className="login-dev-section">
-                  <div className="login-dev-buttons">
-                    {[
-                      { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
-                      { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
-                      { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
-                      { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' },
-                    ].map((entry) => (
-                      <button
-                        key={entry.email}
-                        onClick={async () => {
-                          setErrorMsg(null);
-                          setIsSubmitting(true);
-                          try {
-                            const success = await devLogin(entry.email);
-                            if (success) navigate(entry.redirect, { replace: true });
-                            else setErrorMsg(`Dev login failed - ${entry.email} not found`);
-                          } catch {
-                            setErrorMsg('Dev login failed');
-                          } finally {
-                            setIsSubmitting(false);
-                          }
-                        }}
-                        disabled={isSubmitting}
-                        className="btn btn-secondary login-dev-btn"
-                      >
-                        {entry.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-</file>
-
 <file path="src/FE/src/features/jobs/components/JobDetails.tsx">
 import { useState } from 'react';
 import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
@@ -139779,205 +139830,6 @@ scheduleDeferredTelemetry(() => {
 });
 </file>
 
-<file path="src/FE/src/sw.ts">
-import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
-import {
-  isNotificationNavigationAcknowledgement,
-  navigateNotificationTarget,
-  NOTIFICATION_NAVIGATION_REQUEST,
-  NOTIFICATION_RECEIVED,
-  type NotificationReceivedMessage,
-  type NotificationWindowClient,
-} from './pwa/notificationNavigation';
-
-type PrecacheManifestEntry = string | {
-  url: string;
-  revision?: string | null;
-};
-
-declare const self: ServiceWorkerGlobalScope & {
-  __WB_MANIFEST: PrecacheManifestEntry[];
-};
-
-const PRECACHE_MANIFEST = self.__WB_MANIFEST;
-const PRECACHED_URLS = new Set(
-  PRECACHE_MANIFEST.map((entry) =>
-    new URL(typeof entry === 'string' ? entry : entry.url, self.location.origin).href,
-  ),
-);
-const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
-const MAX_RUNTIME_ASSET_ENTRIES = 150;
-const CLIENT_NAVIGATION_TIMEOUT_MS = 1_500;
-
-cleanupOutdatedCaches();
-precacheAndRoute(PRECACHE_MANIFEST);
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') {
-    event.waitUntil(self.skipWaiting());
-  }
-});
-
-function isRuntimeStaticAsset(request: Request) {
-  if (request.method !== 'GET') return false;
-  if (!['script', 'style', 'font', 'image'].includes(request.destination)) return false;
-
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin || PRECACHED_URLS.has(url.href)) return false;
-
-  return url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/');
-}
-
-async function trimRuntimeAssetCache(cache: Cache) {
-  const requests = await cache.keys();
-  const excessCount = requests.length - MAX_RUNTIME_ASSET_ENTRIES;
-  if (excessCount <= 0) return;
-
-  await Promise.all(
-    requests.slice(0, excessCount).map((request) => cache.delete(request)),
-  );
-}
-
-self.addEventListener('fetch', (event) => {
-  if (!isRuntimeStaticAsset(event.request)) return;
-
-  event.respondWith((async () => {
-    const cache = await caches.open(RUNTIME_ASSET_CACHE);
-    const cachedResponse = await cache.match(event.request);
-    if (cachedResponse) return cachedResponse;
-
-    const response = await fetch(event.request);
-    if (response.ok) {
-      await cache.put(event.request, response.clone());
-      await trimRuntimeAssetCache(cache);
-    }
-
-    return response;
-  })());
-});
-
-async function notifyOpenClientsOfPush(): Promise<void> {
-  const windowClients = await self.clients.matchAll({
-    type: 'window',
-    includeUncontrolled: true,
-  });
-
-  const message: NotificationReceivedMessage = { type: NOTIFICATION_RECEIVED };
-  for (const client of windowClients) {
-    try {
-      client.postMessage(message);
-    } catch {
-      // The client may have been closed or is otherwise not deliverable.
-    }
-  }
-}
-
-self.addEventListener('push', (event) => {
-  console.log('[SW] Push event received', event.data);
-  if (!event.data) {
-    console.warn('[SW] Push event has no data — showing fallback notification');
-    event.waitUntil(
-      (async () => {
-        await self.registration.showNotification('Workslip', {
-          body: 'You have a new notification',
-          icon: '/logo.png',
-          badge: '/logo.png',
-        });
-        await notifyOpenClientsOfPush();
-      })().catch((error) => {
-        console.error('[SW] Fallback notification failed:', error);
-      })
-    );
-    return;
-  }
-
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch (error) {
-    console.error('Failed to parse push payload:', error);
-    return;
-  }
-
-  const title = payload.title || 'Workslip';
-  const options = payload.options || {};
-
-  event.waitUntil(
-    (async () => {
-      await self.registration.showNotification(title, {
-        body: options.body || '',
-        icon: options.icon || '/logo.png',
-        badge: options.badge || '/logo.png',
-        tag: options.tag || '',
-        data: options.data || {},
-      });
-      await notifyOpenClientsOfPush();
-    })().catch((error) => {
-      console.error('[SW] showNotification failed:', error);
-    })
-  );
-});
-
-async function requestClientRouterNavigation(
-  client: NotificationWindowClient,
-  url: string,
-): Promise<boolean> {
-  const channel = new MessageChannel();
-
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (handled: boolean) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      channel.port1.close();
-      resolve(handled);
-    };
-    const timeout = setTimeout(() => finish(false), CLIENT_NAVIGATION_TIMEOUT_MS);
-
-    channel.port1.onmessage = (event) => {
-      const acknowledgement = event.data;
-      finish(
-        isNotificationNavigationAcknowledgement(acknowledgement)
-        && acknowledgement.success,
-      );
-    };
-
-    try {
-      (client as WindowClient).postMessage({
-        type: NOTIFICATION_NAVIGATION_REQUEST,
-        url,
-      }, [channel.port2]);
-    } catch {
-      finish(false);
-    }
-  });
-}
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  event.waitUntil((async () => {
-    const windowClients = await self.clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true,
-    });
-
-    await navigateNotificationTarget(
-      windowClients,
-      (url) => self.clients.openWindow(url),
-      event.notification.data?.url,
-      self.location.origin,
-      requestClientRouterNavigation,
-    );
-  })());
-});
-</file>
-
 <file path="src/FE/README.md">
 # Workslip frontend
 
@@ -140768,6 +140620,289 @@ function ActionSuccessDialog({
     document.body,
   );
 }
+</file>
+
+<file path="src/FE/src/sw.ts">
+import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
+import {
+  isNotificationNavigationAcknowledgement,
+  navigateNotificationTarget,
+  NOTIFICATION_NAVIGATION_REQUEST,
+  NOTIFICATION_RECEIVED,
+  type NotificationReceivedMessage,
+  type NotificationWindowClient,
+} from './pwa/notificationNavigation';
+
+type PrecacheManifestEntry = string | {
+  url: string;
+  revision?: string | null;
+};
+
+declare const self: ServiceWorkerGlobalScope & {
+  __WB_MANIFEST: PrecacheManifestEntry[];
+};
+
+interface RuntimeAssetResult {
+  response: Response;
+  cacheWork: Promise<void>;
+}
+
+interface PushPayloadOptions {
+  body?: unknown;
+  icon?: unknown;
+  badge?: unknown;
+  tag?: unknown;
+  data?: unknown;
+}
+
+interface PushPayload {
+  title?: unknown;
+  options?: PushPayloadOptions;
+}
+
+const PRECACHE_MANIFEST = self.__WB_MANIFEST;
+const PRECACHED_URLS = new Set(
+  PRECACHE_MANIFEST.map((entry) =>
+    new URL(typeof entry === 'string' ? entry : entry.url, self.location.origin).href,
+  ),
+);
+const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
+const MAX_RUNTIME_ASSET_ENTRIES = 150;
+const RUNTIME_CACHE_TRIM_WRITE_INTERVAL = 10;
+const CLIENT_NAVIGATION_TIMEOUT_MS = 1_500;
+
+let runtimeAssetWritesSinceTrim = 0;
+let runtimeCacheTrimPromise: Promise<void> | null = null;
+
+cleanupOutdatedCaches();
+precacheAndRoute(PRECACHE_MANIFEST);
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting());
+  }
+});
+
+function isRuntimeStaticAsset(request: Request) {
+  if (request.method !== 'GET') return false;
+  if (!['script', 'style', 'font', 'image'].includes(request.destination)) return false;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || PRECACHED_URLS.has(url.href)) return false;
+
+  return url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/');
+}
+
+async function trimRuntimeAssetCache(cache: Cache) {
+  const requests = await cache.keys();
+  const excessCount = requests.length - MAX_RUNTIME_ASSET_ENTRIES;
+  if (excessCount <= 0) return;
+
+  await Promise.all(
+    requests.slice(0, excessCount).map((request) => cache.delete(request)),
+  );
+}
+
+function scheduleRuntimeAssetCacheTrim(cache: Cache): Promise<void> {
+  runtimeAssetWritesSinceTrim += 1;
+  if (runtimeAssetWritesSinceTrim < RUNTIME_CACHE_TRIM_WRITE_INTERVAL) {
+    return Promise.resolve();
+  }
+
+  if (runtimeCacheTrimPromise) return runtimeCacheTrimPromise;
+
+  const trimPromise = (async () => {
+    while (runtimeAssetWritesSinceTrim >= RUNTIME_CACHE_TRIM_WRITE_INTERVAL) {
+      runtimeAssetWritesSinceTrim = 0;
+      await trimRuntimeAssetCache(cache);
+    }
+  })()
+    .catch((error) => {
+      console.warn('[SW] Runtime asset cache trim failed:', error);
+    })
+    .finally(() => {
+      if (runtimeCacheTrimPromise === trimPromise) {
+        runtimeCacheTrimPromise = null;
+      }
+    });
+
+  runtimeCacheTrimPromise = trimPromise;
+  return trimPromise;
+}
+
+async function cacheRuntimeAsset(
+  cache: Cache,
+  request: Request,
+  response: Response,
+): Promise<void> {
+  await cache.put(request, response);
+  await scheduleRuntimeAssetCacheTrim(cache);
+}
+
+async function prepareRuntimeAssetResponse(request: Request): Promise<RuntimeAssetResult> {
+  let cache: Cache;
+
+  try {
+    cache = await caches.open(RUNTIME_ASSET_CACHE);
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      return {
+        response: cachedResponse,
+        cacheWork: Promise.resolve(),
+      };
+    }
+  } catch (error) {
+    console.warn('[SW] Runtime asset cache lookup failed; using network:', error);
+    return {
+      response: await fetch(request),
+      cacheWork: Promise.resolve(),
+    };
+  }
+
+  const response = await fetch(request);
+  const cacheWork = response.ok
+    ? cacheRuntimeAsset(cache, request, response.clone()).catch((error) => {
+        console.warn('[SW] Runtime asset cache write failed:', error);
+      })
+    : Promise.resolve();
+
+  return { response, cacheWork };
+}
+
+self.addEventListener('fetch', (event) => {
+  if (!isRuntimeStaticAsset(event.request)) return;
+
+  const operation = prepareRuntimeAssetResponse(event.request);
+
+  event.respondWith(operation.then(({ response }) => response));
+  event.waitUntil(
+    operation
+      .then(({ cacheWork }) => cacheWork)
+      .catch(() => {
+        // The response path owns network failures. Cache maintenance must never
+        // turn a recoverable asset request into an additional worker rejection.
+      }),
+  );
+});
+
+async function notifyOpenClientsOfPush(): Promise<void> {
+  const windowClients = await self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true,
+  });
+
+  const message: NotificationReceivedMessage = { type: NOTIFICATION_RECEIVED };
+  for (const client of windowClients) {
+    try {
+      client.postMessage(message);
+    } catch {
+      // The client may have been closed or is otherwise not deliverable.
+    }
+  }
+}
+
+function asString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function readPushPayload(event: PushEvent): PushPayload {
+  if (!event.data) return {};
+
+  try {
+    const payload = event.data.json() as unknown;
+    return typeof payload === 'object' && payload !== null
+      ? payload as PushPayload
+      : {};
+  } catch (error) {
+    console.error('[SW] Failed to parse push payload; using fallback:', error);
+    return {};
+  }
+}
+
+self.addEventListener('push', (event) => {
+  const payload = readPushPayload(event);
+  const options: PushPayloadOptions = typeof payload.options === 'object'
+    && payload.options !== null
+    ? payload.options
+    : {};
+
+  event.waitUntil(
+    (async () => {
+      await self.registration.showNotification(
+        asString(payload.title, 'Workslip'),
+        {
+          body: asString(options.body, 'You have a new notification'),
+          icon: asString(options.icon, '/logo.png'),
+          badge: asString(options.badge, '/logo.png'),
+          tag: asString(options.tag, ''),
+          data: options.data ?? {},
+        },
+      );
+      await notifyOpenClientsOfPush();
+    })().catch((error) => {
+      console.error('[SW] showNotification failed:', error);
+    }),
+  );
+});
+
+async function requestClientRouterNavigation(
+  client: NotificationWindowClient,
+  url: string,
+): Promise<boolean> {
+  const channel = new MessageChannel();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (handled: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      channel.port1.close();
+      resolve(handled);
+    };
+    const timeout = setTimeout(() => finish(false), CLIENT_NAVIGATION_TIMEOUT_MS);
+
+    channel.port1.onmessage = (event) => {
+      const acknowledgement = event.data;
+      finish(
+        isNotificationNavigationAcknowledgement(acknowledgement)
+        && acknowledgement.success,
+      );
+    };
+
+    try {
+      (client as WindowClient).postMessage({
+        type: NOTIFICATION_NAVIGATION_REQUEST,
+        url,
+      }, [channel.port2]);
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  event.waitUntil((async () => {
+    const windowClients = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true,
+    });
+
+    await navigateNotificationTarget(
+      windowClients,
+      (url) => self.clients.openWindow(url),
+      event.notification.data?.url,
+      self.location.origin,
+      requestClientRouterNavigation,
+    );
+  })());
+});
 </file>
 
 </files>
