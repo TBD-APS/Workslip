@@ -10,7 +10,9 @@ const API_TIMEOUT = 30_000;
 const UI_TIMEOUT = 25_000;
 const TARGET_PATH = '/app/profil';
 const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
-const NOTIFICATION_TAG = `playwright-wor-248-${Date.now()}`;
+const NOTIFICATION_TAG_PREFIX = `playwright-wor-248-${Date.now()}`;
+const PAYLOAD_NOTIFICATION_TAG = `${NOTIFICATION_TAG_PREFIX}-payload`;
+const NAVIGATION_NOTIFICATION_TAG = `${NOTIFICATION_TAG_PREFIX}-navigation`;
 
 if (!APP_URL) throw new Error('PROD_URL is required.');
 
@@ -28,11 +30,12 @@ const report = {
   pageErrors: [],
   failedRequests: [],
   failedApiResponses: [],
+  payloadAudit: null,
   cacheAudit: null,
   coverageNotes: [
     {
       area: 'Push delivery boundary',
-      detail: 'Dispatches a standards-based PushEvent inside the deployed service worker. It validates Workslip push handling, notification creation, notificationclick routing, and cache isolation, but not the operating-system notification tray or the external push provider transport.',
+      detail: 'Dispatches standards-based PushEvent instances inside the deployed service worker. It validates Workslip push parsing, fallback normalization, notification creation, notificationclick routing, and cache isolation, but not the operating-system notification tray or the external push provider transport.',
     },
     {
       area: 'Fallback branches',
@@ -130,6 +133,73 @@ try {
     report.serviceWorkerUrl = serviceWorker.url();
   });
 
+  await step('deployed worker normalizes hostile push payload fields', async () => {
+    const payloadAudit = await serviceWorker.evaluate(async ({ tag }) => {
+      const oldNotifications = await self.registration.getNotifications({ tag });
+      for (const notification of oldNotifications) notification.close();
+
+      if (typeof PushEvent !== 'function') {
+        throw new Error('PushEvent is unavailable in the deployed service-worker runtime.');
+      }
+
+      self.dispatchEvent(new PushEvent('push', {
+        data: JSON.stringify({
+          title: '   ',
+          options: {
+            body: '',
+            icon: 123,
+            badge: null,
+            tag,
+            data: 'not-an-object',
+          },
+        }),
+      }));
+
+      let notification = null;
+      const deadline = Date.now() + 5_000;
+      while (!notification && Date.now() < deadline) {
+        [notification] = await self.registration.getNotifications({ tag });
+        if (!notification) await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      if (!notification) {
+        throw new Error('The deployed service worker did not create the payload-audit notification.');
+      }
+
+      const audit = {
+        title: notification.title,
+        body: notification.body,
+        icon: notification.icon,
+        badge: notification.badge,
+        tag: notification.tag,
+        dataKeys: Object.keys(notification.data ?? {}),
+      };
+      notification.close();
+      return audit;
+    }, { tag: PAYLOAD_NOTIFICATION_TAG });
+
+    if (payloadAudit.title !== 'Workslip') {
+      throw new Error(`Hostile title did not fall back safely: ${payloadAudit.title}`);
+    }
+    if (payloadAudit.body !== 'You have a new notification') {
+      throw new Error(`Hostile body did not fall back safely: ${payloadAudit.body}`);
+    }
+    if (!payloadAudit.icon.endsWith('/logo.png')) {
+      throw new Error(`Hostile icon did not fall back safely: ${payloadAudit.icon}`);
+    }
+    if (!payloadAudit.badge.endsWith('/logo.png')) {
+      throw new Error(`Hostile badge did not fall back safely: ${payloadAudit.badge}`);
+    }
+    if (payloadAudit.tag !== PAYLOAD_NOTIFICATION_TAG) {
+      throw new Error(`Notification tag changed unexpectedly: ${payloadAudit.tag}`);
+    }
+    if (payloadAudit.dataKeys.length !== 0) {
+      throw new Error(`Hostile notification data was retained: ${JSON.stringify(payloadAudit.dataKeys)}`);
+    }
+
+    report.payloadAudit = payloadAudit;
+  });
+
   await step('notification click routes the existing app client', async () => {
     await page.bringToFront();
     await page.goto(`${APP_URL}/app`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
@@ -169,7 +239,7 @@ try {
       }
 
       if (!notification) {
-        throw new Error('The deployed service worker did not create the test notification.');
+        throw new Error('The deployed service worker did not create the navigation notification.');
       }
 
       const result = {
@@ -178,7 +248,7 @@ try {
       };
       self.dispatchEvent(new NotificationEvent('notificationclick', { notification }));
       return result;
-    }, { tag: NOTIFICATION_TAG, targetPath: TARGET_PATH });
+    }, { tag: NAVIGATION_NOTIFICATION_TAG, targetPath: TARGET_PATH });
 
     if (clickResult.createdTarget !== TARGET_PATH) {
       throw new Error(`Notification target was ${String(clickResult.createdTarget)} instead of ${TARGET_PATH}.`);
@@ -245,10 +315,12 @@ try {
   suiteFailure = error;
 } finally {
   if (serviceWorker) {
-    await serviceWorker.evaluate(async ({ tag }) => {
-      const notifications = await self.registration.getNotifications({ tag });
-      for (const notification of notifications) notification.close();
-    }, { tag: NOTIFICATION_TAG }).catch(() => undefined);
+    await serviceWorker.evaluate(async ({ tagPrefix }) => {
+      const notifications = await self.registration.getNotifications();
+      for (const notification of notifications) {
+        if (notification.tag.startsWith(tagPrefix)) notification.close();
+      }
+    }, { tagPrefix: NOTIFICATION_TAG_PREFIX }).catch(() => undefined);
   }
 
   report.completedAt = new Date().toISOString();
