@@ -4,7 +4,7 @@ Status: Active
 Owner: Workslip repository owner  
 Source of truth: `.github/workflows/`, repository rulesets and current successful workflow runs  
 Review cadence: monthly and whenever a workflow or required check changes  
-Linear: WOR-170, WOR-171, WOR-188, WOR-194, WOR-303
+Linear: WOR-170, WOR-171, WOR-188, WOR-194, WOR-303, WOR-305, WOR-306
 
 ## Principle
 
@@ -16,9 +16,9 @@ A required or routinely triggered check must be configured, actionable and owned
 - API deployment restores, builds, publishes and deploys the backend artifact for relevant changes on `main` or an explicit manual run.
 - API deployment does not invoke the post-deploy cache workflow.
 - Vercel Git deployments are enabled only for `main`; all other branch names are denied by the repository's `src/FE/vercel.json` policy.
-- A successful production backend release or successful Vercel production deployment from `main` triggers `.github/workflows/update-repomix-after-release.yml`.
-- The Repomix workflow checks out the latest `main`, regenerates `repomix-output.xml`, and commits only when the generated output changed.
-- Failed, cancelled, preview, or non-`main` deployments do not update Repomix.
+- A successful production backend release or successful Vercel production deployment from `main` or `release/**` triggers `.github/workflows/update-repomix-after-release.yml`.
+- The Repomix workflow resolves the released branch by SHA, regenerates `repomix-output.xml`, and commits only when the generated output changed.
+- Failed, cancelled, preview, stale, or unrelated deployments do not update Repomix.
 - The repository has no general pull-request validation workflow. Relevant backend/frontend validation must be run locally or through a deliberately added, issue-scoped validation workflow that is removed again after use.
 - Existing security and review checks supplied outside these workflow files remain governed by repository rulesets and their own configuration.
 
@@ -27,13 +27,29 @@ A required or routinely triggered check must be configured, actionable and owned
 The Repomix snapshot is maintained as a post-release artifact rather than a release prerequisite:
 
 - Backend releases qualify only when `Backend API deploy` completes successfully. That workflow reports success only after the Azure deployment and API health check pass.
-- Frontend releases qualify only for a successful GitHub `deployment_status` created by `vercel[bot]`, with environment `Production` and ref `main`.
-- The workflow serializes updates, regenerates from the latest remote `main`, and retries if `main` advances while publishing.
+- Frontend releases qualify only for a successful GitHub `deployment_status` with environment `Production` whose deployed SHA matches the current tip of `main` or `release/**`.
+- The workflow regenerates from the latest remote target branch and retries if that branch advances while publishing.
 - Repomix is pinned to version `1.13.0` to keep generated output deterministic across runs.
 - The generated commit uses `[skip ci]` and does not modify application paths, preventing the backend workflow from retriggering.
+- Before commit, the workflow verifies that no tracked or untracked path other than `repomix-output.xml` changed.
+- Before push, the workflow verifies that the staged change set contains exactly `repomix-output.xml`.
 - If `repomix-output.xml` is unchanged, the workflow exits without creating a commit.
 
-A failure in this maintenance workflow does not roll back an already successful application release. Treat the failed workflow as repository-maintenance debt and rerun it after correcting permissions, package resolution, or branch-protection constraints.
+### Protected-branch write identity
+
+GitHub branch protection and repository rulesets grant bypass to actors, not individual files. The Repomix workflow therefore uses a dedicated GitHub App plus workflow-level file enforcement:
+
+1. Install the dedicated Repomix GitHub App only on `Workslip-v2.0`.
+2. Grant the app repository `Contents: Read and write` access and no broader permission than required.
+3. Store the app ID as the Actions repository variable `REPOMIX_APP_ID`.
+4. Store the app private key as the Actions repository secret `REPOMIX_APP_PRIVATE_KEY`.
+5. Add only that GitHub App to the bypass list for the pull-request requirement covering `main` and `release/**`, using the narrowest available bypass mode.
+6. Do not reuse the private key in other workflows.
+7. Keep `.github/workflows/update-repomix-after-release.yml` protected through normal pull-request review, because this file controls how the privileged app identity is used.
+
+The workflow uses `actions/create-github-app-token` to create a short-lived installation token for the current run. The default `GITHUB_TOKEN` remains read-only. Missing or invalid app credentials fail during token creation; an app without ruleset bypass fails at push with an explicit remediation message.
+
+A failure in this maintenance workflow does not roll back an already successful application release. Treat the failed workflow as repository-maintenance debt and rerun it after correcting app installation, credentials, package resolution, or branch-protection configuration.
 
 ## Removed workflow decisions
 
