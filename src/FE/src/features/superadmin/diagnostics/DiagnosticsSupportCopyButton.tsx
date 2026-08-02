@@ -51,12 +51,14 @@ export function DiagnosticsSupportCopyButton() {
   const range = queryKey?.[3];
   const source = queryKey?.[4];
   const dashboard = activeQuery?.state.data as ErrorDiagnosticsDashboard | undefined;
-  const canCopy = dashboard !== undefined
+  const activeSnapshot = dashboard !== undefined
     && isErrorDiagnosticsRange(range)
-    && isErrorDiagnosticsSource(source);
+    && isErrorDiagnosticsSource(source)
+    ? { dashboard, range, source }
+    : null;
 
   const handleCopy = async () => {
-    if (!canCopy) return;
+    if (!activeSnapshot) return;
 
     setIsCopying(true);
     try {
@@ -65,7 +67,11 @@ export function DiagnosticsSupportCopyButton() {
       }
 
       await navigator.clipboard.writeText(
-        serializeErrorDiagnosticsSupportSnapshot(dashboard, range, source),
+        serializeErrorDiagnosticsSupportSnapshot(
+          activeSnapshot.dashboard,
+          activeSnapshot.range,
+          activeSnapshot.source,
+        ),
       );
       notify.success('Sanitiseret diagnostik er kopieret');
     } catch {
@@ -84,7 +90,7 @@ export function DiagnosticsSupportCopyButton() {
         type="button"
         className="btn btn-secondary"
         onClick={() => { void handleCopy(); }}
-        disabled={!canCopy || isCopying}
+        disabled={!activeSnapshot || isCopying}
       >
         <ClipboardCopy size={16} aria-hidden="true" />
         <span>{isCopying ? 'Kopierer...' : 'Kopiér til ChatGPT'}</span>
