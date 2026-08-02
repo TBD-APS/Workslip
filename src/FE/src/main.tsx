@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './base.css';
 import App from './App.tsx';
 import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
+import { isJobFamilyQueryKey } from './lib/jobQueryKeys';
 import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
 import { queryClient } from './lib/react-query';
 import { installNotificationNavigationHandler, installNotificationReceivedInvalidator } from './pwa/notificationNavigationClient';
@@ -45,7 +46,9 @@ if (typeof window !== 'undefined') {
     );
     installNotificationReceivedInvalidator(
       navigator.serviceWorker,
-      () => queryClient.invalidateQueries({ queryKey: ['/api/jobs'] }),
+      () => queryClient.invalidateQueries({
+        predicate: (query) => isJobFamilyQueryKey(query.queryKey),
+      }),
     );
   }
 }

@@ -11,6 +11,7 @@ public static class HttpCacheHeaders
     private const string PrivateRevalidate = "private, no-cache, max-age=0, must-revalidate";
     private const string NoStore = "no-store";
     private const string PublicHealth = "public, max-age=30, stale-while-revalidate=30";
+    private const string CacheStatusHeader = "X-Workslip-Cache";
 
     public static void SetPrivateRevalidation(HttpContext httpContext, string etag)
     {
@@ -24,6 +25,7 @@ public static class HttpCacheHeaders
         httpContext.Response.Headers.CacheControl = NoStore;
         httpContext.Response.Headers.Pragma = "no-cache";
         httpContext.Response.Headers.Expires = "0";
+        httpContext.Response.Headers[CacheStatusHeader] = "bypass";
     }
 
     public static void SetPublicHealthCache(HttpContext httpContext)
@@ -33,14 +35,13 @@ public static class HttpCacheHeaders
 
     public static bool MatchesIfNoneMatch(HttpContext httpContext, string etag)
     {
-        if (!httpContext.Request.Headers.TryGetValue("If-None-Match", out var values))
-        {
-            return false;
-        }
+        var matches = httpContext.Request.Headers.TryGetValue("If-None-Match", out var values)
+            && values.ToString()
+                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Any(value => value == "*" || string.Equals(value, etag, StringComparison.Ordinal));
 
-        return values.ToString()
-            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Any(value => value == "*" || string.Equals(value, etag, StringComparison.Ordinal));
+        httpContext.Response.Headers[CacheStatusHeader] = matches ? "revalidated" : "miss";
+        return matches;
     }
 
     public static string JobReportEtag(JobReportSummaryResponse report)

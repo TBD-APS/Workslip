@@ -1,0 +1,184 @@
+name: Update Repomix after production release
+
+on:
+  workflow_run:
+    workflows:
+      - Backend API deploy
+    types:
+      - completed
+  deployment_status:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-release-repomix-${{ github.event.workflow_run.head_branch || github.event.deployment.sha || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  update-repomix:
+    name: Regenerate Repomix
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Create Repomix GitHub App token
+        id: repomix-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.REPOMIX_APP_ID }}
+          private-key: ${{ secrets.REPOMIX_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: Workslip-v2.0
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.repomix-token.outputs.token }}
+
+      - name: Resolve released branch
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+          DEPLOYMENT_REF: ${{ github.event.deployment.ref }}
+          DEPLOYMENT_SHA: ${{ github.event.deployment.sha }}
+        run: |
+          set -Eeuo pipefail
+
+          git fetch --prune origin \
+            '+refs/heads/main:refs/remotes/origin/main' \
+            '+refs/heads/release/*:refs/remotes/origin/release/*'
+
+          normalize_branch() {
+            local value="$1"
+            value="${value#refs/heads/}"
+            value="${value#origin/}"
+            printf '%s' "${value}"
+          }
+
+          is_release_branch() {
+            [[ "$1" == 'main' || "$1" == release/* ]]
+          }
+
+          remote_sha() {
+            git rev-parse --verify "refs/remotes/origin/$1" 2>/dev/null || true
+          }
+
+          target_branch=''
+          release_sha=''
+
+          if [[ "${EVENT_NAME}" == 'workflow_run' ]]; then
+            candidate="$(normalize_branch "${WORKFLOW_BRANCH}")"
+            if is_release_branch "${candidate}" &&
+               [[ "$(remote_sha "${candidate}")" == "${WORKFLOW_SHA}" ]]; then
+              target_branch="${candidate}"
+              release_sha="${WORKFLOW_SHA}"
+            fi
+          else
+            candidate="$(normalize_branch "${DEPLOYMENT_REF}")"
+            if is_release_branch "${candidate}" &&
+               [[ "$(remote_sha "${candidate}")" == "${DEPLOYMENT_SHA}" ]]; then
+              target_branch="${candidate}"
+              release_sha="${DEPLOYMENT_SHA}"
+            else
+              while read -r remote_ref candidate_sha; do
+                branch="${remote_ref#origin/}"
+                if [[ "${candidate_sha}" == "${DEPLOYMENT_SHA}" ]]; then
+                  target_branch="${branch}"
+                  release_sha="${DEPLOYMENT_SHA}"
+                  break
+                fi
+              done < <(
+                git for-each-ref \
+                  --format='%(refname:short) %(objectname)' \
+                  refs/remotes/origin/main \
+                  refs/remotes/origin/release/
+              )
+            fi
+          fi
+
+          if [[ -z "${target_branch}" ]]; then
+            echo "::notice::Successful release did not match the current tip of main or release/**. Repomix will not be written."
+          else
+            echo "Resolved production release ${release_sha} to ${target_branch}."
+          fi
+
+          echo "target_branch=${target_branch}" >> "${GITHUB_OUTPUT}"
+          echo "release_sha=${release_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Setup Node.js
+        if: steps.release.outputs.target_branch != ''
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Regenerate and publish Repomix
+        if: steps.release.outputs.target_branch != ''
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ steps.release.outputs.target_branch }}
+        run: |
+          set -Eeuo pipefail
+
+          git config user.name "workslip-repomix-publisher[bot]"
+          git config user.email "workslip-repomix-publisher[bot]@users.noreply.github.com"
+
+          for attempt in 1 2 3; do
+            git fetch origin "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+            git checkout -B "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}"
+
+            npx --yes repomix@1.13.0 \
+              --style xml \
+              --output repomix-output.xml
+
+            unexpected_changes="$(
+              git status --porcelain=v1 --untracked-files=all |
+                cut -c4- |
+                grep -vx 'repomix-output.xml' || true
+            )"
+            if [[ -n "${unexpected_changes}" ]]; then
+              echo "::error::Repomix workflow changed files outside repomix-output.xml:"
+              printf '%s\n' "${unexpected_changes}"
+              exit 1
+            fi
+
+            if [[ -z "$(git status --porcelain -- repomix-output.xml)" ]]; then
+              echo "Repomix output already matches ${TARGET_BRANCH}."
+              exit 0
+            fi
+
+            git add -- repomix-output.xml
+
+            staged_files="$(git diff --cached --name-only)"
+            if [[ "${staged_files}" != 'repomix-output.xml' ]]; then
+              echo "::error::Refusing to commit because the staged change set is not exactly repomix-output.xml."
+              printf 'Staged files:\n%s\n' "${staged_files}"
+              exit 1
+            fi
+
+            git commit -m "chore: update repomix after production release [skip ci]"
+
+            if git push origin "HEAD:${TARGET_BRANCH}"; then
+              echo "Repomix output updated on ${TARGET_BRANCH}."
+              exit 0
+            fi
+
+            if [[ "${attempt}" -lt 3 ]]; then
+              echo "${TARGET_BRANCH} advanced or rejected the write; regenerating from the latest revision."
+              sleep $((attempt * 5))
+            fi
+          done
+
+          echo "::error::Could not publish the regenerated Repomix output to ${TARGET_BRANCH} after 3 attempts. Verify that the Repomix GitHub App is installed and has ruleset bypass."
+          exit 1
