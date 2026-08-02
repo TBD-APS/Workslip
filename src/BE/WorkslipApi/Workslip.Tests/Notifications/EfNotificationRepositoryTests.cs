@@ -164,7 +164,8 @@ public sealed class EfNotificationRepositoryTests
             targetNotification.Id,
             CancellationToken.None);
 
-        Assert.Equal([successfulSubscription.Id], successfulIds);
+        Assert.Single(successfulIds);
+        Assert.Contains(successfulSubscription.Id, successfulIds);
     }
 
     private static NotificationQueueRow CreateNotification(Guid id) => new()
