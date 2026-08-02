@@ -68,7 +68,7 @@ function Invoke-External {
         & $Command @Arguments
         $exitCode = $LASTEXITCODE
         if ($exitCode -ne 0) {
-            throw "Kommandoen fejlede med exit code $exitCode: $Command $($Arguments -join ' ')"
+            throw "Kommandoen fejlede med exit code ${exitCode}: $Command $($Arguments -join ' ')"
         }
     }
     finally {
