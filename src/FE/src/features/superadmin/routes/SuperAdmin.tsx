@@ -15,6 +15,7 @@ import {
 } from '../api';
 import { AdminInviteForm } from '../components/AdminInviteForm';
 import { OrganizationCreateForm } from '../components/OrganizationCreateForm';
+import { DiagnosticsSupportCopyButton } from '../diagnostics/DiagnosticsSupportCopyButton';
 import {
   activateOrganizationSession,
   getOrganizationSession,
@@ -223,6 +224,7 @@ export function SuperAdmin() {
 
       {showDiagnostics && (
         <section id="superadmin-error-dashboard" className="superadmin-diagnostics-dashboard">
+          <DiagnosticsSupportCopyButton />
           <ErrorBoundary
             onError={(error, info) => reportFrontendError(
               error,
