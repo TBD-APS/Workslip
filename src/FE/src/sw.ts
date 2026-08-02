@@ -7,6 +7,7 @@ import {
   type NotificationReceivedMessage,
   type NotificationWindowClient,
 } from './pwa/notificationNavigation';
+import { normalizePushNotificationPayload } from './pwa/pushNotificationPayload';
 
 type PrecacheManifestEntry = string | {
   url: string;
@@ -20,19 +21,6 @@ declare const self: ServiceWorkerGlobalScope & {
 interface RuntimeAssetResult {
   response: Response;
   cacheWork: Promise<void>;
-}
-
-interface PushPayloadOptions {
-  body?: unknown;
-  icon?: unknown;
-  badge?: unknown;
-  tag?: unknown;
-  data?: unknown;
-}
-
-interface PushPayload {
-  title?: unknown;
-  options?: PushPayloadOptions;
 }
 
 const PRECACHE_MANIFEST = self.__WB_MANIFEST;
@@ -180,43 +168,23 @@ async function notifyOpenClientsOfPush(): Promise<void> {
   }
 }
 
-function asString(value: unknown, fallback: string): string {
-  return typeof value === 'string' ? value : fallback;
-}
-
-function readPushPayload(event: PushEvent): PushPayload {
-  if (!event.data) return {};
+function readPushPayload(event: PushEvent): unknown {
+  if (!event.data) return undefined;
 
   try {
-    const payload = event.data.json() as unknown;
-    return typeof payload === 'object' && payload !== null
-      ? payload as PushPayload
-      : {};
+    return event.data.json() as unknown;
   } catch (error) {
     console.error('[SW] Failed to parse push payload; using fallback:', error);
-    return {};
+    return undefined;
   }
 }
 
 self.addEventListener('push', (event) => {
-  const payload = readPushPayload(event);
-  const options: PushPayloadOptions = typeof payload.options === 'object'
-    && payload.options !== null
-    ? payload.options
-    : {};
+  const payload = normalizePushNotificationPayload(readPushPayload(event));
 
   event.waitUntil(
     (async () => {
-      await self.registration.showNotification(
-        asString(payload.title, 'Workslip'),
-        {
-          body: asString(options.body, 'You have a new notification'),
-          icon: asString(options.icon, '/logo.png'),
-          badge: asString(options.badge, '/logo.png'),
-          tag: asString(options.tag, ''),
-          data: options.data ?? {},
-        },
-      );
+      await self.registration.showNotification(payload.title, payload.options);
       await notifyOpenClientsOfPush();
     })().catch((error) => {
       console.error('[SW] showNotification failed:', error);
