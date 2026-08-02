@@ -5,6 +5,7 @@ import type {
   ErrorDiagnosticsRange,
   ErrorDiagnosticsSource,
   ErrorDiagnosticsSummary,
+  ErrorDiagnosticsTelemetryHealth,
 } from './types';
 
 export const errorDiagnosticsQueryKey = (
@@ -79,6 +80,15 @@ function parseSummary(value: unknown): ErrorDiagnosticsSummary | null {
   };
 }
 
+function parseTelemetryHealth(value: unknown): ErrorDiagnosticsTelemetryHealth | null {
+  if (value === null) return null;
+  const record = requireRecord(value);
+  return {
+    frontendLastSeenUtc: nullableTimestamp(record, 'frontendLastSeenUtc'),
+    backendLastSeenUtc: nullableTimestamp(record, 'backendLastSeenUtc'),
+  };
+}
+
 function parseItem(value: unknown): ErrorDiagnosticsItem {
   const record = requireRecord(value);
   const source = requireString(record, 'source');
@@ -117,25 +127,36 @@ export function parseErrorDiagnosticsDashboard(value: unknown): ErrorDiagnostics
     dataRetrievedAtUtc: nullableTimestamp(record, 'dataRetrievedAtUtc'),
     summaryAvailable: requireBoolean(record, 'summaryAvailable'),
     itemsAvailable: requireBoolean(record, 'itemsAvailable'),
+    telemetryHealthAvailable: requireBoolean(record, 'telemetryHealthAvailable'),
     hasPartialAzureResults: requireBoolean(record, 'hasPartialAzureResults'),
     isTruncated: requireBoolean(record, 'isTruncated'),
     summary: parseSummary(record.summary),
+    telemetryHealth: parseTelemetryHealth(record.telemetryHealth),
     items: itemsValue.map(parseItem),
   };
 
   if (dashboard.summaryAvailable !== (dashboard.summary !== null)) {
     throw new Error(invalidResponseMessage);
   }
+  if (dashboard.telemetryHealthAvailable !== (dashboard.telemetryHealth !== null)) {
+    throw new Error(invalidResponseMessage);
+  }
   if (!dashboard.itemsAvailable && dashboard.items.length > 0) {
     throw new Error(invalidResponseMessage);
   }
-  if (!dashboard.isAvailable && (dashboard.summaryAvailable || dashboard.itemsAvailable)) {
+  if (
+    !dashboard.isAvailable
+    && (dashboard.summaryAvailable
+      || dashboard.itemsAvailable
+      || dashboard.telemetryHealthAvailable)
+  ) {
     throw new Error(invalidResponseMessage);
   }
   if (
     dashboard.isComplete
     && (!dashboard.summaryAvailable
       || !dashboard.itemsAvailable
+      || !dashboard.telemetryHealthAvailable
       || dashboard.isStale
       || dashboard.hasPartialAzureResults)
   ) {
