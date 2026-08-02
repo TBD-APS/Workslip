@@ -49,6 +49,18 @@ describe('JobCard', () => {
     expect(screen.getByText('Opdateret 01.08.2026, 12.34')).toBeInTheDocument();
   });
 
+  it('shows the review dot to non-admin users while the job is in review', () => {
+    const { container } = render(
+      <JobCard
+        job={createJob({ status: JobStatus.InReview, isSeen: true })}
+        isAdmin={false}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector('.review-dot')).toBeInTheDocument();
+  });
+
   it('keeps the completed dot after the approved job is marked as seen', () => {
     const onOpen = vi.fn();
     const { container, rerender } = render(
