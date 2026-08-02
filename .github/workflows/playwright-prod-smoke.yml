@@ -22,6 +22,7 @@ on:
           - kls-lifecycle
           - rejection-loop
           - draft-recovery
+          - notification-navigation
           - role-tenant-isolation
           - invitation-onboarding
           - assignment-lifecycle
@@ -51,7 +52,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        scenario: ${{ fromJSON(inputs.scenario == 'all-critical' && '["auth-session","kls-lifecycle","rejection-loop","draft-recovery","role-tenant-isolation","invitation-onboarding","assignment-lifecycle","customer-lifecycle","worksheet-integrity","diverse-lifecycle"]' || format('["{0}"]', inputs.scenario)) }}
+        scenario: ${{ fromJSON(inputs.scenario == 'all-critical' && '["auth-session","kls-lifecycle","rejection-loop","draft-recovery","notification-navigation","role-tenant-isolation","invitation-onboarding","assignment-lifecycle","customer-lifecycle","worksheet-integrity","diverse-lifecycle"]' || format('["{0}"]', inputs.scenario)) }}
 
     defaults:
       run:
@@ -91,6 +92,7 @@ jobs:
         run: |
           node --check scripts/playwright-release-runner.mjs
           node --check scripts/playwright-prod-smoke.mjs
+          node --check scripts/playwright-notification-navigation.mjs
           node --check scripts/playwright-critical-contract.mjs
           node --check scripts/playwright-critical-domain.mjs
           node --check scripts/playwright-scenarios-core.mjs
