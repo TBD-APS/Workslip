@@ -35,6 +35,9 @@ try
     builder.ConfigureServices();
 
     var app = builder.Build();
+    var releaseTestingEnabled = ReleaseTestingConfiguration.IsEnabled(
+        app.Environment,
+        app.Configuration);
 
     await using (var scope = app.Services.CreateAsyncScope())
     {
@@ -43,7 +46,7 @@ try
         await scope.ServiceProvider.GetRequiredService<DatabaseSchemaInitializer>().InitializeAsync();
         await db.Database.CanConnectAsync();
 
-        if (app.Environment.IsDevelopment())
+        if (releaseTestingEnabled)
         {
             await scope.ServiceProvider
                 .GetRequiredService<DevelopmentDatabaseSeeder>()
@@ -53,7 +56,7 @@ try
 
     app.ConfigurePipeline();
     app.ConfigureEndpoints();
-    app.ConfigureDevEnvironment();
+    app.ConfigureDevEnvironment(releaseTestingEnabled);
 
     await app.RunAsync();
 }
