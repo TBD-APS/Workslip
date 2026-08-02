@@ -47,8 +47,8 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
 
         var normalizedRange = query.Range.ToLowerInvariant();
         var normalizedSource = query.Source.ToLowerInvariant();
-        var cacheKey = $"{CacheKeyPrefix}:{normalizedRange}:{normalizedSource}:{query.Limit}";
         var workspaceId = configuration[WorkspaceConfigurationKey]?.Trim();
+        var cacheKey = $"{CacheKeyPrefix}:{workspaceId ?? "unconfigured"}:{normalizedRange}:{normalizedSource}:{query.Limit}";
 
         if (string.IsNullOrWhiteSpace(workspaceId))
             return Result<ErrorDiagnosticsDashboard>.Success(GetFallback(cacheKey, "not_configured"));
@@ -371,7 +371,7 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
             | where HttpStatusCode >= 500
             | where isempty(OperationId) or OperationId !in (ExplicitOperationIds)
             | project TimeGenerated, Source = "backend", Weight = tolong(coalesce(ItemCount, 1));
-        union isfuzzy=true FrontendErrors, ExplicitBackendErrors, BackendRequestFailures
+        union FrontendErrors, ExplicitBackendErrors, BackendRequestFailures
         | where TimeGenerated >= ago(7d)
         | where RequestedSource == "all" or Source == RequestedSource
         | summarize
@@ -435,7 +435,7 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
                 CorrelationId = coalesce(tostring(PropertiesBag["CorrelationId"]), tostring(PropertiesBag["correlationId"])),
                 TraceId = coalesce(tostring(PropertiesBag["TraceId"]), tostring(OperationId)),
                 Weight = tolong(coalesce(ItemCount, 1));
-        union isfuzzy=true FrontendErrors, ExplicitBackendErrors, BackendRequestFailures
+        union FrontendErrors, ExplicitBackendErrors, BackendRequestFailures
         | where RequestedSource == "all" or Source == RequestedSource
         | summarize
             Occurrences = sum(Weight),
