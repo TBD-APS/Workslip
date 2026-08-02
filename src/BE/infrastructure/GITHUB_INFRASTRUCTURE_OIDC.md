@@ -1,4 +1,4 @@
-# GitHub infrastructure OIDC bootstrap
+# GitHub infrastructure OIDC
 
 **Status:** Active  
 **Owner:** Workslip repository owner  
@@ -15,42 +15,43 @@ The manual **Production infrastructure deploy** workflow uses a dedicated GitHub
 
 Do not widen `id-mrsoftware-prod-github` to run infrastructure deployment.
 
-## Why bootstrap is separate
+## Single idempotent deployment entry point
 
-The infrastructure identity cannot create its own identity, federation and permissions before it exists. A human Azure/Entra administrator therefore runs the bootstrap once. Normal later deployments run through GitHub OIDC.
-
-The production resource group, Key Vault and App Configuration store must already exist. The bootstrap does not replace the initial administrator deployment of a new environment.
-
-## One-time bootstrap
-
-Prerequisites:
-
-- Azure CLI installed and authenticated to the intended tenant/subscription;
-- an account authorized to create managed identities, custom roles and role assignments at the documented scopes;
-- an account authorized to grant Microsoft Graph application permissions;
-- optional: GitHub CLI authenticated with permission to manage environment variables.
-
-From `src/BE/infrastructure`:
+Operators run one command from `src/BE/infrastructure`:
 
 ```powershell
-.\bootstrap-github-infrastructure-identity.ps1 prod -WhatIf
-.\bootstrap-github-infrastructure-identity.ps1 prod -ConfigureGitHubEnvironment
+.\deploy.ps1 prod
 ```
 
-`-WhatIf` performs Azure deployment planning only and makes no Azure, Graph or GitHub mutation.
+`deploy.ps1` now performs the complete reconciliation in this order:
 
-Without `-ConfigureGitHubEnvironment`, the script prints the non-secret client ID. Add it in:
+1. Microsoft Entra applications;
+2. Azure infrastructure;
+3. VAPID secret lifecycle;
+4. GitHub infrastructure OIDC identity, federation, permissions and `AZURE_INFRA_CLIENT_ID`.
 
-```text
-GitHub repository
-  Settings
-    Environments
-      prod
-        Environment variables
-          AZURE_INFRA_CLIENT_ID=<client-id>
-```
+The separate bootstrap script remains an internal implementation component because the infrastructure identity must be created by an already-authorized Azure/Entra identity before GitHub can authenticate as that identity. Operators do not need a separate bootstrap flow.
 
-`AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` remain protected GitHub environment secrets. `AZURE_INFRA_CLIENT_ID` is an identifier and is stored as an environment variable, not a secret.
+## Idempotency
+
+Repeated `deploy.ps1` runs converge on the same state:
+
+- Bicep deployments use stable resource names and deterministic role-assignment names;
+- existing managed identities and federated credentials are updated rather than duplicated;
+- Microsoft Graph roles are checked before assignment;
+- the GitHub environment variable is set to the current non-secret client ID;
+- existing Entra, Azure, VAPID and infrastructure resources follow their established reconciliation logic.
+
+A failed phase can be corrected and the same command rerun. No generated client secret, publish profile or `AZURE_CREDENTIALS` JSON is created.
+
+## Prerequisites
+
+- Azure CLI installed and authenticated to the intended tenant/subscription;
+- GitHub CLI installed and authenticated to `github.com`;
+- the Azure/Entra account has permission to deploy the existing infrastructure and assign the documented Azure and Microsoft Graph roles;
+- the GitHub account can update environment variables for `rasm105k/Workslip-v2.0`.
+
+`deploy.ps1` validates GitHub CLI authentication before making deployment changes.
 
 ## Granted permissions
 
@@ -68,22 +69,22 @@ Microsoft Graph application permissions:
 - `Group.ReadWrite.All`;
 - `AppRoleAssignment.ReadWrite.All`.
 
-The bootstrap resolves Graph role IDs from Microsoft Graph by role value instead of hardcoding permission GUIDs.
+The reconciliation resolves Graph role IDs from Microsoft Graph by role value instead of duplicating permission GUIDs.
 
-## Normal deployment
+## Normal GitHub deployment
 
-After bootstrap and RBAC propagation:
+After a successful local `deploy.ps1 prod` run and permission propagation:
 
 1. Open **Actions**.
 2. Select **Production infrastructure deploy**.
 3. Select `main`.
 4. Run the workflow.
 
-The workflow remains bound to the protected `prod` environment, serialized, and restricted to `main`. It logs in through OIDC and then runs `deploy-infrastructure.ps1 prod`.
+The workflow remains bound to the protected `prod` environment, serialized, and restricted to `main`. It logs in through OIDC and runs `deploy-infrastructure.ps1 prod`.
 
 ## Verification
 
-A bootstrap is not complete until:
+The setup is complete when:
 
 - the managed identity and federated credential exist;
 - the Azure role assignments above are present;
