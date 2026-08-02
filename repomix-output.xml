@@ -119537,6 +119537,34 @@ body,
 }
 </file>
 
+<file path="src/FE/index.html">
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
+    <meta name="theme-color" content="#050505" />
+    <meta name="description" content="Workslip - Den digitale arbejdsseddel til VVS-virksomheder. KLS-compliant, nem at bruge, og fuldt integreret jobflow." />
+    <title>Workslip | Din samarbejdspartner</title>
+
+    <!-- iOS PWA capability -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Workslip" />
+
+    <!-- iOS Touch Icon -->
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="portal-root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+</file>
+
 <file path=".github/workflows/pages.yml">
 name: Website deploy
 
@@ -123888,34 +123916,6 @@ export async function navigateNotificationTarget(
   const navigatedClient = await existingClient.navigate(target);
   return (navigatedClient ?? existingClient).focus();
 }
-</file>
-
-<file path="src/FE/index.html">
-<!doctype html>
-<html lang="da">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
-    <meta name="theme-color" content="#050505" />
-    <meta name="description" content="Workslip - Den digitale arbejdsseddel til VVS-virksomheder. KLS-compliant, nem at bruge, og fuldt integreret jobflow." />
-    <title>Workslip | Din samarbejdspartner</title>
-
-    <!-- iOS PWA capability -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Workslip" />
-
-    <!-- iOS Touch Icon -->
-    <link rel="apple-touch-icon" href="/favicon.svg" />
-
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <div id="portal-root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
 </file>
 
 <file path=".gitignore">
