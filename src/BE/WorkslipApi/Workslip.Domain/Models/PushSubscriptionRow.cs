@@ -1,8 +1,5 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace Workslip.Domain.Models;
 
-[Index(nameof(Endpoint), IsUnique = true, Name = "UX_PushSubscriptions_Endpoint")]
 public sealed class PushSubscriptionRow
 {
     public Guid Id { get; set; }
