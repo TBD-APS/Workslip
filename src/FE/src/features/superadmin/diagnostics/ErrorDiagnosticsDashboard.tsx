@@ -40,19 +40,32 @@ function formatTimestamp(value: string): string {
     }).format(timestamp);
 }
 
-function availabilityMessage(reason: string | null): string {
+function singleAvailabilityMessage(reason: string): string {
   switch (reason) {
     case 'not_configured':
       return 'Application Insights-logadgang er ikke konfigureret på API’et.';
     case 'permission_denied':
       return 'API-identiteten mangler læserettighed til Log Analytics.';
     case 'throttled':
-      return 'Azure begrænser logforespørgsler midlertidigt. Prøv igen om lidt.';
+      return 'Azure begrænser logforespørgsler midlertidigt.';
     case 'timeout':
-      return 'Logforespørgslen tog for lang tid.';
+      return 'En logforespørgsel tog for lang tid.';
+    case 'token_unavailable':
+      return 'API’et kunne ikke hente et Azure-adgangstoken.';
+    case 'invalid_response':
+      return 'Azure returnerede et svar, der ikke kunne valideres sikkert.';
+    case 'partial_result':
+      return 'Azure oplyser, at resultatet kun er delvist.';
     default:
-      return 'Logdata kunne ikke hentes fra Application Insights.';
+      return 'Logdata kunne ikke hentes fuldstændigt fra Application Insights.';
   }
+}
+
+function availabilityMessage(reason: string | null): string {
+  const reasons = reason?.split(',').filter(Boolean) ?? [];
+  return reasons.length === 0
+    ? singleAvailabilityMessage('query_failed')
+    : reasons.map(singleAvailabilityMessage).join(' ');
 }
 
 function ErrorCard({ item }: { item: ErrorDiagnosticsItem }) {
@@ -125,15 +138,18 @@ export function ErrorDiagnosticsDashboard() {
     queryKey: errorDiagnosticsQueryKey(range, source),
     queryFn: () => getErrorDiagnostics(range, source),
     staleTime: 30_000,
+    gcTime: 60 * 60 * 1000,
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
+    retry: 2,
   });
 
   const dashboard = diagnosticsQuery.data;
-  const generatedAt = useMemo(
-    () => dashboard?.generatedAtUtc ? formatTimestamp(dashboard.generatedAtUtc) : null,
-    [dashboard?.generatedAtUtc],
+  const dataRetrievedAt = useMemo(
+    () => dashboard?.dataRetrievedAtUtc ? formatTimestamp(dashboard.dataRetrievedAtUtc) : null,
+    [dashboard?.dataRetrievedAtUtc],
   );
+  const hasBackgroundRefreshError = diagnosticsQuery.isError && dashboard !== undefined;
 
   return (
     <div className="page-container error-diagnostics-page">
@@ -198,16 +214,58 @@ export function ErrorDiagnosticsDashboard() {
         </fieldset>
         <div className="error-diagnostics-generated" aria-live="polite">
           <Clock3 size={15} aria-hidden="true" />
-          {generatedAt ? `Hentet ${generatedAt}` : 'Afventer logdata'}
+          {dataRetrievedAt
+            ? `${dashboard?.isStale ? 'Sidst bekræftet' : 'Hentet'} ${dataRetrievedAt}`
+            : 'Afventer logdata'}
         </div>
       </section>
 
-      {diagnosticsQuery.isLoading ? (
+      {hasBackgroundRefreshError && (
+        <div className="error-diagnostics-state warning" role="status">
+          <AlertTriangle size={22} aria-hidden="true" />
+          <div>
+            <strong>Seneste opdatering mislykkedes</strong>
+            <span>Det sidst validerede datasæt vises fortsat.</span>
+          </div>
+        </div>
+      )}
+
+      {dashboard?.isStale && (
+        <div className="error-diagnostics-state warning" role="status">
+          <AlertTriangle size={22} aria-hidden="true" />
+          <div>
+            <strong>Viser sidste kendte komplette snapshot</strong>
+            <span>{availabilityMessage(dashboard.availabilityReason)} Tallene er ikke aktuelle.</span>
+          </div>
+        </div>
+      )}
+
+      {dashboard && !dashboard.isStale && !dashboard.isComplete && dashboard.isAvailable && (
+        <div className="error-diagnostics-state warning" role="status">
+          <AlertTriangle size={22} aria-hidden="true" />
+          <div>
+            <strong>Resultatet er ikke komplet</strong>
+            <span>{availabilityMessage(dashboard.availabilityReason)} Manglende sektioner vises ikke som nul.</span>
+          </div>
+        </div>
+      )}
+
+      {dashboard?.isTruncated && (
+        <div className="error-diagnostics-state warning" role="status">
+          <AlertTriangle size={22} aria-hidden="true" />
+          <div>
+            <strong>Listen er afkortet</strong>
+            <span>Oversigtstallene er komplette, men listen viser kun de seneste fejlgrupper.</span>
+          </div>
+        </div>
+      )}
+
+      {diagnosticsQuery.isLoading && !dashboard ? (
         <div className="error-diagnostics-state" role="status">
           <RefreshCw className="animate-spin" size={22} aria-hidden="true" />
           Henter fejl fra Application Insights...
         </div>
-      ) : diagnosticsQuery.isError ? (
+      ) : diagnosticsQuery.isError && !dashboard ? (
         <div className="error-diagnostics-state error" role="alert">
           <AlertCircle size={22} aria-hidden="true" />
           <div>
@@ -222,8 +280,8 @@ export function ErrorDiagnosticsDashboard() {
         <div className="error-diagnostics-state warning" role="status">
           <AlertTriangle size={22} aria-hidden="true" />
           <div>
-            <strong>Logdashboardet er midlertidigt utilgængeligt</strong>
-            <span>{availabilityMessage(dashboard.availabilityReason)}</span>
+            <strong>Logdashboardet er utilgængeligt</strong>
+            <span>{availabilityMessage(dashboard.availabilityReason)} Der vises ikke falske nuller.</span>
           </div>
           <button type="button" className="btn btn-secondary" onClick={() => { void diagnosticsQuery.refetch(); }}>
             Prøv igen
@@ -231,42 +289,60 @@ export function ErrorDiagnosticsDashboard() {
         </div>
       ) : dashboard ? (
         <>
-          <section className="error-diagnostics-summary" aria-label="Fejloversigt">
-            <article>
-              <span>Seneste time</span>
-              <strong>{dashboard.summary.lastHour}</strong>
-            </article>
-            <article>
-              <span>Seneste 24 timer</span>
-              <strong>{dashboard.summary.last24Hours}</strong>
-            </article>
-            <article>
-              <span>Seneste 7 dage</span>
-              <strong>{dashboard.summary.last7Days}</strong>
-            </article>
-            <article className="error-diagnostics-source-summary">
-              <span>Fordeling · 24 timer</span>
+          {dashboard.summaryAvailable && dashboard.summary ? (
+            <section className="error-diagnostics-summary" aria-label="Fejloversigt">
+              <article>
+                <span>Seneste time</span>
+                <strong>{dashboard.summary.lastHour}</strong>
+              </article>
+              <article>
+                <span>Seneste 24 timer</span>
+                <strong>{dashboard.summary.last24Hours}</strong>
+              </article>
+              <article>
+                <span>Seneste 7 dage</span>
+                <strong>{dashboard.summary.last7Days}</strong>
+              </article>
+              <article className="error-diagnostics-source-summary">
+                <span>Fordeling · 24 timer</span>
+                <div>
+                  <strong>{dashboard.summary.frontendLast24Hours}</strong>
+                  <small>Frontend</small>
+                </div>
+                <div>
+                  <strong>{dashboard.summary.backendLast24Hours}</strong>
+                  <small>Backend</small>
+                </div>
+              </article>
+            </section>
+          ) : (
+            <div className="error-diagnostics-state warning" role="status">
+              <AlertTriangle size={22} aria-hidden="true" />
               <div>
-                <strong>{dashboard.summary.frontendLast24Hours}</strong>
-                <small>Frontend</small>
+                <strong>Oversigtstal er ikke tilgængelige</strong>
+                <span>Der vises ingen nuller, før oversigtsqueryen er valideret.</span>
               </div>
-              <div>
-                <strong>{dashboard.summary.backendLast24Hours}</strong>
-                <small>Backend</small>
-              </div>
-            </article>
-          </section>
+            </div>
+          )}
 
           <section className="error-diagnostics-list" aria-labelledby="error-list-title">
             <div className="error-diagnostics-list-heading">
               <div>
                 <h2 id="error-list-title">Seneste grupperede fejl</h2>
-                <p>Ens hændelser grupperes via et sanitiseret fingerprint.</p>
+                <p>Listen følger valgt kilde og tidsrum. Ens hændelser grupperes via et sanitiseret fingerprint.</p>
               </div>
-              <span>{dashboard.items.length} grupper</span>
+              {dashboard.itemsAvailable && <span>{dashboard.items.length} grupper</span>}
             </div>
 
-            {dashboard.items.length === 0 ? (
+            {!dashboard.itemsAvailable ? (
+              <div className="error-diagnostics-state warning" role="status">
+                <AlertTriangle size={22} aria-hidden="true" />
+                <div>
+                  <strong>Fejllisten er ikke tilgængelig</strong>
+                  <span>Der vises ingen tom liste, før detaljequeryen er valideret.</span>
+                </div>
+              </div>
+            ) : dashboard.items.length === 0 ? (
               <div className="error-diagnostics-state empty" role="status">
                 <Activity size={22} aria-hidden="true" />
                 Ingen fejl matcher de valgte filtre.
