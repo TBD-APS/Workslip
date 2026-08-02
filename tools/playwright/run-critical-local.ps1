@@ -34,6 +34,7 @@ $playwrightImage = "mcr.microsoft.com/playwright:v$playwrightVersion-noble"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $frontendRoot = Join-Path $repoRoot 'src\FE'
 $artifactRoot = Join-Path $repoRoot 'artifacts\playwright-prod-smoke'
+$reportPath = Join-Path $artifactRoot 'report.json'
 $workflowPath = '.github/workflows/playwright-prod-smoke.yml'
 
 function Assert-Command {
@@ -226,8 +227,13 @@ function Invoke-WorkflowRun {
             '--eventpath', $eventPath,
             '--job', 'smoke',
             '--platform', "ubuntu-latest=$playwrightImage",
-            '--pull=false'
+            '--pull=false',
+            '--bind'
         ) -WorkingDirectory $repoRoot
+
+        if (-not (Test-Path $reportPath)) {
+            throw "Workflowet lykkedes, men report.json blev ikke gemt på værten: $reportPath"
+        }
     }
     finally {
         Remove-Item $eventPath -Force -ErrorAction SilentlyContinue
