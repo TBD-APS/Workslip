@@ -32,10 +32,19 @@ public sealed class DiagnosticsSanitizerTests
 
     [Theory]
     [InlineData("00-7b2d7f628e2f4f28a7d7ac889917126b-64d876b29e6b4a52-01")]
-    [InlineData("corr_20260802-abc")]
-    public void SanitizeCorrelationId_PreservesSafeOperationalIdentifiers(string value)
+    [InlineData("f93a41e5-5457-463b-b7f2-e37ccca69673")]
+    public void SanitizeCorrelationId_PreservesHexOperationalIdentifiers(string value)
     {
         Assert.Equal(value, DiagnosticsSanitizer.SanitizeCorrelationId(value));
+    }
+
+    [Theory]
+    [InlineData("corr_20260802-abc")]
+    [InlineData("Bearer.secret-token@example.com")]
+    [InlineData("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.signature")]
+    public void SanitizeCorrelationId_RejectsArbitraryOrTokenLikeValues(string value)
+    {
+        Assert.Null(DiagnosticsSanitizer.SanitizeCorrelationId(value));
     }
 
     [Fact]
