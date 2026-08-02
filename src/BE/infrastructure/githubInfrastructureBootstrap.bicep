@@ -11,6 +11,8 @@ param githubEnvironment string = environment
 
 var normalizedEnvironment = toLower(environment)
 var resourceGroupName = 'rg-${companyName}-${normalizedEnvironment}'
+var identityName = take('id-${companyName}-${normalizedEnvironment}-infra-github', 128)
+var identityResourceId = resourceId(resourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', identityName)
 var providerRegistrationRoleName = 'Workslip Resource Provider Registration'
 var providerRegistrationRoleId = guid(subscription().id, providerRegistrationRoleName)
 
@@ -57,7 +59,7 @@ resource providerRegistrationRole 'Microsoft.Authorization/roleDefinitions@2022-
 }
 
 resource providerRegistrationRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, infrastructureIdentity.outputs.PRINCIPAL_ID, providerRegistrationRole.id)
+  name: guid(subscription().id, identityResourceId, providerRegistrationRole.id)
   properties: {
     principalId: infrastructureIdentity.outputs.PRINCIPAL_ID
     principalType: 'ServicePrincipal'
