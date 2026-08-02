@@ -40,7 +40,10 @@ function formatTimestamp(value: string): string {
     }).format(timestamp);
 }
 
-function telemetryFreshness(value: string | null): {
+function telemetryFreshness(
+  value: string | null,
+  referenceUtc: string | null,
+): {
   status: 'recent' | 'delayed' | 'old' | 'missing';
   timestamp: string;
   description: string;
@@ -54,7 +57,11 @@ function telemetryFreshness(value: string | null): {
   }
 
   const timestamp = new Date(value);
-  const ageMinutes = Math.max(0, Math.floor((Date.now() - timestamp.getTime()) / 60_000));
+  const referenceTimestamp = referenceUtc ? new Date(referenceUtc) : new Date();
+  const ageMinutes = Math.max(
+    0,
+    Math.floor((referenceTimestamp.getTime() - timestamp.getTime()) / 60_000),
+  );
   if (ageMinutes <= 15) {
     return {
       status: 'recent',
@@ -189,9 +196,11 @@ export function ErrorDiagnosticsDashboard() {
   );
   const frontendTelemetry = telemetryFreshness(
     dashboard?.telemetryHealth?.frontendLastSeenUtc ?? null,
+    dashboard?.generatedAtUtc ?? null,
   );
   const backendTelemetry = telemetryFreshness(
     dashboard?.telemetryHealth?.backendLastSeenUtc ?? null,
+    dashboard?.generatedAtUtc ?? null,
   );
   const hasBackgroundRefreshError = diagnosticsQuery.isError && dashboard !== undefined;
 
