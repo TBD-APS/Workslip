@@ -40,7 +40,8 @@ export function isNotificationNavigationRequest(
 
   const candidate = value as Partial<NotificationNavigationRequest>;
   return candidate.type === NOTIFICATION_NAVIGATION_REQUEST
-    && typeof candidate.url === 'string';
+    && typeof candidate.url === 'string'
+    && candidate.url.trim().length > 0;
 }
 
 export function isNotificationNavigationAcknowledgement(
@@ -70,7 +71,11 @@ export function resolveNotificationTarget(rawTarget: unknown, origin: string): s
 
   try {
     const target = new URL(rawTarget, fallback);
-    return target.origin === fallback.origin ? target.href : fallback.href;
+    return target.origin === fallback.origin
+      && target.username === ''
+      && target.password === ''
+      ? target.href
+      : fallback.href;
   } catch {
     return fallback.href;
   }
@@ -82,7 +87,9 @@ function isWorkslipClient(
 ): boolean {
   try {
     const url = new URL(client.url);
-    if (url.origin !== origin) return false;
+    if (url.origin !== origin || url.username !== '' || url.password !== '') {
+      return false;
+    }
 
     return url.pathname === '/'
       || url.pathname === '/login'
