@@ -1,9 +1,11 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Ardalis.Result;
 using Azure.Core;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Diagnostics;
@@ -14,11 +16,15 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
     HttpClient httpClient,
     TokenCredential credential,
     IConfiguration configuration,
+    IMemoryCache memoryCache,
     ILogger<ApplicationInsightsErrorDiagnosticsService> logger) : IErrorDiagnosticsService
 {
     private const string WorkspaceConfigurationKey = "Azure:ApplicationInsights:WorkspaceId";
     private const string LogAnalyticsScope = "https://api.loganalytics.io/.default";
-    private const int MaxRawRows = 500;
+    private const string CacheKeyPrefix = "application-insights-errors";
+    private const int MaxRawGroups = 1_000;
+    private const int MaxQueryAttempts = 2;
+    private static readonly TimeSpan SnapshotLifetime = TimeSpan.FromHours(1);
 
     private static readonly IReadOnlyDictionary<string, string> AllowedRanges =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -31,24 +37,6 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
     private static readonly HashSet<string> AllowedSources =
         new(StringComparer.OrdinalIgnoreCase) { "all", "frontend", "backend" };
 
-    private const string SummaryQuery = """
-        let FrontendErrors = AppExceptions
-            | extend PropertiesBag = todynamic(Properties)
-            | where isnotempty(tostring(PropertiesBag["source"]))
-            | project TimeGenerated, Source = "frontend";
-        let BackendErrors = AppTraces
-            | where SeverityLevel >= 3
-            | project TimeGenerated, Source = "backend";
-        union isfuzzy=true FrontendErrors, BackendErrors
-        | where TimeGenerated >= ago(7d)
-        | summarize
-            LastHour = countif(TimeGenerated >= ago(1h)),
-            Last24Hours = countif(TimeGenerated >= ago(24h)),
-            Last7Days = count(),
-            FrontendLast24Hours = countif(TimeGenerated >= ago(24h) and Source == "frontend"),
-            BackendLast24Hours = countif(TimeGenerated >= ago(24h) and Source == "backend")
-        """;
-
     public async Task<Result<ErrorDiagnosticsDashboard>> GetAsync(
         ErrorDiagnosticsQuery query,
         CancellationToken cancellationToken = default)
@@ -57,44 +45,137 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         if (validationErrors.Count > 0)
             return Result<ErrorDiagnosticsDashboard>.Invalid(validationErrors);
 
+        var normalizedRange = query.Range.ToLowerInvariant();
+        var normalizedSource = query.Source.ToLowerInvariant();
+        var cacheKey = $"{CacheKeyPrefix}:{normalizedRange}:{normalizedSource}:{query.Limit}";
         var workspaceId = configuration[WorkspaceConfigurationKey]?.Trim();
-        if (string.IsNullOrWhiteSpace(workspaceId))
-            return Result<ErrorDiagnosticsDashboard>.Success(
-                ErrorDiagnosticsDashboard.Unavailable("not_configured"));
 
+        if (string.IsNullOrWhiteSpace(workspaceId))
+            return Result<ErrorDiagnosticsDashboard>.Success(GetFallback(cacheKey, "not_configured"));
+
+        AccessToken accessToken;
         try
         {
-            var accessToken = await credential.GetTokenAsync(
+            accessToken = await credential.GetTokenAsync(
                 new TokenRequestContext([LogAnalyticsScope]),
                 cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                "Application Insights diagnostics could not acquire an Azure token. ExceptionType={ExceptionType}",
+                exception.GetType().Name);
+            return Result<ErrorDiagnosticsDashboard>.Success(GetFallback(cacheKey, "token_unavailable"));
+        }
 
-            var summaryDocument = await ExecuteQueryAsync(
+        var summaryTask = ExecuteSectionAsync(
+            "summary",
+            workspaceId,
+            BuildSummaryQuery(normalizedSource),
+            "P7D",
+            accessToken.Token,
+            ParseSummary,
+            cancellationToken);
+        var itemsTask = ExecuteSectionAsync(
+            "items",
+            workspaceId,
+            BuildDetailsQuery(normalizedSource),
+            AllowedRanges[normalizedRange],
+            accessToken.Token,
+            root => ParseItems(root, query.Limit),
+            cancellationToken);
+
+        await Task.WhenAll(summaryTask, itemsTask);
+
+        var summarySection = await summaryTask;
+        var itemsSection = await itemsTask;
+        var now = DateTimeOffset.UtcNow;
+        var summaryAvailable = summarySection.HasValue;
+        var itemsAvailable = itemsSection.HasValue;
+        var hasPartialAzureResults = summarySection.IsPartial || itemsSection.IsPartial;
+        var isComplete = summaryAvailable && itemsAvailable && !hasPartialAzureResults;
+        var reason = CombineReasons(summarySection.Reason, itemsSection.Reason);
+
+        if (isComplete)
+        {
+            var dashboard = new ErrorDiagnosticsDashboard(
+                true,
+                true,
+                false,
+                null,
+                now,
+                now,
+                true,
+                true,
+                false,
+                itemsSection.Value!.IsTruncated,
+                summarySection.Value,
+                itemsSection.Value.Items);
+
+            memoryCache.Set(cacheKey, dashboard, SnapshotLifetime);
+            return Result<ErrorDiagnosticsDashboard>.Success(dashboard);
+        }
+
+        if (memoryCache.TryGetValue<ErrorDiagnosticsDashboard>(cacheKey, out var cached)
+            && cached is not null)
+        {
+            return Result<ErrorDiagnosticsDashboard>.Success(
+                cached.AsStale(reason ?? "query_failed"));
+        }
+
+        var partialDashboard = new ErrorDiagnosticsDashboard(
+            summaryAvailable || itemsAvailable,
+            false,
+            false,
+            reason ?? "query_failed",
+            now,
+            summaryAvailable || itemsAvailable ? now : null,
+            summaryAvailable,
+            itemsAvailable,
+            hasPartialAzureResults,
+            itemsSection.Value?.IsTruncated ?? false,
+            summarySection.Value,
+            itemsSection.Value?.Items ?? []);
+
+        return Result<ErrorDiagnosticsDashboard>.Success(partialDashboard);
+    }
+
+    private ErrorDiagnosticsDashboard GetFallback(string cacheKey, string reason)
+    {
+        if (memoryCache.TryGetValue<ErrorDiagnosticsDashboard>(cacheKey, out var cached)
+            && cached is not null)
+        {
+            return cached.AsStale(reason);
+        }
+
+        return ErrorDiagnosticsDashboard.Unavailable(reason);
+    }
+
+    private async Task<QuerySection<T>> ExecuteSectionAsync<T>(
+        string sectionName,
+        string workspaceId,
+        string query,
+        string timespan,
+        string accessToken,
+        Func<JsonElement, T> parser,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        try
+        {
+            using var response = await ExecuteQueryAsync(
                 workspaceId,
-                SummaryQuery,
-                "P7D",
-                accessToken.Token,
+                query,
+                timespan,
+                accessToken,
                 cancellationToken);
 
-            var detailsDocument = await ExecuteQueryAsync(
-                workspaceId,
-                BuildDetailsQuery(query.Source),
-                AllowedRanges[query.Range],
-                accessToken.Token,
-                cancellationToken);
-
-            using (summaryDocument)
-            using (detailsDocument)
-            {
-                var summary = ParseSummary(summaryDocument.RootElement);
-                var items = ParseItems(detailsDocument.RootElement, query.Limit);
-
-                return Result<ErrorDiagnosticsDashboard>.Success(new ErrorDiagnosticsDashboard(
-                    true,
-                    null,
-                    DateTimeOffset.UtcNow,
-                    summary,
-                    items));
-            }
+            var value = parser(response.Document.RootElement);
+            return new QuerySection<T>(true, value, response.IsPartial, response.IsPartial ? "partial_result" : null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -102,52 +183,112 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         }
         catch (TaskCanceledException)
         {
-            logger.LogWarning("Application Insights diagnostics query timed out.");
-            return Result<ErrorDiagnosticsDashboard>.Success(
-                ErrorDiagnosticsDashboard.Unavailable("timeout"));
+            logger.LogWarning("Application Insights diagnostics section timed out. Section={Section}", sectionName);
+            return QuerySection<T>.Failure("timeout");
         }
         catch (DiagnosticsQueryException exception)
         {
             logger.LogWarning(
-                "Application Insights diagnostics query was unavailable. Category={Category} StatusCode={StatusCode}",
+                "Application Insights diagnostics section was unavailable. Section={Section} Category={Category} StatusCode={StatusCode}",
+                sectionName,
                 exception.Category,
                 exception.StatusCode);
-            return Result<ErrorDiagnosticsDashboard>.Success(
-                ErrorDiagnosticsDashboard.Unavailable(exception.Category));
+            return QuerySection<T>.Failure(exception.Category);
+        }
+        catch (DiagnosticsResponseException)
+        {
+            logger.LogWarning("Application Insights returned an invalid diagnostics schema. Section={Section}", sectionName);
+            return QuerySection<T>.Failure("invalid_response");
+        }
+        catch (JsonException)
+        {
+            logger.LogWarning("Application Insights returned invalid JSON. Section={Section}", sectionName);
+            return QuerySection<T>.Failure("invalid_response");
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Application Insights diagnostics query failed.");
-            return Result<ErrorDiagnosticsDashboard>.Success(
-                ErrorDiagnosticsDashboard.Unavailable("query_failed"));
+            logger.LogError(
+                exception,
+                "Application Insights diagnostics section failed. Section={Section}",
+                sectionName);
+            return QuerySection<T>.Failure("query_failed");
         }
     }
 
-    private async Task<JsonDocument> ExecuteQueryAsync(
+    private async Task<QueryResponse> ExecuteQueryAsync(
         string workspaceId,
         string query,
         string timespan,
         string accessToken,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"v1/workspaces/{Uri.EscapeDataString(workspaceId)}/query");
+        for (var attempt = 1; attempt <= MaxQueryAttempts; attempt++)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"v1/workspaces/{Uri.EscapeDataString(workspaceId)}/query");
 
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Headers.TryAddWithoutValidation("Prefer", "wait=10");
-        request.Content = JsonContent.Create(new { query, timespan });
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                request.Headers.TryAddWithoutValidation("Prefer", "wait=10");
+                request.Content = JsonContent.Create(new { query, timespan });
 
-        using var response = await httpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
+                using var response = await httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
-            throw new DiagnosticsQueryException(ToAvailabilityCategory(response.StatusCode), response.StatusCode);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var statusCode = response.StatusCode;
+                    if (attempt < MaxQueryAttempts && IsTransient(statusCode))
+                    {
+                        await Task.Delay(GetRetryDelay(response), cancellationToken);
+                        continue;
+                    }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                    throw new DiagnosticsQueryException(ToAvailabilityCategory(statusCode), statusCode);
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                var isPartial = ReadPartialResultState(document.RootElement);
+                return new QueryResponse(document, isPartial);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (TaskCanceledException) when (attempt < MaxQueryAttempts)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+            }
+            catch (HttpRequestException) when (attempt < MaxQueryAttempts)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+            }
+        }
+
+        throw new DiagnosticsQueryException("query_failed", HttpStatusCode.ServiceUnavailable);
+    }
+
+    private static bool ReadPartialResultState(JsonElement root)
+    {
+        if (!root.TryGetProperty("error", out var error))
+            return false;
+
+        if (error.ValueKind != JsonValueKind.Object
+            || !error.TryGetProperty("code", out var code)
+            || code.ValueKind != JsonValueKind.String)
+        {
+            throw new DiagnosticsResponseException();
+        }
+
+        if (string.Equals(code.GetString(), "PartialError", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        throw new DiagnosticsResponseException();
     }
 
     private static List<ValidationError> Validate(ErrorDiagnosticsQuery query)
@@ -184,103 +325,159 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         return errors;
     }
 
-    private static string BuildDetailsQuery(string source)
-    {
-        var normalizedSource = source.ToLowerInvariant();
+    private static string BuildSummaryQuery(string source) => $$"""
+        let RequestedSource = "{{source}}";
+        let FrontendErrors = AppExceptions
+            | extend PropertiesBag = todynamic(Properties)
+            | where isnotempty(tostring(PropertiesBag["source"]))
+            | project TimeGenerated, Source = "frontend", Weight = tolong(coalesce(ItemCount, 1));
+        let BackendErrors = AppTraces
+            | where SeverityLevel >= 3
+            | project TimeGenerated, Source = "backend", Weight = tolong(coalesce(ItemCount, 1));
+        union isfuzzy=true FrontendErrors, BackendErrors
+        | where TimeGenerated >= ago(7d)
+        | where RequestedSource == "all" or Source == RequestedSource
+        | summarize
+            LastHour = sumif(Weight, TimeGenerated >= ago(1h)),
+            Last24Hours = sumif(Weight, TimeGenerated >= ago(24h)),
+            Last7Days = sum(Weight),
+            FrontendLast24Hours = sumif(Weight, TimeGenerated >= ago(24h) and Source == "frontend"),
+            BackendLast24Hours = sumif(Weight, TimeGenerated >= ago(24h) and Source == "backend")
+        """;
 
-        return $$"""
-            let FrontendErrors = AppExceptions
-                | extend PropertiesBag = todynamic(Properties)
-                | where isnotempty(tostring(PropertiesBag["source"]))
-                | project
-                    Timestamp = TimeGenerated,
-                    Source = "frontend",
-                    Severity = "error",
-                    ErrorType = coalesce(tostring(ProblemId), tostring(ExceptionType), "FrontendError"),
-                    Message = coalesce(tostring(OuterMessage), tostring(InnermostMessage), "Frontend error"),
-                    Route = tostring(PropertiesBag["route"]),
-                    Operation = tostring(OperationName),
-                    Release = tostring(PropertiesBag["release"]),
-                    CorrelationId = tostring(PropertiesBag["correlationId"]),
-                    TraceId = tostring(OperationId);
-            let BackendErrors = AppTraces
-                | where SeverityLevel >= 3
-                | extend PropertiesBag = todynamic(Properties)
-                | project
-                    Timestamp = TimeGenerated,
-                    Source = "backend",
-                    Severity = iif(SeverityLevel >= 4, "critical", "error"),
-                    ErrorType = coalesce(tostring(PropertiesBag["SourceContext"]), "BackendError"),
-                    Message = coalesce(tostring(PropertiesBag["MessageTemplate"]), tostring(Message), "Backend error"),
-                    Route = coalesce(tostring(PropertiesBag["Path"]), tostring(PropertiesBag["RequestPath"])),
-                    Operation = tostring(OperationName),
-                    Release = coalesce(tostring(PropertiesBag["Release"]), tostring(AppVersion)),
-                    CorrelationId = coalesce(tostring(PropertiesBag["CorrelationId"]), tostring(PropertiesBag["correlationId"])),
-                    TraceId = coalesce(tostring(PropertiesBag["TraceId"]), tostring(OperationId));
-            union isfuzzy=true FrontendErrors, BackendErrors
-            | where "{{normalizedSource}}" == "all" or Source == "{{normalizedSource}}"
-            | top {{MaxRawRows}} by Timestamp desc
-            """;
-    }
+    private static string BuildDetailsQuery(string source) => $$"""
+        let RequestedSource = "{{source}}";
+        let FrontendErrors = AppExceptions
+            | extend PropertiesBag = todynamic(Properties)
+            | where isnotempty(tostring(PropertiesBag["source"]))
+            | project
+                Timestamp = TimeGenerated,
+                Source = "frontend",
+                Severity = "error",
+                ErrorType = coalesce(tostring(ProblemId), tostring(ExceptionType), "FrontendError"),
+                Message = coalesce(tostring(OuterMessage), tostring(InnermostMessage), "Frontend error"),
+                Route = tostring(PropertiesBag["route"]),
+                Operation = tostring(OperationName),
+                Release = tostring(PropertiesBag["release"]),
+                CorrelationId = tostring(PropertiesBag["correlationId"]),
+                TraceId = tostring(OperationId),
+                Weight = tolong(coalesce(ItemCount, 1));
+        let BackendErrors = AppTraces
+            | where SeverityLevel >= 3
+            | extend PropertiesBag = todynamic(Properties)
+            | project
+                Timestamp = TimeGenerated,
+                Source = "backend",
+                Severity = iif(SeverityLevel >= 4, "critical", "error"),
+                ErrorType = coalesce(tostring(PropertiesBag["ExceptionType"]), tostring(PropertiesBag["SourceContext"]), "BackendError"),
+                Message = coalesce(tostring(PropertiesBag["MessageTemplate"]), tostring(Message), "Backend error"),
+                Route = coalesce(tostring(PropertiesBag["Path"]), tostring(PropertiesBag["RequestPath"])),
+                Operation = tostring(OperationName),
+                Release = coalesce(tostring(PropertiesBag["Release"]), tostring(AppVersion)),
+                CorrelationId = coalesce(tostring(PropertiesBag["CorrelationId"]), tostring(PropertiesBag["correlationId"])),
+                TraceId = coalesce(tostring(PropertiesBag["TraceId"]), tostring(OperationId)),
+                Weight = tolong(coalesce(ItemCount, 1));
+        union isfuzzy=true FrontendErrors, BackendErrors
+        | where RequestedSource == "all" or Source == RequestedSource
+        | summarize
+            Occurrences = sum(Weight),
+            arg_max(Timestamp, CorrelationId, TraceId)
+            by Source, Severity, ErrorType, Message, Route, Operation, Release
+        | top {{MaxRawGroups + 1}} by Timestamp desc
+        """;
 
     private static ErrorDiagnosticsSummary ParseSummary(JsonElement root)
     {
-        var row = ReadFirstRow(root);
+        var rows = ReadRows(
+            root,
+            "LastHour",
+            "Last24Hours",
+            "Last7Days",
+            "FrontendLast24Hours",
+            "BackendLast24Hours");
+
+        if (rows.Count != 1)
+            throw new DiagnosticsResponseException();
+
+        var row = rows[0];
         return new ErrorDiagnosticsSummary(
-            ReadInt(row, "LastHour"),
-            ReadInt(row, "Last24Hours"),
-            ReadInt(row, "Last7Days"),
-            ReadInt(row, "FrontendLast24Hours"),
-            ReadInt(row, "BackendLast24Hours"));
+            ReadRequiredLong(row, "LastHour", allowZero: true),
+            ReadRequiredLong(row, "Last24Hours", allowZero: true),
+            ReadRequiredLong(row, "Last7Days", allowZero: true),
+            ReadRequiredLong(row, "FrontendLast24Hours", allowZero: true),
+            ReadRequiredLong(row, "BackendLast24Hours", allowZero: true));
     }
 
-    private static IReadOnlyList<ErrorDiagnosticsItem> ParseItems(JsonElement root, int limit)
+    private static DetailsParseResult ParseItems(JsonElement root, int limit)
     {
-        var normalized = ReadRows(root)
+        var rows = ReadRows(
+            root,
+            "Timestamp",
+            "Source",
+            "Severity",
+            "ErrorType",
+            "Message",
+            "Route",
+            "Operation",
+            "Release",
+            "CorrelationId",
+            "TraceId",
+            "Occurrences");
+        var isTruncated = rows.Count > MaxRawGroups;
+
+        var normalized = rows
+            .Take(MaxRawGroups)
             .Select(ParseRawError)
-            .Where(error => error is not null)
-            .Select(error => Sanitize(error!))
+            .Select(Sanitize)
             .ToArray();
 
-        return normalized
+        var grouped = normalized
             .GroupBy(item => item.Fingerprint, StringComparer.Ordinal)
             .Select(group =>
             {
                 var latest = group.OrderByDescending(item => item.TimestampUtc).First();
-                return latest with { Occurrences = group.Count() };
+                return latest with { Occurrences = SumOccurrences(group) };
             })
             .OrderByDescending(item => item.TimestampUtc)
             .Take(limit)
             .ToArray();
+
+        return new DetailsParseResult(grouped, isTruncated);
     }
 
-    private static RawError? ParseRawError(IReadOnlyDictionary<string, JsonElement> row)
+    private static RawError ParseRawError(IReadOnlyDictionary<string, JsonElement> row)
     {
-        var timestampText = ReadString(row, "Timestamp");
-        if (!DateTimeOffset.TryParse(timestampText, out var timestamp))
-            return null;
+        var timestampText = ReadRequiredString(row, "Timestamp");
+        if (!DateTimeOffset.TryParse(
+                timestampText,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var timestamp))
+        {
+            throw new DiagnosticsResponseException();
+        }
+
+        var source = ReadRequiredString(row, "Source").ToLowerInvariant();
+        var severity = ReadRequiredString(row, "Severity").ToLowerInvariant();
+        if (source is not ("frontend" or "backend") || severity is not ("error" or "critical"))
+            throw new DiagnosticsResponseException();
 
         return new RawError(
             timestamp,
-            ReadString(row, "Source") ?? "backend",
-            ReadString(row, "Severity") ?? "error",
-            ReadString(row, "ErrorType") ?? "Error",
-            ReadString(row, "Message") ?? "Ukendt fejl",
-            ReadString(row, "Route"),
-            ReadString(row, "Operation"),
-            ReadString(row, "Release"),
-            ReadString(row, "CorrelationId"),
-            ReadString(row, "TraceId"));
+            source,
+            severity,
+            ReadRequiredString(row, "ErrorType"),
+            ReadRequiredString(row, "Message"),
+            ReadOptionalString(row, "Route"),
+            ReadOptionalString(row, "Operation"),
+            ReadOptionalString(row, "Release"),
+            ReadOptionalString(row, "CorrelationId"),
+            ReadOptionalString(row, "TraceId"),
+            ReadRequiredLong(row, "Occurrences", allowZero: false));
     }
 
     private static ErrorDiagnosticsItem Sanitize(RawError error)
     {
-        var source = string.Equals(error.Source, "frontend", StringComparison.OrdinalIgnoreCase)
-            ? "frontend"
-            : "backend";
-        var severity = string.Equals(error.Severity, "critical", StringComparison.OrdinalIgnoreCase)
-            ? "critical"
-            : "error";
         var errorType = DiagnosticsSanitizer.SanitizeField(error.ErrorType) ?? "Error";
         var message = DiagnosticsSanitizer.SanitizeMessage(error.Message);
         var route = DiagnosticsSanitizer.SanitizeRoute(error.Route);
@@ -289,7 +486,7 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         var correlationId = DiagnosticsSanitizer.SanitizeCorrelationId(error.CorrelationId);
         var traceId = DiagnosticsSanitizer.SanitizeCorrelationId(error.TraceId);
         var fingerprint = DiagnosticsSanitizer.Fingerprint(
-            source,
+            error.Source,
             errorType,
             message,
             route,
@@ -298,8 +495,8 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
 
         return new ErrorDiagnosticsItem(
             error.TimestampUtc,
-            source,
-            severity,
+            error.Source,
+            error.Severity,
             errorType,
             fingerprint,
             message,
@@ -308,74 +505,163 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
             release,
             correlationId,
             traceId,
-            1);
+            error.Occurrences);
     }
 
-    private static IReadOnlyDictionary<string, JsonElement> ReadFirstRow(JsonElement root) =>
-        ReadRows(root).FirstOrDefault()
-        ?? new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+    private static long SumOccurrences(IEnumerable<ErrorDiagnosticsItem> items)
+    {
+        var total = 0L;
+        foreach (var item in items)
+        {
+            if (item.Occurrences > long.MaxValue - total)
+                return long.MaxValue;
 
-    private static IReadOnlyList<IReadOnlyDictionary<string, JsonElement>> ReadRows(JsonElement root)
+            total += item.Occurrences;
+        }
+
+        return total;
+    }
+
+    private static IReadOnlyList<IReadOnlyDictionary<string, JsonElement>> ReadRows(
+        JsonElement root,
+        params string[] requiredColumns)
     {
         if (!root.TryGetProperty("tables", out var tables)
             || tables.ValueKind != JsonValueKind.Array
             || tables.GetArrayLength() == 0)
         {
-            return [];
+            throw new DiagnosticsResponseException();
         }
 
-        var table = tables[0];
-        if (!table.TryGetProperty("columns", out var columns)
+        var candidates = tables
+            .EnumerateArray()
+            .Where(table => table.ValueKind == JsonValueKind.Object)
+            .ToArray();
+        var table = candidates.FirstOrDefault(candidate =>
+            candidate.TryGetProperty("name", out var name)
+            && string.Equals(name.GetString(), "PrimaryResult", StringComparison.OrdinalIgnoreCase));
+
+        if (table.ValueKind == JsonValueKind.Undefined && candidates.Length == 1)
+            table = candidates[0];
+
+        if (table.ValueKind == JsonValueKind.Undefined
+            || !table.TryGetProperty("columns", out var columns)
             || !table.TryGetProperty("rows", out var rows)
             || columns.ValueKind != JsonValueKind.Array
             || rows.ValueKind != JsonValueKind.Array)
         {
-            return [];
+            throw new DiagnosticsResponseException();
         }
 
         var names = columns
             .EnumerateArray()
-            .Select(column => column.TryGetProperty("name", out var name) ? name.GetString() ?? string.Empty : string.Empty)
+            .Select(column => column.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String
+                ? name.GetString() ?? string.Empty
+                : string.Empty)
             .ToArray();
+        var availableColumns = names.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (names.Length == 0
+            || names.Any(string.IsNullOrWhiteSpace)
+            || requiredColumns.Any(required => !availableColumns.Contains(required)))
+        {
+            throw new DiagnosticsResponseException();
+        }
 
         var result = new List<IReadOnlyDictionary<string, JsonElement>>();
         foreach (var row in rows.EnumerateArray())
         {
             if (row.ValueKind != JsonValueKind.Array)
-                continue;
+                throw new DiagnosticsResponseException();
 
             var values = row.EnumerateArray().ToArray();
+            if (values.Length != names.Length)
+                throw new DiagnosticsResponseException();
+
             var mapped = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-            for (var index = 0; index < names.Length && index < values.Length; index++)
-            {
-                if (!string.IsNullOrWhiteSpace(names[index]))
-                    mapped[names[index]] = values[index];
-            }
+            for (var index = 0; index < names.Length; index++)
+                mapped[names[index]] = values[index];
+
             result.Add(mapped);
         }
 
         return result;
     }
 
-    private static string? ReadString(IReadOnlyDictionary<string, JsonElement> row, string name)
+    private static string ReadRequiredString(IReadOnlyDictionary<string, JsonElement> row, string name)
     {
-        if (!row.TryGetValue(name, out var value) || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        var value = ReadOptionalString(row, name);
+        if (string.IsNullOrWhiteSpace(value))
+            throw new DiagnosticsResponseException();
+
+        return value;
+    }
+
+    private static string? ReadOptionalString(IReadOnlyDictionary<string, JsonElement> row, string name)
+    {
+        if (!row.TryGetValue(name, out var value)
+            || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
             return null;
+        }
 
         return value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : value.ToString();
     }
 
-    private static int ReadInt(IReadOnlyDictionary<string, JsonElement> row, string name)
+    private static long ReadRequiredLong(
+        IReadOnlyDictionary<string, JsonElement> row,
+        string name,
+        bool allowZero)
     {
         if (!row.TryGetValue(name, out var value))
-            return 0;
+            throw new DiagnosticsResponseException();
 
-        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
-            return number;
+        long number;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var numericValue))
+        {
+            number = numericValue;
+        }
+        else if (!long.TryParse(
+                     ReadOptionalString(row, name),
+                     NumberStyles.Integer,
+                     CultureInfo.InvariantCulture,
+                     out number))
+        {
+            throw new DiagnosticsResponseException();
+        }
 
-        return int.TryParse(ReadString(row, name), out number) ? number : 0;
+        if (number < 0 || (!allowZero && number == 0))
+            throw new DiagnosticsResponseException();
+
+        return number;
+    }
+
+    private static string? CombineReasons(params string?[] reasons)
+    {
+        var values = reasons
+            .Where(reason => !string.IsNullOrWhiteSpace(reason))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return values.Length == 0 ? null : string.Join(",", values);
+    }
+
+    private static bool IsTransient(HttpStatusCode statusCode) =>
+        statusCode == HttpStatusCode.RequestTimeout
+        || statusCode == HttpStatusCode.TooManyRequests
+        || (int)statusCode >= 500;
+
+    private static TimeSpan GetRetryDelay(HttpResponseMessage response)
+    {
+        var retryAfter = response.Headers.RetryAfter?.Delta;
+        if (retryAfter is null || retryAfter <= TimeSpan.Zero)
+            return TimeSpan.FromMilliseconds(250);
+
+        return retryAfter > TimeSpan.FromSeconds(2)
+            ? TimeSpan.FromSeconds(2)
+            : retryAfter.Value;
     }
 
     private static string ToAvailabilityCategory(HttpStatusCode statusCode) => statusCode switch
@@ -396,11 +682,36 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         string? Operation,
         string? Release,
         string? CorrelationId,
-        string? TraceId);
+        string? TraceId,
+        long Occurrences);
+
+    private sealed record DetailsParseResult(
+        IReadOnlyList<ErrorDiagnosticsItem> Items,
+        bool IsTruncated);
+
+    private sealed record QuerySection<T>(
+        bool HasValue,
+        T? Value,
+        bool IsPartial,
+        string? Reason)
+        where T : class
+    {
+        public static QuerySection<T> Failure(string reason) =>
+            new(false, null, false, reason);
+    }
+
+    private sealed class QueryResponse(JsonDocument document, bool isPartial) : IDisposable
+    {
+        public JsonDocument Document { get; } = document;
+        public bool IsPartial { get; } = isPartial;
+        public void Dispose() => Document.Dispose();
+    }
 
     private sealed class DiagnosticsQueryException(string category, HttpStatusCode statusCode) : Exception
     {
         public string Category { get; } = category;
         public HttpStatusCode StatusCode { get; } = statusCode;
     }
+
+    private sealed class DiagnosticsResponseException : Exception;
 }
