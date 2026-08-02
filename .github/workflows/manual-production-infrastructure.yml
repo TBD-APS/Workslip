@@ -22,11 +22,10 @@ jobs:
       AZURE_WEBAPP_NAME: api-mrsoftware-prod
       API_IDENTITY_NAME: id-mrsoftware-prod
       LOG_ANALYTICS_WORKSPACE_NAME: logAnal-mrsoftware-prod
+      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID }}
     steps:
       - name: Verify deployment prerequisites
         shell: pwsh
-        env:
-          INFRA_CLIENT_ID: ${{ secrets.AZURE_INFRA_CLIENT_ID }}
         run: |
           $ErrorActionPreference = 'Stop'
 
@@ -35,7 +34,7 @@ jobs:
           }
 
           if ([string]::IsNullOrWhiteSpace($env:INFRA_CLIENT_ID)) {
-            throw 'GitHub environment prod is missing AZURE_INFRA_CLIENT_ID for the privileged infrastructure OIDC identity.'
+            throw 'GitHub environment prod is missing the AZURE_INFRA_CLIENT_ID environment variable for the privileged infrastructure OIDC identity. A client ID is an identifier, not a secret.'
           }
 
       - name: Checkout
@@ -44,7 +43,7 @@ jobs:
       - name: Azure login
         uses: azure/login@v3
         with:
-          client-id: ${{ secrets.AZURE_INFRA_CLIENT_ID }}
+          client-id: ${{ vars.AZURE_INFRA_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
