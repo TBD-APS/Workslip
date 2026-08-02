@@ -52,7 +52,8 @@ public sealed class EfNotificationRepository : INotificationRepository
                     SELECT TOP (@BatchSize) *
                     FROM NotificationQueue WITH (UPDLOCK, READPAST, ROWLOCK)
                     WHERE (Status = 'Pending' AND NextAttemptUtc <= SYSUTCDATETIME())
-                       OR (Status = 'Processing' AND ProcessingStartedUtc <= @LeaseCutoffUtc)
+                       OR (Status = 'Processing'
+                           AND (ProcessingStartedUtc IS NULL OR ProcessingStartedUtc <= @LeaseCutoffUtc))
                     ORDER BY NextAttemptUtc, CreatedUtc
                 )
                 UPDATE candidates
