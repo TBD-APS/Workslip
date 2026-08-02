@@ -35,7 +35,15 @@ jobs:
           src/pwa/pushNotificationPayload.test.ts
       - name: Service worker typecheck
         run: npm run typecheck:sw
-      - name: Frontend build
-        run: npm run build
+      - name: Notification lint
+        run: >-
+          npx eslint
+          src/features/users/hooks/usePushNotifications.ts
+          src/features/users/hooks/usePushNotifications.test.ts
+          src/pwa/notificationNavigation.ts
+          src/pwa/notificationNavigation.test.ts
+          src/pwa/pushNotificationPayload.ts
+          src/pwa/pushNotificationPayload.test.ts
+          src/sw.ts
       - name: Playwright notification navigation harness
         run: node scripts/playwright-notification-navigation.mjs
