@@ -34,7 +34,7 @@ function keysMatch(
 }
 
 async function ensurePushSubscription(): Promise<RegisterPushSubscriptionPayload | null> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+  if (!navigator.serviceWorker || typeof window.PushManager === 'undefined') {
     console.warn('Push notifications are not supported in this browser.');
     return null;
   }
