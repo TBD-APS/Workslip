@@ -12,7 +12,7 @@ param githubEnvironment string = environment
 var normalizedEnvironment = toLower(environment)
 var resourceGroupName = 'rg-${companyName}-${normalizedEnvironment}'
 var identityName = take('id-${companyName}-${normalizedEnvironment}-infra-github', 128)
-var identityResourceId = resourceId(resourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', identityName)
+var identityResourceId = resourceId(subscription().subscriptionId, resourceGroupName, 'Microsoft.ManagedIdentity/userAssignedIdentities', identityName)
 var providerRegistrationRoleName = 'Workslip Resource Provider Registration'
 var providerRegistrationRoleId = guid(subscription().id, providerRegistrationRoleName)
 
