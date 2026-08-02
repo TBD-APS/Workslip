@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repositoryRoot = path.resolve(path.dirname(scriptPath), '../..');
-const defaultConfigPath = path.join(repositoryRoot, 'config/release-environments.json');
+const defaultConfigPath = path.join(repositoryRoot, 'src/FE/config/release-environments.json');
 const allowedPhases = new Set(['prelive', 'live']);
 const allowedEnvironments = new Set(['production', 'staging']);
 
