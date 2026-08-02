@@ -2,7 +2,7 @@
 
 **Status:** Active, manually triggered  
 **Owner:** Frontend/API maintainers  
-**Source of truth:** `config/release-environments.json`, runtime UI, runtime OpenAPI, endpoint code, `src/BE/WorkslipApi/Postman/postman_collection.json`, local run evidence, and GitHub Actions run evidence
+**Source of truth:** `src/FE/config/release-environments.json`, runtime UI, runtime OpenAPI, endpoint code, `src/BE/WorkslipApi/Postman/postman_collection.json`, local run evidence, and GitHub Actions run evidence
 
 ## Purpose
 
@@ -19,7 +19,9 @@ The workflow is manual and is not a pull-request check or deployment step. It th
 
 ## Central release-environment policy
 
-`config/release-environments.json` is the reviewed source of truth for release-test behavior. `tools/release/resolve-release-environment.mjs` validates the file before API deployment, release validation, local runs, and GitHub-hosted Playwright runs.
+`src/FE/config/release-environments.json` is the reviewed source of truth. It intentionally lives inside the Vercel frontend root so the production build cannot depend on the optional Vercel setting that includes files outside a project's root directory. Backend and repository workflows read the same file.
+
+`tools/release/resolve-release-environment.mjs` validates the policy before API deployment, release validation, local runs, and GitHub-hosted Playwright runs.
 
 The current pre-live state is:
 
@@ -44,6 +46,13 @@ The resolver rejects unsafe intermediate combinations. In particular:
 
 The backend API deployment reads the production entry and applies `ReleaseTesting__Enabled` to Azure App Service before deploying. Missing or invalid backend configuration is fail-closed: outside ASP.NET Development, release-test endpoints are absent unless the resolved value is exactly `true`.
 
+The frontend Vite build reads the same policy. Dev-login controls are rendered only when both conditions hold:
+
+- `VITE_ENABLE_DEV_LOGIN=true` for the deployment;
+- the selected release target enables development endpoints in the committed policy.
+
+An invalid or missing `VITE_RELEASE_TARGET` defaults to `production`, which is the safe behavior after go-live. The future staging project must explicitly set `VITE_RELEASE_TARGET=staging`.
+
 `DeveloperExceptionPage` is restricted to ASP.NET Development and is never enabled by the pre-live release-test setting.
 
 ## Go-live switch
@@ -51,13 +60,14 @@ The backend API deployment reads the production entry and applies `ReleaseTestin
 Before inviting the first customer:
 
 1. deploy a separate staging frontend, API, database, test identities, and synthetic fixtures;
-2. change `config/release-environments.json` from `prelive` to `live`;
+2. change `src/FE/config/release-environments.json` from `prelive` to `live`;
 3. set production `enableDevelopmentEndpoints` and `allowDestructivePlaywright` to `false`;
 4. configure the staging HTTPS origin and set both staging flags to `true`;
-5. set the production Vercel environment variable `VITE_ENABLE_DEV_LOGIN=false`;
-6. deploy the API so `ReleaseTesting__Enabled=false` reaches production;
-7. verify `/api/dev/token`, runtime OpenAPI, and Scalar are unavailable in production;
-8. run `public-smoke` against production and the critical suite against staging.
+5. set the staging Vercel variable `VITE_RELEASE_TARGET=staging` and keep `VITE_ENABLE_DEV_LOGIN=true` there;
+6. set the production Vercel variable `VITE_ENABLE_DEV_LOGIN=false` as defense in depth;
+7. deploy the API so `ReleaseTesting__Enabled=false` reaches production;
+8. verify `/api/dev/token`, runtime OpenAPI, and Scalar are unavailable in production;
+9. run `public-smoke` against production and the critical suite against staging.
 
 WOR-309 tracks creation of the second environment. The configuration switch itself must be reviewed and merged before customer access opens.
 
