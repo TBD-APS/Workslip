@@ -210,7 +210,7 @@ self.addEventListener('push', (event) => {
       await self.registration.showNotification(
         asString(payload.title, 'Workslip'),
         {
-          body: asString(options.body, event.data ? '' : 'You have a new notification'),
+          body: asString(options.body, 'You have a new notification'),
           icon: asString(options.icon, '/logo.png'),
           badge: asString(options.badge, '/logo.png'),
           tag: asString(options.tag, ''),
