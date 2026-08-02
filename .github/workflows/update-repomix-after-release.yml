@@ -9,7 +9,7 @@ on:
   deployment_status:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: post-release-repomix-${{ github.event.workflow_run.head_branch || github.event.deployment.sha || github.run_id }}
@@ -28,11 +28,21 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - name: Create Repomix GitHub App token
+        id: repomix-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.REPOMIX_APP_ID }}
+          private-key: ${{ secrets.REPOMIX_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: Workslip-v2.0
+
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
+          token: ${{ steps.repomix-token.outputs.token }}
 
       - name: Resolve released branch
         id: release
@@ -121,8 +131,8 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "workslip-repomix-publisher[bot]"
+          git config user.email "workslip-repomix-publisher[bot]@users.noreply.github.com"
 
           for attempt in 1 2 3; do
             git fetch origin "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
@@ -132,12 +142,31 @@ jobs:
               --style xml \
               --output repomix-output.xml
 
+            unexpected_changes="$(
+              git status --porcelain=v1 --untracked-files=all |
+                cut -c4- |
+                grep -vx 'repomix-output.xml' || true
+            )"
+            if [[ -n "${unexpected_changes}" ]]; then
+              echo "::error::Repomix workflow changed files outside repomix-output.xml:"
+              printf '%s\n' "${unexpected_changes}"
+              exit 1
+            fi
+
             if [[ -z "$(git status --porcelain -- repomix-output.xml)" ]]; then
               echo "Repomix output already matches ${TARGET_BRANCH}."
               exit 0
             fi
 
-            git add repomix-output.xml
+            git add -- repomix-output.xml
+
+            staged_files="$(git diff --cached --name-only)"
+            if [[ "${staged_files}" != 'repomix-output.xml' ]]; then
+              echo "::error::Refusing to commit because the staged change set is not exactly repomix-output.xml."
+              printf 'Staged files:\n%s\n' "${staged_files}"
+              exit 1
+            fi
+
             git commit -m "chore: update repomix after production release [skip ci]"
 
             if git push origin "HEAD:${TARGET_BRANCH}"; then
@@ -146,10 +175,10 @@ jobs:
             fi
 
             if [[ "${attempt}" -lt 3 ]]; then
-              echo "${TARGET_BRANCH} advanced while publishing; regenerating from the latest revision."
+              echo "${TARGET_BRANCH} advanced or rejected the write; regenerating from the latest revision."
               sleep $((attempt * 5))
             fi
           done
 
-          echo "::error::Could not publish the regenerated Repomix output to ${TARGET_BRANCH} after 3 attempts."
+          echo "::error::Could not publish the regenerated Repomix output to ${TARGET_BRANCH} after 3 attempts. Verify that the Repomix GitHub App is installed and has ruleset bypass."
           exit 1
