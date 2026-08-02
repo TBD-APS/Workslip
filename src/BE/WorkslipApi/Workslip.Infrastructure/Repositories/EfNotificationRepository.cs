@@ -185,35 +185,37 @@ public sealed class EfNotificationRepository : INotificationRepository
     {
         await _retryPolicy.ExecuteAsync("notifications.register_subscription", async token =>
         {
+            var now = DateTimeOffset.UtcNow;
+
             if (!string.IsNullOrWhiteSpace(replacedEndpoint)
                 && !string.Equals(replacedEndpoint, endpoint, StringComparison.Ordinal))
             {
                 var replaced = await _dbContext.PushSubscriptions
                     .FirstOrDefaultAsync(
-                        subscription => subscription.UserId == userId
-                            && subscription.Endpoint == replacedEndpoint,
+                        subscription => subscription.Endpoint == replacedEndpoint,
                         token);
                 if (replaced is not null)
                 {
                     replaced.IsActive = false;
-                    replaced.LastSeenUtc = DateTimeOffset.UtcNow;
+                    replaced.LastSeenUtc = now;
                 }
             }
 
             var existing = await _dbContext.PushSubscriptions
-                .FirstOrDefaultAsync(s => s.UserId == userId && s.Endpoint == endpoint, token);
+                .FirstOrDefaultAsync(subscription => subscription.Endpoint == endpoint, token);
 
-            if (existing != null)
+            if (existing is not null)
             {
+                existing.UserId = userId;
                 existing.IsActive = true;
                 existing.P256Dh = p256Dh;
                 existing.Auth = auth;
                 existing.UserAgent = userAgent;
-                existing.LastSeenUtc = DateTimeOffset.UtcNow;
+                existing.LastSeenUtc = now;
             }
             else
             {
-                var newSub = new PushSubscriptionRow
+                _dbContext.PushSubscriptions.Add(new PushSubscriptionRow
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
@@ -222,11 +224,11 @@ public sealed class EfNotificationRepository : INotificationRepository
                     Auth = auth,
                     UserAgent = userAgent,
                     IsActive = true,
-                    CreatedUtc = DateTimeOffset.UtcNow,
-                    LastSeenUtc = DateTimeOffset.UtcNow
-                };
-                _dbContext.PushSubscriptions.Add(newSub);
+                    CreatedUtc = now,
+                    LastSeenUtc = now
+                });
             }
+
             await _dbContext.SaveChangesAsync(token);
         }, cancellationToken);
     }
