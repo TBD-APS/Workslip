@@ -20,6 +20,32 @@
   <body>
     <div id="root"></div>
     <div id="portal-root"></div>
+    <script>
+      (() => {
+        const entries = [];
+        const push = (entry) => {
+          if (entries.length >= 20) entries.shift();
+          entries.push(entry);
+        };
+        const onError = (event) => {
+          push({
+            kind: 'error',
+            message: String(event.message || 'Early resource error'),
+            filename: event.filename ? String(event.filename).split(/[?#]/, 1)[0] : '',
+            lineno: Number(event.lineno || 0),
+            colno: Number(event.colno || 0),
+            error: event.error,
+          });
+        };
+        const onRejection = (event) => {
+          push({ kind: 'rejection', reason: event.reason });
+        };
+
+        window.__WORKSLIP_EARLY_ERROR_BUFFER__ = { entries, onError, onRejection };
+        window.addEventListener('error', onError, true);
+        window.addEventListener('unhandledrejection', onRejection);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
