@@ -18,6 +18,8 @@ ACTIVE_DOC_PATTERNS = (
     "Docs/api/**/*.md",
     "Docs/architecture/*.md",
     "Docs/architecture/**/*.md",
+    "Docs/compliance/*.md",
+    "Docs/compliance/**/*.md",
     "Docs/release/*.md",
     "Docs/release/**/*.md",
     "src/FE/README.md",
