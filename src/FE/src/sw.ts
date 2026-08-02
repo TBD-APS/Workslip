@@ -196,7 +196,8 @@ function readPushPayload(event: PushEvent): PushPayload {
 
 self.addEventListener('push', (event) => {
   const payload = readPushPayload(event);
-  const options = typeof payload.options === 'object' && payload.options !== null
+  const options: PushPayloadOptions = typeof payload.options === 'object'
+    && payload.options !== null
     ? payload.options
     : {};
 
