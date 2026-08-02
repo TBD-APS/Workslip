@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet(
         'public-smoke',
@@ -68,7 +68,7 @@ function Invoke-External {
         & $Command @Arguments
         $exitCode = $LASTEXITCODE
         if ($exitCode -ne 0) {
-            throw "Kommandoen fejlede med exit code $exitCode: $Command $($Arguments -join ' ')"
+            throw "Kommandoen fejlede med exit code ${exitCode}: $Command $($Arguments -join ' ')"
         }
     }
     finally {
@@ -88,17 +88,17 @@ function Open-Evidence {
     }
 
     if (Test-Path $artifactRoot) {
-        Write-Host "Åbner evidence-mappen: $artifactRoot" -ForegroundColor Green
+        Write-Host "Ã…bner evidence-mappen: $artifactRoot" -ForegroundColor Green
         Invoke-Item $artifactRoot
     }
     else {
-        Write-Warning "Der blev ikke oprettet en evidence-mappe på $artifactRoot."
+        Write-Warning "Der blev ikke oprettet en evidence-mappe pÃ¥ $artifactRoot."
     }
 }
 
 function Invoke-DirectRun {
-    Assert-Command -Name 'node' -InstallHint 'Installér Node.js 22 LTS, eksempelvis: winget install OpenJS.NodeJS.LTS'
-    Assert-Command -Name 'npm' -InstallHint 'npm følger med Node.js.'
+    Assert-Command -Name 'node' -InstallHint 'InstallÃ©r Node.js 22 LTS, eksempelvis: winget install OpenJS.NodeJS.LTS'
+    Assert-Command -Name 'npm' -InstallHint 'npm fÃ¸lger med Node.js.'
 
     $nodeVersion = (& node --version).Trim().TrimStart([char]'v')
     $nodeMajor = [int]($nodeVersion.Split('.')[0])
@@ -168,7 +168,7 @@ function Invoke-DirectRun {
         $env:PROD_URL = $AppUrl.TrimEnd('/')
         $env:SCENARIO = $Scenario
 
-        Write-Host "Kører '$Scenario' direkte mod $($env:PROD_URL)..." -ForegroundColor Cyan
+        Write-Host "KÃ¸rer '$Scenario' direkte mod $($env:PROD_URL)..." -ForegroundColor Cyan
         Invoke-External -Command 'node' -Arguments @('scripts/playwright-prod-smoke.mjs') -WorkingDirectory $frontendRoot
     }
     finally {
@@ -189,15 +189,15 @@ function Invoke-DirectRun {
 }
 
 function Invoke-WorkflowRun {
-    Assert-Command -Name 'docker' -InstallHint 'Installér og start Docker Desktop: winget install Docker.DockerDesktop'
-    Assert-Command -Name 'act' -InstallHint 'Installér act: winget install nektos.act'
+    Assert-Command -Name 'docker' -InstallHint 'InstallÃ©r og start Docker Desktop: winget install Docker.DockerDesktop'
+    Assert-Command -Name 'act' -InstallHint 'InstallÃ©r act: winget install nektos.act'
 
     Write-Host 'Kontrollerer Docker Desktop...' -ForegroundColor Cyan
     Invoke-External -Command 'docker' -Arguments @('info') -WorkingDirectory $repoRoot
 
     & docker image inspect $playwrightImage *> $null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Henter Playwright-image første gang: $playwrightImage" -ForegroundColor Cyan
+        Write-Host "Henter Playwright-image fÃ¸rste gang: $playwrightImage" -ForegroundColor Cyan
         Invoke-External -Command 'docker' -Arguments @('pull', $playwrightImage) -WorkingDirectory $repoRoot
     }
     else {
@@ -205,7 +205,7 @@ function Invoke-WorkflowRun {
     }
 
     if ($Scenario -eq 'all-critical') {
-        Write-Warning 'Workflow-mode starter alle ti matrix-jobs. Test public-smoke eller ét kritisk flow først.'
+        Write-Warning 'Workflow-mode starter alle ti matrix-jobs. Test public-smoke eller Ã©t kritisk flow fÃ¸rst.'
     }
 
     $eventPath = Join-Path ([System.IO.Path]::GetTempPath()) ("workslip-playwright-{0}.json" -f [Guid]::NewGuid())
@@ -219,7 +219,7 @@ function Invoke-WorkflowRun {
     [System.IO.File]::WriteAllText($eventPath, $eventJson, $utf8NoBom)
 
     try {
-        Write-Host "Kører den faktiske GitHub Actions-YAML lokalt med act: $Scenario" -ForegroundColor Cyan
+        Write-Host "KÃ¸rer den faktiske GitHub Actions-YAML lokalt med act: $Scenario" -ForegroundColor Cyan
         Invoke-External -Command 'act' -Arguments @(
             'workflow_dispatch',
             '--workflows', $workflowPath,
@@ -248,3 +248,4 @@ try {
 finally {
     Open-Evidence
 }
+
