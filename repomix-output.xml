@@ -24985,6 +24985,10 @@ INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER DEALINGS IN THE FONT
 SOFTWARE.
 </file>
 
+<file path="src/FE/public/favicon.svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><linearGradient id="g"><stop stop-color="#11255b"/><stop offset="1" stop-color="#0a0e27"/></linearGradient></defs><path fill="url(#g)" d="M0 0h200v200H0z"/><path fill="#fff" transform="translate(45.7 144.56) scale(6.267)" d="m10.11-14.22 1.98 8.92 1.63-8.92h3.4L14.1 0h-3.55L8.64-8.11 6.78 0H3.23L.21-14.22h3.4L5.24-5.3 7.2-14.22z"/></svg>
+</file>
+
 <file path="src/FE/scripts/sync-fonts.mjs">
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -25721,6 +25725,30 @@ export function NotificationsDrawer({
         <div className="drawer-empty">Ingen notifikationer endnu.</div>
       ) : null}
     </Drawer>
+  );
+}
+</file>
+
+<file path="src/FE/src/components/common/ThemedToaster.tsx">
+import { Toaster } from 'sonner';
+import { useTheme } from '../../providers/ThemeProvider';
+
+export function ThemedToaster() {
+  const { theme } = useTheme();
+
+  return (
+    <Toaster
+      theme={theme === 'night' ? 'dark' : 'light'}
+      position="top-center"
+      toastOptions={{
+        style: {
+          background: 'var(--surface-color)',
+          border: '1px solid var(--surface-border)',
+          backdropFilter: 'blur(20px)',
+          color: 'var(--text-primary)',
+        },
+      }}
+    />
   );
 }
 </file>
@@ -33889,6 +33917,72 @@ export function compactPairs(items: DetailPair[]): { label: string; value: strin
 }
 </file>
 
+<file path="src/FE/src/lib/scheduleAfterInitialLoad.ts">
+type IdleCapableWindow = Window & {
+  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
+
+export function scheduleAfterInitialLoad(task: () => void, timeoutMs = 2_000): () => void {
+  const idleWindow = window as IdleCapableWindow;
+  let idleHandle: number | undefined;
+  let fallbackHandle: number | undefined;
+
+  const schedule = () => {
+    if (idleWindow.requestIdleCallback) {
+      idleHandle = idleWindow.requestIdleCallback(task, { timeout: timeoutMs });
+      return;
+    }
+
+    fallbackHandle = window.setTimeout(task, 0);
+  };
+
+  if (document.readyState === 'complete') {
+    schedule();
+  } else {
+    window.addEventListener('load', schedule, { once: true });
+  }
+
+  return () => {
+    window.removeEventListener('load', schedule);
+    if (idleHandle !== undefined) {
+      idleWindow.cancelIdleCallback?.(idleHandle);
+    }
+    if (fallbackHandle !== undefined) {
+      window.clearTimeout(fallbackHandle);
+    }
+  };
+}
+
+export function scheduleDeferredTelemetry(task: () => void, delayMs = 10_000): () => void {
+  let started = false;
+  let delayHandle: number | undefined;
+  let cancelScheduledTask: (() => void) | undefined;
+
+  function removeTriggers() {
+    window.removeEventListener('pointerdown', start);
+    window.removeEventListener('keydown', start);
+    if (delayHandle !== undefined) window.clearTimeout(delayHandle);
+  }
+
+  function start() {
+    if (started) return;
+    started = true;
+    removeTriggers();
+    cancelScheduledTask = scheduleAfterInitialLoad(task);
+  }
+
+  delayHandle = window.setTimeout(start, delayMs);
+  window.addEventListener('pointerdown', start, { once: true, passive: true });
+  window.addEventListener('keydown', start, { once: true });
+
+  return () => {
+    removeTriggers();
+    cancelScheduledTask?.();
+  };
+}
+</file>
+
 <file path="src/FE/src/lib/toast.ts">
 import { toast, type ExternalToast } from 'sonner';
 
@@ -34302,6 +34396,607 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+</file>
+
+<file path="src/FE/src/telemetry/VercelTelemetry.tsx">
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
+
+export function VercelTelemetry() {
+  return (
+    <>
+      <SpeedInsights />
+      <Analytics />
+    </>
+  );
+}
+</file>
+
+<file path="src/FE/src/authenticated-base.css">
+@charset "UTF-8";
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/inter-latin-wght-normal-v5.3.0.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/outfit-latin-wght-normal-v5.3.0.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --font-main: 'Inter', sans-serif;
+  --font-heading: 'Outfit', sans-serif;
+}
+
+[data-theme="day"] .bottom-nav {
+  background: rgba(255, 255, 255, 0.92);
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+}
+
+[data-theme="day"] .nav-item {
+  color: var(--text-muted);
+}
+
+[data-theme="day"] .nav-item.active {
+  color: var(--text);
+}
+
+[data-theme="day"] .control-point-type:focus-within,
+[data-theme="day"] .multi-select-trigger:hover:not(:disabled),
+[data-theme="day"] .multi-select-trigger[aria-expanded="true"],
+[data-theme="day"] .work-kind-option,
+[data-theme="day"] .multi-select-option,
+[data-theme="day"] .attestation-confirm-row,
+[data-theme="day"] .time-entry-card,
+[data-theme="day"] .time-week-toggle {
+  background: var(--surface-input);
+}
+
+[data-theme="day"] .multi-select-trigger:hover:not(:disabled),
+[data-theme="day"] .multi-select-trigger[aria-expanded="true"] {
+  border-color: var(--focus-ring);
+}
+
+[data-theme="day"] .status-filter-btn {
+  color: var(--text-muted);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+[data-theme="day"] .multi-select-option,
+[data-theme="day"] .time-entry-card {
+  border-color: var(--border);
+}
+
+[data-theme="day"] .time-month-switcher,
+[data-theme="day"] .time-week-card,
+[data-theme="day"] .time-week-totals span,
+[data-theme="day"] .time-summary-card {
+  background: var(--surface-floating);
+}
+
+[data-theme="day"] .time-week-totals span {
+  border: 1px solid var(--border);
+}
+
+[data-theme="day"] .time-week-toggle:hover {
+  background: var(--surface-floating);
+  border-color: var(--border-strong);
+}
+
+[data-theme="day"] .attestation-confirm-row input {
+  background: var(--surface-input);
+}
+
+.checkbox-row span {
+  font-size: 0.9rem;
+  color: var(--text);
+  user-select: none;
+}
+
+.job-type-selector {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.job-type-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.job-type-tabs {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--surface-hover);
+  padding: 0.25rem;
+  border-radius: 8px;
+}
+
+.job-type-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.875rem 1rem;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  flex: 1;
+  text-align: left;
+}
+
+.job-type-tab:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.job-type-tab.active {
+  background: var(--primary);
+  color: white;
+}
+
+.job-type-tab svg {
+  flex-shrink: 0;
+}
+
+.job-type-desc {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.job-type-tab.active .job-type-desc {
+  opacity: 0.9;
+}
+
+.worksheet-inline-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.worksheet-inline-section .section-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.worksheet-inline-section .section-header-row h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.worksheet-inline-section .worksheet-form {
+  max-width: 600px;
+}
+
+.timesheet-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-hover);
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.timesheet-summary-row span {
+  color: var(--text-primary);
+}
+
+.timesheet-summary-row .btn-icon {
+  color: var(--text-secondary);
+  padding: 0.25rem;
+}
+
+.timesheet-summary-row .btn-icon:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+</file>
+
+<file path="src/FE/src/base.css">
+@charset "UTF-8";
+
+:root {
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
+  --bottom-nav-height: calc(54px + env(safe-area-inset-bottom, 0px));
+  --bottom-nav-extra: 0.75rem;
+
+  --bg: #050505;
+  --text-primary: var(--text);
+  --text-secondary: var(--text-muted);
+  --text-disabled: rgba(255, 255, 255, 0.4);
+  --surface-color: var(--surface-floating);
+  --surface-border: var(--border);
+  --surface-overlay: rgba(0, 0, 0, 0.6);
+  --danger-hover: #b91c1c;
+  --text: #e6e6e6;
+  --text-muted: #a1a1aa;
+  --text-dim: rgba(255, 255, 255, 0.4);
+  --surface-floating: #0e0e16;
+
+  --primary: #2c54ac;
+  --primary-hover: #1d4ed8;
+  --danger: #ef4444;
+  --warning: #fbbf24;
+  --success: #22c55e;
+
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-raised: rgba(255, 255, 255, 0.08);
+  --surface-input: rgba(0, 0, 0, 0.2);
+  --surface-elevated: rgba(255, 255, 255, 0.12);
+  --surface-selected: rgba(44, 84, 172, 0.2);
+  --surface-selected-strong: rgba(255, 255, 255, 0.2);
+  --surface-modal: var(--surface-floating);
+  --surface-actions-menu: var(--surface-floating);
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --focus-ring: rgba(255, 255, 255, 0.2);
+
+  --overlay-subtle: rgba(0, 0, 0, 0.4);
+  --overlay-medium: rgba(0, 0, 0, 0.6);
+  --overlay-heavy: rgba(0, 0, 0, 0.85);
+  --overlay-blur: rgba(5, 5, 5, 0.8);
+  --nav-bg: rgba(5, 5, 5, 0.92);
+  --safe-area-top-bg: rgba(5, 5, 5, 0.92);
+  --overlay-dark-01: rgba(0, 0, 0, 0.1);
+  --overlay-dark-04: rgba(0, 0, 0, 0.4);
+  --overlay-dark-095: rgba(0, 0, 0, 0.95);
+  --overlay-light-002: rgba(255, 255, 255, 0.02);
+  --overlay-light-0055: rgba(255, 255, 255, 0.055);
+  --overlay-light-03: rgba(255, 255, 255, 0.03);
+  --overlay-light-050: rgba(255, 255, 255, 0.5);
+
+  --status-blue-bg: rgba(37, 99, 235, 0.12);
+  --status-blue-text: #60a5fa;
+  --status-red-bg: rgba(239, 68, 68, 0.12);
+  --status-red-text: #f87171;
+  --status-amber-bg: rgba(245, 158, 11, 0.15);
+  --status-amber-text: #fcd34d;
+  --status-green-bg: rgba(34, 197, 94, 0.12);
+  --status-green-text: #86efac;
+  --status-neutral-bg: rgba(161, 161, 170, 0.12);
+  --status-neutral-text: #a1a1aa;
+
+  --section-header-margin: 0.75rem;
+  --section-content-margin: 0.75rem;
+  --section-gap: 1.5rem;
+  --card-padding: 1.25rem;
+  --section-header-gap: 0.5rem;
+
+  --fs-xs: 0.78rem;
+  --fs-sm: 0.85rem;
+  --fs-body: 0.95rem;
+  --fs-lg: 1.1rem;
+  --font-main: 'Inter', sans-serif;
+  --font-heading: 'Outfit', sans-serif;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-sm-raw: 0 2px 4px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.35);
+  --shadow-accent: 0 0 20px rgba(44, 84, 172, 0.5);
+}
+
+[data-theme="day"] {
+  --bg: #f3f4f6;
+  --text: #18181b;
+  --text-muted: #52525b;
+  --text-dim: rgba(0, 0, 0, 0.45);
+  --text-disabled: rgba(0, 0, 0, 0.38);
+  --surface-floating: #ffffff;
+  --surface-color: #ffffff;
+  --surface: rgba(0, 0, 0, 0.04);
+  --surface-raised: rgba(0, 0, 0, 0.06);
+  --surface-input: #ffffff;
+  --surface-elevated: rgba(0, 0, 0, 0.08);
+  --surface-selected: rgba(44, 84, 172, 0.12);
+  --surface-selected-strong: rgba(0, 0, 0, 0.08);
+  --surface-modal: #ffffff;
+  --surface-actions-menu: #ffffff;
+  --surface-border: rgba(0, 0, 0, 0.1);
+  --surface-overlay: rgba(255, 255, 255, 0.8);
+  --border: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --focus-ring: rgba(44, 84, 172, 0.3);
+  --overlay-subtle: rgba(0, 0, 0, 0.1);
+  --overlay-medium: rgba(0, 0, 0, 0.25);
+  --overlay-heavy: rgba(0, 0, 0, 0.5);
+  --overlay-blur: rgba(255, 255, 255, 0.8);
+  --nav-bg: rgba(255, 255, 255, 0.92);
+  --overlay-dark-01: rgba(0, 0, 0, 0.06);
+  --overlay-dark-04: rgba(0, 0, 0, 0.2);
+  --overlay-dark-095: rgba(0, 0, 0, 0.8);
+  --overlay-light-002: rgba(0, 0, 0, 0.02);
+  --overlay-light-0055: rgba(0, 0, 0, 0.04);
+  --overlay-light-03: rgba(0, 0, 0, 0.035);
+  --overlay-light-050: rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.07);
+  --shadow-sm-raw: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.12);
+  --shadow-accent: 0 0 20px rgba(44, 84, 172, 0.25);
+  --status-blue-text: #2563eb;
+  --status-red-text: #dc2626;
+  --status-amber-text: #d97706;
+  --status-green-text: #16a34a;
+  --status-neutral-text: #52525b;
+}
+
+[data-theme="day"] .bg-glow-1 {
+  background: radial-gradient(circle, rgba(0, 112, 243, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
+}
+
+[data-theme="day"] .bg-glow-2 {
+  background: radial-gradient(circle, rgba(0, 198, 255, 0.06) 0%, rgba(0, 0, 0, 0) 70%);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+strong,
+b {
+  font-weight: 400;
+}
+
+html,
+body {
+  min-height: 100vh;
+  overflow-anchor: none;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+@media (hover: hover) {
+  a:hover {
+    color: var(--primary);
+  }
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.bg-glow-wrapper {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bg-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.5;
+  animation: float 20s ease-in-out infinite alternate;
+}
+
+.bg-glow-1 {
+  top: -10%;
+  left: 10%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(0, 112, 243, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+}
+
+.bg-glow-2 {
+  right: -5%;
+  bottom: -10%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, rgba(0, 198, 255, 0.1) 0%, rgba(0, 0, 0, 0) 70%);
+  animation-delay: -10s;
+}
+
+@keyframes float {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(5%, 5%) scale(1.1); }
+  100% { transform: translate(-5%, -5%) scale(0.9); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.logo {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
+}
+
+.logo-icon {
+  color: #00c6ff;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  font-family: var(--font-main);
+}
+
+.btn-pill {
+  border-radius: 9999px;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  border-radius: var(--radius-sm);
+}
+
+.btn:active {
+  transform: scale(0.97);
+  transition: transform 0.08s ease;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
+}
+
+.btn-primary:active {
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
+  transform: scale(0.97);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.btn-secondary:active {
+  background: var(--surface-selected);
+  transform: scale(0.97);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.28);
+}
+
+.btn-danger:active,
+.btn-outline:active,
+.btn-outline-danger:active {
+  transform: scale(0.97);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.btn-outline-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  .btn-primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.38);
+  }
+
+  .btn-secondary:hover {
+    background: var(--surface-raised);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .btn-danger:hover {
+    background: var(--danger-hover);
+    transform: translateY(-1px);
+  }
+
+  .btn-outline:hover {
+    background: var(--surface);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--text);
+  }
+
+  .btn-outline-danger:hover {
+    background: rgba(239, 68, 68, 0.08);
+  }
+}
 </file>
 
 <file path="src/FE/src/fonts.css">
@@ -35313,6 +36008,418 @@ footer {
 .timesheet-summary-row .btn-icon:hover {
   color: var(--danger);
   background: var(--danger-bg);
+}
+</file>
+
+<file path="src/FE/src/public-error.css">
+@media (max-width: 640px) {
+  .app-container > div[style*="max-width: 400px"] {
+    max-width: 100% !important;
+    border-radius: 16px !important;
+    padding: 1.5rem !important;
+    margin: 1rem;
+    width: calc(100% - 2rem);
+  }
+}
+</file>
+
+<file path="src/FE/src/public-fonts.css">
+:root {
+  --font-main: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-heading: var(--font-main);
+}
+</file>
+
+<file path="src/FE/src/public-shell.css">
+@charset "UTF-8";
+
+/* Keep the public login, invite and recovery routes independent of the
+   authenticated application stylesheet. */
+[data-sonner-toaster][data-y-position="top"] {
+  top: calc(env(safe-area-inset-top, 0px) + 1rem) !important;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--surface-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: var(--fs-body);
+  transition: all 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
+[data-theme="day"] .form-input:focus {
+  background: var(--surface-input);
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.form-input:focus::placeholder {
+  opacity: 0;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-input-invalid {
+  border-color: var(--danger);
+}
+
+.form-input-invalid:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.form-error-text {
+  margin: 0.1rem 0 0;
+  color: var(--status-red-text);
+  font-size: var(--fs-xs);
+}
+
+.text-dim {
+  color: var(--text-dim);
+}
+
+.invite-container {
+  justify-content: center;
+  align-items: center;
+  min-height: 100dvh;
+}
+
+.invite-card {
+  width: min(100%, 420px);
+  padding: 2.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  z-index: 1;
+}
+
+.invite-logo-wrapper {
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.invite-status-icon {
+  margin-bottom: 1rem;
+}
+
+.invite-status-icon--success {
+  color: var(--success);
+}
+
+.invite-status-icon--danger {
+  color: var(--danger);
+}
+
+.invite-title {
+  margin-bottom: 0.5rem;
+}
+
+.invite-text {
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.invite-text--long {
+  margin-bottom: 2rem;
+}
+
+.invite-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.invite-field {
+  text-align: left;
+}
+
+.invite-label {
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.invite-input-wrapper {
+  position: relative;
+}
+
+.invite-input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+}
+
+.invite-input {
+  width: 100%;
+  padding: 0.7rem 0.75rem 0.7rem 2.5rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: var(--fs-body);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.invite-input:focus {
+  border-color: var(--focus-ring);
+}
+
+.invite-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.invite-btn-submit {
+  margin-top: 0.5rem;
+}
+
+.invite-btn-submit:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.invite-error-badge {
+  padding: 0.75rem 1rem;
+  background: var(--status-red-bg);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  color: var(--status-red-text);
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.invite-footer {
+  margin-top: 1.5rem;
+  font-size: var(--fs-sm);
+}
+
+.invite-footer-link {
+  color: var(--text-muted);
+}
+
+.app-container-center {
+  justify-content: center;
+  align-items: center;
+}
+
+.login-card,
+.reauth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.login-card-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-card-header h2 {
+  margin-bottom: 0.5rem;
+}
+
+.login-card-header p {
+  color: var(--text-secondary);
+}
+
+.login-email-info {
+  font-weight: 400;
+  font-size: 1.1rem;
+  margin-top: 0.25rem;
+}
+
+.login-form,
+.login-email-step,
+.login-dev-buttons,
+.reauth-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-form {
+  gap: 1.5rem;
+}
+
+.login-email-step,
+.reauth-card {
+  gap: 1rem;
+}
+
+.login-dev-buttons {
+  gap: 0.75rem;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.login-form .btn-primary {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.login-form .btn-primary svg:first-child {
+  margin-right: 0.5rem;
+}
+
+.logo-center {
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.reauth-card {
+  align-items: center;
+}
+
+.reauth-card .animate-spin {
+  color: var(--text-secondary);
+}
+
+.reauth-card p {
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0;
+}
+
+.reauth-cancel-btn,
+.login-otc-btn,
+.login-back-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 0.75rem;
+}
+
+.reauth-cancel-btn {
+  padding: 0.5rem;
+  text-decoration: underline;
+}
+
+.login-otc-btn,
+.login-back-btn,
+.login-submit-btn,
+.login-dev-btn {
+  width: 100%;
+}
+
+.login-back-btn,
+.login-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.login-submit-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.login-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.login-submit-btn-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: inherit;
+  backdrop-filter: blur(2px);
+}
+
+.login-error-banner {
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  color: #ef4444;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.login-frontpage-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.login-frontpage-footer a {
+  color: var(--text-secondary);
+}
+
+.login-dev-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.login-dev-btn {
+  font-size: 0.85rem;
+}
+
+.protected-route-loading {
+  text-align: center;
+  padding: clamp(8rem, 30svh, 16rem) 2rem 2rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 480px) {
+  .login-card,
+  .reauth-card,
+  .invite-card {
+    padding: 1.5rem;
+    margin: 1rem;
+    width: calc(100% - 2rem);
+  }
 }
 </file>
 
@@ -106076,10 +107183,6 @@ finally
 </Project>
 </file>
 
-<file path="src/FE/public/favicon.svg">
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><linearGradient id="g"><stop stop-color="#11255b"/><stop offset="1" stop-color="#0a0e27"/></linearGradient></defs><path fill="url(#g)" d="M0 0h200v200H0z"/><path fill="#fff" transform="translate(45.7 144.56) scale(6.267)" d="m10.11-14.22 1.98 8.92 1.63-8.92h3.4L14.1 0h-3.55L8.64-8.11 6.78 0H3.23L.21-14.22h3.4L5.24-5.3 7.2-14.22z"/></svg>
-</file>
-
 <file path="src/FE/public/robots.txt">
 User-agent: *
 Disallow: /
@@ -107488,30 +108591,6 @@ export function Drawer({ isOpen, onClose, title, ariaLabel, icon, className, chi
         </div>
       </div>
     </>
-  );
-}
-</file>
-
-<file path="src/FE/src/components/common/ThemedToaster.tsx">
-import { Toaster } from 'sonner';
-import { useTheme } from '../../providers/ThemeProvider';
-
-export function ThemedToaster() {
-  const { theme } = useTheme();
-
-  return (
-    <Toaster
-      theme={theme === 'night' ? 'dark' : 'light'}
-      position="top-center"
-      toastOptions={{
-        style: {
-          background: 'var(--surface-color)',
-          border: '1px solid var(--surface-border)',
-          backdropFilter: 'blur(20px)',
-          color: 'var(--text-primary)',
-        },
-      }}
-    />
   );
 }
 </file>
@@ -113894,70 +114973,37 @@ export const JOB_LIST_STALE_TIME_MS = 30_000;
 export const JOB_LIST_GC_TIME_MS = 30 * 60_000;
 </file>
 
-<file path="src/FE/src/lib/scheduleAfterInitialLoad.ts">
-type IdleCapableWindow = Window & {
-  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-  cancelIdleCallback?: (handle: number) => void;
+<file path="src/FE/src/providers/AppProvider.tsx">
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { scheduleDeferredTelemetry } from '../lib/scheduleAfterInitialLoad';
+import { AuthProvider } from './AuthContext';
+import { ThemeProvider } from './ThemeProvider';
+
+const ThemedToaster = lazy(() =>
+  import('../components/common/ThemedToaster').then((module) => ({ default: module.ThemedToaster })),
+);
+
+export const AppProvider = ({ children }: { children: ReactNode }) => {
+  const [toasterEnabled, setToasterEnabled] = useState(false);
+
+  useEffect(
+    () => scheduleDeferredTelemetry(() => setToasterEnabled(true)),
+    [],
+  );
+
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        {children}
+        {toasterEnabled && (
+          <Suspense fallback={null}>
+            <ThemedToaster />
+          </Suspense>
+        )}
+      </AuthProvider>
+    </ThemeProvider>
+  );
 };
-
-export function scheduleAfterInitialLoad(task: () => void, timeoutMs = 2_000): () => void {
-  const idleWindow = window as IdleCapableWindow;
-  let idleHandle: number | undefined;
-  let fallbackHandle: number | undefined;
-
-  const schedule = () => {
-    if (idleWindow.requestIdleCallback) {
-      idleHandle = idleWindow.requestIdleCallback(task, { timeout: timeoutMs });
-      return;
-    }
-
-    fallbackHandle = window.setTimeout(task, 0);
-  };
-
-  if (document.readyState === 'complete') {
-    schedule();
-  } else {
-    window.addEventListener('load', schedule, { once: true });
-  }
-
-  return () => {
-    window.removeEventListener('load', schedule);
-    if (idleHandle !== undefined) {
-      idleWindow.cancelIdleCallback?.(idleHandle);
-    }
-    if (fallbackHandle !== undefined) {
-      window.clearTimeout(fallbackHandle);
-    }
-  };
-}
-
-export function scheduleDeferredTelemetry(task: () => void, delayMs = 10_000): () => void {
-  let started = false;
-  let delayHandle: number | undefined;
-  let cancelScheduledTask: (() => void) | undefined;
-
-  function removeTriggers() {
-    window.removeEventListener('pointerdown', start);
-    window.removeEventListener('keydown', start);
-    if (delayHandle !== undefined) window.clearTimeout(delayHandle);
-  }
-
-  function start() {
-    if (started) return;
-    started = true;
-    removeTriggers();
-    cancelScheduledTask = scheduleAfterInitialLoad(task);
-  }
-
-  delayHandle = window.setTimeout(start, delayMs);
-  window.addEventListener('pointerdown', start, { once: true, passive: true });
-  window.addEventListener('keydown', start, { once: true });
-
-  return () => {
-    removeTriggers();
-    cancelScheduledTask?.();
-  };
-}
 </file>
 
 <file path="src/FE/src/providers/authContextValue.ts">
@@ -114100,20 +115146,6 @@ export async function preloadPrimaryAppRoute(): Promise<void> {
 }
 </file>
 
-<file path="src/FE/src/telemetry/VercelTelemetry.tsx">
-import { Analytics } from '@vercel/analytics/react';
-import { SpeedInsights } from '@vercel/speed-insights/react';
-
-export function VercelTelemetry() {
-  return (
-    <>
-      <SpeedInsights />
-      <Analytics />
-    </>
-  );
-}
-</file>
-
 <file path="src/FE/src/test/setup.ts">
 import '@testing-library/jest-dom/vitest';
 
@@ -114131,1002 +115163,483 @@ if (!window.matchMedia) {
 }
 </file>
 
-<file path="src/FE/src/authenticated-base.css">
-@charset "UTF-8";
+<file path="src/FE/src/App.tsx">
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { RouterProvider } from 'react-router-dom';
+import { PwaUpdateBanner } from './components/common/PwaUpdateBanner';
+import { AppProvider } from './providers/AppProvider';
+import { router } from './routes';
+import { scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
 
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 100 900;
-  src: url('/fonts/inter-latin-wght-normal-v5.3.0.woff2') format('woff2-variations');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+import './public-fonts.css';
+import './public-shell.css';
+import './public-error.css';
+import './public-performance.css';
+import './pwa-update.css';
+
+const VercelTelemetry = lazy(() =>
+  import('./telemetry/VercelTelemetry').then((module) => ({ default: module.VercelTelemetry })),
+);
+
+function App() {
+  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
+
+  useEffect(
+    () => scheduleDeferredTelemetry(() => setTelemetryEnabled(true)),
+    [],
+  );
+
+  return (
+    <AppProvider>
+      <RouterProvider router={router} />
+      <PwaUpdateBanner />
+      {telemetryEnabled && (
+        <Suspense fallback={null}>
+          <VercelTelemetry />
+        </Suspense>
+      )}
+    </AppProvider>
+  );
 }
 
-@font-face {
-  font-family: 'Outfit';
-  font-style: normal;
-  font-display: swap;
-  font-weight: 100 900;
-  src: url('/fonts/outfit-latin-wght-normal-v5.3.0.woff2') format('woff2-variations');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-:root {
-  --font-main: 'Inter', sans-serif;
-  --font-heading: 'Outfit', sans-serif;
-}
-
-[data-theme="day"] .bottom-nav {
-  background: rgba(255, 255, 255, 0.92);
-  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
-}
-
-[data-theme="day"] .nav-item {
-  color: var(--text-muted);
-}
-
-[data-theme="day"] .nav-item.active {
-  color: var(--text);
-}
-
-[data-theme="day"] .control-point-type:focus-within,
-[data-theme="day"] .multi-select-trigger:hover:not(:disabled),
-[data-theme="day"] .multi-select-trigger[aria-expanded="true"],
-[data-theme="day"] .work-kind-option,
-[data-theme="day"] .multi-select-option,
-[data-theme="day"] .attestation-confirm-row,
-[data-theme="day"] .time-entry-card,
-[data-theme="day"] .time-week-toggle {
-  background: var(--surface-input);
-}
-
-[data-theme="day"] .multi-select-trigger:hover:not(:disabled),
-[data-theme="day"] .multi-select-trigger[aria-expanded="true"] {
-  border-color: var(--focus-ring);
-}
-
-[data-theme="day"] .status-filter-btn {
-  color: var(--text-muted);
-  background: var(--surface);
-  border-color: var(--border);
-}
-
-[data-theme="day"] .multi-select-option,
-[data-theme="day"] .time-entry-card {
-  border-color: var(--border);
-}
-
-[data-theme="day"] .time-month-switcher,
-[data-theme="day"] .time-week-card,
-[data-theme="day"] .time-week-totals span,
-[data-theme="day"] .time-summary-card {
-  background: var(--surface-floating);
-}
-
-[data-theme="day"] .time-week-totals span {
-  border: 1px solid var(--border);
-}
-
-[data-theme="day"] .time-week-toggle:hover {
-  background: var(--surface-floating);
-  border-color: var(--border-strong);
-}
-
-[data-theme="day"] .attestation-confirm-row input {
-  background: var(--surface-input);
-}
-
-.checkbox-row span {
-  font-size: 0.9rem;
-  color: var(--text);
-  user-select: none;
-}
-
-.job-type-selector {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.job-type-label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 0.75rem;
-}
-
-.job-type-tabs {
-  display: flex;
-  gap: 0.5rem;
-  background: var(--surface-hover);
-  padding: 0.25rem;
-  border-radius: 8px;
-}
-
-.job-type-tab {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.25rem;
-  padding: 0.875rem 1rem;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  flex: 1;
-  text-align: left;
-}
-
-.job-type-tab:hover {
-  background: var(--surface);
-  color: var(--text-primary);
-}
-
-.job-type-tab.active {
-  background: var(--primary);
-  color: white;
-}
-
-.job-type-tab svg {
-  flex-shrink: 0;
-}
-
-.job-type-desc {
-  font-size: 0.75rem;
-  opacity: 0.8;
-}
-
-.job-type-tab.active .job-type-desc {
-  opacity: 0.9;
-}
-
-.worksheet-inline-section {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.worksheet-inline-section .section-header-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.worksheet-inline-section .section-header-row h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.worksheet-inline-section .worksheet-form {
-  max-width: 600px;
-}
-
-.timesheet-summary-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 0.75rem;
-  background: var(--surface-hover);
-  border-radius: 6px;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.timesheet-summary-row span {
-  color: var(--text-primary);
-}
-
-.timesheet-summary-row .btn-icon {
-  color: var(--text-secondary);
-  padding: 0.25rem;
-}
-
-.timesheet-summary-row .btn-icon:hover {
-  color: var(--danger);
-  background: var(--danger-bg);
-}
+export default App;
 </file>
 
-<file path="src/FE/src/base.css">
-@charset "UTF-8";
+<file path="src/FE/src/applicationInsights.ts">
+import type {
+  ApplicationInsights as ApplicationInsightsClient,
+  IDependencyTelemetry,
+  IEventTelemetry,
+  IExceptionTelemetry,
+  ITelemetryItem,
+} from '@microsoft/applicationinsights-web';
 
-:root {
-  --safe-top: env(safe-area-inset-top);
-  --safe-right: env(safe-area-inset-right);
-  --safe-bottom: env(safe-area-inset-bottom);
-  --safe-left: env(safe-area-inset-left);
-  --bottom-nav-height: calc(54px + env(safe-area-inset-bottom, 0px));
-  --bottom-nav-extra: 0.75rem;
+type EarlyErrorEntry =
+  | {
+    kind: 'error';
+    capturedAt?: unknown;
+    message?: unknown;
+    filename?: unknown;
+    lineno?: unknown;
+    colno?: unknown;
+    error?: unknown;
+  }
+  | {
+    kind: 'rejection';
+    capturedAt?: unknown;
+    message?: unknown;
+    reason?: unknown;
+  };
 
-  --bg: #050505;
-  --text-primary: var(--text);
-  --text-secondary: var(--text-muted);
-  --text-disabled: rgba(255, 255, 255, 0.4);
-  --surface-color: var(--surface-floating);
-  --surface-border: var(--border);
-  --surface-overlay: rgba(0, 0, 0, 0.6);
-  --danger-hover: #b91c1c;
-  --text: #e6e6e6;
-  --text-muted: #a1a1aa;
-  --text-dim: rgba(255, 255, 255, 0.4);
-  --surface-floating: #0e0e16;
-
-  --primary: #2c54ac;
-  --primary-hover: #1d4ed8;
-  --danger: #ef4444;
-  --warning: #fbbf24;
-  --success: #22c55e;
-
-  --surface: rgba(255, 255, 255, 0.045);
-  --surface-raised: rgba(255, 255, 255, 0.08);
-  --surface-input: rgba(0, 0, 0, 0.2);
-  --surface-elevated: rgba(255, 255, 255, 0.12);
-  --surface-selected: rgba(44, 84, 172, 0.2);
-  --surface-selected-strong: rgba(255, 255, 255, 0.2);
-  --surface-modal: var(--surface-floating);
-  --surface-actions-menu: var(--surface-floating);
-
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --focus-ring: rgba(255, 255, 255, 0.2);
-
-  --overlay-subtle: rgba(0, 0, 0, 0.4);
-  --overlay-medium: rgba(0, 0, 0, 0.6);
-  --overlay-heavy: rgba(0, 0, 0, 0.85);
-  --overlay-blur: rgba(5, 5, 5, 0.8);
-  --nav-bg: rgba(5, 5, 5, 0.92);
-  --safe-area-top-bg: rgba(5, 5, 5, 0.92);
-  --overlay-dark-01: rgba(0, 0, 0, 0.1);
-  --overlay-dark-04: rgba(0, 0, 0, 0.4);
-  --overlay-dark-095: rgba(0, 0, 0, 0.95);
-  --overlay-light-002: rgba(255, 255, 255, 0.02);
-  --overlay-light-0055: rgba(255, 255, 255, 0.055);
-  --overlay-light-03: rgba(255, 255, 255, 0.03);
-  --overlay-light-050: rgba(255, 255, 255, 0.5);
-
-  --status-blue-bg: rgba(37, 99, 235, 0.12);
-  --status-blue-text: #60a5fa;
-  --status-red-bg: rgba(239, 68, 68, 0.12);
-  --status-red-text: #f87171;
-  --status-amber-bg: rgba(245, 158, 11, 0.15);
-  --status-amber-text: #fcd34d;
-  --status-green-bg: rgba(34, 197, 94, 0.12);
-  --status-green-text: #86efac;
-  --status-neutral-bg: rgba(161, 161, 170, 0.12);
-  --status-neutral-text: #a1a1aa;
-
-  --section-header-margin: 0.75rem;
-  --section-content-margin: 0.75rem;
-  --section-gap: 1.5rem;
-  --card-padding: 1.25rem;
-  --section-header-gap: 0.5rem;
-
-  --fs-xs: 0.78rem;
-  --fs-sm: 0.85rem;
-  --fs-body: 0.95rem;
-  --fs-lg: 1.1rem;
-  --font-main: 'Inter', sans-serif;
-  --font-heading: 'Outfit', sans-serif;
-
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 16px;
-  --radius-pill: 999px;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
-  --shadow-sm-raw: 0 2px 4px rgba(0, 0, 0, 0.15);
-  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.35);
-  --shadow-accent: 0 0 20px rgba(44, 84, 172, 0.5);
+interface EarlyErrorBuffer {
+  entries: EarlyErrorEntry[];
+  onError: EventListener;
+  onRejection: EventListener;
+  storageKey?: string;
 }
 
-[data-theme="day"] {
-  --bg: #f3f4f6;
-  --text: #18181b;
-  --text-muted: #52525b;
-  --text-dim: rgba(0, 0, 0, 0.45);
-  --text-disabled: rgba(0, 0, 0, 0.38);
-  --surface-floating: #ffffff;
-  --surface-color: #ffffff;
-  --surface: rgba(0, 0, 0, 0.04);
-  --surface-raised: rgba(0, 0, 0, 0.06);
-  --surface-input: #ffffff;
-  --surface-elevated: rgba(0, 0, 0, 0.08);
-  --surface-selected: rgba(44, 84, 172, 0.12);
-  --surface-selected-strong: rgba(0, 0, 0, 0.08);
-  --surface-modal: #ffffff;
-  --surface-actions-menu: #ffffff;
-  --surface-border: rgba(0, 0, 0, 0.1);
-  --surface-overlay: rgba(255, 255, 255, 0.8);
-  --border: rgba(0, 0, 0, 0.1);
-  --border-strong: rgba(0, 0, 0, 0.18);
-  --focus-ring: rgba(44, 84, 172, 0.3);
-  --overlay-subtle: rgba(0, 0, 0, 0.1);
-  --overlay-medium: rgba(0, 0, 0, 0.25);
-  --overlay-heavy: rgba(0, 0, 0, 0.5);
-  --overlay-blur: rgba(255, 255, 255, 0.8);
-  --nav-bg: rgba(255, 255, 255, 0.92);
-  --overlay-dark-01: rgba(0, 0, 0, 0.06);
-  --overlay-dark-04: rgba(0, 0, 0, 0.2);
-  --overlay-dark-095: rgba(0, 0, 0, 0.8);
-  --overlay-light-002: rgba(0, 0, 0, 0.02);
-  --overlay-light-0055: rgba(0, 0, 0, 0.04);
-  --overlay-light-03: rgba(0, 0, 0, 0.035);
-  --overlay-light-050: rgba(0, 0, 0, 0.08);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.07);
-  --shadow-sm-raw: 0 2px 4px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.12);
-  --shadow-accent: 0 0 20px rgba(44, 84, 172, 0.25);
-  --status-blue-text: #2563eb;
-  --status-red-text: #dc2626;
-  --status-amber-text: #d97706;
-  --status-green-text: #16a34a;
-  --status-neutral-text: #52525b;
-}
-
-[data-theme="day"] .bg-glow-1 {
-  background: radial-gradient(circle, rgba(0, 112, 243, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
-}
-
-[data-theme="day"] .bg-glow-2 {
-  background: radial-gradient(circle, rgba(0, 198, 255, 0.06) 0%, rgba(0, 0, 0, 0) 70%);
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-strong,
-b {
-  font-weight: 400;
-}
-
-html,
-body {
-  min-height: 100vh;
-  overflow-anchor: none;
-}
-
-body {
-  font-family: var(--font-main);
-  background-color: var(--bg);
-  color: var(--text);
-  line-height: 1.6;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-}
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: var(--font-heading);
-  font-weight: 400;
-  line-height: 1.2;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-@media (hover: hover) {
-  a:hover {
-    color: var(--primary);
+declare global {
+  interface Window {
+    __WORKSLIP_EARLY_ERROR_BUFFER__?: EarlyErrorBuffer;
   }
 }
 
-.app-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
-  padding-right: env(safe-area-inset-right, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
+const connectionString = import.meta.env.VITE_APPLICATIONINSIGHTS_CONNECTION_STRING;
+const release = import.meta.env.VITE_APP_RELEASE?.trim() || __BUILD_TIME__;
+
+let client: ApplicationInsightsClient | null = null;
+let initializationPromise: Promise<void> | null = null;
+let initializationAttempts = 0;
+let globalHandlersInstalled = false;
+let heartbeatIntervalId: number | null = null;
+let pendingInteraction: { correlationId: string; action: string; createdAt: number } | null = null;
+const recentlyReportedErrors = new Map<string, number>();
+const pendingErrorTelemetry: IExceptionTelemetry[] = [];
+const duplicateWindowMs = 60_000;
+const interactionLifetimeMs = 5_000;
+const heartbeatIntervalMs = 5 * 60_000;
+const maxPendingErrors = 20;
+const initializationRetryDelaysMs = [30_000, 120_000] as const;
+
+const sensitiveValuePattern = /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*["']?)[^"',}\s]+(["']?)/gi;
+const sensitiveKeyPattern = /^(authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key|request|requestdata|response|payload|body|headers)$/i;
+const credentialPattern = /(authorization\s*[:=]\s*["']?(?:bearer|basic)\s+)[^"',}\s]+/gi;
+const bearerPattern = /bearer\s+[a-z0-9._~+/=-]+/gi;
+const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const phonePattern = /(?:\+?\d[\d\s().-]{7,}\d)/g;
+const quotedSensitiveValuePattern = /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*)(["'])(.*?)\2/gi;
+
+function sanitizeText(value: string): string {
+  return value
+    .replace(quotedSensitiveValuePattern, '$1$2[REDACTED]$2')
+    .replace(sensitiveValuePattern, '$1[REDACTED]$2')
+    .replace(credentialPattern, '$1[REDACTED]')
+    .replace(bearerPattern, 'Bearer [REDACTED]')
+    .replace(/([?&](?:access[_-]?token|refresh[_-]?token|id[_-]?token|authorization|api[_-]?key)=)[^&#\s]+/gi, '$1[REDACTED]')
+    .replace(emailPattern, '[REDACTED_EMAIL]')
+    .replace(phonePattern, '[REDACTED_PHONE]')
+    .slice(0, 4000);
 }
 
-.bg-glow-wrapper {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: -1;
-  overflow: hidden;
-  pointer-events: none;
+function sanitizeEndpoint(value: string): string {
+  return sanitizeText(value.split(/[?#]/, 1)[0])
+    .replace(/\/[0-9a-f]{8}-[0-9a-f-]{27}/gi, '/:id')
+    .replace(/\/\d+(?=\/|$)/g, '/:id');
+}
+
+function actionEventName(action: string): string {
+  const slug = action
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return `ui.action.${slug || 'unknown'}`;
+}
+
+export function createCorrelationId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+}
+
+export function trackUserInteraction(action: string, correlationId: string): void {
+  if (!client) return;
+  const telemetry: IEventTelemetry = {
+    name: actionEventName(action),
+    properties: {
+      action: sanitizeText(action),
+      correlationId,
+      route: currentRoute(),
+      release,
+    },
+  };
+  client.trackEvent(telemetry);
+}
+
+export function beginUserInteraction(action: string): string {
+  const correlationId = createCorrelationId();
+  pendingInteraction = { correlationId, action, createdAt: Date.now() };
+  return correlationId;
+}
+
+export function consumePendingInteraction(): { correlationId: string; action: string } | null {
+  if (!pendingInteraction) return null;
+  const interaction = pendingInteraction;
+  pendingInteraction = null;
+  return Date.now() - interaction.createdAt <= interactionLifetimeMs
+    ? { correlationId: interaction.correlationId, action: interaction.action }
+    : null;
+}
+
+export function trackApiDependency(details: {
+  correlationId: string;
+  action?: string;
+  method: string;
+  url: string;
+  durationMs: number;
+  responseCode?: number;
+  success: boolean;
+}): void {
+  if (!client) return;
+  const endpoint = sanitizeEndpoint(details.url);
+  const dependency: IDependencyTelemetry = {
+    id: details.correlationId,
+    target: endpoint,
+    name: `${details.method.toUpperCase()} ${endpoint}`,
+    data: endpoint,
+    duration: details.durationMs,
+    success: details.success,
+    responseCode: details.responseCode ?? 0,
+    type: 'HTTP',
+    properties: {
+      correlationId: details.correlationId,
+      ...(details.action ? { action: sanitizeText(details.action) } : {}),
+      route: currentRoute(),
+      release,
+    },
+  };
+  client.trackDependencyData(dependency);
+}
+
+function sanitizeValue(value: unknown, seen = new WeakSet<object>(), depth = 0): unknown {
+  if (typeof value === 'string') return sanitizeText(value);
+  if (Array.isArray(value)) return value.slice(0, 100).map((entry) => sanitizeValue(entry, seen, depth + 1));
+  if (!value || typeof value !== 'object') return value;
+  if (seen.has(value)) return '[REDACTED_CIRCULAR]';
+  if (depth >= 8) return '[REDACTED_DEPTH]';
+
+  seen.add(value);
+
+  return Object.fromEntries(
+    Object.entries(value).slice(0, 100).map(([key, entryValue]) => [
+      sanitizeText(key),
+      sensitiveKeyPattern.test(key) ? '[REDACTED]' : sanitizeValue(entryValue, seen, depth + 1),
+    ]),
+  );
+}
+
+function sanitizeError(error: unknown): Error {
+  const source = toError(error);
+  const safeName = /^[A-Za-z][A-Za-z0-9_$.-]{0,63}$/.test(source.name) ? source.name : 'Error';
+  const sanitized = new Error(`${safeName} [${fingerprint(source.message)}]`);
+  sanitized.name = safeName;
+  if (source.stack) {
+    const frames = source.stack.split('\n').slice(1).map(sanitizeText);
+    sanitized.stack = [sanitized.toString(), ...frames].join('\n');
+  }
+  return sanitized;
+}
+
+function fingerprint(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function toError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    const normalized = new Error(typeof record.message === 'string' ? record.message : 'Unhandled promise rejection');
+    if (typeof record.name === 'string') normalized.name = record.name;
+    if (typeof record.stack === 'string') normalized.stack = record.stack;
+    return normalized;
+  }
+  return new Error(String(error));
+}
+
+function currentRoute(): string {
+  return sanitizeEndpoint(window.location.pathname || '/');
+}
+
+function sanitizeTelemetryItem(item: ITelemetryItem): boolean {
+  if (item.data) item.data = sanitizeValue(item.data) as Record<string, unknown>;
+  if (item.baseData) item.baseData = sanitizeValue(item.baseData) as Record<string, unknown>;
+  if (item.tags) item.tags = sanitizeValue(item.tags) as Record<string, string>;
+  if (item.ext) item.ext = sanitizeValue(item.ext) as typeof item.ext;
+  return true;
+}
+
+function sendTelemetryHeartbeat(): void {
+  if (!client || document.visibilityState === 'hidden') return;
+
+  client.trackEvent({
+    name: 'telemetry.heartbeat',
+    properties: {
+      route: currentRoute(),
+      release,
+    },
+  });
+}
+
+function startTelemetryHeartbeat(): void {
+  sendTelemetryHeartbeat();
+  if (heartbeatIntervalId !== null) return;
+
+  heartbeatIntervalId = window.setInterval(sendTelemetryHeartbeat, heartbeatIntervalMs);
+  document.addEventListener('visibilitychange', sendTelemetryHeartbeat);
+}
+
+function flushPendingErrors(nextClient: ApplicationInsightsClient): void {
+  const queued = pendingErrorTelemetry.splice(0, pendingErrorTelemetry.length);
+  queued.forEach((telemetry) => nextClient.trackException(telemetry));
+}
+
+function scheduleInitializationRetry(): void {
+  const delay = initializationRetryDelaysMs[initializationAttempts - 1];
+  if (delay === undefined) return;
+
+  window.setTimeout(() => {
+    void initializeApplicationInsights();
+  }, delay);
+}
+
+function drainEarlyErrorBuffer(): void {
+  const buffer = window.__WORKSLIP_EARLY_ERROR_BUFFER__;
+  if (!buffer) return;
+
+  window.removeEventListener('error', buffer.onError, true);
+  window.removeEventListener('unhandledrejection', buffer.onRejection);
+  if (buffer.storageKey) {
+    try {
+      sessionStorage.removeItem(buffer.storageKey);
+    } catch {
+      // Storage is optional; the in-memory queue is still drained.
+    }
+  }
+  delete window.__WORKSLIP_EARLY_ERROR_BUFFER__;
+
+  buffer.entries.forEach((entry) => {
+    if (entry.kind === 'rejection') {
+      reportFrontendError(
+        entry.reason ?? entry.message ?? 'Early promise rejection',
+        'bootstrap.window.unhandledrejection',
+      );
+      return;
+    }
+
+    const filename = typeof entry.filename === 'string'
+      ? sanitizeEndpoint(entry.filename)
+      : '';
+    const line = typeof entry.lineno === 'number' ? entry.lineno : 0;
+    const column = typeof entry.colno === 'number' ? entry.colno : 0;
+    const location = filename ? `${filename}:${line}:${column}` : '';
+    const message = typeof entry.message === 'string' && entry.message.trim()
+      ? entry.message
+      : 'Early resource error';
+    const fallback = new Error(`${message}${location ? ` (${location})` : ''}`);
+
+    reportFrontendError(
+      entry.error ?? fallback,
+      'bootstrap.window.error',
+      location ? { location } : {},
+    );
+  });
+}
+
+export function initializeApplicationInsights(): Promise<void> {
+  const localOptIn = import.meta.env.VITE_APPLICATIONINSIGHTS_ENABLE_LOCAL === 'true';
+  if ((!import.meta.env.PROD && !localOptIn) || !connectionString || client) {
+    return Promise.resolve();
+  }
+  if (initializationPromise) return initializationPromise;
+
+  initializationAttempts += 1;
+  initializationPromise = import('@microsoft/applicationinsights-web')
+    .then(({ ApplicationInsights }) => {
+      if (client) return;
+
+      const nextClient = new ApplicationInsights({
+        config: {
+          connectionString,
+          disableAjaxTracking: true,
+          disableCookiesUsage: true,
+          disableExceptionTracking: true,
+          disableFetchTracking: true,
+          enableAutoRouteTracking: false,
+          samplingPercentage: 100,
+        },
+      });
+
+      nextClient.addTelemetryInitializer((item) => {
+        item.tags = {
+          ...(item.tags ?? {}),
+          'ai.application.ver': release,
+        };
+        return sanitizeTelemetryItem(item);
+      });
+      nextClient.loadAppInsights();
+      client = nextClient;
+      flushPendingErrors(nextClient);
+      startTelemetryHeartbeat();
+    })
+    .catch(() => {
+      client = null;
+      initializationPromise = null;
+      scheduleInitializationRetry();
+    });
+
+  return initializationPromise;
+}
+
+export function reportFrontendError(error: unknown, source: string, details: Record<string, string> = {}): void {
+  const sanitizedError = sanitizeError(error);
+  const route = currentRoute();
+  const now = Date.now();
+  for (const [key, timestamp] of recentlyReportedErrors) {
+    if (now - timestamp > duplicateWindowMs) recentlyReportedErrors.delete(key);
+  }
+  const dedupeKey = `${source}|${route}|${sanitizedError.name}|${sanitizedError.message}`;
+  if (recentlyReportedErrors.has(dedupeKey)) return;
+  recentlyReportedErrors.set(dedupeKey, now);
+
+  const telemetry: IExceptionTelemetry = {
+    exception: sanitizedError,
+    properties: {
+      ...Object.fromEntries(Object.entries(details).map(([key, value]) => [key, sanitizeText(value)])),
+      route,
+      source,
+      release,
+    },
+  };
+
+  if (client) {
+    client.trackException(telemetry);
+    return;
+  }
+
+  if (pendingErrorTelemetry.length >= maxPendingErrors) {
+    pendingErrorTelemetry.shift();
+  }
+  pendingErrorTelemetry.push(telemetry);
+}
+
+export function installGlobalApplicationInsightsHandlers(): void {
+  if (globalHandlersInstalled) return;
+  globalHandlersInstalled = true;
+  drainEarlyErrorBuffer();
+
+  window.addEventListener('error', (event) => {
+    const filename = event.filename ? sanitizeEndpoint(event.filename) : '';
+    const location = filename ? `${filename}:${event.lineno}:${event.colno}` : '';
+    const fallback = new Error(
+      `${event.message || 'Resource load error'}${location ? ` (${location})` : ''}`,
+    );
+    reportFrontendError(
+      event.error ?? fallback,
+      'window.error',
+      location ? { location } : {},
+    );
+  }, true);
+
+  window.addEventListener('unhandledrejection', (event) => {
+    reportFrontendError(event.reason, 'window.unhandledrejection');
+  });
+
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest('button,[role="button"]')
+      : null;
+    if (!target) return;
+    const action = target.getAttribute('data-telemetry-action')
+      ?? target.getAttribute('aria-label')
+      ?? target.textContent?.trim();
+    if (action) beginUserInteraction(action.slice(0, 120));
+  }, true);
+}
+</file>
+
+<file path="src/FE/src/public-performance.css">
+body,
+#root,
+#portal-root,
+.app-container,
+.bg-glow-wrapper,
+.bg-glow,
+.login-card,
+.reauth-card,
+.invite-card {
+  transition-property: none;
 }
 
 .bg-glow {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.5;
-  animation: float 20s ease-in-out infinite alternate;
-}
-
-.bg-glow-1 {
-  top: -10%;
-  left: 10%;
-  width: 50vw;
-  height: 50vw;
-  background: radial-gradient(circle, rgba(0, 112, 243, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
-}
-
-.bg-glow-2 {
-  right: -5%;
-  bottom: -10%;
-  width: 60vw;
-  height: 60vw;
-  background: radial-gradient(circle, rgba(0, 198, 255, 0.1) 0%, rgba(0, 0, 0, 0) 70%);
-  animation-delay: -10s;
-}
-
-@keyframes float {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(5%, 5%) scale(1.1); }
-  100% { transform: translate(-5%, -5%) scale(0.9); }
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-.logo {
-  font-family: var(--font-heading);
-  font-size: 1.5rem;
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  color: inherit;
-}
-
-.logo-icon {
-  color: #00c6ff;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius);
-  font-size: 0.95rem;
-  font-weight: 400;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  border: none;
-  font-family: var(--font-main);
-}
-
-.btn-pill {
-  border-radius: 9999px;
-}
-
-.btn-sm {
-  padding: 0.35rem 0.85rem;
-  font-size: 0.82rem;
-  border-radius: var(--radius-sm);
-}
-
-.btn:active {
-  transform: scale(0.97);
-  transition: transform 0.08s ease;
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: white;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
-}
-
-.btn-primary:active {
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
-  transform: scale(0.97);
-}
-
-.btn-secondary {
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(10px);
-}
-
-.btn-secondary:active {
-  background: var(--surface-selected);
-  transform: scale(0.97);
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: white;
-  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.28);
-}
-
-.btn-danger:active,
-.btn-outline:active,
-.btn-outline-danger:active {
-  transform: scale(0.97);
-}
-
-.btn-outline {
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-}
-
-.btn-outline-danger {
-  background: transparent;
-  color: var(--danger);
-  border: 1px solid var(--danger);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-@media (hover: hover) {
-  .btn-primary:hover {
-    background: var(--primary-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.38);
-  }
-
-  .btn-secondary:hover {
-    background: var(--surface-raised);
-    border-color: rgba(255, 255, 255, 0.2);
-  }
-
-  .btn-danger:hover {
-    background: var(--danger-hover);
-    transform: translateY(-1px);
-  }
-
-  .btn-outline:hover {
-    background: var(--surface);
-    border-color: rgba(255, 255, 255, 0.15);
-    color: var(--text);
-  }
-
-  .btn-outline-danger:hover {
-    background: rgba(239, 68, 68, 0.08);
-  }
-}
-</file>
-
-<file path="src/FE/src/public-error.css">
-@media (max-width: 640px) {
-  .app-container > div[style*="max-width: 400px"] {
-    max-width: 100% !important;
-    border-radius: 16px !important;
-    padding: 1.5rem !important;
-    margin: 1rem;
-    width: calc(100% - 2rem);
-  }
-}
-</file>
-
-<file path="src/FE/src/public-fonts.css">
-:root {
-  --font-main: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-heading: var(--font-main);
-}
-</file>
-
-<file path="src/FE/src/public-shell.css">
-@charset "UTF-8";
-
-/* Keep the public login, invite and recovery routes independent of the
-   authenticated application stylesheet. */
-[data-sonner-toaster][data-y-position="top"] {
-  top: calc(env(safe-area-inset-top, 0px) + 1rem) !important;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  background: var(--surface-input);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-family: var(--font-main);
-  font-size: var(--fs-body);
-  transition: all 0.2s ease;
-}
-
-.form-input:focus {
-  outline: none;
-  background: rgba(0, 0, 0, 0.3);
-  border-color: var(--focus-ring);
-  box-shadow: 0 0 0 1px var(--focus-ring);
-}
-
-[data-theme="day"] .form-input:focus {
-  background: var(--surface-input);
-}
-
-.form-input::placeholder {
-  color: var(--text-muted);
-  opacity: 0.5;
-}
-
-.form-input:focus::placeholder {
-  opacity: 0;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.form-input-invalid {
-  border-color: var(--danger);
-}
-
-.form-input-invalid:focus {
-  border-color: var(--danger);
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
-}
-
-.form-error-text {
-  margin: 0.1rem 0 0;
-  color: var(--status-red-text);
-  font-size: var(--fs-xs);
-}
-
-.text-dim {
-  color: var(--text-dim);
-}
-
-.invite-container {
-  justify-content: center;
-  align-items: center;
-  min-height: 100dvh;
-}
-
-.invite-card {
-  width: min(100%, 420px);
-  padding: 2.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  backdrop-filter: blur(20px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  text-align: center;
-  z-index: 1;
-}
-
-.invite-logo-wrapper {
-  justify-content: center;
-  margin-bottom: 1.5rem;
-}
-
-.invite-status-icon {
-  margin-bottom: 1rem;
-}
-
-.invite-status-icon--success {
-  color: var(--success);
-}
-
-.invite-status-icon--danger {
-  color: var(--danger);
-}
-
-.invite-title {
-  margin-bottom: 0.5rem;
-}
-
-.invite-text {
-  color: var(--text-muted);
-  margin-bottom: 1.5rem;
-}
-
-.invite-text--long {
-  margin-bottom: 2rem;
-}
-
-.invite-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.invite-field {
-  text-align: left;
-}
-
-.invite-label {
-  display: block;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-  margin-bottom: 0.35rem;
-}
-
-.invite-input-wrapper {
-  position: relative;
-}
-
-.invite-input-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-dim);
-}
-
-.invite-input {
-  width: 100%;
-  padding: 0.7rem 0.75rem 0.7rem 2.5rem;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--text);
-  font-size: var(--fs-body);
-  outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.2s;
-}
-
-.invite-input:focus {
-  border-color: var(--focus-ring);
-}
-
-.invite-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.invite-btn-submit {
-  margin-top: 0.5rem;
-}
-
-.invite-btn-submit:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.invite-error-badge {
-  padding: 0.75rem 1rem;
-  background: var(--status-red-bg);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 12px;
-  margin-bottom: 1.5rem;
-  color: var(--status-red-text);
-  font-size: var(--fs-sm);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  text-align: left;
-}
-
-.invite-footer {
-  margin-top: 1.5rem;
-  font-size: var(--fs-sm);
-}
-
-.invite-footer-link {
-  color: var(--text-muted);
-}
-
-.app-container-center {
-  justify-content: center;
-  align-items: center;
+  animation: none;
+  filter: blur(80px);
 }
 
 .login-card,
 .reauth-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 2rem;
-  background: var(--surface-color);
-  border: 1px solid var(--surface-border);
-  border-radius: 24px;
-  backdrop-filter: blur(20px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  backdrop-filter: none;
 }
 
-.login-card-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.login-card-header h2 {
-  margin-bottom: 0.5rem;
-}
-
-.login-card-header p {
-  color: var(--text-secondary);
-}
-
-.login-email-info {
-  font-weight: 400;
-  font-size: 1.1rem;
-  margin-top: 0.25rem;
-}
-
-.login-form,
-.login-email-step,
-.login-dev-buttons,
-.reauth-card {
-  display: flex;
-  flex-direction: column;
-}
-
-.login-form {
-  gap: 1.5rem;
-}
-
-.login-email-step,
-.reauth-card {
-  gap: 1rem;
-}
-
-.login-dev-buttons {
-  gap: 0.75rem;
-}
-
-.login-form label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 400;
-}
-
-.login-form .btn-primary {
-  width: 100%;
-  margin-top: 0.5rem;
-}
-
-.login-form .btn-primary svg:first-child {
-  margin-right: 0.5rem;
-}
-
-.logo-center {
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
-.reauth-card {
-  align-items: center;
-}
-
-.reauth-card .animate-spin {
-  color: var(--text-secondary);
-}
-
-.reauth-card p {
-  color: var(--text-secondary);
-  text-align: center;
-  margin: 0;
-}
-
-.reauth-cancel-btn,
-.login-otc-btn,
-.login-back-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  padding: 0.75rem;
-}
-
-.reauth-cancel-btn {
-  padding: 0.5rem;
-  text-decoration: underline;
-}
-
-.login-otc-btn,
-.login-back-btn,
-.login-submit-btn,
-.login-dev-btn {
-  width: 100%;
-}
-
-.login-back-btn,
-.login-submit-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.login-submit-btn {
-  position: relative;
-  overflow: hidden;
-}
-
-.login-submit-btn:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.login-submit-btn-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: inherit;
-  backdrop-filter: blur(2px);
-}
-
-.login-error-banner {
-  padding: 0.75rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 12px;
-  margin-bottom: 1.5rem;
-  color: #ef4444;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.login-frontpage-footer {
-  text-align: center;
-  margin-top: 1.5rem;
-  font-size: 0.9rem;
-}
-
-.login-frontpage-footer a {
-  color: var(--text-secondary);
-}
-
-.login-dev-section {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--surface-border);
-}
-
-.login-dev-btn {
-  font-size: 0.85rem;
-}
-
-.protected-route-loading {
-  text-align: center;
-  padding: clamp(8rem, 30svh, 16rem) 2rem 2rem;
-  color: var(--text-secondary);
-}
-
-@media (max-width: 480px) {
-  .login-card,
-  .reauth-card,
-  .invite-card {
-    padding: 1.5rem;
-    margin: 1rem;
-    width: calc(100% - 2rem);
-  }
+.login-card *,
+.reauth-card *,
+.invite-card * {
+  transition-property: none;
 }
 </file>
 
@@ -115271,6 +115784,210 @@ At minimum run:
 For mobile-sensitive controls, include a narrow mobile viewport. For authentication, routing, or session changes, verify redirects, browser back, reload, console errors, and network failures.
 
 A user-visible frontend PR without successful Playwright validation is **implemented but Playwright-unvalidated** and should remain draft or explicitly blocked.
+</file>
+
+<file path="src/FE/index.html">
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
+    <meta name="theme-color" content="#050505" />
+    <meta name="description" content="Workslip - Den digitale arbejdsseddel til VVS-virksomheder. KLS-compliant, nem at bruge, og fuldt integreret jobflow." />
+    <title>Workslip | Din samarbejdspartner</title>
+
+    <!-- iOS PWA capability -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Workslip" />
+
+    <!-- iOS Touch Icon -->
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="portal-root"></div>
+    <script>
+      (() => {
+        const storageKey = 'workslip.earlyErrors';
+        const maxEntries = 20;
+        const maxAgeMs = 24 * 60 * 60 * 1000;
+        const now = Date.now();
+
+        const fingerprint = (value) => {
+          const text = String(value || 'Early browser error');
+          let hash = 2166136261;
+          for (let index = 0; index < text.length; index += 1) {
+            hash ^= text.charCodeAt(index);
+            hash = Math.imul(hash, 16777619);
+          }
+          return (hash >>> 0).toString(16).padStart(8, '0');
+        };
+
+        const normalizeFilename = (value) => {
+          if (!value) return '';
+          try {
+            return new URL(String(value), window.location.href).pathname
+              .replace(/\/[0-9a-f]{8}-[0-9a-f-]{27}/gi, '/:id')
+              .replace(/\/\d+(?=\/|$)/g, '/:id')
+              .slice(0, 240);
+          } catch {
+            return '';
+          }
+        };
+
+        let entries = [];
+        try {
+          const stored = JSON.parse(sessionStorage.getItem(storageKey) || '[]');
+          if (Array.isArray(stored)) {
+            entries = stored
+              .filter((entry) => entry && Number(entry.capturedAt) >= now - maxAgeMs)
+              .slice(-maxEntries);
+          }
+        } catch {
+          entries = [];
+        }
+
+        const persist = () => {
+          try {
+            const safeEntries = entries.map(({ error, reason, ...entry }) => entry);
+            sessionStorage.setItem(storageKey, JSON.stringify(safeEntries));
+          } catch {
+            // In-memory capture still works when storage is unavailable.
+          }
+        };
+
+        const push = (entry) => {
+          if (entries.length >= maxEntries) entries.shift();
+          entries.push(entry);
+          persist();
+        };
+
+        const onError = (event) => {
+          const message = String(event.message || 'Early resource error');
+          push({
+            kind: 'error',
+            capturedAt: Date.now(),
+            message: `EarlyError [${fingerprint(message)}]`,
+            filename: normalizeFilename(event.filename),
+            lineno: Number(event.lineno || 0),
+            colno: Number(event.colno || 0),
+            error: event.error,
+          });
+        };
+
+        const onRejection = (event) => {
+          const reason = event.reason instanceof Error
+            ? `${event.reason.name}:${event.reason.message}`
+            : String(event.reason || 'Early promise rejection');
+          push({
+            kind: 'rejection',
+            capturedAt: Date.now(),
+            message: `EarlyRejection [${fingerprint(reason)}]`,
+            reason: event.reason,
+          });
+        };
+
+        window.__WORKSLIP_EARLY_ERROR_BUFFER__ = {
+          entries,
+          onError,
+          onRejection,
+          storageKey,
+        };
+        window.addEventListener('error', onError, true);
+        window.addEventListener('unhandledrejection', onRejection);
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="src/FE/vercel.json">
+{
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api-mrsoftware-prod.azurewebsites.net/api/:path*"
+    },
+    {
+      "source": "/((?!assets/|robots\\.txt$).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/fonts/(.*).woff2",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
 </file>
 
 <file path="tools/docs/check_docs.py">
@@ -121494,6 +122211,232 @@ export const OneTimeCodeInput = forwardRef<HTMLInputElement, OneTimeCodeInputPro
 );
 </file>
 
+<file path="src/FE/src/features/auth/components/OneTimeCodeLogin.tsx">
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { ArrowLeft, Loader2, Mail } from 'lucide-react';
+import { notify } from '../../../lib/toast';
+import { clearReauthInFlight } from '../../../providers/authContextValue';
+import { useAuth } from '../../../providers/useAuth';
+import { sendAuthCode } from '../api/devToken';
+import { OneTimeCodeInput } from './OneTimeCodeInput';
+
+const EmailSchema = z.object({
+  email: z.string().email({ message: 'Ugyldig email adresse' }),
+});
+
+const CodeSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, { message: 'Koden skal bestå af 6 cifre' }),
+});
+
+type EmailFormValues = z.infer<typeof EmailSchema>;
+type CodeFormValues = z.infer<typeof CodeSchema>;
+
+interface OneTimeCodeLoginProps {
+  onBack: () => void;
+}
+
+export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+
+  const emailForm = useForm<EmailFormValues>({
+    resolver: zodResolver(EmailSchema),
+    defaultValues: {
+      email: new URLSearchParams(window.location.search).get('email') || '',
+    },
+  });
+
+  const codeForm = useForm<CodeFormValues>({
+    resolver: zodResolver(CodeSchema),
+    defaultValues: {
+      code: '',
+    },
+  });
+
+  useEffect(() => {
+    if (step !== 'code' || !codeInputRef.current) return undefined;
+
+    const focusTimer = window.setTimeout(() => codeInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(focusTimer);
+  }, [step]);
+
+  const handleSendCode = async (data: EmailFormValues) => {
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    try {
+      await sendAuthCode(data.email);
+      setEmail(data.email);
+      setStep('code');
+      notify.success('Tjek din indbakke – en kode er sendt.');
+    } catch {
+      notify.error('Kunne ikke sende kode. Prøv igen.');
+      setErrorMsg('Kunne ikke sende kode. Prøv igen.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyCode = async (data: CodeFormValues) => {
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    try {
+      const success = await login(email, data.code);
+      if (success) {
+        clearReauthInFlight();
+        navigate('/app');
+      } else {
+        setErrorMsg('Ugyldig kode. Prøv igen.');
+        notify.error('Ugyldig kode. Prøv igen.');
+      }
+    } catch {
+      setErrorMsg('Ugyldig kode. Prøv igen.');
+      notify.error('Ugyldig kode. Prøv igen.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="login-card-header">
+        <div className="logo logo-center">
+          <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <h2>Log ind på Workslip</h2>
+        {step === 'email' ? (
+          <p>Indtast din email for at modtage en engangskode.</p>
+        ) : (
+          <div>
+            <p>En kode er sendt til</p>
+            <p className="login-email-info">{email}</p>
+            <p id="otc-code-help">Kan du ikke finde mailen? Tjek spam eller uønsket post.</p>
+          </div>
+        )}
+      </div>
+
+      {errorMsg && (
+        <div className="login-error-banner">
+          <Loader2 size={16} />
+          {errorMsg}
+        </div>
+      )}
+
+      {step === 'email' ? (
+        <form onSubmit={emailForm.handleSubmit(handleSendCode)} className="login-form">
+          <div className="form-group">
+            <label htmlFor="otc-email">Email</label>
+            <input
+              {...emailForm.register('email')}
+              id="otc-email"
+              type="email"
+              placeholder="din@email.dk"
+              className={`form-input${emailForm.formState.errors.email ? ' form-input-invalid' : ''}`}
+              autoComplete="email"
+            />
+            {emailForm.formState.errors.email && (
+              <span className="form-error-text">
+                {emailForm.formState.errors.email.message}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn-primary login-submit-btn"
+            disabled={isSubmitting}
+          >
+            {isSubmitting && (
+              <span className="login-submit-btn-overlay">
+                <Loader2 className="animate-spin" size={18} />
+              </span>
+            )}
+            <Mail size={18} />
+            <span>{isSubmitting ? 'Sender kode...' : 'Send kode'}</span>
+          </button>
+
+          <button type="button" onClick={onBack} className="login-back-btn">
+            <ArrowLeft size={16} />
+            Tilbage til passkey login
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} className="login-form">
+          <div className="form-group">
+            <label htmlFor="otc-code">Engangskode</label>
+            <Controller
+              name="code"
+              control={codeForm.control}
+              render={({ field }) => (
+                <OneTimeCodeInput
+                  id="otc-code"
+                  name={field.name}
+                  ref={(element) => {
+                    field.ref(element);
+                    codeInputRef.current = element;
+                  }}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  onBlur={field.onBlur}
+                  hasError={Boolean(codeForm.formState.errors.code)}
+                  aria-invalid={Boolean(codeForm.formState.errors.code)}
+                  aria-describedby={codeForm.formState.errors.code ? 'otc-code-help otc-code-error' : 'otc-code-help'}
+                  disabled={isSubmitting}
+                />
+              )}
+            />
+            {codeForm.formState.errors.code && (
+              <span id="otc-code-error" className="form-error-text">
+                {codeForm.formState.errors.code.message}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn-primary login-submit-btn"
+            disabled={isSubmitting}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+              <polyline points="10 17 15 12 10 7" />
+              <line x1="15" y1="12" x2="3" y2="12" />
+            </svg>
+            <span>Log ind</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMsg(null);
+              codeForm.reset();
+              setStep('email');
+              onBack();
+            }}
+            className="login-back-btn"
+          >
+            <ArrowLeft size={16} />
+            Tilbage til login
+          </button>
+        </form>
+      )}
+    </>
+  );
+}
+</file>
+
 <file path="src/FE/src/features/jobs/components/steps/JobOverviewStep.tsx">
 import { FileText, MessageSquare, Wrench, } from 'lucide-react';
 import type { useJobDetails } from '../../hooks/useJobDetails';
@@ -123520,39 +124463,6 @@ export function hasPermission(role: string | null | undefined, permission: Permi
 }
 </file>
 
-<file path="src/FE/src/providers/AppProvider.tsx">
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
-import { scheduleDeferredTelemetry } from '../lib/scheduleAfterInitialLoad';
-import { AuthProvider } from './AuthContext';
-import { ThemeProvider } from './ThemeProvider';
-
-const ThemedToaster = lazy(() =>
-  import('../components/common/ThemedToaster').then((module) => ({ default: module.ThemedToaster })),
-);
-
-export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [toasterEnabled, setToasterEnabled] = useState(false);
-
-  useEffect(
-    () => scheduleDeferredTelemetry(() => setToasterEnabled(true)),
-    [],
-  );
-
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        {children}
-        {toasterEnabled && (
-          <Suspense fallback={null}>
-            <ThemedToaster />
-          </Suspense>
-        )}
-      </AuthProvider>
-    </ThemeProvider>
-  );
-};
-</file>
-
 <file path="src/FE/src/providers/AuthContext.tsx">
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
@@ -123740,605 +124650,6 @@ export function installNotificationReceivedInvalidator(
 }
 </file>
 
-<file path="src/FE/src/App.tsx">
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { RouterProvider } from 'react-router-dom';
-import { PwaUpdateBanner } from './components/common/PwaUpdateBanner';
-import { AppProvider } from './providers/AppProvider';
-import { router } from './routes';
-import { scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
-
-import './public-fonts.css';
-import './public-shell.css';
-import './public-error.css';
-import './public-performance.css';
-import './pwa-update.css';
-
-const VercelTelemetry = lazy(() =>
-  import('./telemetry/VercelTelemetry').then((module) => ({ default: module.VercelTelemetry })),
-);
-
-function App() {
-  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
-
-  useEffect(
-    () => scheduleDeferredTelemetry(() => setTelemetryEnabled(true)),
-    [],
-  );
-
-  return (
-    <AppProvider>
-      <RouterProvider router={router} />
-      <PwaUpdateBanner />
-      {telemetryEnabled && (
-        <Suspense fallback={null}>
-          <VercelTelemetry />
-        </Suspense>
-      )}
-    </AppProvider>
-  );
-}
-
-export default App;
-</file>
-
-<file path="src/FE/src/applicationInsights.ts">
-import type {
-  ApplicationInsights as ApplicationInsightsClient,
-  IDependencyTelemetry,
-  IEventTelemetry,
-  IExceptionTelemetry,
-  ITelemetryItem,
-} from '@microsoft/applicationinsights-web';
-
-type EarlyErrorEntry =
-  | {
-    kind: 'error';
-    capturedAt?: unknown;
-    message?: unknown;
-    filename?: unknown;
-    lineno?: unknown;
-    colno?: unknown;
-    error?: unknown;
-  }
-  | {
-    kind: 'rejection';
-    capturedAt?: unknown;
-    message?: unknown;
-    reason?: unknown;
-  };
-
-interface EarlyErrorBuffer {
-  entries: EarlyErrorEntry[];
-  onError: EventListener;
-  onRejection: EventListener;
-  storageKey?: string;
-}
-
-declare global {
-  interface Window {
-    __WORKSLIP_EARLY_ERROR_BUFFER__?: EarlyErrorBuffer;
-  }
-}
-
-const connectionString = import.meta.env.VITE_APPLICATIONINSIGHTS_CONNECTION_STRING;
-const release = import.meta.env.VITE_APP_RELEASE?.trim() || __BUILD_TIME__;
-
-let client: ApplicationInsightsClient | null = null;
-let initializationPromise: Promise<void> | null = null;
-let initializationAttempts = 0;
-let globalHandlersInstalled = false;
-let heartbeatIntervalId: number | null = null;
-let pendingInteraction: { correlationId: string; action: string; createdAt: number } | null = null;
-const recentlyReportedErrors = new Map<string, number>();
-const pendingErrorTelemetry: IExceptionTelemetry[] = [];
-const duplicateWindowMs = 60_000;
-const interactionLifetimeMs = 5_000;
-const heartbeatIntervalMs = 5 * 60_000;
-const maxPendingErrors = 20;
-const initializationRetryDelaysMs = [30_000, 120_000] as const;
-
-const sensitiveValuePattern = /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*["']?)[^"',}\s]+(["']?)/gi;
-const sensitiveKeyPattern = /^(authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key|request|requestdata|response|payload|body|headers)$/i;
-const credentialPattern = /(authorization\s*[:=]\s*["']?(?:bearer|basic)\s+)[^"',}\s]+/gi;
-const bearerPattern = /bearer\s+[a-z0-9._~+/=-]+/gi;
-const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const phonePattern = /(?:\+?\d[\d\s().-]{7,}\d)/g;
-const quotedSensitiveValuePattern = /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*)(["'])(.*?)\2/gi;
-
-function sanitizeText(value: string): string {
-  return value
-    .replace(quotedSensitiveValuePattern, '$1$2[REDACTED]$2')
-    .replace(sensitiveValuePattern, '$1[REDACTED]$2')
-    .replace(credentialPattern, '$1[REDACTED]')
-    .replace(bearerPattern, 'Bearer [REDACTED]')
-    .replace(/([?&](?:access[_-]?token|refresh[_-]?token|id[_-]?token|authorization|api[_-]?key)=)[^&#\s]+/gi, '$1[REDACTED]')
-    .replace(emailPattern, '[REDACTED_EMAIL]')
-    .replace(phonePattern, '[REDACTED_PHONE]')
-    .slice(0, 4000);
-}
-
-function sanitizeEndpoint(value: string): string {
-  return sanitizeText(value.split(/[?#]/, 1)[0])
-    .replace(/\/[0-9a-f]{8}-[0-9a-f-]{27}/gi, '/:id')
-    .replace(/\/\d+(?=\/|$)/g, '/:id');
-}
-
-function actionEventName(action: string): string {
-  const slug = action
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return `ui.action.${slug || 'unknown'}`;
-}
-
-export function createCorrelationId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
-}
-
-export function trackUserInteraction(action: string, correlationId: string): void {
-  if (!client) return;
-  const telemetry: IEventTelemetry = {
-    name: actionEventName(action),
-    properties: {
-      action: sanitizeText(action),
-      correlationId,
-      route: currentRoute(),
-      release,
-    },
-  };
-  client.trackEvent(telemetry);
-}
-
-export function beginUserInteraction(action: string): string {
-  const correlationId = createCorrelationId();
-  pendingInteraction = { correlationId, action, createdAt: Date.now() };
-  return correlationId;
-}
-
-export function consumePendingInteraction(): { correlationId: string; action: string } | null {
-  if (!pendingInteraction) return null;
-  const interaction = pendingInteraction;
-  pendingInteraction = null;
-  return Date.now() - interaction.createdAt <= interactionLifetimeMs
-    ? { correlationId: interaction.correlationId, action: interaction.action }
-    : null;
-}
-
-export function trackApiDependency(details: {
-  correlationId: string;
-  action?: string;
-  method: string;
-  url: string;
-  durationMs: number;
-  responseCode?: number;
-  success: boolean;
-}): void {
-  if (!client) return;
-  const endpoint = sanitizeEndpoint(details.url);
-  const dependency: IDependencyTelemetry = {
-    id: details.correlationId,
-    target: endpoint,
-    name: `${details.method.toUpperCase()} ${endpoint}`,
-    data: endpoint,
-    duration: details.durationMs,
-    success: details.success,
-    responseCode: details.responseCode ?? 0,
-    type: 'HTTP',
-    properties: {
-      correlationId: details.correlationId,
-      ...(details.action ? { action: sanitizeText(details.action) } : {}),
-      route: currentRoute(),
-      release,
-    },
-  };
-  client.trackDependencyData(dependency);
-}
-
-function sanitizeValue(value: unknown, seen = new WeakSet<object>(), depth = 0): unknown {
-  if (typeof value === 'string') return sanitizeText(value);
-  if (Array.isArray(value)) return value.slice(0, 100).map((entry) => sanitizeValue(entry, seen, depth + 1));
-  if (!value || typeof value !== 'object') return value;
-  if (seen.has(value)) return '[REDACTED_CIRCULAR]';
-  if (depth >= 8) return '[REDACTED_DEPTH]';
-
-  seen.add(value);
-
-  return Object.fromEntries(
-    Object.entries(value).slice(0, 100).map(([key, entryValue]) => [
-      sanitizeText(key),
-      sensitiveKeyPattern.test(key) ? '[REDACTED]' : sanitizeValue(entryValue, seen, depth + 1),
-    ]),
-  );
-}
-
-function sanitizeError(error: unknown): Error {
-  const source = toError(error);
-  const safeName = /^[A-Za-z][A-Za-z0-9_$.-]{0,63}$/.test(source.name) ? source.name : 'Error';
-  const sanitized = new Error(`${safeName} [${fingerprint(source.message)}]`);
-  sanitized.name = safeName;
-  if (source.stack) {
-    const frames = source.stack.split('\n').slice(1).map(sanitizeText);
-    sanitized.stack = [sanitized.toString(), ...frames].join('\n');
-  }
-  return sanitized;
-}
-
-function fingerprint(value: string): string {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0');
-}
-
-function toError(error: unknown): Error {
-  if (error instanceof Error) return error;
-  if (error && typeof error === 'object') {
-    const record = error as Record<string, unknown>;
-    const normalized = new Error(typeof record.message === 'string' ? record.message : 'Unhandled promise rejection');
-    if (typeof record.name === 'string') normalized.name = record.name;
-    if (typeof record.stack === 'string') normalized.stack = record.stack;
-    return normalized;
-  }
-  return new Error(String(error));
-}
-
-function currentRoute(): string {
-  return sanitizeEndpoint(window.location.pathname || '/');
-}
-
-function sanitizeTelemetryItem(item: ITelemetryItem): boolean {
-  if (item.data) item.data = sanitizeValue(item.data) as Record<string, unknown>;
-  if (item.baseData) item.baseData = sanitizeValue(item.baseData) as Record<string, unknown>;
-  if (item.tags) item.tags = sanitizeValue(item.tags) as Record<string, string>;
-  if (item.ext) item.ext = sanitizeValue(item.ext) as typeof item.ext;
-  return true;
-}
-
-function sendTelemetryHeartbeat(): void {
-  if (!client || document.visibilityState === 'hidden') return;
-
-  client.trackEvent({
-    name: 'telemetry.heartbeat',
-    properties: {
-      route: currentRoute(),
-      release,
-    },
-  });
-}
-
-function startTelemetryHeartbeat(): void {
-  sendTelemetryHeartbeat();
-  if (heartbeatIntervalId !== null) return;
-
-  heartbeatIntervalId = window.setInterval(sendTelemetryHeartbeat, heartbeatIntervalMs);
-  document.addEventListener('visibilitychange', sendTelemetryHeartbeat);
-}
-
-function flushPendingErrors(nextClient: ApplicationInsightsClient): void {
-  const queued = pendingErrorTelemetry.splice(0, pendingErrorTelemetry.length);
-  queued.forEach((telemetry) => nextClient.trackException(telemetry));
-}
-
-function scheduleInitializationRetry(): void {
-  const delay = initializationRetryDelaysMs[initializationAttempts - 1];
-  if (delay === undefined) return;
-
-  window.setTimeout(() => {
-    void initializeApplicationInsights();
-  }, delay);
-}
-
-function drainEarlyErrorBuffer(): void {
-  const buffer = window.__WORKSLIP_EARLY_ERROR_BUFFER__;
-  if (!buffer) return;
-
-  window.removeEventListener('error', buffer.onError, true);
-  window.removeEventListener('unhandledrejection', buffer.onRejection);
-  if (buffer.storageKey) {
-    try {
-      sessionStorage.removeItem(buffer.storageKey);
-    } catch {
-      // Storage is optional; the in-memory queue is still drained.
-    }
-  }
-  delete window.__WORKSLIP_EARLY_ERROR_BUFFER__;
-
-  buffer.entries.forEach((entry) => {
-    if (entry.kind === 'rejection') {
-      reportFrontendError(
-        entry.reason ?? entry.message ?? 'Early promise rejection',
-        'bootstrap.window.unhandledrejection',
-      );
-      return;
-    }
-
-    const filename = typeof entry.filename === 'string'
-      ? sanitizeEndpoint(entry.filename)
-      : '';
-    const line = typeof entry.lineno === 'number' ? entry.lineno : 0;
-    const column = typeof entry.colno === 'number' ? entry.colno : 0;
-    const location = filename ? `${filename}:${line}:${column}` : '';
-    const message = typeof entry.message === 'string' && entry.message.trim()
-      ? entry.message
-      : 'Early resource error';
-    const fallback = new Error(`${message}${location ? ` (${location})` : ''}`);
-
-    reportFrontendError(
-      entry.error ?? fallback,
-      'bootstrap.window.error',
-      location ? { location } : {},
-    );
-  });
-}
-
-export function initializeApplicationInsights(): Promise<void> {
-  const localOptIn = import.meta.env.VITE_APPLICATIONINSIGHTS_ENABLE_LOCAL === 'true';
-  if ((!import.meta.env.PROD && !localOptIn) || !connectionString || client) {
-    return Promise.resolve();
-  }
-  if (initializationPromise) return initializationPromise;
-
-  initializationAttempts += 1;
-  initializationPromise = import('@microsoft/applicationinsights-web')
-    .then(({ ApplicationInsights }) => {
-      if (client) return;
-
-      const nextClient = new ApplicationInsights({
-        config: {
-          connectionString,
-          disableAjaxTracking: true,
-          disableCookiesUsage: true,
-          disableExceptionTracking: true,
-          disableFetchTracking: true,
-          enableAutoRouteTracking: false,
-          samplingPercentage: 100,
-        },
-      });
-
-      nextClient.addTelemetryInitializer((item) => {
-        item.tags = {
-          ...(item.tags ?? {}),
-          'ai.application.ver': release,
-        };
-        return sanitizeTelemetryItem(item);
-      });
-      nextClient.loadAppInsights();
-      client = nextClient;
-      flushPendingErrors(nextClient);
-      startTelemetryHeartbeat();
-    })
-    .catch(() => {
-      client = null;
-      initializationPromise = null;
-      scheduleInitializationRetry();
-    });
-
-  return initializationPromise;
-}
-
-export function reportFrontendError(error: unknown, source: string, details: Record<string, string> = {}): void {
-  const sanitizedError = sanitizeError(error);
-  const route = currentRoute();
-  const now = Date.now();
-  for (const [key, timestamp] of recentlyReportedErrors) {
-    if (now - timestamp > duplicateWindowMs) recentlyReportedErrors.delete(key);
-  }
-  const dedupeKey = `${source}|${route}|${sanitizedError.name}|${sanitizedError.message}`;
-  if (recentlyReportedErrors.has(dedupeKey)) return;
-  recentlyReportedErrors.set(dedupeKey, now);
-
-  const telemetry: IExceptionTelemetry = {
-    exception: sanitizedError,
-    properties: {
-      ...Object.fromEntries(Object.entries(details).map(([key, value]) => [key, sanitizeText(value)])),
-      route,
-      source,
-      release,
-    },
-  };
-
-  if (client) {
-    client.trackException(telemetry);
-    return;
-  }
-
-  if (pendingErrorTelemetry.length >= maxPendingErrors) {
-    pendingErrorTelemetry.shift();
-  }
-  pendingErrorTelemetry.push(telemetry);
-}
-
-export function installGlobalApplicationInsightsHandlers(): void {
-  if (globalHandlersInstalled) return;
-  globalHandlersInstalled = true;
-  drainEarlyErrorBuffer();
-
-  window.addEventListener('error', (event) => {
-    const filename = event.filename ? sanitizeEndpoint(event.filename) : '';
-    const location = filename ? `${filename}:${event.lineno}:${event.colno}` : '';
-    const fallback = new Error(
-      `${event.message || 'Resource load error'}${location ? ` (${location})` : ''}`,
-    );
-    reportFrontendError(
-      event.error ?? fallback,
-      'window.error',
-      location ? { location } : {},
-    );
-  }, true);
-
-  window.addEventListener('unhandledrejection', (event) => {
-    reportFrontendError(event.reason, 'window.unhandledrejection');
-  });
-
-  document.addEventListener('click', (event) => {
-    const target = event.target instanceof Element
-      ? event.target.closest('button,[role="button"]')
-      : null;
-    if (!target) return;
-    const action = target.getAttribute('data-telemetry-action')
-      ?? target.getAttribute('aria-label')
-      ?? target.textContent?.trim();
-    if (action) beginUserInteraction(action.slice(0, 120));
-  }, true);
-}
-</file>
-
-<file path="src/FE/src/public-performance.css">
-body,
-#root,
-#portal-root,
-.app-container,
-.bg-glow-wrapper,
-.bg-glow,
-.login-card,
-.reauth-card,
-.invite-card {
-  transition-property: none;
-}
-
-.bg-glow {
-  animation: none;
-  filter: blur(80px);
-}
-
-.login-card,
-.reauth-card {
-  backdrop-filter: none;
-}
-
-.login-card *,
-.reauth-card *,
-.invite-card * {
-  transition-property: none;
-}
-</file>
-
-<file path="src/FE/index.html">
-<!doctype html>
-<html lang="da">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
-    <meta name="theme-color" content="#050505" />
-    <meta name="description" content="Workslip - Den digitale arbejdsseddel til VVS-virksomheder. KLS-compliant, nem at bruge, og fuldt integreret jobflow." />
-    <title>Workslip | Din samarbejdspartner</title>
-
-    <!-- iOS PWA capability -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Workslip" />
-
-    <!-- iOS Touch Icon -->
-    <link rel="apple-touch-icon" href="/favicon.svg" />
-
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <div id="portal-root"></div>
-    <script>
-      (() => {
-        const storageKey = 'workslip.earlyErrors';
-        const maxEntries = 20;
-        const maxAgeMs = 24 * 60 * 60 * 1000;
-        const now = Date.now();
-
-        const fingerprint = (value) => {
-          const text = String(value || 'Early browser error');
-          let hash = 2166136261;
-          for (let index = 0; index < text.length; index += 1) {
-            hash ^= text.charCodeAt(index);
-            hash = Math.imul(hash, 16777619);
-          }
-          return (hash >>> 0).toString(16).padStart(8, '0');
-        };
-
-        const normalizeFilename = (value) => {
-          if (!value) return '';
-          try {
-            return new URL(String(value), window.location.href).pathname
-              .replace(/\/[0-9a-f]{8}-[0-9a-f-]{27}/gi, '/:id')
-              .replace(/\/\d+(?=\/|$)/g, '/:id')
-              .slice(0, 240);
-          } catch {
-            return '';
-          }
-        };
-
-        let entries = [];
-        try {
-          const stored = JSON.parse(sessionStorage.getItem(storageKey) || '[]');
-          if (Array.isArray(stored)) {
-            entries = stored
-              .filter((entry) => entry && Number(entry.capturedAt) >= now - maxAgeMs)
-              .slice(-maxEntries);
-          }
-        } catch {
-          entries = [];
-        }
-
-        const persist = () => {
-          try {
-            const safeEntries = entries.map(({ error, reason, ...entry }) => entry);
-            sessionStorage.setItem(storageKey, JSON.stringify(safeEntries));
-          } catch {
-            // In-memory capture still works when storage is unavailable.
-          }
-        };
-
-        const push = (entry) => {
-          if (entries.length >= maxEntries) entries.shift();
-          entries.push(entry);
-          persist();
-        };
-
-        const onError = (event) => {
-          const message = String(event.message || 'Early resource error');
-          push({
-            kind: 'error',
-            capturedAt: Date.now(),
-            message: `EarlyError [${fingerprint(message)}]`,
-            filename: normalizeFilename(event.filename),
-            lineno: Number(event.lineno || 0),
-            colno: Number(event.colno || 0),
-            error: event.error,
-          });
-        };
-
-        const onRejection = (event) => {
-          const reason = event.reason instanceof Error
-            ? `${event.reason.name}:${event.reason.message}`
-            : String(event.reason || 'Early promise rejection');
-          push({
-            kind: 'rejection',
-            capturedAt: Date.now(),
-            message: `EarlyRejection [${fingerprint(reason)}]`,
-            reason: event.reason,
-          });
-        };
-
-        window.__WORKSLIP_EARLY_ERROR_BUFFER__ = {
-          entries,
-          onError,
-          onRejection,
-          storageKey,
-        };
-        window.addEventListener('error', onError, true);
-        window.addEventListener('unhandledrejection', onRejection);
-      })();
-    </script>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
-</file>
-
 <file path="src/FE/package.json">
 {
   "name": "fe",
@@ -124413,91 +124724,6 @@ body,
   "overrides": {
     "ejs": "5.0.1"
   }
-}
-</file>
-
-<file path="src/FE/vercel.json">
-{
-  "git": {
-    "deploymentEnabled": {
-      "*": false,
-      "main": true
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://api-mrsoftware-prod.azurewebsites.net/api/:path*"
-    },
-    {
-      "source": "/((?!assets/|robots\\.txt$).*)",
-      "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/api/:path*",
-      "headers": [
-        {
-          "key": "x-vercel-enable-rewrite-caching",
-          "value": "0"
-        }
-      ]
-    },
-    {
-      "source": "/robots.txt",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "text/plain; charset=utf-8"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
-    },
-    {
-      "source": "/sw.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/fonts/(.*).woff2",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    }
-  ]
 }
 </file>
 
@@ -126181,232 +126407,6 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
 }
 </file>
 
-<file path="src/FE/src/features/auth/components/OneTimeCodeLogin.tsx">
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { ArrowLeft, Loader2, Mail } from 'lucide-react';
-import { notify } from '../../../lib/toast';
-import { clearReauthInFlight } from '../../../providers/authContextValue';
-import { useAuth } from '../../../providers/useAuth';
-import { sendAuthCode } from '../api/devToken';
-import { OneTimeCodeInput } from './OneTimeCodeInput';
-
-const EmailSchema = z.object({
-  email: z.string().email({ message: 'Ugyldig email adresse' }),
-});
-
-const CodeSchema = z.object({
-  code: z.string().regex(/^\d{6}$/, { message: 'Koden skal bestå af 6 cifre' }),
-});
-
-type EmailFormValues = z.infer<typeof EmailSchema>;
-type CodeFormValues = z.infer<typeof CodeSchema>;
-
-interface OneTimeCodeLoginProps {
-  onBack: () => void;
-}
-
-export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
-  const navigate = useNavigate();
-  const { login } = useAuth();
-  const [step, setStep] = useState<'email' | 'code'>('email');
-  const [email, setEmail] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const codeInputRef = useRef<HTMLInputElement>(null);
-
-  const emailForm = useForm<EmailFormValues>({
-    resolver: zodResolver(EmailSchema),
-    defaultValues: {
-      email: new URLSearchParams(window.location.search).get('email') || '',
-    },
-  });
-
-  const codeForm = useForm<CodeFormValues>({
-    resolver: zodResolver(CodeSchema),
-    defaultValues: {
-      code: '',
-    },
-  });
-
-  useEffect(() => {
-    if (step !== 'code' || !codeInputRef.current) return undefined;
-
-    const focusTimer = window.setTimeout(() => codeInputRef.current?.focus(), 50);
-    return () => window.clearTimeout(focusTimer);
-  }, [step]);
-
-  const handleSendCode = async (data: EmailFormValues) => {
-    setErrorMsg(null);
-    setIsSubmitting(true);
-    try {
-      await sendAuthCode(data.email);
-      setEmail(data.email);
-      setStep('code');
-      notify.success('Tjek din indbakke – en kode er sendt.');
-    } catch {
-      notify.error('Kunne ikke sende kode. Prøv igen.');
-      setErrorMsg('Kunne ikke sende kode. Prøv igen.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleVerifyCode = async (data: CodeFormValues) => {
-    setErrorMsg(null);
-    setIsSubmitting(true);
-    try {
-      const success = await login(email, data.code);
-      if (success) {
-        clearReauthInFlight();
-        navigate('/app');
-      } else {
-        setErrorMsg('Ugyldig kode. Prøv igen.');
-        notify.error('Ugyldig kode. Prøv igen.');
-      }
-    } catch {
-      setErrorMsg('Ugyldig kode. Prøv igen.');
-      notify.error('Ugyldig kode. Prøv igen.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <>
-      <div className="login-card-header">
-        <div className="logo logo-center">
-          <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-        <h2>Log ind på Workslip</h2>
-        {step === 'email' ? (
-          <p>Indtast din email for at modtage en engangskode.</p>
-        ) : (
-          <div>
-            <p>En kode er sendt til</p>
-            <p className="login-email-info">{email}</p>
-            <p id="otc-code-help">Kan du ikke finde mailen? Tjek spam eller uønsket post.</p>
-          </div>
-        )}
-      </div>
-
-      {errorMsg && (
-        <div className="login-error-banner">
-          <Loader2 size={16} />
-          {errorMsg}
-        </div>
-      )}
-
-      {step === 'email' ? (
-        <form onSubmit={emailForm.handleSubmit(handleSendCode)} className="login-form">
-          <div className="form-group">
-            <label htmlFor="otc-email">Email</label>
-            <input
-              {...emailForm.register('email')}
-              id="otc-email"
-              type="email"
-              placeholder="din@email.dk"
-              className={`form-input${emailForm.formState.errors.email ? ' form-input-invalid' : ''}`}
-              autoComplete="email"
-            />
-            {emailForm.formState.errors.email && (
-              <span className="form-error-text">
-                {emailForm.formState.errors.email.message}
-              </span>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary login-submit-btn"
-            disabled={isSubmitting}
-          >
-            {isSubmitting && (
-              <span className="login-submit-btn-overlay">
-                <Loader2 className="animate-spin" size={18} />
-              </span>
-            )}
-            <Mail size={18} />
-            <span>{isSubmitting ? 'Sender kode...' : 'Send kode'}</span>
-          </button>
-
-          <button type="button" onClick={onBack} className="login-back-btn">
-            <ArrowLeft size={16} />
-            Tilbage til passkey login
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={codeForm.handleSubmit(handleVerifyCode)} className="login-form">
-          <div className="form-group">
-            <label htmlFor="otc-code">Engangskode</label>
-            <Controller
-              name="code"
-              control={codeForm.control}
-              render={({ field }) => (
-                <OneTimeCodeInput
-                  id="otc-code"
-                  name={field.name}
-                  ref={(element) => {
-                    field.ref(element);
-                    codeInputRef.current = element;
-                  }}
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  onBlur={field.onBlur}
-                  hasError={Boolean(codeForm.formState.errors.code)}
-                  aria-invalid={Boolean(codeForm.formState.errors.code)}
-                  aria-describedby={codeForm.formState.errors.code ? 'otc-code-help otc-code-error' : 'otc-code-help'}
-                  disabled={isSubmitting}
-                />
-              )}
-            />
-            {codeForm.formState.errors.code && (
-              <span id="otc-code-error" className="form-error-text">
-                {codeForm.formState.errors.code.message}
-              </span>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary login-submit-btn"
-            disabled={isSubmitting}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-              <polyline points="10 17 15 12 10 7" />
-              <line x1="15" y1="12" x2="3" y2="12" />
-            </svg>
-            <span>Log ind</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setErrorMsg(null);
-              codeForm.reset();
-              setStep('email');
-              onBack();
-            }}
-            className="login-back-btn"
-          >
-            <ArrowLeft size={16} />
-            Tilbage til login
-          </button>
-        </form>
-      )}
-    </>
-  );
-}
-</file>
-
 <file path="src/FE/src/features/jobs/routes/JobList.tsx">
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -127869,6 +127869,101 @@ export async function navigateNotificationTarget(
   const navigatedClient = await existingClient.navigate(target);
   return (navigatedClient ?? existingClient).focus();
 }
+</file>
+
+<file path="src/FE/vite.config.ts">
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
+import path from "node:path";
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    restoreMocks: true,
+  },
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
+  build: {
+    sourcemap: true,
+    rolldownOptions: {
+      output: {
+        // Keep the application bootstrap distinguishable from lazy route chunks
+        // so the service-worker glob cannot accidentally precache a route named
+        // index.tsx or another common chunk.
+        entryFileNames: 'assets/app-[hash].js',
+        chunkFileNames: 'assets/chunks/[name]-[hash].js',
+      },
+    },
+  },
+  server: {
+    host: '127.0.0.1',
+    port: 5270,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5262',
+        changeOrigin: true,
+        secure: false,
+      }
+    },
+    watch: {
+      usePolling: true
+    }
+  },
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'prompt',
+      includeAssets: ['favicon.svg'],
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
+      injectManifest: {
+        // Install only the navigation shell and bootstrap JavaScript. CSS,
+        // fonts, images and lazy chunks are cached when the browser actually
+        // requests them, preventing service-worker installation from downloading
+        // the entire authenticated application during a public login visit.
+        globPatterns: [
+          '**/*.html',
+          '**/*.webmanifest',
+          'assets/app-*.js',
+        ],
+      },
+      manifest: {
+        name: 'Workslip',
+        short_name: 'Workslip',
+        description: 'Den digitale arbejdsseddel til VVS',
+        theme_color: '#050505',
+        background_color: '#050505',
+        display: 'standalone',
+        icons: [
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          }
+        ]
+      }
+    })
+  ],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+})
 </file>
 
 <file path="AGENTS.md">
@@ -129854,6 +129949,296 @@ export function SuperAdmin() {
     </div>
   );
 }
+</file>
+
+<file path="src/FE/src/routes/index.tsx">
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 'react-router-dom';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorFallback } from '../providers/ErrorFallback';
+import { useAuth } from '../providers/useAuth';
+import { RoleGuard } from '../providers/permissions';
+import { Login } from '../features/auth/routes/Login';
+import { reportFrontendError } from '../applicationInsights';
+
+const AUTH_STARTUP_GRACE_MS = 6_000;
+
+const InviteAccept = lazy(() =>
+  import('../features/auth/routes/InviteAccept').then((module) => ({ default: module.InviteAccept })),
+);
+const AppLayout = lazy(() =>
+  import('../components/layouts/AppLayout').then((module) => ({ default: module.AppLayout })),
+);
+const JobList = lazy(() =>
+  import('../features/jobs/routes/JobList').then((module) => ({ default: module.JobList })),
+);
+const JobDetail = lazy(() =>
+  import('../features/jobs/routes/JobDetail').then((module) => ({ default: module.JobDetail })),
+);
+const JobCreate = lazy(() =>
+  import('../features/jobs/routes/JobCreate').then((module) => ({ default: module.JobCreate })),
+);
+const SimpleJobCreate = lazy(() =>
+  import('../features/jobs/routes/SimpleJobCreate').then((module) => ({ default: module.SimpleJobCreate })),
+);
+const CompletedJobReport = lazy(() =>
+  import('../features/jobs/routes/CompletedJobReport').then((module) => ({ default: module.CompletedJobReport })),
+);
+const Create = lazy(() =>
+  import('../features/create/routes/Create').then((module) => ({ default: module.Create })),
+);
+const UserList = lazy(() =>
+  import('../features/users/routes/UserList').then((module) => ({ default: module.UserList })),
+);
+const UserDetail = lazy(() =>
+  import('../features/users/routes/UserDetail').then((module) => ({ default: module.UserDetail })),
+);
+const CustomerList = lazy(() =>
+  import('../features/customers/routes/CustomerList').then((module) => ({ default: module.CustomerList })),
+);
+const CreateCustomerPage = lazy(() =>
+  import('../features/customers/routes/CreateCustomerPage').then((module) => ({ default: module.CreateCustomerPage })),
+);
+const EditCustomerPage = lazy(() =>
+  import('../features/customers/routes/EditCustomerPage').then((module) => ({ default: module.EditCustomerPage })),
+);
+const MyWorksheets = lazy(() =>
+  import('../features/worksheets/routes/MyWorksheets').then((module) => ({ default: module.MyWorksheets })),
+);
+const CustomerDetail = lazy(() =>
+  import('../features/customers/routes/CustomerDetail').then((module) => ({ default: module.CustomerDetail })),
+);
+const Settings = lazy(() =>
+  import('../features/settings/routes/Settings').then((module) => ({ default: module.Settings })),
+);
+const AuditorReportList = lazy(() =>
+  import('../features/auditor/routes/AuditorReportList').then((module) => ({ default: module.AuditorReportList })),
+);
+const Profile = lazy(() =>
+  import('../features/settings/routes/Profile').then((module) => ({ default: module.Profile })),
+);
+const LegalPage = lazy(() =>
+  import('../features/legal').then((module) => ({ default: module.LegalPage })),
+);
+const SuperAdmin = lazy(() =>
+  import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
+);
+const CacheDiagnostics = lazy(() =>
+  import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
+);
+
+interface StartupRecoveryProps {
+  isRetrying: boolean;
+  onRetry: () => void;
+  onReload: () => void;
+  onLogin: () => void;
+}
+
+const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupRecoveryProps) => (
+  <div className="app-container app-container-center" role="alert" aria-live="polite">
+    <div className="login-card">
+      <div className="login-card-header">
+        <h2>Forbindelsen tager længere tid end normalt</h2>
+        <p>Serveren kan være ved at starte efter en deployment. Dit gemte login er ikke blevet slettet.</p>
+      </div>
+      <div className="login-email-step">
+        <button
+          type="button"
+          className="btn btn-primary login-submit-btn"
+          onClick={onRetry}
+          disabled={isRetrying}
+        >
+          {isRetrying ? 'Prøver igen...' : 'Prøv igen'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary login-submit-btn"
+          onClick={onReload}
+          disabled={isRetrying}
+        >
+          Genindlæs appen
+        </button>
+        <button
+          type="button"
+          className="login-back-btn"
+          onClick={onLogin}
+          disabled={isRetrying}
+        >
+          Log ind igen
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+/**
+ * A stored token and a loaded user are separate states. Temporary API startup
+ * failures must not clear a potentially valid session or leave the app spinning
+ * indefinitely.
+ */
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { hasAuthToken, isAuthenticated, isLoading, clearLocalSession, meQuery } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [startupTimedOut, setStartupTimedOut] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const returnTo = `${location.pathname}${location.search}${location.hash}`;
+  const loginUrl = `/login?returnTo=${encodeURIComponent(returnTo)}`;
+
+  useEffect(() => {
+    if (!hasAuthToken || isAuthenticated) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setStartupTimedOut(true);
+    }, AUTH_STARTUP_GRACE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [hasAuthToken, isAuthenticated, retryAttempt]);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    setStartupTimedOut(false);
+    setRetryAttempt((attempt) => attempt + 1);
+
+    try {
+      await meQuery.refetch();
+    } catch {
+      // Query state keeps the recovery screen visible.
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const handleLogin = () => {
+    clearLocalSession();
+    navigate(loginUrl, { replace: true });
+  };
+
+  if (isAuthenticated) {
+    return <>{children}</>;
+  }
+
+  if (!hasAuthToken) {
+    return <Navigate to={loginUrl} replace />;
+  }
+
+  if (startupTimedOut || meQuery.isError) {
+    return (
+      <StartupRecovery
+        isRetrying={isRetrying}
+        onRetry={() => { void handleRetry(); }}
+        onReload={() => window.location.reload()}
+        onLogin={handleLogin}
+      />
+    );
+  }
+
+  if (isLoading || meQuery.isPending) {
+    return (
+      <div className="protected-route-loading" role="status" aria-live="polite">
+        Tjekker login status...
+      </div>
+    );
+  }
+
+  return (
+    <StartupRecovery
+      isRetrying={isRetrying}
+      onRetry={() => { void handleRetry(); }}
+      onReload={() => window.location.reload()}
+      onLogin={handleLogin}
+    />
+  );
+};
+
+function RouteLoadingFallback() {
+  return <div className="protected-route-loading">Indlæser siden...</div>;
+}
+
+function RootErrorBoundary() {
+  return (
+    <ErrorBoundary
+      FallbackComponent={ErrorFallback}
+      onError={(error, info) => reportFrontendError(error, 'react.error-boundary', { componentStack: info.componentStack ?? '' })}
+      onReset={() => window.location.reload()}
+    >
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Outlet />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+export const router = createBrowserRouter([
+  {
+    element: <RootErrorBoundary />,
+    children: [
+      { path: '/', element: <Login /> },
+      { path: '/login', element: <Login /> },
+      { path: '/invite/callback', element: <InviteAccept /> },
+      { path: '/invite/:token', element: <InviteAccept /> },
+      {
+        path: '/app',
+        element: (
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        ),
+        children: [
+          { index: true, element: <JobList /> },
+          { path: 'timer', element: <MyWorksheets /> },
+          { path: 'create', element: <Create /> },
+          { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
+          { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
+          { path: 'job/:id', element: <JobDetail /> },
+          { path: 'completed/:id', element: <CompletedJobReport /> },
+          { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
+          { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
+          { path: 'customers', element: <RoleGuard permission="customer:view"><CustomerList /></RoleGuard> },
+          { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /></RoleGuard> },
+          { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /></RoleGuard> },
+          { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
+          { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
+          { path: 'profil', element: <Profile /> },
+          { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
+          { path: 'legal/:type', element: <LegalPage /> },
+        ],
+      },
+      {
+        path: '/superadmin',
+        element: (
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        ),
+        children: [
+          {
+            index: true,
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <SuperAdmin />
+              </RoleGuard>
+            ),
+          },
+          {
+            path: 'cache',
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <CacheDiagnostics />
+              </RoleGuard>
+            ),
+          },
+        ],
+      },
+      {
+        path: '*',
+        element: <ErrorFallback error={new Error('Siden blev ikke fundet (404)')} resetErrorBoundary={() => {}} />,
+      },
+    ],
+  },
+]);
 </file>
 
 <file path="src/FE/src/App.css">
@@ -136286,101 +136671,6 @@ export function SuperAdmin() {
 }
 </file>
 
-<file path="src/FE/vite.config.ts">
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
-import path from "node:path";
-
-export default defineConfig({
-  test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
-    restoreMocks: true,
-  },
-  define: {
-    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
-  },
-  build: {
-    sourcemap: true,
-    rolldownOptions: {
-      output: {
-        // Keep the application bootstrap distinguishable from lazy route chunks
-        // so the service-worker glob cannot accidentally precache a route named
-        // index.tsx or another common chunk.
-        entryFileNames: 'assets/app-[hash].js',
-        chunkFileNames: 'assets/chunks/[name]-[hash].js',
-      },
-    },
-  },
-  server: {
-    host: '127.0.0.1',
-    port: 5270,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5262',
-        changeOrigin: true,
-        secure: false,
-      }
-    },
-    watch: {
-      usePolling: true
-    }
-  },
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'prompt',
-      includeAssets: ['favicon.svg'],
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.ts',
-      devOptions: {
-        enabled: true,
-        type: 'module',
-      },
-      injectManifest: {
-        // Install only the navigation shell and bootstrap JavaScript. CSS,
-        // fonts, images and lazy chunks are cached when the browser actually
-        // requests them, preventing service-worker installation from downloading
-        // the entire authenticated application during a public login visit.
-        globPatterns: [
-          '**/*.html',
-          '**/*.webmanifest',
-          'assets/app-*.js',
-        ],
-      },
-      manifest: {
-        name: 'Workslip',
-        short_name: 'Workslip',
-        description: 'Den digitale arbejdsseddel til VVS',
-        theme_color: '#050505',
-        background_color: '#050505',
-        display: 'standalone',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
-      }
-    })
-  ],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-})
-</file>
-
 <file path=".github/workflows/main_api-mrsoftware-prod.yml">
 name: Backend API deploy
 
@@ -137751,6 +138041,287 @@ public sealed class JobService(
 }
 </file>
 
+<file path="src/FE/src/components/layouts/AppLayout.tsx">
+import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
+import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
+import { useAuth } from '../../providers/useAuth';
+import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
+import { useEffect, useRef, useState } from 'react';
+import { DropdownProvider } from '../../providers/DropdownContext';
+import { useTheme } from '../../providers/ThemeProvider';
+import { CreateBottomSheet } from '../common/CreateBottomSheet';
+import { NotificationsDrawer } from '../common/NotificationsDrawer';
+import {
+  AUDITOR_AUTHENTICATED_PATH,
+  getAuthenticatedHomePath,
+} from '../../features/auth/authenticatedDestination';
+import {
+  clearOrganizationSession,
+  getOrganizationSession,
+  restoreHomeOrganizationSession,
+} from '../../features/superadmin/organizationSession';
+import '../../features/superadmin/organizationSession.css';
+import '../../authenticated-base.css';
+import '../../App.css';
+import {
+  AppScrollRestoreBoundary,
+  useAppRouteScrollManager,
+} from '../../hooks/useAppRouteScroll';
+
+export const AppLayout = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { logout, user } = useAuth();
+  const isSuperadmin = useIsSuperAdmin();
+  const canUseNotifications = useCan('notification:use');
+  const organizationSession = getOrganizationSession();
+  const appHomePath = getAuthenticatedHomePath(user?.role);
+  const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  const { theme, toggle: toggleTheme } = useTheme();
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const restoreScrollKey = useAppRouteScrollManager(scrollContainerRef);
+
+  const scrollToTopIfActive = (path: string) => {
+    if (location.pathname === path) {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleLogout = () => {
+    clearOrganizationSession();
+    logout();
+    // Navigate immediately rather than waiting for ProtectedRoute to render
+    // a <Navigate to="/login"> — avoids a single frame of protected content
+    // still being visible after the user clicked logout, and prevents a
+    // browser-back race where the protected URL is briefly visible again.
+    navigate('/login', { replace: true });
+  };
+
+  const handleExitOrganizationSession = () => {
+    if (!restoreHomeOrganizationSession()) {
+      handleLogout();
+      return;
+    }
+
+    // A full navigation recreates AuthProvider with the restored token and
+    // clears all in-memory tenant queries before the Superadmin page renders.
+    window.location.assign('/superadmin');
+  };
+
+  useEffect(() => {
+    let focusCheckTimeoutId: number | undefined;
+
+    const handleFocusChange = () => {
+      const activeElement = document.activeElement;
+      const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
+      setIsKeyboardVisible(isInput);
+    };
+
+    const handleFocusOut = () => {
+      if (focusCheckTimeoutId !== undefined) {
+        window.clearTimeout(focusCheckTimeoutId);
+      }
+
+      // Allow the next element to receive focus before deciding whether the
+      // mobile keyboard-dependent layout should be restored.
+      focusCheckTimeoutId = window.setTimeout(handleFocusChange, 50);
+    };
+
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('focusout', handleFocusOut);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusChange);
+      document.removeEventListener('focusout', handleFocusOut);
+
+      if (focusCheckTimeoutId !== undefined) {
+        window.clearTimeout(focusCheckTimeoutId);
+      }
+    };
+  }, []);
+
+
+  if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
+    return <Navigate to="/superadmin" replace />;
+  }
+
+  if (isAuditorSession && location.pathname === '/app') {
+    return <Navigate to={AUDITOR_AUTHENTICATED_PATH} replace />;
+  }
+
+  const notificationLabel = unreadNotifications > 0
+    ? `Notifikationer, ${unreadNotifications} ulæste`
+    : 'Notifikationer';
+
+  return (
+    <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
+    <DropdownProvider>
+      <div ref={scrollContainerRef} className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
+        {/* Top Header for Mobile */}
+      <header className="app-header">
+        <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
+          <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Workslip
+        </button>
+        <div className="app-header-actions">
+          <span className="app-header-user" title={user?.email ?? ''}>
+            <User size={16} />
+            <span>{user?.displayName ?? user?.email ?? ''}</span>
+          </span>
+          {canUseNotifications && (
+            <button
+              type="button"
+              onClick={() => setNotificationsOpen(true)}
+              className="user-avatar notification-bell"
+              aria-label={notificationLabel}
+              title={notificationLabel}
+            >
+              <Bell size={18} />
+              {unreadNotifications > 0 && (
+                <span className="notification-badge" aria-hidden="true">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
+            </button>
+          )}
+          <Can permission="organization:manage">
+              <button
+                type="button"
+                onClick={() => navigate('/superadmin')}
+                className="user-avatar"
+                aria-label="Superadmin"
+                title="Superadmin"
+                aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
+              >
+                <ShieldCheck size={18} />
+              </button>
+            </Can>
+          <Can permission="user:manage">
+            <button
+              type="button"
+              onClick={() => navigate('/app/settings')}
+              className="user-avatar"
+              aria-label="Indstillinger"
+              title="Indstillinger"
+            >
+              <Settings size={18} />
+            </button>
+          </Can>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="user-avatar"
+            aria-label={theme === 'night' ? 'Skift til dagtilstand' : 'Skift til nattilstand'}
+            title={theme === 'night' ? 'Dagtilstand' : 'Nattilstand'}
+          >
+            {theme === 'night' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          {!isSuperadmin && (
+            <button
+              type="button"
+              onClick={() => navigate('/app/profil')}
+              className="user-avatar"
+              aria-label="Profil"
+              title="Profil"
+            >
+              {user?.displayName ? (
+                <span className="user-avatar-initial">
+                  {user.displayName.charAt(0).toUpperCase()}
+                </span>
+              ) : (
+                <User size={18} />
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="app-header-logout"
+            aria-label="Log ud"
+            title="Log ud"
+          >
+            <LogOut size={18} />
+            <span>Log ud</span>
+          </button>
+        </div>
+      </header>
+
+      {isSuperadmin && organizationSession && (
+        <div className="organization-session-banner" role="status">
+          <span>
+            <Building2 size={17} aria-hidden="true" />
+            Du arbejder i <strong>{organizationSession.name}</strong> som Superadmin.
+          </span>
+          <button type="button" className="btn btn-secondary" onClick={handleExitOrganizationSession}>
+            Afslut organisationssession
+          </button>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <main className="app-content">
+        <Outlet />
+      </main>
+
+      {/* Bottom Navigation (Mobile First) */}
+      <nav className="bottom-nav">
+        <NavLink to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
+          <ClipboardList size={24} />
+          <span>{isAuditorSession ? 'Rapporter' : 'Sager'}</span>
+        </NavLink>
+        <Can permission="worksheet:view">
+          <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>
+            <CalendarDays size={24} />
+            <span>Timer</span>
+          </NavLink>
+        </Can>
+        <Can permission="user:manage">
+          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
+            <Users size={24} />
+            <span>Folk</span>
+          </NavLink>
+        </Can>
+        <Can permission="customer:view">
+          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
+            <Building2 size={24} />
+            <span>Kunder</span>
+          </NavLink>
+        </Can>
+      </nav>
+
+      {/* Floating Create Button - only on Sager list */}
+      {location.pathname === '/app' && (
+        <Can permission="job:create">
+          <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
+            <PlusCircle size={22} />
+          </button>
+        </Can>
+      )}
+      <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
+      {canUseNotifications && (
+        <NotificationsDrawer
+          isOpen={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+          onUnreadCountChange={setUnreadNotifications}
+        />
+      )}
+    </div>
+    </DropdownProvider>
+    </AppScrollRestoreBoundary>
+  );
+};
+</file>
+
 <file path="src/FE/src/features/jobs/components/JobDetails.tsx">
 import { useState } from 'react';
 import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
@@ -138232,296 +138803,6 @@ function SubmittedConfirmation({ reportNumber, submittedAt, onDone, onGoToReport
     </section>
   );
 }
-</file>
-
-<file path="src/FE/src/routes/index.tsx">
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 'react-router-dom';
-import { ErrorBoundary } from 'react-error-boundary';
-import { ErrorFallback } from '../providers/ErrorFallback';
-import { useAuth } from '../providers/useAuth';
-import { RoleGuard } from '../providers/permissions';
-import { Login } from '../features/auth/routes/Login';
-import { reportFrontendError } from '../applicationInsights';
-
-const AUTH_STARTUP_GRACE_MS = 6_000;
-
-const InviteAccept = lazy(() =>
-  import('../features/auth/routes/InviteAccept').then((module) => ({ default: module.InviteAccept })),
-);
-const AppLayout = lazy(() =>
-  import('../components/layouts/AppLayout').then((module) => ({ default: module.AppLayout })),
-);
-const JobList = lazy(() =>
-  import('../features/jobs/routes/JobList').then((module) => ({ default: module.JobList })),
-);
-const JobDetail = lazy(() =>
-  import('../features/jobs/routes/JobDetail').then((module) => ({ default: module.JobDetail })),
-);
-const JobCreate = lazy(() =>
-  import('../features/jobs/routes/JobCreate').then((module) => ({ default: module.JobCreate })),
-);
-const SimpleJobCreate = lazy(() =>
-  import('../features/jobs/routes/SimpleJobCreate').then((module) => ({ default: module.SimpleJobCreate })),
-);
-const CompletedJobReport = lazy(() =>
-  import('../features/jobs/routes/CompletedJobReport').then((module) => ({ default: module.CompletedJobReport })),
-);
-const Create = lazy(() =>
-  import('../features/create/routes/Create').then((module) => ({ default: module.Create })),
-);
-const UserList = lazy(() =>
-  import('../features/users/routes/UserList').then((module) => ({ default: module.UserList })),
-);
-const UserDetail = lazy(() =>
-  import('../features/users/routes/UserDetail').then((module) => ({ default: module.UserDetail })),
-);
-const CustomerList = lazy(() =>
-  import('../features/customers/routes/CustomerList').then((module) => ({ default: module.CustomerList })),
-);
-const CreateCustomerPage = lazy(() =>
-  import('../features/customers/routes/CreateCustomerPage').then((module) => ({ default: module.CreateCustomerPage })),
-);
-const EditCustomerPage = lazy(() =>
-  import('../features/customers/routes/EditCustomerPage').then((module) => ({ default: module.EditCustomerPage })),
-);
-const MyWorksheets = lazy(() =>
-  import('../features/worksheets/routes/MyWorksheets').then((module) => ({ default: module.MyWorksheets })),
-);
-const CustomerDetail = lazy(() =>
-  import('../features/customers/routes/CustomerDetail').then((module) => ({ default: module.CustomerDetail })),
-);
-const Settings = lazy(() =>
-  import('../features/settings/routes/Settings').then((module) => ({ default: module.Settings })),
-);
-const AuditorReportList = lazy(() =>
-  import('../features/auditor/routes/AuditorReportList').then((module) => ({ default: module.AuditorReportList })),
-);
-const Profile = lazy(() =>
-  import('../features/settings/routes/Profile').then((module) => ({ default: module.Profile })),
-);
-const LegalPage = lazy(() =>
-  import('../features/legal').then((module) => ({ default: module.LegalPage })),
-);
-const SuperAdmin = lazy(() =>
-  import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
-);
-const CacheDiagnostics = lazy(() =>
-  import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
-);
-
-interface StartupRecoveryProps {
-  isRetrying: boolean;
-  onRetry: () => void;
-  onReload: () => void;
-  onLogin: () => void;
-}
-
-const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupRecoveryProps) => (
-  <div className="app-container app-container-center" role="alert" aria-live="polite">
-    <div className="login-card">
-      <div className="login-card-header">
-        <h2>Forbindelsen tager længere tid end normalt</h2>
-        <p>Serveren kan være ved at starte efter en deployment. Dit gemte login er ikke blevet slettet.</p>
-      </div>
-      <div className="login-email-step">
-        <button
-          type="button"
-          className="btn btn-primary login-submit-btn"
-          onClick={onRetry}
-          disabled={isRetrying}
-        >
-          {isRetrying ? 'Prøver igen...' : 'Prøv igen'}
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary login-submit-btn"
-          onClick={onReload}
-          disabled={isRetrying}
-        >
-          Genindlæs appen
-        </button>
-        <button
-          type="button"
-          className="login-back-btn"
-          onClick={onLogin}
-          disabled={isRetrying}
-        >
-          Log ind igen
-        </button>
-      </div>
-    </div>
-  </div>
-);
-
-/**
- * A stored token and a loaded user are separate states. Temporary API startup
- * failures must not clear a potentially valid session or leave the app spinning
- * indefinitely.
- */
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { hasAuthToken, isAuthenticated, isLoading, clearLocalSession, meQuery } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [startupTimedOut, setStartupTimedOut] = useState(false);
-  const [retryAttempt, setRetryAttempt] = useState(0);
-  const [isRetrying, setIsRetrying] = useState(false);
-
-  const returnTo = `${location.pathname}${location.search}${location.hash}`;
-  const loginUrl = `/login?returnTo=${encodeURIComponent(returnTo)}`;
-
-  useEffect(() => {
-    if (!hasAuthToken || isAuthenticated) return undefined;
-
-    const timer = window.setTimeout(() => {
-      setStartupTimedOut(true);
-    }, AUTH_STARTUP_GRACE_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [hasAuthToken, isAuthenticated, retryAttempt]);
-
-  const handleRetry = async () => {
-    setIsRetrying(true);
-    setStartupTimedOut(false);
-    setRetryAttempt((attempt) => attempt + 1);
-
-    try {
-      await meQuery.refetch();
-    } catch {
-      // Query state keeps the recovery screen visible.
-    } finally {
-      setIsRetrying(false);
-    }
-  };
-
-  const handleLogin = () => {
-    clearLocalSession();
-    navigate(loginUrl, { replace: true });
-  };
-
-  if (isAuthenticated) {
-    return <>{children}</>;
-  }
-
-  if (!hasAuthToken) {
-    return <Navigate to={loginUrl} replace />;
-  }
-
-  if (startupTimedOut || meQuery.isError) {
-    return (
-      <StartupRecovery
-        isRetrying={isRetrying}
-        onRetry={() => { void handleRetry(); }}
-        onReload={() => window.location.reload()}
-        onLogin={handleLogin}
-      />
-    );
-  }
-
-  if (isLoading || meQuery.isPending) {
-    return (
-      <div className="protected-route-loading" role="status" aria-live="polite">
-        Tjekker login status...
-      </div>
-    );
-  }
-
-  return (
-    <StartupRecovery
-      isRetrying={isRetrying}
-      onRetry={() => { void handleRetry(); }}
-      onReload={() => window.location.reload()}
-      onLogin={handleLogin}
-    />
-  );
-};
-
-function RouteLoadingFallback() {
-  return <div className="protected-route-loading">Indlæser siden...</div>;
-}
-
-function RootErrorBoundary() {
-  return (
-    <ErrorBoundary
-      FallbackComponent={ErrorFallback}
-      onError={(error, info) => reportFrontendError(error, 'react.error-boundary', { componentStack: info.componentStack ?? '' })}
-      onReset={() => window.location.reload()}
-    >
-      <Suspense fallback={<RouteLoadingFallback />}>
-        <Outlet />
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
-
-export const router = createBrowserRouter([
-  {
-    element: <RootErrorBoundary />,
-    children: [
-      { path: '/', element: <Login /> },
-      { path: '/login', element: <Login /> },
-      { path: '/invite/callback', element: <InviteAccept /> },
-      { path: '/invite/:token', element: <InviteAccept /> },
-      {
-        path: '/app',
-        element: (
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        ),
-        children: [
-          { index: true, element: <JobList /> },
-          { path: 'timer', element: <MyWorksheets /> },
-          { path: 'create', element: <Create /> },
-          { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
-          { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
-          { path: 'job/:id', element: <JobDetail /> },
-          { path: 'completed/:id', element: <CompletedJobReport /> },
-          { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
-          { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
-          { path: 'customers', element: <RoleGuard permission="customer:view"><CustomerList /></RoleGuard> },
-          { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /></RoleGuard> },
-          { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /></RoleGuard> },
-          { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
-          { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
-          { path: 'profil', element: <Profile /> },
-          { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
-          { path: 'legal/:type', element: <LegalPage /> },
-        ],
-      },
-      {
-        path: '/superadmin',
-        element: (
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        ),
-        children: [
-          {
-            index: true,
-            element: (
-              <RoleGuard permission="organization:manage" redirectTo="/app">
-                <SuperAdmin />
-              </RoleGuard>
-            ),
-          },
-          {
-            path: 'cache',
-            element: (
-              <RoleGuard permission="organization:manage" redirectTo="/app">
-                <CacheDiagnostics />
-              </RoleGuard>
-            ),
-          },
-        ],
-      },
-      {
-        path: '*',
-        element: <ErrorFallback error={new Error('Siden blev ikke fundet (404)')} resetErrorBoundary={() => {}} />,
-      },
-    ],
-  },
-]);
 </file>
 
 <file path="src/FE/src/registerSW.ts">
@@ -139138,287 +139419,6 @@ If all deployment attempts fail, use the workflow's safe App Service state, rece
 Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
 </file>
 
-<file path="src/FE/src/components/layouts/AppLayout.tsx">
-import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
-import { useAuth } from '../../providers/useAuth';
-import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
-import { useEffect, useRef, useState } from 'react';
-import { DropdownProvider } from '../../providers/DropdownContext';
-import { useTheme } from '../../providers/ThemeProvider';
-import { CreateBottomSheet } from '../common/CreateBottomSheet';
-import { NotificationsDrawer } from '../common/NotificationsDrawer';
-import {
-  AUDITOR_AUTHENTICATED_PATH,
-  getAuthenticatedHomePath,
-} from '../../features/auth/authenticatedDestination';
-import {
-  clearOrganizationSession,
-  getOrganizationSession,
-  restoreHomeOrganizationSession,
-} from '../../features/superadmin/organizationSession';
-import '../../features/superadmin/organizationSession.css';
-import '../../authenticated-base.css';
-import '../../App.css';
-import {
-  AppScrollRestoreBoundary,
-  useAppRouteScrollManager,
-} from '../../hooks/useAppRouteScroll';
-
-export const AppLayout = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { logout, user } = useAuth();
-  const isSuperadmin = useIsSuperAdmin();
-  const canUseNotifications = useCan('notification:use');
-  const organizationSession = getOrganizationSession();
-  const appHomePath = getAuthenticatedHomePath(user?.role);
-  const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  const { theme, toggle: toggleTheme } = useTheme();
-  const [createSheetOpen, setCreateSheetOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const restoreScrollKey = useAppRouteScrollManager(scrollContainerRef);
-
-  const scrollToTopIfActive = (path: string) => {
-    if (location.pathname === path) {
-      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  const handleLogout = () => {
-    clearOrganizationSession();
-    logout();
-    // Navigate immediately rather than waiting for ProtectedRoute to render
-    // a <Navigate to="/login"> — avoids a single frame of protected content
-    // still being visible after the user clicked logout, and prevents a
-    // browser-back race where the protected URL is briefly visible again.
-    navigate('/login', { replace: true });
-  };
-
-  const handleExitOrganizationSession = () => {
-    if (!restoreHomeOrganizationSession()) {
-      handleLogout();
-      return;
-    }
-
-    // A full navigation recreates AuthProvider with the restored token and
-    // clears all in-memory tenant queries before the Superadmin page renders.
-    window.location.assign('/superadmin');
-  };
-
-  useEffect(() => {
-    let focusCheckTimeoutId: number | undefined;
-
-    const handleFocusChange = () => {
-      const activeElement = document.activeElement;
-      const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
-      setIsKeyboardVisible(isInput);
-    };
-
-    const handleFocusOut = () => {
-      if (focusCheckTimeoutId !== undefined) {
-        window.clearTimeout(focusCheckTimeoutId);
-      }
-
-      // Allow the next element to receive focus before deciding whether the
-      // mobile keyboard-dependent layout should be restored.
-      focusCheckTimeoutId = window.setTimeout(handleFocusChange, 50);
-    };
-
-    document.addEventListener('focusin', handleFocusChange);
-    document.addEventListener('focusout', handleFocusOut);
-
-    return () => {
-      document.removeEventListener('focusin', handleFocusChange);
-      document.removeEventListener('focusout', handleFocusOut);
-
-      if (focusCheckTimeoutId !== undefined) {
-        window.clearTimeout(focusCheckTimeoutId);
-      }
-    };
-  }, []);
-
-
-  if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
-    return <Navigate to="/superadmin" replace />;
-  }
-
-  if (isAuditorSession && location.pathname === '/app') {
-    return <Navigate to={AUDITOR_AUTHENTICATED_PATH} replace />;
-  }
-
-  const notificationLabel = unreadNotifications > 0
-    ? `Notifikationer, ${unreadNotifications} ulæste`
-    : 'Notifikationer';
-
-  return (
-    <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
-    <DropdownProvider>
-      <div ref={scrollContainerRef} className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
-        {/* Top Header for Mobile */}
-      <header className="app-header">
-        <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
-          <svg className="logo-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Workslip
-        </button>
-        <div className="app-header-actions">
-          <span className="app-header-user" title={user?.email ?? ''}>
-            <User size={16} />
-            <span>{user?.displayName ?? user?.email ?? ''}</span>
-          </span>
-          {canUseNotifications && (
-            <button
-              type="button"
-              onClick={() => setNotificationsOpen(true)}
-              className="user-avatar notification-bell"
-              aria-label={notificationLabel}
-              title={notificationLabel}
-            >
-              <Bell size={18} />
-              {unreadNotifications > 0 && (
-                <span className="notification-badge" aria-hidden="true">
-                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                </span>
-              )}
-            </button>
-          )}
-          <Can permission="organization:manage">
-              <button
-                type="button"
-                onClick={() => navigate('/superadmin')}
-                className="user-avatar"
-                aria-label="Superadmin"
-                title="Superadmin"
-                aria-current={location.pathname === '/superadmin' ? 'page' : undefined}
-              >
-                <ShieldCheck size={18} />
-              </button>
-            </Can>
-          <Can permission="user:manage">
-            <button
-              type="button"
-              onClick={() => navigate('/app/settings')}
-              className="user-avatar"
-              aria-label="Indstillinger"
-              title="Indstillinger"
-            >
-              <Settings size={18} />
-            </button>
-          </Can>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="user-avatar"
-            aria-label={theme === 'night' ? 'Skift til dagtilstand' : 'Skift til nattilstand'}
-            title={theme === 'night' ? 'Dagtilstand' : 'Nattilstand'}
-          >
-            {theme === 'night' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          {!isSuperadmin && (
-            <button
-              type="button"
-              onClick={() => navigate('/app/profil')}
-              className="user-avatar"
-              aria-label="Profil"
-              title="Profil"
-            >
-              {user?.displayName ? (
-                <span className="user-avatar-initial">
-                  {user.displayName.charAt(0).toUpperCase()}
-                </span>
-              ) : (
-                <User size={18} />
-              )}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="app-header-logout"
-            aria-label="Log ud"
-            title="Log ud"
-          >
-            <LogOut size={18} />
-            <span>Log ud</span>
-          </button>
-        </div>
-      </header>
-
-      {isSuperadmin && organizationSession && (
-        <div className="organization-session-banner" role="status">
-          <span>
-            <Building2 size={17} aria-hidden="true" />
-            Du arbejder i <strong>{organizationSession.name}</strong> som Superadmin.
-          </span>
-          <button type="button" className="btn btn-secondary" onClick={handleExitOrganizationSession}>
-            Afslut organisationssession
-          </button>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      <main className="app-content">
-        <Outlet />
-      </main>
-
-      {/* Bottom Navigation (Mobile First) */}
-      <nav className="bottom-nav">
-        <NavLink to={appHomePath} end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive(appHomePath)}>
-          <ClipboardList size={24} />
-          <span>{isAuditorSession ? 'Rapporter' : 'Sager'}</span>
-        </NavLink>
-        <Can permission="worksheet:view">
-          <NavLink to="/app/timer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/timer')}>
-            <CalendarDays size={24} />
-            <span>Timer</span>
-          </NavLink>
-        </Can>
-        <Can permission="user:manage">
-          <NavLink to="/app/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/users')}>
-            <Users size={24} />
-            <span>Folk</span>
-          </NavLink>
-        </Can>
-        <Can permission="customer:view">
-          <NavLink to="/app/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={() => scrollToTopIfActive('/app/customers')}>
-            <Building2 size={24} />
-            <span>Kunder</span>
-          </NavLink>
-        </Can>
-      </nav>
-
-      {/* Floating Create Button - only on Sager list */}
-      {location.pathname === '/app' && (
-        <Can permission="job:create">
-          <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
-            <PlusCircle size={22} />
-          </button>
-        </Can>
-      )}
-      <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
-      {canUseNotifications && (
-        <NotificationsDrawer
-          isOpen={notificationsOpen}
-          onClose={() => setNotificationsOpen(false)}
-          onUnreadCountChange={setUnreadNotifications}
-        />
-      )}
-    </div>
-    </DropdownProvider>
-    </AppScrollRestoreBoundary>
-  );
-};
-</file>
-
 <file path="src/FE/src/features/auth/routes/Login.tsx">
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
@@ -139701,6 +139701,280 @@ export const Login = () => {
     </div>
   );
 };
+</file>
+
+<file path="src/FE/src/main.tsx">
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import './base.css';
+import App from './App.tsx';
+import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
+import { isJobFamilyQueryKey } from './lib/jobQueryKeys';
+import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
+import { queryClient } from './lib/react-query';
+import { installNotificationNavigationHandler, installNotificationReceivedInvalidator } from './pwa/notificationNavigationClient';
+import { router } from './routes';
+
+if (typeof window !== 'undefined') {
+  // Install lightweight handlers before React renders. Errors are sanitized and
+  // buffered until the deferred Application Insights client is ready.
+  installGlobalApplicationInsightsHandlers();
+
+  // Vite emits this event when an already-open client references a hashed lazy
+  // chunk that disappeared after deployment. Reload once for this build; if it
+  // still fails, the normal error boundary handles it without a reload loop.
+  const staleBuildRecoveryKey = `workslip.preloadRecovery:${__BUILD_TIME__}`;
+  window.addEventListener('vite:preloadError', (event) => {
+    try {
+      if (sessionStorage.getItem(staleBuildRecoveryKey)) return;
+      sessionStorage.setItem(staleBuildRecoveryKey, '1');
+    } catch {
+      // Without a reliable guard an automatic reload could loop indefinitely.
+      return;
+    }
+
+    event.preventDefault();
+    window.location.reload();
+  });
+
+  const originalFocus = HTMLInputElement.prototype.focus;
+
+  HTMLInputElement.prototype.focus = function (options?: FocusOptions) {
+    // Hvis der ikke eksplicit er angivet options, tvinger vi preventScroll: true
+    const newOptions: FocusOptions = {
+      preventScroll: true,
+      ...options,
+    };
+    originalFocus.call(this, newOptions);
+  };
+
+  if ('serviceWorker' in navigator) {
+    installNotificationNavigationHandler(
+      navigator.serviceWorker,
+      window.location.origin,
+      (target) => router.navigate(target),
+    );
+    installNotificationReceivedInvalidator(
+      navigator.serviceWorker,
+      () => queryClient.invalidateQueries({
+        predicate: (query) => isJobFamilyQueryKey(query.queryKey),
+      }),
+    );
+  }
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+
+scheduleAfterInitialLoad(() => {
+  void import('./registerSW');
+});
+
+scheduleDeferredTelemetry(() => {
+  void initializeApplicationInsights();
+});
+</file>
+
+<file path="src/FE/src/sw.ts">
+import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
+import {
+  isNotificationNavigationAcknowledgement,
+  navigateNotificationTarget,
+  NOTIFICATION_NAVIGATION_REQUEST,
+  NOTIFICATION_RECEIVED,
+  type NotificationReceivedMessage,
+  type NotificationWindowClient,
+} from './pwa/notificationNavigation';
+
+type PrecacheManifestEntry = string | {
+  url: string;
+  revision?: string | null;
+};
+
+declare const self: ServiceWorkerGlobalScope & {
+  __WB_MANIFEST: PrecacheManifestEntry[];
+};
+
+const PRECACHE_MANIFEST = self.__WB_MANIFEST;
+const PRECACHED_URLS = new Set(
+  PRECACHE_MANIFEST.map((entry) =>
+    new URL(typeof entry === 'string' ? entry : entry.url, self.location.origin).href,
+  ),
+);
+const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
+const MAX_RUNTIME_ASSET_ENTRIES = 150;
+const CLIENT_NAVIGATION_TIMEOUT_MS = 1_500;
+
+cleanupOutdatedCaches();
+precacheAndRoute(PRECACHE_MANIFEST);
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting());
+  }
+});
+
+function isRuntimeStaticAsset(request: Request) {
+  if (request.method !== 'GET') return false;
+  if (!['script', 'style', 'font', 'image'].includes(request.destination)) return false;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || PRECACHED_URLS.has(url.href)) return false;
+
+  return url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/');
+}
+
+async function trimRuntimeAssetCache(cache: Cache) {
+  const requests = await cache.keys();
+  const excessCount = requests.length - MAX_RUNTIME_ASSET_ENTRIES;
+  if (excessCount <= 0) return;
+
+  await Promise.all(
+    requests.slice(0, excessCount).map((request) => cache.delete(request)),
+  );
+}
+
+self.addEventListener('fetch', (event) => {
+  if (!isRuntimeStaticAsset(event.request)) return;
+
+  event.respondWith((async () => {
+    const cache = await caches.open(RUNTIME_ASSET_CACHE);
+    const cachedResponse = await cache.match(event.request);
+    if (cachedResponse) return cachedResponse;
+
+    const response = await fetch(event.request);
+    if (response.ok) {
+      await cache.put(event.request, response.clone());
+      await trimRuntimeAssetCache(cache);
+    }
+
+    return response;
+  })());
+});
+
+async function notifyOpenClientsOfPush(): Promise<void> {
+  const windowClients = await self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true,
+  });
+
+  const message: NotificationReceivedMessage = { type: NOTIFICATION_RECEIVED };
+  for (const client of windowClients) {
+    try {
+      client.postMessage(message);
+    } catch {
+      // The client may have been closed or is otherwise not deliverable.
+    }
+  }
+}
+
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push event received', event.data);
+  if (!event.data) {
+    console.warn('[SW] Push event has no data — showing fallback notification');
+    event.waitUntil(
+      (async () => {
+        await self.registration.showNotification('Workslip', {
+          body: 'You have a new notification',
+          icon: '/logo.png',
+          badge: '/logo.png',
+        });
+        await notifyOpenClientsOfPush();
+      })().catch((error) => {
+        console.error('[SW] Fallback notification failed:', error);
+      })
+    );
+    return;
+  }
+
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch (error) {
+    console.error('Failed to parse push payload:', error);
+    return;
+  }
+
+  const title = payload.title || 'Workslip';
+  const options = payload.options || {};
+
+  event.waitUntil(
+    (async () => {
+      await self.registration.showNotification(title, {
+        body: options.body || '',
+        icon: options.icon || '/logo.png',
+        badge: options.badge || '/logo.png',
+        tag: options.tag || '',
+        data: options.data || {},
+      });
+      await notifyOpenClientsOfPush();
+    })().catch((error) => {
+      console.error('[SW] showNotification failed:', error);
+    })
+  );
+});
+
+async function requestClientRouterNavigation(
+  client: NotificationWindowClient,
+  url: string,
+): Promise<boolean> {
+  const channel = new MessageChannel();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (handled: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      channel.port1.close();
+      resolve(handled);
+    };
+    const timeout = setTimeout(() => finish(false), CLIENT_NAVIGATION_TIMEOUT_MS);
+
+    channel.port1.onmessage = (event) => {
+      const acknowledgement = event.data;
+      finish(
+        isNotificationNavigationAcknowledgement(acknowledgement)
+        && acknowledgement.success,
+      );
+    };
+
+    try {
+      (client as WindowClient).postMessage({
+        type: NOTIFICATION_NAVIGATION_REQUEST,
+        url,
+      }, [channel.port2]);
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  event.waitUntil((async () => {
+    const windowClients = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true,
+    });
+
+    await navigateNotificationTarget(
+      windowClients,
+      (url) => self.clients.openWindow(url),
+      event.notification.data?.url,
+      self.location.origin,
+      requestClientRouterNavigation,
+    );
+  })());
+});
 </file>
 
 <file path="src/FE/src/features/jobs/routes/CompletedJobReport.tsx">
@@ -140293,280 +140567,6 @@ function ActionSuccessDialog({
     document.body,
   );
 }
-</file>
-
-<file path="src/FE/src/main.tsx">
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import './base.css';
-import App from './App.tsx';
-import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
-import { isJobFamilyQueryKey } from './lib/jobQueryKeys';
-import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
-import { queryClient } from './lib/react-query';
-import { installNotificationNavigationHandler, installNotificationReceivedInvalidator } from './pwa/notificationNavigationClient';
-import { router } from './routes';
-
-if (typeof window !== 'undefined') {
-  // Install lightweight handlers before React renders. Errors are sanitized and
-  // buffered until the deferred Application Insights client is ready.
-  installGlobalApplicationInsightsHandlers();
-
-  // Vite emits this event when an already-open client references a hashed lazy
-  // chunk that disappeared after deployment. Reload once for this build; if it
-  // still fails, the normal error boundary handles it without a reload loop.
-  const staleBuildRecoveryKey = `workslip.preloadRecovery:${__BUILD_TIME__}`;
-  window.addEventListener('vite:preloadError', (event) => {
-    try {
-      if (sessionStorage.getItem(staleBuildRecoveryKey)) return;
-      sessionStorage.setItem(staleBuildRecoveryKey, '1');
-    } catch {
-      // Without a reliable guard an automatic reload could loop indefinitely.
-      return;
-    }
-
-    event.preventDefault();
-    window.location.reload();
-  });
-
-  const originalFocus = HTMLInputElement.prototype.focus;
-
-  HTMLInputElement.prototype.focus = function (options?: FocusOptions) {
-    // Hvis der ikke eksplicit er angivet options, tvinger vi preventScroll: true
-    const newOptions: FocusOptions = {
-      preventScroll: true,
-      ...options,
-    };
-    originalFocus.call(this, newOptions);
-  };
-
-  if ('serviceWorker' in navigator) {
-    installNotificationNavigationHandler(
-      navigator.serviceWorker,
-      window.location.origin,
-      (target) => router.navigate(target),
-    );
-    installNotificationReceivedInvalidator(
-      navigator.serviceWorker,
-      () => queryClient.invalidateQueries({
-        predicate: (query) => isJobFamilyQueryKey(query.queryKey),
-      }),
-    );
-  }
-}
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
-
-scheduleAfterInitialLoad(() => {
-  void import('./registerSW');
-});
-
-scheduleDeferredTelemetry(() => {
-  void initializeApplicationInsights();
-});
-</file>
-
-<file path="src/FE/src/sw.ts">
-import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
-import {
-  isNotificationNavigationAcknowledgement,
-  navigateNotificationTarget,
-  NOTIFICATION_NAVIGATION_REQUEST,
-  NOTIFICATION_RECEIVED,
-  type NotificationReceivedMessage,
-  type NotificationWindowClient,
-} from './pwa/notificationNavigation';
-
-type PrecacheManifestEntry = string | {
-  url: string;
-  revision?: string | null;
-};
-
-declare const self: ServiceWorkerGlobalScope & {
-  __WB_MANIFEST: PrecacheManifestEntry[];
-};
-
-const PRECACHE_MANIFEST = self.__WB_MANIFEST;
-const PRECACHED_URLS = new Set(
-  PRECACHE_MANIFEST.map((entry) =>
-    new URL(typeof entry === 'string' ? entry : entry.url, self.location.origin).href,
-  ),
-);
-const RUNTIME_ASSET_CACHE = 'workslip-route-assets-v1';
-const MAX_RUNTIME_ASSET_ENTRIES = 150;
-const CLIENT_NAVIGATION_TIMEOUT_MS = 1_500;
-
-cleanupOutdatedCaches();
-precacheAndRoute(PRECACHE_MANIFEST);
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') {
-    event.waitUntil(self.skipWaiting());
-  }
-});
-
-function isRuntimeStaticAsset(request: Request) {
-  if (request.method !== 'GET') return false;
-  if (!['script', 'style', 'font', 'image'].includes(request.destination)) return false;
-
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin || PRECACHED_URLS.has(url.href)) return false;
-
-  return url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/');
-}
-
-async function trimRuntimeAssetCache(cache: Cache) {
-  const requests = await cache.keys();
-  const excessCount = requests.length - MAX_RUNTIME_ASSET_ENTRIES;
-  if (excessCount <= 0) return;
-
-  await Promise.all(
-    requests.slice(0, excessCount).map((request) => cache.delete(request)),
-  );
-}
-
-self.addEventListener('fetch', (event) => {
-  if (!isRuntimeStaticAsset(event.request)) return;
-
-  event.respondWith((async () => {
-    const cache = await caches.open(RUNTIME_ASSET_CACHE);
-    const cachedResponse = await cache.match(event.request);
-    if (cachedResponse) return cachedResponse;
-
-    const response = await fetch(event.request);
-    if (response.ok) {
-      await cache.put(event.request, response.clone());
-      await trimRuntimeAssetCache(cache);
-    }
-
-    return response;
-  })());
-});
-
-async function notifyOpenClientsOfPush(): Promise<void> {
-  const windowClients = await self.clients.matchAll({
-    type: 'window',
-    includeUncontrolled: true,
-  });
-
-  const message: NotificationReceivedMessage = { type: NOTIFICATION_RECEIVED };
-  for (const client of windowClients) {
-    try {
-      client.postMessage(message);
-    } catch {
-      // The client may have been closed or is otherwise not deliverable.
-    }
-  }
-}
-
-self.addEventListener('push', (event) => {
-  console.log('[SW] Push event received', event.data);
-  if (!event.data) {
-    console.warn('[SW] Push event has no data — showing fallback notification');
-    event.waitUntil(
-      (async () => {
-        await self.registration.showNotification('Workslip', {
-          body: 'You have a new notification',
-          icon: '/logo.png',
-          badge: '/logo.png',
-        });
-        await notifyOpenClientsOfPush();
-      })().catch((error) => {
-        console.error('[SW] Fallback notification failed:', error);
-      })
-    );
-    return;
-  }
-
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch (error) {
-    console.error('Failed to parse push payload:', error);
-    return;
-  }
-
-  const title = payload.title || 'Workslip';
-  const options = payload.options || {};
-
-  event.waitUntil(
-    (async () => {
-      await self.registration.showNotification(title, {
-        body: options.body || '',
-        icon: options.icon || '/logo.png',
-        badge: options.badge || '/logo.png',
-        tag: options.tag || '',
-        data: options.data || {},
-      });
-      await notifyOpenClientsOfPush();
-    })().catch((error) => {
-      console.error('[SW] showNotification failed:', error);
-    })
-  );
-});
-
-async function requestClientRouterNavigation(
-  client: NotificationWindowClient,
-  url: string,
-): Promise<boolean> {
-  const channel = new MessageChannel();
-
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (handled: boolean) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      channel.port1.close();
-      resolve(handled);
-    };
-    const timeout = setTimeout(() => finish(false), CLIENT_NAVIGATION_TIMEOUT_MS);
-
-    channel.port1.onmessage = (event) => {
-      const acknowledgement = event.data;
-      finish(
-        isNotificationNavigationAcknowledgement(acknowledgement)
-        && acknowledgement.success,
-      );
-    };
-
-    try {
-      (client as WindowClient).postMessage({
-        type: NOTIFICATION_NAVIGATION_REQUEST,
-        url,
-      }, [channel.port2]);
-    } catch {
-      finish(false);
-    }
-  });
-}
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  event.waitUntil((async () => {
-    const windowClients = await self.clients.matchAll({
-      type: 'window',
-      includeUncontrolled: true,
-    });
-
-    await navigateNotificationTarget(
-      windowClients,
-      (url) => self.clients.openWindow(url),
-      event.notification.data?.url,
-      self.location.origin,
-      requestClientRouterNavigation,
-    );
-  })());
-});
 </file>
 
 <file path="src/FE/README.md">
