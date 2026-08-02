@@ -1,106 +1,91 @@
-name: Playwright prod smoke
+name: Playwright critical flows
 
 on:
   workflow_dispatch:
+    inputs:
+      scenario:
+        description: Vælg et isoleret flow eller hele den risikobaserede suite
+        required: true
+        default: public-smoke
+        type: choice
+        options:
+          - public-smoke
+          - auth-session
+          - kls-lifecycle
+          - rejection-loop
+          - draft-recovery
+          - role-tenant-isolation
+          - invitation-onboarding
+          - assignment-lifecycle
+          - customer-lifecycle
+          - worksheet-integrity
+          - diverse-lifecycle
+          - all-critical
 
 permissions:
   contents: read
 
 concurrency:
-  group: playwright-prod-smoke
-  cancel-in-progress: true
+  group: playwright-critical-flows-${{ github.ref }}-${{ inputs.scenario }}
+  cancel-in-progress: false
 
 jobs:
   smoke:
-    name: Mobile prod smoke
+    name: Mobile critical flow (${{ matrix.scenario }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 35
+
+    container:
+      image: mcr.microsoft.com/playwright:v1.55.0-noble
+      options: --ipc=host
+
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        scenario: ${{ fromJSON(inputs.scenario == 'all-critical' && '["auth-session","kls-lifecycle","rejection-loop","draft-recovery","role-tenant-isolation","invitation-onboarding","assignment-lifecycle","customer-lifecycle","worksheet-integrity","diverse-lifecycle"]' || format('["{0}"]', inputs.scenario)) }}
 
     defaults:
       run:
         working-directory: src/FE
 
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      PROD_URL: https://app.mrsoftware.dk
+      SCENARIO: ${{ matrix.scenario }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: src/FE/package-lock.json
+      - name: Install lightweight Playwright runtime
+        run: >-
+          npm install
+          --prefix scripts
+          --no-save
+          --package-lock=false
+          --ignore-scripts
+          --no-audit
+          --no-fund
+          playwright@1.55.0
 
-      - name: Install Playwright temporarily
-        run: npm install --no-save --ignore-scripts playwright@1.55.0
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Visit production site
-        env:
-          PROD_URL: https://app.mrsoftware.dk
+      - name: Validate test sources
         run: |
-          mkdir -p ../../artifacts/playwright-prod-smoke
-          node --input-type=module <<'EOF'
-          import { chromium, devices } from 'playwright';
+          node --check scripts/playwright-prod-smoke.mjs
+          node --check scripts/playwright-critical-contract.mjs
+          node --check scripts/playwright-critical-domain.mjs
+          node --check scripts/playwright-scenarios-core.mjs
+          node --check scripts/playwright-scenarios-admin.mjs
+          node -e "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8'))"
 
-          const browser = await chromium.launch();
-          const context = await browser.newContext({
-            ...devices['iPhone 13'],
-          });
-          const page = await context.newPage();
-          const consoleErrors = [];
-
-          page.on('console', message => {
-            if (message.type() === 'error') {
-              consoleErrors.push(message.text());
-            }
-          });
-
-          try {
-            const response = await page.goto(process.env.PROD_URL, {
-              waitUntil: 'networkidle',
-              timeout: 45_000,
-            });
-
-            if (!response) {
-              throw new Error('Production navigation returned no HTTP response.');
-            }
-
-            if (!response.ok()) {
-              throw new Error(`Production returned HTTP ${response.status()}.`);
-            }
-
-            await page.screenshot({
-              path: '../../artifacts/playwright-prod-smoke/mobile-home.png',
-              fullPage: true,
-            });
-
-            const report = {
-              url: page.url(),
-              status: response.status(),
-              title: await page.title(),
-              viewport: devices['iPhone 13'].viewport,
-              consoleErrors,
-            };
-
-            await import('node:fs/promises').then(fs =>
-              fs.writeFile(
-                '../../artifacts/playwright-prod-smoke/report.json',
-                JSON.stringify(report, null, 2),
-              ),
-            );
-          } finally {
-            await browser.close();
-          }
-          EOF
+      - name: Run Playwright scenario
+        run: node scripts/playwright-prod-smoke.mjs
 
       - name: Upload Playwright evidence
-        if: always()
+        if: ${{ always() && env.ACT != 'true' && github.actor != 'nektos/act' }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-prod-smoke
+          name: playwright-critical-flows-${{ matrix.scenario }}
           path: artifacts/playwright-prod-smoke
           if-no-files-found: warn
           retention-days: 7
