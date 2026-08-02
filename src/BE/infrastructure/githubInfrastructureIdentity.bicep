@@ -17,7 +17,7 @@ var appConfigurationName = take('appcs-${companyName}-${normalizedEnvironment}',
 var roleDefinitionIds = {
   contributor: 'b24988ac-6180-42a0-ab88-20f7382dd24c'
   roleBasedAccessControlAdministrator: 'f58310d9-a9f6-439a-9e8d-f62e7b41a168'
-  keyVaultAdministrator: '00482a5a-887f-4fb3-b363-3b7fe8e74483'
+  keyVaultSecretsOfficer: 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
   appConfigurationDataOwner: '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
 }
 
@@ -69,13 +69,13 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
   name: keyVaultName
 }
 
-resource keyVaultAdministrator 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, infrastructureIdentity.id, roleDefinitionIds.keyVaultAdministrator)
+resource keyVaultSecretsOfficer 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, infrastructureIdentity.id, roleDefinitionIds.keyVaultSecretsOfficer)
   scope: keyVault
   properties: {
     principalId: infrastructureIdentity.properties.principalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitionIds.keyVaultAdministrator)
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitionIds.keyVaultSecretsOfficer)
   }
 }
 
