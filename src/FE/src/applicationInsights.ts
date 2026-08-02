@@ -6,6 +6,32 @@ import type {
   ITelemetryItem,
 } from '@microsoft/applicationinsights-web';
 
+type EarlyErrorEntry =
+  | {
+    kind: 'error';
+    message?: unknown;
+    filename?: unknown;
+    lineno?: unknown;
+    colno?: unknown;
+    error?: unknown;
+  }
+  | {
+    kind: 'rejection';
+    reason?: unknown;
+  };
+
+interface EarlyErrorBuffer {
+  entries: EarlyErrorEntry[];
+  onError: EventListener;
+  onRejection: EventListener;
+}
+
+declare global {
+  interface Window {
+    __WORKSLIP_EARLY_ERROR_BUFFER__?: EarlyErrorBuffer;
+  }
+}
+
 const connectionString = import.meta.env.VITE_APPLICATIONINSIGHTS_CONNECTION_STRING;
 const release = import.meta.env.VITE_APP_RELEASE?.trim() || __BUILD_TIME__;
 
@@ -23,18 +49,18 @@ const heartbeatIntervalMs = 5 * 60_000;
 const maxPendingErrors = 20;
 const initializationRetryDelaysMs = [30_000, 120_000] as const;
 
-const sensitiveValuePattern = /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*["']?)[^"',}\s]+(["']?)/gi;
+const sensitiveValuePattern = /((["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*["']?)[^"',}\s]+(["']?)/gi;
 const sensitiveKeyPattern = /^(authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key|request|requestdata|response|payload|body|headers)$/i;
 const credentialPattern = /(authorization\s*[:=]\s*["']?(?:bearer|basic)\s+)[^"',}\s]+/gi;
 const bearerPattern = /bearer\s+[a-z0-9._~+/=-]+/gi;
 const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const phonePattern = /(?:\+?\d[\d\s().-]{7,}\d)/g;
-const quotedSensitiveValuePattern = /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*)(["'])(.*?)\2/gi;
+const quotedSensitiveValuePattern = /((["']?(?:authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|password|secret|api[_-]?key)["']?)\s*[:=]\s*)(["'])(.*?)\3/gi;
 
 function sanitizeText(value: string): string {
   return value
-    .replace(quotedSensitiveValuePattern, '$1$2[REDACTED]$2')
-    .replace(sensitiveValuePattern, '$1[REDACTED]$2')
+    .replace(quotedSensitiveValuePattern, '$1$3[REDACTED]$3')
+    .replace(sensitiveValuePattern, '$1[REDACTED]$3')
     .replace(credentialPattern, '$1[REDACTED]')
     .replace(bearerPattern, 'Bearer [REDACTED]')
     .replace(/([?&](?:access[_-]?token|refresh[_-]?token|id[_-]?token|authorization|api[_-]?key)=)[^&#\s]+/gi, '$1[REDACTED]')
@@ -44,7 +70,7 @@ function sanitizeText(value: string): string {
 }
 
 function sanitizeEndpoint(value: string): string {
-  return sanitizeText(value.split('?')[0])
+  return sanitizeText(value.split(/[?#]/, 1)[0])
     .replace(/\/[0-9a-f]{8}-[0-9a-f-]{27}/gi, '/:id')
     .replace(/\/\d+(?=\/|$)/g, '/:id');
 }
@@ -203,6 +229,7 @@ function startTelemetryHeartbeat(): void {
   if (heartbeatIntervalId !== null) return;
 
   heartbeatIntervalId = window.setInterval(sendTelemetryHeartbeat, heartbeatIntervalMs);
+  document.addEventListener('visibilitychange', sendTelemetryHeartbeat);
 }
 
 function flushPendingErrors(nextClient: ApplicationInsightsClient): void {
@@ -217,6 +244,39 @@ function scheduleInitializationRetry(): void {
   window.setTimeout(() => {
     void initializeApplicationInsights();
   }, delay);
+}
+
+function drainEarlyErrorBuffer(): void {
+  const buffer = window.__WORKSLIP_EARLY_ERROR_BUFFER__;
+  if (!buffer) return;
+
+  window.removeEventListener('error', buffer.onError, true);
+  window.removeEventListener('unhandledrejection', buffer.onRejection);
+  delete window.__WORKSLIP_EARLY_ERROR_BUFFER__;
+
+  buffer.entries.forEach((entry) => {
+    if (entry.kind === 'rejection') {
+      reportFrontendError(entry.reason, 'bootstrap.window.unhandledrejection');
+      return;
+    }
+
+    const filename = typeof entry.filename === 'string'
+      ? sanitizeEndpoint(entry.filename)
+      : '';
+    const line = typeof entry.lineno === 'number' ? entry.lineno : 0;
+    const column = typeof entry.colno === 'number' ? entry.colno : 0;
+    const location = filename ? `${filename}:${line}:${column}` : '';
+    const message = typeof entry.message === 'string' && entry.message.trim()
+      ? entry.message
+      : 'Early resource error';
+    const fallback = new Error(`${message}${location ? ` (${location})` : ''}`);
+
+    reportFrontendError(
+      entry.error ?? fallback,
+      'bootstrap.window.error',
+      location ? { location } : {},
+    );
+  });
 }
 
 export function initializeApplicationInsights(): Promise<void> {
@@ -299,10 +359,19 @@ export function reportFrontendError(error: unknown, source: string, details: Rec
 export function installGlobalApplicationInsightsHandlers(): void {
   if (globalHandlersInstalled) return;
   globalHandlersInstalled = true;
+  drainEarlyErrorBuffer();
 
   window.addEventListener('error', (event) => {
-    const location = event.filename ? ` (${event.filename}:${event.lineno}:${event.colno})` : '';
-    reportFrontendError(event.error ?? new Error(`${event.message || 'Resource load error'}${location}`), 'window.error');
+    const filename = event.filename ? sanitizeEndpoint(event.filename) : '';
+    const location = filename ? `${filename}:${event.lineno}:${event.colno}` : '';
+    const fallback = new Error(
+      `${event.message || 'Resource load error'}${location ? ` (${location})` : ''}`,
+    );
+    reportFrontendError(
+      event.error ?? fallback,
+      'window.error',
+      location ? { location } : {},
+    );
   }, true);
 
   window.addEventListener('unhandledrejection', (event) => {
