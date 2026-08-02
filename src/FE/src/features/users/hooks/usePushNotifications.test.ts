@@ -8,13 +8,14 @@ vi.mock('../api/pushSubscriptions', () => ({
 }));
 
 const applicationServerKey = new Uint8Array([1, 2, 3]);
+const applicationServerKeyBuffer = applicationServerKey.buffer as ArrayBuffer;
 
 function createSubscription(overrides: Partial<PushSubscription> = {}) {
   return {
     endpoint: 'https://push.example/current',
     expirationTime: null,
     options: {
-      applicationServerKey,
+      applicationServerKey: applicationServerKeyBuffer,
       userVisibleOnly: true,
     },
     unsubscribe: vi.fn().mockResolvedValue(true),
@@ -129,7 +130,7 @@ describe('push subscription registration', () => {
     const stale = createSubscription({
       endpoint: 'https://push.example/stale',
       options: {
-        applicationServerKey: new Uint8Array([9, 9, 9]),
+        applicationServerKey: new Uint8Array([9, 9, 9]).buffer as ArrayBuffer,
         userVisibleOnly: true,
       },
     });
@@ -157,7 +158,7 @@ describe('push subscription registration', () => {
   it('fails when a stale subscription cannot be removed', async () => {
     const stale = createSubscription({
       options: {
-        applicationServerKey: new Uint8Array([9]),
+        applicationServerKey: new Uint8Array([9]).buffer as ArrayBuffer,
         userVisibleOnly: true,
       },
       unsubscribe: vi.fn().mockResolvedValue(false),
@@ -187,7 +188,7 @@ describe('push subscription registration', () => {
 
   it('compares ArrayBuffer and typed-array VAPID keys by bytes', () => {
     expect(pushSubscriptionInternals.keysMatch(
-      applicationServerKey.buffer,
+      applicationServerKeyBuffer,
       applicationServerKey,
     )).toBe(true);
     expect(pushSubscriptionInternals.keysMatch(
