@@ -10089,6 +10089,89 @@ ORDER BY
     jricp.SortOrder;
 </file>
 
+<file path="src/BE/infrastructure/AGENTS.md">
+# Workslip infrastructure instructions
+
+Read the root `AGENTS.md`, `Docs/agents/OPERATING_CONTRACT.md`, and `Docs/agents/VALIDATION.md` before changing infrastructure.
+
+## Scope
+
+These rules apply to `src/BE/infrastructure/`, deployment scripts, Bicep, Entra registrations, Key Vault integration, Azure SQL provisioning, App Service configuration, and related CI/CD wiring.
+
+## Boundaries and source of truth
+
+- Keep infrastructure provisioning separate from application runtime behavior.
+- Keep Entra application registration deployment separate from ordinary Azure resource deployment where the established architecture requires it.
+- Declare each permission, role assignment, secret owner, and configuration key in one authoritative place.
+- Do not add competing deployment scripts or duplicate permission sets.
+- Preserve stable resource naming unless a migration plan explicitly requires a rename.
+- Do not store generated credentials, passwords, client secrets, signing keys, connection strings, or private keys in source control or logs.
+
+## Safe change process
+
+Before editing:
+
+- inspect the current resource graph and deployment scripts;
+- identify whether the change recreates or mutates an existing production resource;
+- identify stateful resources and irreversible effects;
+- inspect GitHub environment/OIDC assumptions;
+- inspect Key Vault references and managed identities;
+- identify rollback and recovery behavior.
+
+Do not perform a live deployment, migration, resource deletion, role removal, DNS change, or secret rotation unless deployment is explicitly in scope and approved.
+
+## Azure and identity review
+
+Review as applicable:
+
+- least-privilege RBAC and Microsoft Graph permissions;
+- user-assigned versus system-assigned managed identity ownership;
+- OIDC subject and environment matching;
+- Key Vault access and secret lifecycle;
+- SQL administrator and runtime identity separation;
+- idempotent role/group membership provisioning;
+- duplicate app registrations and enterprise applications;
+- redirect URIs, origins, and environment-specific domains;
+- production versus development configuration isolation;
+- sensitive output masking.
+
+Application runtime must not depend on deployment-only administrator credentials.
+
+## Scripts
+
+PowerShell and shell scripts must:
+
+- fail on non-zero external command exit codes;
+- clean temporary files in `finally` blocks;
+- avoid ambiguous CLI flags;
+- avoid self-modifying workflow behavior;
+- be rerunnable without duplicating memberships, role assignments, or resources;
+- never print secret values;
+- provide actionable errors that identify the failed resource or operation.
+
+## CI/CD
+
+- Keep workflows minimal and purpose-specific.
+- Do not duplicate validation already performed reliably elsewhere.
+- Do not remove a check without understanding the risk it covers.
+- Use GitHub OIDC rather than publish profiles or stored Azure credentials.
+- Keep deployment and validation workflows separate when that improves diagnosis.
+- Do not let unrelated workflow noise block small cohesive PRs.
+
+## Required validation
+
+For infrastructure changes, run as applicable:
+
+- Bicep build/lint;
+- PowerShell or shell syntax validation;
+- Azure `what-if` or equivalent plan output;
+- focused script tests or dry runs;
+- workflow syntax validation;
+- post-deployment health and authentication smoke tests when deployment is explicitly in scope.
+
+A successful template build does not prove a deployment will succeed. A successful deployment does not prove login, SQL access, secrets, DNS, or application behavior work; verify the affected runtime path separately.
+</file>
+
 <file path="src/BE/infrastructure/bicepconfig.json">
 {
   "extensions": {
@@ -24695,6 +24778,137 @@ public sealed class GlobalExceptionMiddlewareTests
 }
 </file>
 
+<file path="src/BE/WorkslipApi/AGENTS.md">
+# Workslip backend/API instructions
+
+Read the root `AGENTS.md`, `Docs/agents/OPERATING_CONTRACT.md`, and `Docs/agents/VALIDATION.md` before changing backend code.
+
+## Scope
+
+These rules apply to `src/BE/WorkslipApi/`, including API host, application, domain, infrastructure, persistence, and backend tests.
+
+## Layer boundaries
+
+- Keep endpoints thin.
+- Put business rules and workflow decisions in the application or domain layer.
+- Keep EF Core, SQL, Graph, email, storage, and other integration details in infrastructure.
+- Do not expose persistence models directly as API contracts.
+- Do not introduce wrappers or abstractions without a concrete current need.
+- Reuse established repositories, services, validators, and result mapping.
+
+## Ardalis.Result contract
+
+Application services return `Result<T>` or `Result`.
+
+- Never create custom result wrappers.
+- Map endpoint results with `ResultExtensions.ToHttpResult`.
+- Do not duplicate result-to-HTTP mapping inside endpoints.
+- Use endpoint-owned mappers only for presentation concerns such as view models or JWT responses.
+- Keep success responses consistent with the existing `200 OK` convention.
+- Do not add redundant response-cache calls when global middleware already enforces the behavior.
+
+Example:
+
+```csharp
+var result = await service.UpdateAsync(id, request, cancellationToken);
+return ResultExtensions.ToHttpResult(result, ViewModelBuilder.ToViewModel);
+```
+
+## Authorization and tenant isolation
+
+For every affected operation, verify:
+
+- the endpoint policy is correct;
+- authorization is enforced server-side;
+- entity identifiers cannot escape the authenticated organization;
+- repository filters and joins retain tenant boundaries;
+- Superadmin behavior is explicit and narrowly scoped;
+- role changes and revocation take effect correctly;
+- logs do not expose tokens, personal data, or sensitive integration payloads.
+
+Do not implement tenant selection through untrusted client headers or frontend state. Do not add repository-wide Superadmin bypasses.
+
+## EF Core and database behavior
+
+Review:
+
+- query translation and tracking behavior;
+- bounded results, pagination, indexes, and N+1 risks;
+- transaction boundaries and rollback;
+- SQL Server retry execution strategies around explicit transactions;
+- optimistic concurrency and lost updates;
+- idempotency and replay;
+- deletion behavior and orphaned records;
+- existing production data before adding constraints;
+- cancellation propagation and command timeouts;
+- startup schema behavior and concurrent API starts.
+
+Use a relational database test for behavior that depends on SQL translation, constraints, transactions, or concurrency. The EF Core in-memory provider is not sufficient evidence for those concerns.
+
+## External integrations and partial failure
+
+For Microsoft Graph, Entra, email, storage, or other integrations, define behavior when:
+
+- the external call succeeds and SQL persistence fails;
+- SQL succeeds and the external call fails;
+- compensation fails;
+- the request is retried;
+- the external system times out or returns a transient error;
+- two requests perform the same provisioning concurrently.
+
+Use compensation, retries, idempotency, and transactions only where justified by the actual failure boundary. Log identifiers needed for support without logging secrets.
+
+## Background services
+
+Review hosted-service changes for:
+
+- unhandled exceptions that stop the API host;
+- cancellation and graceful shutdown;
+- retry and backoff behavior;
+- duplicate work after restart;
+- transaction and execution-strategy compatibility;
+- poison work items and partial processing;
+- sensitive-data logging.
+
+Do not configure the host to ignore failing background services merely to hide an unhandled exception. Correct the failure and define restart behavior.
+
+## API contracts and generated artifacts
+
+- Endpoint source and runtime OpenAPI are the contract source.
+- Update maintained API documentation with endpoint, auth, or response changes.
+- Do not hand-edit generated clients or generated documentation.
+- Regenerate the frontend client and Postman material through the established process.
+- Preserve backward compatibility unless the product owner explicitly accepts a break.
+
+## Backend tests
+
+Add focused regression tests for meaningful risk:
+
+- business rules and branching workflows;
+- authorization and tenant isolation;
+- transactions, rollback, retries, and idempotency;
+- concurrency and state transitions;
+- relational constraints and SQL behavior;
+- integration boundaries;
+- hosted-service lifecycle and failure handling;
+- verified bugs and critical edge cases.
+
+Do not add tests for trivial mappings, getters, framework behavior, or CRUD pass-through solely to increase coverage.
+
+## Required validation
+
+At minimum for backend runtime changes:
+
+- restore dependencies;
+- compile the solution in Release mode;
+- run focused backend tests;
+- run relational tests when database behavior is affected;
+- exercise changed HTTP endpoints when API behavior or authorization is affected;
+- verify OpenAPI/client/Postman consistency when contracts change.
+
+When the feature also changes frontend behavior, the frontend Playwright requirement applies in addition to backend validation.
+</file>
+
 <file path="src/BE/WorkslipApi/appsettings.json">
 {
   "Logging": {
@@ -37617,6 +37831,94 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+</file>
+
+<file path="src/FE/AGENTS.md">
+# Workslip frontend instructions
+
+Read the root `AGENTS.md`, `Docs/agents/OPERATING_CONTRACT.md`, and `Docs/agents/VALIDATION.md` before changing frontend code.
+
+## Scope
+
+These rules apply to `src/FE/`.
+
+## Architecture and implementation
+
+- Reuse established feature folders, shared components, query helpers, and generated/shared API clients.
+- Do not bypass the established API client with ad hoc `fetch` or a separate Axios instance.
+- Keep server state in React Query. Do not duplicate it into local state unless editing requires an explicit draft.
+- Avoid unnecessary effects, derived-state synchronization, and provider expansion.
+- Split oversized components when the split creates a real responsibility boundary.
+- Lazy-load genuinely rare routes or features when it improves initial application behavior without making navigation noticeably worse.
+- Keep authorization decisions on the backend. Frontend guards are presentation and navigation controls only.
+- Tenant-, user-, and session-sensitive query keys must include the context required to prevent cache leakage.
+- Clear or invalidate relevant state when authentication or organization context changes.
+
+## Shared form and UI components
+
+Use components under `src/FE/src/components/forms/` and other existing shared UI before creating new controls.
+
+Never use raw `<input type="number" />`. Use `NumericInput` because mobile browsers can strip Danish decimal commas from native number inputs.
+
+```tsx
+import { NumericInput } from './components/forms/NumericInput';
+
+<NumericInput
+  kind="decimal"
+  min={0}
+  value={value}
+  onChange={setValue}
+/>
+```
+
+Follow existing normalization helpers such as the `parseHours` pattern when converting display values.
+
+Preserve:
+
+- labels, accessible names, focus order, keyboard operation, and visible focus;
+- mobile and narrow-screen behavior;
+- loading, disabled, empty, success, error, and recovery states;
+- duplicate-submit protection;
+- browser-back and route restoration behavior;
+- stale-token and reauthentication handling;
+- safe-area behavior for installed PWA usage.
+
+## API and generated artifacts
+
+- Treat endpoint source and OpenAPI as the contract source.
+- Do not hand-edit generated API clients or generated models.
+- Regenerate clients through the established process after contract changes.
+- Keep mutations idempotent where the backend contract supports it.
+- Surface actionable errors without exposing sensitive backend details.
+
+## Performance review
+
+Review frontend changes for:
+
+- unnecessary bundle growth;
+- eager imports of rare functionality;
+- duplicate requests;
+- unstable query keys;
+- avoidable rerenders and effects;
+- large lists without virtualization or bounded pagination where scale requires it;
+- service-worker or caching changes that can serve stale authentication or tenant data.
+
+Do not optimize solely for Lighthouse. Preserve actual interaction speed after login and on primary routes.
+
+## Required validation
+
+Any user-visible frontend change requires Playwright against a running application. This includes visual changes, inputs, dialogs, buttons, routing, authentication, session handling, notifications, responsive behavior, and error recovery.
+
+At minimum run:
+
+- frontend lint for the affected code;
+- TypeScript checking;
+- production frontend build;
+- the relevant Playwright flow from `Docs/agents/VALIDATION.md`.
+
+For mobile-sensitive controls, include a narrow mobile viewport. For authentication, routing, or session changes, verify redirects, browser back, reload, console errors, and network failures.
+
+A user-visible frontend PR without successful Playwright validation is **implemented but Playwright-unvalidated** and should remain draft or explicitly blocked.
 </file>
 
 <file path="src/FE/eslint.config.js">
@@ -91393,87 +91695,80 @@ The action column must be structurally reserved rather than rescued with hard-co
   [`deferred-work.md:21`](deferred-work.md#L21)
 </file>
 
-<file path="src/BE/infrastructure/AGENTS.md">
-# Workslip infrastructure instructions
+<file path="Docs/AGENTS.md">
+# Workslip documentation instructions
 
-Read the root `AGENTS.md`, `Docs/agents/OPERATING_CONTRACT.md`, and `Docs/agents/VALIDATION.md` before changing infrastructure.
+Read the root `AGENTS.md`, `Docs/agents/OPERATING_CONTRACT.md`, `Docs/agents/VALIDATION.md`, and `Docs/compliance/GDPR_AI_ACT_BASELINE.md` before changing maintained documentation.
 
 ## Scope
 
-These rules apply to `src/BE/infrastructure/`, deployment scripts, Bicep, Entra registrations, Key Vault integration, Azure SQL provisioning, App Service configuration, and related CI/CD wiring.
+These rules apply to maintained files under `Docs/`.
 
-## Boundaries and source of truth
+## Documentation truth
 
-- Keep infrastructure provisioning separate from application runtime behavior.
-- Keep Entra application registration deployment separate from ordinary Azure resource deployment where the established architecture requires it.
-- Declare each permission, role assignment, secret owner, and configuration key in one authoritative place.
-- Do not add competing deployment scripts or duplicate permission sets.
-- Preserve stable resource naming unless a migration plan explicitly requires a rename.
-- Do not store generated credentials, passwords, client secrets, signing keys, connection strings, or private keys in source control or logs.
+- Current implementation, executable tests, runtime configuration, active ADRs, verified deployment behavior, applicable law, signed contracts, and approved compliance records take precedence over historical plans.
+- Never describe proposed, experimental, inferred, unexecuted, or legally unverified behavior as implemented or compliant.
+- Mark historical, draft, planned, deprecated, needs-verification, and legally pending material clearly.
+- Prefer updating an existing maintained document over creating a competing document.
+- Each maintained document should state status, owner, source of truth, and review cadence where practical.
+- Separate verified technical facts, legal requirements, assumptions, open decisions, and recommendations.
+- Do not claim that a control satisfies GDPR or the EU AI Act merely because it appears secure or privacy-friendly; identify the required evidence and accountable approval.
 
-## Safe change process
+## Required updates
 
-Before editing:
+Changes to these areas must update relevant maintained documentation in the same PR or include an explicit waiver with owner and expiry:
 
-- inspect the current resource graph and deployment scripts;
-- identify whether the change recreates or mutates an existing production resource;
-- identify stateful resources and irreversible effects;
-- inspect GitHub environment/OIDC assumptions;
-- inspect Key Vault references and managed identities;
-- identify rollback and recovery behavior.
+- API contracts and authentication;
+- tenant boundaries and dataflows;
+- database/schema behavior;
+- infrastructure and deployment;
+- external integrations;
+- release workflows;
+- critical user flows;
+- significant architecture decisions;
+- personal-data collection, purpose, legal-role classification, lawful-basis ownership, access, retention, deletion, export, telemetry, caching, backup, processors, subprocessors, or international transfers;
+- data-subject rights, privacy notices, breach response, DPIA screening, records of processing, or security controls affecting personal data;
+- AI-system inventory, procurement, provider/model changes, role and risk classification, prohibited-practice screening, transparency, human oversight, data governance, AI literacy, monitoring, or AI incidents.
 
-Do not perform a live deployment, migration, resource deletion, role removal, DNS change, or secret rotation unless deployment is explicitly in scope and approved.
+Record significant architecture decisions as ADRs. Record issue-specific implementation details in Linear or the PR rather than creating permanent architecture documentation for temporary details.
 
-## Azure and identity review
+The active compliance baseline is `Docs/compliance/GDPR_AI_ACT_BASELINE.md`. Processing registers, retention schedules, vendor registers, DPIAs, transfer assessments, AI inventories, and training records may be stored outside the public repository when they contain confidential or personal data, but the repository must link to the approved system of record and document ownership and review cadence without exposing restricted content.
 
-Review as applicable:
+## Legal and regulatory sources
 
-- least-privilege RBAC and Microsoft Graph permissions;
-- user-assigned versus system-assigned managed identity ownership;
-- OIDC subject and environment matching;
-- Key Vault access and secret lifecycle;
-- SQL administrator and runtime identity separation;
-- idempotent role/group membership provisioning;
-- duplicate app registrations and enterprise applications;
-- redirect URIs, origins, and environment-specific domains;
-- production versus development configuration isolation;
-- sensitive output masking.
+- Use current official legal texts and regulator guidance as primary sources.
+- Record the source, version/date, jurisdiction, and review date for legal requirements that affect implementation.
+- Re-check time-sensitive obligations before release, especially AI Act application dates, Commission guidance, standards, and national implementation.
+- Do not rely on blog posts, vendor marketing, search snippets, or AI-generated summaries as the sole authority for legal requirements.
+- Escalate legal interpretation, controller/processor role decisions, lawful basis, DPIA outcomes, transfer assessments, and compliance claims to the accountable owner or qualified counsel.
 
-Application runtime must not depend on deployment-only administrator credentials.
+## Generated material
 
-## Scripts
+Do not hand-edit generated documentation, OpenAPI clients, or generated Postman material. Update the source and run the established generator.
 
-PowerShell and shell scripts must:
+If generation cannot run, document the artifact as stale and list the exact regeneration command. Do not claim consistency.
 
-- fail on non-zero external command exit codes;
-- clean temporary files in `finally` blocks;
-- avoid ambiguous CLI flags;
-- avoid self-modifying workflow behavior;
-- be rerunnable without duplicating memberships, role assignments, or resources;
-- never print secret values;
-- provide actionable errors that identify the failed resource or operation.
+## Links and duplication
 
-## CI/CD
+- Use repository-relative links for repository files.
+- Remove or consolidate duplicated active guidance.
+- Do not let historical plans override active documentation.
+- Link ADRs and Linear issues where they explain a non-obvious decision.
+- Do not embed secrets, private URLs, personal data, production identifiers, restricted contracts, incident details, rights-request content, or environment credentials.
+- Link to restricted compliance records by safe identifier and owner rather than copying sensitive evidence into the public repository.
 
-- Keep workflows minimal and purpose-specific.
-- Do not duplicate validation already performed reliably elsewhere.
-- Do not remove a check without understanding the risk it covers.
-- Use GitHub OIDC rather than publish profiles or stored Azure credentials.
-- Keep deployment and validation workflows separate when that improves diagnosis.
-- Do not let unrelated workflow noise block small cohesive PRs.
+## Validation
 
-## Required validation
+For documentation-only changes:
 
-For infrastructure changes, run as applicable:
+- statically review links, paths, headings, scope, and source dates;
+- run the repository documentation checks when a local checkout is available;
+- verify referenced files exist;
+- review the diff for accidental replacement of current truth with planned behavior;
+- verify legal claims against current official sources and mark legal approval status;
+- verify that examples and screenshots contain no personal, confidential, tenant, credential, or production data.
 
-- Bicep build/lint;
-- PowerShell or shell syntax validation;
-- Azure `what-if` or equivalent plan output;
-- focused script tests or dry runs;
-- workflow syntax validation;
-- post-deployment health and authentication smoke tests when deployment is explicitly in scope.
-
-A successful template build does not prove a deployment will succeed. A successful deployment does not prove login, SQL access, secrets, DNS, or application behavior work; verify the affected runtime path separately.
+Documentation about testing must match `Docs/agents/VALIDATION.md`. Documentation about implementation workflow must match `Docs/agents/OPERATING_CONTRACT.md`. Documentation about personal data or AI systems must match `Docs/compliance/GDPR_AI_ACT_BASELINE.md`.
 </file>
 
 <file path="src/BE/infrastructure/deploy.ps1">
@@ -108306,137 +108601,6 @@ public sealed class OrganizationSessionServiceTests
 </Project>
 </file>
 
-<file path="src/BE/WorkslipApi/AGENTS.md">
-# Workslip backend/API instructions
-
-Read the root `AGENTS.md`, `Docs/agents/OPERATING_CONTRACT.md`, and `Docs/agents/VALIDATION.md` before changing backend code.
-
-## Scope
-
-These rules apply to `src/BE/WorkslipApi/`, including API host, application, domain, infrastructure, persistence, and backend tests.
-
-## Layer boundaries
-
-- Keep endpoints thin.
-- Put business rules and workflow decisions in the application or domain layer.
-- Keep EF Core, SQL, Graph, email, storage, and other integration details in infrastructure.
-- Do not expose persistence models directly as API contracts.
-- Do not introduce wrappers or abstractions without a concrete current need.
-- Reuse established repositories, services, validators, and result mapping.
-
-## Ardalis.Result contract
-
-Application services return `Result<T>` or `Result`.
-
-- Never create custom result wrappers.
-- Map endpoint results with `ResultExtensions.ToHttpResult`.
-- Do not duplicate result-to-HTTP mapping inside endpoints.
-- Use endpoint-owned mappers only for presentation concerns such as view models or JWT responses.
-- Keep success responses consistent with the existing `200 OK` convention.
-- Do not add redundant response-cache calls when global middleware already enforces the behavior.
-
-Example:
-
-```csharp
-var result = await service.UpdateAsync(id, request, cancellationToken);
-return ResultExtensions.ToHttpResult(result, ViewModelBuilder.ToViewModel);
-```
-
-## Authorization and tenant isolation
-
-For every affected operation, verify:
-
-- the endpoint policy is correct;
-- authorization is enforced server-side;
-- entity identifiers cannot escape the authenticated organization;
-- repository filters and joins retain tenant boundaries;
-- Superadmin behavior is explicit and narrowly scoped;
-- role changes and revocation take effect correctly;
-- logs do not expose tokens, personal data, or sensitive integration payloads.
-
-Do not implement tenant selection through untrusted client headers or frontend state. Do not add repository-wide Superadmin bypasses.
-
-## EF Core and database behavior
-
-Review:
-
-- query translation and tracking behavior;
-- bounded results, pagination, indexes, and N+1 risks;
-- transaction boundaries and rollback;
-- SQL Server retry execution strategies around explicit transactions;
-- optimistic concurrency and lost updates;
-- idempotency and replay;
-- deletion behavior and orphaned records;
-- existing production data before adding constraints;
-- cancellation propagation and command timeouts;
-- startup schema behavior and concurrent API starts.
-
-Use a relational database test for behavior that depends on SQL translation, constraints, transactions, or concurrency. The EF Core in-memory provider is not sufficient evidence for those concerns.
-
-## External integrations and partial failure
-
-For Microsoft Graph, Entra, email, storage, or other integrations, define behavior when:
-
-- the external call succeeds and SQL persistence fails;
-- SQL succeeds and the external call fails;
-- compensation fails;
-- the request is retried;
-- the external system times out or returns a transient error;
-- two requests perform the same provisioning concurrently.
-
-Use compensation, retries, idempotency, and transactions only where justified by the actual failure boundary. Log identifiers needed for support without logging secrets.
-
-## Background services
-
-Review hosted-service changes for:
-
-- unhandled exceptions that stop the API host;
-- cancellation and graceful shutdown;
-- retry and backoff behavior;
-- duplicate work after restart;
-- transaction and execution-strategy compatibility;
-- poison work items and partial processing;
-- sensitive-data logging.
-
-Do not configure the host to ignore failing background services merely to hide an unhandled exception. Correct the failure and define restart behavior.
-
-## API contracts and generated artifacts
-
-- Endpoint source and runtime OpenAPI are the contract source.
-- Update maintained API documentation with endpoint, auth, or response changes.
-- Do not hand-edit generated clients or generated documentation.
-- Regenerate the frontend client and Postman material through the established process.
-- Preserve backward compatibility unless the product owner explicitly accepts a break.
-
-## Backend tests
-
-Add focused regression tests for meaningful risk:
-
-- business rules and branching workflows;
-- authorization and tenant isolation;
-- transactions, rollback, retries, and idempotency;
-- concurrency and state transitions;
-- relational constraints and SQL behavior;
-- integration boundaries;
-- hosted-service lifecycle and failure handling;
-- verified bugs and critical edge cases.
-
-Do not add tests for trivial mappings, getters, framework behavior, or CRUD pass-through solely to increase coverage.
-
-## Required validation
-
-At minimum for backend runtime changes:
-
-- restore dependencies;
-- compile the solution in Release mode;
-- run focused backend tests;
-- run relational tests when database behavior is affected;
-- exercise changed HTTP endpoints when API behavior or authorization is affected;
-- verify OpenAPI/client/Postman consistency when contracts change.
-
-When the feature also changes frontend behavior, the frontend Playwright requirement applies in addition to backend validation.
-</file>
-
 <file path="src/BE/WorkslipApi/Program.cs">
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -117211,94 +117375,6 @@ export function installGlobalApplicationInsightsHandlers(): void {
 }
 </file>
 
-<file path="src/FE/AGENTS.md">
-# Workslip frontend instructions
-
-Read the root `AGENTS.md`, `Docs/agents/OPERATING_CONTRACT.md`, and `Docs/agents/VALIDATION.md` before changing frontend code.
-
-## Scope
-
-These rules apply to `src/FE/`.
-
-## Architecture and implementation
-
-- Reuse established feature folders, shared components, query helpers, and generated/shared API clients.
-- Do not bypass the established API client with ad hoc `fetch` or a separate Axios instance.
-- Keep server state in React Query. Do not duplicate it into local state unless editing requires an explicit draft.
-- Avoid unnecessary effects, derived-state synchronization, and provider expansion.
-- Split oversized components when the split creates a real responsibility boundary.
-- Lazy-load genuinely rare routes or features when it improves initial application behavior without making navigation noticeably worse.
-- Keep authorization decisions on the backend. Frontend guards are presentation and navigation controls only.
-- Tenant-, user-, and session-sensitive query keys must include the context required to prevent cache leakage.
-- Clear or invalidate relevant state when authentication or organization context changes.
-
-## Shared form and UI components
-
-Use components under `src/FE/src/components/forms/` and other existing shared UI before creating new controls.
-
-Never use raw `<input type="number" />`. Use `NumericInput` because mobile browsers can strip Danish decimal commas from native number inputs.
-
-```tsx
-import { NumericInput } from './components/forms/NumericInput';
-
-<NumericInput
-  kind="decimal"
-  min={0}
-  value={value}
-  onChange={setValue}
-/>
-```
-
-Follow existing normalization helpers such as the `parseHours` pattern when converting display values.
-
-Preserve:
-
-- labels, accessible names, focus order, keyboard operation, and visible focus;
-- mobile and narrow-screen behavior;
-- loading, disabled, empty, success, error, and recovery states;
-- duplicate-submit protection;
-- browser-back and route restoration behavior;
-- stale-token and reauthentication handling;
-- safe-area behavior for installed PWA usage.
-
-## API and generated artifacts
-
-- Treat endpoint source and OpenAPI as the contract source.
-- Do not hand-edit generated API clients or generated models.
-- Regenerate clients through the established process after contract changes.
-- Keep mutations idempotent where the backend contract supports it.
-- Surface actionable errors without exposing sensitive backend details.
-
-## Performance review
-
-Review frontend changes for:
-
-- unnecessary bundle growth;
-- eager imports of rare functionality;
-- duplicate requests;
-- unstable query keys;
-- avoidable rerenders and effects;
-- large lists without virtualization or bounded pagination where scale requires it;
-- service-worker or caching changes that can serve stale authentication or tenant data.
-
-Do not optimize solely for Lighthouse. Preserve actual interaction speed after login and on primary routes.
-
-## Required validation
-
-Any user-visible frontend change requires Playwright against a running application. This includes visual changes, inputs, dialogs, buttons, routing, authentication, session handling, notifications, responsive behavior, and error recovery.
-
-At minimum run:
-
-- frontend lint for the affected code;
-- TypeScript checking;
-- production frontend build;
-- the relevant Playwright flow from `Docs/agents/VALIDATION.md`.
-
-For mobile-sensitive controls, include a narrow mobile viewport. For authentication, routing, or session changes, verify redirects, browser back, reload, console errors, and network failures.
-
-A user-visible frontend PR without successful Playwright validation is **implemented but Playwright-unvalidated** and should remain draft or explicitly blocked.
-</file>
-
 <file path="src/FE/index.html">
 <!doctype html>
 <html lang="da">
@@ -117984,6 +118060,520 @@ jobs:
           retention-days: 7
 </file>
 
+<file path="Docs/agents/OPERATING_CONTRACT.md">
+# Workslip implementation-agent operating contract
+
+**Status:** Active
+**Owner:** Workslip maintainers
+**Source of truth:** Current repository, applicable law, active ADRs, maintained architecture and compliance documentation, Linear, signed contracts where applicable, and executable validation evidence
+**Review cadence:** When agent workflow, repository structure, legal obligations, or delivery expectations change
+
+## Responsibility split
+
+The product owner defines:
+
+- required functionality and user-visible outcome;
+- business constraints and priority;
+- explicit scope and exclusions;
+- compatibility requirements;
+- material product and irreversible data decisions;
+- accountable owners for legal-role, lawful-basis, retention, DPIA, transfer, AI-risk, and compliance-claim decisions.
+
+The implementation agent owns:
+
+- repository inspection and technical design;
+- architecture, maintainability, security, privacy engineering, and scalability;
+- complete implementation across affected layers;
+- meaningful tests and executable validation;
+- documentation, branch hygiene, and pull-request quality;
+- identifying personal-data and AI-system impact before implementation;
+- enforcing the technical gates in [`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md);
+- surfacing verified bugs, compliance gaps, and important risks without waiting for prompting.
+
+Do not ask the product owner to choose class names, folder placement, repository patterns, transaction design, validation libraries, test structure, cache internals, or error-mapping conventions.
+
+Do ask for an accountable decision when implementation depends on legal role, lawful basis, retention semantics, data-subject rights, processor/transfer approval, DPIA outcome, AI Act classification, human-oversight policy, or a public compliance claim. Engineering may identify and recommend the decision but must not silently invent it.
+
+## Source-of-truth order
+
+Before answering repository questions or changing code, use:
+
+1. applicable law and binding regulatory decisions for legal requirements; current code, applicable scoped `AGENTS.md` files, executable tests, database mappings, and runtime configuration for implemented technical behaviour;
+2. active ADRs and maintained architecture and compliance documentation;
+3. signed processor, vendor, transfer, and customer terms where they control the processing relationship;
+4. Linear for scope, priority, acceptance criteria, ownership, and status;
+5. current repomix output and generated contracts where applicable;
+6. historical plans and specifications as context only.
+
+OpenAPI is the API contract source when it matches running endpoint registrations. Postman is verification material, not a competing contract. Repository documentation is not a substitute for qualified legal approval where interpretation is required.
+
+## Required lookup order
+
+1. Inspect the current branch, worktree, base branch, divergence, and changed files.
+2. Read the relevant Linear issue and all applicable scoped instructions.
+3. Read [`VALIDATION.md`](VALIDATION.md) and [`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md).
+4. Inspect existing implementation patterns with repomix, kioki, `rg`, and repository search.
+5. Inspect database/schema sources before reasoning about EF mappings, constraints, migrations, seed data, SQL behavior, data lifecycle, retention, or deletion.
+6. Inspect runtime dataflows, vendors, telemetry, caches, files, backups, and external integrations before reasoning about personal-data or AI impact.
+7. Use primary package documentation before changing framework or library behavior.
+8. Use current official legal and regulator sources before implementing or documenting GDPR or AI Act requirements.
+
+When a required tool or compliance record is unavailable, state that explicitly. Do not silently replace runtime validation, contract evidence, or legal approval with assumptions.
+
+## Repository state gate
+
+Before editing:
+
+- confirm the current branch is not `main`;
+- confirm the branch belongs to one Linear issue;
+- inspect branch divergence and existing changed files;
+- check for uncommitted changes when a local worktree is available;
+- search for conflict markers, secrets, credentials, generated environment values, accidental personal data, production identifiers, and restricted compliance evidence;
+- identify affected documentation and generated artifacts;
+- identify whether the proposed implementation conflicts with an active ADR or prior product decision;
+- classify the change as no personal-data/AI impact, personal-data impact, AI-system impact, or both;
+- identify any required legal, privacy, security, vendor, or product approval before writing data or integrating an AI/vendor service.
+
+Stop implementation and repair or report the state when any of these are found:
+
+- direct work on `main`;
+- committed merge-conflict markers;
+- credentials, tokens, private keys, sensitive configuration, production personal data, or restricted legal/compliance records in source control;
+- unrelated Linear issues mixed in one branch or PR;
+- architecture explicitly rejected by the product owner;
+- a known tenant-isolation, authorization, privacy, or data-leakage violation;
+- destructive schema or lifecycle work without a production-data, retention, deletion, backup, and rollback plan;
+- a new processor, international transfer, or AI provider receiving personal/confidential data without documented approval;
+- an AI capability without inventory, role, risk classification, prohibited-practice screening, and required oversight;
+- a branch whose state cannot be understood confidently.
+
+Do not run destructive commands, database writes, migrations, Git resets, force pushes, file deletions, rights-request actions, retention purges, or production-data exports without explicit approval. Work read-only by default during review.
+
+## Scope and branch discipline
+
+Each branch and pull request must represent one cohesive Linear issue.
+
+- Branch: `rbj--<issue>-<description>`.
+- PR title: `RBJ-<issue>: <description>`.
+- Do not push directly to `main`.
+- Prefer small, cohesive PRs and squash merging.
+- Do not mix unrelated cleanup into feature work.
+- Do not introduce speculative abstractions, wrappers, dependencies, or patterns.
+- Reuse established components, services, and conventions.
+- Prefer the smallest complete implementation, not a small diff that handles only the happy path.
+- Change unrelated files only when required for compilation, validation, generated artifacts, documentation, compliance evidence, or complete feature behavior.
+
+When existing code is unsafe, non-compliant, or broken, report severity, evidence, affected files/dataflows, recommended correction, and whether regression testing, incident review, or legal/privacy escalation is justified. Do not hide a product or compliance defect by weakening a test.
+
+## Architecture and maintainability
+
+Preserve boundaries between frontend, backend, domain logic, persistence, infrastructure, external integrations, privacy/security controls, and AI/model providers.
+
+Review every meaningful change for:
+
+- architectural drift and hidden coupling;
+- duplicated logic, duplicated state, and inconsistent API access;
+- dead or unused functionality;
+- oversized services or components;
+- business logic placed in endpoints or UI components;
+- infrastructure concerns leaking into application code;
+- frontend authorization being treated as a security boundary;
+- privacy or AI policy enforced only in presentation code;
+- direct vendor/model calls that bypass approved integration boundaries, logging, redaction, or tenant isolation;
+- unnecessary abstractions or dependencies.
+
+Do not create an abstraction based only on an anticipated future consumer. Introduce it when a concrete current need justifies the maintenance cost.
+
+## Security and tenant isolation
+
+Review as applicable:
+
+- authentication and authorization;
+- tenant isolation and IDOR;
+- role escalation and permission revocation;
+- token storage, lifetime, replay, and refresh behavior;
+- secrets and sensitive-data exposure;
+- cache leakage across users or organizations;
+- frontend-only enforcement;
+- logging of tokens, personal data, AI prompts/outputs, or integration payloads;
+- unsafe defaults and fail-open behavior;
+- personal data in URLs, metrics dimensions, traces, screenshots, CI artifacts, source control, test fixtures, or support tooling;
+- AI prompt injection, data exfiltration, insecure tool use, excessive agency, model/provider changes, and cross-tenant retrieval leakage.
+
+Frontend guards improve UX but never replace backend authorization. Redaction reduces risk but never replaces purpose limitation, access controls, retention, or vendor governance.
+
+## GDPR and EU AI Act compliance
+
+[`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md) is a mandatory engineering gate.
+
+For personal-data changes, the PR must identify or link to:
+
+- processing purpose, necessity, data subjects, and data categories;
+- controller/processor role and the owner responsible for lawful-basis approval;
+- minimization and privacy-by-default decisions;
+- retention, deletion, tenant termination, backup, cache, file, telemetry, and retry semantics;
+- data-subject rights and transparency impact;
+- processors, subprocessors, locations, transfers, and contractual approval;
+- DPIA screening and residual risk;
+- security and validation evidence.
+
+For AI-system changes, the PR must identify or link to:
+
+- AI inventory entry, model/provider, purpose, users, affected people, and Workslip's legal role;
+- AI Act definition and risk classification, prohibited-practice screening, and application date/guidance relied upon;
+- personal/confidential data handling and vendor terms;
+- transparency, content marking, human oversight, contestability, fallback, and non-AI path where applicable;
+- accuracy, bias, robustness, cybersecurity, monitoring, incident, version-change, and rollback evidence;
+- AI literacy requirements for operators and reviewers.
+
+No agent may claim full GDPR or AI Act compliance from code review, a checklist, a security control, or a single test. State exactly what has been implemented and verified and what still requires operational, contractual, or legal evidence.
+
+## Data integrity and failure behavior
+
+Review what happens when:
+
+- persistence succeeds and an external integration fails;
+- the external integration succeeds and persistence fails;
+- a request is retried;
+- concurrent requests target the same state;
+- a delete, rights request, retention purge, export, or update completes only partially;
+- existing production data violates a proposed constraint, retention rule, or minimization requirement;
+- a hosted process restarts during work;
+- cancellation or timeout occurs after a side effect;
+- a vendor, AI model, identity provider, telemetry service, email provider, or storage service is unavailable or changes behaviour;
+- an AI output is unsafe, incorrect, discriminatory, fabricated, or cannot be explained sufficiently for the use case.
+
+Use transactions, execution strategies, concurrency checks, idempotency, compensation, tombstones, deletion ledgers, or human review only where the actual failure and accountability model requires them.
+
+## Scalability and performance
+
+Prevent:
+
+- unbounded queries and full-table loading;
+- N+1 calls and unnecessary eager loading;
+- missing pagination or filtering;
+- cross-tenant scans;
+- duplicate frontend requests and duplicated server state;
+- tenant-unsafe cache keys;
+- large eager bundles for rare features;
+- long-running request work when an established background-processing pattern is more appropriate;
+- telemetry cardinality that includes personal data or tenant/entity identifiers;
+- unbounded AI prompts, outputs, context windows, vector stores, logs, retries, costs, or retained conversation history.
+
+Do not introduce queues, distributed caching, new persistence layers, vector databases, model providers, or scaling infrastructure without a verified bottleneck or concrete expected load and the applicable privacy, vendor, retention, and security review.
+
+## Product-owner interruption policy
+
+Ask for input only when the answer changes:
+
+- functionality or user-visible behavior;
+- commercial expectations or legal requirements;
+- controller/processor role, lawful basis, consent model, retention period, rights handling, processor/transfer acceptance, DPIA residual risk, or public compliance claim;
+- AI purpose, risk appetite, human-oversight policy, significant-decision semantics, non-AI fallback, or acceptable model/provider risk;
+- backward compatibility;
+- irreversible data semantics;
+- whether a workflow is reversible;
+- whether availability or strict correctness wins during an external outage;
+- whether a major rewrite is an acceptable investment.
+
+Make conservative technical decisions independently in all other cases. When legal approval is missing, implement no data expansion or AI integration and record the blocker rather than guessing.
+
+## Documentation and decisions
+
+- Never describe proposed, experimental, unverified, or legally unapproved behavior as implemented or compliant.
+- Prefer updating an active document over creating a competing source.
+- API, authentication, infrastructure, dataflow, database, release, critical-flow, personal-data, vendor, or AI changes must update affected documentation in the same PR, or include an explicit waiver with owner and expiry.
+- Generated documentation and generated clients must not be hand-edited; update their source and regenerate them.
+- Record significant architecture, privacy, security, retention, processor, transfer, and AI-governance decisions as ADRs or in the approved compliance system of record.
+- Update repomix through the established process when repository changes make it stale.
+- Record important decisions from chat in the repository or Linear.
+- Keep personal data, confidential contracts, rights requests, incidents, credentials, and restricted compliance evidence out of public repository content; link safely to the approved restricted record instead.
+
+## Completion language
+
+Use precise evidence categories:
+
+- implemented;
+- statically reviewed;
+- compiled;
+- automated tests passed;
+- integration-tested;
+- Playwright-tested;
+- deployed smoke-tested;
+- privacy engineering controls verified;
+- compliance documentation updated;
+- contractual/legal review pending or approved.
+
+Do not use “done”, “works”, “validated”, “GDPR compliant”, “AI Act compliant”, or equivalent without stating what actually ran, what evidence exists, who approved the legal/operational elements, and what remains open. A runtime feature that has only been inspected is **implemented but unvalidated**. A documented compliance requirement without operational and legal evidence is **a baseline, not proof of compliance**.
+</file>
+
+<file path="Docs/agents/VALIDATION.md">
+# Workslip testing and validation contract
+
+**Status:** Active
+**Owner:** Workslip maintainers
+**Source of truth:** Executed commands, test output, browser evidence, workflow results, deployed smoke observations, approved compliance records, and operational evidence
+**Review cadence:** When test infrastructure, CI, critical user flows, personal-data processing, or AI-system use changes
+
+## Validation truth
+
+Code inspection is mandatory, but code inspection is not testing. Compilation proves only that code can be built. Automated tests prove only the behavior they actually execute. UI behavior is not considered validated until Playwright has exercised the changed flow in a running application.
+
+A privacy-friendly implementation is not proof of GDPR compliance. An AI test result is not proof of AI Act compliance. Legal roles, lawful basis, contracts, retention, rights procedures, DPIAs, transfer assessments, training, transparency, human oversight, and operational controls require their own evidence and accountable approval.
+
+Unexecuted tests are evidence of intended coverage, not evidence that the feature works.
+
+## Validation ladder
+
+Report each level independently:
+
+1. **Static review** — inspect source, diff, contracts, configuration, security/privacy boundaries, dataflows, AI classification, and failure paths.
+2. **Compilation and static tooling** — restore dependencies, build Release artifacts, run lint, TypeScript, analyzers, generated-artifact checks, secret/personal-data scans, and documentation checks.
+3. **Automated behavioral tests** — run focused unit, service, authorization, persistence, concurrency, lifecycle, retention, deletion, redaction, AI-safety, and regression tests.
+4. **Integration validation** — run the API and exercise HTTP contracts, relational database behavior, authentication, safe external integration boundaries, data locations, processor failure, and cross-tenant behavior.
+5. **Playwright validation** — start the required application services and use Playwright to operate the actual changed controls in a real browser.
+6. **Deployed smoke validation** — after deployment when in scope, verify the critical path in the target environment without destructive production testing.
+7. **Operational/compliance evidence** — verify retention jobs, rights procedures, deletion outcomes, vendor settings/contracts, transfer controls, incident readiness, AI inventory/classification, training, monitoring, and accountable approvals where applicable.
+
+Skipping a lower level requires an explicit reason. Passing a higher level does not automatically replace a relevant lower-level check. Functional success does not replace privacy, security, legal, or AI-governance evidence.
+
+## Minimum validation by change type
+
+| Change type | Required minimum |
+|---|---|
+| Documentation-only | Static review, source/date verification for legal claims, and documentation tooling when available |
+| Backend business logic | Release build and focused behavioral tests |
+| Authorization or tenant boundary | Release build, focused authorization/tenant tests, and HTTP integration |
+| EF Core or schema behavior | Release build, relational-database tests, production-data impact review, and lifecycle/retention review |
+| API contract | Release build, focused endpoint tests, OpenAPI/client consistency, and HTTP smoke |
+| Background service | Release build, focused lifecycle/failure tests, and hosted-process smoke where available |
+| Frontend code with no visible behavior change | Lint, TypeScript, production build, and focused automated tests where useful |
+| Any user-visible frontend change | Lint, TypeScript, production build, and Playwright against a running app |
+| Routing, forms, authentication, session, cache, or critical workflow | Full Playwright success, failure, recovery, redirect, console, network, logout, and cache-isolation validation |
+| External integration or processor | Contract/fake tests, isolated real smoke when safe, failure/retry/deletion review, data-location/retention evidence, and vendor approval |
+| Personal-data collection or lifecycle | GDPR change-gate evidence, authorization/tenant tests, minimization review, rights/retention/deletion tests, log/artifact redaction, and operational evidence |
+| Telemetry, logs, analytics, or monitoring | Field/cardinality review, personal-data and secret redaction tests, access/retention review, opt-in/legal-basis ownership, and deployed payload inspection |
+| Data export, import, deletion, anonymization, or retention | Relational integration, authorization, completeness, idempotency, partial-failure, retry, file/cache/vendor propagation, and auditable outcome evidence |
+| AI system or AI-assisted feature | AI inventory/role/risk evidence, prohibited-practice screening, data/vendor review, functional and adversarial evaluation, transparency/human-oversight validation, monitoring and rollback evidence |
+| Infrastructure | Syntax/template validation, plan/what-if, region/identity/encryption/logging/backup/compliance review; deployment validation only when explicitly in scope |
+
+## Playwright is mandatory for user-visible frontend work
+
+For any change that affects what a user sees or does, Playwright must be involved. Reading React code, running TypeScript, rendering a screenshot, or checking a route manually in source is insufficient.
+
+A Playwright validation must:
+
+- start or target a runnable frontend and the required backend;
+- authenticate with an appropriate non-production account when authentication is involved;
+- navigate through the same route a user would use;
+- click the actual changed buttons, links, fields, dialogs, notices, choices, and controls;
+- submit real forms and verify the resulting visible and persisted state;
+- verify relevant loading, disabled, empty, success, error, privacy, transparency, and recovery states;
+- inspect browser console errors and unhandled exceptions;
+- inspect failed, duplicated, canceled, incorrectly scoped, or privacy-leaking network requests;
+- verify redirects, browser-back behavior, session recovery, logout, role/tenant changes, and cache isolation when relevant;
+- use at least one narrow mobile viewport for mobile-sensitive changes;
+- avoid destructive production actions and production personal data;
+- ensure screenshots, videos, traces, reports, and downloaded files contain no credentials, tokens, unnecessary personal data, or cross-tenant content.
+
+A browser test that loads a page but never interacts with the changed control does not validate the feature. A screenshot of personal data is not acceptable evidence unless created with approved synthetic data and restricted appropriately.
+
+## Merge-readiness rule for frontend changes
+
+A user-visible frontend PR is not considered validation-complete or merge-ready until the relevant Playwright flow has passed.
+
+When Playwright cannot run because the application, test identity, environment, browser tooling, synthetic data, vendor sandbox, or required compliance approval is unavailable:
+
+- report the change as **implemented but Playwright-unvalidated**;
+- list the exact missing prerequisite;
+- provide the exact flow that remains to be executed;
+- keep the PR draft or explicitly mark it blocked on browser validation;
+- do not ask the product owner to perform routine validation that the agent can perform once the environment exists.
+
+Emergency exceptions require explicit product-owner approval and a follow-up Linear issue with an owner and due date. A compliance release blocker in `Docs/compliance/GDPR_AI_ACT_BASELINE.md` cannot be waived merely because a deadline is inconvenient.
+
+## Playwright evidence
+
+Record enough evidence to reproduce the result:
+
+- branch or commit SHA;
+- environment and base URL;
+- browser and viewport;
+- synthetic account role and organization context without exposing credentials or production identifiers;
+- scenario names and outcomes;
+- console/network failures found;
+- privacy/transparency notices, choices, human-review paths, and data lifecycle actions exercised;
+- screenshots, traces, or videos for failures and high-risk flows when useful and safely redacted;
+- artifact retention and access scope.
+
+Do not commit secrets, authenticated storage state, access tokens, production data, real customer details, rights-request content, incident data, AI prompts containing confidential data, or unnecessary personal data in Playwright artifacts.
+
+## GDPR and personal-data validation
+
+Apply the current gate in [`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md).
+
+### Data minimization and purpose
+
+Verify that:
+
+- each new field is required for the approved purpose;
+- optional data is not collected, displayed, logged, or retained by default;
+- API responses do not over-return personal data;
+- search, filters, autocomplete, exports, PDFs, notifications, telemetry, and caches expose only the required fields and audience;
+- test and demo fixtures are synthetic and clearly separated from production.
+
+### Authorization, isolation, and revocation
+
+Verify with at least two tenants and relevant roles that:
+
+- direct identifiers and guessed IDs cannot cross tenant boundaries;
+- list, search, export, file, PDF, history, notification, and cache paths enforce the same boundary;
+- removed users, role changes, organization switches, logout, token expiry, and permission revocation take effect without stale cached access;
+- background jobs, integrations, and cleanup tasks preserve tenant scope.
+
+### Rights and lifecycle
+
+Where applicable, exercise:
+
+- access and export completeness in a structured format;
+- rectification and propagation to current views without falsifying immutable history;
+- erasure/anonymization across relational rows, files, derived data, caches, search, telemetry where identifiable, and downstream processors;
+- restriction and objection controls;
+- portability semantics;
+- tenant termination and user removal;
+- retention expiration, legal-hold exceptions, retry, partial failure, idempotency, and auditable completion;
+- backup expiry/restore treatment through documented operational evidence when it cannot be safely exercised in automated tests.
+
+A successful HTTP delete is not sufficient if linked, derived, cached, filed, telemetered, or processor-held data remains undocumented.
+
+### Logs, telemetry, and artifacts
+
+Inspect actual emitted payloads where safe and verify:
+
+- no tokens, secrets, passwords, raw authorization headers, personal data, customer content, addresses, free text, or production identifiers leak unexpectedly;
+- route and dependency names remove query values and entity identifiers;
+- metrics have bounded cardinality and do not use personal or tenant identifiers as dimensions;
+- exception handling does not serialize request/response bodies;
+- retention, access control, region, sampling, and deletion settings match the approved record;
+- CI, screenshots, traces, reports, dumps, support bundles, and source maps do not expose restricted data.
+
+### Vendors and transfers
+
+For a processor/integration change, validation evidence must include:
+
+- exact deployed endpoint/region and account settings;
+- data sent and received, including hidden metadata and vendor logs;
+- retention/deletion/training/secondary-use settings;
+- failure, retry, timeout, cancellation, duplication, and termination behavior;
+- approved contract, subprocessor, and transfer record reference without copying restricted terms into the public repository.
+
+## EU AI Act and AI-system validation
+
+No AI test may run with production personal data, credentials, confidential customer content, or unrestricted external tool access unless explicitly approved under the compliance baseline.
+
+### Required evidence
+
+For each AI system or AI-assisted capability, record:
+
+- inventory identifier, provider/model/version, purpose, users, affected people, inputs/outputs, tools, retrieval sources, and deployment region;
+- Workslip's legal role and current AI Act classification, with official source and review date;
+- prohibited-practice screening and required transparency, human oversight, logging, and quality controls;
+- training-data or grounding-data provenance, quality, representativeness, licensing, and personal-data handling where applicable;
+- provider terms for retention, training, human access, model improvement, security, subprocessors, regions, transfers, incident notification, and version changes;
+- AI literacy and operator instructions.
+
+### Functional and quality evaluation
+
+Use an approved, versioned evaluation set and measure behavior relevant to the use case, including:
+
+- task success, accuracy, false positives/negatives, uncertainty, abstention, and reproducibility;
+- subgroup or context performance where bias or unequal impact is plausible;
+- fabricated, misleading, discriminatory, harmful, illegal, or unsafe outputs;
+- language, accessibility, and Danish-domain performance where relevant;
+- human ability to understand limitations, identify AI involvement, review evidence, override, correct, stop, and escalate;
+- non-AI fallback and provider outage behavior.
+
+Do not reduce AI evaluation to a few manually selected prompts.
+
+### Adversarial and security evaluation
+
+Test as applicable:
+
+- direct and indirect prompt injection;
+- retrieval poisoning and unauthorized context retrieval;
+- cross-tenant prompt, cache, vector, memory, file, and conversation leakage;
+- secret and personal-data exfiltration;
+- insecure tool invocation, excessive agency, privilege escalation, and unsafe actions;
+- malicious files, encoded instructions, data reconstruction, and output injection;
+- rate limits, cost exhaustion, denial of service, retry storms, and provider degradation;
+- model/version changes and rollback.
+
+### Transparency and significant decisions
+
+Verify that required AI-interaction notices, generated-content labels, explanations, contest routes, and human-review controls are visible, understandable, timely, and not hidden by responsive layouts.
+
+Where an output could influence a legal or similarly significant decision, validation must demonstrate meaningful human intervention rather than nominal approval. The reviewer must receive relevant information, have sufficient time and authority, exercise independent judgment, and be able to change the outcome.
+
+### Production monitoring
+
+Define and verify:
+
+- approved model/version pinning or change-detection process;
+- quality, safety, privacy, security, bias, latency, cost, and usage monitoring;
+- incident thresholds, user feedback, escalation, containment, rollback, and notification;
+- periodic reassessment and evidence retention;
+- handling of provider policy, subprocessor, region, model, or terms changes.
+
+A pre-release test pass does not remove post-deployment monitoring obligations.
+
+## Backend and integration testing
+
+Backend validation should use the real dependency type or the closest isolated equivalent:
+
+- use a relational provider for EF Core query, transaction, constraint, lifecycle, deletion, and concurrency behavior;
+- call the actual HTTP endpoint for API contracts and authorization boundaries;
+- verify tenant isolation with at least two organizations where relevant;
+- verify unauthorized, forbidden, missing, conflict, retry, cancellation, and partial-completion paths where they carry risk;
+- exercise background-service failure and restart behavior when changed;
+- use fakes for destructive external operations, followed by a safe isolated real smoke when authorized;
+- verify processor and AI calls through an approved boundary that supports redaction, timeout, retry, cancellation, tenant scope, and auditability.
+
+The EF Core in-memory provider must not be treated as proof of SQL translation, relational constraints, transaction behavior, production concurrency, cascade deletion, or retention behavior.
+
+## Test selection
+
+Add tests where they provide meaningful regression protection:
+
+- business rules and calculations;
+- branching workflows and state transitions;
+- authorization and tenant isolation;
+- personal-data minimization, retention, deletion, export, rights, and redaction;
+- transactions, rollback, retries, idempotency, and partial failure;
+- concurrency;
+- external integration and processor boundaries;
+- AI classification-dependent controls, safety, privacy, security, human oversight, and significant edge cases;
+- critical edge cases and verified regressions.
+
+Do not add tests for trivial getters, simple mappings, framework behavior, basic CRUD pass-through, or implementation details without concrete risk. Do not optimize for coverage percentage.
+
+## Validation report format
+
+Every implementation report and PR description must state:
+
+- what was statically reviewed;
+- the personal-data and AI impact classification;
+- exact build/lint/typecheck/documentation/security commands that ran;
+- exact automated tests that ran and their outcome;
+- integration scenarios that ran;
+- Playwright scenarios that ran, including browser and viewport;
+- deployed smoke checks that ran;
+- privacy lifecycle, telemetry/artifact, vendor, or AI evaluation evidence produced;
+- compliance records or accountable approvals updated, referenced by safe identifier;
+- anything required but not executed, with the precise reason.
+
+Do not collapse these into a generic “tests passed” or “compliant” statement.
+</file>
+
 <file path="Docs/superpowers/specs/deferred-work.md">
 # Deferred Work
 
@@ -118291,82 +118881,6 @@ The pre-bootstrap check closes the route-guard gap: `AuthProvider` otherwise rea
 
 - Pin the Node 20-compatible Vitest and jsdom harness.
   [`package.json:47`](../../../src/FE/package.json#L47)
-</file>
-
-<file path="Docs/AGENTS.md">
-# Workslip documentation instructions
-
-Read the root `AGENTS.md`, `Docs/agents/OPERATING_CONTRACT.md`, `Docs/agents/VALIDATION.md`, and `Docs/compliance/GDPR_AI_ACT_BASELINE.md` before changing maintained documentation.
-
-## Scope
-
-These rules apply to maintained files under `Docs/`.
-
-## Documentation truth
-
-- Current implementation, executable tests, runtime configuration, active ADRs, verified deployment behavior, applicable law, signed contracts, and approved compliance records take precedence over historical plans.
-- Never describe proposed, experimental, inferred, unexecuted, or legally unverified behavior as implemented or compliant.
-- Mark historical, draft, planned, deprecated, needs-verification, and legally pending material clearly.
-- Prefer updating an existing maintained document over creating a competing document.
-- Each maintained document should state status, owner, source of truth, and review cadence where practical.
-- Separate verified technical facts, legal requirements, assumptions, open decisions, and recommendations.
-- Do not claim that a control satisfies GDPR or the EU AI Act merely because it appears secure or privacy-friendly; identify the required evidence and accountable approval.
-
-## Required updates
-
-Changes to these areas must update relevant maintained documentation in the same PR or include an explicit waiver with owner and expiry:
-
-- API contracts and authentication;
-- tenant boundaries and dataflows;
-- database/schema behavior;
-- infrastructure and deployment;
-- external integrations;
-- release workflows;
-- critical user flows;
-- significant architecture decisions;
-- personal-data collection, purpose, legal-role classification, lawful-basis ownership, access, retention, deletion, export, telemetry, caching, backup, processors, subprocessors, or international transfers;
-- data-subject rights, privacy notices, breach response, DPIA screening, records of processing, or security controls affecting personal data;
-- AI-system inventory, procurement, provider/model changes, role and risk classification, prohibited-practice screening, transparency, human oversight, data governance, AI literacy, monitoring, or AI incidents.
-
-Record significant architecture decisions as ADRs. Record issue-specific implementation details in Linear or the PR rather than creating permanent architecture documentation for temporary details.
-
-The active compliance baseline is `Docs/compliance/GDPR_AI_ACT_BASELINE.md`. Processing registers, retention schedules, vendor registers, DPIAs, transfer assessments, AI inventories, and training records may be stored outside the public repository when they contain confidential or personal data, but the repository must link to the approved system of record and document ownership and review cadence without exposing restricted content.
-
-## Legal and regulatory sources
-
-- Use current official legal texts and regulator guidance as primary sources.
-- Record the source, version/date, jurisdiction, and review date for legal requirements that affect implementation.
-- Re-check time-sensitive obligations before release, especially AI Act application dates, Commission guidance, standards, and national implementation.
-- Do not rely on blog posts, vendor marketing, search snippets, or AI-generated summaries as the sole authority for legal requirements.
-- Escalate legal interpretation, controller/processor role decisions, lawful basis, DPIA outcomes, transfer assessments, and compliance claims to the accountable owner or qualified counsel.
-
-## Generated material
-
-Do not hand-edit generated documentation, OpenAPI clients, or generated Postman material. Update the source and run the established generator.
-
-If generation cannot run, document the artifact as stale and list the exact regeneration command. Do not claim consistency.
-
-## Links and duplication
-
-- Use repository-relative links for repository files.
-- Remove or consolidate duplicated active guidance.
-- Do not let historical plans override active documentation.
-- Link ADRs and Linear issues where they explain a non-obvious decision.
-- Do not embed secrets, private URLs, personal data, production identifiers, restricted contracts, incident details, rights-request content, or environment credentials.
-- Link to restricted compliance records by safe identifier and owner rather than copying sensitive evidence into the public repository.
-
-## Validation
-
-For documentation-only changes:
-
-- statically review links, paths, headings, scope, and source dates;
-- run the repository documentation checks when a local checkout is available;
-- verify referenced files exist;
-- review the diff for accidental replacement of current truth with planned behavior;
-- verify legal claims against current official sources and mark legal approval status;
-- verify that examples and screenshots contain no personal, confidential, tenant, credential, or production data.
-
-Documentation about testing must match `Docs/agents/VALIDATION.md`. Documentation about implementation workflow must match `Docs/agents/OPERATING_CONTRACT.md`. Documentation about personal data or AI systems must match `Docs/compliance/GDPR_AI_ACT_BASELINE.md`.
 </file>
 
 <file path="Docs/README.md">
@@ -125243,6 +125757,39 @@ nul
 .worktrees/
 </file>
 
+<file path="AGENTS.md">
+# Workslip agent instruction router
+
+This file routes implementation agents to the scoped instructions for the part of Workslip being changed. Do not duplicate detailed rules here.
+
+## Always read
+
+1. [`Docs/agents/OPERATING_CONTRACT.md`](Docs/agents/OPERATING_CONTRACT.md) — repository workflow, source-of-truth order, scope discipline, security, maintainability, scalability, documentation, and completion language.
+2. [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) — mandatory validation ladder, test selection, Playwright requirements, and evidence standards.
+3. [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) — mandatory GDPR and EU AI Act change gates, data/AI governance, release blockers, and compliance evidence requirements.
+
+## Global architecture principle
+
+Optimize for low cognitive load, explicit dependencies, predictable code placement, isolated use cases, and low hidden coupling across all layers.
+
+Use patterns only when they reduce complexity, maintenance cost, or change risk more than they introduce. Prefer thin entry points, feature-local logic, consistent contracts, and existing conventions. Avoid wrappers, interfaces, mapping layers, pipelines, and abstractions without a concrete need.
+
+Small improvements that naturally reduce technical debt are encouraged when they stay within the current task's scope. Do not start opportunistic rewrites or widen an issue to pursue an architectural pattern.
+
+## Read for the affected scope
+
+| Scope | Required instructions |
+|---|---|
+| Frontend under `src/FE/` | [`src/FE/AGENTS.md`](src/FE/AGENTS.md) |
+| API/backend under `src/BE/WorkslipApi/` | [`src/BE/WorkslipApi/AGENTS.md`](src/BE/WorkslipApi/AGENTS.md) |
+| Infrastructure under `src/BE/infrastructure/` | [`src/BE/infrastructure/AGENTS.md`](src/BE/infrastructure/AGENTS.md) |
+| Maintained documentation under `Docs/` | [`Docs/AGENTS.md`](Docs/AGENTS.md) |
+
+For cross-layer changes, read every applicable scoped file before editing. The closest scoped `AGENTS.md` applies in addition to the three shared documents.
+
+Do not begin implementation until the relevant instructions, Linear issue, current branch state, applicable architecture documentation, and compliance impact have been inspected.
+</file>
+
 <file path=".github/workflows/pages.yml">
 name: Website deploy
 
@@ -125487,520 +126034,6 @@ jobs:
 
           echo "::error::Could not publish the regenerated Repomix output to ${TARGET_BRANCH} after 3 attempts. Verify that the Repomix GitHub App is installed and has ruleset bypass."
           exit 1
-</file>
-
-<file path="Docs/agents/OPERATING_CONTRACT.md">
-# Workslip implementation-agent operating contract
-
-**Status:** Active
-**Owner:** Workslip maintainers
-**Source of truth:** Current repository, applicable law, active ADRs, maintained architecture and compliance documentation, Linear, signed contracts where applicable, and executable validation evidence
-**Review cadence:** When agent workflow, repository structure, legal obligations, or delivery expectations change
-
-## Responsibility split
-
-The product owner defines:
-
-- required functionality and user-visible outcome;
-- business constraints and priority;
-- explicit scope and exclusions;
-- compatibility requirements;
-- material product and irreversible data decisions;
-- accountable owners for legal-role, lawful-basis, retention, DPIA, transfer, AI-risk, and compliance-claim decisions.
-
-The implementation agent owns:
-
-- repository inspection and technical design;
-- architecture, maintainability, security, privacy engineering, and scalability;
-- complete implementation across affected layers;
-- meaningful tests and executable validation;
-- documentation, branch hygiene, and pull-request quality;
-- identifying personal-data and AI-system impact before implementation;
-- enforcing the technical gates in [`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md);
-- surfacing verified bugs, compliance gaps, and important risks without waiting for prompting.
-
-Do not ask the product owner to choose class names, folder placement, repository patterns, transaction design, validation libraries, test structure, cache internals, or error-mapping conventions.
-
-Do ask for an accountable decision when implementation depends on legal role, lawful basis, retention semantics, data-subject rights, processor/transfer approval, DPIA outcome, AI Act classification, human-oversight policy, or a public compliance claim. Engineering may identify and recommend the decision but must not silently invent it.
-
-## Source-of-truth order
-
-Before answering repository questions or changing code, use:
-
-1. applicable law and binding regulatory decisions for legal requirements; current code, applicable scoped `AGENTS.md` files, executable tests, database mappings, and runtime configuration for implemented technical behaviour;
-2. active ADRs and maintained architecture and compliance documentation;
-3. signed processor, vendor, transfer, and customer terms where they control the processing relationship;
-4. Linear for scope, priority, acceptance criteria, ownership, and status;
-5. current repomix output and generated contracts where applicable;
-6. historical plans and specifications as context only.
-
-OpenAPI is the API contract source when it matches running endpoint registrations. Postman is verification material, not a competing contract. Repository documentation is not a substitute for qualified legal approval where interpretation is required.
-
-## Required lookup order
-
-1. Inspect the current branch, worktree, base branch, divergence, and changed files.
-2. Read the relevant Linear issue and all applicable scoped instructions.
-3. Read [`VALIDATION.md`](VALIDATION.md) and [`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md).
-4. Inspect existing implementation patterns with repomix, kioki, `rg`, and repository search.
-5. Inspect database/schema sources before reasoning about EF mappings, constraints, migrations, seed data, SQL behavior, data lifecycle, retention, or deletion.
-6. Inspect runtime dataflows, vendors, telemetry, caches, files, backups, and external integrations before reasoning about personal-data or AI impact.
-7. Use primary package documentation before changing framework or library behavior.
-8. Use current official legal and regulator sources before implementing or documenting GDPR or AI Act requirements.
-
-When a required tool or compliance record is unavailable, state that explicitly. Do not silently replace runtime validation, contract evidence, or legal approval with assumptions.
-
-## Repository state gate
-
-Before editing:
-
-- confirm the current branch is not `main`;
-- confirm the branch belongs to one Linear issue;
-- inspect branch divergence and existing changed files;
-- check for uncommitted changes when a local worktree is available;
-- search for conflict markers, secrets, credentials, generated environment values, accidental personal data, production identifiers, and restricted compliance evidence;
-- identify affected documentation and generated artifacts;
-- identify whether the proposed implementation conflicts with an active ADR or prior product decision;
-- classify the change as no personal-data/AI impact, personal-data impact, AI-system impact, or both;
-- identify any required legal, privacy, security, vendor, or product approval before writing data or integrating an AI/vendor service.
-
-Stop implementation and repair or report the state when any of these are found:
-
-- direct work on `main`;
-- committed merge-conflict markers;
-- credentials, tokens, private keys, sensitive configuration, production personal data, or restricted legal/compliance records in source control;
-- unrelated Linear issues mixed in one branch or PR;
-- architecture explicitly rejected by the product owner;
-- a known tenant-isolation, authorization, privacy, or data-leakage violation;
-- destructive schema or lifecycle work without a production-data, retention, deletion, backup, and rollback plan;
-- a new processor, international transfer, or AI provider receiving personal/confidential data without documented approval;
-- an AI capability without inventory, role, risk classification, prohibited-practice screening, and required oversight;
-- a branch whose state cannot be understood confidently.
-
-Do not run destructive commands, database writes, migrations, Git resets, force pushes, file deletions, rights-request actions, retention purges, or production-data exports without explicit approval. Work read-only by default during review.
-
-## Scope and branch discipline
-
-Each branch and pull request must represent one cohesive Linear issue.
-
-- Branch: `rbj--<issue>-<description>`.
-- PR title: `RBJ-<issue>: <description>`.
-- Do not push directly to `main`.
-- Prefer small, cohesive PRs and squash merging.
-- Do not mix unrelated cleanup into feature work.
-- Do not introduce speculative abstractions, wrappers, dependencies, or patterns.
-- Reuse established components, services, and conventions.
-- Prefer the smallest complete implementation, not a small diff that handles only the happy path.
-- Change unrelated files only when required for compilation, validation, generated artifacts, documentation, compliance evidence, or complete feature behavior.
-
-When existing code is unsafe, non-compliant, or broken, report severity, evidence, affected files/dataflows, recommended correction, and whether regression testing, incident review, or legal/privacy escalation is justified. Do not hide a product or compliance defect by weakening a test.
-
-## Architecture and maintainability
-
-Preserve boundaries between frontend, backend, domain logic, persistence, infrastructure, external integrations, privacy/security controls, and AI/model providers.
-
-Review every meaningful change for:
-
-- architectural drift and hidden coupling;
-- duplicated logic, duplicated state, and inconsistent API access;
-- dead or unused functionality;
-- oversized services or components;
-- business logic placed in endpoints or UI components;
-- infrastructure concerns leaking into application code;
-- frontend authorization being treated as a security boundary;
-- privacy or AI policy enforced only in presentation code;
-- direct vendor/model calls that bypass approved integration boundaries, logging, redaction, or tenant isolation;
-- unnecessary abstractions or dependencies.
-
-Do not create an abstraction based only on an anticipated future consumer. Introduce it when a concrete current need justifies the maintenance cost.
-
-## Security and tenant isolation
-
-Review as applicable:
-
-- authentication and authorization;
-- tenant isolation and IDOR;
-- role escalation and permission revocation;
-- token storage, lifetime, replay, and refresh behavior;
-- secrets and sensitive-data exposure;
-- cache leakage across users or organizations;
-- frontend-only enforcement;
-- logging of tokens, personal data, AI prompts/outputs, or integration payloads;
-- unsafe defaults and fail-open behavior;
-- personal data in URLs, metrics dimensions, traces, screenshots, CI artifacts, source control, test fixtures, or support tooling;
-- AI prompt injection, data exfiltration, insecure tool use, excessive agency, model/provider changes, and cross-tenant retrieval leakage.
-
-Frontend guards improve UX but never replace backend authorization. Redaction reduces risk but never replaces purpose limitation, access controls, retention, or vendor governance.
-
-## GDPR and EU AI Act compliance
-
-[`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md) is a mandatory engineering gate.
-
-For personal-data changes, the PR must identify or link to:
-
-- processing purpose, necessity, data subjects, and data categories;
-- controller/processor role and the owner responsible for lawful-basis approval;
-- minimization and privacy-by-default decisions;
-- retention, deletion, tenant termination, backup, cache, file, telemetry, and retry semantics;
-- data-subject rights and transparency impact;
-- processors, subprocessors, locations, transfers, and contractual approval;
-- DPIA screening and residual risk;
-- security and validation evidence.
-
-For AI-system changes, the PR must identify or link to:
-
-- AI inventory entry, model/provider, purpose, users, affected people, and Workslip's legal role;
-- AI Act definition and risk classification, prohibited-practice screening, and application date/guidance relied upon;
-- personal/confidential data handling and vendor terms;
-- transparency, content marking, human oversight, contestability, fallback, and non-AI path where applicable;
-- accuracy, bias, robustness, cybersecurity, monitoring, incident, version-change, and rollback evidence;
-- AI literacy requirements for operators and reviewers.
-
-No agent may claim full GDPR or AI Act compliance from code review, a checklist, a security control, or a single test. State exactly what has been implemented and verified and what still requires operational, contractual, or legal evidence.
-
-## Data integrity and failure behavior
-
-Review what happens when:
-
-- persistence succeeds and an external integration fails;
-- the external integration succeeds and persistence fails;
-- a request is retried;
-- concurrent requests target the same state;
-- a delete, rights request, retention purge, export, or update completes only partially;
-- existing production data violates a proposed constraint, retention rule, or minimization requirement;
-- a hosted process restarts during work;
-- cancellation or timeout occurs after a side effect;
-- a vendor, AI model, identity provider, telemetry service, email provider, or storage service is unavailable or changes behaviour;
-- an AI output is unsafe, incorrect, discriminatory, fabricated, or cannot be explained sufficiently for the use case.
-
-Use transactions, execution strategies, concurrency checks, idempotency, compensation, tombstones, deletion ledgers, or human review only where the actual failure and accountability model requires them.
-
-## Scalability and performance
-
-Prevent:
-
-- unbounded queries and full-table loading;
-- N+1 calls and unnecessary eager loading;
-- missing pagination or filtering;
-- cross-tenant scans;
-- duplicate frontend requests and duplicated server state;
-- tenant-unsafe cache keys;
-- large eager bundles for rare features;
-- long-running request work when an established background-processing pattern is more appropriate;
-- telemetry cardinality that includes personal data or tenant/entity identifiers;
-- unbounded AI prompts, outputs, context windows, vector stores, logs, retries, costs, or retained conversation history.
-
-Do not introduce queues, distributed caching, new persistence layers, vector databases, model providers, or scaling infrastructure without a verified bottleneck or concrete expected load and the applicable privacy, vendor, retention, and security review.
-
-## Product-owner interruption policy
-
-Ask for input only when the answer changes:
-
-- functionality or user-visible behavior;
-- commercial expectations or legal requirements;
-- controller/processor role, lawful basis, consent model, retention period, rights handling, processor/transfer acceptance, DPIA residual risk, or public compliance claim;
-- AI purpose, risk appetite, human-oversight policy, significant-decision semantics, non-AI fallback, or acceptable model/provider risk;
-- backward compatibility;
-- irreversible data semantics;
-- whether a workflow is reversible;
-- whether availability or strict correctness wins during an external outage;
-- whether a major rewrite is an acceptable investment.
-
-Make conservative technical decisions independently in all other cases. When legal approval is missing, implement no data expansion or AI integration and record the blocker rather than guessing.
-
-## Documentation and decisions
-
-- Never describe proposed, experimental, unverified, or legally unapproved behavior as implemented or compliant.
-- Prefer updating an active document over creating a competing source.
-- API, authentication, infrastructure, dataflow, database, release, critical-flow, personal-data, vendor, or AI changes must update affected documentation in the same PR, or include an explicit waiver with owner and expiry.
-- Generated documentation and generated clients must not be hand-edited; update their source and regenerate them.
-- Record significant architecture, privacy, security, retention, processor, transfer, and AI-governance decisions as ADRs or in the approved compliance system of record.
-- Update repomix through the established process when repository changes make it stale.
-- Record important decisions from chat in the repository or Linear.
-- Keep personal data, confidential contracts, rights requests, incidents, credentials, and restricted compliance evidence out of public repository content; link safely to the approved restricted record instead.
-
-## Completion language
-
-Use precise evidence categories:
-
-- implemented;
-- statically reviewed;
-- compiled;
-- automated tests passed;
-- integration-tested;
-- Playwright-tested;
-- deployed smoke-tested;
-- privacy engineering controls verified;
-- compliance documentation updated;
-- contractual/legal review pending or approved.
-
-Do not use “done”, “works”, “validated”, “GDPR compliant”, “AI Act compliant”, or equivalent without stating what actually ran, what evidence exists, who approved the legal/operational elements, and what remains open. A runtime feature that has only been inspected is **implemented but unvalidated**. A documented compliance requirement without operational and legal evidence is **a baseline, not proof of compliance**.
-</file>
-
-<file path="Docs/agents/VALIDATION.md">
-# Workslip testing and validation contract
-
-**Status:** Active
-**Owner:** Workslip maintainers
-**Source of truth:** Executed commands, test output, browser evidence, workflow results, deployed smoke observations, approved compliance records, and operational evidence
-**Review cadence:** When test infrastructure, CI, critical user flows, personal-data processing, or AI-system use changes
-
-## Validation truth
-
-Code inspection is mandatory, but code inspection is not testing. Compilation proves only that code can be built. Automated tests prove only the behavior they actually execute. UI behavior is not considered validated until Playwright has exercised the changed flow in a running application.
-
-A privacy-friendly implementation is not proof of GDPR compliance. An AI test result is not proof of AI Act compliance. Legal roles, lawful basis, contracts, retention, rights procedures, DPIAs, transfer assessments, training, transparency, human oversight, and operational controls require their own evidence and accountable approval.
-
-Unexecuted tests are evidence of intended coverage, not evidence that the feature works.
-
-## Validation ladder
-
-Report each level independently:
-
-1. **Static review** — inspect source, diff, contracts, configuration, security/privacy boundaries, dataflows, AI classification, and failure paths.
-2. **Compilation and static tooling** — restore dependencies, build Release artifacts, run lint, TypeScript, analyzers, generated-artifact checks, secret/personal-data scans, and documentation checks.
-3. **Automated behavioral tests** — run focused unit, service, authorization, persistence, concurrency, lifecycle, retention, deletion, redaction, AI-safety, and regression tests.
-4. **Integration validation** — run the API and exercise HTTP contracts, relational database behavior, authentication, safe external integration boundaries, data locations, processor failure, and cross-tenant behavior.
-5. **Playwright validation** — start the required application services and use Playwright to operate the actual changed controls in a real browser.
-6. **Deployed smoke validation** — after deployment when in scope, verify the critical path in the target environment without destructive production testing.
-7. **Operational/compliance evidence** — verify retention jobs, rights procedures, deletion outcomes, vendor settings/contracts, transfer controls, incident readiness, AI inventory/classification, training, monitoring, and accountable approvals where applicable.
-
-Skipping a lower level requires an explicit reason. Passing a higher level does not automatically replace a relevant lower-level check. Functional success does not replace privacy, security, legal, or AI-governance evidence.
-
-## Minimum validation by change type
-
-| Change type | Required minimum |
-|---|---|
-| Documentation-only | Static review, source/date verification for legal claims, and documentation tooling when available |
-| Backend business logic | Release build and focused behavioral tests |
-| Authorization or tenant boundary | Release build, focused authorization/tenant tests, and HTTP integration |
-| EF Core or schema behavior | Release build, relational-database tests, production-data impact review, and lifecycle/retention review |
-| API contract | Release build, focused endpoint tests, OpenAPI/client consistency, and HTTP smoke |
-| Background service | Release build, focused lifecycle/failure tests, and hosted-process smoke where available |
-| Frontend code with no visible behavior change | Lint, TypeScript, production build, and focused automated tests where useful |
-| Any user-visible frontend change | Lint, TypeScript, production build, and Playwright against a running app |
-| Routing, forms, authentication, session, cache, or critical workflow | Full Playwright success, failure, recovery, redirect, console, network, logout, and cache-isolation validation |
-| External integration or processor | Contract/fake tests, isolated real smoke when safe, failure/retry/deletion review, data-location/retention evidence, and vendor approval |
-| Personal-data collection or lifecycle | GDPR change-gate evidence, authorization/tenant tests, minimization review, rights/retention/deletion tests, log/artifact redaction, and operational evidence |
-| Telemetry, logs, analytics, or monitoring | Field/cardinality review, personal-data and secret redaction tests, access/retention review, opt-in/legal-basis ownership, and deployed payload inspection |
-| Data export, import, deletion, anonymization, or retention | Relational integration, authorization, completeness, idempotency, partial-failure, retry, file/cache/vendor propagation, and auditable outcome evidence |
-| AI system or AI-assisted feature | AI inventory/role/risk evidence, prohibited-practice screening, data/vendor review, functional and adversarial evaluation, transparency/human-oversight validation, monitoring and rollback evidence |
-| Infrastructure | Syntax/template validation, plan/what-if, region/identity/encryption/logging/backup/compliance review; deployment validation only when explicitly in scope |
-
-## Playwright is mandatory for user-visible frontend work
-
-For any change that affects what a user sees or does, Playwright must be involved. Reading React code, running TypeScript, rendering a screenshot, or checking a route manually in source is insufficient.
-
-A Playwright validation must:
-
-- start or target a runnable frontend and the required backend;
-- authenticate with an appropriate non-production account when authentication is involved;
-- navigate through the same route a user would use;
-- click the actual changed buttons, links, fields, dialogs, notices, choices, and controls;
-- submit real forms and verify the resulting visible and persisted state;
-- verify relevant loading, disabled, empty, success, error, privacy, transparency, and recovery states;
-- inspect browser console errors and unhandled exceptions;
-- inspect failed, duplicated, canceled, incorrectly scoped, or privacy-leaking network requests;
-- verify redirects, browser-back behavior, session recovery, logout, role/tenant changes, and cache isolation when relevant;
-- use at least one narrow mobile viewport for mobile-sensitive changes;
-- avoid destructive production actions and production personal data;
-- ensure screenshots, videos, traces, reports, and downloaded files contain no credentials, tokens, unnecessary personal data, or cross-tenant content.
-
-A browser test that loads a page but never interacts with the changed control does not validate the feature. A screenshot of personal data is not acceptable evidence unless created with approved synthetic data and restricted appropriately.
-
-## Merge-readiness rule for frontend changes
-
-A user-visible frontend PR is not considered validation-complete or merge-ready until the relevant Playwright flow has passed.
-
-When Playwright cannot run because the application, test identity, environment, browser tooling, synthetic data, vendor sandbox, or required compliance approval is unavailable:
-
-- report the change as **implemented but Playwright-unvalidated**;
-- list the exact missing prerequisite;
-- provide the exact flow that remains to be executed;
-- keep the PR draft or explicitly mark it blocked on browser validation;
-- do not ask the product owner to perform routine validation that the agent can perform once the environment exists.
-
-Emergency exceptions require explicit product-owner approval and a follow-up Linear issue with an owner and due date. A compliance release blocker in `Docs/compliance/GDPR_AI_ACT_BASELINE.md` cannot be waived merely because a deadline is inconvenient.
-
-## Playwright evidence
-
-Record enough evidence to reproduce the result:
-
-- branch or commit SHA;
-- environment and base URL;
-- browser and viewport;
-- synthetic account role and organization context without exposing credentials or production identifiers;
-- scenario names and outcomes;
-- console/network failures found;
-- privacy/transparency notices, choices, human-review paths, and data lifecycle actions exercised;
-- screenshots, traces, or videos for failures and high-risk flows when useful and safely redacted;
-- artifact retention and access scope.
-
-Do not commit secrets, authenticated storage state, access tokens, production data, real customer details, rights-request content, incident data, AI prompts containing confidential data, or unnecessary personal data in Playwright artifacts.
-
-## GDPR and personal-data validation
-
-Apply the current gate in [`../compliance/GDPR_AI_ACT_BASELINE.md`](../compliance/GDPR_AI_ACT_BASELINE.md).
-
-### Data minimization and purpose
-
-Verify that:
-
-- each new field is required for the approved purpose;
-- optional data is not collected, displayed, logged, or retained by default;
-- API responses do not over-return personal data;
-- search, filters, autocomplete, exports, PDFs, notifications, telemetry, and caches expose only the required fields and audience;
-- test and demo fixtures are synthetic and clearly separated from production.
-
-### Authorization, isolation, and revocation
-
-Verify with at least two tenants and relevant roles that:
-
-- direct identifiers and guessed IDs cannot cross tenant boundaries;
-- list, search, export, file, PDF, history, notification, and cache paths enforce the same boundary;
-- removed users, role changes, organization switches, logout, token expiry, and permission revocation take effect without stale cached access;
-- background jobs, integrations, and cleanup tasks preserve tenant scope.
-
-### Rights and lifecycle
-
-Where applicable, exercise:
-
-- access and export completeness in a structured format;
-- rectification and propagation to current views without falsifying immutable history;
-- erasure/anonymization across relational rows, files, derived data, caches, search, telemetry where identifiable, and downstream processors;
-- restriction and objection controls;
-- portability semantics;
-- tenant termination and user removal;
-- retention expiration, legal-hold exceptions, retry, partial failure, idempotency, and auditable completion;
-- backup expiry/restore treatment through documented operational evidence when it cannot be safely exercised in automated tests.
-
-A successful HTTP delete is not sufficient if linked, derived, cached, filed, telemetered, or processor-held data remains undocumented.
-
-### Logs, telemetry, and artifacts
-
-Inspect actual emitted payloads where safe and verify:
-
-- no tokens, secrets, passwords, raw authorization headers, personal data, customer content, addresses, free text, or production identifiers leak unexpectedly;
-- route and dependency names remove query values and entity identifiers;
-- metrics have bounded cardinality and do not use personal or tenant identifiers as dimensions;
-- exception handling does not serialize request/response bodies;
-- retention, access control, region, sampling, and deletion settings match the approved record;
-- CI, screenshots, traces, reports, dumps, support bundles, and source maps do not expose restricted data.
-
-### Vendors and transfers
-
-For a processor/integration change, validation evidence must include:
-
-- exact deployed endpoint/region and account settings;
-- data sent and received, including hidden metadata and vendor logs;
-- retention/deletion/training/secondary-use settings;
-- failure, retry, timeout, cancellation, duplication, and termination behavior;
-- approved contract, subprocessor, and transfer record reference without copying restricted terms into the public repository.
-
-## EU AI Act and AI-system validation
-
-No AI test may run with production personal data, credentials, confidential customer content, or unrestricted external tool access unless explicitly approved under the compliance baseline.
-
-### Required evidence
-
-For each AI system or AI-assisted capability, record:
-
-- inventory identifier, provider/model/version, purpose, users, affected people, inputs/outputs, tools, retrieval sources, and deployment region;
-- Workslip's legal role and current AI Act classification, with official source and review date;
-- prohibited-practice screening and required transparency, human oversight, logging, and quality controls;
-- training-data or grounding-data provenance, quality, representativeness, licensing, and personal-data handling where applicable;
-- provider terms for retention, training, human access, model improvement, security, subprocessors, regions, transfers, incident notification, and version changes;
-- AI literacy and operator instructions.
-
-### Functional and quality evaluation
-
-Use an approved, versioned evaluation set and measure behavior relevant to the use case, including:
-
-- task success, accuracy, false positives/negatives, uncertainty, abstention, and reproducibility;
-- subgroup or context performance where bias or unequal impact is plausible;
-- fabricated, misleading, discriminatory, harmful, illegal, or unsafe outputs;
-- language, accessibility, and Danish-domain performance where relevant;
-- human ability to understand limitations, identify AI involvement, review evidence, override, correct, stop, and escalate;
-- non-AI fallback and provider outage behavior.
-
-Do not reduce AI evaluation to a few manually selected prompts.
-
-### Adversarial and security evaluation
-
-Test as applicable:
-
-- direct and indirect prompt injection;
-- retrieval poisoning and unauthorized context retrieval;
-- cross-tenant prompt, cache, vector, memory, file, and conversation leakage;
-- secret and personal-data exfiltration;
-- insecure tool invocation, excessive agency, privilege escalation, and unsafe actions;
-- malicious files, encoded instructions, data reconstruction, and output injection;
-- rate limits, cost exhaustion, denial of service, retry storms, and provider degradation;
-- model/version changes and rollback.
-
-### Transparency and significant decisions
-
-Verify that required AI-interaction notices, generated-content labels, explanations, contest routes, and human-review controls are visible, understandable, timely, and not hidden by responsive layouts.
-
-Where an output could influence a legal or similarly significant decision, validation must demonstrate meaningful human intervention rather than nominal approval. The reviewer must receive relevant information, have sufficient time and authority, exercise independent judgment, and be able to change the outcome.
-
-### Production monitoring
-
-Define and verify:
-
-- approved model/version pinning or change-detection process;
-- quality, safety, privacy, security, bias, latency, cost, and usage monitoring;
-- incident thresholds, user feedback, escalation, containment, rollback, and notification;
-- periodic reassessment and evidence retention;
-- handling of provider policy, subprocessor, region, model, or terms changes.
-
-A pre-release test pass does not remove post-deployment monitoring obligations.
-
-## Backend and integration testing
-
-Backend validation should use the real dependency type or the closest isolated equivalent:
-
-- use a relational provider for EF Core query, transaction, constraint, lifecycle, deletion, and concurrency behavior;
-- call the actual HTTP endpoint for API contracts and authorization boundaries;
-- verify tenant isolation with at least two organizations where relevant;
-- verify unauthorized, forbidden, missing, conflict, retry, cancellation, and partial-completion paths where they carry risk;
-- exercise background-service failure and restart behavior when changed;
-- use fakes for destructive external operations, followed by a safe isolated real smoke when authorized;
-- verify processor and AI calls through an approved boundary that supports redaction, timeout, retry, cancellation, tenant scope, and auditability.
-
-The EF Core in-memory provider must not be treated as proof of SQL translation, relational constraints, transaction behavior, production concurrency, cascade deletion, or retention behavior.
-
-## Test selection
-
-Add tests where they provide meaningful regression protection:
-
-- business rules and calculations;
-- branching workflows and state transitions;
-- authorization and tenant isolation;
-- personal-data minimization, retention, deletion, export, rights, and redaction;
-- transactions, rollback, retries, idempotency, and partial failure;
-- concurrency;
-- external integration and processor boundaries;
-- AI classification-dependent controls, safety, privacy, security, human oversight, and significant edge cases;
-- critical edge cases and verified regressions.
-
-Do not add tests for trivial getters, simple mappings, framework behavior, basic CRUD pass-through, or implementation details without concrete risk. Do not optimize for coverage percentage.
-
-## Validation report format
-
-Every implementation report and PR description must state:
-
-- what was statically reviewed;
-- the personal-data and AI impact classification;
-- exact build/lint/typecheck/documentation/security commands that ran;
-- exact automated tests that ran and their outcome;
-- integration scenarios that ran;
-- Playwright scenarios that ran, including browser and viewport;
-- deployed smoke checks that ran;
-- privacy lifecycle, telemetry/artifact, vendor, or AI evaluation evidence produced;
-- compliance records or accountable approvals updated, referenced by safe identifier;
-- anything required but not executed, with the precise reason.
-
-Do not collapse these into a generic “tests passed” or “compliant” statement.
 </file>
 
 <file path="Docs/api/contract.md">
@@ -128254,39 +128287,6 @@ export default defineConfig({
     },
   },
 })
-</file>
-
-<file path="AGENTS.md">
-# Workslip agent instruction router
-
-This file routes implementation agents to the scoped instructions for the part of Workslip being changed. Do not duplicate detailed rules here.
-
-## Always read
-
-1. [`Docs/agents/OPERATING_CONTRACT.md`](Docs/agents/OPERATING_CONTRACT.md) — repository workflow, source-of-truth order, scope discipline, security, maintainability, scalability, documentation, and completion language.
-2. [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) — mandatory validation ladder, test selection, Playwright requirements, and evidence standards.
-3. [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) — mandatory GDPR and EU AI Act change gates, data/AI governance, release blockers, and compliance evidence requirements.
-
-## Global architecture principle
-
-Optimize for low cognitive load, explicit dependencies, predictable code placement, isolated use cases, and low hidden coupling across all layers.
-
-Use patterns only when they reduce complexity, maintenance cost, or change risk more than they introduce. Prefer thin entry points, feature-local logic, consistent contracts, and existing conventions. Avoid wrappers, interfaces, mapping layers, pipelines, and abstractions without a concrete need.
-
-Small improvements that naturally reduce technical debt are encouraged when they stay within the current task's scope. Do not start opportunistic rewrites or widen an issue to pursue an architectural pattern.
-
-## Read for the affected scope
-
-| Scope | Required instructions |
-|---|---|
-| Frontend under `src/FE/` | [`src/FE/AGENTS.md`](src/FE/AGENTS.md) |
-| API/backend under `src/BE/WorkslipApi/` | [`src/BE/WorkslipApi/AGENTS.md`](src/BE/WorkslipApi/AGENTS.md) |
-| Infrastructure under `src/BE/infrastructure/` | [`src/BE/infrastructure/AGENTS.md`](src/BE/infrastructure/AGENTS.md) |
-| Maintained documentation under `Docs/` | [`Docs/AGENTS.md`](Docs/AGENTS.md) |
-
-For cross-layer changes, read every applicable scoped file before editing. The closest scoped `AGENTS.md` applies in addition to the three shared documents.
-
-Do not begin implementation until the relevant instructions, Linear issue, current branch state, applicable architecture documentation, and compliance impact have been inspected.
 </file>
 
 <file path="Docs/api/endpoint-catalog.md">
