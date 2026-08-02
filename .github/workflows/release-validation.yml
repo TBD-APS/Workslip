@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - 'release/**'
-  workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
+  packages: read
+  security-events: write
 
 concurrency:
   group: release-validation-${{ github.ref }}
@@ -20,9 +22,9 @@ env:
 
 jobs:
   backend:
-    name: Backend build and tests
+    name: Backend build, tests and CodeQL
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -41,6 +43,12 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
+      - name: Initialize CodeQL for C#
+        uses: github/codeql-action/init@v4
+        with:
+          languages: csharp
+          build-mode: manual
+
       - name: Restore
         run: dotnet restore "${BACKEND_SOLUTION}" --nologo
 
@@ -56,6 +64,11 @@ jobs:
           --logger "trx;LogFileName=release-tests.trx"
           --results-directory "${{ runner.temp }}/backend-tests"
 
+      - name: Analyze C# with CodeQL
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:csharp'
+
       - name: Upload backend test results
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
@@ -66,9 +79,9 @@ jobs:
           retention-days: 3
 
   frontend:
-    name: Frontend lint, tests and build
+    name: Frontend lint, tests, build and CodeQL
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: src/FE
@@ -90,6 +103,12 @@ jobs:
           path: src/FE/public/fonts
           key: fonts-${{ runner.os }}-${{ hashFiles('src/FE/scripts/sync-fonts.mjs') }}
 
+      - name: Initialize CodeQL for JavaScript and TypeScript
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
 
@@ -101,6 +120,11 @@ jobs:
 
       - name: Build production frontend
         run: npm run build
+
+      - name: Analyze JavaScript and TypeScript with CodeQL
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:javascript-typescript'
 
   contracts:
     name: Playwright and API contract sources
@@ -162,4 +186,4 @@ jobs:
             exit 1
           fi
 
-          echo 'All required release validation jobs succeeded.'
+          echo 'All required release validation jobs, including CodeQL, succeeded.'
