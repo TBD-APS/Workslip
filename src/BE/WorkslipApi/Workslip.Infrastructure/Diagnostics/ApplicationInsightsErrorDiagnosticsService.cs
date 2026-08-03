@@ -438,10 +438,12 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         union FrontendErrors, ExplicitBackendErrors, BackendRequestFailures
         | where RequestedSource == "all" or Source == RequestedSource
         | summarize
+            FirstSeen = min(Timestamp),
+            LastSeen = max(Timestamp),
             Occurrences = sum(Weight),
-            arg_max(Timestamp, CorrelationId, TraceId)
-            by Source, Severity, ErrorType, Message, Route, Operation, Release
-        | top {{MaxRawGroups + 1}} by Timestamp desc
+            arg_max(Timestamp, Severity, CorrelationId, TraceId)
+            by Source, ErrorType, Message, Route, Operation, Release
+        | top {{MaxRawGroups + 1}} by LastSeen desc
         """;
 
     private static string BuildTelemetryHealthQuery() => """
@@ -494,6 +496,8 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         var rows = ReadRows(
             root,
             "Timestamp",
+            "FirstSeen",
+            "LastSeen",
             "Source",
             "Severity",
             "ErrorType",
@@ -514,23 +518,58 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
 
         var grouped = normalized
             .GroupBy(item => item.Fingerprint, StringComparer.Ordinal)
-            .Select(group =>
-            {
-                var latest = group.OrderByDescending(item => item.TimestampUtc).First();
-                return latest with { Occurrences = SumOccurrences(group) };
-            })
-            .OrderByDescending(item => item.TimestampUtc)
+            .Select(AggregateGroup)
+            .OrderByDescending(item => item.LastSeenUtc)
             .Take(limit)
             .ToArray();
 
         return new DetailsParseResult(grouped, isTruncated);
     }
 
+    private static ErrorDiagnosticsItem AggregateGroup(
+        IGrouping<string, ErrorDiagnosticsItem> group)
+    {
+        var items = group.ToArray();
+        var latest = items.MaxBy(item => item.LastSeenUtc)
+            ?? throw new DiagnosticsResponseException();
+        var firstSeen = items.Min(item => item.FirstSeenUtc);
+        var lastSeen = items.Max(item => item.LastSeenUtc);
+        var severity = items.Any(item => item.Severity == "critical")
+            ? "critical"
+            : latest.Severity;
+
+        return latest with
+        {
+            TimestampUtc = lastSeen,
+            FirstSeenUtc = firstSeen,
+            LastSeenUtc = lastSeen,
+            Severity = severity,
+            AffectedReleaseCount = CountDistinct(items.Select(item => item.Release)),
+            AffectedRouteCount = CountDistinct(items.Select(item => item.Route)),
+            AffectedOperationCount = CountDistinct(items.Select(item => item.Operation)),
+            Occurrences = SumOccurrences(items)
+        };
+    }
+
+    private static int CountDistinct(IEnumerable<string?> values) =>
+        values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
     private static RawError ParseRawError(IReadOnlyDictionary<string, JsonElement> row)
     {
         var timestamp = ReadOptionalTimestamp(row, "Timestamp");
-        if (timestamp is null)
+        var firstSeen = ReadOptionalTimestamp(row, "FirstSeen");
+        var lastSeen = ReadOptionalTimestamp(row, "LastSeen");
+        if (timestamp is null
+            || firstSeen is null
+            || lastSeen is null
+            || firstSeen > lastSeen
+            || timestamp != lastSeen)
+        {
             throw new DiagnosticsResponseException();
+        }
 
         var source = ReadRequiredString(row, "Source").ToLowerInvariant();
         var severity = ReadRequiredString(row, "Severity").ToLowerInvariant();
@@ -542,6 +581,8 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
 
         return new RawError(
             timestamp.Value,
+            firstSeen.Value,
+            lastSeen.Value,
             source,
             severity,
             ReadRequiredString(row, "ErrorType"),
@@ -563,16 +604,16 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
         var release = DiagnosticsSanitizer.SanitizeField(error.Release);
         var correlationId = DiagnosticsSanitizer.SanitizeCorrelationId(error.CorrelationId);
         var traceId = DiagnosticsSanitizer.SanitizeCorrelationId(error.TraceId);
+        var stableErrorType = GetStableErrorType(error.Source, errorType);
         var fingerprint = DiagnosticsSanitizer.Fingerprint(
             error.Source,
-            errorType,
-            message,
-            route,
-            operation,
-            release);
+            stableErrorType,
+            message);
 
         return new ErrorDiagnosticsItem(
             error.TimestampUtc,
+            error.FirstSeenUtc,
+            error.LastSeenUtc,
             error.Source,
             error.Severity,
             errorType,
@@ -583,7 +624,25 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
             release,
             correlationId,
             traceId,
+            string.IsNullOrWhiteSpace(release) ? 0 : 1,
+            string.IsNullOrWhiteSpace(route) ? 0 : 1,
+            string.IsNullOrWhiteSpace(operation) ? 0 : 1,
             error.Occurrences);
+    }
+
+    private static string GetStableErrorType(string source, string errorType)
+    {
+        if (source != "frontend")
+            return errorType;
+
+        var fingerprintSeparator = errorType.IndexOf(" [", StringComparison.Ordinal);
+        if (fingerprintSeparator > 0)
+            return errorType[..fingerprintSeparator];
+
+        var frameSeparator = errorType.IndexOf(" at ", StringComparison.OrdinalIgnoreCase);
+        return frameSeparator > 0
+            ? errorType[..frameSeparator]
+            : errorType;
     }
 
     private static long SumOccurrences(IEnumerable<ErrorDiagnosticsItem> items)
@@ -772,6 +831,8 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
 
     private sealed record RawError(
         DateTimeOffset TimestampUtc,
+        DateTimeOffset FirstSeenUtc,
+        DateTimeOffset LastSeenUtc,
         string Source,
         string Severity,
         string ErrorType,
