@@ -71,6 +71,8 @@ public sealed record ErrorDiagnosticsTelemetryHealth(
 
 public sealed record ErrorDiagnosticsItem(
     DateTimeOffset TimestampUtc,
+    DateTimeOffset FirstSeenUtc,
+    DateTimeOffset LastSeenUtc,
     string Source,
     string Severity,
     string ErrorType,
@@ -81,4 +83,7 @@ public sealed record ErrorDiagnosticsItem(
     string? Release,
     string? CorrelationId,
     string? TraceId,
+    int AffectedReleaseCount,
+    int AffectedRouteCount,
+    int AffectedOperationCount,
     long Occurrences);
