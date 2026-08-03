@@ -33,6 +33,8 @@ const validDashboard = {
   },
   items: [{
     timestampUtc: '2026-08-02T04:59:00Z',
+    firstSeenUtc: '2026-08-01T18:00:00Z',
+    lastSeenUtc: '2026-08-02T04:59:00Z',
     source: 'backend',
     severity: 'error',
     errorType: 'SqlException',
@@ -40,17 +42,20 @@ const validDashboard = {
     message: 'Database operation failed',
     route: '/api/jobs/:id',
     operation: 'POST /api/jobs/:id',
-    release: 'release-1',
-    correlationId: 'correlation-1',
+    release: 'release-2',
+    correlationId: 'abcdefabcdef1234',
     traceId: null,
-    occurrences: 2,
+    affectedReleaseCount: 2,
+    affectedRouteCount: 3,
+    affectedOperationCount: 2,
+    occurrences: 7,
   }],
 };
 
 describe('Error diagnostics API', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('validates the dashboard response before exposing it to the UI', async () => {
+  it('validates the grouped dashboard response before exposing it to the UI', async () => {
     vi.mocked(apiClient.get).mockResolvedValue(validDashboard);
 
     await expect(getErrorDiagnostics('24h', 'all')).resolves.toEqual(validDashboard);
@@ -58,6 +63,36 @@ describe('Error diagnostics API', () => {
       params: { range: '24h', source: 'all', limit: 50 },
       skipGlobalErrorToast: true,
     });
+  });
+
+  it('rejects a group whose first seen timestamp is after last seen', () => {
+    expect(() => parseErrorDiagnosticsDashboard({
+      ...validDashboard,
+      items: [{
+        ...validDashboard.items[0],
+        firstSeenUtc: '2026-08-02T05:00:00Z',
+      }],
+    })).toThrow('Logdashboardet modtog et ugyldigt svar');
+  });
+
+  it('rejects a group whose representative timestamp is not last seen', () => {
+    expect(() => parseErrorDiagnosticsDashboard({
+      ...validDashboard,
+      items: [{
+        ...validDashboard.items[0],
+        timestampUtc: '2026-08-02T04:58:00Z',
+      }],
+    })).toThrow('Logdashboardet modtog et ugyldigt svar');
+  });
+
+  it('rejects invalid grouped context counts', () => {
+    expect(() => parseErrorDiagnosticsDashboard({
+      ...validDashboard,
+      items: [{
+        ...validDashboard.items[0],
+        affectedReleaseCount: -1,
+      }],
+    })).toThrow('Logdashboardet modtog et ugyldigt svar');
   });
 
   it('rejects inconsistent responses instead of displaying false zeroes', () => {

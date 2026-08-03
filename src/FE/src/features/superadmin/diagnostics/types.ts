@@ -17,6 +17,8 @@ export interface ErrorDiagnosticsTelemetryHealth {
 
 export interface ErrorDiagnosticsItem {
   timestampUtc: string;
+  firstSeenUtc: string;
+  lastSeenUtc: string;
   source: 'frontend' | 'backend';
   severity: ErrorDiagnosticsSeverity;
   errorType: string;
@@ -27,6 +29,9 @@ export interface ErrorDiagnosticsItem {
   release: string | null;
   correlationId: string | null;
   traceId: string | null;
+  affectedReleaseCount: number;
+  affectedRouteCount: number;
+  affectedOperationCount: number;
   occurrences: number;
 }
 

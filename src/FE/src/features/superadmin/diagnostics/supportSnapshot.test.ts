@@ -25,23 +25,28 @@ const dashboard: ErrorDiagnosticsDashboard = {
   items: [
     {
       timestampUtc: '2026-08-02T19:50:00.000Z',
+      firstSeenUtc: '2026-08-01T08:15:00.000Z',
+      lastSeenUtc: '2026-08-02T19:50:00.000Z',
       source: 'backend',
       severity: 'error',
       errorType: 'HTTP 500',
       fingerprint: 'a1b2c3d4',
       message: 'Backend request failed',
-      route: '/api/jobs/{id}',
-      operation: 'POST /api/jobs/{id}/status',
+      route: '/api/jobs/:id',
+      operation: 'POST /api/jobs/:id/status',
       release: '2026.08.02.1',
-      correlationId: 'abc123',
-      traceId: 'def456',
-      occurrences: 2,
+      correlationId: 'abc123abc123abcd',
+      traceId: 'def456def456abcd',
+      affectedReleaseCount: 2,
+      affectedRouteCount: 3,
+      affectedOperationCount: 2,
+      occurrences: 7,
     },
   ],
 };
 
 describe('serializeErrorDiagnosticsSupportSnapshot', () => {
-  it('preserves filters and incomplete-data warnings', () => {
+  it('preserves filters, grouping metadata and incomplete-data warnings', () => {
     const result = JSON.parse(serializeErrorDiagnosticsSupportSnapshot(
       dashboard,
       '24h',
@@ -61,6 +66,14 @@ describe('serializeErrorDiagnosticsSupportSnapshot', () => {
         availabilityReason: 'timeout',
         hasPartialAzureResults: true,
         isTruncated: true,
+        items: [{
+          firstSeenUtc: '2026-08-01T08:15:00.000Z',
+          lastSeenUtc: '2026-08-02T19:50:00.000Z',
+          affectedReleaseCount: 2,
+          affectedRouteCount: 3,
+          affectedOperationCount: 2,
+          occurrences: 7,
+        }],
       },
     });
   });
