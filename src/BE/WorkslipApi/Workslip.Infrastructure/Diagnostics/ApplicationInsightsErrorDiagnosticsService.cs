@@ -441,8 +441,8 @@ public sealed class ApplicationInsightsErrorDiagnosticsService(
             FirstSeen = min(Timestamp),
             LastSeen = max(Timestamp),
             Occurrences = sum(Weight),
-            arg_max(Timestamp, Severity, CorrelationId, TraceId)
-            by Source, ErrorType, Message, Route, Operation, Release
+            arg_max(Timestamp, CorrelationId, TraceId)
+            by Source, Severity, ErrorType, Message, Route, Operation, Release
         | top {{MaxRawGroups + 1}} by LastSeen desc
         """;
 
