@@ -113,9 +113,7 @@ function availabilityMessage(reason: string | null): string {
     : reasons.map(singleAvailabilityMessage).join(' ');
 }
 
-function ErrorCard({ item }: { item: ErrorDiagnosticsItem }) {
-  const context = item.route ?? item.operation;
-
+export function ErrorCard({ item }: { item: ErrorDiagnosticsItem }) {
   return (
     <article className={`error-diagnostics-item severity-${item.severity}`}>
       <div className="error-diagnostics-item-topline">
@@ -127,12 +125,13 @@ function ErrorCard({ item }: { item: ErrorDiagnosticsItem }) {
           )}
           {item.source === 'frontend' ? 'Frontend' : 'Backend'}
         </span>
-        <time dateTime={item.timestampUtc}>{formatTimestamp(item.timestampUtc)}</time>
-        {item.occurrences > 1 && (
-          <span className="error-occurrences" aria-label={`${item.occurrences} forekomster`}>
-            ×{item.occurrences}
-          </span>
-        )}
+        <span>
+          Senest set{' '}
+          <time dateTime={item.lastSeenUtc}>{formatTimestamp(item.lastSeenUtc)}</time>
+        </span>
+        <span className="error-occurrences" aria-label={`${item.occurrences} forekomster`}>
+          ×{item.occurrences}
+        </span>
       </div>
 
       <div className="error-diagnostics-item-heading">
@@ -148,18 +147,44 @@ function ErrorCard({ item }: { item: ErrorDiagnosticsItem }) {
       </div>
 
       <dl className="error-diagnostics-metadata">
-        {context && (
+        <div>
+          <dt>Først set</dt>
+          <dd><time dateTime={item.firstSeenUtc}>{formatTimestamp(item.firstSeenUtc)}</time></dd>
+        </div>
+        <div>
+          <dt>Senest set</dt>
+          <dd><time dateTime={item.lastSeenUtc}>{formatTimestamp(item.lastSeenUtc)}</time></dd>
+        </div>
+        {item.route && (
           <div>
-            <dt>{item.route ? 'Route' : 'Operation'}</dt>
-            <dd><code>{context}</code></dd>
+            <dt>Seneste route</dt>
+            <dd><code>{item.route}</code></dd>
+          </div>
+        )}
+        {item.operation && (
+          <div>
+            <dt>Seneste operation</dt>
+            <dd><code>{item.operation}</code></dd>
           </div>
         )}
         {item.release && (
           <div>
-            <dt>Release</dt>
+            <dt>Seneste release</dt>
             <dd><code>{item.release}</code></dd>
           </div>
         )}
+        <div>
+          <dt>Berørte releases</dt>
+          <dd>{item.affectedReleaseCount}</dd>
+        </div>
+        <div>
+          <dt>Berørte routes</dt>
+          <dd>{item.affectedRouteCount}</dd>
+        </div>
+        <div>
+          <dt>Berørte operationer</dt>
+          <dd>{item.affectedOperationCount}</dd>
+        </div>
         <div>
           <dt>Fingerprint</dt>
           <dd><code>{item.fingerprint}</code></dd>
@@ -431,7 +456,7 @@ export function ErrorDiagnosticsDashboard() {
             <div className="error-diagnostics-list-heading">
               <div>
                 <h2 id="error-list-title">Seneste grupperede fejl</h2>
-                <p>Listen følger valgt kilde og tidsrum. Ens hændelser grupperes via et sanitiseret fingerprint.</p>
+                <p>Listen følger valgt kilde og tidsrum. Ens hændelser grupperes via en stabil sanitiseret fejlsignatur.</p>
               </div>
               {dashboard.itemsAvailable && <span>{dashboard.items.length} grupper</span>}
             </div>
@@ -452,7 +477,7 @@ export function ErrorDiagnosticsDashboard() {
             ) : (
               <div className="error-diagnostics-items">
                 {dashboard.items.map((item) => (
-                  <ErrorCard key={`${item.fingerprint}-${item.timestampUtc}`} item={item} />
+                  <ErrorCard key={item.fingerprint} item={item} />
                 ))}
               </div>
             )}
