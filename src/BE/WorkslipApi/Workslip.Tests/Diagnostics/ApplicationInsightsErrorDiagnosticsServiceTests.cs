@@ -13,7 +13,7 @@ namespace Workslip.Tests.Diagnostics;
 public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
 {
     [Fact]
-    public async Task GetAsync_UsesWeightedCountsAndGroupsSanitizedRows()
+    public async Task GetAsync_UsesWeightedCountsAndGroupsSanitizedRowsAcrossContextAndRelease()
     {
         var handler = new QueryHttpMessageHandler(SuccessfulResponse);
         using var serviceFixture = CreateService(handler);
@@ -34,21 +34,72 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
         Assert.Equal(
             DateTimeOffset.Parse("2026-08-02T05:01:00Z"),
             result.Value.TelemetryHealth.BackendLastSeenUtc);
+
         var item = Assert.Single(result.Value.Items);
         Assert.Equal(10, item.Occurrences);
+        Assert.Equal(DateTimeOffset.Parse("2026-08-01T23:00:00Z"), item.FirstSeenUtc);
+        Assert.Equal(DateTimeOffset.Parse("2026-08-02T00:05:00Z"), item.LastSeenUtc);
+        Assert.Equal(item.LastSeenUtc, item.TimestampUtc);
+        Assert.Equal(2, item.AffectedReleaseCount);
+        Assert.Equal(2, item.AffectedRouteCount);
+        Assert.Equal(2, item.AffectedOperationCount);
+        Assert.Equal("critical", item.Severity);
+        Assert.Equal("release-2", item.Release);
         Assert.DoesNotContain("user@example.com", item.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("92779e5b-da5b-4cc4-bbeb-07b40cab806f", item.Message, StringComparison.Ordinal);
         Assert.Equal("/api/jobs/:id", item.Route);
-        Assert.Equal("safe-correlation-id", item.CorrelationId);
+        Assert.Equal("abcdefabcdef1234", item.CorrelationId);
         Assert.Matches("^[a-f0-9]{12}$", item.Fingerprint);
+
         Assert.Equal(3, handler.Requests.Count);
         Assert.All(handler.Requests, request =>
             Assert.Equal("Bearer test-token", request.Authorization));
         Assert.Contains(handler.Requests, request => request.Body.Contains("sumif(Weight", StringComparison.Ordinal));
-        Assert.Contains(handler.Requests, request => request.Body.Contains("Occurrences = sum(Weight)", StringComparison.Ordinal));
+        Assert.Contains(handler.Requests, request =>
+            request.Body.Contains("FirstSeen = min(Timestamp)", StringComparison.Ordinal)
+            && request.Body.Contains("LastSeen = max(Timestamp)", StringComparison.Ordinal)
+            && request.Body.Contains("Occurrences = sum(Weight)", StringComparison.Ordinal));
         Assert.Contains(handler.Requests, request =>
             request.Body.Contains("telemetry.heartbeat", StringComparison.Ordinal)
             && request.Body.Contains("AppRequests", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GetAsync_GroupsFrontendFramesWithTheSameMessageFingerprintAcrossReleases()
+    {
+        var handler = new QueryHttpMessageHandler(request =>
+        {
+            if (IsHealthQuery(request)) return JsonResponse(HealthJson);
+            return JsonResponse(IsSummaryQuery(request) ? SummaryJson : FrontendGroupingDetailsJson);
+        });
+        using var serviceFixture = CreateService(handler);
+
+        var result = await serviceFixture.Service.GetAsync(new ErrorDiagnosticsQuery());
+
+        var item = Assert.Single(result.Value.Items);
+        Assert.Equal("TypeError [da1fc4b7] at wa", item.ErrorType);
+        Assert.Equal("TypeError [da1fc4b7]", item.Message);
+        Assert.Equal(2, item.Occurrences);
+        Assert.Equal(2, item.AffectedReleaseCount);
+        Assert.Equal(2, item.AffectedRouteCount);
+        Assert.Equal(DateTimeOffset.Parse("2026-08-01T14:30:00Z"), item.FirstSeenUtc);
+        Assert.Equal(DateTimeOffset.Parse("2026-08-02T21:42:52Z"), item.LastSeenUtc);
+    }
+
+    [Fact]
+    public async Task GetAsync_KeepsDifferentStableMessagesInSeparateGroups()
+    {
+        var handler = new QueryHttpMessageHandler(request =>
+        {
+            if (IsHealthQuery(request)) return JsonResponse(HealthJson);
+            return JsonResponse(IsSummaryQuery(request) ? SummaryJson : DifferentDetailsJson);
+        });
+        using var serviceFixture = CreateService(handler);
+
+        var result = await serviceFixture.Service.GetAsync(new ErrorDiagnosticsQuery());
+
+        Assert.Equal(2, result.Value.Items.Count);
+        Assert.NotEqual(result.Value.Items[0].Fingerprint, result.Value.Items[1].Fingerprint);
     }
 
     [Fact]
@@ -276,6 +327,8 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
             "name": "PrimaryResult",
             "columns": [
               { "name": "Timestamp", "type": "datetime" },
+              { "name": "FirstSeen", "type": "datetime" },
+              { "name": "LastSeen", "type": "datetime" },
               { "name": "Source", "type": "string" },
               { "name": "Severity", "type": "string" },
               { "name": "ErrorType", "type": "string" },
@@ -288,8 +341,62 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
               { "name": "Occurrences", "type": "long" }
             ],
             "rows": [
-              ["2026-08-02T00:00:00Z", "backend", "error", "SqlException", "Failure for user@example.com and job 92779e5b-da5b-4cc4-bbeb-07b40cab806f", "/api/jobs/92779e5b-da5b-4cc4-bbeb-07b40cab806f", "POST /api/jobs", "release-1", "safe-correlation-id", "trace-1", 4],
-              ["2026-08-01T23:59:00Z", "backend", "error", "SqlException", "Failure for user@example.com and job 92779e5b-da5b-4cc4-bbeb-07b40cab806f", "/api/jobs/92779e5b-da5b-4cc4-bbeb-07b40cab806f", "POST /api/jobs", "release-1", "safe-correlation-id", "trace-1", 6]
+              ["2026-08-02T00:05:00Z", "2026-08-02T00:00:00Z", "2026-08-02T00:05:00Z", "backend", "error", "SqlException", "Failure for user@example.com and job 92779e5b-da5b-4cc4-bbeb-07b40cab806f", "/api/jobs/92779e5b-da5b-4cc4-bbeb-07b40cab806f", "POST /api/jobs", "release-2", "abcdefabcdef1234", "trace-2", 4],
+              ["2026-08-01T23:59:00Z", "2026-08-01T23:00:00Z", "2026-08-01T23:59:00Z", "backend", "critical", "SqlException", "Failure for user@example.com and job 92779e5b-da5b-4cc4-bbeb-07b40cab806f", "/api/customers/92779e5b-da5b-4cc4-bbeb-07b40cab806f", "POST /api/customers", "release-1", "abcdefabcdef1234", "trace-1", 6]
+            ]
+          }]
+        }
+        """;
+
+    private const string FrontendGroupingDetailsJson = """
+        {
+          "tables": [{
+            "name": "PrimaryResult",
+            "columns": [
+              { "name": "Timestamp", "type": "datetime" },
+              { "name": "FirstSeen", "type": "datetime" },
+              { "name": "LastSeen", "type": "datetime" },
+              { "name": "Source", "type": "string" },
+              { "name": "Severity", "type": "string" },
+              { "name": "ErrorType", "type": "string" },
+              { "name": "Message", "type": "string" },
+              { "name": "Route", "type": "string" },
+              { "name": "Operation", "type": "string" },
+              { "name": "Release", "type": "string" },
+              { "name": "CorrelationId", "type": "string" },
+              { "name": "TraceId", "type": "string" },
+              { "name": "Occurrences", "type": "long" }
+            ],
+            "rows": [
+              ["2026-08-02T21:42:52Z", "2026-08-02T21:42:52Z", "2026-08-02T21:42:52Z", "frontend", "error", "TypeError [da1fc4b7] at wa", "TypeError [da1fc4b7]", "/superadmin", "/", "release-2", null, "697a3e37e3344cefbb182df1972dcc2e", 1],
+              ["2026-08-01T14:31:54Z", "2026-08-01T14:30:00Z", "2026-08-01T14:31:54Z", "frontend", "error", "TypeError [da1fc4b7] at Ta", "TypeError [da1fc4b7]", "/app", "/app", "release-1", null, "e7df5cb94a78433ca26d3da85155e37b", 1]
+            ]
+          }]
+        }
+        """;
+
+    private const string DifferentDetailsJson = """
+        {
+          "tables": [{
+            "name": "PrimaryResult",
+            "columns": [
+              { "name": "Timestamp", "type": "datetime" },
+              { "name": "FirstSeen", "type": "datetime" },
+              { "name": "LastSeen", "type": "datetime" },
+              { "name": "Source", "type": "string" },
+              { "name": "Severity", "type": "string" },
+              { "name": "ErrorType", "type": "string" },
+              { "name": "Message", "type": "string" },
+              { "name": "Route", "type": "string" },
+              { "name": "Operation", "type": "string" },
+              { "name": "Release", "type": "string" },
+              { "name": "CorrelationId", "type": "string" },
+              { "name": "TraceId", "type": "string" },
+              { "name": "Occurrences", "type": "long" }
+            ],
+            "rows": [
+              ["2026-08-02T21:42:52Z", "2026-08-02T21:42:52Z", "2026-08-02T21:42:52Z", "frontend", "error", "TypeError [da1fc4b7] at wa", "TypeError [da1fc4b7]", "/superadmin", "/", "release-2", null, "697a3e37e3344cefbb182df1972dcc2e", 1],
+              ["2026-08-02T21:42:51Z", "2026-08-02T21:42:51Z", "2026-08-02T21:42:51Z", "frontend", "error", "TypeError [ffffffff] at wa", "TypeError [ffffffff]", "/superadmin", "/", "release-2", null, "697a3e37e3344cefbb182df1972dcc2e", 1]
             ]
           }]
         }
@@ -301,6 +408,8 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
             "name": "PrimaryResult",
             "columns": [
               { "name": "Timestamp", "type": "datetime" },
+              { "name": "FirstSeen", "type": "datetime" },
+              { "name": "LastSeen", "type": "datetime" },
               { "name": "Source", "type": "string" },
               { "name": "Severity", "type": "string" },
               { "name": "ErrorType", "type": "string" },
@@ -313,7 +422,7 @@ public sealed class ApplicationInsightsErrorDiagnosticsServiceTests
               { "name": "Occurrences", "type": "long" }
             ],
             "rows": [
-              ["2026-08-02T00:00:00Z", "frontend", "error", "TypeError", "Frontend error", "/app/jobs/:id", "", "release-1", "", "trace-1", 2]
+              ["2026-08-02T00:00:00Z", "2026-08-02T00:00:00Z", "2026-08-02T00:00:00Z", "frontend", "error", "TypeError", "Frontend error", "/app/jobs/:id", "", "release-1", "", "trace-1", 2]
             ]
           }],
           "error": {
