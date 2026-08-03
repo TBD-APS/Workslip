@@ -90,12 +90,20 @@ function parseItem(value: unknown): ErrorDiagnosticsItem {
   const record = requireRecord(value);
   const source = requireString(record, 'source');
   const severity = requireString(record, 'severity');
+  const timestampUtc = requireTimestamp(record, 'timestampUtc');
+  const firstSeenUtc = requireTimestamp(record, 'firstSeenUtc');
+  const lastSeenUtc = requireTimestamp(record, 'lastSeenUtc');
 
   if (source !== 'frontend' && source !== 'backend') throw new Error(invalidResponseMessage);
   if (severity !== 'error' && severity !== 'critical') throw new Error(invalidResponseMessage);
+  if (Date.parse(firstSeenUtc) > Date.parse(lastSeenUtc) || timestampUtc !== lastSeenUtc) {
+    throw new Error(invalidResponseMessage);
+  }
 
   return {
-    timestampUtc: requireTimestamp(record, 'timestampUtc'),
+    timestampUtc,
+    firstSeenUtc,
+    lastSeenUtc,
     source,
     severity,
     errorType: requireString(record, 'errorType'),
@@ -106,6 +114,9 @@ function parseItem(value: unknown): ErrorDiagnosticsItem {
     release: nullableString(record, 'release'),
     correlationId: nullableString(record, 'correlationId'),
     traceId: nullableString(record, 'traceId'),
+    affectedReleaseCount: requireCount(record, 'affectedReleaseCount'),
+    affectedRouteCount: requireCount(record, 'affectedRouteCount'),
+    affectedOperationCount: requireCount(record, 'affectedOperationCount'),
     occurrences: requireCount(record, 'occurrences', false),
   };
 }
