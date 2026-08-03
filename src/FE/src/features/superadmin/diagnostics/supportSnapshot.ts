@@ -50,6 +50,8 @@ export function serializeErrorDiagnosticsSupportSnapshot(
       : null,
     items: dashboard.items.map((item) => ({
       timestampUtc: item.timestampUtc,
+      firstSeenUtc: item.firstSeenUtc,
+      lastSeenUtc: item.lastSeenUtc,
       source: item.source,
       severity: item.severity,
       errorType: item.errorType,
@@ -60,6 +62,9 @@ export function serializeErrorDiagnosticsSupportSnapshot(
       release: item.release,
       correlationId: item.correlationId,
       traceId: item.traceId,
+      affectedReleaseCount: item.affectedReleaseCount,
+      affectedRouteCount: item.affectedRouteCount,
+      affectedOperationCount: item.affectedOperationCount,
       occurrences: item.occurrences,
     })),
   };
