@@ -84,6 +84,21 @@ Counts use Application Insights `ItemCount` as their weight. This preserves occu
 
 The source filter applies to both summary and details. Details are grouped in KQL, sanitized again in the API and grouped once more by safe fingerprint after redaction. The API detects when its bounded result set is truncated and exposes that state to the UI.
 
+### Stable error grouping
+
+The selected time range is applied before grouping. Summary values continue to count every weighted occurrence, while the detail list counts stable error groups and displays each group's total occurrences separately.
+
+The API groups recurring failures after sanitization using a stable, non-reversible signature:
+
+- frontend: source, normalized error class and sanitized message fingerprint;
+- backend: source, sanitized error type and sanitized normalized message.
+
+Timestamp, route, operation, release, correlation ID and trace ID do not split the main group. Frontend minified frame names such as `at Ta` and `at wa` therefore remain one group when the sanitized message fingerprint is unchanged.
+
+Each group returns the earliest and latest observed timestamps within the selected range, total weighted occurrences, the latest representative route/operation/release/correlation context and the number of distinct sanitized releases, routes and operations represented by the group. If any grouped occurrence is critical, the group remains critical even when the latest representative occurrence is only error severity.
+
+Generic messages such as `Resource load error` can only be grouped as precisely as the allowlisted telemetry category permits. Do not add raw asset URLs, stack traces or arbitrary custom properties merely to improve grouping; extend the sanitized telemetry category through the reviewed diagnostics contract instead.
+
 ### Pipeline health
 
 Pipeline health uses:
@@ -130,15 +145,16 @@ The API contract may contain only:
 - UTC generation and data-retrieval timestamps;
 - summary counts;
 - frontend/backend telemetry last-seen timestamps;
-- error timestamp;
+- representative error timestamp plus first- and last-seen timestamps;
 - source (`frontend` or `backend`);
 - normalized severity;
 - sanitized error type;
 - non-reversible fingerprint;
 - sanitized message;
-- normalized route or operation;
-- release identifier;
-- safe hexadecimal correlation ID or trace ID;
+- latest normalized route or operation;
+- latest release identifier;
+- distinct sanitized release, route and operation counts;
+- safe hexadecimal correlation ID or trace ID from the latest representative occurrence;
 - grouped occurrence count.
 
 It must never return raw exception objects, stack traces, request or response bodies, headers, authorization values, cookies, e-mail addresses, phone numbers, tenant IDs, entity IDs or complete Application Insights properties.
@@ -208,15 +224,17 @@ The PR must remain draft until all items below are documented:
 9. Generate one controlled backend exception in a safe internal flow.
 10. Generate one controlled HTTP 5xx result without an unhandled exception and confirm it appears once.
 11. Confirm weighted counts match a direct Azure query using `sum(ItemCount)`.
-12. Confirm frontend startup/module errors captured before React render are flushed after telemetry initialization.
-13. Stop or misconfigure one query in a safe environment and verify stale, partial and unavailable states.
-14. Verify that malformed and Azure `PartialError` responses never display as zero or empty.
-15. Confirm frontend and backend pipeline timestamps update after real traffic.
-16. Confirm no token, e-mail, phone, GUID, payload, arbitrary correlation ID or stack trace appears in the API response or browser.
-17. Validate loading, current, empty, partial, stale, unavailable, retry, truncation, filter and narrow-mobile states with Playwright.
-18. Verify the dashboard error boundary cannot take down organization administration.
-19. Verify the copy action is disabled before a validated response exists, copies the active range/source snapshot, preserves incomplete-state warnings and excludes unexpected object fields.
-20. Verify clipboard denial shows a generic failure without persistence, download or network fallback.
+12. Confirm recurring frontend and backend errors group across timestamp, route and release while different sanitized signatures remain separate.
+13. Confirm first/last seen, occurrences and affected context counts match direct Azure results within each selected range.
+14. Confirm frontend startup/module errors captured before React render are flushed after telemetry initialization.
+15. Stop or misconfigure one query in a safe environment and verify stale, partial and unavailable states.
+16. Verify that malformed and Azure `PartialError` responses never display as zero or empty.
+17. Confirm frontend and backend pipeline timestamps update after real traffic.
+18. Confirm no token, e-mail, phone, GUID, payload, arbitrary correlation ID or stack trace appears in the API response or browser.
+19. Validate loading, current, empty, partial, stale, unavailable, retry, truncation, grouping, filter and narrow-mobile states with Playwright.
+20. Verify the dashboard error boundary cannot take down organization administration.
+21. Verify the copy action is disabled before a validated response exists, copies the active range/source snapshot, preserves grouping and incomplete-state warnings and excludes unexpected object fields.
+22. Verify clipboard denial shows a generic failure without persistence, download or network fallback.
 
 Do not generate destructive exceptions against real customer cases.
 
@@ -226,9 +244,9 @@ Use the dashboard to identify:
 
 - whether failures are frontend or backend;
 - whether both telemetry pipelines have recently been observed;
-- the affected route or operation;
-- the active release;
-- repeated error fingerprints;
+- when a recurring error was first and last observed in the selected range;
+- the latest affected route, operation and release plus how many sanitized contexts are represented;
+- repeated error fingerprints and total weighted occurrences;
 - correlation IDs for deeper investigation;
 - whether data is current, partial, stale or truncated.
 
