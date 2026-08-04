@@ -1,7 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Workslip.Api.Configuration;
-using Workslip.Infrastructure.Schema;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 
@@ -39,20 +37,10 @@ try
         app.Environment,
         app.Configuration);
 
-    await using (var scope = app.Services.CreateAsyncScope())
-    {
-        var db = scope.ServiceProvider.GetRequiredService<SqlDbContext>();
-
-        await scope.ServiceProvider.GetRequiredService<DatabaseSchemaInitializer>().InitializeAsync();
-        await db.Database.CanConnectAsync();
-
-        if (releaseTestingEnabled)
-        {
-            await scope.ServiceProvider
-                .GetRequiredService<DevelopmentDatabaseSeeder>()
-                .SeedAsync();
-        }
-    }
+    await DatabaseStartup.InitializeIfRequiredAsync(
+        app.Services,
+        app.Configuration,
+        releaseTestingEnabled);
 
     app.ConfigurePipeline();
     app.ConfigureEndpoints();
