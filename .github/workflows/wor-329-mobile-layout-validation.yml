@@ -1,0 +1,43 @@
+name: WOR-329 mobile layout validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/wor-329-mobile-layout-validation.yml'
+      - 'src/FE/src/base.css'
+      - 'src/FE/src/App.css'
+      - 'src/FE/wor-329-mobile-layout.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: src/FE
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/FE/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Install Playwright runtime
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+
+      - name: Verify mobile Hours content clears fixed navigation
+        run: node wor-329-mobile-layout.mjs
