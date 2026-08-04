@@ -8,6 +8,7 @@ import {
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { notify } from '../../../lib/toast';
 import { formatJobStatus } from '../statusLabels';
+import { ConfirmActionDialog } from './ConfirmActionDialog';
 import './JobStatusControl.css';
 
 const STATUS_OPTIONS: readonly JobStatus[] = [
@@ -19,6 +20,7 @@ const STATUS_OPTIONS: readonly JobStatus[] = [
 
 type JobStatusControlProps = {
   jobId: string;
+  reportNumber: string;
   status: JobStatus;
   editable?: boolean;
   allowedStatuses?: readonly JobStatus[];
@@ -36,6 +38,7 @@ export function JobStatusControl(props: JobStatusControlProps) {
 
 function EditableJobStatusControl({
   jobId,
+  reportNumber,
   status,
   allowedStatuses = [],
   beforeChange,
@@ -43,6 +46,7 @@ function EditableJobStatusControl({
 }: JobStatusControlProps) {
   const queryClient = useQueryClient();
   const inFlightRef = useRef(false);
+  const [pendingStatus, setPendingStatus] = useState<JobStatus | null>(null);
   const [isChanging, setIsChanging] = useState(false);
   const mutation = usePostApiJobsIdStatus({
     request: { skipGlobalErrorToast: true },
@@ -85,6 +89,7 @@ function EditableJobStatusControl({
     } finally {
       inFlightRef.current = false;
       setIsChanging(false);
+      setPendingStatus(null);
     }
 
     if (changed) {
@@ -92,13 +97,26 @@ function EditableJobStatusControl({
     }
   };
 
+  const isPending = isChanging || mutation.isPending;
+
   return (
-    <JobStatusDots
-      status={status}
-      allowedStatuses={allowedStatuses}
-      disabled={isChanging || mutation.isPending}
-      onChange={changeStatus}
-    />
+    <>
+      <JobStatusDots
+        status={status}
+        allowedStatuses={allowedStatuses}
+        disabled={isPending}
+        onChange={setPendingStatus}
+      />
+      {pendingStatus && (
+        <ConfirmActionDialog
+          action="submit"
+          reportNumber={reportNumber}
+          isPending={isPending}
+          onConfirm={() => void changeStatus(pendingStatus)}
+          onClose={() => setPendingStatus(null)}
+        />
+      )}
+    </>
   );
 }
 
