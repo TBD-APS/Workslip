@@ -4,6 +4,7 @@ import './base.css';
 import App from './App.tsx';
 import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
 import { isJobFamilyQueryKey } from './lib/jobQueryKeys';
+import { NOTIFICATION_QUERY_PREFIX } from './lib/notificationQueryKeys';
 import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
 import { queryClient } from './lib/react-query';
 import { installNotificationNavigationHandler, installNotificationReceivedInvalidator } from './pwa/notificationNavigationClient';
@@ -50,9 +51,14 @@ if (typeof window !== 'undefined') {
     );
     installNotificationReceivedInvalidator(
       navigator.serviceWorker,
-      () => queryClient.invalidateQueries({
-        predicate: (query) => isJobFamilyQueryKey(query.queryKey),
-      }),
+      () => Promise.all([
+        queryClient.invalidateQueries({
+          predicate: (query) => isJobFamilyQueryKey(query.queryKey),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: NOTIFICATION_QUERY_PREFIX,
+        }),
+      ]),
     );
   }
 }
