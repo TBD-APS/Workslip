@@ -8,8 +8,9 @@
     input:not([type='button']):not([type='checkbox']):not([type='color']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='range']):not([type='reset']):not([type='submit']):not([inputmode='none']):not([readonly]):not([disabled]):focus,
     textarea:not([readonly]):not([disabled]):focus,
     [contenteditable]:not([contenteditable='false']):focus
-  ) .bottom-nav {
+  ) :is(.bottom-nav, .step-nav-anchor) {
     visibility: hidden;
+    opacity: 0;
     pointer-events: none;
   }
 }
