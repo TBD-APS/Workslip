@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Loader2, ShieldCheck } from 'lucide-react';
+import { FullscreenSystemState } from '../../../components/common/FullscreenSystemState';
 import { useAuth } from '../../../providers/useAuth';
 import {
   AUTH_TOKEN_KEY,
@@ -161,17 +162,12 @@ export const Login = () => {
     return <Navigate to="/app" replace />;
   }
 
-  return (
-    <div className="app-container app-container-center">
-      <div className="bg-glow-wrapper">
-        <div className="bg-glow bg-glow-1" />
-        <div className="bg-glow bg-glow-2" />
-      </div>
-
-      {isReauth && (
-        <div className="reauth-card">
-          <Loader2 className="animate-spin" size={32} />
-          <p>Genindlæser login...</p>
+  if (isReauth) {
+    return (
+      <FullscreenSystemState
+        title="Genindlæser login"
+        message="Vi genopretter din sikre session og sender dig videre automatisk."
+        actions={(
           <button
             type="button"
             onClick={() => {
@@ -181,104 +177,111 @@ export const Login = () => {
               setIsReauth(false);
               setIsSubmitting(false);
             }}
-            className="reauth-cancel-btn"
+            className="system-state-link"
           >
             Annuller
           </button>
-        </div>
-      )}
+        )}
+      />
+    );
+  }
 
-      {!isReauth && (
-        <div className="login-card">
-          {showOtcLogin ? (
-            <Suspense
-              fallback={(
-                <div className="login-email-step" role="status" aria-live="polite">
-                  <Loader2 className="animate-spin" size={24} />
-                  <span>Vent venligst.. Indlæser modul</span>
-                </div>
-              )}
-            >
-              <OneTimeCodeLogin onBack={() => setShowOtcLogin(false)} />
-            </Suspense>
-          ) : (
-            <>
-              <div className="login-card-header">
-                <div className="logo logo-center">
-                  <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-                <h2>Log ind på Workslip</h2>
-                <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
+  return (
+    <div className="app-container app-container-center">
+      <div className="bg-glow-wrapper">
+        <div className="bg-glow bg-glow-1" />
+        <div className="bg-glow bg-glow-2" />
+      </div>
+
+      <div className="login-card">
+        {showOtcLogin ? (
+          <Suspense
+            fallback={(
+              <div className="login-email-step" role="status" aria-live="polite">
+                <Loader2 className="animate-spin" size={24} />
+                <span>Vent venligst.. Indlæser modul</span>
               </div>
-
-              {errorMsg && (
-                <div className="login-error-banner">
-                  <Loader2 size={16} />
-                  {errorMsg}
-                </div>
-              )}
-
-              <div className="login-email-step">
-                <button
-                  type="button"
-                  className="btn btn-primary login-submit-btn"
-                  onClick={handleMicrosoftLogin}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
-                  <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowOtcLogin(true)}
-                  className="login-otc-btn"
-                >
-                  Mistet dit login? Modtag engangskode
-                </button>
+            )}
+          >
+            <OneTimeCodeLogin onBack={() => setShowOtcLogin(false)} />
+          </Suspense>
+        ) : (
+          <>
+            <div className="login-card-header">
+              <div className="logo logo-center">
+                <svg className="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </div>
+              <h2>Log ind på Workslip</h2>
+              <p>Log ind med Microsoft passkey. Brug kun engangskode hvis passkey ikke virker eller du har fået ny telefon.</p>
+            </div>
 
-              {devLoginEnabled && (
-                <div className="login-dev-section">
-                  <div className="login-dev-buttons">
-                    {[
-                      { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
-                      { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
-                      { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
-                      { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' },
-                    ].map((entry) => (
-                      <button
-                        key={entry.email}
-                        onClick={async () => {
-                          setErrorMsg(null);
-                          setIsSubmitting(true);
-                          try {
-                            const success = await devLogin(entry.email);
-                            if (success) navigate(entry.redirect, { replace: true });
-                            else setErrorMsg(`Dev login failed - ${entry.email} not found`);
-                          } catch {
-                            setErrorMsg('Dev login failed');
-                          } finally {
-                            setIsSubmitting(false);
-                          }
-                        }}
-                        disabled={isSubmitting}
-                        className="btn btn-secondary login-dev-btn"
-                      >
-                        {entry.label}
-                      </button>
-                    ))}
-                  </div>
+            {errorMsg && (
+              <div className="login-error-banner">
+                <Loader2 size={16} />
+                {errorMsg}
+              </div>
+            )}
+
+            <div className="login-email-step">
+              <button
+                type="button"
+                className="btn btn-primary login-submit-btn"
+                onClick={handleMicrosoftLogin}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
+                <span>{isSubmitting ? 'Sender til Microsoft...' : 'Log ind med Microsoft passkey'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowOtcLogin(true)}
+                className="login-otc-btn"
+              >
+                Mistet dit login? Modtag engangskode
+              </button>
+            </div>
+
+            {devLoginEnabled && (
+              <div className="login-dev-section">
+                <div className="login-dev-buttons">
+                  {[
+                    { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
+                    { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
+                    { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
+                    { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' },
+                  ].map((entry) => (
+                    <button
+                      key={entry.email}
+                      onClick={async () => {
+                        setErrorMsg(null);
+                        setIsSubmitting(true);
+                        try {
+                          const success = await devLogin(entry.email);
+                          if (success) navigate(entry.redirect, { replace: true });
+                          else setErrorMsg(`Dev login failed - ${entry.email} not found`);
+                        } catch {
+                          setErrorMsg('Dev login failed');
+                        } finally {
+                          setIsSubmitting(false);
+                        }
+                      }}
+                      disabled={isSubmitting}
+                      className="btn btn-secondary login-dev-btn"
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
                 </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
