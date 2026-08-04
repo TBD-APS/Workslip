@@ -80,6 +80,7 @@ export function NotificationsDrawer({
 
   useEffect(() => {
     if (isOpen && userId && organizationId) {
+      setActionError(null);
       void refetch();
     }
   }, [isOpen, organizationId, refetch, userId]);
