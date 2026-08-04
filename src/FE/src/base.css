@@ -5,7 +5,8 @@
   --safe-right: env(safe-area-inset-right);
   --safe-bottom: env(safe-area-inset-bottom);
   --safe-left: env(safe-area-inset-left);
-  --bottom-nav-height: calc(54px + env(safe-area-inset-bottom, 0px));
+  /* Fixed nav: 10px top + 24px icon + 4px gap + 20px label + 4px bottom. */
+  --bottom-nav-height: calc(62px + env(safe-area-inset-bottom, 0px));
   --bottom-nav-extra: 0.75rem;
 
   --bg: #050505;
