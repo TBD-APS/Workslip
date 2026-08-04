@@ -2,6 +2,7 @@ import { FileText, MessageSquare, Wrench, } from 'lucide-react';
 import type { useJobDetails } from '../../hooks/useJobDetails';
 import { CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock, AssignmentBlock, DestinationAddressBlock } from '../JobDetailBlocks';
 import { useCan } from '../../../../providers/permissions';
+import { CollapsibleSection } from '../../../../components/forms/CollapsibleSection';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
 
@@ -58,13 +59,24 @@ export function JobOverviewStep({ details }: JobOverviewStepProps) {
         isLoading={details.isLoadingJobs}
         onChange={details.updateLinkedJobs}
       />
-      <TextAreaBlock
+      <CollapsibleSection
         icon={<FileText size={18} />}
         title="Opgavebeskrivelse"
-        value={details.form.taskDescription}
-        onChange={details.updateTaskDescription}
-        placeholder="Beskriv opgaven..."
-      />
+        defaultOpen={details.form.taskDescription.trim().length > 0}
+        scrollOnOpen={false}
+      >
+        <div className="form-group">
+          <textarea
+            className="form-input form-textarea"
+            value={details.form.taskDescription}
+            onChange={(event) => details.updateTaskDescription(event.target.value)}
+            placeholder="Beskriv opgaven..."
+            rows={4}
+            readOnly={!details.isAdmin}
+            aria-readonly={!details.isAdmin}
+          />
+        </div>
+      </CollapsibleSection>
       <TextAreaBlock
         icon={<MessageSquare size={18} />}
         title="Oplysninger til kunden"
