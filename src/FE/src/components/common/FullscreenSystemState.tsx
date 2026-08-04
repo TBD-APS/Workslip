@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import './FullscreenSystemState.css';
 
 interface FullscreenSystemStateProps {
   title: string;
@@ -52,7 +53,7 @@ export function FullscreenSystemState({
         </div>
 
         {indicator && (
-          <div className="system-state-indicator" aria-hidden={!isLoading || undefined}>
+          <div className="system-state-indicator" aria-hidden="true">
             {indicator}
           </div>
         )}
