@@ -469,10 +469,10 @@ function SubmittedConfirmation({ reportNumber, submittedAt, onDone, onGoToReport
       <p className="submitted-confirmation-date">
         Indsendt d. {formatDateLong(submittedAt.toISOString())}
       </p>
-      <button type="button" className="btn btn-primary submitted-confirmation-button" onClick={onDone}>
+      <button type="button" className="btn btn-secondary submitted-confirmation-button" onClick={onDone}>
         Tilbage til oversigt
       </button>
-      <button type="button" className="btn btn-secondary submitted-confirmation-button" onClick={onGoToReport}>
+      <button type="button" className="btn btn-primary submitted-confirmation-button" onClick={onGoToReport}>
         Gå til indsendt sag
       </button>
     </section>

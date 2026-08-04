@@ -23,6 +23,27 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
 
   const isApprove = action === 'approve';
   const isUndoReject = action === 'undo-reject';
+  const confirmButton = (
+    <button
+      type="button"
+      className={isApprove ? 'btn btn-primary' : 'btn btn-danger'}
+      onClick={() => onConfirm(rejectionNote)}
+      disabled={isPending || (action === 'reject' && !rejectionNote.trim())}
+    >
+      {isPending && <Loader2 className="animate-spin" size={16} />}
+      <span>{isPending ? (isApprove ? 'Godkender...' : 'Afviser...') : (isApprove ? 'Godkend' : isUndoReject ? 'Fortryd afvisning' : 'Afvis')}</span>
+    </button>
+  );
+  const cancelButton = (
+    <button
+      type="button"
+      className="btn btn-secondary"
+      onClick={onClose}
+      disabled={isPending}
+    >
+      Annuller
+    </button>
+  );
 
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
@@ -52,23 +73,17 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
         )}
 
         <div className="modal-actions modal-actions--double">
-          <button
-            type="button"
-            className={isApprove ? 'btn btn-primary' : 'btn btn-danger'}
-            onClick={() => onConfirm(rejectionNote)}
-            disabled={isPending || (action === 'reject' && !rejectionNote.trim())}
-          >
-            {isPending && <Loader2 className="animate-spin" size={16} />}
-            <span>{isPending ? (isApprove ? 'Godkender...' : 'Afviser...') : (isApprove ? 'Godkend' : isUndoReject ? 'Fortryd afvisning' : 'Afvis')}</span>
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={onClose}
-            disabled={isPending}
-          >
-            Annuller
-          </button>
+          {isApprove ? (
+            <>
+              {cancelButton}
+              {confirmButton}
+            </>
+          ) : (
+            <>
+              {confirmButton}
+              {cancelButton}
+            </>
+          )}
         </div>
       </div>
     </div>,
