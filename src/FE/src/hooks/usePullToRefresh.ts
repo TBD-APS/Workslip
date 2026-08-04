@@ -51,10 +51,6 @@ export function usePullToRefresh({
   }, [onRefresh]);
 
   useEffect(() => {
-    if (!enabled) setPullDistance(0);
-  }, [enabled]);
-
-  useEffect(() => {
     if (!enabled) return;
 
     const scrollContainer = getScrollContainer();
