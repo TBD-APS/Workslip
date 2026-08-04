@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { JobStatusControl } from './JobStatusControl';
@@ -77,5 +77,27 @@ describe('JobStatusControl', () => {
     expect(setQueryData).toHaveBeenCalledWith(['/api/jobs', 'job-1'], updatedJob);
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/jobs', 'job-1'] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/jobs'] });
+  });
+
+  it('blocks repeated status changes while pending changes are being saved', async () => {
+    let resolveSave: (saved: boolean) => void = () => undefined;
+    const beforeChange = vi.fn(() => new Promise<boolean>((resolve) => {
+      resolveSave = resolve;
+    }));
+    const queryClient = new QueryClient();
+
+    renderControl(queryClient, { beforeChange });
+    const statusButton = screen.getByRole('button', { name: 'Skift status: Til gennemsyn' });
+
+    fireEvent.click(statusButton);
+    fireEvent.click(statusButton);
+
+    expect(beforeChange).toHaveBeenCalledTimes(1);
+    expect(statusButton).toBeDisabled();
+
+    await act(async () => resolveSave(false));
+
+    await waitFor(() => expect(statusButton).toBeEnabled());
+    expect(mutateAsync).not.toHaveBeenCalled();
   });
 });
