@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { JobStatusControl } from './JobStatusControl';
 
-const mutateAsync = vi.fn();
+const { mutateAsync } = vi.hoisted(() => ({
+  mutateAsync: vi.fn(),
+}));
 
 vi.mock('../../../api/generated/jobs/jobs', () => ({
   getGetApiJobsIdQueryKey: (id: string) => ['/api/jobs', id],
