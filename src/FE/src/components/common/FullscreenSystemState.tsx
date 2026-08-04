@@ -27,7 +27,7 @@ export function FullscreenSystemState({
     <div
       className="app-container app-container-center system-state"
       role={role}
-      aria-live="polite"
+      aria-live={role === 'alert' ? 'assertive' : 'polite'}
       aria-busy={isLoading}
     >
       <div className="bg-glow-wrapper" aria-hidden="true">
