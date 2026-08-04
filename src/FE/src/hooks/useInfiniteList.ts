@@ -40,6 +40,7 @@ export function useInfiniteList<TItem>({
     },
     enabled,
   });
+  const refetchQuery = query.refetch;
 
   const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
   const totalCount = query.data?.pages[0]?.totalCount ?? 0;
@@ -56,8 +57,7 @@ export function useInfiniteList<TItem>({
       };
     });
 
-    const refreshPromise = query
-      .refetch({ cancelRefetch: true })
+    const refreshPromise = refetchQuery({ cancelRefetch: true })
       .then(() => undefined)
       .finally(() => {
         refreshPromiseRef.current = null;
@@ -65,12 +65,13 @@ export function useInfiniteList<TItem>({
 
     refreshPromiseRef.current = refreshPromise;
     return refreshPromise;
-  }, [query, queryClient, queryKey]);
+  }, [queryClient, queryKey, refetchQuery]);
 
   return {
     ...query,
     items,
     totalCount,
+    refetch: refreshFirstPage,
     refreshFirstPage,
     isLoadingMore: query.isFetchingNextPage,
     isFetching: query.isFetching,
