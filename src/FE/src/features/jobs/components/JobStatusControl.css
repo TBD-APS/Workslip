@@ -16,6 +16,10 @@
   min-height: 2rem;
 }
 
+.job-status-dots[aria-busy='true'] {
+  opacity: 0.65;
+}
+
 .job-status-dot {
   --job-status-color: var(--text-muted);
   position: relative;
@@ -42,6 +46,10 @@
 
 button.job-status-dot {
   cursor: pointer;
+}
+
+button.job-status-dot:disabled {
+  cursor: wait;
 }
 
 button.job-status-dot:hover::before {
