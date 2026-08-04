@@ -16,7 +16,7 @@ public sealed class OutOfAppNotificationContractTests
         { NotificationType.JobAssigned, "SAG-317 tildelt", "tildelt dig", $"/app/job/{JobId}" },
         { NotificationType.JobReadyForReview, "SAG-317 klar til gennemgang", "klar til din gennemgang", $"/app/completed/{JobId}" },
         { NotificationType.JobDenied, "SAG-317 afvist", "Årsag: Mangler dokumentation", $"/app/job/{JobId}" },
-        { NotificationType.JobCompleted, "SAG-317 afsluttet", "er afsluttet", $"/app/completed/{JobId}" },
+        { NotificationType.JobCompleted, "SAG-317 godkendt", "er godkendt", $"/app/completed/{JobId}" },
         { NotificationType.JobUnassigned, "Sag uden medarbejdere", "ingen tildelte medarbejdere", $"/app/job/{JobId}" },
         { NotificationType.JobDeleted, "SAG-317 slettet", "er blevet slettet", "/app" }
     };
