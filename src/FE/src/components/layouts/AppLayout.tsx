@@ -2,7 +2,7 @@ import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-route
 import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
@@ -19,46 +19,11 @@ import {
 import '../../features/superadmin/organizationSession.css';
 import '../../authenticated-base.css';
 import '../../App.css';
+import './AppLayout.focus.css';
 import {
   AppScrollRestoreBoundary,
   useAppRouteScrollManager,
 } from '../../hooks/useAppRouteScroll';
-
-const NON_TEXT_INPUT_TYPES = new Set([
-  'button',
-  'checkbox',
-  'color',
-  'file',
-  'hidden',
-  'image',
-  'radio',
-  'range',
-  'reset',
-  'submit',
-]);
-
-function isTextEntryElement(target: EventTarget | null): target is HTMLElement {
-  if (target instanceof HTMLInputElement) {
-    return !target.disabled
-      && !target.readOnly
-      && target.inputMode !== 'none'
-      && !NON_TEXT_INPUT_TYPES.has(target.type);
-  }
-
-  if (target instanceof HTMLTextAreaElement) {
-    return !target.disabled && !target.readOnly;
-  }
-
-  if (target instanceof HTMLElement && target.isContentEditable) {
-    return true;
-  }
-
-  if (target instanceof Element) {
-    return target.closest<HTMLElement>('[contenteditable]:not([contenteditable="false"])')?.isContentEditable === true;
-  }
-
-  return false;
-}
 
 export const AppLayout = () => {
   const navigate = useNavigate();
@@ -69,7 +34,6 @@ export const AppLayout = () => {
   const organizationSession = getOrganizationSession();
   const appHomePath = getAuthenticatedHomePath(user?.role);
   const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
-  const [isTextEntryFocused, setIsTextEntryFocused] = useState(false);
 
   const { theme, toggle: toggleTheme } = useTheme();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
@@ -106,68 +70,6 @@ export const AppLayout = () => {
     window.location.assign('/superadmin');
   };
 
-  useEffect(() => {
-    const ownerDocument = document;
-    const ownerWindow = window;
-    let isActive = true;
-    let focusSyncFrame: number | undefined;
-
-    const cancelScheduledFocusSync = () => {
-      if (focusSyncFrame !== undefined) {
-        ownerWindow.cancelAnimationFrame(focusSyncFrame);
-        focusSyncFrame = undefined;
-      }
-    };
-
-    const syncFocusState = (target: EventTarget | null = ownerDocument.activeElement) => {
-      if (!isActive) return;
-      setIsTextEntryFocused(isTextEntryElement(target));
-    };
-
-    const handleFocusIn = (event: FocusEvent) => {
-      cancelScheduledFocusSync();
-      syncFocusState(event.target);
-    };
-
-    const handleFocusOut = () => {
-      cancelScheduledFocusSync();
-      focusSyncFrame = ownerWindow.requestAnimationFrame(() => {
-        focusSyncFrame = undefined;
-        syncFocusState();
-      });
-    };
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const activeElement = ownerDocument.activeElement;
-      if (isTextEntryElement(activeElement) && !isTextEntryElement(event.target)) {
-        activeElement.blur();
-      }
-    };
-
-    const handleDomMutation = () => {
-      if (!isActive) return;
-      if (!isTextEntryElement(ownerDocument.activeElement)) {
-        setIsTextEntryFocused(false);
-      }
-    };
-
-    const observer = new MutationObserver(handleDomMutation);
-    observer.observe(ownerDocument.body, { childList: true, subtree: true });
-
-    ownerDocument.addEventListener('focusin', handleFocusIn);
-    ownerDocument.addEventListener('focusout', handleFocusOut);
-    ownerDocument.addEventListener('pointerdown', handlePointerDown, true);
-
-    return () => {
-      isActive = false;
-      cancelScheduledFocusSync();
-      observer.disconnect();
-      ownerDocument.removeEventListener('focusin', handleFocusIn);
-      ownerDocument.removeEventListener('focusout', handleFocusOut);
-      ownerDocument.removeEventListener('pointerdown', handlePointerDown, true);
-    };
-  }, []);
-
   if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
     return <Navigate to="/superadmin" replace />;
   }
@@ -183,7 +85,7 @@ export const AppLayout = () => {
   return (
     <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
     <DropdownProvider>
-      <div ref={scrollContainerRef} className={`app-shell ${isTextEntryFocused ? 'keyboard-visible' : ''}`}>
+      <div ref={scrollContainerRef} className="app-shell">
         {/* Top Header for Mobile */}
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
