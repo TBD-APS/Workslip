@@ -7,12 +7,10 @@
 //    Keep these conservative; per-feature overrides are cheaper than raising
 //    the global cost.
 //
-// 2. `JOB_LIST_*` — applied to the `['/api/jobs']` query family. The job list
-//    is the only screen in the current MVP that needs near-real-time
-//    updates (assignments, status changes) so it lives in its own bucket.
-//    Other families that later need the same treatment should follow the
-//    `setQueryDefaults` pattern in `createQueryClient.ts` rather than
-//    growing the constants here.
+// 2. Feature families such as `JOB_LIST_*` and `NOTIFICATION_LIST_*` — applied
+//    only to server state that must refresh while the authenticated app remains
+//    open. New families should follow the `setQueryDefaults` pattern in
+//    `createQueryClient.ts` rather than implementing component-local polling.
 //
 // When adding a new constant: pick a name that describes a behaviour, not a
 // consumer (e.g. `DEFAULT_QUERY_RETRY` not `AUTH_RETRY`). Behaviour-named
@@ -46,3 +44,16 @@ export const JOB_LIST_STALE_TIME_MS = 30_000;
  *  without re-hitting the API, short enough that closed tabs do not pin
  *  data indefinitely. */
 export const JOB_LIST_GC_TIME_MS = 30 * 60_000;
+
+/** Fallback cadence for the in-app notification history. Push receipt messages
+ *  normally invalidate the query immediately; polling also covers browsers
+ *  where push is unsupported, denied or temporarily unavailable. */
+export const NOTIFICATION_LIST_REFETCH_INTERVAL_MS = 60_000;
+
+/** Keep notification data briefly fresh so reopening the drawer does not
+ *  duplicate a request immediately after a push-triggered refresh. */
+export const NOTIFICATION_LIST_STALE_TIME_MS = 15_000;
+
+/** Notification history is user-scoped and inexpensive to reload. A shorter
+ *  lifetime limits how long inactive user/session data remains in memory. */
+export const NOTIFICATION_LIST_GC_TIME_MS = 15 * 60_000;
