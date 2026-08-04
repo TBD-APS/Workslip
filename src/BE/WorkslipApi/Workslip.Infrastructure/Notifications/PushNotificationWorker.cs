@@ -22,13 +22,22 @@ public sealed class PushNotificationWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("PushNotificationWorker started.");
+        // Temporary error-level trace so the existing Superadmin error dashboard
+        // proves that the hosted worker is running in production. Remove after WOR-317.
+        _logger.LogError("PUSH TRACE: PushNotificationWorker started and is polling.");
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 var processedCount = await ProcessBatchAsync(stoppingToken);
+                if (processedCount > 0)
+                {
+                    _logger.LogError(
+                        "PUSH TRACE: Worker claimed and processed a batch containing {ProcessedCount} notifications.",
+                        processedCount);
+                }
+
                 if (processedCount >= BatchSize)
                 {
                     continue;
