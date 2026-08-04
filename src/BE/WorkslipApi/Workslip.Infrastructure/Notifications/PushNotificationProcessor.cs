@@ -100,9 +100,8 @@ public sealed class PushNotificationProcessor
                 notification.NotificationType,
                 notification.RetryCount);
 
-            await RescheduleDeliveryFailureAsync(
-                notification,
-                "No active push subscriptions.",
+            await _notificationRepository.MarkNotificationCompletedAsync(
+                notification.Id,
                 cancellationToken);
             return;
         }
