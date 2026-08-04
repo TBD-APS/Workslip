@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getGetApiJobsIdQueryKey,
@@ -41,20 +42,31 @@ function EditableJobStatusControl({
   onChanged,
 }: JobStatusControlProps) {
   const queryClient = useQueryClient();
+  const inFlightRef = useRef(false);
+  const [isChanging, setIsChanging] = useState(false);
   const mutation = usePostApiJobsIdStatus({
     request: { skipGlobalErrorToast: true },
   });
 
   const changeStatus = async (targetStatus: JobStatus) => {
-    if (targetStatus === status || mutation.isPending || !allowedStatuses.includes(targetStatus)) {
+    if (
+      targetStatus === status
+      || inFlightRef.current
+      || mutation.isPending
+      || !allowedStatuses.includes(targetStatus)
+    ) {
       return;
     }
 
-    if (beforeChange && !(await beforeChange(targetStatus))) {
-      return;
-    }
+    inFlightRef.current = true;
+    setIsChanging(true);
+    let changed = false;
 
     try {
+      if (beforeChange && !(await beforeChange(targetStatus))) {
+        return;
+      }
+
       const updatedJob = await mutation.mutateAsync({
         id: jobId,
         data: { status: targetStatus },
@@ -67,9 +79,16 @@ function EditableJobStatusControl({
       ]);
 
       notify.success(`Status ændret til ${formatJobStatus(targetStatus).toLowerCase()}`);
-      onChanged?.(targetStatus);
+      changed = true;
     } catch {
       notify.error(`Kunne ikke ændre status til ${formatJobStatus(targetStatus).toLowerCase()}`);
+    } finally {
+      inFlightRef.current = false;
+      setIsChanging(false);
+    }
+
+    if (changed) {
+      onChanged?.(targetStatus);
     }
   };
 
@@ -77,7 +96,7 @@ function EditableJobStatusControl({
     <JobStatusDots
       status={status}
       allowedStatuses={allowedStatuses}
-      disabled={mutation.isPending}
+      disabled={isChanging || mutation.isPending}
       onChange={changeStatus}
     />
   );
@@ -97,7 +116,12 @@ function JobStatusDots({
   onChange,
 }: JobStatusDotsProps) {
   return (
-    <div className="job-status-dots" role="group" aria-label={`Sagsstatus: ${formatJobStatus(status)}`}>
+    <div
+      className="job-status-dots"
+      role="group"
+      aria-label={`Sagsstatus: ${formatJobStatus(status)}`}
+      aria-busy={disabled}
+    >
       {STATUS_OPTIONS.map((option) => {
         const label = formatJobStatus(option);
         const isCurrent = option === status;
