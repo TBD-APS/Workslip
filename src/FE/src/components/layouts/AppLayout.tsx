@@ -107,16 +107,20 @@ export const AppLayout = () => {
   };
 
   useEffect(() => {
+    const ownerDocument = document;
+    const ownerWindow = window;
+    let isActive = true;
     let focusSyncFrame: number | undefined;
 
     const cancelScheduledFocusSync = () => {
       if (focusSyncFrame !== undefined) {
-        window.cancelAnimationFrame(focusSyncFrame);
+        ownerWindow.cancelAnimationFrame(focusSyncFrame);
         focusSyncFrame = undefined;
       }
     };
 
-    const syncFocusState = (target: EventTarget | null = document.activeElement) => {
+    const syncFocusState = (target: EventTarget | null = ownerDocument.activeElement) => {
+      if (!isActive) return;
       setIsTextEntryFocused(isTextEntryElement(target));
     };
 
@@ -127,38 +131,40 @@ export const AppLayout = () => {
 
     const handleFocusOut = () => {
       cancelScheduledFocusSync();
-      focusSyncFrame = window.requestAnimationFrame(() => {
+      focusSyncFrame = ownerWindow.requestAnimationFrame(() => {
         focusSyncFrame = undefined;
         syncFocusState();
       });
     };
 
     const handlePointerDown = (event: PointerEvent) => {
-      const activeElement = document.activeElement;
+      const activeElement = ownerDocument.activeElement;
       if (isTextEntryElement(activeElement) && !isTextEntryElement(event.target)) {
         activeElement.blur();
       }
     };
 
     const handleDomMutation = () => {
-      if (!isTextEntryElement(document.activeElement)) {
+      if (!isActive) return;
+      if (!isTextEntryElement(ownerDocument.activeElement)) {
         setIsTextEntryFocused(false);
       }
     };
 
     const observer = new MutationObserver(handleDomMutation);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(ownerDocument.body, { childList: true, subtree: true });
 
-    document.addEventListener('focusin', handleFocusIn);
-    document.addEventListener('focusout', handleFocusOut);
-    document.addEventListener('pointerdown', handlePointerDown, true);
+    ownerDocument.addEventListener('focusin', handleFocusIn);
+    ownerDocument.addEventListener('focusout', handleFocusOut);
+    ownerDocument.addEventListener('pointerdown', handlePointerDown, true);
 
     return () => {
+      isActive = false;
       cancelScheduledFocusSync();
       observer.disconnect();
-      document.removeEventListener('focusin', handleFocusIn);
-      document.removeEventListener('focusout', handleFocusOut);
-      document.removeEventListener('pointerdown', handlePointerDown, true);
+      ownerDocument.removeEventListener('focusin', handleFocusIn);
+      ownerDocument.removeEventListener('focusout', handleFocusOut);
+      ownerDocument.removeEventListener('pointerdown', handlePointerDown, true);
     };
   }, []);
 
