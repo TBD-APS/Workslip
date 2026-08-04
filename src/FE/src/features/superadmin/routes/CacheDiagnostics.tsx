@@ -23,6 +23,10 @@ import {
   clearCaches,
   getCacheStatus,
 } from '../cacheApi';
+import {
+  PushRuntimeDiagnostics,
+  type PushRuntimeStatus,
+} from './PushRuntimeDiagnostics';
 import './CacheDiagnostics.css';
 
 type FrontendQueryInfo = {
@@ -48,13 +52,21 @@ type ServiceWorkerInfo = {
 type BrowserDiagnostics = {
   caches: BrowserCacheInfo[];
   serviceWorkers: ServiceWorkerInfo[];
+  pushRuntime: PushRuntimeStatus;
   storageUsage: number | null;
   storageQuota: number | null;
+};
+
+const unsupportedPushRuntime: PushRuntimeStatus = {
+  supported: false,
+  permission: 'unsupported',
+  subscribed: false,
 };
 
 const emptyBrowserDiagnostics: BrowserDiagnostics = {
   caches: [],
   serviceWorkers: [],
+  pushRuntime: unsupportedPushRuntime,
   storageUsage: null,
   storageQuota: null,
 };
@@ -76,6 +88,26 @@ function collectFrontendQueries(queryClient: QueryClient): FrontendQueryInfo[] {
   }));
 }
 
+async function inspectPushRuntime(
+  registrations: readonly ServiceWorkerRegistration[],
+): Promise<PushRuntimeStatus> {
+  if (!('Notification' in window) || !('PushManager' in window)) {
+    return unsupportedPushRuntime;
+  }
+
+  const registration = registrations.find((candidate) => candidate.active)
+    ?? registrations[0];
+  const subscription = registration
+    ? await registration.pushManager.getSubscription()
+    : null;
+
+  return {
+    supported: true,
+    permission: Notification.permission,
+    subscribed: subscription !== null,
+  };
+}
+
 async function inspectBrowserDiagnostics(): Promise<BrowserDiagnostics> {
   const browserCaches: BrowserCacheInfo[] = [];
 
@@ -89,8 +121,9 @@ async function inspectBrowserDiagnostics(): Promise<BrowserDiagnostics> {
   }
 
   const serviceWorkers: ServiceWorkerInfo[] = [];
+  let registrations: ServiceWorkerRegistration[] = [];
   if ('serviceWorker' in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations();
+    registrations = await navigator.serviceWorker.getRegistrations();
     registrations.forEach((registration) => {
       serviceWorkers.push({
         scope: registration.scope,
@@ -109,6 +142,7 @@ async function inspectBrowserDiagnostics(): Promise<BrowserDiagnostics> {
   return {
     caches: browserCaches.sort((left, right) => left.name.localeCompare(right.name)),
     serviceWorkers,
+    pushRuntime: await inspectPushRuntime(registrations),
     storageUsage: estimate?.usage ?? null,
     storageQuota: estimate?.quota ?? null,
   };
@@ -609,6 +643,18 @@ export function CacheDiagnostics() {
               </div>
             )}
           </div>
+        </section>
+
+        <section className="cache-diagnostics-section cache-diagnostics-section--compact">
+          <div className="cache-diagnostics-section-header">
+            <div>
+              <span className="cache-diagnostics-section-eyebrow">Web Push runtime</span>
+              <h2>Notifikationer</h2>
+              <p>Browserens permission og lokale subscription-status. Endpoint og nøgler læses eller vises ikke.</p>
+            </div>
+          </div>
+
+          <PushRuntimeDiagnostics status={browserDiagnostics.pushRuntime} />
         </section>
       </div>
     </div>
