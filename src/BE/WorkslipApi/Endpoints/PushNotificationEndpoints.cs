@@ -55,7 +55,7 @@ public static class PushNotificationEndpoints
         {
             httpContext.Response.Headers.CacheControl = "no-store";
             return Results.Ok(new VapidPublicKeyViewModel(keyProvider.PublicKey));
-        });
+        }).AllowAnonymous();
 
         group.MapPost("/", async (
             RegisterPushSubscriptionRequest request,
