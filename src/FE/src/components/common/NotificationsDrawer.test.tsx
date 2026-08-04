@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -29,7 +29,18 @@ vi.mock('../../providers/useAuth', () => ({
 }));
 
 vi.mock('./Drawer', () => ({
-  Drawer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Drawer: ({
+    children,
+    onClose,
+  }: {
+    children: ReactNode;
+    onClose: () => void;
+  }) => (
+    <div>
+      <button type="button" aria-label="Luk testdrawer" onClick={onClose} />
+      {children}
+    </div>
+  ),
 }));
 
 const readNotification = {
@@ -50,6 +61,17 @@ const unreadNotification = {
   isRead: false,
 };
 
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        staleTime: Number.POSITIVE_INFINITY,
+      },
+    },
+  });
+}
+
 describe('NotificationsDrawer', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -58,14 +80,7 @@ describe('NotificationsDrawer', () => {
       .mockResolvedValueOnce([readNotification])
       .mockResolvedValueOnce([readNotification, unreadNotification]);
 
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: {
-          retry: false,
-          staleTime: Number.POSITIVE_INFINITY,
-        },
-      },
-    });
+    const queryClient = createTestQueryClient();
     const onUnreadCountChange = vi.fn();
 
     render(
@@ -96,5 +111,34 @@ describe('NotificationsDrawer', () => {
       readNotification,
       unreadNotification,
     ]);
+  });
+
+  it('clears a stale action error when the drawer closes', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue([
+      { ...unreadNotification, url: null },
+    ]);
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error('request failed'));
+    const onClose = vi.fn();
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <MemoryRouter>
+          <NotificationsDrawer
+            isOpen
+            onClose={onClose}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ny sag, ulæst' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Notifikationen kunne ikke markeres som læst.',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Luk testdrawer' }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
 });
