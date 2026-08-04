@@ -26,7 +26,9 @@ namespace Workslip.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddWorkslipInfrastructure(this IServiceCollection services)
+    public static IServiceCollection AddWorkslipInfrastructure(
+        this IServiceCollection services,
+        bool includeHostedServices = true)
     {
         services.AddSingleton<IDatabaseRetryPolicy, PollyDatabaseRetryPolicy>();
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
@@ -79,9 +81,13 @@ public static class DependencyInjection
             serviceProvider.GetRequiredService<VapidKeyMaterial>());
         services.AddScoped<IPushSender, WebPushSender>();
         services.AddScoped<PushNotificationProcessor>();
-        services.AddHostedService<JobDeletionCleanupService>();
-        services.AddHostedService<InviteEntraCleanupService>();
-        services.AddHostedService<PushNotificationWorker>();
+
+        if (includeHostedServices)
+        {
+            services.AddHostedService<JobDeletionCleanupService>();
+            services.AddHostedService<InviteEntraCleanupService>();
+            services.AddHostedService<PushNotificationWorker>();
+        }
 
         services.AddOptions<VapidOptions>()
             .Configure<IConfiguration>((options, config) =>

@@ -13,8 +13,18 @@ runs:
       shell: bash
       run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
 
+    - name: Validate OpenAPI startup boundary
+      shell: bash
+      run: >-
+        dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
+        --configuration Release
+        --nologo
+        --filter "FullyQualifiedName~DatabaseStartupTests"
+
     - name: Generate OpenAPI document
       shell: bash
+      env:
+        Workslip__GenerateOpenApiOnly: 'true'
       run: |
         set -Eeuo pipefail
         output_dir="${RUNNER_TEMP}/workslip-openapi"

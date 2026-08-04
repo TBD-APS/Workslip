@@ -39,7 +39,8 @@ public static class ServiceConfiguration
         builder.Services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
 
         builder.Services.AddWorkslipApplication();
-        builder.Services.AddWorkslipInfrastructure();
+        builder.Services.AddWorkslipInfrastructure(
+            includeHostedServices: !DatabaseStartup.IsOpenApiGeneration(builder.Configuration));
 
         builder.Services.AddRateLimiter(options =>
         {
