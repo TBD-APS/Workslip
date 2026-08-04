@@ -11,7 +11,7 @@ namespace Workslip.Tests.Notifications;
 public sealed class PushNotificationMonitoringTests
 {
     [Fact]
-    public async Task NoActiveSubscriptions_IsMonitoredAndRetried()
+    public async Task NoActiveSubscriptions_IsReportedWithoutSensitiveData()
     {
         var repository = new FakeNotificationRepository();
         var logger = new RecordingLogger<PushNotificationProcessor>();
@@ -20,40 +20,19 @@ public sealed class PushNotificationMonitoringTests
 
         await processor.ProcessNotificationAsync(notification, CancellationToken.None);
 
-        var update = Assert.Single(repository.StatusUpdates);
-        Assert.Equal("Pending", update.Status);
-        Assert.Equal(1, update.RetryCount);
-        Assert.Equal("No active push subscriptions.", update.LastError);
-        Assert.Empty(repository.CompletedNotificationIds);
-        Assert.Contains(
+        Assert.Contains(notification.Id, repository.CompletedNotificationIds);
+        Assert.Empty(repository.StatusUpdates);
+        var entry = Assert.Single(
             logger.Entries,
-            entry => entry.Level == LogLevel.Error
-                && entry.Message.Contains("no active subscriptions", StringComparison.OrdinalIgnoreCase)
-                && entry.Message.Contains(notification.Id.ToString(), StringComparison.Ordinal));
+            candidate => candidate.Level == LogLevel.Error
+                && candidate.Message.Contains("no active subscriptions", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(notification.Id.ToString(), entry.Message, StringComparison.Ordinal);
+        Assert.Contains(NotificationType.JobAssigned.ToString(), entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(notification.UserId.ToString(), entry.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task NoActiveSubscriptions_OnFifthAttempt_IsFailedAndMonitored()
-    {
-        var repository = new FakeNotificationRepository();
-        var logger = new RecordingLogger<PushNotificationProcessor>();
-        var processor = CreateProcessor(repository, new FakePushSender(), logger);
-        var notification = CreateNotification(retryCount: 4);
-
-        await processor.ProcessNotificationAsync(notification, CancellationToken.None);
-
-        var update = Assert.Single(repository.StatusUpdates);
-        Assert.Equal("Failed", update.Status);
-        Assert.Equal(5, update.RetryCount);
-        Assert.Equal("Push delivery failed after the maximum retry count.", update.LastError);
-        Assert.Contains(
-            logger.Entries,
-            entry => entry.Level == LogLevel.Error
-                && entry.Message.Contains("permanently failed", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public async Task ProviderFailure_LogsSanitizedDeliveryCounts()
+    public async Task ProviderFailure_ReportsSanitizedDeliveryCounts()
     {
         var notification = CreateNotification();
         var subscription = CreateSubscription(notification.UserId);
@@ -73,6 +52,7 @@ public sealed class PushNotificationMonitoringTests
         Assert.Contains("Successful 0", entry.Message, StringComparison.Ordinal);
         Assert.Contains("temporary failures 1", entry.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("sensitive provider response", entry.Message, StringComparison.Ordinal);
+        Assert.Equal("Pending", Assert.Single(repository.StatusUpdates).Status);
     }
 
     private static PushNotificationProcessor CreateProcessor(
@@ -81,7 +61,7 @@ public sealed class PushNotificationMonitoringTests
         RecordingLogger<PushNotificationProcessor> logger) =>
         new(repository, sender, new FakeNotificationService(), logger);
 
-    private static NotificationQueueRow CreateNotification(int retryCount = 0) => new()
+    private static NotificationQueueRow CreateNotification() => new()
     {
         Id = Guid.NewGuid(),
         UserId = Guid.NewGuid(),
@@ -96,7 +76,7 @@ public sealed class PushNotificationMonitoringTests
                 "/app/job/123"),
             new JsonSerializerOptions(JsonSerializerDefaults.Web)),
         Status = "Processing",
-        RetryCount = retryCount,
+        RetryCount = 0,
         CreatedUtc = DateTimeOffset.UtcNow,
         ProcessingStartedUtc = DateTimeOffset.UtcNow,
         NextAttemptUtc = DateTimeOffset.UtcNow
@@ -130,23 +110,12 @@ public sealed class PushNotificationMonitoringTests
         public List<Guid> CompletedNotificationIds { get; } = [];
         public HashSet<Guid> SuccessfulSubscriptionIds { get; } = [];
 
-        public Task QueueNotificationAsync(NotificationQueueRow row, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
+        public Task QueueNotificationAsync(NotificationQueueRow row, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<IReadOnlyList<NotificationQueueRow>> ClaimPendingNotificationsAsync(int batchSize, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<NotificationQueueRow>>([]);
 
-        public Task<IReadOnlyList<NotificationQueueRow>> ClaimPendingNotificationsAsync(
-            int batchSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<NotificationQueueRow>>([]);
-
-        public Task UpdateNotificationStatusAsync(
-            Guid id,
-            string status,
-            int retryCount,
-            DateTimeOffset nextAttemptUtc,
-            string? lastError,
-            CancellationToken cancellationToken)
+        public Task UpdateNotificationStatusAsync(Guid id, string status, int retryCount, DateTimeOffset nextAttemptUtc, string? lastError, CancellationToken cancellationToken)
         {
-            StatusUpdates.Add(new StatusUpdate(status, retryCount, lastError));
+            StatusUpdates.Add(new StatusUpdate(status));
             return Task.CompletedTask;
         }
 
@@ -156,61 +125,28 @@ public sealed class PushNotificationMonitoringTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<PushSubscriptionRow>> GetActiveSubscriptionsForUserAsync(
-            Guid userId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<PushSubscriptionRow>>(
-                subscriptions.Where(subscription => subscription.UserId == userId).ToArray());
+        public Task<IReadOnlyList<PushSubscriptionRow>> GetActiveSubscriptionsForUserAsync(Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PushSubscriptionRow>>(subscriptions.Where(subscription => subscription.UserId == userId).ToArray());
 
-        public Task<IReadOnlySet<Guid>> GetSuccessfulSubscriptionIdsAsync(
-            Guid notificationId,
-            CancellationToken cancellationToken) =>
+        public Task<IReadOnlySet<Guid>> GetSuccessfulSubscriptionIdsAsync(Guid notificationId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlySet<Guid>>(SuccessfulSubscriptionIds);
 
-        public Task UpdateSubscriptionActiveStatusAsync(
-            Guid subscriptionId,
-            bool isActive,
-            CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task UpdateSubscriptionActiveStatusAsync(Guid subscriptionId, bool isActive, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task LogDeliveryAttemptAsync(
-            NotificationDeliveryLogRow log,
-            CancellationToken cancellationToken)
+        public Task LogDeliveryAttemptAsync(NotificationDeliveryLogRow log, CancellationToken cancellationToken)
         {
-            if (log.Success)
-            {
-                SuccessfulSubscriptionIds.Add(log.SubscriptionId);
-            }
-
+            if (log.Success) SuccessfulSubscriptionIds.Add(log.SubscriptionId);
             return Task.CompletedTask;
         }
 
-        public Task RegisterSubscriptionAsync(
-            Guid userId,
-            string endpoint,
-            string p256Dh,
-            string auth,
-            string? userAgent,
-            string? replacedEndpoint,
-            CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task<IReadOnlyList<NotificationQueueRow>> GetHistoryAsync(
-            Guid userId,
-            int limit,
-            int offset,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<NotificationQueueRow>>([]);
-
-        public Task MarkReadAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-
-        public Task MarkAllReadAsync(Guid userId, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-
-        public Task<bool> DeleteAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken) =>
-            Task.FromResult(false);
+        public Task RegisterSubscriptionAsync(Guid userId, string endpoint, string p256Dh, string auth, string? userAgent, string? replacedEndpoint, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<IReadOnlyList<NotificationQueueRow>> GetHistoryAsync(Guid userId, int limit, int offset, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<NotificationQueueRow>>([]);
+        public Task MarkReadAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task MarkAllReadAsync(Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<bool> DeleteAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken) => Task.FromResult(false);
     }
 
-    private sealed record StatusUpdate(string Status, int RetryCount, string? LastError);
+    private sealed record StatusUpdate(string Status);
 
     private sealed class FakeNotificationService : INotificationService
     {
@@ -227,17 +163,9 @@ public sealed class PushNotificationMonitoringTests
     private sealed class RecordingLogger<T> : ILogger<T>
     {
         public List<LogEntry> Entries { get; } = [];
-
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter) =>
-            Entries.Add(new LogEntry(logLevel, formatter(state, exception)));
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) => Entries.Add(new LogEntry(logLevel, formatter(state, exception)));
     }
 
     private sealed record LogEntry(LogLevel Level, string Message);
