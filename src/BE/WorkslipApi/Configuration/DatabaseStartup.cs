@@ -7,12 +7,15 @@ public static class DatabaseStartup
 {
     public const string GenerateOpenApiOnlyKey = "Workslip:GenerateOpenApiOnly";
 
+    public static bool IsOpenApiGeneration(IConfiguration configuration) =>
+        configuration.GetValue<bool>(GenerateOpenApiOnlyKey);
+
     public static async Task InitializeIfRequiredAsync(
         IServiceProvider services,
         IConfiguration configuration,
         bool releaseTestingEnabled)
     {
-        if (configuration.GetValue<bool>(GenerateOpenApiOnlyKey))
+        if (IsOpenApiGeneration(configuration))
         {
             return;
         }
