@@ -74,13 +74,17 @@ export function NotificationsDrawer({
     queryClient.setQueryData<NotificationItem[]>(queryKey, (current) => updater(current ?? []));
   }, [queryClient, queryKey]);
 
+  const closeDrawer = useCallback(() => {
+    setActionError(null);
+    onClose();
+  }, [onClose]);
+
   useEffect(() => {
     onUnreadCountChange?.(countUnread(items));
   }, [items, onUnreadCountChange]);
 
   useEffect(() => {
     if (isOpen && userId && organizationId) {
-      setActionError(null);
       void refetch();
     }
   }, [isOpen, organizationId, refetch, userId]);
@@ -113,7 +117,7 @@ export function NotificationsDrawer({
     }
 
     if (item.url) {
-      onClose();
+      closeDrawer();
       navigate(item.url);
     }
   };
@@ -158,7 +162,7 @@ export function NotificationsDrawer({
   return (
     <Drawer
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={closeDrawer}
       title="Notifikationer"
       ariaLabel="Notifikationer"
       icon={<Bell size={20} />}
