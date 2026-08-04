@@ -41,6 +41,7 @@ function FocusHarness({ showHours = true }: { showHours?: boolean }) {
   return (
     <div>
       {showHours && <input aria-label="Timer" inputMode="decimal" />}
+      <textarea aria-label="Kommentar" />
       <input aria-label="Bekræft" type="checkbox" />
       <button type="button">Færdig</button>
     </div>
@@ -78,6 +79,17 @@ describe('AppLayout text-entry focus', () => {
 
     act(() => hours.blur());
     await waitFor(() => expect(shell).not.toHaveClass('keyboard-visible'));
+  });
+
+  it('keeps the navigation hidden while focus moves directly between text fields', () => {
+    const { container } = render(<TestApp />);
+    const shell = container.querySelector<HTMLElement>('.app-shell')!;
+
+    act(() => screen.getByRole('textbox', { name: 'Timer' }).focus());
+    expect(shell).toHaveClass('keyboard-visible');
+
+    act(() => screen.getByRole('textbox', { name: 'Kommentar' }).focus());
+    expect(shell).toHaveClass('keyboard-visible');
   });
 
   it('dismisses text-entry focus when the user taps a non-editable control', async () => {
