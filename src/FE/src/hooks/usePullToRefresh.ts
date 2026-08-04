@@ -4,6 +4,14 @@ const DEFAULT_THRESHOLD = 64;
 const MAX_PULL_DISTANCE = 88;
 const DIRECTION_LOCK_DISTANCE = 12;
 const PULL_RESISTANCE = 0.5;
+const IGNORED_GESTURE_SELECTOR = [
+  '[aria-modal="true"]',
+  '[role="dialog"]',
+  '[data-pull-to-refresh-ignore]',
+  '.drawer',
+  '.drawer-overlay',
+  '.create-sheet',
+].join(', ');
 
 type UsePullToRefreshOptions = {
   onRefresh: () => Promise<unknown> | unknown;
@@ -18,8 +26,14 @@ type PullToRefreshState = {
   willRefresh: boolean;
 };
 
+type GestureDirection = 'pending' | 'vertical';
+
 const getDefaultScrollContainer = () =>
   document.querySelector<HTMLElement>('.app-shell');
+
+function shouldIgnoreGestureTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(IGNORED_GESTURE_SELECTOR) !== null;
+}
 
 export function usePullToRefresh({
   onRefresh,
@@ -37,6 +51,10 @@ export function usePullToRefresh({
   }, [onRefresh]);
 
   useEffect(() => {
+    if (!enabled) setPullDistance(0);
+  }, [enabled]);
+
+  useEffect(() => {
     if (!enabled) return;
 
     const scrollContainer = getScrollContainer();
@@ -46,9 +64,11 @@ export function usePullToRefresh({
     let startY = 0;
     let currentPullDistance = 0;
     let isTracking = false;
+    let direction: GestureDirection = 'pending';
 
     const resetGesture = () => {
       isTracking = false;
+      direction = 'pending';
       currentPullDistance = 0;
       setPullDistance(0);
     };
@@ -59,12 +79,12 @@ export function usePullToRefresh({
         return;
       }
 
-      const target = event.target;
       if (
         isRefreshingRef.current
         || scrollContainer.scrollTop > 0
-        || (target instanceof Element && target.closest('.drawer, .create-sheet'))
+        || shouldIgnoreGestureTarget(event.target)
       ) {
+        resetGesture();
         return;
       }
 
@@ -72,6 +92,7 @@ export function usePullToRefresh({
       startX = touch.clientX;
       startY = touch.clientY;
       currentPullDistance = 0;
+      direction = 'pending';
       isTracking = true;
       setPullDistance(0);
     };
@@ -87,11 +108,18 @@ export function usePullToRefresh({
       const deltaX = touch.clientX - startX;
       const deltaY = touch.clientY - startY;
 
-      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < DIRECTION_LOCK_DISTANCE) return;
-
-      if (Math.abs(deltaX) > Math.abs(deltaY) || deltaY <= 0 || scrollContainer.scrollTop > 0) {
+      if (deltaY <= 0 || scrollContainer.scrollTop > 0) {
         resetGesture();
         return;
+      }
+
+      if (direction === 'pending') {
+        if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < DIRECTION_LOCK_DISTANCE) return;
+        if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+          resetGesture();
+          return;
+        }
+        direction = 'vertical';
       }
 
       if (event.cancelable) event.preventDefault();
@@ -101,7 +129,7 @@ export function usePullToRefresh({
 
     const handleTouchEnd = (event: TouchEvent) => {
       if (!isTracking) return;
-      if (event.touches.length > 0) {
+      if (event.touches.length > 0 || direction !== 'vertical') {
         resetGesture();
         return;
       }
@@ -137,7 +165,7 @@ export function usePullToRefresh({
 
   return {
     pullDistance: enabled ? pullDistance : 0,
-    isRefreshing,
+    isRefreshing: enabled && isRefreshing,
     willRefresh: enabled && pullDistance >= threshold,
   };
 }
