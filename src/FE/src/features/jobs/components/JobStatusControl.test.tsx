@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { JobStatusControl } from './JobStatusControl';
 
@@ -32,7 +32,7 @@ function renderControl(queryClient: QueryClient, props: Partial<ComponentProps<t
         jobId="job-1"
         status={JobStatus.Draft}
         editable
-        allowedStatuses={[JobStatus.Draft, JobStatus.InReview]}
+        allowedStatuses={[JobStatus.InReview]}
         {...props}
       />
     </QueryClientProvider>,
@@ -40,6 +40,12 @@ function renderControl(queryClient: QueryClient, props: Partial<ComponentProps<t
 }
 
 describe('JobStatusControl', () => {
+  afterEach(cleanup);
+
+  beforeEach(() => {
+    mutateAsync.mockReset();
+  });
+
   it('renders the current status for read-only users without change buttons', () => {
     const queryClient = new QueryClient();
 
@@ -61,15 +67,15 @@ describe('JobStatusControl', () => {
     renderControl(queryClient, { beforeChange, onChanged });
     fireEvent.click(screen.getByRole('button', { name: 'Skift status: Til gennemsyn' }));
 
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({
-      id: 'job-1',
-      data: { status: JobStatus.InReview },
-    }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledWith(JobStatus.InReview));
 
     expect(beforeChange).toHaveBeenCalledWith(JobStatus.InReview);
+    expect(mutateAsync).toHaveBeenCalledWith({
+      id: 'job-1',
+      data: { status: JobStatus.InReview },
+    });
     expect(setQueryData).toHaveBeenCalledWith(['/api/jobs', 'job-1'], updatedJob);
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/jobs', 'job-1'] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/jobs'] });
-    expect(onChanged).toHaveBeenCalledWith(JobStatus.InReview);
   });
 });
