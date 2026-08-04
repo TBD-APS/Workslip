@@ -2,72 +2,43 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 
-type ConfirmAction = 'submit' | 'approve' | 'reject' | 'undo-reject';
-
 type ConfirmActionDialogProps = {
-  action: ConfirmAction;
+  action: 'approve' | 'reject' | 'undo-reject';
   reportNumber: string;
   isPending: boolean;
   onConfirm: (rejectionNote?: string) => void;
   onClose: () => void;
 };
 
-const ACTION_COPY: Record<ConfirmAction, { title: string; confirm: string; pending: string }> = {
-  submit: {
-    title: 'Attestér og indsend sag',
-    confirm: 'Attestér og indsend',
-    pending: 'Indsender...',
-  },
-  approve: {
-    title: 'Godkend sag',
-    confirm: 'Godkend',
-    pending: 'Godkender...',
-  },
-  reject: {
-    title: 'Afvis sag',
-    confirm: 'Afvis',
-    pending: 'Afviser...',
-  },
-  'undo-reject': {
-    title: 'Fortryd afvisning',
-    confirm: 'Fortryd afvisning',
-    pending: 'Fortryder...',
-  },
-};
-
 export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm, onClose }: ConfirmActionDialogProps) {
   const [rejectionNote, setRejectionNote] = useState('');
-  const copy = ACTION_COPY[action];
-  const isPositiveAction = action === 'submit' || action === 'approve';
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isPending) onClose();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isPending, onClose]);
+  }, [onClose]);
 
-  const requestClose = () => {
-    if (!isPending) onClose();
-  };
-
+  const isApprove = action === 'approve';
+  const isUndoReject = action === 'undo-reject';
   const confirmButton = (
     <button
       type="button"
-      className={isPositiveAction ? 'btn btn-primary' : 'btn btn-danger'}
+      className={isApprove ? 'btn btn-primary' : 'btn btn-danger'}
       onClick={() => onConfirm(rejectionNote)}
       disabled={isPending || (action === 'reject' && !rejectionNote.trim())}
     >
       {isPending && <Loader2 className="animate-spin" size={16} />}
-      <span>{isPending ? copy.pending : copy.confirm}</span>
+      <span>{isPending ? (isApprove ? 'Godkender...' : 'Afviser...') : (isApprove ? 'Godkend' : isUndoReject ? 'Fortryd afvisning' : 'Afvis')}</span>
     </button>
   );
   const cancelButton = (
     <button
       type="button"
       className="btn btn-secondary"
-      onClick={requestClose}
+      onClick={onClose}
       disabled={isPending}
     >
       Annuller
@@ -75,23 +46,17 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
   );
 
   return createPortal(
-    <div className="modal-backdrop" onClick={requestClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal-card"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label={copy.title}
+        aria-label={isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : 'Afvis sag'}
       >
-        <h3>{copy.title}</h3>
-        {action === 'submit' ? (
-          <p>
-            Er du sikker på, du vil attestere og indsende sagen <strong>{reportNumber}</strong>? Indsendelsen kan ikke fortrydes.
-          </p>
-        ) : (
-          <p>
-            Er du sikker på, du vil {action === 'undo-reject' ? 'fortryde afvisningen af' : action === 'approve' ? 'godkende' : 'afvise'} sagen <strong>{reportNumber}</strong>?
-          </p>
-        )}
+        <h3>{isApprove ? 'Godkend sag' : isUndoReject ? 'Fortryd afvisning' : 'Afvis sag'}</h3>
+        <p>
+          Er du sikker på, du vil {isUndoReject ? 'fortryde afvisningen af' : isApprove ? 'godkende' : 'afvise'} sagen <strong>{reportNumber}</strong>?
+        </p>
 
         {action === 'reject' && (
           <div className="form-group" style={{ marginTop: '1rem' }}>
@@ -100,7 +65,7 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
               id="rejection-note"
               className="form-input form-textarea"
               value={rejectionNote}
-              onChange={(event) => setRejectionNote(event.target.value)}
+              onChange={(e) => setRejectionNote(e.target.value)}
               placeholder="Angiv årsagen til afvisningen..."
               rows={3}
             />
@@ -108,7 +73,7 @@ export function ConfirmActionDialog({ action, reportNumber, isPending, onConfirm
         )}
 
         <div className="modal-actions modal-actions--double">
-          {isPositiveAction ? (
+          {isApprove ? (
             <>
               {cancelButton}
               {confirmButton}
