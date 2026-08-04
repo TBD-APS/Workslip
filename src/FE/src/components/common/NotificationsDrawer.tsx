@@ -1,8 +1,11 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CheckCheck, X } from 'lucide-react';
-import { Drawer } from './Drawer';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiClient } from '../../lib/axios';
 import { useNavigate } from 'react-router-dom';
+import { apiClient } from '../../lib/axios';
+import { notificationListQueryKey } from '../../lib/notificationQueryKeys';
+import { useAuth } from '../../providers/useAuth';
+import { Drawer } from './Drawer';
 import './NotificationsDrawer.css';
 
 type NotificationItem = {
@@ -20,6 +23,8 @@ type NotificationsDrawerProps = {
   onUnreadCountChange?: (count: number) => void;
 };
 
+const EMPTY_NOTIFICATIONS: NotificationItem[] = [];
+
 const countUnread = (items: NotificationItem[]) =>
   items.reduce((count, item) => count + (item.isRead ? 0 : 1), 0);
 
@@ -29,52 +34,69 @@ const getBodyLines = (body: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
+async function getNotifications(): Promise<NotificationItem[]> {
+  const response = await apiClient.get('/api/notifications', {
+    params: { limit: 50 },
+    skipGlobalErrorToast: true,
+  });
+
+  return Array.isArray(response) ? response as NotificationItem[] : [];
+}
+
 export function NotificationsDrawer({
   isOpen,
   onClose,
   onUnreadCountChange,
 }: NotificationsDrawerProps) {
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const userId = user?.id ?? '';
+  const organizationId = user?.organizationId ?? '';
+  const queryKey = useMemo(
+    () => notificationListQueryKey(userId, organizationId),
+    [organizationId, userId],
+  );
+  const queryClient = useQueryClient();
+  const {
+    data: items = EMPTY_NOTIFICATIONS,
+    isError,
+    isPending,
+    refetch,
+  } = useQuery({
+    queryKey,
+    queryFn: getNotifications,
+    enabled: userId.length > 0 && organizationId.length > 0,
+  });
+  const [actionError, setActionError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
   const navigate = useNavigate();
 
-  const replaceItems = useCallback((nextItems: NotificationItem[]) => {
-    setItems(nextItems);
-    onUnreadCountChange?.(countUnread(nextItems));
-  }, [onUnreadCountChange]);
-
   const updateItems = useCallback((updater: (current: NotificationItem[]) => NotificationItem[]) => {
-    setItems((current) => {
-      const nextItems = updater(current);
-      onUnreadCountChange?.(countUnread(nextItems));
-      return nextItems;
-    });
-  }, [onUnreadCountChange]);
-
-  const loadNotifications = useCallback(async (showLoading: boolean) => {
-    if (showLoading) setLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiClient.get('/api/notifications', {
-        params: { limit: 50 },
-        skipGlobalErrorToast: true,
-      });
-      replaceItems(Array.isArray(response) ? response as NotificationItem[] : []);
-    } catch {
-      setError('Notifikationerne kunne ikke hentes. Prøv igen.');
-    } finally {
-      if (showLoading) setLoading(false);
-    }
-  }, [replaceItems]);
+    queryClient.setQueryData<NotificationItem[]>(queryKey, (current) => updater(current ?? []));
+  }, [queryClient, queryKey]);
 
   useEffect(() => {
-    void loadNotifications(isOpen);
-  }, [isOpen, loadNotifications]);
+    onUnreadCountChange?.(countUnread(items));
+  }, [items, onUnreadCountChange]);
+
+  useEffect(() => {
+    if (isOpen && userId && organizationId) {
+      setActionError(null);
+      void refetch();
+    }
+  }, [isOpen, organizationId, refetch, userId]);
 
   const unreadCount = useMemo(() => countUnread(items), [items]);
+  const loading = userId.length > 0
+    && organizationId.length > 0
+    && isPending
+    && items.length === 0;
+  const error = actionError
+    ?? (isError ? 'Notifikationerne kunne ikke hentes. Prøv igen.' : null);
+
+  const retryLoad = async () => {
+    setActionError(null);
+    await refetch();
+  };
 
   const markRead = async (item: NotificationItem) => {
     if (!item.isRead) {
@@ -84,9 +106,9 @@ export function NotificationsDrawer({
         });
         updateItems((current) => current.map((entry) =>
           entry.id === item.id ? { ...entry, isRead: true } : entry));
-        setError(null);
+        setActionError(null);
       } catch {
-        setError('Notifikationen kunne ikke markeres som læst.');
+        setActionError('Notifikationen kunne ikke markeres som læst.');
       }
     }
 
@@ -102,9 +124,9 @@ export function NotificationsDrawer({
         skipGlobalErrorToast: true,
       });
       updateItems((current) => current.map((item) => ({ ...item, isRead: true })));
-      setError(null);
+      setActionError(null);
     } catch {
-      setError('Notifikationerne kunne ikke markeres som læst.');
+      setActionError('Notifikationerne kunne ikke markeres som læst.');
     }
   };
 
@@ -115,9 +137,9 @@ export function NotificationsDrawer({
         skipGlobalErrorToast: true,
       });
       updateItems((current) => current.filter((entry) => entry.id !== item.id));
-      setError(null);
+      setActionError(null);
     } catch {
-      setError('Notifikationen kunne ikke slettes. Prøv igen.');
+      setActionError('Notifikationen kunne ikke slettes. Prøv igen.');
     } finally {
       setDeletingIds((current) => {
         const next = new Set(current);
@@ -145,7 +167,7 @@ export function NotificationsDrawer({
       {error && (
         <div className="notification-error" role="alert">
           <span>{error}</span>
-          <button type="button" onClick={() => void loadNotifications(true)}>
+          <button type="button" onClick={() => void retryLoad()}>
             Prøv igen
           </button>
         </div>
