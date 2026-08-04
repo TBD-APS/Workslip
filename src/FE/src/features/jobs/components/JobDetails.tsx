@@ -398,7 +398,7 @@ function JobDetailsHeader({ title, jobNumber, jobType, jobId, status, editable, 
             jobId={jobId}
             status={status}
             editable={editable}
-            allowedStatuses={[JobStatus.Draft, JobStatus.InReview]}
+            allowedStatuses={[JobStatus.InReview]}
             beforeChange={beforeStatusChange}
             onChanged={onStatusChanged}
           />
