@@ -52,14 +52,12 @@ if (typeof window !== 'undefined') {
     installNotificationReceivedInvalidator(
       navigator.serviceWorker,
       async () => {
-        await Promise.all([
-          queryClient.invalidateQueries({
-            predicate: (query) => isJobFamilyQueryKey(query.queryKey),
-          }),
-          queryClient.invalidateQueries({
-            queryKey: NOTIFICATION_QUERY_PREFIX,
-          }),
-        ]);
+        await queryClient.invalidateQueries({
+          predicate: (query) => isJobFamilyQueryKey(query.queryKey),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: NOTIFICATION_QUERY_PREFIX,
+        });
       },
     );
   }
