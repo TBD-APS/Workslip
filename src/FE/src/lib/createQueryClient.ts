@@ -68,7 +68,7 @@ export function createQueryClient(): QueryClient {
   // the drawer is closed. Push receipt invalidation gives the normal immediate
   // path; background polling and focus refresh cover denied/unsupported push,
   // delivery gaps and a device returning online after a notification was
-  // queued. The query key itself includes the authenticated user ID.
+  // queued. Each concrete query key includes both user and organization scope.
   client.setQueryDefaults(NOTIFICATION_QUERY_PREFIX, {
     staleTime: NOTIFICATION_LIST_STALE_TIME_MS,
     gcTime: NOTIFICATION_LIST_GC_TIME_MS,
