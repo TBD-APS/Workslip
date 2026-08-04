@@ -24,6 +24,42 @@ import {
   useAppRouteScrollManager,
 } from '../../hooks/useAppRouteScroll';
 
+const NON_TEXT_INPUT_TYPES = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'file',
+  'hidden',
+  'image',
+  'radio',
+  'range',
+  'reset',
+  'submit',
+]);
+
+function isTextEntryElement(target: EventTarget | null): target is HTMLElement {
+  if (target instanceof HTMLInputElement) {
+    return !target.disabled
+      && !target.readOnly
+      && target.inputMode !== 'none'
+      && !NON_TEXT_INPUT_TYPES.has(target.type);
+  }
+
+  if (target instanceof HTMLTextAreaElement) {
+    return !target.disabled && !target.readOnly;
+  }
+
+  if (target instanceof HTMLElement && target.isContentEditable) {
+    return true;
+  }
+
+  if (target instanceof Element) {
+    return target.closest<HTMLElement>('[contenteditable]:not([contenteditable="false"])')?.isContentEditable === true;
+  }
+
+  return false;
+}
+
 export const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,7 +69,7 @@ export const AppLayout = () => {
   const organizationSession = getOrganizationSession();
   const appHomePath = getAuthenticatedHomePath(user?.role);
   const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [isTextEntryFocused, setIsTextEntryFocused] = useState(false);
 
   const { theme, toggle: toggleTheme } = useTheme();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
@@ -71,37 +107,60 @@ export const AppLayout = () => {
   };
 
   useEffect(() => {
-    let focusCheckTimeoutId: number | undefined;
+    let focusSyncFrame: number | undefined;
 
-    const handleFocusChange = () => {
-      const activeElement = document.activeElement;
-      const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
-      setIsKeyboardVisible(isInput);
+    const cancelScheduledFocusSync = () => {
+      if (focusSyncFrame !== undefined) {
+        window.cancelAnimationFrame(focusSyncFrame);
+        focusSyncFrame = undefined;
+      }
+    };
+
+    const syncFocusState = (target: EventTarget | null = document.activeElement) => {
+      setIsTextEntryFocused(isTextEntryElement(target));
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      cancelScheduledFocusSync();
+      syncFocusState(event.target);
     };
 
     const handleFocusOut = () => {
-      if (focusCheckTimeoutId !== undefined) {
-        window.clearTimeout(focusCheckTimeoutId);
-      }
-
-      // Allow the next element to receive focus before deciding whether the
-      // mobile keyboard-dependent layout should be restored.
-      focusCheckTimeoutId = window.setTimeout(handleFocusChange, 50);
+      cancelScheduledFocusSync();
+      focusSyncFrame = window.requestAnimationFrame(() => {
+        focusSyncFrame = undefined;
+        syncFocusState();
+      });
     };
 
-    document.addEventListener('focusin', handleFocusChange);
+    const handlePointerDown = (event: PointerEvent) => {
+      const activeElement = document.activeElement;
+      if (isTextEntryElement(activeElement) && !isTextEntryElement(event.target)) {
+        activeElement.blur();
+      }
+    };
+
+    const handleDomMutation = () => {
+      if (!isTextEntryElement(document.activeElement)) {
+        setIsTextEntryFocused(false);
+      }
+    };
+
+    const observer = new MutationObserver(handleDomMutation);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    document.addEventListener('focusin', handleFocusIn);
     document.addEventListener('focusout', handleFocusOut);
+    document.addEventListener('pointerdown', handlePointerDown, true);
 
     return () => {
-      document.removeEventListener('focusin', handleFocusChange);
+      cancelScheduledFocusSync();
+      observer.disconnect();
+      document.removeEventListener('focusin', handleFocusIn);
       document.removeEventListener('focusout', handleFocusOut);
-
-      if (focusCheckTimeoutId !== undefined) {
-        window.clearTimeout(focusCheckTimeoutId);
-      }
+      document.removeEventListener('pointerdown', handlePointerDown, true);
     };
   }, []);
-
 
   if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
     return <Navigate to="/superadmin" replace />;
@@ -118,7 +177,7 @@ export const AppLayout = () => {
   return (
     <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
     <DropdownProvider>
-      <div ref={scrollContainerRef} className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
+      <div ref={scrollContainerRef} className={`app-shell ${isTextEntryFocused ? 'keyboard-visible' : ''}`}>
         {/* Top Header for Mobile */}
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>
