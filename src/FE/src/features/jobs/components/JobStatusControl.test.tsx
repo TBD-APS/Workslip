@@ -30,6 +30,7 @@ function renderControl(queryClient: QueryClient, props: Partial<ComponentProps<t
     <QueryClientProvider client={queryClient}>
       <JobStatusControl
         jobId="job-1"
+        reportNumber="SAG-1234"
         status={JobStatus.Draft}
         editable
         allowedStatuses={[JobStatus.InReview]}
@@ -55,7 +56,7 @@ describe('JobStatusControl', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('updates the detail cache and invalidates detail and list queries after a status change', async () => {
+  it('confirms submission, updates the detail cache, and invalidates detail and list queries', async () => {
     const updatedJob = { id: 'job-1', status: JobStatus.InReview };
     mutateAsync.mockResolvedValueOnce(updatedJob);
     const queryClient = new QueryClient();
@@ -66,6 +67,9 @@ describe('JobStatusControl', () => {
 
     renderControl(queryClient, { beforeChange, onChanged });
     fireEvent.click(screen.getByRole('button', { name: 'Skift status: Til gennemsyn' }));
+
+    expect(screen.getByRole('dialog', { name: 'Attestér og indsend sag' })).toHaveTextContent('Indsendelsen kan ikke fortrydes.');
+    fireEvent.click(screen.getByRole('button', { name: 'Attestér og indsend' }));
 
     await waitFor(() => expect(onChanged).toHaveBeenCalledWith(JobStatus.InReview));
 
@@ -87,17 +91,18 @@ describe('JobStatusControl', () => {
     const queryClient = new QueryClient();
 
     renderControl(queryClient, { beforeChange });
-    const statusButton = screen.getByRole('button', { name: 'Skift status: Til gennemsyn' });
+    fireEvent.click(screen.getByRole('button', { name: 'Skift status: Til gennemsyn' }));
+    const confirmButton = screen.getByRole('button', { name: 'Attestér og indsend' });
 
-    fireEvent.click(statusButton);
-    fireEvent.click(statusButton);
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
 
     expect(beforeChange).toHaveBeenCalledTimes(1);
-    expect(statusButton).toBeDisabled();
+    expect(confirmButton).toBeDisabled();
 
     await act(async () => resolveSave(false));
 
-    await waitFor(() => expect(statusButton).toBeEnabled());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Attestér og indsend sag' })).not.toBeInTheDocument());
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 });
