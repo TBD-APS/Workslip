@@ -45,7 +45,7 @@ describe('useInfiniteList refresh', () => {
 
     expect(fetchPage).toHaveBeenCalledTimes(1);
     expect(fetchPage).toHaveBeenCalledWith({ limit: 2, offset: 0 });
-    expect(result.current.items).toEqual(['job-1', 'job-2']);
+    await waitFor(() => expect(result.current.items).toEqual(['job-1', 'job-2']));
   });
 
   it('reuses the active refresh promise instead of starting a second request', async () => {
