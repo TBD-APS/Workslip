@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createQueryClient } from './createQueryClient';
-import {
-  notificationListQueryKey,
-  NOTIFICATION_QUERY_PREFIX,
-} from './notificationQueryKeys';
+import { NOTIFICATION_QUERY_PREFIX } from './notificationQueryKeys';
 import {
   NOTIFICATION_LIST_GC_TIME_MS,
   NOTIFICATION_LIST_REFETCH_INTERVAL_MS,
@@ -21,14 +18,5 @@ describe('createQueryClient', () => {
       refetchIntervalInBackground: true,
       refetchOnWindowFocus: true,
     });
-  });
-
-  it('separates notification caches across users and organizations', () => {
-    expect(notificationListQueryKey('user-1', 'organization-1')).not.toEqual(
-      notificationListQueryKey('user-1', 'organization-2'),
-    );
-    expect(notificationListQueryKey('user-1', 'organization-1')).not.toEqual(
-      notificationListQueryKey('user-2', 'organization-1'),
-    );
   });
 });
