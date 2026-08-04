@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
+using Workslip.Application.Common;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
@@ -31,7 +32,11 @@ public sealed class EfReferenceDataRepositoryTests
         var repository = new EfReferenceDataRepository(
             database.Context,
             new NoRetryPolicy(),
-            services.GetRequiredService<HybridCache>());
+            services.GetRequiredService<HybridCache>(),
+            new CacheDiagnostics(
+            [
+                new CacheRegionDefinition(CacheRegionNames.ReferenceData, "HybridCache", 600)
+            ]));
 
         var result = await repository.GetAsync(organizationId, CancellationToken.None);
 
