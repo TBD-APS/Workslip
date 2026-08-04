@@ -23,6 +23,8 @@ type NotificationsDrawerProps = {
   onUnreadCountChange?: (count: number) => void;
 };
 
+const EMPTY_NOTIFICATIONS: NotificationItem[] = [];
+
 const countUnread = (items: NotificationItem[]) =>
   items.reduce((count, item) => count + (item.isRead ? 0 : 1), 0);
 
@@ -48,17 +50,25 @@ export function NotificationsDrawer({
 }: NotificationsDrawerProps) {
   const { user } = useAuth();
   const userId = user?.id ?? '';
-  const queryKey = useMemo(() => notificationListQueryKey(userId), [userId]);
+  const organizationId = user?.organizationId ?? '';
+  const queryKey = useMemo(
+    () => notificationListQueryKey(userId, organizationId),
+    [organizationId, userId],
+  );
   const queryClient = useQueryClient();
-  const notificationsQuery = useQuery({
+  const {
+    data: items = EMPTY_NOTIFICATIONS,
+    isError,
+    isPending,
+    refetch,
+  } = useQuery({
     queryKey,
     queryFn: getNotifications,
-    enabled: userId.length > 0,
+    enabled: userId.length > 0 && organizationId.length > 0,
   });
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set());
   const navigate = useNavigate();
-  const items = notificationsQuery.data ?? [];
 
   const updateItems = useCallback((updater: (current: NotificationItem[]) => NotificationItem[]) => {
     queryClient.setQueryData<NotificationItem[]>(queryKey, (current) => updater(current ?? []));
@@ -69,19 +79,22 @@ export function NotificationsDrawer({
   }, [items, onUnreadCountChange]);
 
   useEffect(() => {
-    if (isOpen && userId) {
-      void notificationsQuery.refetch();
+    if (isOpen && userId && organizationId) {
+      void refetch();
     }
-  }, [isOpen, notificationsQuery.refetch, userId]);
+  }, [isOpen, organizationId, refetch, userId]);
 
   const unreadCount = useMemo(() => countUnread(items), [items]);
-  const loading = userId.length > 0 && notificationsQuery.isPending && items.length === 0;
+  const loading = userId.length > 0
+    && organizationId.length > 0
+    && isPending
+    && items.length === 0;
   const error = actionError
-    ?? (notificationsQuery.isError ? 'Notifikationerne kunne ikke hentes. Prøv igen.' : null);
+    ?? (isError ? 'Notifikationerne kunne ikke hentes. Prøv igen.' : null);
 
   const retryLoad = async () => {
     setActionError(null);
-    await notificationsQuery.refetch();
+    await refetch();
   };
 
   const markRead = async (item: NotificationItem) => {
