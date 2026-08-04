@@ -1,13 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FullscreenSystemState } from '../components/common/FullscreenSystemState';
+import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
 import {
   AUTH_TOKEN_KEY,
   AuthContext,
-  USER_EMAIL_KEY,
   AuthStorage,
   clearReauthInFlight,
   type AuthContextType,
+  USER_EMAIL_KEY,
 } from './authContextValue';
-import { preloadPrimaryAppRoute } from '../routes/preloadPrimaryAppRoute';
 
 const AuthenticatedAppProvider = lazy(() =>
   import('./AuthenticatedAppProvider').then((module) => ({ default: module.AuthenticatedAppProvider })),
@@ -96,9 +97,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <Suspense
       fallback={(
-        <div className="protected-route-loading" role="status" aria-live="polite">
-          Tjekker login status...
-        </div>
+        <FullscreenSystemState
+          title="Tjekker login"
+          message="Vi kontrollerer din session og gør Workslip klar."
+        />
       )}
     >
       <AuthenticatedAppProvider
