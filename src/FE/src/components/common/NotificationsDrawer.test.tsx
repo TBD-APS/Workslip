@@ -21,7 +21,10 @@ vi.mock('../../lib/axios', () => ({
 
 vi.mock('../../providers/useAuth', () => ({
   useAuth: () => ({
-    user: { id: 'user-1' },
+    user: {
+      id: 'user-1',
+      organizationId: 'organization-1',
+    },
   }),
 }));
 
@@ -86,7 +89,10 @@ describe('NotificationsDrawer', () => {
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(onUnreadCountChange).toHaveBeenLastCalledWith(1));
-    expect(queryClient.getQueryData(notificationListQueryKey('user-1'))).toEqual([
+    expect(queryClient.getQueryData(notificationListQueryKey(
+      'user-1',
+      'organization-1',
+    ))).toEqual([
       readNotification,
       unreadNotification,
     ]);
