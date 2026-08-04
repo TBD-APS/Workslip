@@ -175,6 +175,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
         jobType={details.job.jobType}
+        status={details.job.status}
         onBack={handleBack}
         onDelete={canDeleteJob ? handleDelete : undefined}
         onShowHistory={() => setHistoryOpen(true)}
@@ -361,12 +362,13 @@ type HeaderProps = {
   title: string;
   jobNumber: string;
   jobType?: string;
+  status: JobStatus;
   onBack: () => void;
   onDelete?: () => void;
   onShowHistory: () => void;
 };
 
-function JobDetailsHeader({ title, jobNumber, jobType, onBack, onDelete, onShowHistory }: HeaderProps) {
+function JobDetailsHeader({ title, jobNumber, jobType, status, onBack, onDelete, onShowHistory }: HeaderProps) {
   return (
     <div className="detail-header">
       <button className="btn-icon" onClick={onBack} aria-label="Tilbage">
@@ -374,6 +376,9 @@ function JobDetailsHeader({ title, jobNumber, jobType, onBack, onDelete, onShowH
       </button>
       <div>
         <span className="job-number">{jobNumber} &middot; {jobType && formatJobType(jobType)}</span>
+        {status === JobStatus.InReview && <span className="review-dot" />}
+        {status === JobStatus.Approved && <span className="approved-dot" />}
+        {status === JobStatus.Rejected && <span className="rejected-dot" />}
         <h2 className="detail-title">{title}</h2>
       </div>
       <div className="detail-header-actions">
