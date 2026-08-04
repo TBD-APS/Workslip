@@ -2,7 +2,7 @@ import { useNavigate, useLocation, NavLink, Navigate, Outlet } from 'react-route
 import { ClipboardList, Building2, CalendarDays, LogOut, PlusCircle, Settings, ShieldCheck, User, Users, Sun, Moon, Bell } from 'lucide-react';
 import { useAuth } from '../../providers/useAuth';
 import { Can, useCan, useIsSuperAdmin } from '../../providers/permissions';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { DropdownProvider } from '../../providers/DropdownContext';
 import { useTheme } from '../../providers/ThemeProvider';
 import { CreateBottomSheet } from '../common/CreateBottomSheet';
@@ -19,6 +19,7 @@ import {
 import '../../features/superadmin/organizationSession.css';
 import '../../authenticated-base.css';
 import '../../App.css';
+import './AppLayout.focus.css';
 import {
   AppScrollRestoreBoundary,
   useAppRouteScrollManager,
@@ -33,7 +34,6 @@ export const AppLayout = () => {
   const organizationSession = getOrganizationSession();
   const appHomePath = getAuthenticatedHomePath(user?.role);
   const isAuditorSession = appHomePath === AUDITOR_AUTHENTICATED_PATH;
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const { theme, toggle: toggleTheme } = useTheme();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
@@ -70,39 +70,6 @@ export const AppLayout = () => {
     window.location.assign('/superadmin');
   };
 
-  useEffect(() => {
-    let focusCheckTimeoutId: number | undefined;
-
-    const handleFocusChange = () => {
-      const activeElement = document.activeElement;
-      const isInput = activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
-      setIsKeyboardVisible(isInput);
-    };
-
-    const handleFocusOut = () => {
-      if (focusCheckTimeoutId !== undefined) {
-        window.clearTimeout(focusCheckTimeoutId);
-      }
-
-      // Allow the next element to receive focus before deciding whether the
-      // mobile keyboard-dependent layout should be restored.
-      focusCheckTimeoutId = window.setTimeout(handleFocusChange, 50);
-    };
-
-    document.addEventListener('focusin', handleFocusChange);
-    document.addEventListener('focusout', handleFocusOut);
-
-    return () => {
-      document.removeEventListener('focusin', handleFocusChange);
-      document.removeEventListener('focusout', handleFocusOut);
-
-      if (focusCheckTimeoutId !== undefined) {
-        window.clearTimeout(focusCheckTimeoutId);
-      }
-    };
-  }, []);
-
-
   if (isSuperadmin && !organizationSession && location.pathname.startsWith('/app')) {
     return <Navigate to="/superadmin" replace />;
   }
@@ -118,7 +85,7 @@ export const AppLayout = () => {
   return (
     <AppScrollRestoreBoundary restoreKey={restoreScrollKey}>
     <DropdownProvider>
-      <div ref={scrollContainerRef} className={`app-shell ${isKeyboardVisible ? 'keyboard-visible' : ''}`}>
+      <div ref={scrollContainerRef} className="app-shell">
         {/* Top Header for Mobile */}
       <header className="app-header">
         <button className="logo logo-header" onClick={() => navigate(isSuperadmin && !organizationSession ? '/superadmin' : appHomePath)}>

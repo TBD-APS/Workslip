@@ -1,0 +1,15 @@
+/*
+ * Keep mobile navigation visibility derived from the browser's actual focus
+ * state. This avoids JavaScript focus timers becoming stale when fields move,
+ * unmount, or hand focus directly to another editable control.
+ */
+@media (max-width: 767px) {
+  .app-shell:has(
+    input:not([type='button']):not([type='checkbox']):not([type='color']):not([type='file']):not([type='hidden']):not([type='image']):not([type='radio']):not([type='range']):not([type='reset']):not([type='submit']):not([inputmode='none']):not([readonly]):not([disabled]):focus,
+    textarea:not([readonly]):not([disabled]):focus,
+    [contenteditable]:not([contenteditable='false']):focus
+  ) .bottom-nav {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
