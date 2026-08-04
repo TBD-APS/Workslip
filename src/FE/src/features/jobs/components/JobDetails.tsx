@@ -181,9 +181,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         jobId={jobId}
         status={details.job.status}
         editable={isAdmin}
-        beforeStatusChange={(targetStatus) =>
-          details.saveAllChanges({ mode: targetStatus === JobStatus.InReview ? 'strict' : 'draft' })
-        }
+        beforeStatusChange={() => details.saveAllChanges()}
         onStatusChanged={(targetStatus) => {
           if (targetStatus === JobStatus.InReview) {
             onGoToReport(jobId);
@@ -396,6 +394,7 @@ function JobDetailsHeader({ title, jobNumber, jobType, jobId, status, editable, 
           <span className="job-number">{jobNumber} &middot; {jobType && formatJobType(jobType)}</span>
           <JobStatusControl
             jobId={jobId}
+            reportNumber={jobNumber}
             status={status}
             editable={editable}
             allowedStatuses={[JobStatus.InReview]}
