@@ -1,0 +1,80 @@
+.job-details-status-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+}
+
+.job-details-status-row .job-number {
+  margin-bottom: 0;
+}
+
+.job-status-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  min-height: 2rem;
+}
+
+.job-status-dot {
+  --job-status-color: var(--text-muted);
+  position: relative;
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--job-status-color);
+}
+
+.job-status-dot::before {
+  content: '';
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: currentColor;
+  transition: transform 120ms ease;
+}
+
+button.job-status-dot {
+  cursor: pointer;
+}
+
+button.job-status-dot:hover::before {
+  transform: scale(1.2);
+}
+
+button.job-status-dot:focus-visible {
+  outline: 2px solid var(--focus-ring, #2563eb);
+  outline-offset: 1px;
+}
+
+.job-status-dot.is-current {
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+
+.job-status-dot--Draft {
+  --job-status-color: #3b82f6;
+}
+
+.job-status-dot--InReview {
+  --job-status-color: #eab308;
+}
+
+.job-status-dot--Approved {
+  --job-status-color: #22c55e;
+}
+
+.job-status-dot--Rejected {
+  --job-status-color: #ef4444;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-status-dot::before {
+    transition: none;
+  }
+}
