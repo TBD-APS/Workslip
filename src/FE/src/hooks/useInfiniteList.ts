@@ -1,5 +1,10 @@
-import { useMemo } from 'react';
-import { useInfiniteQuery, type QueryKey } from '@tanstack/react-query';
+import { useCallback, useMemo, useRef } from 'react';
+import {
+  useInfiniteQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryKey,
+} from '@tanstack/react-query';
 
 interface PageData<TItem> {
   items: TItem[];
@@ -19,6 +24,8 @@ export function useInfiniteList<TItem>({
   pageSize = 50,
   enabled = true,
 }: UseInfiniteListOptions<TItem>) {
+  const queryClient = useQueryClient();
+  const refreshPromiseRef = useRef<Promise<void> | null>(null);
   const query = useInfiniteQuery({
     queryKey,
     queryFn: ({ pageParam }) => fetchPage({ limit: pageSize, offset: pageParam }),
@@ -37,10 +44,34 @@ export function useInfiniteList<TItem>({
   const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
   const totalCount = query.data?.pages[0]?.totalCount ?? 0;
 
+  const refreshFirstPage = useCallback((): Promise<void> => {
+    if (refreshPromiseRef.current) return refreshPromiseRef.current;
+
+    queryClient.setQueryData<InfiniteData<PageData<TItem>, number>>(queryKey, (currentData) => {
+      if (!currentData || currentData.pages.length <= 1) return currentData;
+
+      return {
+        pages: currentData.pages.slice(0, 1),
+        pageParams: currentData.pageParams.slice(0, 1),
+      };
+    });
+
+    const refreshPromise = query
+      .refetch({ cancelRefetch: true })
+      .then(() => undefined)
+      .finally(() => {
+        refreshPromiseRef.current = null;
+      });
+
+    refreshPromiseRef.current = refreshPromise;
+    return refreshPromise;
+  }, [query, queryClient, queryKey]);
+
   return {
     ...query,
     items,
     totalCount,
+    refreshFirstPage,
     isLoadingMore: query.isFetchingNextPage,
     isFetching: query.isFetching,
   };
