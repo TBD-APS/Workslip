@@ -26,6 +26,7 @@ import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
 import { JOB_STEPS } from './steps/jobSteps';
 import { JobHistoryDrawer } from './JobHistoryDrawer';
+import { JobStatusControl } from './JobStatusControl';
 import { ClosureFlagLabels } from '../closureFlagLabels';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
@@ -111,6 +112,8 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
     );
   }
 
+  const jobId = details.job.id;
+
   if (details.isSubmittingJob || isPostSubmitting) {
     return (
       <div className="page-container job-detail-page">
@@ -175,6 +178,17 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         title="Rediger sag"
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
         jobType={details.job.jobType}
+        jobId={jobId}
+        status={details.job.status}
+        editable={isAdmin}
+        beforeStatusChange={(targetStatus) =>
+          details.saveAllChanges({ mode: targetStatus === JobStatus.InReview ? 'strict' : 'draft' })
+        }
+        onStatusChanged={(targetStatus) => {
+          if (targetStatus === JobStatus.InReview) {
+            onGoToReport(jobId);
+          }
+        }}
         onBack={handleBack}
         onDelete={canDeleteJob ? handleDelete : undefined}
         onShowHistory={() => setHistoryOpen(true)}
@@ -361,19 +375,34 @@ type HeaderProps = {
   title: string;
   jobNumber: string;
   jobType?: string;
+  jobId: string;
+  status: JobStatus;
+  editable: boolean;
+  beforeStatusChange: (status: JobStatus) => Promise<boolean>;
+  onStatusChanged: (status: JobStatus) => void;
   onBack: () => void;
   onDelete?: () => void;
   onShowHistory: () => void;
 };
 
-function JobDetailsHeader({ title, jobNumber, jobType, onBack, onDelete, onShowHistory }: HeaderProps) {
+function JobDetailsHeader({ title, jobNumber, jobType, jobId, status, editable, beforeStatusChange, onStatusChanged, onBack, onDelete, onShowHistory }: HeaderProps) {
   return (
     <div className="detail-header">
       <button className="btn-icon" onClick={onBack} aria-label="Tilbage">
         <ArrowLeft size={22} />
       </button>
       <div>
-        <span className="job-number">{jobNumber} &middot; {jobType && formatJobType(jobType)}</span>
+        <div className="job-details-status-row">
+          <span className="job-number">{jobNumber} &middot; {jobType && formatJobType(jobType)}</span>
+          <JobStatusControl
+            jobId={jobId}
+            status={status}
+            editable={editable}
+            allowedStatuses={[JobStatus.Draft, JobStatus.InReview]}
+            beforeChange={beforeStatusChange}
+            onChanged={onStatusChanged}
+          />
+        </div>
         <h2 className="detail-title">{title}</h2>
       </div>
       <div className="detail-header-actions">
