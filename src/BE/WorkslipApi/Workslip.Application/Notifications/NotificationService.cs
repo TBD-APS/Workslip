@@ -94,8 +94,8 @@ public sealed class NotificationService : INotificationService
                     : $"{recipientName}, SAG-{jobNumber} er blevet afvist og kræver ændringer.\nÅrsag: {rejectionNote}\nAdresse: {customerAddress}"
             ),
             NotificationType.JobCompleted => (
-                $"SAG-{jobNumber} afsluttet",
-                $"{recipientName}, SAG-{jobNumber} er afsluttet.\nAdresse: {customerAddress}"
+                $"SAG-{jobNumber} godkendt",
+                $"{recipientName}, SAG-{jobNumber} er godkendt.\nAdresse: {customerAddress}"
             ),
             NotificationType.JobUnassigned => (
                 "Sag uden medarbejdere",
