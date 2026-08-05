@@ -72,16 +72,44 @@ export const Settings = () => {
     }
 
     try {
-      await inviteMutation.mutateAsync({
+      const response = await inviteMutation.mutateAsync({
         data: {
           emails,
           role: inviteRole,
           inviteBaseUrl: window.location.origin,
         },
       });
-      notify.success(`${emails.length} invitation(er) sendt`);
-      setEmails([]);
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/invites'] });
+
+      const failedResults = response.results.filter((result) => !result.success);
+      const failedEmails = new Set(
+        failedResults.map((result) => result.email.trim().toLowerCase()),
+      );
+      const successfulCount = response.results.length - failedResults.length;
+
+      if (successfulCount > 0) {
+        notify.success(
+          successfulCount === 1
+            ? '1 invitation sendt'
+            : `${successfulCount} invitationer sendt`,
+        );
+      }
+
+      if (failedResults.length > 0) {
+        const firstError = failedResults.find((result) => result.error)?.error;
+        notify.error(
+          firstError
+            ?? (failedResults.length === 1
+              ? 'Invitationen kunne ikke sendes'
+              : `${failedResults.length} invitationer kunne ikke sendes`),
+        );
+
+        setEmails((current) => current.filter((address) =>
+          failedEmails.has(address.trim().toLowerCase())));
+      } else {
+        setEmails([]);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['/api/auth/invites'] });
     } catch {
       notify.error('Kunne ikke sende invitationer');
     }
