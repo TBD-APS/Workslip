@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { JobStatusDots } from './JobStatusDots';
+
+afterEach(cleanup);
 
 describe('JobStatusDots', () => {
   it('shows all statuses and marks the current status', () => {
