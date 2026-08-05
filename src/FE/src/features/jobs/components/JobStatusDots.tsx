@@ -21,34 +21,26 @@ export function JobStatusDots({
   isPending = false,
   onStatusSelect,
 }: JobStatusDotsProps) {
-  const currentOption = STATUS_OPTIONS.find((option) => option.status === status);
-
   return (
-    <div className="job-status-control" aria-label="Sagsstatus">
-      <div className="job-status-dots" role="group" aria-label="Vælg sagsstatus">
-        {STATUS_OPTIONS.map((option) => {
-          const isCurrent = option.status === status;
-          const isEnabled = !isCurrent && !isPending && enabledStatuses.includes(option.status) && Boolean(onStatusSelect);
-          const stateLabel = isCurrent ? 'nuværende status' : isEnabled ? 'vælg status' : 'ikke tilgængelig';
+    <div className="job-status-dots" aria-label="Sagsstatus">
+      {STATUS_OPTIONS.map((option) => {
+        const isCurrent = option.status === status;
+        const isEnabled = !isCurrent && !isPending && enabledStatuses.includes(option.status) && Boolean(onStatusSelect);
+        const stateLabel = isCurrent ? 'nuværende status' : isEnabled ? 'vælg status' : 'ikke tilgængelig';
 
-          return (
-            <button
-              key={option.status}
-              type="button"
-              className={`job-status-dot ${option.className}${isCurrent ? ' is-current' : ''}`}
-              aria-label={`${option.label}, ${stateLabel}`}
-              aria-current={isCurrent ? 'step' : undefined}
-              aria-pressed={isCurrent}
-              title={`${option.label} – ${stateLabel}`}
-              disabled={!isEnabled}
-              onClick={() => onStatusSelect?.(option.status)}
-            />
-          );
-        })}
-      </div>
-      <span className="job-status-current-label" aria-live="polite">
-        Aktuel status: <strong>{currentOption?.label ?? status}</strong>
-      </span>
+        return (
+          <button
+            key={option.status}
+            type="button"
+            className={`job-status-dot ${option.className}${isCurrent ? ' is-current' : ''}`}
+            aria-label={`${option.label}, ${stateLabel}`}
+            aria-pressed={isCurrent}
+            title={`${option.label} – ${stateLabel}`}
+            disabled={!isEnabled}
+            onClick={() => onStatusSelect?.(option.status)}
+          />
+        );
+      })}
     </div>
   );
 }
