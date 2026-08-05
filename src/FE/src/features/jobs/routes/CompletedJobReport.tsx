@@ -20,6 +20,7 @@ import { useScrollRestore } from '../../../hooks/useScrollRestore';
 import { formatJobStatus } from '../statusLabels';
 import { createJobReportPdfPreview, downloadJobReportPdf } from '../utils/downloadJobReportPdf';
 import { JobHistoryDrawer } from '../components/JobHistoryDrawer';
+import { JobStatusDots } from '../components/JobStatusDots';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { compactPairs, formatNumber, formatUnit, parseNullableNumber } from '../../../lib/formatUtils';
 import { ConfirmActionDialog } from '../components/ConfirmActionDialog';
@@ -200,7 +201,7 @@ export const CompletedJobReport = () => {
       setCompletedAction(confirmAction);
     } catch {
       const message = confirmAction === 'undo-reject'
-        ? `Kunne ikke fortryde afvisningen. Prøv igen.`
+        ? 'Kunne ikke fortryde afvisningen. Prøv igen.'
         : confirmAction === 'approve'
           ? `Kunne ikke godkende ${details.form.reportNumber}. Prøv igen.`
           : `Kunne ikke afvise ${details.form.reportNumber}. Prøv igen.`;
@@ -253,9 +254,27 @@ export const CompletedJobReport = () => {
     );
   }
 
+  const enabledStatusTargets = !isAdmin || readOnly || isEditing
+    ? []
+    : job.status === JobStatus.InReview
+      ? [JobStatus.Approved, JobStatus.Rejected]
+      : job.status === JobStatus.Rejected
+        ? [JobStatus.InReview]
+        : [];
+
+  const handleStatusSelect = (status: JobStatus) => {
+    if (status === JobStatus.Approved) {
+      handleApprove();
+    } else if (status === JobStatus.Rejected) {
+      handleReject();
+    } else if (status === JobStatus.InReview) {
+      handleUndoRejection();
+    }
+  };
+
   const summaryPairs = compactPairs([
     { label: 'Sagsnummer', value: formatReportNumber(job) },
-    { label: 'Status', value: formatJobStatus(job.status)},
+    { label: 'Status', value: formatJobStatus(job.status) },
     { label: 'Anlægstyper', value: formatInstallationTypeNames(job.work.installationTypes) },
     { label: 'Opgavetype', value: formatWorkKind(job) },
     { label: 'Destination', value: job.destinationAddress },
@@ -285,6 +304,12 @@ export const CompletedJobReport = () => {
         </button>
         <div>
           <span className="job-number">{formatReportNumber(job)} - {formatJobStatus(job.status)}</span>
+          <JobStatusDots
+            status={job.status}
+            enabledStatuses={enabledStatusTargets}
+            isPending={statusMutation.isPending}
+            onStatusSelect={handleStatusSelect}
+          />
           <h2 className="detail-title">Sagsoverblik</h2>
         </div>
       </div>
@@ -308,7 +333,7 @@ export const CompletedJobReport = () => {
             )
           )}
           <button
-            className={`btn btn-secondary report-overview-icon-action`}
+            className="btn btn-secondary report-overview-icon-action"
             type="button"
             onClick={() => setHistoryOpen(true)}
             disabled={isEditing}
@@ -396,7 +421,7 @@ export const CompletedJobReport = () => {
               <button
                 className="section-header-row attestation-compact-header btn-reset"
                 type="button"
-                onClick={() => setWorksheetOpen(o => !o)}
+                onClick={() => setWorksheetOpen((open) => !open)}
                 aria-expanded={worksheetOpen}
               >
                 <Timer size={18} />
@@ -463,7 +488,6 @@ export const CompletedJobReport = () => {
                 <LinkedJobs links={job.links} onOpen={(linkedJobId) => navigate(`/app/completed/${linkedJobId}`, { state: { from } })} />
               </section>
             )}
-
           </div>
 
           {!isDiverseInReview && (
@@ -515,9 +539,9 @@ export const CompletedJobReport = () => {
       )}
 
       <JobHistoryDrawer
-        jobId={job.id} 
-        isOpen={historyOpen} 
-        onClose={() => setHistoryOpen(false)} 
+        jobId={job.id}
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
       />
 
       {confirmAction && (
@@ -543,7 +567,7 @@ export const CompletedJobReport = () => {
       )}
     </div>
   );
-}
+};
 
 function ActionSuccessDialog({
   action,
