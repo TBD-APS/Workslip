@@ -35,53 +35,11 @@ const getInviteRoleLabel = (role: string | null) => role === 'Auditor' ? 'AuditÃ
 
 const getCompactInviteRoleLabel = (role: string | null) => role === 'Auditor' ? 'AuditÃ¸r' : 'Medarb.';
 
-const parseInviteResults = (
-  response: unknown,
-  requestedEmails: string[],
-): InviteUserMutationResult[] | null => {
-  if (!response || typeof response !== 'object' || !('results' in response)) {
-    return null;
-  }
+const getInviteResults = (response: unknown): InviteUserMutationResult[] | null => {
+  if (!response || typeof response !== 'object') return null;
 
-  const rawResults = (response as { results?: unknown }).results;
-  if (!Array.isArray(rawResults) || rawResults.length !== requestedEmails.length) {
-    return null;
-  }
-
-  const results: InviteUserMutationResult[] = [];
-  for (const rawResult of rawResults) {
-    if (!rawResult || typeof rawResult !== 'object') {
-      return null;
-    }
-
-    const result = rawResult as {
-      email?: unknown;
-      success?: unknown;
-      error?: unknown;
-    };
-
-    if (
-      typeof result.email !== 'string'
-      || typeof result.success !== 'boolean'
-      || (result.error !== null && result.error !== undefined && typeof result.error !== 'string')
-    ) {
-      return null;
-    }
-
-    results.push({
-      email: result.email,
-      success: result.success,
-      error: typeof result.error === 'string' ? result.error : null,
-    });
-  }
-
-  const requested = new Set(requestedEmails.map((address) => address.trim().toLowerCase()));
-  const returned = new Set(results.map((result) => result.email.trim().toLowerCase()));
-  if (returned.size !== requested.size || [...requested].some((address) => !returned.has(address))) {
-    return null;
-  }
-
-  return results;
+  const results = (response as { results?: unknown }).results;
+  return Array.isArray(results) ? results as InviteUserMutationResult[] : null;
 };
 
 export const Settings = () => {
@@ -143,8 +101,8 @@ export const Settings = () => {
         },
       });
 
-      const results = parseInviteResults(response, emails);
-      if (!results) {
+      const results = getInviteResults(response);
+      if (!results || results.length !== emails.length) {
         setInviteError(INVALID_INVITE_RESPONSE_MESSAGE);
         notify.error(INVALID_INVITE_RESPONSE_MESSAGE);
         return;
