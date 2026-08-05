@@ -1,0 +1,59 @@
+.job-status-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: 0.55rem;
+  vertical-align: middle;
+}
+
+.job-status-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  opacity: 0.32;
+  transform: scale(0.9);
+  transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.job-status-dot--draft {
+  background: #3b82f6;
+}
+
+.job-status-dot--in-review {
+  background: #eab308;
+}
+
+.job-status-dot--approved {
+  background: #22c55e;
+}
+
+.job-status-dot--rejected {
+  background: #ef4444;
+}
+
+.job-status-dot.is-current {
+  opacity: 1;
+  transform: scale(1);
+  box-shadow: 0 0 0 3px var(--surface-elevated);
+}
+
+.job-status-dot:not(:disabled) {
+  cursor: pointer;
+  opacity: 0.72;
+}
+
+.job-status-dot:not(:disabled):hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.job-status-dot:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.job-status-dot:disabled {
+  cursor: default;
+}
