@@ -26,6 +26,7 @@ import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
 import { JOB_STEPS } from './steps/jobSteps';
 import { JobHistoryDrawer } from './JobHistoryDrawer';
+import { JobStatusDots } from './JobStatusDots';
 import { ClosureFlagLabels } from '../closureFlagLabels';
 
 type JobDetailsState = ReturnType<typeof useJobDetails>;
@@ -164,6 +165,9 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
     details.navigateToStep(nextStep);
   };
 
+  const canSubmitForReview =
+    details.job.status === JobStatus.Draft || details.job.status === JobStatus.Rejected;
+
   return (
     <div className="page-container job-detail-page">
       <NavigationGuard
@@ -176,14 +180,20 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         jobNumber={`SAG-${(details.job.reportNumber || details.job.id.slice(0, 4)).toUpperCase()}`}
         jobType={details.job.jobType}
         status={details.job.status}
+        enabledStatuses={canSubmitForReview ? [JobStatus.InReview] : []}
+        onStatusSelect={(status) => {
+          if (status === JobStatus.InReview) {
+            handleStepChange(JOB_STEPS.length - 1);
+          }
+        }}
         onBack={handleBack}
         onDelete={canDeleteJob ? handleDelete : undefined}
         onShowHistory={() => setHistoryOpen(true)}
       />
-      <StepIndicators 
-        currentStep={details.currentStep} 
-        onStepChange={handleStepChange} 
-        completedSteps={completedSteps} 
+      <StepIndicators
+        currentStep={details.currentStep}
+        onStepChange={handleStepChange}
+        completedSteps={completedSteps}
       />
 
       {details.job.status === JobStatus.Rejected && (
@@ -226,7 +236,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
             isDeleting={details.isDeletingWorksheet}
             onUpsert={details.upsertWorksheet}
             onDelete={details.deleteWorksheet}
-            variant='list'
+            variant="list"
           />
         )}
         {details.currentStep === 4 && (
@@ -278,10 +288,10 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         hideDoneButton
       />
 
-      <JobHistoryDrawer 
-        jobId={details.job.id} 
-        isOpen={historyOpen} 
-        onClose={() => setHistoryOpen(false)} 
+      <JobHistoryDrawer
+        jobId={details.job.id}
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
       />
 
       <ConfirmDeleteDialog
@@ -363,12 +373,24 @@ type HeaderProps = {
   jobNumber: string;
   jobType?: string;
   status: JobStatus;
+  enabledStatuses?: JobStatus[];
+  onStatusSelect?: (status: JobStatus) => void;
   onBack: () => void;
   onDelete?: () => void;
   onShowHistory: () => void;
 };
 
-function JobDetailsHeader({ title, jobNumber, jobType, status, onBack, onDelete, onShowHistory }: HeaderProps) {
+function JobDetailsHeader({
+  title,
+  jobNumber,
+  jobType,
+  status,
+  enabledStatuses,
+  onStatusSelect,
+  onBack,
+  onDelete,
+  onShowHistory,
+}: HeaderProps) {
   return (
     <div className="detail-header">
       <button className="btn-icon" onClick={onBack} aria-label="Tilbage">
@@ -376,15 +398,17 @@ function JobDetailsHeader({ title, jobNumber, jobType, status, onBack, onDelete,
       </button>
       <div>
         <span className="job-number">{jobNumber} &middot; {jobType && formatJobType(jobType)}</span>
-        {status === JobStatus.InReview && <span className="review-dot" />}
-        {status === JobStatus.Approved && <span className="approved-dot" />}
-        {status === JobStatus.Rejected && <span className="rejected-dot" />}
+        <JobStatusDots
+          status={status}
+          enabledStatuses={enabledStatuses}
+          onStatusSelect={onStatusSelect}
+        />
         <h2 className="detail-title">{title}</h2>
       </div>
       <div className="detail-header-actions">
-        <button 
-          className="btn-icon history-btn" 
-          onClick={onShowHistory} 
+        <button
+          className="btn-icon history-btn"
+          onClick={onShowHistory}
           title="Vis historik"
           aria-label="Vis historik"
         >
