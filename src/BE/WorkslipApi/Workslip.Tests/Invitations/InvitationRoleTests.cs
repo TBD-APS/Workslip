@@ -30,21 +30,56 @@ public sealed class InvitationRoleTests
     }
 
     [Fact]
-    public async Task InviteUsersAsync_UpdatesRoleWhenPendingInviteIsResent()
+    public async Task InviteUsersAsync_BlocksRoleChangeUntilInvitationStatusIsCleared()
     {
         var organizationId = Guid.NewGuid();
         var existing = CreateInvite(organizationId, Roles.User);
+        var originalToken = existing.Token;
+        var originalExpiresAt = existing.ExpiresAt;
         var repository = new RecordingInviteRepository(existing);
-        var service = CreateService(repository, new RecordingEmailService(), organizationId);
+        var emailService = new RecordingEmailService();
+        var service = CreateService(repository, emailService, organizationId);
 
         var result = await service.InviteUsersAsync(
             new InviteUsersRequest([existing.Email], "https://app.example", Roles.Auditor),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
+        var inviteResult = Assert.Single(result.Value.Results);
+        Assert.False(inviteResult.Success);
+        Assert.Equal(
+            "Ryd den eksisterende invitationsstatus, før du sender en ny invitation med en anden rolle.",
+            inviteResult.Error);
+        Assert.Empty(repository.Updated);
+        Assert.Empty(emailService.InviteRecipients);
+        Assert.Equal(Roles.User, existing.Role);
+        Assert.Equal(originalToken, existing.Token);
+        Assert.Equal(originalExpiresAt, existing.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task InviteUsersAsync_ResendsInvitationWhenRoleIsUnchanged()
+    {
+        var organizationId = Guid.NewGuid();
+        var existing = CreateInvite(organizationId, Roles.User);
+        var originalToken = existing.Token;
+        var originalExpiresAt = existing.ExpiresAt;
+        var repository = new RecordingInviteRepository(existing);
+        var emailService = new RecordingEmailService();
+        var service = CreateService(repository, emailService, organizationId);
+
+        var result = await service.InviteUsersAsync(
+            new InviteUsersRequest([existing.Email], "https://app.example", Roles.User),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(Assert.Single(result.Value.Results).Success);
         Assert.Same(existing, Assert.Single(repository.Updated));
-        Assert.Equal(Roles.Auditor, existing.Role);
+        Assert.Equal(Roles.User, existing.Role);
+        Assert.NotEqual(originalToken, existing.Token);
+        Assert.True(existing.ExpiresAt > originalExpiresAt);
         Assert.False(existing.Consumed);
+        Assert.Equal(existing.Email, Assert.Single(emailService.InviteRecipients));
     }
 
     [Fact]
