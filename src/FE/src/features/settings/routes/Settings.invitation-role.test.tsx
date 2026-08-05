@@ -3,9 +3,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 import { Settings } from './Settings';
 
-const { inviteMutation, invalidateQueries } = vi.hoisted(() => ({
+const {
+  inviteMutation,
+  invalidateQueries,
+  notifySuccess,
+  notifyError,
+} = vi.hoisted(() => ({
   inviteMutation: vi.fn(),
   invalidateQueries: vi.fn(),
+  notifySuccess: vi.fn(),
+  notifyError: vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', async () => {
@@ -48,8 +55,8 @@ vi.mock('../api', () => ({
 
 vi.mock('../../../lib/toast', () => ({
   notify: {
-    success: vi.fn(),
-    error: vi.fn(),
+    success: notifySuccess,
+    error: notifyError,
   },
 }));
 
@@ -58,6 +65,8 @@ afterEach(() => {
   inviteMutation.mockReset();
   inviteMutation.mockResolvedValue({ results: [] });
   invalidateQueries.mockReset();
+  notifySuccess.mockReset();
+  notifyError.mockReset();
 });
 
 describe('Settings invitation role', () => {
@@ -89,6 +98,41 @@ describe('Settings invitation role', () => {
         },
       });
     });
+  });
+
+  it('retains failed recipients and surfaces the role-change instruction', async () => {
+    inviteMutation.mockResolvedValueOnce({
+      results: [
+        {
+          email: 'blocked@example.com',
+          success: false,
+          error: 'Ryd den eksisterende invitationsstatus, før du sender en ny invitation med en anden rolle.',
+          inviteLink: null,
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Skriv e-mail...'), {
+      target: { value: 'blocked@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Tilføj e-mail' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
+
+    await waitFor(() => {
+      expect(notifyError).toHaveBeenCalledWith(
+        'Ryd den eksisterende invitationsstatus, før du sender en ny invitation med en anden rolle.',
+      );
+    });
+
+    expect(notifySuccess).not.toHaveBeenCalled();
+    expect(screen.getByText('blocked@example.com')).toBeInTheDocument();
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/auth/invites'] });
   });
 
   it('uses the compact User role label while exposing the full role and e-mail', () => {
