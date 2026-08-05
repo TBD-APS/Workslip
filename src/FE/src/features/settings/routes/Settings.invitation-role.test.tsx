@@ -63,7 +63,6 @@ vi.mock('../../../lib/toast', () => ({
 afterEach(() => {
   cleanup();
   inviteMutation.mockReset();
-  inviteMutation.mockResolvedValue({ results: [] });
   invalidateQueries.mockReset();
   notifySuccess.mockReset();
   notifyError.mockReset();
@@ -71,6 +70,15 @@ afterEach(() => {
 
 describe('Settings invitation role', () => {
   it('defaults to User and sends the selected Auditor role', async () => {
+    inviteMutation.mockResolvedValueOnce({
+      results: [{
+        email: 'auditor@example.com',
+        success: true,
+        error: null,
+        inviteLink: null,
+      }],
+    });
+
     render(
       <MemoryRouter>
         <Settings />
@@ -98,15 +106,20 @@ describe('Settings invitation role', () => {
         },
       });
     });
+
+    expect(notifySuccess).toHaveBeenCalledWith('1 invitation sendt');
   });
 
-  it('retains failed recipients and surfaces the role-change instruction', async () => {
+  it('retains failed recipients and shows the role-change instruction inline', async () => {
+    const roleChangeMessage =
+      'Ryd den eksisterende invitationsstatus, før du sender en ny invitation med en anden rolle.';
+
     inviteMutation.mockResolvedValueOnce({
       results: [
         {
           email: 'blocked@example.com',
           success: false,
-          error: 'Ryd den eksisterende invitationsstatus, før du sender en ny invitation med en anden rolle.',
+          error: roleChangeMessage,
           inviteLink: null,
         },
       ],
@@ -124,15 +137,33 @@ describe('Settings invitation role', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tilføj e-mail' }));
     fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
 
-    await waitFor(() => {
-      expect(notifyError).toHaveBeenCalledWith(
-        'Ryd den eksisterende invitationsstatus, før du sender en ny invitation med en anden rolle.',
-      );
-    });
-
+    expect(await screen.findByRole('alert')).toHaveTextContent(roleChangeMessage);
+    expect(notifyError).toHaveBeenCalledWith(roleChangeMessage);
     expect(notifySuccess).not.toHaveBeenCalled();
     expect(screen.getByText('blocked@example.com')).toBeInTheDocument();
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['/api/auth/invites'] });
+  });
+
+  it('does not report success when the invitation response is missing results', async () => {
+    inviteMutation.mockResolvedValueOnce(undefined);
+
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Skriv e-mail...'), {
+      target: { value: 'unknown@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Tilføj e-mail' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
+
+    const message = 'Invitationens resultat kunne ikke bekræftes. Genindlæs siden og prøv igen.';
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(notifyError).toHaveBeenCalledWith(message);
+    expect(notifySuccess).not.toHaveBeenCalled();
+    expect(screen.getByText('unknown@example.com')).toBeInTheDocument();
   });
 
   it('uses the compact User role label while exposing the full role and e-mail', () => {

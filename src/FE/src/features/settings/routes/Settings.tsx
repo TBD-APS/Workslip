@@ -22,15 +22,32 @@ import { useDeleteApiAuthInvite, useGetApiAuthInvites, type InviteTokenResponse 
 
 type InviteRole = 'User' | 'Auditor';
 
+type InviteUserMutationResult = {
+  email: string;
+  success: boolean;
+  error: string | null;
+};
+
+const INVALID_INVITE_RESPONSE_MESSAGE =
+  'Invitationens resultat kunne ikke bekræftes. Genindlæs siden og prøv igen.';
+
 const getInviteRoleLabel = (role: string | null) => role === 'Auditor' ? 'Auditør' : 'Medarbejder';
 
 const getCompactInviteRoleLabel = (role: string | null) => role === 'Auditor' ? 'Auditør' : 'Medarb.';
+
+const getInviteResults = (response: unknown): InviteUserMutationResult[] | null => {
+  if (!response || typeof response !== 'object') return null;
+
+  const results = (response as { results?: unknown }).results;
+  return Array.isArray(results) ? results as InviteUserMutationResult[] : null;
+};
 
 export const Settings = () => {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [emails, setEmails] = useState<string[]>([]);
   const [inviteRole, setInviteRole] = useState<InviteRole>('User');
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [clearingInviteId, setClearingInviteId] = useState<string | null>(null);
 
   const invitesQuery = useGetApiAuthInvites();
@@ -50,6 +67,7 @@ export const Settings = () => {
       notify.error('E-mail er allerede tilføjet');
       return;
     }
+    setInviteError(null);
     setEmails((prev) => [...prev, trimmed]);
     setEmail('');
   };
@@ -62,6 +80,7 @@ export const Settings = () => {
   };
 
   const handleRemoveEmail = (idx: number) => {
+    setInviteError(null);
     setEmails((prev) => prev.filter((_, i) => i !== idx));
   };
 
@@ -71,8 +90,10 @@ export const Settings = () => {
       return;
     }
 
+    setInviteError(null);
+
     try {
-      const response = await inviteMutation.mutateAsync({
+      const response: unknown = await inviteMutation.mutateAsync({
         data: {
           emails,
           role: inviteRole,
@@ -80,11 +101,18 @@ export const Settings = () => {
         },
       });
 
-      const failedResults = response.results.filter((result) => !result.success);
+      const results = getInviteResults(response);
+      if (!results || results.length !== emails.length) {
+        setInviteError(INVALID_INVITE_RESPONSE_MESSAGE);
+        notify.error(INVALID_INVITE_RESPONSE_MESSAGE);
+        return;
+      }
+
+      const failedResults = results.filter((result) => !result.success);
       const failedEmails = new Set(
         failedResults.map((result) => result.email.trim().toLowerCase()),
       );
-      const successfulCount = response.results.length - failedResults.length;
+      const successfulCount = results.length - failedResults.length;
 
       if (successfulCount > 0) {
         notify.success(
@@ -96,13 +124,13 @@ export const Settings = () => {
 
       if (failedResults.length > 0) {
         const firstError = failedResults.find((result) => result.error)?.error;
-        notify.error(
-          firstError
-            ?? (failedResults.length === 1
-              ? 'Invitationen kunne ikke sendes'
-              : `${failedResults.length} invitationer kunne ikke sendes`),
-        );
+        const errorMessage = firstError
+          ?? (failedResults.length === 1
+            ? 'Invitationen kunne ikke sendes'
+            : `${failedResults.length} invitationer kunne ikke sendes`);
 
+        setInviteError(errorMessage);
+        notify.error(errorMessage);
         setEmails((current) => current.filter((address) =>
           failedEmails.has(address.trim().toLowerCase())));
       } else {
@@ -111,7 +139,9 @@ export const Settings = () => {
 
       await queryClient.invalidateQueries({ queryKey: ['/api/auth/invites'] });
     } catch {
-      notify.error('Kunne ikke sende invitationer');
+      const errorMessage = 'Kunne ikke sende invitationer';
+      setInviteError(errorMessage);
+      notify.error(errorMessage);
     }
   };
 
@@ -162,7 +192,10 @@ export const Settings = () => {
             id="invite-role"
             className="form-input"
             value={inviteRole}
-            onChange={(event) => setInviteRole(event.target.value as InviteRole)}
+            onChange={(event) => {
+              setInviteError(null);
+              setInviteRole(event.target.value as InviteRole);
+            }}
             disabled={inviteMutation.isPending}
           >
             <option value="User">Medarbejder</option>
@@ -209,6 +242,12 @@ export const Settings = () => {
               </div>
             ))}
           </div>
+        )}
+
+        {inviteError && (
+          <p className="form-error-text" role="alert">
+            {inviteError}
+          </p>
         )}
 
         <button
