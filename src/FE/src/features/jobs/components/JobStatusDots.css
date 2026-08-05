@@ -1,47 +1,58 @@
-.job-status-dots {
+.job-status-control {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.6rem;
   margin-left: 0.55rem;
   vertical-align: middle;
 }
 
+.job-status-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .job-status-dot {
+  --job-status-dot-color: var(--text-muted);
   width: 0.75rem;
   height: 0.75rem;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  opacity: 0.32;
-  transform: scale(0.9);
+  background: var(--job-status-dot-color);
+  opacity: 0.24;
+  transform: scale(0.85);
   transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .job-status-dot--draft {
-  background: #3b82f6;
+  --job-status-dot-color: #3b82f6;
 }
 
 .job-status-dot--in-review {
-  background: #eab308;
+  --job-status-dot-color: #eab308;
 }
 
 .job-status-dot--approved {
-  background: #22c55e;
+  --job-status-dot-color: #22c55e;
 }
 
 .job-status-dot--rejected {
-  background: #ef4444;
+  --job-status-dot-color: #ef4444;
 }
 
 .job-status-dot.is-current {
   opacity: 1;
-  transform: scale(1);
-  box-shadow: 0 0 0 3px var(--surface-elevated);
+  transform: scale(1.2);
+  box-shadow:
+    0 0 0 2px var(--surface-floating),
+    0 0 0 4px var(--text-primary),
+    0 0 0.7rem var(--job-status-dot-color);
 }
 
 .job-status-dot:not(:disabled) {
   cursor: pointer;
-  opacity: 0.72;
+  opacity: 0.68;
 }
 
 .job-status-dot:not(:disabled):hover {
@@ -51,9 +62,35 @@
 
 .job-status-dot:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 3px;
+  outline-offset: 4px;
 }
 
 .job-status-dot:disabled {
   cursor: default;
+}
+
+.job-status-current-label {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.job-status-current-label strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .job-status-control {
+    gap: 0.5rem;
+  }
+
+  .job-status-current-label {
+    padding-inline: 0.4rem;
+  }
 }

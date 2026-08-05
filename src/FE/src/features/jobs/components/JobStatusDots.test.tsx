@@ -6,10 +6,14 @@ import { JobStatusDots } from './JobStatusDots';
 afterEach(cleanup);
 
 describe('JobStatusDots', () => {
-  it('shows all statuses and marks the current status', () => {
+  it('shows all statuses and clearly marks the current status', () => {
     render(<JobStatusDots status={JobStatus.Draft} />);
 
-    expect(screen.getByRole('button', { name: 'Aktiv, nuværende status' })).toHaveAttribute('aria-pressed', 'true');
+    const currentStatus = screen.getByRole('button', { name: 'Aktiv, nuværende status' });
+    expect(currentStatus).toHaveAttribute('aria-pressed', 'true');
+    expect(currentStatus).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByText('Aktiv', { selector: '.job-status-current-label strong' })).toBeInTheDocument();
+    expect(screen.getByText(/Aktuel status:/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Til gennemsyn, ikke tilgængelig' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Godkendt, ikke tilgængelig' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Afvist, ikke tilgængelig' })).toBeDisabled();
@@ -40,6 +44,7 @@ describe('JobStatusDots', () => {
       />,
     );
 
+    expect(screen.getByText('Til gennemsyn', { selector: '.job-status-current-label strong' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Godkendt, ikke tilgængelig' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Afvist, ikke tilgængelig' })).toBeDisabled();
   });
