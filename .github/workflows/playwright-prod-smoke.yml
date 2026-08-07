@@ -97,6 +97,8 @@ jobs:
           node --check scripts/playwright-critical-domain.mjs
           node --check scripts/playwright-scenarios-core.mjs
           node --check scripts/playwright-scenarios-admin.mjs
+          node --check scripts/playwright-synthetic-auth.mjs
+          node --check scripts/bootstrap-synthetic-test-identities.mjs
           node -e "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8'))"
 
       - name: Run Playwright scenario
@@ -105,6 +107,12 @@ jobs:
           WORKSLIP_RELEASE_PHASE: ${{ steps.release-target.outputs.phase }}
           WORKSLIP_TEST_TARGET: ${{ steps.release-target.outputs.environment }}
           WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT: ${{ steps.release-target.outputs.allow_destructive_playwright }}
+          MAILOSAUR_API_KEY: ${{ secrets.MAILOSAUR_API_KEY }}
+          MAILOSAUR_SERVER_ID: ${{ vars.MAILOSAUR_SERVER_ID }}
+          WORKSLIP_SYNTHETIC_USER_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_USER_EMAIL }}
+          WORKSLIP_SYNTHETIC_AUDITOR_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_AUDITOR_EMAIL }}
+          WORKSLIP_SYNTHETIC_ADMIN_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_ADMIN_EMAIL }}
+          WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL }}
         run: node scripts/playwright-release-runner.mjs
 
       - name: Upload Playwright evidence
