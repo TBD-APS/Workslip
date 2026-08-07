@@ -10,55 +10,29 @@ const ROLE_PREFIXES = {
   Superadmin: 'superadmin',
 };
 
-export function createSyntheticAuth({ apiBaseUrl, apiTimeout }) {
-  const baseUrl = apiBaseUrl.replace(/\/+$/, '');
-  const mailosaurApiKey = requireEnv('MAILOSAUR_API_KEY');
-  const mailosaurServerId = requireEnv('MAILOSAUR_SERVER_ID');
+export function createSyntheticInbox({ timeoutMs = DEFAULT_WAIT_MS } = {}) {
+  const apiKey = requireEnv('MAILOSAUR_API_KEY');
+  const serverId = requireEnv('MAILOSAUR_SERVER_ID');
 
   return {
     emailForRole(role) {
       const prefix = ROLE_PREFIXES[role];
       if (!prefix) throw new Error(`Unsupported synthetic role: ${role}`);
       const override = process.env[`WORKSLIP_SYNTHETIC_${role.toUpperCase()}_EMAIL`];
-      return override?.trim() || `${prefix}@${mailosaurServerId}.mailosaur.net`;
+      return override?.trim().toLowerCase() || `${prefix}@${serverId}.mailosaur.net`;
     },
 
-    async authenticateEmail(email) {
+    async waitForCode(email, requestedAt = new Date()) {
       const normalizedEmail = String(email ?? '').trim().toLowerCase();
       if (!normalizedEmail) throw new Error('Synthetic authentication requires an email address.');
-      assertMailosaurAddress(normalizedEmail, mailosaurServerId);
-
-      const requestedAt = new Date();
-      const sendResponse = await fetch(`${baseUrl}/api/auth/send-code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail }),
-        signal: AbortSignal.timeout(apiTimeout),
-      });
-      if (!sendResponse.ok) {
-        throw new Error(`Synthetic OTC request returned HTTP ${sendResponse.status}.`);
-      }
-
-      const code = await waitForCode({
+      assertMailosaurAddress(normalizedEmail, serverId);
+      return waitForCode({
         email: normalizedEmail,
         requestedAt,
-        serverId: mailosaurServerId,
-        apiKey: mailosaurApiKey,
-        timeoutMs: Math.max(apiTimeout, DEFAULT_WAIT_MS),
+        serverId,
+        apiKey,
+        timeoutMs,
       });
-
-      const verifyResponse = await fetch(`${baseUrl}/api/auth/verify-code/${encodeURIComponent(code)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail }),
-        signal: AbortSignal.timeout(apiTimeout),
-      });
-      const payload = await verifyResponse.json().catch(() => null);
-      if (!verifyResponse.ok || !payload?.token || !payload?.user) {
-        throw new Error(`Synthetic OTC verification returned HTTP ${verifyResponse.status}.`);
-      }
-
-      return payload;
     },
   };
 }
@@ -108,15 +82,11 @@ async function readCode(messageId, apiKey, timeoutMs) {
   if (!response.ok) throw new Error(`Mailosaur message lookup returned HTTP ${response.status}.`);
 
   const message = await response.json();
-  const content = [
-    message?.subject,
-    message?.text?.body,
-    message?.html?.body,
-  ].filter(Boolean).join('\n');
-
+  const content = [message?.subject, message?.text?.body, message?.html?.body]
+    .filter(Boolean)
+    .join('\n');
   const labelled = content.match(/(?:kode|code)[^0-9]{0,30}([0-9]{6})/i);
   if (labelled) return labelled[1];
-
   return content.match(/\b([0-9]{6})\b/)?.[1] ?? null;
 }
 
