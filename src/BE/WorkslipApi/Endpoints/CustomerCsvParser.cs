@@ -4,7 +4,7 @@ using CsvHelper.Configuration;
 
 namespace Workslip.Api.Endpoints;
 
-public static class CustomerCsvParser
+public sealed class CustomerCsvParser(ILogger<CustomerCsvParser> logger) : ICustomerImportFormatParser
 {
     private static readonly HashSet<string> AllowedContentTypes =
     [
@@ -14,13 +14,13 @@ public static class CustomerCsvParser
         "application/csv"
     ];
 
-    public static bool IsAllowedContentType(string? contentType) =>
+    public bool SupportsContentType(string? contentType) =>
         contentType is not null && AllowedContentTypes.Contains(contentType.ToLowerInvariant());
 
-    public static bool HasAllowedExtension(string? fileName) =>
+    public bool SupportsFileName(string? fileName) =>
         fileName is not null && fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
 
-    public static CustomerImportParseResult Parse(Stream stream, ILogger logger)
+    public CustomerImportParseResult Parse(Stream stream)
     {
         using var input = new StreamReader(stream, leaveOpen: true);
         var content = input.ReadToEnd();
@@ -29,45 +29,56 @@ public static class CustomerCsvParser
             throw new CustomerImportFormatException("CSV-filen er tom.");
         }
 
-        using var reader = new StringReader(content);
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
+        try
         {
-            Delimiter = DetectDelimiter(content),
-            HasHeaderRecord = true,
-            HeaderValidated = null,
-            MissingFieldFound = null,
-            BadDataFound = args => logger.LogWarning(
-                "Bad CSV data at row {Row}: {RawRecord}",
-                args.Context.Parser?.Row,
-                args.RawRecord)
-        });
-
-        if (!csv.Read())
-        {
-            throw new CustomerImportFormatException("CSV-filen mangler en overskriftsrække.");
-        }
-
-        csv.ReadHeader();
-
-        var headers = CustomerImportHeaderMap.Create(csv.HeaderRecord ?? []);
-        var customers = new List<Application.Customers.ImportCustomerRow>();
-
-        while (csv.Read())
-        {
-            var row = CustomerImportRowFactory.Create(
-                csv.Context.Parser?.Row ?? 0,
-                headers,
-                index => csv.GetField(index));
-
-            if (row is not null)
+            using var reader = new StringReader(content);
+            using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
             {
-                customers.Add(row);
-            }
-        }
+                Delimiter = DetectDelimiter(content),
+                HasHeaderRecord = true,
+                HeaderValidated = null,
+                MissingFieldFound = null,
+                BadDataFound = args => logger.LogWarning(
+                    "Bad CSV data at row {Row}.",
+                    args.Context.Parser?.Row)
+            });
 
-        // Empty rows and rows containing values only in deliberately ignored columns
-        // are structural noise, not customer records, and are therefore not reported.
-        return new CustomerImportParseResult(customers, 0);
+            if (!csv.Read())
+            {
+                throw new CustomerImportFormatException("CSV-filen mangler en overskriftsrække.");
+            }
+
+            csv.ReadHeader();
+
+            var headers = CustomerImportHeaderMap.Create(csv.HeaderRecord ?? []);
+            var customers = new List<Application.Customers.ImportCustomerRow>();
+
+            while (csv.Read())
+            {
+                var row = CustomerImportRowFactory.Create(
+                    csv.Context.Parser?.Row ?? 0,
+                    headers,
+                    index => csv.GetField(index));
+
+                if (row is not null)
+                {
+                    customers.Add(row);
+                }
+            }
+
+            // Empty rows and rows containing values only in deliberately ignored columns
+            // are structural noise, not customer records, and are therefore not reported.
+            return new CustomerImportParseResult(customers, 0);
+        }
+        catch (CustomerImportFormatException)
+        {
+            throw;
+        }
+        catch (CsvHelperException ex)
+        {
+            logger.LogWarning(ex, "Failed to parse customer CSV.");
+            throw new CustomerImportFormatException("CSV-filen kunne ikke læses.");
+        }
     }
 
     private static string DetectDelimiter(string content)
