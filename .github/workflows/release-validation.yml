@@ -36,7 +36,7 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('src/BE/WorkslipApi/**/*.csproj') }}
@@ -98,7 +98,7 @@ jobs:
           cache-dependency-path: src/FE/package-lock.json
 
       - name: Cache generated fonts
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: src/FE/public/fonts
           key: fonts-${{ runner.os }}-${{ hashFiles('src/FE/scripts/sync-fonts.mjs') }}
