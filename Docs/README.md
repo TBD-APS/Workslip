@@ -49,7 +49,7 @@ When an active page becomes redundant, prefer a short superseded pointer over ke
 
 ## Writing rules that prevent drift
 
-1. State **current state** directly. Do not write “until WOR-123 is completed”; link the issue as history/context instead.
+1. State **current state** directly. Do not make current wording depend on a future issue changing state; link the issue as history/context instead.
 2. Keep durable decisions in ADRs, not scattered comments and READMEs.
 3. Keep exact command names close to the package/tool that owns them.
 4. Prefer generated/runtime contracts over manually copied catalogs.
