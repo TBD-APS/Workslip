@@ -1,19 +1,17 @@
 # Workslip API
 
 **Status:** Active  
-**Owner:** Backend owner  
-**Source of truth:** backend source, executable tests, runtime OpenAPI and `../infrastructure/`  
-**Review cadence:** on API, persistence, authentication or deployment changes
+**Source of truth:** backend source, tests, runtime OpenAPI and `../infrastructure/`
 
-ASP.NET Core .NET 10 API for Workslip. The solution is split into domain, application, infrastructure, API host and tests. Current code and executable tests take precedence over dated plans.
+ASP.NET Core .NET 10 API split into API host, application, domain, infrastructure and tests.
 
 ## Prerequisites
 
 - .NET SDK 10
-- SQL Server-compatible database
-- Azure credentials only when configuration enables Azure App Configuration, Key Vault, Microsoft Graph or Azure-hosted integrations
+- access to the configured SQL Server database
+- Azure credentials when local configuration uses Azure App Configuration, Key Vault, Graph or other Azure integrations
 
-## Local start
+## Run locally
 
 ```bash
 cd src/BE/WorkslipApi
@@ -23,47 +21,26 @@ dotnet run --launch-profile http
 
 The HTTP profile listens on `http://localhost:5262`.
 
-Local development can use the production database location and passwordless connection details from Azure App Configuration and Key Vault. No SQL connection string or SQL password is required in local configuration.
-
-Authenticate the developer identity first:
-
-```powershell
-az login
-az account show
-```
-
-The configured identity must be permitted to connect to the Azure SQL database. Members of the configured Azure SQL administrator group can connect through their Entra identity.
-
-The Key Vault-backed value remains:
-
-```text
-Azure:Sql:ConnectionString
-```
-
-Production keeps `Authentication=Active Directory Managed Identity` and the App Service managed-identity client ID. During Development, the API changes only the in-memory authentication fields to:
-
-```text
-Authentication=Active Directory Default
-```
-
-The managed-identity `User ID` is removed locally, allowing SqlClient to use the signed-in Azure CLI, Visual Studio or other `DefaultAzureCredential` developer identity. Server name, database name, encryption settings and the Key Vault/App Configuration ownership remain unchanged. Nothing is written back to Azure.
-
-An ignored `appsettings.Development.json` value or `Azure__Sql__ConnectionString` environment variable can still override this behavior for isolated/offline database work, but neither is required for the normal Azure-backed development path.
-
-Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
-
 Health check:
 
 ```bash
 curl http://localhost:5262/health
 ```
 
-## Solution structure
+For the normal Azure-backed development path, authenticate the developer identity with Azure CLI before starting the API:
+
+```powershell
+az login
+az account show
+```
+
+Do not commit connection strings, JWT signing secrets, Azure credentials, VAPID private keys or integration tokens.
+
+## Solution map
 
 ```text
 WorkslipApi/
 ├── Workslip.slnx
-├── Workslip.Api.csproj
 ├── Program.cs
 ├── Configuration/
 ├── Endpoints/
@@ -74,114 +51,50 @@ WorkslipApi/
 └── Postman/
 ```
 
-## Runtime composition
+Use [`AGENTS.md`](AGENTS.md) for backend architecture rules. Application services use `Ardalis.Result`; endpoints map through `ResultExtensions.ToHttpResult`.
 
-`Program.cs` currently:
+## Runtime configuration
 
-1. loads local and Azure configuration;
-2. configures CORS, authentication, logging and services;
-3. initializes and verifies the database schema;
-4. seeds only in Development;
-5. configures middleware and maps endpoints.
+Azure App Configuration owns non-secret runtime configuration. Secret values are resolved through Key Vault references/managed identity where configured. Infrastructure ownership and deployment details live in [`../infrastructure/README.md`](../infrastructure/README.md).
 
-Persistence uses EF Core `SqlDbContext` with SQL Server, repositories and an audit interceptor. Hosted services include job-deletion cleanup, invitation/Entra cleanup and push-notification delivery.
+Development/release-test endpoints (OpenAPI, Scalar and `/api/dev/*`) are registered only when the current release-testing policy enables them. `UseDeveloperExceptionPage` remains a Development-only concern. Treat the current release policy/configuration as authoritative rather than assuming those endpoints are always present.
 
-Development startup uses `DevelopmentDatabaseSeeder`. It first runs the normal local `DatabaseSeeder`, then uses the existing `UserEntraService` to create or reuse `rasmusvm6@hotmail.com` and `mahad8@outlook.dk` as Entra B2B identities, assign the `Superadmin` application role, and persist `EntraId` plus `EntraEmail` on their canonical Workslip rows. Both remain attached to the same Development organization. The operation is idempotent. Missing identities receive one invitation that redirects to `/login`; later starts reuse the existing identities. Development startup therefore requires working Microsoft Graph credentials.
+## Authentication and tenancy
 
-Production SQL authentication uses the App Service user-assigned managed identity. The passwordless connection string is stored through a Key Vault reference. The SQL administrator password is deployment-only and must not be used by application runtime configuration.
+The API accepts Workslip local JWTs and Microsoft Entra JWTs through the configured authentication pipeline.
 
-Schema mutation still occurs at startup. Treat that as a production limitation tracked by WOR-136; do not remove the temporary `db_ddladmin` runtime role until migrations have moved to a controlled deployment step.
+Tenant/organization authority comes from authenticated server context and server-owned data. Client-provided IDs, route state or frontend guards must not create a tenant bypass.
 
-## Job-deletion notifications
+Superadmin delegated organization access uses the existing server-side organization-session flow; verify current token lifetime and behaviour in the implementation/configuration when changing it instead of copying those values here.
 
-A successful hard deletion always queues a notification for every unique user assigned to the deleted job, including the user performing the deletion when that user is assigned. This behavior is not controlled by runtime configuration and cannot be disabled through Azure App Configuration.
+## Persistence and schema
 
-The notification links to `/app`, because the deleted job no longer has a valid detail route. A notification queue failure for one recipient is logged and does not reverse the completed deletion or prevent notifications for the remaining recipients.
+Persistence uses EF Core/SQL Server. Startup currently performs schema initialization/verification, so schema lifecycle remains coupled to API startup. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
 
-## Authentication and authorization
+Do not infer SQL behaviour from EF in-memory tests.
 
-The API selects local Workslip JWT or Microsoft Entra JWT validation from the bearer-token issuer. The public browser flow uses authorization code + PKCE. The API does not require an OAuth application client secret for that flow.
+## API contract and integration evidence
 
-API runtime Microsoft Graph permissions are declared once in `../infrastructure/main.bicep`. They support user invitation/lifecycle and app-role assignment. Do not assign a competing permission set from deployment scripts.
+Start at [`../../../Docs/api/README.md`](../../../Docs/api/README.md).
 
-Developer token, debug, OpenAPI and Scalar endpoints are development tooling. Their production exposure is tracked as an urgent security issue in WOR-182 and must not be used as production integration authentication.
-
-Tenant/organization identifiers must come from authenticated server context or server-owned data. Frontend guards are not security boundaries.
-
-Superadmins remain attached to one permanent organization. The Superadmin-only organization session endpoint can issue a short-lived local token whose `organizationId` is a selected organization while the real actor ID and `Superadmin` role remain unchanged. The default lifetime is 15 minutes, configurable through `Jwt:OrganizationSessionExpiryMinutes` from 1 through 30 minutes. This flow performs no database or Entra mutation and does not bypass existing tenant repository filters.
-
-## Result and endpoint conventions
-
-Application services return `Ardalis.Result`. Endpoints map through `ResultExtensions.ToHttpResult`; do not introduce custom wrappers or duplicate result-to-HTTP mapping. See the root `AGENTS.md` before changing service or endpoint patterns.
-
-## HTTP caching
-
-Authenticated job GET endpoints use private browser revalidation, `Vary: Authorization` and weak ETags. Jobs-list validators are calculated from the complete mapped HTTP representation, including assignments, worksheet totals, installations and user-specific seen/rejection flags; hashing only the `JobReports.UpdatedAt` value is insufficient because those related values can change independently.
-
-The validator is evaluated after tenant-scoped service/repository work. A `304 Not Modified` therefore saves response transfer and client parsing, but it is not a server-side query cache. Do not add shared output caching or an in-memory jobs-list cache without complete organization/user/filter keys and explicit invalidation for every job, assignment, worksheet, installation and view-state mutation. Mutation responses remain `no-store`.
+- endpoint registrations + runtime OpenAPI define the route/contract source;
+- Postman is executable verification/example material;
+- maintained API docs explain cross-cutting semantics that OpenAPI does not express well.
 
 ## Build and tests
 
 ```bash
 cd src/BE/WorkslipApi
-dotnet build Workslip.slnx
-dotnet test Workslip.slnx
+dotnet build Workslip.slnx --configuration Release
+dotnet test Workslip.slnx --configuration Release
 ```
 
-Postman/Newman verification must target localhost or an isolated test/staging API:
+Run Postman/Newman only against localhost or an isolated approved test/staging API. Do not run destructive mutation suites against customer production data.
 
-```bash
-Postman/run-integration-tests.sh https://<test-or-staging-api>
-```
-
-There is no active GitHub Actions integration-test workflow. Run the executable suite deliberately against an isolated environment; do not use production mutation tests in ordinary validation.
-
-## OpenAPI and Scalar
-
-The host registers ASP.NET Core OpenAPI and Scalar. Treat these as development/integration tooling unless production exposure is explicitly approved and protected. Runtime endpoint registrations are the API contract source; Postman is verification material.
+Use [`../../../Docs/agents/VALIDATION.md`](../../../Docs/agents/VALIDATION.md) for HTTP, relational, authorization and integration validation requirements.
 
 ## Deployment
 
-Azure infrastructure and Entra registrations are deployed separately. See `../infrastructure/README.md`.
+The production API workflow is `.github/workflows/main_api-mrsoftware-prod.yml`. It builds/publishes the API, authenticates through GitHub OIDC, deploys to Azure App Service and performs its health check.
 
-The production API workflow is:
-
-```text
-.github/workflows/main_api-mrsoftware-prod.yml
-```
-
-It restores, builds and publishes the API, creates a ZIP whose root is the `dotnet publish` output, authenticates through GitHub OIDC and deploys the package to `api-mrsoftware-prod` with `az webapp deploy`.
-
-The deployment workflow:
-
-- preserves the `prod` environment and its scoped OIDC identity;
-- serializes production API releases through the existing concurrency group;
-- retries an App Service/Kudu deployment failure at most three times with bounded backoff;
-- records the immutable ZIP size in the build log;
-- restarts the App Service between attempts only when Kudu reports `There is not enough space on the disk`, clearing the worker's temporary local storage before retrying;
-- requests Azure CLI enriched deployment errors;
-- prints only safe App Service state and deployment-log diagnostics after a final failure;
-- verifies `https://<default-hostname>/health` before reporting success.
-
-The production App Service plan is currently F1. Its local temporary worker storage is small and may be exhausted by accumulated Kudu deployment data even when the repository and deployment workflow are unchanged. A restart clears temporary local storage. Repeated disk-full failures after that recovery indicate persistent filesystem usage or package growth and must be investigated through App Service quotas/Kudu before adding retries or changing application code.
-
-Production uses GitHub environment `prod` with:
-
-- `AZURE_CLIENT_ID`: Bicep output `GITHUB_DEPLOYMENT_CLIENT_ID`
-- `AZURE_TENANT_ID`: target Entra tenant ID
-- `AZURE_SUBSCRIPTION_ID`: target subscription ID
-
-Do not add an Azure client secret, `AZURE_CREDENTIALS` JSON or App Service publish profile.
-
-After infrastructure recreation:
-
-1. run `../infrastructure/deploy.ps1 prod`;
-2. set the three GitHub `prod` environment identifiers from the deployment output;
-3. run the API workflow manually;
-4. confirm the workflow package check finds `Workslip.Api.dll` at ZIP root;
-5. confirm the deployment step succeeds and `/health` passes;
-6. verify Microsoft login and one authenticated API request.
-
-If all deployment attempts fail, use the workflow's safe App Service state, recent deployment records and latest deployment log before changing application code or infrastructure. The Node deprecation warnings emitted by third-party actions are not deployment evidence; the failing Azure/Kudu operation and its diagnostics are authoritative.
-
-Workflow definitions are intended automation, not evidence that deployment, migration or rollback succeeded.
+A successful deployment is not proof that login, SQL access, external integrations or critical user flows work. Smoke-test the affected runtime path when deployment is part of the change.
