@@ -9,7 +9,7 @@
 
 Workslip maintained `repomix-output.xml` plus privileged automation that periodically regenerated and pushed the packed repository back to `main`.
 
-That artifact duplicated the repository, could be stale between refreshes, consumed review/search context and required a GitHub App with write/bypass capability. During the documentation review the checked-in snapshot was empty while maintained documentation still described snapshot lifecycle details. The snapshot therefore added another state to synchronize without being authoritative.
+The artifact was a large duplicate of repository contents, could be stale between refreshes, consumed review/search context and required a dedicated GitHub App publishing path. A snapshot used during this review was already behind the current repository structure. The snapshot therefore added another state to synchronize without being authoritative.
 
 A similar problem existed in the hand-maintained API endpoint catalog: route registrations and runtime OpenAPI already define the route set, while the copied catalog could lag behind them.
 
@@ -26,7 +26,7 @@ The documentation checker should validate selected high-value facts against thei
 ## Consequences
 
 - `repomix-output.xml` and its regeneration workflow are removed.
-- The dedicated snapshot-publisher credentials/ruleset bypass are no longer required and should be removed from GitHub settings if still configured.
+- Dedicated snapshot-publisher credentials/ruleset bypass are no longer required and should be removed from GitHub settings if still configured.
 - Documentation and agent rules no longer treat Repomix as a lookup step or source of truth.
 - The manual API endpoint catalog becomes a historical pointer to endpoint source/OpenAPI.
 - Historical references may remain for traceability but are not current guidance.
