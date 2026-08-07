@@ -2,6 +2,13 @@ using Workslip.Application.Customers;
 
 namespace Workslip.Api.Endpoints;
 
+public interface ICustomerImportFormatParser
+{
+    bool SupportsFileName(string? fileName);
+    bool SupportsContentType(string? contentType);
+    CustomerImportParseResult Parse(Stream stream);
+}
+
 public sealed record CustomerImportParseResult(IReadOnlyList<ImportCustomerRow> Customers, int Skipped);
 
 public sealed class CustomerImportFormatException(string message) : Exception(message);
