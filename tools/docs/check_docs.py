@@ -23,7 +23,7 @@ MAINTAINED_DOC_PATTERNS = (
     "Docs/AGENTS.md",
     "Docs/agents/VALIDATION.md",
     "Docs/api/*.md",
-    "Docs/architecture/README.md",
+    "Docs/architecture/*.md",
     "Docs/architecture/adr/*.md",
     "Docs/compliance/GDPR_AI_ACT_BASELINE.md",
     "Docs/operations/ci-quality-gates.md",
@@ -50,6 +50,12 @@ RETIRED_ARTIFACTS = (
     "repomix-output.xml",
     ".repomixignore",
     ".github/workflows/update-repomix-after-release.yml",
+)
+
+INDEXED_DOC_SETS = (
+    ("Docs/api/README.md", "Docs/api", "*.md"),
+    ("Docs/architecture/README.md", "Docs/architecture", "*.md"),
+    ("Docs/architecture/README.md", "Docs/architecture/adr", "*.md"),
 )
 
 LINK_RE = re.compile(r"!?\[[^\]]*]\(([^)]+)\)")
@@ -87,6 +93,26 @@ def target_from_markdown(raw: str) -> str:
     return next(group for group in match.groups() if group is not None)
 
 
+def resolve_local_link(source: Path, destination: str) -> Path | None:
+    if not destination or destination.startswith("#"):
+        return None
+
+    parsed = urlsplit(destination)
+    if parsed.scheme or destination.startswith("//"):
+        return None
+
+    local_path = unquote(parsed.path)
+    if not local_path:
+        return None
+
+    candidate = (
+        ROOT / local_path.lstrip("/")
+        if local_path.startswith("/")
+        else source.parent / local_path
+    )
+    return candidate.resolve()
+
+
 def validate_markdown(path: Path) -> int:
     failures = 0
     text = path.read_text(encoding="utf-8")
@@ -112,23 +138,8 @@ def validate_markdown(path: Path) -> int:
 
         for match in LINK_RE.finditer(line):
             destination = target_from_markdown(match.group(1))
-            if not destination or destination.startswith("#"):
-                continue
-
-            parsed = urlsplit(destination)
-            if parsed.scheme or destination.startswith("//"):
-                continue
-
-            local_path = unquote(parsed.path)
-            if not local_path:
-                continue
-
-            candidate = (
-                ROOT / local_path.lstrip("/")
-                if local_path.startswith("/")
-                else path.parent / local_path
-            )
-            if not candidate.resolve().exists():
+            candidate = resolve_local_link(path, destination)
+            if candidate is not None and not candidate.exists():
                 error(path, f"Broken local link: {destination}", line_number)
                 failures += 1
 
@@ -152,6 +163,38 @@ def validate_retired_artifacts() -> int:
         if path.exists():
             error(path, "Retired duplicated repository-snapshot artifact must not be reintroduced.")
             failures += 1
+    return failures
+
+
+def linked_local_paths(index: Path) -> set[Path]:
+    linked: set[Path] = set()
+    text = index.read_text(encoding="utf-8")
+    for match in LINK_RE.finditer(text):
+        destination = target_from_markdown(match.group(1))
+        candidate = resolve_local_link(index, destination)
+        if candidate is not None:
+            linked.add(candidate)
+    return linked
+
+
+def validate_directory_indexes() -> int:
+    failures = 0
+    for index_relative, directory_relative, pattern in INDEXED_DOC_SETS:
+        index = ROOT / index_relative
+        directory = ROOT / directory_relative
+        if not index.is_file() or not directory.is_dir():
+            continue
+
+        linked = linked_local_paths(index)
+        for document in sorted(directory.glob(pattern)):
+            if not document.is_file() or document.resolve() == index.resolve():
+                continue
+            if document.resolve() not in linked:
+                error(
+                    index,
+                    f"Documentation index does not link owned document: {document.relative_to(ROOT).as_posix()}",
+                )
+                failures += 1
     return failures
 
 
@@ -246,6 +289,7 @@ def main() -> int:
     failures += validate_entrypoints()
     failures += validate_retired_artifacts()
     failures += sum(validate_markdown(path) for path in documents)
+    failures += validate_directory_indexes()
     failures += validate_frontend_commands()
     failures += validate_agent_duplication()
     failures += validate_agent_routing()
