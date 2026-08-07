@@ -1,6 +1,7 @@
 using System.Globalization;
 using CsvHelper;
 using CsvHelper.Configuration;
+using Workslip.Application.Customers;
 
 namespace Workslip.Api.Endpoints;
 
@@ -51,10 +52,14 @@ public sealed class CustomerCsvParser(ILogger<CustomerCsvParser> logger) : ICust
             csv.ReadHeader();
 
             var headers = CustomerImportHeaderMap.Create(csv.HeaderRecord ?? []);
-            var customers = new List<Application.Customers.ImportCustomerRow>();
+            var customers = new List<ImportCustomerRow>();
+            var sourceRows = 0;
 
             while (csv.Read())
             {
+                sourceRows++;
+                EnsureWithinRowLimit(sourceRows);
+
                 var row = CustomerImportRowFactory.Create(
                     csv.Context.Parser?.Row ?? 0,
                     headers,
@@ -66,8 +71,6 @@ public sealed class CustomerCsvParser(ILogger<CustomerCsvParser> logger) : ICust
                 }
             }
 
-            // Empty rows and rows containing values only in deliberately ignored columns
-            // are structural noise, not customer records, and are therefore not reported.
             return new CustomerImportParseResult(customers, 0);
         }
         catch (CustomerImportFormatException)
@@ -80,6 +83,15 @@ public sealed class CustomerCsvParser(ILogger<CustomerCsvParser> logger) : ICust
                 "Failed to parse customer CSV. ExceptionType={ExceptionType}",
                 ex.GetType().Name);
             throw new CustomerImportFormatException("CSV-filen kunne ikke læses.");
+        }
+    }
+
+    private static void EnsureWithinRowLimit(int sourceRows)
+    {
+        if (sourceRows > CustomerImportLimits.MaxRows)
+        {
+            throw new CustomerImportFormatException(
+                $"For mange rækker. Maksimum er {CustomerImportLimits.MaxRows}.");
         }
     }
 
