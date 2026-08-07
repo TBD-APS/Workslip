@@ -18,7 +18,6 @@ import { canUseSessionNotifications } from './sessionFeaturePolicy';
 interface AuthenticatedAppProviderProps {
   children: ReactNode;
   login: AuthContextType['login'];
-  devLogin: AuthContextType['devLogin'];
   clearSession: () => void;
 }
 
@@ -32,7 +31,6 @@ function shouldPrefetchJobs(): boolean {
 function AuthenticatedSessionProvider({
   children,
   login,
-  devLogin,
   clearSession,
 }: AuthenticatedAppProviderProps) {
   const { register: registerPush } = usePushNotifications();
@@ -64,9 +62,6 @@ function AuthenticatedSessionProvider({
       try {
         await registerPush();
       } catch (error) {
-        // Registration is best-effort here. Returning to the foreground or
-        // reconnecting gives the session another chance to repair a missing
-        // server-side subscription without exposing endpoint/key material.
         console.error('[Auth] Failed to reconcile push notifications:', error);
       } finally {
         registrationInFlight = false;
@@ -95,9 +90,6 @@ function AuthenticatedSessionProvider({
 
   useEffect(() => {
     if (!isAuthenticated || !usesPrimaryJobList || !shouldPrefetchJobs()) return;
-
-    // The token and current user are now validated. Populate the same query key
-    // used by JobList so the home route can render cached data immediately.
     void prefetchInitialJobList(queryClient).catch(() => undefined);
   }, [isAuthenticated, usesPrimaryJobList]);
 
@@ -107,8 +99,6 @@ function AuthenticatedSessionProvider({
   }, [clearSession]);
 
   const logout = useCallback(() => {
-    // Keep explicit logout separate from internal session clearing so a future
-    // provider-specific sign-out cannot affect invitation or recovery flows.
     clearLocalSession();
   }, [clearLocalSession]);
 
@@ -144,13 +134,12 @@ function AuthenticatedSessionProvider({
       user,
       isLoading: meQuery.isPending,
       login,
-      devLogin,
       logout,
       clearLocalSession,
       updateUser,
       meQuery: publicMeQuery,
     }),
-    [clearLocalSession, devLogin, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
+    [clearLocalSession, isAuthenticated, login, logout, meQuery.isPending, publicMeQuery, updateUser, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
