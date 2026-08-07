@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using Workslip.Application.Customers;
 
 namespace Workslip.Api.Endpoints;
 
@@ -26,15 +27,19 @@ public sealed class CustomerExcelParser : ICustomerImportFormatParser
             .Select(column => headerRow.Cell(column).GetFormattedString())
             .ToArray();
         var headers = CustomerImportHeaderMap.Create(headerValues);
-        var lastRowNumber = worksheet.LastRowUsed()?.RowNumber() ?? headerRow.RowNumber();
-        var customers = new List<Application.Customers.ImportCustomerRow>();
+        var customers = new List<ImportCustomerRow>();
+        var sourceRows = 0;
 
-        for (var rowNumber = headerRow.RowNumber() + 1; rowNumber <= lastRowNumber; rowNumber++)
+        foreach (var worksheetRow in worksheet.RowsUsed().Where(row => row.RowNumber() > headerRow.RowNumber()))
         {
+            sourceRows++;
+            EnsureWithinRowLimit(sourceRows);
+
+            var rowNumber = worksheetRow.RowNumber();
             var row = CustomerImportRowFactory.Create(
                 rowNumber,
                 headers,
-                index => worksheet.Cell(rowNumber, index + 1).GetFormattedString());
+                index => worksheetRow.Cell(index + 1).GetFormattedString());
 
             if (row is not null)
             {
@@ -42,8 +47,15 @@ public sealed class CustomerExcelParser : ICustomerImportFormatParser
             }
         }
 
-        // Empty formatted rows and rows containing values only in deliberately ignored
-        // source columns are not customer records and are intentionally not reported.
         return new CustomerImportParseResult(customers, 0);
+    }
+
+    private static void EnsureWithinRowLimit(int sourceRows)
+    {
+        if (sourceRows > CustomerImportLimits.MaxRows)
+        {
+            throw new CustomerImportFormatException(
+                $"For mange rækker. Maksimum er {CustomerImportLimits.MaxRows}.");
+        }
     }
 }
