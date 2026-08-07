@@ -1,65 +1,77 @@
 #!/usr/bin/env python3
-"""Validate maintained Workslip documentation without external dependencies."""
+"""Check high-value Workslip documentation facts against the current repository.
+
+The checker deliberately avoids reproducing the repository in another artifact. It
+validates cheap, objective drift signals and leaves semantic review to humans/agents.
+"""
 
 from __future__ import annotations
 
+import json
 import re
 import sys
+from collections import defaultdict
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 
-ACTIVE_DOC_PATTERNS = (
+MAINTAINED_DOC_PATTERNS = (
     "README.md",
     "AGENTS.md",
     "Docs/README.md",
+    "Docs/AGENTS.md",
+    "Docs/agents/VALIDATION.md",
     "Docs/api/*.md",
-    "Docs/api/**/*.md",
-    "Docs/architecture/*.md",
-    "Docs/architecture/**/*.md",
-    "Docs/compliance/*.md",
-    "Docs/compliance/**/*.md",
-    "Docs/release/*.md",
-    "Docs/release/**/*.md",
+    "Docs/architecture/README.md",
+    "Docs/architecture/adr/*.md",
+    "Docs/compliance/GDPR_AI_ACT_BASELINE.md",
+    "Docs/operations/ci-quality-gates.md",
+    "Docs/operations/github-pages-domain-runbook.md",
+    "Docs/operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md",
     "src/FE/README.md",
+    "src/FE/AGENTS.md",
     "src/BE/WorkslipApi/README.md",
+    "src/BE/WorkslipApi/AGENTS.md",
     "src/BE/WorkslipApi/Postman/README.md",
+    "src/BE/infrastructure/README.md",
+    "src/BE/infrastructure/AGENTS.md",
+)
+
+ACTIVE_AGENT_FILES = (
+    "AGENTS.md",
+    "Docs/AGENTS.md",
+    "src/FE/AGENTS.md",
+    "src/BE/WorkslipApi/AGENTS.md",
+    "src/BE/infrastructure/AGENTS.md",
+)
+
+RETIRED_ARTIFACTS = (
+    "repomix-output.xml",
+    ".repomixignore",
+    ".github/workflows/update-repomix-after-release.yml",
 )
 
 LINK_RE = re.compile(r"!?\[[^\]]*]\(([^)]+)\)")
-GROUP_RE = re.compile(
-    r"var\s+(?P<name>\w+)\s*=\s*app\."
-    r"(?:MapGroup|MapReadGroup|MapUserGroup|MapAdminGroup)"
-    r"\(\s*\"(?P<path>[^\"]+)\"",
-    re.DOTALL,
+ISSUE_STATUS_LANGUAGE_RE = re.compile(
+    r"\b(?:until|when|after)\s+WOR-\d+\s+(?:is\s+)?(?:completed|done|merged|closed)\b",
+    re.IGNORECASE,
 )
-TUPLE_GROUP_RE = re.compile(
-    r"var\s*\((?P<names>[^)]+)\)\s*=\s*app\."
-    r"(?:MapReadUserGroups|MapReadAdminGroups)"
-    r"\(\s*\"(?P<path>[^\"]+)\"",
-    re.DOTALL,
-)
-GROUP_ENDPOINT_RE = re.compile(
-    r"(?P<name>\w+)\.Map(?P<method>Get|Post|Put|Patch|Delete)"
-    r"\(\s*\"(?P<path>[^\"]+)\"",
-    re.DOTALL,
-)
-APP_ENDPOINT_RE = re.compile(
-    r"app\.Map(?P<method>Get|Post|Put|Patch|Delete)"
-    r"\(\s*\"(?P<path>[^\"]+)\"",
-    re.DOTALL,
-)
+NPM_RUN_RE = re.compile(r"\bnpm\s+run\s+([A-Za-z0-9:_-]+)")
+BULLET_RE = re.compile(r"^\s*-\s+(.+?)\s*$")
 
 
 def error(path: Path, message: str, line: int = 1) -> None:
-    relative = path.relative_to(ROOT).as_posix()
+    try:
+        relative = path.relative_to(ROOT).as_posix()
+    except ValueError:
+        relative = path.as_posix()
     print(f"::error file={relative},line={line}::{message}")
 
 
-def active_documents() -> list[Path]:
+def maintained_documents() -> list[Path]:
     files: set[Path] = set()
-    for pattern in ACTIVE_DOC_PATTERNS:
+    for pattern in MAINTAINED_DOC_PATTERNS:
         files.update(path for path in ROOT.glob(pattern) if path.is_file())
     return sorted(files)
 
@@ -67,7 +79,7 @@ def active_documents() -> list[Path]:
 def target_from_markdown(raw: str) -> str:
     value = raw.strip()
     if value.startswith("<") and ">" in value:
-        return value[1 : value.index(">")].strip()
+        return value[1:value.index(">")].strip()
 
     match = re.match(r'''(?:"([^"]+)"|'([^']+)'|(\S+))''', value)
     if not match:
@@ -77,13 +89,9 @@ def target_from_markdown(raw: str) -> str:
 
 def validate_markdown(path: Path) -> int:
     failures = 0
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        error(path, f"File is not valid UTF-8: {exc}")
-        return 1
-
+    text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
+
     if not any(re.match(r"^#\s+\S", line) for line in lines):
         error(path, "Expected at least one H1 heading.")
         failures += 1
@@ -94,6 +102,14 @@ def validate_markdown(path: Path) -> int:
         failures += 1
 
     for line_number, line in enumerate(lines, 1):
+        if ISSUE_STATUS_LANGUAGE_RE.search(line):
+            error(
+                path,
+                "Maintained docs must describe current state directly instead of depending on future Linear issue status.",
+                line_number,
+            )
+            failures += 1
+
         for match in LINK_RE.finditer(line):
             destination = target_from_markdown(match.group(1))
             if not destination or destination.startswith("#"):
@@ -119,90 +135,126 @@ def validate_markdown(path: Path) -> int:
     return failures
 
 
-def normalize_route(path: str) -> str:
-    path = re.sub(r"{([^}:]+):[^}]+}", r"{\1}", path)
-    path = "/" + path.strip("/")
-    return path if path != "/" else "/"
+def validate_entrypoints() -> int:
+    failures = 0
+    for relative in ("README.md", "AGENTS.md", "Docs/README.md"):
+        path = ROOT / relative
+        if not path.is_file():
+            error(path, "Required repository/documentation entrypoint is missing.")
+            failures += 1
+    return failures
 
 
-def join_route(base: str, relative: str) -> str:
-    if relative == "/":
-        return normalize_route(base) + "/"
-    return normalize_route(f"{base.rstrip('/')}/{relative.lstrip('/')}")
+def validate_retired_artifacts() -> int:
+    failures = 0
+    for relative in RETIRED_ARTIFACTS:
+        path = ROOT / relative
+        if path.exists():
+            error(path, "Retired duplicated repository-snapshot artifact must not be reintroduced.")
+            failures += 1
+    return failures
 
 
-def extract_endpoints() -> set[tuple[str, str]]:
-    endpoints: set[tuple[str, str]] = set()
-    endpoint_dir = ROOT / "src/BE/WorkslipApi/Endpoints"
-    sources = list(endpoint_dir.glob("*Endpoints.cs"))
-    sources.append(ROOT / "src/BE/WorkslipApi/Configuration/EndpointConfiguration.cs")
-
-    for source in sources:
-        if not source.exists():
-            continue
-        text = source.read_text(encoding="utf-8-sig")
-        groups: dict[str, str] = {}
-
-        for match in GROUP_RE.finditer(text):
-            groups[match.group("name")] = match.group("path")
-
-        for match in TUPLE_GROUP_RE.finditer(text):
-            for name in match.group("names").split(","):
-                groups[name.strip()] = match.group("path")
-
-        for match in GROUP_ENDPOINT_RE.finditer(text):
-            base = groups.get(match.group("name"))
-            if base is None:
-                continue
-            endpoints.add(
-                (
-                    match.group("method").upper(),
-                    join_route(base, match.group("path")),
-                )
-            )
-
-        for match in APP_ENDPOINT_RE.finditer(text):
-            endpoints.add(
-                (
-                    match.group("method").upper(),
-                    normalize_route(match.group("path")),
-                )
-            )
-
-    return endpoints
-
-
-def validate_api_catalog() -> int:
-    catalog = ROOT / "Docs/api/endpoint-catalog.md"
-    if not catalog.exists():
-        print("Docs API catalog not present yet; endpoint drift check skipped.")
+def validate_frontend_commands() -> int:
+    package_path = ROOT / "src/FE/package.json"
+    readme_path = ROOT / "src/FE/README.md"
+    if not package_path.is_file() or not readme_path.is_file():
         return 0
 
-    text = catalog.read_text(encoding="utf-8")
+    package = json.loads(package_path.read_text(encoding="utf-8"))
+    scripts = set(package.get("scripts", {}))
+    readme = readme_path.read_text(encoding="utf-8")
     failures = 0
-    for method, route in sorted(extract_endpoints()):
-        row = re.compile(rf"\|\s*{re.escape(method)}\s*\|\s*`{re.escape(route)}`\s*\|")
-        if not row.search(text):
-            error(catalog, f"Endpoint missing from catalog: {method} {route}")
+
+    for match in NPM_RUN_RE.finditer(readme):
+        script = match.group(1)
+        if script not in scripts:
+            line = readme.count("\n", 0, match.start()) + 1
+            error(readme_path, f"README references missing package.json script: {script}", line)
             failures += 1
+
+    if "test" in scripts and re.search(
+        r"\b(?:there\s+is\s+)?(?:currently\s+)?no\s+(?:general\s+)?`?npm\s+test`?",
+        readme,
+        re.IGNORECASE,
+    ):
+        error(readme_path, "README says npm test is unavailable, but package.json defines a test script.")
+        failures += 1
 
     return failures
 
 
+def normalize_bullet(text: str) -> str:
+    text = re.sub(r"\[([^\]]+)]\([^)]+\)", r"\1", text)
+    text = text.replace("`", "")
+    return re.sub(r"\s+", " ", text.strip()).casefold()
+
+
+def validate_agent_duplication() -> int:
+    occurrences: dict[str, list[tuple[Path, int, str]]] = defaultdict(list)
+    failures = 0
+
+    for relative in ACTIVE_AGENT_FILES:
+        path = ROOT / relative
+        if not path.is_file():
+            continue
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            match = BULLET_RE.match(line)
+            if not match:
+                continue
+            raw = match.group(1)
+            if len(raw) < 45:
+                continue
+            occurrences[normalize_bullet(raw)].append((path, line_number, raw))
+
+    for entries in occurrences.values():
+        if len({entry[0] for entry in entries}) < 2:
+            continue
+        locations = ", ".join(
+            f"{path.relative_to(ROOT).as_posix()}:{line}" for path, line, _ in entries
+        )
+        first_path, first_line, first_text = entries[0]
+        error(
+            first_path,
+            f"Exact agent rule is duplicated across scoped files ({locations}). Keep the shared rule in root AGENTS.md and the delta locally: {first_text}",
+            first_line,
+        )
+        failures += 1
+
+    return failures
+
+
+def validate_agent_routing() -> int:
+    failures = 0
+    for relative in ACTIVE_AGENT_FILES:
+        path = ROOT / relative
+        if not path.is_file():
+            continue
+        if "OPERATING_CONTRACT.md" in path.read_text(encoding="utf-8"):
+            error(path, "Active agent instructions must not route through the superseded operating contract.")
+            failures += 1
+    return failures
+
+
 def main() -> int:
-    documents = active_documents()
+    documents = maintained_documents()
     if not documents:
         print("No maintained documentation files found.")
         return 1
 
-    failures = sum(validate_markdown(path) for path in documents)
-    failures += validate_api_catalog()
+    failures = 0
+    failures += validate_entrypoints()
+    failures += validate_retired_artifacts()
+    failures += sum(validate_markdown(path) for path in documents)
+    failures += validate_frontend_commands()
+    failures += validate_agent_duplication()
+    failures += validate_agent_routing()
 
     if failures:
-        print(f"Documentation validation failed with {failures} error(s).")
+        print(f"Documentation truth check failed with {failures} error(s).")
         return 1
 
-    print(f"Documentation validation passed for {len(documents)} file(s).")
+    print(f"Documentation truth check passed for {len(documents)} maintained file(s).")
     return 0
 
 
