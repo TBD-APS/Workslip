@@ -207,9 +207,11 @@ async function roleTenantIsolationFlow(session) {
     const secondary = session.data.secondaryOrganization;
     const organization = await session.apiExpect('POST', '/api/organizations/', secondary, [200, 201]);
     report.retainedFixtures.push({ type: 'organization', identifier: organization?.organization?.id ?? secondary.cvr, reason: 'No organization delete contract exists.' });
-    const tokenResult = await session.apiExpect('POST', '/api/dev/token', { email: secondary.adminEmail }, [200]);
-    const secondaryToken = tokenResult.token;
-    if (!secondaryToken) throw new Error('Secondary organization admin token was not returned.');
+    const secondaryAdmin = await session.authenticateEmail(secondary.adminEmail);
+    const secondaryToken = session.auth.token;
+    if (!secondaryToken || String(secondaryAdmin.role).toLowerCase() !== 'admin') {
+      throw new Error('Secondary organization admin could not authenticate through OTC.');
+    }
 
     for (const resourcePath of [`/api/jobs/${primaryJob.id}`, `/api/customers/${primaryCustomer.id}`]) {
       const result = await session.api('GET', resourcePath, undefined, { token: secondaryToken });
