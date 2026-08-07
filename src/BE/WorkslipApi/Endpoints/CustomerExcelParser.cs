@@ -2,17 +2,17 @@ using ClosedXML.Excel;
 
 namespace Workslip.Api.Endpoints;
 
-public static class CustomerExcelParser
+public sealed class CustomerExcelParser : ICustomerImportFormatParser
 {
     public const string ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    public static bool HasAllowedExtension(string? fileName) =>
+    public bool SupportsFileName(string? fileName) =>
         fileName is not null && fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase);
 
-    public static bool IsAllowedContentType(string? contentType) =>
+    public bool SupportsContentType(string? contentType) =>
         string.Equals(contentType, ContentType, StringComparison.OrdinalIgnoreCase);
 
-    public static CustomerImportParseResult Parse(Stream stream)
+    public CustomerImportParseResult Parse(Stream stream)
     {
         using var workbook = new XLWorkbook(stream);
         var worksheet = workbook.Worksheets.FirstOrDefault()
