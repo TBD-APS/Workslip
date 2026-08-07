@@ -12,7 +12,7 @@ namespace Workslip.Tests.Configuration;
 public sealed class AuthenticationConfigurationTests
 {
     [Fact]
-    public void ConfigureAuthentication_EntraSchemeHasIssuerValidation()
+    public void ConfigureAuthentication_EntraSchemeKeepsDefaultAndCustomIssuerValidation()
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -35,8 +35,9 @@ public sealed class AuthenticationConfigurationTests
         var hasCustomIssuerValidator = validation.IssuerValidator is not null
             || validation.IssuerValidatorUsingConfiguration is not null;
 
+        Assert.True(validation.ValidateIssuer);
         Assert.True(
-            validation.ValidateIssuer || hasCustomIssuerValidator,
-            "EntraJwt must validate the token issuer through the default or a custom issuer validator.");
+            hasCustomIssuerValidator,
+            "Microsoft.Identity.Web must keep its tenant-aware issuer validator on EntraJwt.");
     }
 }
