@@ -40,7 +40,7 @@ When an active page becomes redundant, prefer a short superseded pointer over ke
 | Frontend | [`../src/FE/README.md`](../src/FE/README.md) | Active |
 | Backend/API host | [`../src/BE/WorkslipApi/README.md`](../src/BE/WorkslipApi/README.md) | Active |
 | Infrastructure | [`../src/BE/infrastructure/README.md`](../src/BE/infrastructure/README.md) | Active |
-| Architecture/ADRs | [`architecture/README.md`](architecture/README.md) | Draft index; accepted ADRs are authoritative decisions |
+| Architecture/ADRs | [`architecture/README.md`](architecture/README.md) | Active index; accepted ADRs are authoritative decisions |
 | API/integrations | [`api/README.md`](api/README.md) | Active |
 | Compliance baseline | [`compliance/GDPR_AI_ACT_BASELINE.md`](compliance/GDPR_AI_ACT_BASELINE.md) | Active |
 | CI/release expectations | [`operations/ci-quality-gates.md`](operations/ci-quality-gates.md) | Active |
@@ -74,6 +74,6 @@ Run:
 python tools/docs/check_docs.py
 ```
 
-The checker verifies high-value structural facts directly against the repository: local links, referenced npm scripts, retired duplicate artifacts, issue-status-dependent wording and exact duplicated agent rules. It is intentionally small and dependency-free; it does not attempt to prove semantic correctness.
+The checker verifies high-value structural facts directly against the repository: local links, referenced npm scripts, retired duplicate artifacts, issue-status-dependent wording, documentation index coverage and exact duplicated agent rules. It is intentionally small and dependency-free; it does not attempt to prove semantic correctness.
 
 Reviewers still verify claims against their primary authority.
