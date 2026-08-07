@@ -46,26 +46,26 @@ Optional GitHub Variables:
 
 ## One-time provisioning
 
-The four Workslip users must exist in the release-test tenant before authenticated scenarios run. Use `src/FE/scripts/bootstrap-synthetic-test-identities.mjs` with a short-lived administrator token obtained through a normal Workslip login.
+The four Workslip users must exist in the release-test tenant before authenticated scenarios run. Use `src/FE/scripts/bootstrap-synthetic-test-identities.mjs` with a short-lived **Superadmin** token obtained through a normal Workslip login.
 
 Required environment variables for the bootstrap:
 
 - `WORKSLIP_API_URL`
-- `WORKSLIP_BOOTSTRAP_ADMIN_TOKEN`
+- `WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN`
 - `MAILOSAUR_SERVER_ID`
 
-The script reads the tenant user list, leaves correctly configured identities unchanged, fails on role mismatches, and creates only missing identities through the normal `/api/users` contract.
+The script first verifies `/api/auth/me` reports `Superadmin`, then reads the tenant user list, leaves correctly configured identities unchanged, fails on role mismatches, and creates only missing identities through the normal `/api/users` contract.
 
-For a production-looking API target the script fails closed unless `WORKSLIP_ALLOW_PRODUCTION_SYNTHETIC_BOOTSTRAP=true` is explicitly supplied. That override is only for the deliberate one-time setup of a release-test tenant. Do not store `WORKSLIP_BOOTSTRAP_ADMIN_TOKEN` as a permanent CI secret; remove it after provisioning.
+For a production-looking API target the script fails closed unless `WORKSLIP_ALLOW_PRODUCTION_SYNTHETIC_BOOTSTRAP=true` is explicitly supplied. That override is only for the deliberate one-time setup of a release-test tenant. Do not store `WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN` as a permanent CI secret; remove it after provisioning.
 
 Example PowerShell session:
 
 ```powershell
 $env:WORKSLIP_API_URL = "https://<api-host>"
-$env:WORKSLIP_BOOTSTRAP_ADMIN_TOKEN = "<short-lived-token>"
+$env:WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN = "<short-lived-token>"
 $env:MAILOSAUR_SERVER_ID = "<server-id>"
 node .\src\FE\scripts\bootstrap-synthetic-test-identities.mjs
-Remove-Item Env:WORKSLIP_BOOTSTRAP_ADMIN_TOKEN
+Remove-Item Env:WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN
 ```
 
 ## Data and security rules
