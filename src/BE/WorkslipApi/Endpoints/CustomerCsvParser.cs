@@ -76,7 +76,9 @@ public sealed class CustomerCsvParser(ILogger<CustomerCsvParser> logger) : ICust
         }
         catch (CsvHelperException ex)
         {
-            logger.LogWarning(ex, "Failed to parse customer CSV.");
+            logger.LogWarning(
+                "Failed to parse customer CSV. ExceptionType={ExceptionType}",
+                ex.GetType().Name);
             throw new CustomerImportFormatException("CSV-filen kunne ikke læses.");
         }
     }
