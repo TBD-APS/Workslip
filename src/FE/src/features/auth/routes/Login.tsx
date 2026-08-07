@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { FullscreenSystemState } from '../../../components/common/FullscreenSystemState';
 import { useAuth } from '../../../providers/useAuth';
@@ -25,9 +25,6 @@ const OneTimeCodeLogin = lazy(() =>
 );
 
 const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve igen.';
-const devLoginEnabled =
-  import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true'
-  && __WORKSLIP_RELEASE_TESTING_ENABLED__;
 
 const isBackForwardNavigation = () =>
   typeof performance !== 'undefined' &&
@@ -35,8 +32,7 @@ const isBackForwardNavigation = () =>
   (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
 
 export const Login = () => {
-  const navigate = useNavigate();
-  const { isAuthenticated, devLogin } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [historyInterruptedLogin] = useState(() =>
     !hasEntraLoginCallback() && hasEntraLoginSession() && isBackForwardNavigation(),
   );
@@ -48,17 +44,9 @@ export const Login = () => {
     historyInterruptedLogin ? LOGIN_INTERRUPTED_MESSAGE : null,
   );
   const [showOtcLogin, setShowOtcLogin] = useState(false);
-  // True when we arrived via the silent-reauth redirect (axios interceptor
-  // sent us here because the JWT expired). While true we hide the login form
-  // entirely and show only a spinner, so the user never sees the Microsoft
-  // / passkey buttons flash before being sent to Microsoft.
   const [isReauth, setIsReauth] = useState(
     () => !historyInterruptedLogin && new URLSearchParams(window.location.search).get('reauth') === '1',
   );
-  // Guards against React.StrictMode's double-mount in dev (and against any
-  // edge case where this effect runs twice). The first call navigates the
-  // browser to Microsoft; the second must be a no-op to avoid generating
-  // a second PKCE state that overwrites the first.
   const reauthStartedRef = useRef(false);
 
   const recoverToLogin = useCallback((message: string) => {
@@ -81,11 +69,6 @@ export const Login = () => {
     return () => window.removeEventListener('pageshow', handlePageShow);
   }, [recoverToLogin]);
 
-  // Combined callback + reauth effect.
-  //
-  // Splitting these into two effects races when Microsoft redirects back with
-  // BOTH `?reauth=1` and `?code=`. Keeping them in one effect makes the
-  // callback and fresh-reauth branches explicit.
   useEffect(() => {
     if (reauthStartedRef.current) return;
     const params = new URLSearchParams(window.location.search);
@@ -245,40 +228,6 @@ export const Login = () => {
                 Mistet dit login? Modtag engangskode
               </button>
             </div>
-
-            {devLoginEnabled && (
-              <div className="login-dev-section">
-                <div className="login-dev-buttons">
-                  {[
-                    { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
-                    { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
-                    { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
-                    { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' },
-                  ].map((entry) => (
-                    <button
-                      key={entry.email}
-                      onClick={async () => {
-                        setErrorMsg(null);
-                        setIsSubmitting(true);
-                        try {
-                          const success = await devLogin(entry.email);
-                          if (success) navigate(entry.redirect, { replace: true });
-                          else setErrorMsg(`Dev login failed - ${entry.email} not found`);
-                        } catch {
-                          setErrorMsg('Dev login failed');
-                        } finally {
-                          setIsSubmitting(false);
-                        }
-                      }}
-                      disabled={isSubmitting}
-                      className="btn btn-secondary login-dev-btn"
-                    >
-                      {entry.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
