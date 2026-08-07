@@ -1,7 +1,7 @@
 import process from 'node:process';
 
 const apiBaseUrl = requireEnv('WORKSLIP_API_URL').replace(/\/+$/, '');
-const adminToken = requireEnv('WORKSLIP_BOOTSTRAP_ADMIN_TOKEN');
+const bootstrapToken = requireEnv('WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN');
 const serverId = requireEnv('MAILOSAUR_SERVER_ID');
 const allowProduction = process.env.WORKSLIP_ALLOW_PRODUCTION_SYNTHETIC_BOOTSTRAP === 'true';
 
@@ -10,6 +10,11 @@ if (/mrsoftware\.dk|prod/i.test(apiBaseUrl) && !allowProduction) {
     'Refusing to bootstrap synthetic identities against a production-looking target. ' +
     'Set WORKSLIP_ALLOW_PRODUCTION_SYNTHETIC_BOOTSTRAP=true only for an explicit one-time production test-tenant setup.',
   );
+}
+
+const actor = await api('/api/auth/me');
+if (String(actor?.role ?? '').toLowerCase() !== 'superadmin') {
+  throw new Error('Synthetic identity bootstrap requires a normally authenticated Superadmin token.');
 }
 
 const identities = [
@@ -65,7 +70,7 @@ async function api(pathname, options = {}) {
   const response = await fetch(`${apiBaseUrl}${pathname}`, {
     method: options.method ?? 'GET',
     headers: {
-      Authorization: `Bearer ${adminToken}`,
+      Authorization: `Bearer ${bootstrapToken}`,
       Accept: 'application/json',
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     },
