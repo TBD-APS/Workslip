@@ -6,6 +6,7 @@ import { createContractHelpers } from './playwright-critical-contract.mjs';
 import { createDomainHelpers } from './playwright-critical-domain.mjs';
 import { createCoreScenarioHandlers } from './playwright-scenarios-core.mjs';
 import { createAdminScenarioHandlers } from './playwright-scenarios-admin.mjs';
+import { createSyntheticInbox } from './playwright-synthetic-auth.mjs';
 
 const APP_URL = (process.env.PROD_URL ?? '').replace(/\/+$/, '');
 const SCENARIO = process.env.SCENARIO ?? 'public-smoke';
@@ -47,10 +48,16 @@ const report = {
     postmanCollection: path.relative(process.cwd(), POSTMAN_PATH),
     runtimeOpenApi: null,
   },
-  dataPolicy: 'Selectable and existing values are loaded from runtime APIs or third-party APIs. Generated test identifiers follow Postman collection templates.',
+  dataPolicy: 'Authenticated flows use dedicated Mailosaur synthetic identities and the normal Workslip one-time-code login. Generated test identifiers follow Postman collection templates.',
   scenarios: [],
   retainedFixtures: [],
   cleanupFailures: [],
+};
+
+let syntheticInbox;
+const getSyntheticInbox = () => {
+  syntheticInbox ??= createSyntheticInbox({ timeoutMs: Math.max(API_TIMEOUT, 30_000) });
+  return syntheticInbox;
 };
 
 const browser = await chromium.launch();
@@ -130,6 +137,38 @@ async function runScenario(name) {
   }
 }
 
+async function authenticatePage(page, email) {
+  const normalizedEmail = String(email ?? '').trim().toLowerCase();
+  const inbox = getSyntheticInbox();
+  await page.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.getByRole('button', { name: 'Mistet dit login? Modtag engangskode', exact: true }).click();
+  await page.getByLabel('Email', { exact: true }).fill(normalizedEmail);
+
+  const requestedAt = new Date();
+  const sendResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/auth/send-code',
+  { timeout: API_TIMEOUT });
+  await page.getByRole('button', { name: 'Send kode', exact: true }).click();
+  const sendResponse = await sendResponsePromise;
+  if (!sendResponse.ok()) throw new Error(`OTC request returned HTTP ${sendResponse.status()}.`);
+
+  const code = await inbox.waitForCode(normalizedEmail, requestedAt);
+  await page.getByLabel('Engangskode', { exact: true }).fill(code);
+
+  const verifyResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname.startsWith('/api/auth/verify-code/'),
+  { timeout: API_TIMEOUT });
+  await page.getByRole('button', { name: 'Log ind', exact: true }).click();
+  const verifyResponse = await verifyResponsePromise;
+  const tokenPayload = await verifyResponse.json().catch(() => null);
+  if (!verifyResponse.ok() || !tokenPayload?.token || !tokenPayload?.user) {
+    throw new Error(`OTC verification returned HTTP ${verifyResponse.status()}.`);
+  }
+
+  await page.waitForURL((url) => url.pathname.startsWith('/app') || url.pathname.startsWith('/superadmin'), { timeout: API_TIMEOUT });
+  return { tokenPayload, apiBase: new URL(verifyResponse.url()).origin };
+}
+
 async function createSession(name, scenarioReport) {
   const context = await browser.newContext({
     ...devices[VIEWPORT_NAME],
@@ -166,6 +205,7 @@ async function createSession(name, scenarioReport) {
     step,
     screenshot,
     login,
+    authenticateEmail,
     logout,
     api,
     apiExpect,
@@ -202,28 +242,26 @@ async function createSession(name, scenarioReport) {
   }
 
   async function login(role = 'Admin') {
-    await page.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    const button = page.getByRole('button', { name: `Dev Login · ${role}`, exact: true });
-    await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    const tokenResponsePromise = page.waitForResponse((response) =>
-      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/dev/token',
-    { timeout: API_TIMEOUT });
-    await button.click();
-    const tokenResponse = await tokenResponsePromise;
-    if (!tokenResponse.ok()) throw new Error(`Dev login for ${role} returned HTTP ${tokenResponse.status()}.`);
-    const tokenPayload = await tokenResponse.json();
-    if (!tokenPayload?.token || !tokenPayload?.user) throw new Error(`Dev login for ${role} did not return token and user data.`);
+    const email = getSyntheticInbox().emailForRole(role);
+    const me = await authenticateEmail(email);
+    if (String(me.role).toLowerCase() !== String(role).toLowerCase()) {
+      throw new Error(`Synthetic ${role} identity resolved to role ${me.role}.`);
+    }
+    return me;
+  }
+
+  async function authenticateEmail(email) {
+    const { tokenPayload, apiBase } = await authenticatePage(page, email);
     auth.token = tokenPayload.token;
     auth.user = tokenPayload.user;
     auth.role = tokenPayload.user.role;
-    auth.apiBase = new URL(tokenResponse.url()).origin;
+    auth.apiBase = apiBase;
+    auth.openApi = null;
     captureAuthenticatedNetwork = true;
-    await page.waitForURL((url) => url.pathname.startsWith('/app') || url.pathname.startsWith('/superadmin'), { timeout: API_TIMEOUT });
     await loadRuntimeContracts();
     const me = await apiExpect('GET', '/api/auth/me', undefined, [200]);
-    if (String(me.role).toLowerCase() !== String(auth.role).toLowerCase()) {
-      throw new Error(`Dev login role mismatch. Token reported ${auth.role}; /api/auth/me reported ${me.role}.`);
-    }
+    auth.user = me;
+    auth.role = me.role;
     return me;
   }
 
@@ -234,6 +272,7 @@ async function createSession(name, scenarioReport) {
     await page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
     auth.token = null;
     auth.user = null;
+    auth.role = null;
     captureAuthenticatedNetwork = false;
   }
 
@@ -289,7 +328,7 @@ async function createSession(name, scenarioReport) {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(API_TIMEOUT),
     });
-    if (!response.ok) throw new Error(`DAWA autocomplete returned HTTP ${response.status}.`);
+    if (!response.ok) throw new Error(`DAWA autocomplete returned HTTP ${response.status()}.`);
     const suggestions = await response.json();
     const suggestion = Array.isArray(suggestions) ? suggestions.find((item) => item?.tekst || item?.adresse?.betegnelse) : null;
     if (!suggestion) throw new Error('DAWA returned no address suggestion.');
@@ -315,17 +354,9 @@ async function createSession(name, scenarioReport) {
     try {
       cleanupContext = await browser.newContext({ ...devices[VIEWPORT_NAME], locale: 'da-DK' });
       const cleanupPage = await cleanupContext.newPage();
-      await cleanupPage.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-      const adminButton = cleanupPage.getByRole('button', { name: 'Dev Login · Admin', exact: true });
-      await adminButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-      const tokenResponsePromise = cleanupPage.waitForResponse((response) =>
-        response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/dev/token',
-      { timeout: API_TIMEOUT });
-      await adminButton.click();
-      const tokenResponse = await tokenResponsePromise;
-      if (!tokenResponse.ok()) throw new Error(`Cleanup admin login returned HTTP ${tokenResponse.status()}.`);
-      const cleanupToken = (await tokenResponse.json())?.token;
-      if (!cleanupToken) throw new Error('Cleanup admin login returned no token.');
+      const adminEmail = getSyntheticInbox().emailForRole('Admin');
+      const { tokenPayload } = await authenticatePage(cleanupPage, adminEmail);
+      const cleanupToken = tokenPayload.token;
 
       for (const jobId of [...fixtures.jobs].reverse()) {
         try {
