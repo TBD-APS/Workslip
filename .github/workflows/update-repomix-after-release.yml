@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Create Repomix GitHub App token
         id: repomix-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.REPOMIX_APP_ID }}
           private-key: ${{ secrets.REPOMIX_APP_PRIVATE_KEY }}
