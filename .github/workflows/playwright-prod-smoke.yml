@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload Playwright evidence
         if: ${{ always() && env.ACT != 'true' && github.actor != 'nektos/act' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-critical-flows-${{ inputs.target }}-${{ matrix.scenario }}
           path: artifacts/playwright-prod-smoke
