@@ -33,7 +33,11 @@ public sealed class CustomerExcelParser : ICustomerImportFormatParser
         foreach (var worksheetRow in worksheet.RowsUsed().Where(row => row.RowNumber() > headerRow.RowNumber()))
         {
             sourceRows++;
-            EnsureWithinRowLimit(sourceRows);
+            if (sourceRows > CustomerImportLimits.MaxRows)
+            {
+                throw new CustomerImportFormatException(
+                    $"For mange rækker. Maksimum er {CustomerImportLimits.MaxRows}.");
+            }
 
             var rowNumber = worksheetRow.RowNumber();
             var row = CustomerImportRowFactory.Create(
@@ -48,14 +52,5 @@ public sealed class CustomerExcelParser : ICustomerImportFormatParser
         }
 
         return new CustomerImportParseResult(customers, 0);
-    }
-
-    private static void EnsureWithinRowLimit(int sourceRows)
-    {
-        if (sourceRows > CustomerImportLimits.MaxRows)
-        {
-            throw new CustomerImportFormatException(
-                $"For mange rækker. Maksimum er {CustomerImportLimits.MaxRows}.");
-        }
     }
 }
