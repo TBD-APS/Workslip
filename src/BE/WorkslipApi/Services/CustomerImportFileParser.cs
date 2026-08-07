@@ -38,9 +38,9 @@ public sealed class CustomerImportFileParser(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(
-                ex,
-                "Failed to parse customer import using parser {ParserType}.",
-                parser.GetType().Name);
+                "Failed to parse customer import. ParserType={ParserType} ExceptionType={ExceptionType}",
+                parser.GetType().Name,
+                ex.GetType().Name);
             throw new CustomerImportFormatException("Filen kunne ikke læses som en gyldig kundeimport.");
         }
     }
