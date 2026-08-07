@@ -13,6 +13,14 @@ Workflow files describe intended automation; successful runs and target-environm
 
 ## Current boundaries
 
+### Frontend pull-request validation
+
+`.github/workflows/frontend-validation.yml` runs on pull requests to `main` when the frontend, backend API, shared API-generation action or that workflow changes.
+
+It generates the frontend client from the pull request's own backend OpenAPI contract, then runs frontend lint, Vitest and the production build. Contract generation is isolated from production SQL/runtime startup. See [`BRANCH_MATCHED_FRONTEND_VALIDATION.md`](BRANCH_MATCHED_FRONTEND_VALIDATION.md) for the maintained boundary and troubleshooting details.
+
+This is a targeted frontend/API-contract pull-request gate, not a general full-repository validation workflow. A workflow file proves intended execution only; whether GitHub currently requires its status is repository-ruleset state and must be verified in GitHub settings.
+
 ### Release validation
 
 `.github/workflows/release-validation.yml` runs for pushes to `release/**` and is the full-code release validation boundary.
@@ -24,7 +32,7 @@ It currently covers:
 - release-environment policy plus Playwright/Postman source checks;
 - a final `Release gate` that succeeds only when the required jobs succeed.
 
-The repository intentionally has no broad pull-request validation workflow. Issue-scoped/local validation remains required before merge.
+Other issue-scoped/local validation remains required when the changed risk is not covered by the targeted pull-request workflow.
 
 ### Backend production deployment
 
@@ -36,7 +44,7 @@ Vercel production deployment policy is defined from the frontend project/configu
 
 ### Documentation checks
 
-`python tools/docs/check_docs.py` is the local documentation drift check. It is deliberately not a broad automatic PR workflow; reviewers run it when documentation or documentation-owning sources change.
+`python tools/docs/check_docs.py` is the local documentation drift check. It is deliberately not a broad automatic pull-request workflow; reviewers run it when documentation or documentation-owning sources change.
 
 ## Required-check changes
 
