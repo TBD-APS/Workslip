@@ -58,7 +58,11 @@ public sealed class CustomerCsvParser(ILogger<CustomerCsvParser> logger) : ICust
             while (csv.Read())
             {
                 sourceRows++;
-                EnsureWithinRowLimit(sourceRows);
+                if (sourceRows > CustomerImportLimits.MaxRows)
+                {
+                    throw new CustomerImportFormatException(
+                        $"For mange rækker. Maksimum er {CustomerImportLimits.MaxRows}.");
+                }
 
                 var row = CustomerImportRowFactory.Create(
                     csv.Context.Parser?.Row ?? 0,
@@ -83,15 +87,6 @@ public sealed class CustomerCsvParser(ILogger<CustomerCsvParser> logger) : ICust
                 "Failed to parse customer CSV. ExceptionType={ExceptionType}",
                 ex.GetType().Name);
             throw new CustomerImportFormatException("CSV-filen kunne ikke læses.");
-        }
-    }
-
-    private static void EnsureWithinRowLimit(int sourceRows)
-    {
-        if (sourceRows > CustomerImportLimits.MaxRows)
-        {
-            throw new CustomerImportFormatException(
-                $"For mange rækker. Maksimum er {CustomerImportLimits.MaxRows}.");
         }
     }
 
