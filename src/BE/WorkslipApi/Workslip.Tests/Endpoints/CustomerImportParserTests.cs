@@ -52,7 +52,7 @@ public sealed class CustomerImportParserTests
     {
         var rows = Enumerable.Range(1, CustomerImportLimits.MaxRows + 1)
             .Select(index => $"{index};Customer {index}");
-        var csv = "Nr.;Navn\n" + string.Join('\n', rows);
+        var csv = "Nr.;Navn\n" + string.Join("\n", rows);
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv));
         var parser = new CustomerCsvParser(NullLogger<CustomerCsvParser>.Instance);
 
