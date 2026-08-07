@@ -74,11 +74,9 @@ public static class AuthenticationConfiguration
         {
             var clientId = configuration["Azure:AdOAuth:ClientId"];
 
-            // Tving middlewaren til at acceptere både det rene GUID og api:// formatet
+            // Accept both audience formats emitted for this API while keeping
+            // Microsoft.Identity.Web's tenant/issuer validation enabled.
             options.TokenValidationParameters.ValidAudiences = new[] { clientId, $"api://{clientId}" };
-
-            // Da du kører gæstebrugere/multitenant i bunden, skal issuer-valideringen være fleksibel
-            options.TokenValidationParameters.ValidateIssuer = false;
         });
 
         builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
