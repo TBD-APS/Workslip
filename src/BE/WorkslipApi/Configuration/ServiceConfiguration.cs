@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Azure.Core;
 using Microsoft.ApplicationInsights;
 using Microsoft.Graph;
+using Workslip.Api.Endpoints;
 using Workslip.Api.Services;
 using Workslip.Api.Telemetry;
 using Workslip.Application;
@@ -29,6 +30,9 @@ public static class ServiceConfiguration
             services.GetService<TelemetryClient>()));
         builder.Services.AddScoped<IdempotencyStore>();
         builder.Services.AddScoped<IdempotentMutationService>();
+        builder.Services.AddSingleton<ICustomerImportFormatParser, CustomerCsvParser>();
+        builder.Services.AddSingleton<ICustomerImportFormatParser, CustomerExcelParser>();
+        builder.Services.AddSingleton<CustomerImportFileParser>();
 
         builder.Services.ConfigureHttpJsonOptions(options =>
         {
