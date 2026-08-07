@@ -17,6 +17,9 @@ public sealed class InvitationService(
     ICurrentUserContext currentUser,
     ILogger<InvitationService> logger) : IInvitationService
 {
+    private const string RoleChangeRequiresStatusClearMessage =
+        "Ryd den eksisterende invitationsstatus, før du sender en ny invitation med en anden rolle.";
+
     public async Task<Result<InviteUsersResponse>> InviteUsersAsync(InviteUsersRequest request, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
@@ -185,6 +188,25 @@ public sealed class InvitationService(
             }
             else
             {
+                var existingRole = NormalizeInviteRole(existingInvite.Role)
+                    ?? existingInvite.Role?.Trim();
+
+                if (!string.Equals(existingRole, role, StringComparison.OrdinalIgnoreCase))
+                {
+                    logger.LogWarning(
+                        "Invite role change blocked. InviteId: {InviteId}. OrganizationId: {OrganizationId}. ExistingRole: {ExistingRole}. RequestedRole: {RequestedRole}.",
+                        existingInvite.Id,
+                        organizationId,
+                        existingRole,
+                        role);
+
+                    return new InviteUserResult(
+                        normalizedEmail,
+                        false,
+                        RoleChangeRequiresStatusClearMessage,
+                        null);
+                }
+
                 inviteId = existingInvite.Id;
                 existingInvite.ExpiresAt = DateTimeOffset.UtcNow.AddDays(7);
                 existingInvite.Token = token;

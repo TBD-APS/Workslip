@@ -1,0 +1,27 @@
+.drawer {
+  right: 0;
+  transform: translate3d(100%, 0, 0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  overscroll-behavior-x: none;
+}
+
+.drawer.open {
+  transform: translate3d(0, 0, 0);
+}
+
+.drawer.drawer-dragging {
+  transform: translate3d(var(--drawer-drag-x, 0px), 0, 0);
+  transition: none;
+}
+
+.drawer.drawer-swipe-closing {
+  transform: translate3d(100%, 0, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    transition-duration: 0.01ms;
+  }
+}

@@ -1,16 +1,37 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import path from "node:path";
+
+type ReleaseTarget = 'production' | 'staging'
+
+interface ReleaseEnvironmentPolicy {
+  enableDevelopmentEndpoints: boolean
+}
+
+interface ReleasePolicy {
+  environments: Record<ReleaseTarget, ReleaseEnvironmentPolicy>
+}
+
+const releasePolicy = JSON.parse(
+  readFileSync(path.resolve(__dirname, './config/release-environments.json'), 'utf8'),
+) as ReleasePolicy
+const requestedReleaseTarget = process.env.VITE_RELEASE_TARGET
+const releaseTarget: ReleaseTarget = requestedReleaseTarget === 'staging' ? 'staging' : 'production'
+const releaseTestingEnabled = releasePolicy.environments[releaseTarget]?.enableDevelopmentEndpoints === true
 
 export default defineConfig({
   test: {
     environment: 'jsdom',
+    include: ['./src/**/*.{test,spec}.{ts,tsx}'],
     setupFiles: ['./src/test/setup.ts'],
     restoreMocks: true,
   },
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __WORKSLIP_RELEASE_TARGET__: JSON.stringify(releaseTarget),
+    __WORKSLIP_RELEASE_TESTING_ENABLED__: JSON.stringify(releaseTestingEnabled),
   },
   build: {
     sourcemap: true,

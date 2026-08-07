@@ -53,15 +53,45 @@ function AuthenticatedSessionProvider({
   const usesPrimaryJobList = getAuthenticatedHomePath(user?.role) === DEFAULT_AUTHENTICATED_PATH;
 
   useEffect(() => {
-    if (isAuthenticated && canUseNotifications) {
-      registerPush().catch((error) => {
-        console.error('[Auth] Failed to register push notifications:', error);
-      });
-    }
-    // The push hook currently returns a function tied to its mutation object.
-    // Including it would re-run registration on every provider render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canUseNotifications, isAuthenticated]);
+    if (!isAuthenticated || !canUseNotifications || !user?.id) return;
+
+    let registrationInFlight = false;
+
+    const reconcilePushSubscription = async () => {
+      if (registrationInFlight) return;
+      registrationInFlight = true;
+
+      try {
+        await registerPush();
+      } catch (error) {
+        // Registration is best-effort here. Returning to the foreground or
+        // reconnecting gives the session another chance to repair a missing
+        // server-side subscription without exposing endpoint/key material.
+        console.error('[Auth] Failed to reconcile push notifications:', error);
+      } finally {
+        registrationInFlight = false;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void reconcilePushSubscription();
+      }
+    };
+
+    const handleOnline = () => {
+      void reconcilePushSubscription();
+    };
+
+    void reconcilePushSubscription();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [canUseNotifications, isAuthenticated, registerPush, user?.id]);
 
   useEffect(() => {
     if (!isAuthenticated || !usesPrimaryJobList || !shouldPrefetchJobs()) return;

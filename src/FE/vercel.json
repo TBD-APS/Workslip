@@ -5,6 +5,7 @@
       "main": true
     }
   },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- .",
   "rewrites": [
     {
       "source": "/api/:path*",

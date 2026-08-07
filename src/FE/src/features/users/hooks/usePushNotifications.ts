@@ -34,7 +34,7 @@ function keysMatch(
 }
 
 async function ensurePushSubscription(): Promise<RegisterPushSubscriptionPayload | null> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+  if (!navigator.serviceWorker || typeof window.PushManager === 'undefined') {
     console.warn('Push notifications are not supported in this browser.');
     return null;
   }
@@ -90,7 +90,12 @@ async function ensurePushSubscription(): Promise<RegisterPushSubscriptionPayload
 }
 
 export function usePushNotifications() {
-  const mutation = useMutation({
+  const {
+    mutateAsync,
+    isPending,
+    isError,
+    error,
+  } = useMutation({
     mutationFn: registerPushSubscription,
   });
 
@@ -105,19 +110,19 @@ export function usePushNotifications() {
       const payload = await ensurePushSubscription();
       if (!payload) return;
 
-      await mutation.mutateAsync(payload);
+      await mutateAsync(payload);
       console.log('Push subscription registered successfully.');
-    } catch (error) {
-      console.error('Failed to register push subscription:', error);
-      throw error;
+    } catch (registrationError) {
+      console.error('Failed to register push subscription:', registrationError);
+      throw registrationError;
     }
-  }, [mutation]);
+  }, [mutateAsync]);
 
   return {
     register,
-    isLoading: mutation.isPending,
-    isError: mutation.isError,
-    error: mutation.error,
+    isLoading: isPending,
+    isError,
+    error,
   };
 }
 

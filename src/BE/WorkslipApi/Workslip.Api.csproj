@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
   </PropertyGroup>
 
  	<ItemGroup>
@@ -24,6 +25,10 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.6.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" Version="10.0.9">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageReference Include="Microsoft.Graph" Version="6.1.0" />
     <PackageReference Include="Microsoft.Identity.Web" Version="4.14.2" />
@@ -32,7 +37,7 @@
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.ApplicationInsights" Version="5.0.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
-    <PackageReference Include="Serilog.Sinks.Seq" Version="9.1.0" />
+    <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
     <PackageReference Include="WebPush" Version="1.0.13" />
   </ItemGroup>
 

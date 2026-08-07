@@ -10,6 +10,8 @@ namespace Workslip.Infrastructure.Repositories;
 
 public sealed class EfNotificationRepository : INotificationRepository
 {
+    private static readonly TimeSpan ProcessingLease = TimeSpan.FromMinutes(15);
+
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
 
@@ -45,13 +47,20 @@ public sealed class EfNotificationRepository : INotificationRepository
     {
         return await _retryPolicy.ExecuteAsync("notifications.claim", async token =>
         {
-            var sql = @"
-                UPDATE TOP (@BatchSize) NotificationQueue
+            const string sql = """
+                ;WITH candidates AS (
+                    SELECT TOP (@BatchSize) *
+                    FROM NotificationQueue WITH (UPDLOCK, READPAST, ROWLOCK)
+                    WHERE (Status = 'Pending' AND NextAttemptUtc <= SYSUTCDATETIME())
+                       OR (Status = 'Processing'
+                           AND (ProcessingStartedUtc IS NULL OR ProcessingStartedUtc <= @LeaseCutoffUtc))
+                    ORDER BY NextAttemptUtc, CreatedUtc
+                )
+                UPDATE candidates
                 SET Status = 'Processing',
                     ProcessingStartedUtc = SYSUTCDATETIME()
-                OUTPUT inserted.Id, inserted.UserId, inserted.NotificationType, inserted.PayloadJson, inserted.Status, inserted.RetryCount, inserted.CreatedUtc, inserted.ProcessingStartedUtc, inserted.NextAttemptUtc, inserted.CompletedUtc, inserted.LastError
-                WHERE Status = 'Pending'
-                  AND NextAttemptUtc <= SYSUTCDATETIME()";
+                OUTPUT inserted.Id, inserted.UserId, inserted.NotificationType, inserted.PayloadJson, inserted.Status, inserted.RetryCount, inserted.CreatedUtc, inserted.ProcessingStartedUtc, inserted.NextAttemptUtc, inserted.CompletedUtc, inserted.LastError;
+                """;
 
             var connection = _dbContext.Database.GetDbConnection();
             var wasClosed = connection.State == ConnectionState.Closed;
@@ -59,9 +68,18 @@ public sealed class EfNotificationRepository : INotificationRepository
             {
                 await connection.OpenAsync(token);
             }
+
             try
             {
-                var result = await connection.QueryAsync<NotificationQueueRow>(sql, new { BatchSize = batchSize });
+                var command = new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        BatchSize = batchSize,
+                        LeaseCutoffUtc = DateTimeOffset.UtcNow.Subtract(ProcessingLease)
+                    },
+                    cancellationToken: token);
+                var result = await connection.QueryAsync<NotificationQueueRow>(command);
                 return (IReadOnlyList<NotificationQueueRow>)result.ToList();
             }
             finally
@@ -118,6 +136,22 @@ public sealed class EfNotificationRepository : INotificationRepository
         }, cancellationToken);
     }
 
+    public async Task<IReadOnlySet<Guid>> GetSuccessfulSubscriptionIdsAsync(
+        Guid notificationId,
+        CancellationToken cancellationToken)
+    {
+        return await _retryPolicy.ExecuteAsync("notifications.get_successful_deliveries", async token =>
+        {
+            var subscriptionIds = await _dbContext.NotificationDeliveryLog
+                .AsNoTracking()
+                .Where(log => log.NotificationId == notificationId && log.Success)
+                .Select(log => log.SubscriptionId)
+                .Distinct()
+                .ToListAsync(token);
+            return (IReadOnlySet<Guid>)subscriptionIds.ToHashSet();
+        }, cancellationToken);
+    }
+
     public async Task UpdateSubscriptionActiveStatusAsync(Guid subscriptionId, bool isActive, CancellationToken cancellationToken)
     {
         await _retryPolicy.ExecuteAsync("notifications.update_subscription", async token =>
@@ -151,35 +185,37 @@ public sealed class EfNotificationRepository : INotificationRepository
     {
         await _retryPolicy.ExecuteAsync("notifications.register_subscription", async token =>
         {
+            var now = DateTimeOffset.UtcNow;
+
             if (!string.IsNullOrWhiteSpace(replacedEndpoint)
                 && !string.Equals(replacedEndpoint, endpoint, StringComparison.Ordinal))
             {
                 var replaced = await _dbContext.PushSubscriptions
                     .FirstOrDefaultAsync(
-                        subscription => subscription.UserId == userId
-                            && subscription.Endpoint == replacedEndpoint,
+                        subscription => subscription.Endpoint == replacedEndpoint,
                         token);
                 if (replaced is not null)
                 {
                     replaced.IsActive = false;
-                    replaced.LastSeenUtc = DateTimeOffset.UtcNow;
+                    replaced.LastSeenUtc = now;
                 }
             }
 
             var existing = await _dbContext.PushSubscriptions
-                .FirstOrDefaultAsync(s => s.UserId == userId && s.Endpoint == endpoint, token);
+                .FirstOrDefaultAsync(subscription => subscription.Endpoint == endpoint, token);
 
-            if (existing != null)
+            if (existing is not null)
             {
+                existing.UserId = userId;
                 existing.IsActive = true;
                 existing.P256Dh = p256Dh;
                 existing.Auth = auth;
                 existing.UserAgent = userAgent;
-                existing.LastSeenUtc = DateTimeOffset.UtcNow;
+                existing.LastSeenUtc = now;
             }
             else
             {
-                var newSub = new PushSubscriptionRow
+                _dbContext.PushSubscriptions.Add(new PushSubscriptionRow
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
@@ -188,11 +224,11 @@ public sealed class EfNotificationRepository : INotificationRepository
                     Auth = auth,
                     UserAgent = userAgent,
                     IsActive = true,
-                    CreatedUtc = DateTimeOffset.UtcNow,
-                    LastSeenUtc = DateTimeOffset.UtcNow
-                };
-                _dbContext.PushSubscriptions.Add(newSub);
+                    CreatedUtc = now,
+                    LastSeenUtc = now
+                });
             }
+
             await _dbContext.SaveChangesAsync(token);
         }, cancellationToken);
     }

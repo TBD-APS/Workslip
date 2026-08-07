@@ -3,12 +3,18 @@ import { createRoot } from 'react-dom/client';
 import './base.css';
 import App from './App.tsx';
 import { initializeApplicationInsights, installGlobalApplicationInsightsHandlers } from './applicationInsights';
+import { isJobFamilyQueryKey } from './lib/jobQueryKeys';
+import { NOTIFICATION_QUERY_PREFIX } from './lib/notificationQueryKeys';
 import { scheduleAfterInitialLoad, scheduleDeferredTelemetry } from './lib/scheduleAfterInitialLoad';
 import { queryClient } from './lib/react-query';
 import { installNotificationNavigationHandler, installNotificationReceivedInvalidator } from './pwa/notificationNavigationClient';
 import { router } from './routes';
 
 if (typeof window !== 'undefined') {
+  // Install lightweight handlers before React renders. Errors are sanitized and
+  // buffered until the deferred Application Insights client is ready.
+  installGlobalApplicationInsightsHandlers();
+
   // Vite emits this event when an already-open client references a hashed lazy
   // chunk that disappeared after deployment. Reload once for this build; if it
   // still fails, the normal error boundary handles it without a reload loop.
@@ -45,7 +51,14 @@ if (typeof window !== 'undefined') {
     );
     installNotificationReceivedInvalidator(
       navigator.serviceWorker,
-      () => queryClient.invalidateQueries({ queryKey: ['/api/jobs'] }),
+      async () => {
+        await queryClient.invalidateQueries({
+          predicate: (query) => isJobFamilyQueryKey(query.queryKey),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: NOTIFICATION_QUERY_PREFIX,
+        });
+      },
     );
   }
 }
@@ -61,5 +74,5 @@ scheduleAfterInitialLoad(() => {
 });
 
 scheduleDeferredTelemetry(() => {
-  void initializeApplicationInsights().then(installGlobalApplicationInsightsHandlers);
+  void initializeApplicationInsights();
 });

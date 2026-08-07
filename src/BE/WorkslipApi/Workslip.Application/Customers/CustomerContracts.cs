@@ -41,7 +41,8 @@ public sealed record CustomerJobResponse(
     string Status,
     DateTimeOffset UpdatedAt,
     string? ContactPerson,
-    string? ContactPhone);
+    string? ContactPhone,
+    string? DestinationAddress);
 
 public sealed record CustomerDetailResponse(
     Guid Id,

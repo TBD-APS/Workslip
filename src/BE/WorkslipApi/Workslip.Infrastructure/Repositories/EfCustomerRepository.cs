@@ -134,7 +134,7 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
                 Jobs = dbContext.JobReports
                     .Where(r => r.OrganizationId == organizationId && r.CustomerId == c.Id && !r.IsSoftDeleted)
                     .OrderByDescending(r => r.UpdatedAt)
-                    .Select(r => new { r.Id, r.ReportNumber, r.Status, r.UpdatedAt })
+                    .Select(r => new { r.Id, r.ReportNumber, r.Status, r.UpdatedAt, r.DestinationAddress })
                     .ToList()
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -158,7 +158,7 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
             customer.JobCount,
             customer.IsFavorite,
             customer.Jobs.Select(j => new CustomerJobResponse(
-                j.Id, j.ReportNumber, j.Status, j.UpdatedAt, customer.ContactPerson, customer.Phone)).ToArray());
+                j.Id, j.ReportNumber, j.Status, j.UpdatedAt, customer.ContactPerson, customer.Phone, j.DestinationAddress)).ToArray());
     }
 
     private async Task<IReadOnlyList<CustomerSearchResponse>> SearchCoreAsync(Guid organizationId, string query, int limit, CancellationToken cancellationToken)

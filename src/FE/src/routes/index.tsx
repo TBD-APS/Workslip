@@ -1,11 +1,13 @@
+import { WifiOff } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
-import { ErrorFallback } from '../providers/ErrorFallback';
-import { useAuth } from '../providers/useAuth';
-import { RoleGuard } from '../providers/permissions';
-import { Login } from '../features/auth/routes/Login';
 import { reportFrontendError } from '../applicationInsights';
+import { FullscreenSystemState } from '../components/common/FullscreenSystemState';
+import { Login } from '../features/auth/routes/Login';
+import { ErrorFallback } from '../providers/ErrorFallback';
+import { RoleGuard } from '../providers/permissions';
+import { useAuth } from '../providers/useAuth';
 
 const AUTH_STARTUP_GRACE_MS = 6_000;
 
@@ -69,6 +71,9 @@ const LegalPage = lazy(() =>
 const SuperAdmin = lazy(() =>
   import('../features/superadmin/routes/SuperAdmin').then((module) => ({ default: module.SuperAdmin })),
 );
+const CacheDiagnostics = lazy(() =>
+  import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
+);
 
 interface StartupRecoveryProps {
   isRetrying: boolean;
@@ -78,16 +83,17 @@ interface StartupRecoveryProps {
 }
 
 const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupRecoveryProps) => (
-  <div className="app-container app-container-center" role="alert" aria-live="polite">
-    <div className="login-card">
-      <div className="login-card-header">
-        <h2>Forbindelsen tager længere tid end normalt</h2>
-        <p>Serveren kan være ved at starte efter en deployment. Dit gemte login er ikke blevet slettet.</p>
-      </div>
-      <div className="login-email-step">
+  <FullscreenSystemState
+    title="Forbindelsen tager længere tid end normalt"
+    message="Serveren kan være ved at starte efter en deployment. Dit gemte login er ikke blevet slettet."
+    isLoading={isRetrying}
+    icon={<WifiOff size={28} />}
+    role="alert"
+    actions={(
+      <>
         <button
           type="button"
-          className="btn btn-primary login-submit-btn"
+          className="btn btn-primary"
           onClick={onRetry}
           disabled={isRetrying}
         >
@@ -95,7 +101,7 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
         </button>
         <button
           type="button"
-          className="btn btn-secondary login-submit-btn"
+          className="btn btn-secondary"
           onClick={onReload}
           disabled={isRetrying}
         >
@@ -103,15 +109,15 @@ const StartupRecovery = ({ isRetrying, onRetry, onReload, onLogin }: StartupReco
         </button>
         <button
           type="button"
-          className="login-back-btn"
+          className="system-state-link"
           onClick={onLogin}
           disabled={isRetrying}
         >
           Log ind igen
         </button>
-      </div>
-    </div>
-  </div>
+      </>
+    )}
+  />
 );
 
 /**
@@ -180,9 +186,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (isLoading || meQuery.isPending) {
     return (
-      <div className="protected-route-loading" role="status" aria-live="polite">
-        Tjekker login status...
-      </div>
+      <FullscreenSystemState
+        title="Tjekker login"
+        message="Vi kontrollerer din session og forbinder til Workslip."
+      />
     );
   }
 
@@ -262,6 +269,14 @@ export const router = createBrowserRouter([
             element: (
               <RoleGuard permission="organization:manage" redirectTo="/app">
                 <SuperAdmin />
+              </RoleGuard>
+            ),
+          },
+          {
+            path: 'cache',
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <CacheDiagnostics />
               </RoleGuard>
             ),
           },

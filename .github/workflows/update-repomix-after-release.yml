@@ -1,0 +1,98 @@
+name: Update Repomix weekly
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-repomix-main
+  cancel-in-progress: true
+
+jobs:
+  update-repomix:
+    name: Regenerate Repomix
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Create Repomix GitHub App token
+        id: repomix-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.REPOMIX_APP_ID }}
+          private-key: ${{ secrets.REPOMIX_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: Workslip-v2.0
+
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.repomix-token.outputs.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Regenerate and publish Repomix
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          git config user.name "workslip-repomix-publisher[bot]"
+          git config user.email "workslip-repomix-publisher[bot]@users.noreply.github.com"
+
+          for attempt in 1 2 3; do
+            git fetch origin '+refs/heads/main:refs/remotes/origin/main'
+            git checkout -B main origin/main
+
+            npx --yes repomix@1.13.0 \
+              --style xml \
+              --output repomix-output.xml
+
+            unexpected_changes="$(
+              git status --porcelain=v1 --untracked-files=all |
+                cut -c4- |
+                grep -vx 'repomix-output.xml' || true
+            )"
+            if [[ -n "${unexpected_changes}" ]]; then
+              echo "::error::Repomix workflow changed files outside repomix-output.xml:"
+              printf '%s\n' "${unexpected_changes}"
+              exit 1
+            fi
+
+            if [[ -z "$(git status --porcelain -- repomix-output.xml)" ]]; then
+              echo "Repomix output already matches main."
+              exit 0
+            fi
+
+            git add -- repomix-output.xml
+
+            staged_files="$(git diff --cached --name-only)"
+            if [[ "${staged_files}" != 'repomix-output.xml' ]]; then
+              echo "::error::Refusing to commit because the staged change set is not exactly repomix-output.xml."
+              printf 'Staged files:\n%s\n' "${staged_files}"
+              exit 1
+            fi
+
+            git commit -m "chore: refresh weekly repomix snapshot [skip ci]"
+
+            if git push origin HEAD:main; then
+              echo "Repomix output updated on main."
+              exit 0
+            fi
+
+            if [[ "${attempt}" -lt 3 ]]; then
+              echo "Main advanced or rejected the write; regenerating from the latest revision."
+              sleep $((attempt * 5))
+            fi
+          done
+
+          echo "::error::Could not publish the regenerated Repomix output to main after 3 attempts. Verify that the Repomix GitHub App is installed and has ruleset bypass."
+          exit 1

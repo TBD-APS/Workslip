@@ -1,0 +1,164 @@
+name: Production infrastructure deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: azure-infrastructure-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Reconcile production infrastructure
+    runs-on: windows-2022
+    timeout-minutes: 75
+    environment: prod
+    env:
+      AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+      AZURE_WEBAPP_NAME: api-mrsoftware-prod
+      API_IDENTITY_NAME: id-mrsoftware-prod
+      LOG_ANALYTICS_WORKSPACE_NAME: logAnal-mrsoftware-prod
+      INFRA_CLIENT_ID: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+    steps:
+      - name: Verify deployment prerequisites
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw "Production infrastructure may only be deployed from main. Selected ref: $env:GITHUB_REF"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:INFRA_CLIENT_ID)) {
+            throw 'GitHub environment prod is missing the AZURE_INFRA_CLIENT_ID environment variable for the privileged infrastructure OIDC identity. A client ID is an identifier, not a secret.'
+          }
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure sqlcmd
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
+            choco install sqlcmd --yes --no-progress
+            if ($LASTEXITCODE -ne 0) {
+              throw "Chocolatey failed to install sqlcmd with exit code $LASTEXITCODE."
+            }
+          }
+
+          $sqlcmd = Get-Command sqlcmd -ErrorAction Stop
+          Write-Host "sqlcmd resolved at $($sqlcmd.Source)"
+
+      - name: Reconcile Azure infrastructure
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\src\BE\infrastructure\deploy-infrastructure.ps1 prod
+
+      - name: Verify diagnostics configuration and API health
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          function Invoke-AzureTsv {
+            param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+            $output = @(& az @Arguments 2>&1 | ForEach-Object { $_.ToString() })
+            if ($LASTEXITCODE -ne 0) {
+              throw "Azure CLI verification failed with exit code $LASTEXITCODE.`n$($output -join [Environment]::NewLine)"
+            }
+
+            return ($output -join [Environment]::NewLine).Trim()
+          }
+
+          $workspaceId = Invoke-AzureTsv -Arguments @(
+            'monitor', 'log-analytics', 'workspace', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--workspace-name', $env:LOG_ANALYTICS_WORKSPACE_NAME,
+            '--query', 'customerId',
+            '--output', 'tsv'
+          )
+          $workspaceResourceId = Invoke-AzureTsv -Arguments @(
+            'monitor', 'log-analytics', 'workspace', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--workspace-name', $env:LOG_ANALYTICS_WORKSPACE_NAME,
+            '--query', 'id',
+            '--output', 'tsv'
+          )
+          $configuredWorkspaceId = Invoke-AzureTsv -Arguments @(
+            'webapp', 'config', 'appsettings', 'list',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:AZURE_WEBAPP_NAME,
+            '--query', "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]",
+            '--output', 'tsv'
+          )
+
+          if ($configuredWorkspaceId -ne $workspaceId) {
+            throw 'The API workspace setting does not match the production Log Analytics workspace.'
+          }
+
+          $apiPrincipalId = Invoke-AzureTsv -Arguments @(
+            'identity', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:API_IDENTITY_NAME,
+            '--query', 'principalId',
+            '--output', 'tsv'
+          )
+          $readerAssignment = Invoke-AzureTsv -Arguments @(
+            'role', 'assignment', 'list',
+            '--assignee-object-id', $apiPrincipalId,
+            '--scope', $workspaceResourceId,
+            '--role', 'Log Analytics Data Reader',
+            '--query', '[0].id',
+            '--output', 'tsv'
+          )
+
+          if ([string]::IsNullOrWhiteSpace($readerAssignment)) {
+            throw 'The API managed identity is missing Log Analytics Data Reader on the production workspace.'
+          }
+
+          & az webapp restart `
+            --resource-group $env:AZURE_RESOURCE_GROUP `
+            --name $env:AZURE_WEBAPP_NAME `
+            --output none
+          if ($LASTEXITCODE -ne 0) {
+            throw "API restart failed with exit code $LASTEXITCODE."
+          }
+
+          $hostName = Invoke-AzureTsv -Arguments @(
+            'webapp', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:AZURE_WEBAPP_NAME,
+            '--query', 'defaultHostName',
+            '--output', 'tsv'
+          )
+          $healthUrl = "https://$hostName/health"
+
+          for ($attempt = 1; $attempt -le 15; $attempt++) {
+            try {
+              Invoke-WebRequest -Uri $healthUrl -Method Get -TimeoutSec 10 -UseBasicParsing | Out-Null
+              "Production infrastructure reconciled and API health passed: $healthUrl" |
+                Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+              break
+            }
+            catch {
+              if ($attempt -eq 15) {
+                throw "Infrastructure deployed, but API health did not recover at $healthUrl."
+              }
+
+              Start-Sleep -Seconds 10
+            }
+          }

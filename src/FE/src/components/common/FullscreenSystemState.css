@@ -1,0 +1,84 @@
+.system-state {
+  width: 100%;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+.system-state-card {
+  position: relative;
+  z-index: 1;
+  width: min(calc(100% - 2rem), 400px);
+  padding: 2rem;
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.system-state-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-bottom: 1.5rem;
+  color: var(--text);
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.system-state-indicator {
+  display: flex;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 auto 1.25rem;
+  align-items: center;
+  justify-content: center;
+  color: #00c6ff;
+  background: rgba(0, 198, 255, 0.08);
+  border: 1px solid rgba(0, 198, 255, 0.16);
+  border-radius: 50%;
+}
+
+.system-state-copy h1 {
+  margin: 0;
+  font-size: clamp(1.45rem, 5vw, 1.8rem);
+}
+
+.system-state-copy p {
+  margin: 0.75rem 0 0;
+  color: var(--text-secondary);
+}
+
+.system-state-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+}
+
+.system-state-actions .btn,
+.system-state-actions .system-state-link {
+  width: 100%;
+}
+
+.system-state-link {
+  padding: 0.75rem;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.system-state-link:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+@media (max-width: 480px) {
+  .system-state-card {
+    padding: 1.5rem;
+  }
+}

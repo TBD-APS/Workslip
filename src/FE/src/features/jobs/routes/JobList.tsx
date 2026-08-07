@@ -23,6 +23,9 @@ const PAGE_SIZE = 20;
 const isReadonlyState = (status: JobStatus) =>
   status === JobStatus.InReview || status === JobStatus.Approved;
 
+const shouldShowReviewDot = (status: JobStatus) =>
+  status === JobStatus.InReview;
+
 const SkeletonCard = () => (
   <div className="job-card job-card-skeleton" aria-hidden="true">
     <div className="job-card-header">
@@ -339,7 +342,7 @@ export const JobList = () => {
               >
                 <td>
                   <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
-                  {isAdmin && job.status === JobStatus.InReview && <span className="review-dot" />}
+                  {shouldShowReviewDot(job.status) && <span className="review-dot" />}
                   {job.status === JobStatus.Approved && <span className="approved-dot" />}
                   {!job.isSeen && <span className="unread-dot" />}
                   {job.isNewRejection && <span className="rejected-dot" />}
@@ -452,7 +455,7 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span>{formatJobType(job.jobType)}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span></span>
-          {isAdmin && job.status === JobStatus.InReview && <span className="review-dot" />}
+          {shouldShowReviewDot(job.status) && <span className="review-dot" />}
           {job.status === JobStatus.Approved && <span className="approved-dot" />}
           {!job.isSeen && <span className="unread-dot" />}
           {job.isNewRejection && <span className="rejected-dot" />}
