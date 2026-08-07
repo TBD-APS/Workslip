@@ -35,13 +35,73 @@ IF OBJECT_ID(N'dbo.JobReports', N'U') IS NULL
 IF @Execute = 1 AND @ExpectedJobCount < 0
     THROW 51005, 'Execute=1 requires the exact non-negative JobReports count observed in the immediately preceding dry run.', 1;
 
-DECLARE @OrganizationCountBefore int = (SELECT COUNT(*) FROM dbo.Organizations);
-DECLARE @UserCountBefore int = (SELECT COUNT(*) FROM dbo.Users);
-DECLARE @CustomerCountBefore int = (SELECT COUNT(*) FROM dbo.Customers);
-DECLARE @InstallationDefinitionCountBefore int = (SELECT COUNT(*) FROM dbo.InstallationTypeDefinitions);
-DECLARE @ControlCategoryCountBefore int = (SELECT COUNT(*) FROM dbo.ControlCategories);
-DECLARE @ControlPointCountBefore int = (SELECT COUNT(*) FROM dbo.ControlPoints);
-DECLARE @InstallationMappingCountBefore int = (SELECT COUNT(*) FROM dbo.InstallationTypeDefinitionMappings);
+-- Exact preserved-identity snapshots. These are never emitted; they are used
+-- only to prove the cleanup did not replace, delete, move, or alter retained
+-- user/customer identity bindings or reference-data keys.
+CREATE TABLE #OrganizationsBefore
+(
+    Id uniqueidentifier NOT NULL PRIMARY KEY
+);
+INSERT INTO #OrganizationsBefore (Id)
+SELECT Id FROM dbo.Organizations;
+
+CREATE TABLE #UsersBefore
+(
+    Id uniqueidentifier NOT NULL PRIMARY KEY,
+    OrganizationId uniqueidentifier NOT NULL,
+    Email nvarchar(320) NULL,
+    Role nvarchar(80) NOT NULL,
+    EntraId nvarchar(80) NULL,
+    EntraEmail nvarchar(200) NULL
+);
+INSERT INTO #UsersBefore (Id, OrganizationId, Email, Role, EntraId, EntraEmail)
+SELECT Id, OrganizationId, Email, Role, EntraId, EntraEmail
+FROM dbo.Users;
+
+CREATE TABLE #CustomersBefore
+(
+    Id uniqueidentifier NOT NULL PRIMARY KEY,
+    OrganizationId uniqueidentifier NOT NULL,
+    CustomerNumber nvarchar(100) NULL
+);
+INSERT INTO #CustomersBefore (Id, OrganizationId, CustomerNumber)
+SELECT Id, OrganizationId, CustomerNumber
+FROM dbo.Customers;
+
+CREATE TABLE #InstallationDefinitionsBefore
+(
+    Id uniqueidentifier NOT NULL PRIMARY KEY,
+    OrganizationId uniqueidentifier NOT NULL
+);
+INSERT INTO #InstallationDefinitionsBefore (Id, OrganizationId)
+SELECT Id, OrganizationId FROM dbo.InstallationTypeDefinitions;
+
+CREATE TABLE #ControlCategoriesBefore
+(
+    Id uniqueidentifier NOT NULL PRIMARY KEY,
+    OrganizationId uniqueidentifier NOT NULL
+);
+INSERT INTO #ControlCategoriesBefore (Id, OrganizationId)
+SELECT Id, OrganizationId FROM dbo.ControlCategories;
+
+CREATE TABLE #ControlPointsBefore
+(
+    Id uniqueidentifier NOT NULL PRIMARY KEY,
+    OrganizationId uniqueidentifier NOT NULL
+);
+INSERT INTO #ControlPointsBefore (Id, OrganizationId)
+SELECT Id, OrganizationId FROM dbo.ControlPoints;
+
+CREATE TABLE #InstallationMappingsBefore
+(
+    InstallationTypeDefinitionId uniqueidentifier NOT NULL,
+    ControlCategoryId uniqueidentifier NOT NULL,
+    ControlPointId uniqueidentifier NOT NULL,
+    PRIMARY KEY (InstallationTypeDefinitionId, ControlCategoryId, ControlPointId)
+);
+INSERT INTO #InstallationMappingsBefore (InstallationTypeDefinitionId, ControlCategoryId, ControlPointId)
+SELECT InstallationTypeDefinitionId, ControlCategoryId, ControlPointId
+FROM dbo.InstallationTypeDefinitionMappings;
 
 CREATE TABLE #TargetJobs
 (
@@ -97,13 +157,13 @@ SELECT
     (SELECT COUNT(*) FROM #TargetNotifications) AS NotificationQueueRows,
     (SELECT COUNT(*) FROM dbo.NotificationDeliveryLog AS row JOIN #TargetNotifications AS target ON row.NotificationId = target.Id) AS NotificationDeliveryLogRows,
     (SELECT COUNT(*) FROM #TargetIdempotencyRecords) AS IdempotencyRecordsReferencingJobs,
-    @OrganizationCountBefore AS OrganizationsPreserved,
-    @UserCountBefore AS UsersPreserved,
-    @CustomerCountBefore AS CustomersPreserved,
-    @InstallationDefinitionCountBefore AS InstallationDefinitionsPreserved,
-    @ControlCategoryCountBefore AS ControlCategoriesPreserved,
-    @ControlPointCountBefore AS ControlPointsPreserved,
-    @InstallationMappingCountBefore AS InstallationMappingsPreserved;
+    (SELECT COUNT(*) FROM #OrganizationsBefore) AS OrganizationsPreserved,
+    (SELECT COUNT(*) FROM #UsersBefore) AS UsersPreserved,
+    (SELECT COUNT(*) FROM #CustomersBefore) AS CustomersPreserved,
+    (SELECT COUNT(*) FROM #InstallationDefinitionsBefore) AS InstallationDefinitionsPreserved,
+    (SELECT COUNT(*) FROM #ControlCategoriesBefore) AS ControlCategoriesPreserved,
+    (SELECT COUNT(*) FROM #ControlPointsBefore) AS ControlPointsPreserved,
+    (SELECT COUNT(*) FROM #InstallationMappingsBefore) AS InstallationMappingsPreserved;
 
 IF @Execute = 0
 BEGIN
@@ -190,23 +250,118 @@ BEGIN TRY
     IF EXISTS (SELECT 1 FROM dbo.JobViews AS row JOIN #TargetJobs AS target ON row.JobId = target.Id)
         THROW 51015, 'Post-check failed: target JobViews remain.', 1;
 
-    IF EXISTS (SELECT 1 FROM dbo.NotificationQueue AS row JOIN #TargetNotifications AS target ON row.Id = target.Id)
-        THROW 51016, 'Post-check failed: target notification rows remain.', 1;
+    IF EXISTS
+    (
+        SELECT 1
+        FROM dbo.NotificationQueue AS notification
+        JOIN #TargetJobs AS target
+          ON ISJSON(notification.PayloadJson) = 1
+         AND TRY_CONVERT(uniqueidentifier, JSON_VALUE(notification.PayloadJson, '$.jobId')) = target.Id
+    )
+        THROW 51016, 'Post-check failed: a notification still references a removed JobReport.', 1;
 
-    IF (SELECT COUNT(*) FROM dbo.Organizations) <> @OrganizationCountBefore
-        THROW 51017, 'Safety check failed: Organization count changed. Transaction will be rolled back.', 1;
+    IF OBJECT_ID(N'dbo.IdempotencyRecords', N'U') IS NOT NULL
+       AND EXISTS
+       (
+           SELECT 1
+           FROM dbo.IdempotencyRecords AS record
+           JOIN #TargetJobs AS target
+             ON record.Scope LIKE N'%' + CONVERT(nvarchar(36), target.Id) + N'%'
+             OR record.[Key] LIKE N'%' + CONVERT(nvarchar(36), target.Id) + N'%'
+             OR record.ResponseJson LIKE N'%' + CONVERT(nvarchar(36), target.Id) + N'%'
+       )
+        THROW 51017, 'Post-check failed: an idempotency record still references a removed JobReport.', 1;
 
-    IF (SELECT COUNT(*) FROM dbo.Users) <> @UserCountBefore
-        THROW 51018, 'Safety check failed: User count changed. Transaction will be rolled back.', 1;
+    IF EXISTS
+    (
+        SELECT Id FROM #OrganizationsBefore
+        EXCEPT
+        SELECT Id FROM dbo.Organizations
+    ) OR EXISTS
+    (
+        SELECT Id FROM dbo.Organizations
+        EXCEPT
+        SELECT Id FROM #OrganizationsBefore
+    )
+        THROW 51018, 'Safety check failed: Organization identities changed. Transaction will be rolled back.', 1;
 
-    IF (SELECT COUNT(*) FROM dbo.Customers) <> @CustomerCountBefore
-        THROW 51019, 'Safety check failed: Customer count changed. Transaction will be rolled back.', 1;
+    IF EXISTS
+    (
+        SELECT Id, OrganizationId, Email, Role, EntraId, EntraEmail FROM #UsersBefore
+        EXCEPT
+        SELECT Id, OrganizationId, Email, Role, EntraId, EntraEmail FROM dbo.Users
+    ) OR EXISTS
+    (
+        SELECT Id, OrganizationId, Email, Role, EntraId, EntraEmail FROM dbo.Users
+        EXCEPT
+        SELECT Id, OrganizationId, Email, Role, EntraId, EntraEmail FROM #UsersBefore
+    )
+        THROW 51019, 'Safety check failed: retained User identities/roles/Entra bindings changed. Transaction will be rolled back.', 1;
 
-    IF (SELECT COUNT(*) FROM dbo.InstallationTypeDefinitions) <> @InstallationDefinitionCountBefore
-        OR (SELECT COUNT(*) FROM dbo.ControlCategories) <> @ControlCategoryCountBefore
-        OR (SELECT COUNT(*) FROM dbo.ControlPoints) <> @ControlPointCountBefore
-        OR (SELECT COUNT(*) FROM dbo.InstallationTypeDefinitionMappings) <> @InstallationMappingCountBefore
-        THROW 51020, 'Safety check failed: installation reference-data counts changed. Transaction will be rolled back.', 1;
+    IF EXISTS
+    (
+        SELECT Id, OrganizationId, CustomerNumber FROM #CustomersBefore
+        EXCEPT
+        SELECT Id, OrganizationId, CustomerNumber FROM dbo.Customers
+    ) OR EXISTS
+    (
+        SELECT Id, OrganizationId, CustomerNumber FROM dbo.Customers
+        EXCEPT
+        SELECT Id, OrganizationId, CustomerNumber FROM #CustomersBefore
+    )
+        THROW 51020, 'Safety check failed: retained Customer identities changed. Transaction will be rolled back.', 1;
+
+    IF EXISTS
+    (
+        SELECT Id, OrganizationId FROM #InstallationDefinitionsBefore
+        EXCEPT
+        SELECT Id, OrganizationId FROM dbo.InstallationTypeDefinitions
+    ) OR EXISTS
+    (
+        SELECT Id, OrganizationId FROM dbo.InstallationTypeDefinitions
+        EXCEPT
+        SELECT Id, OrganizationId FROM #InstallationDefinitionsBefore
+    )
+        THROW 51021, 'Safety check failed: installation definition identities changed. Transaction will be rolled back.', 1;
+
+    IF EXISTS
+    (
+        SELECT Id, OrganizationId FROM #ControlCategoriesBefore
+        EXCEPT
+        SELECT Id, OrganizationId FROM dbo.ControlCategories
+    ) OR EXISTS
+    (
+        SELECT Id, OrganizationId FROM dbo.ControlCategories
+        EXCEPT
+        SELECT Id, OrganizationId FROM #ControlCategoriesBefore
+    )
+        THROW 51022, 'Safety check failed: control category identities changed. Transaction will be rolled back.', 1;
+
+    IF EXISTS
+    (
+        SELECT Id, OrganizationId FROM #ControlPointsBefore
+        EXCEPT
+        SELECT Id, OrganizationId FROM dbo.ControlPoints
+    ) OR EXISTS
+    (
+        SELECT Id, OrganizationId FROM dbo.ControlPoints
+        EXCEPT
+        SELECT Id, OrganizationId FROM #ControlPointsBefore
+    )
+        THROW 51023, 'Safety check failed: control point identities changed. Transaction will be rolled back.', 1;
+
+    IF EXISTS
+    (
+        SELECT InstallationTypeDefinitionId, ControlCategoryId, ControlPointId FROM #InstallationMappingsBefore
+        EXCEPT
+        SELECT InstallationTypeDefinitionId, ControlCategoryId, ControlPointId FROM dbo.InstallationTypeDefinitionMappings
+    ) OR EXISTS
+    (
+        SELECT InstallationTypeDefinitionId, ControlCategoryId, ControlPointId FROM dbo.InstallationTypeDefinitionMappings
+        EXCEPT
+        SELECT InstallationTypeDefinitionId, ControlCategoryId, ControlPointId FROM #InstallationMappingsBefore
+    )
+        THROW 51024, 'Safety check failed: installation mappings changed. Transaction will be rolled back.', 1;
 
     COMMIT TRANSACTION;
 END TRY
