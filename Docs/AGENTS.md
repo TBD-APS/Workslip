@@ -18,7 +18,7 @@ Do not mix these categories in wording that makes a plan look deployed or an old
 - Technical behaviour: verify against current code/config/tests and link to the stable concept, not a copied implementation dump.
 - API behaviour: endpoint source and runtime OpenAPI are authoritative; Postman is verification material.
 - Architecture: use accepted ADRs for non-obvious durable decisions.
-- Delivery status: Linear is authoritative; maintained docs should describe current state rather than phrases such as “until WOR-123 is completed”.
+- Delivery status: Linear is authoritative; maintained docs should describe current state rather than depend on a future issue transition.
 - Legal/compliance claims: use the compliance baseline and current official sources; do not turn engineering evidence into a blanket compliance claim.
 
 Prefer updating an existing maintained page. Avoid a second document that repeats the same rule or runtime description.
