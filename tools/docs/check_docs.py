@@ -27,6 +27,7 @@ MAINTAINED_DOC_PATTERNS = (
     "Docs/architecture/adr/*.md",
     "Docs/compliance/GDPR_AI_ACT_BASELINE.md",
     "Docs/operations/ci-quality-gates.md",
+    "Docs/operations/BRANCH_MATCHED_FRONTEND_VALIDATION.md",
     "Docs/operations/github-pages-domain-runbook.md",
     "Docs/operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md",
     "src/FE/README.md",
