@@ -12,8 +12,6 @@ public sealed class CustomerService(
     IValidator<UpdateCustomerRequest> updateValidator,
     ILogger<CustomerService> logger) : ICustomerService
 {
-    private const int MaxImportRows = 10_000;
-
     public async Task<Result<CustomerListResponse>> ListAsync(int? limit, int? offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken)
     {
         var organizationId = currentUser.OrganizationId;
@@ -197,11 +195,11 @@ public sealed class CustomerService(
             return Result<ImportCustomerResponse>.Unauthorized();
         }
 
-        if (customers.Count > MaxImportRows)
+        if (customers.Count > CustomerImportLimits.MaxRows)
         {
             return Result<ImportCustomerResponse>.Invalid(new List<ValidationError>
             {
-                new() { Identifier = "File", ErrorMessage = $"For mange rækker. Maksimum er {MaxImportRows}." }
+                new() { Identifier = "File", ErrorMessage = $"For mange rækker. Maksimum er {CustomerImportLimits.MaxRows}." }
             });
         }
 
