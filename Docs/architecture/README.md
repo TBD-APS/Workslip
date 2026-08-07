@@ -1,26 +1,28 @@
 # Architecture documentation
 
-**State:** Draft  
-**Owner:** Architecture owner (assign in Linear)  
-**Review cadence:** Monthly and whenever trust boundaries, persistence, authentication, deployment topology or major dataflows change.
+**Status:** Draft index  
+**Owner:** Architecture owner  
+**Review cadence:** When trust boundaries, persistence, authentication, deployment topology or major dataflows change
 
-This area is the maintained home for Workslip architecture and Architecture Decision Records (ADRs).
+Current implementation is the technical source of truth. This area records durable architectural decisions and the small amount of system-level context that is expensive to rediscover from code.
 
-The implementation is the source of truth. Until WOR-142 is completed, use backend/frontend source, infrastructure definitions and current workflows instead of assuming that dated plans describe deployed behaviour.
+## Accepted decisions
 
-## Maintained decisions
+- [`adr/0001-managed-identity-runtime-and-secret-lifecycle.md`](adr/0001-managed-identity-runtime-and-secret-lifecycle.md)
+- [`adr/0002-immediate-pwa-update-activation.md`](adr/0002-immediate-pwa-update-activation.md)
+- [`adr/0003-github-infrastructure-oidc-bootstrap.md`](adr/0003-github-infrastructure-oidc-bootstrap.md)
+- [`adr/0004-retire-maintained-repository-snapshots.md`](adr/0004-retire-maintained-repository-snapshots.md)
 
-- [`adr/0001-managed-identity-runtime-and-secret-lifecycle.md`](adr/0001-managed-identity-runtime-and-secret-lifecycle.md) — accepted deployment, SQL identity, Graph permission and secret-lifecycle decision.
-- [`adr/0002-immediate-pwa-update-activation.md`](adr/0002-immediate-pwa-update-activation.md) — accepted immediate frontend update discovery and activation policy.
-- [`adr/0003-github-infrastructure-oidc-bootstrap.md`](adr/0003-github-infrastructure-oidc-bootstrap.md) — accepted separation and one-time bootstrap of the privileged GitHub infrastructure identity.
+## Missing high-value views
 
-## Planned maintained documents
+These would add value when implemented because they summarize boundaries rather than duplicate code:
 
 - `system-context.md` — users, external systems and trust boundaries.
 - `containers.md` — frontend, API, SQL, Azure services and external integrations.
-- `domain-and-dataflows.md` — organization/tenant ownership, jobs, worksheets and central flows.
-- `adr/` — accepted technical decisions with context, alternatives and consequences.
+- `domain-and-dataflows.md` — tenant ownership and the core job/worksheet dataflows.
 
-## ADR state
+Do not create them merely to fill the list. Add each when there is enough stable information to make the page useful and maintainable.
 
-An ADR may be `Proposed`, `Accepted`, `Superseded` or `Rejected`. A proposed ADR is not evidence that its behaviour is implemented.
+## ADR states
+
+An ADR is `Proposed`, `Accepted`, `Superseded` or `Rejected`. Only accepted decisions are normative, and implementation still must be checked when verifying current runtime behaviour.
