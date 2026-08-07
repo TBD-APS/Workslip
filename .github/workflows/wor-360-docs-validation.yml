@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - 'rbj--360-docs-truth'
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
