@@ -45,12 +45,7 @@ public sealed class CustomerImportFileParser(
         }
     }
 
-    private ICustomerImportFormatParser? ResolveParser(string? fileName, string? contentType)
-    {
-        // Prefer the file extension over the MIME type. Browsers and spreadsheet
-        // applications frequently send generic MIME types, while the extension is
-        // what the user explicitly selected and preserves the previous behavior.
-        return _parsers.FirstOrDefault(parser => parser.SupportsFileName(fileName))
-            ?? _parsers.FirstOrDefault(parser => parser.SupportsContentType(contentType));
-    }
+    private ICustomerImportFormatParser? ResolveParser(string? fileName, string? contentType) =>
+        _parsers.FirstOrDefault(parser => parser.SupportsFileName(fileName))
+        ?? _parsers.FirstOrDefault(parser => parser.SupportsContentType(contentType));
 }
