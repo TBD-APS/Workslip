@@ -14,8 +14,9 @@
     <None Update="Data.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="customerdata.csv">
+    <None Update="Seeding\customerdata.synthetic.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>customerdata.csv</TargetPath>
     </None>
   </ItemGroup>
 
