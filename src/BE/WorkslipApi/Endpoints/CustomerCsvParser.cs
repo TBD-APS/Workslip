@@ -37,9 +37,8 @@ public static class CustomerCsvParser
             HeaderValidated = null,
             MissingFieldFound = null,
             BadDataFound = args => logger.LogWarning(
-                "Bad CSV data at row {Row}: {RawRecord}",
-                args.Context.Parser?.Row,
-                args.RawRecord)
+                "Bad CSV data at row {Row}.",
+                args.Context.Parser?.Row)
         });
 
         if (!csv.Read())
