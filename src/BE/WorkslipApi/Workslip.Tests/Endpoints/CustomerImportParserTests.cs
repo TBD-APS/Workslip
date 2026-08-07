@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Workslip.Api.Endpoints;
 using Workslip.Api.Services;
+using Workslip.Application.Customers;
 using Xunit;
 
 namespace Workslip.Tests.Endpoints;
@@ -44,6 +45,42 @@ public sealed class CustomerImportParserTests
         Assert.Equal("7441", customer.ZipCode);
         Assert.Equal("Bording", customer.City);
         Assert.Equal("torben@example.com", customer.Email);
+    }
+
+    [Fact]
+    public void Csv_parser_stops_when_source_row_limit_is_exceeded()
+    {
+        var rows = Enumerable.Range(1, CustomerImportLimits.MaxRows + 1)
+            .Select(index => $"{index};Customer {index}");
+        var csv = "Nr.;Navn\n" + string.Join('\n', rows);
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv));
+        var parser = new CustomerCsvParser(NullLogger<CustomerCsvParser>.Instance);
+
+        var exception = Assert.Throws<CustomerImportFormatException>(() => parser.Parse(stream));
+
+        Assert.Equal($"For mange rækker. Maksimum er {CustomerImportLimits.MaxRows}.", exception.Message);
+    }
+
+    [Fact]
+    public void Excel_parser_ignores_formatting_only_rows_far_below_customer_data()
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("in");
+        sheet.Cell(1, 1).Value = "Nr.";
+        sheet.Cell(1, 2).Value = "Navn";
+        sheet.Cell(2, 1).Value = "1";
+        sheet.Cell(2, 2).Value = "Customer";
+        sheet.Cell(100_000, 1).Style.Font.Bold = true;
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+        var parser = new CustomerExcelParser();
+
+        var result = parser.Parse(stream);
+
+        var customer = Assert.Single(result.Customers);
+        Assert.Equal("Customer", customer.Name);
     }
 
     [Fact]
@@ -124,6 +161,7 @@ public sealed class CustomerImportParserTests
         sheet.Cell(2, 10).Value = "IGNORED";
         sheet.Cell(2, 11).Value = "lars@example.com";
         sheet.Cell(3, 1).Value = "Diverse";
+        sheet.Cell(100_000, 1).Style.Font.Bold = true;
 
         var stream = new MemoryStream();
         workbook.SaveAs(stream);
