@@ -68,19 +68,72 @@ public sealed class EfCustomerRepository(SqlDbContext dbContext, IDatabaseRetryP
 
         query = (sortBy, sortDirection) switch
         {
-            ("name", "asc") => query.OrderBy(c => c.Name),
-            ("name", "desc") => query.OrderByDescending(c => c.Name),
-            ("customerNumber", "asc") => query.OrderBy(c => c.CustomerNumber),
-            ("customerNumber", "desc") => query.OrderByDescending(c => c.CustomerNumber),
-            ("address", "asc") => query.OrderBy(c => c.Address),
-            ("address", "desc") => query.OrderByDescending(c => c.Address),
-            ("email", "asc") => query.OrderBy(c => c.Email),
-            ("email", "desc") => query.OrderByDescending(c => c.Email),
-            ("contactPerson", "asc") => query.OrderBy(c => c.ContactPerson),
-            ("contactPerson", "desc") => query.OrderByDescending(c => c.ContactPerson),
+            ("name", "asc") => query.OrderBy(c => c.Name).ThenBy(c => c.Id),
+            ("name", "desc") => query.OrderByDescending(c => c.Name).ThenBy(c => c.Id),
+            ("customerNumber", "asc") => query
+                .OrderBy(c => c.CustomerNumber == null || c.CustomerNumber == string.Empty)
+                .ThenBy(c => c.CustomerNumber)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("customerNumber", "desc") => query
+                .OrderBy(c => c.CustomerNumber == null || c.CustomerNumber == string.Empty)
+                .ThenByDescending(c => c.CustomerNumber)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("address", "asc") => query
+                .OrderBy(c => c.Address == null || c.Address == string.Empty)
+                .ThenBy(c => c.Address)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("address", "desc") => query
+                .OrderBy(c => c.Address == null || c.Address == string.Empty)
+                .ThenByDescending(c => c.Address)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("email", "asc") => query
+                .OrderBy(c => c.Email == null || c.Email == string.Empty)
+                .ThenBy(c => c.Email)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("email", "desc") => query
+                .OrderBy(c => c.Email == null || c.Email == string.Empty)
+                .ThenByDescending(c => c.Email)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("contactPerson", "asc") => query
+                .OrderBy(c => c.ContactPerson == null || c.ContactPerson == string.Empty)
+                .ThenBy(c => c.ContactPerson)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("contactPerson", "desc") => query
+                .OrderBy(c => c.ContactPerson == null || c.ContactPerson == string.Empty)
+                .ThenByDescending(c => c.ContactPerson)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("phone", "asc") => query
+                .OrderBy(c => c.Phone == null || c.Phone == string.Empty)
+                .ThenBy(c => c.Phone)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("phone", "desc") => query
+                .OrderBy(c => c.Phone == null || c.Phone == string.Empty)
+                .ThenByDescending(c => c.Phone)
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("jobCount", "asc") => query
+                .OrderBy(c => dbContext.JobReports.Count(r =>
+                    r.OrganizationId == organizationId && r.CustomerId == c.Id && !r.IsSoftDeleted))
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
+            ("jobCount", "desc") => query
+                .OrderByDescending(c => dbContext.JobReports.Count(r =>
+                    r.OrganizationId == organizationId && r.CustomerId == c.Id && !r.IsSoftDeleted))
+                .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id),
             _ => query.OrderByDescending(c => dbContext.JobReports.Count(r =>
                     r.OrganizationId == organizationId && r.CustomerId == c.Id && !r.IsSoftDeleted))
                 .ThenBy(c => c.Name)
+                .ThenBy(c => c.Id)
         };
 
         var customers = await query
