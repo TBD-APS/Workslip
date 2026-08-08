@@ -5,16 +5,18 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   regenerate:
-    if: ${{ github.head_ref == 'rbj--384-repo-cleanup-dead-artifacts' }}
+    if: ${{ github.head_ref == 'rbj--384-repo-cleanup-dead-artifacts' && github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout PR
+      - name: Checkout PR branch
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -25,10 +27,16 @@ jobs:
         working-directory: src/FE
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      - name: Upload regenerated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: wor-384-package-lock
-          path: src/FE/package-lock.json
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit regenerated lockfile
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if git diff --quiet -- src/FE/package-lock.json; then
+            echo "package-lock.json already synchronized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/FE/package-lock.json
+          git commit -m "WOR-384: regenerate frontend lockfile"
+          git push origin HEAD:${GITHUB_HEAD_REF}
