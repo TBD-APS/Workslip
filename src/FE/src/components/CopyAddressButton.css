@@ -38,8 +38,9 @@
   margin-left: auto;
 }
 
+/* Collapse the normal header gap so copy and Maps read as one adjacent action pair. */
 .detail-form:has(.nav-maps-link) .section-header-row .destination-copy-button + .nav-maps-link {
-  margin-left: 0;
+  margin-left: calc(-1 * var(--section-header-gap, 0.5rem) + 0.125rem);
 }
 
 /* The destination header owns the copy action, so suppress the generic readonly-input copy. */
