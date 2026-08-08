@@ -11,12 +11,14 @@ public sealed class AuthorizedJobService(
     ICurrentUserContext currentUser,
     ILogger<AuthorizedJobService> logger) : IJobService
 {
+    private const int AuditorScanPageSize = 200;
+
     public Task<Result<JobReportSummaryResponse>> CreateAsync(
         CreateJobRequest request,
         CancellationToken cancellationToken) =>
         inner.CreateAsync(request, cancellationToken);
 
-    public Task<Result<JobListResponse>> ListAsync(
+    public async Task<Result<JobListResponse>> ListAsync(
         List<JobStatus>? statuses,
         string? reportNumber,
         string? customerName,
@@ -27,35 +29,123 @@ public sealed class AuthorizedJobService(
         string? sortDirection,
         int? limit,
         int? offset,
-        CancellationToken cancellationToken) =>
-        inner.ListAsync(
-            statuses,
-            reportNumber,
-            customerName,
-            customerEmail,
-            customerAddress,
-            search,
-            sortBy,
-            sortDirection,
-            limit,
-            offset,
-            cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (!AuditorDataScope.AppliesTo(currentUser.Role))
+        {
+            return await inner.ListAsync(
+                statuses,
+                reportNumber,
+                customerName,
+                customerEmail,
+                customerAddress,
+                search,
+                sortBy,
+                sortDirection,
+                limit,
+                offset,
+                cancellationToken);
+        }
 
-    public Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(
-        CancellationToken cancellationToken) =>
-        inner.GetMyAssignedJobsAsync(cancellationToken);
+        var requestedLimit = Math.Clamp(limit ?? 50, 1, AuditorScanPageSize);
+        var requestedOffset = Math.Max(offset ?? 0, 0);
+        var visibleItems = new List<JobListItemResponse>();
+        var scanOffset = 0;
+        var rawTotalCount = int.MaxValue;
 
-    public Task<Result<JobReportSummaryResponse>> GetSingleJobAsync(
+        do
+        {
+            var page = await inner.ListAsync(
+                statuses,
+                reportNumber,
+                customerName,
+                customerEmail,
+                customerAddress,
+                search,
+                sortBy,
+                sortDirection,
+                AuditorScanPageSize,
+                scanOffset,
+                cancellationToken);
+
+            if (!page.IsSuccess)
+            {
+                return page;
+            }
+
+            rawTotalCount = page.Value.TotalCount;
+            foreach (var item in page.Value.Items)
+            {
+                var filtered = AuditorDataScope.Filter(item);
+                if (filtered is not null)
+                {
+                    visibleItems.Add(filtered);
+                }
+            }
+
+            if (page.Value.Items.Count == 0)
+            {
+                break;
+            }
+
+            scanOffset += page.Value.Items.Count;
+        }
+        while (scanOffset < rawTotalCount);
+
+        var requestedItems = visibleItems
+            .Skip(requestedOffset)
+            .Take(requestedLimit)
+            .ToArray();
+
+        return Result<JobListResponse>.Success(new JobListResponse(requestedItems, visibleItems.Count));
+    }
+
+    public async Task<Result<IReadOnlyList<JobListItemResponse>>> GetMyAssignedJobsAsync(
+        CancellationToken cancellationToken)
+    {
+        var result = await inner.GetMyAssignedJobsAsync(cancellationToken);
+        if (!result.IsSuccess || !AuditorDataScope.AppliesTo(currentUser.Role))
+        {
+            return result;
+        }
+
+        var visibleItems = result.Value
+            .Select(AuditorDataScope.Filter)
+            .Where(item => item is not null)
+            .Cast<JobListItemResponse>()
+            .ToArray();
+
+        return Result<IReadOnlyList<JobListItemResponse>>.Success(visibleItems);
+    }
+
+    public async Task<Result<JobReportSummaryResponse>> GetSingleJobAsync(
         Guid id,
-        CancellationToken cancellationToken) =>
-        inner.GetSingleJobAsync(id, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var result = await inner.GetSingleJobAsync(id, cancellationToken);
+        if (!result.IsSuccess || !AuditorDataScope.AppliesTo(currentUser.Role))
+        {
+            return result;
+        }
+
+        var filtered = AuditorDataScope.Filter(result.Value);
+        if (filtered is null)
+        {
+            return Result<JobReportSummaryResponse>.NotFound();
+        }
+
+        var visibleLinks = await FilterVisibleLinksAsync(filtered.Links, cancellationToken);
+        return Result<JobReportSummaryResponse>.Success(filtered with { Links = visibleLinks });
+    }
 
     public Task<Result<IReadOnlyList<JobHistoryResponse>>> GetHistoryAsync(
         Guid id,
         int? limit,
         int? offset,
         CancellationToken cancellationToken) =>
-        inner.GetHistoryAsync(id, limit, offset, cancellationToken);
+        AuditorDataScope.AppliesTo(currentUser.Role)
+            ? Task.FromResult(Result<IReadOnlyList<JobHistoryResponse>>.Forbidden())
+            : inner.GetHistoryAsync(id, limit, offset, cancellationToken);
 
     public Task<Result<JobReportSummaryResponse>> UpdateAsync(
         Guid id,
@@ -157,15 +247,61 @@ public sealed class AuthorizedJobService(
         CancellationToken cancellationToken) =>
         inner.RestoreDeletionAsync(id, cancellationToken);
 
-    public Task<Result> MarkJobAsSeenAsync(
+    public async Task<Result> MarkJobAsSeenAsync(
         Guid id,
         string? viewType,
-        CancellationToken cancellationToken) =>
-        inner.MarkJobAsSeenAsync(id, viewType, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (!AuditorDataScope.AppliesTo(currentUser.Role))
+        {
+            return await inner.MarkJobAsSeenAsync(id, viewType, cancellationToken);
+        }
+
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result.Unauthorized();
+        }
+
+        var job = await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
+        if (job is null || !AuditorDataScope.CanAccess(job))
+        {
+            return Result.NotFound();
+        }
+
+        return await inner.MarkJobAsSeenAsync(id, viewType, cancellationToken);
+    }
 
     public Task InvalidateJobDetailCacheAsync(
         Guid id,
         Guid organizationId,
         CancellationToken cancellationToken) =>
         inner.InvalidateJobDetailCacheAsync(id, organizationId, cancellationToken);
+
+    private async Task<IReadOnlyList<JobLinkInfoResponse>> FilterVisibleLinksAsync(
+        IReadOnlyList<JobLinkInfoResponse> links,
+        CancellationToken cancellationToken)
+    {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null || links.Count == 0)
+        {
+            return Array.Empty<JobLinkInfoResponse>();
+        }
+
+        var visibleLinks = new List<JobLinkInfoResponse>(links.Count);
+        foreach (var link in links)
+        {
+            var linkedJob = await jobRepository.GetSingleJobAsync(
+                link.LinkedReportId,
+                organizationId.Value,
+                cancellationToken);
+
+            if (linkedJob is not null && AuditorDataScope.CanAccess(linkedJob))
+            {
+                visibleLinks.Add(link);
+            }
+        }
+
+        return visibleLinks;
+    }
 }
