@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useState, type MouseEvent } from 'react
 import { useAuth } from '../../../../providers/useAuth';
 import { useCan } from '../../../../providers/permissions';
 import type { UserViewModel, WorksheetResponse } from '../../../../api/generated/models';
+import { useGetApiJobsId } from '../../../../api/generated/jobs/jobs';
 import { useGetApiUsers } from '../../../../api/generated/users/users';
 import { parseNullableNumber } from '../../../../lib/formatUtils';
 import { WorksheetsSection } from '../../components/WorksheetsSection';
@@ -65,23 +66,36 @@ export function JobWorksheetsStep({
   const canPickUserServer = useCan('worksheet:assign');
   const canPickUser = localMode ? assignableUsers.length > 0 : canPickUserServer;
   useGetApiUsers({ limit: 20 }, { query: { enabled: canPickUser && !localMode } });
+  const jobQuery = useGetApiJobsId(localMode ? '' : rest.jobId, {
+    query: { enabled: !localMode && canPickUser },
+  });
+  const assignedUserIds = useMemo(
+    () => new Set((jobQuery.data?.assignedUsers ?? []).map((assignedUser) => assignedUser.id)),
+    [jobQuery.data?.assignedUsers],
+  );
+  const selectableUsers = useMemo(
+    () => localMode
+      ? assignableUsers
+      : assignableUsers.filter((candidate) => assignedUserIds.has(candidate.id)),
+    [localMode, assignableUsers, assignedUserIds],
+  );
   const resolvedUsers = useMemo(
     () => (canPickUser
-      ? (assignableUsers.length > 0 ? assignableUsers : null)
+      ? (selectableUsers.length > 0 ? selectableUsers : null)
       : []) ?? [],
-    [canPickUser, assignableUsers],
+    [canPickUser, selectableUsers],
   );
   const defaultUserId = localMode
-    ? (user?.id ?? '')
+    ? (user?.id && resolvedUsers.some((candidate) => candidate.id === user.id) ? user.id : (resolvedUsers[0]?.id ?? ''))
     : canPickUser
-      ? (user?.email ? (resolvedUsers.find((u) => u.email === user.email)?.id ?? '') : '')
+      ? (user?.email ? (resolvedUsers.find((u) => u.email === user.email)?.id ?? resolvedUsers[0]?.id ?? '') : (resolvedUsers[0]?.id ?? ''))
       : (user?.id ?? '');
   const userOptions = resolvedUsers.map((u) => ({ id: u.id, label: u.displayName }));
   const currentUserName = user?.displayName ?? user?.email ?? 'dig';
 
   const displayNameFor = (userId: string): string => {
     if (!canPickUser) return currentUserName;
-    return resolvedUsers.find((u) => u.id === userId)?.displayName ?? userId.slice(0, 8);
+    return assignableUsers.find((u) => u.id === userId)?.displayName ?? userId.slice(0, 8);
   };
 
   const [uiState, dispatch] = useReducer(worksheetUiReducer, defaultUserId, initialWorksheetUiState);
@@ -103,6 +117,7 @@ export function JobWorksheetsStep({
   const totalOutlay = localMode ? localTotalOutlay : rest.totalOutlay;
   const isSaving = localMode ? false : rest.isSaving;
   const isDeleting = localMode ? false : rest.isDeleting;
+  const worksheetUsersLoading = isLoadingUsers || (!localMode && canPickUser && jobQuery.isLoading);
 
   const isDetailList = variant === 'list';
   const sortedWorksheets = useMemo(
@@ -260,7 +275,7 @@ export function JobWorksheetsStep({
         editingWorksheetId={editingWorksheetId}
         openActionMenu={openActionMenu}
         isAddOpen={isAddOpen}
-        isLoadingUsers={isLoadingUsers}
+        isLoadingUsers={worksheetUsersLoading}
         isSaving={isSaving}
         formError={formError}
         totalHoursValue={totalHoursValue}
