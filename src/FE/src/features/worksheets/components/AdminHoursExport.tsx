@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Eye, Loader2 } from 'lucide-react';
 import { notify } from '../../../lib/toast';
-import {
-  createPdfFilePreview,
-  downloadPdfFile,
-  triggerBrowserDownload,
-} from '../../../lib/pdfFile';
+import { createPdfFilePreview, downloadPdfFile } from '../../../lib/pdfFile';
 import type { MyWorksheetsMonthResponse } from '../worksheetOverviewTypes';
 import {
   buildHoursCsv,
@@ -41,7 +37,15 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
     if (!hasRows) return;
 
     const blob = new Blob([buildHoursCsv(rows)], { type: 'text/csv;charset=utf-8' });
-    triggerBrowserDownload(blob, hoursExportFilename(data));
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = hoursExportFilename(data);
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const previewPdf = async () => {
