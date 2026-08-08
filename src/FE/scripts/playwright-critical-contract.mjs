@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 export function createContractHelpers(env) {
   const { API_TIMEOUT, UI_TIMEOUT, postman } = env;
 
@@ -11,6 +13,10 @@ function buildDataFactory(collection, runId) {
   const defaultEmail = requiredSource(variables.testEmail, 'Postman variable testEmail');
   const emailDomain = defaultEmail.split('@')[1];
   if (!emailDomain) throw new Error('Postman variable testEmail must contain a domain.');
+  const syntheticAdminEmail = requiredSource(
+    process.env.WORKSLIP_SYNTHETIC_ADMIN_EMAIL,
+    'WORKSLIP_SYNTHETIC_ADMIN_EMAIL',
+  );
   const basePhone = requiredSource(variables.adminPhone || variables.userPhone || userTemplate.phone, 'Postman phone template');
   const baseOrg = requiredSource(variables.organizationName || organizationTemplate.name, 'Postman organizationName template');
   const baseAdmin = requiredSource(variables.adminDisplayName || organizationTemplate.adminDisplayName, 'Postman adminDisplayName template');
@@ -47,12 +53,23 @@ function buildDataFactory(collection, runId) {
           name: `${baseOrg} PLAYWRIGHT ${suffix}`,
           cvr: numeric,
           adminDisplayName: `${baseAdmin} ${suffix}`,
-          adminEmail: `playwright-admin+${suffix}@${emailDomain}`,
+          adminEmail: plusAddress(syntheticAdminEmail, suffix),
           adminPhone: String(basePhone),
         },
       };
     },
   };
+}
+
+function plusAddress(email, tag) {
+  const separator = email.lastIndexOf('@');
+  if (separator <= 0 || separator === email.length - 1) {
+    throw new Error('WORKSLIP_SYNTHETIC_ADMIN_EMAIL must contain a valid mailbox address.');
+  }
+  const local = email.slice(0, separator).split('+')[0];
+  const domain = email.slice(separator + 1);
+  const safeTag = String(tag).replace(/[^a-zA-Z0-9-]/g, '').slice(-40);
+  return `${local}+${safeTag}@${domain}`;
 }
 
 function requiredSource(value, label) {
