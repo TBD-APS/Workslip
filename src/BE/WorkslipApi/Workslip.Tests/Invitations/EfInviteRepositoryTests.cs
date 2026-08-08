@@ -5,6 +5,7 @@ using Workslip.Domain.Models;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using Workslip.Tests.TestInfrastructure;
 using Xunit;
 
 namespace Workslip.Tests.Invitations;
@@ -138,7 +139,7 @@ public sealed class EfInviteRepositoryTests
                 .UseSqlite(connection)
                 .Options;
             var context = new SqlDbContext(options);
-            await context.Database.EnsureCreatedAsync();
+            await SqliteTestSchema.CreateAsync(context);
             await context.Database.ExecuteSqlRawAsync("PRAGMA ignore_check_constraints = ON;");
 
             return new RelationalTestDatabase(connection, context);
