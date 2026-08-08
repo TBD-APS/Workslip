@@ -56,7 +56,7 @@ public sealed class JobInstallationModelTests
     }
 
     [Fact]
-    public void JobReportInstallationCategories_have_unique_installation_category_index()
+    public void JobReportInstallationCategories_have_unique_tenant_installation_category_index()
     {
         using var context = CreateContext();
         var entity = context.Model.FindEntityType(typeof(JobReportInstallationCategoryRow));
@@ -65,6 +65,7 @@ public sealed class JobInstallationModelTests
         Assert.Contains(entity!.GetIndexes(), index =>
             index.IsUnique &&
             index.Properties.Select(property => property.Name).SequenceEqual([
+                nameof(JobReportInstallationCategoryRow.OrganizationId),
                 nameof(JobReportInstallationCategoryRow.JobReportInstallationId),
                 nameof(JobReportInstallationCategoryRow.ControlCategoryId)
             ]));
