@@ -1,13 +1,18 @@
+using System.Data;
+using System.Runtime.ExceptionServices;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Users;
+using Workslip.Domain;
+using Workslip.Domain.Models;
 
 namespace Workslip.Infrastructure.Schema;
 
-public sealed class DevelopmentDatabaseSeeder(
+public sealed class PlatformIdentityBootstrapper(
     SqlDbContext db,
-    InstallationBaselineProvisioner installationBaselineProvisioner,
     ISuperadminEntraService entraService,
-    ILogger<DevelopmentDatabaseSeeder> logger)
+    ILogger<PlatformIdentityBootstrapper> logger)
 {
     private static readonly CanonicalSuperadminDefinition[] CanonicalSuperadmins =
     [
@@ -34,8 +39,13 @@ public sealed class DevelopmentDatabaseSeeder(
     private static readonly string[] CanonicalSuperadminEmails =
         CanonicalSuperadmins.Select(definition => definition.Email).ToArray();
 
-    public async Task SeedAsync(CancellationToken cancellationToken = default)
+    public async Task BootstrapAsync(CancellationToken cancellationToken = default)
     {
+        // Bootstrap owns the unit of work. Discard caller tracking state so an
+        // existing tenant-bound row can be moved without EF treating the
+        // organization component of its alternate key as an in-place key edit.
+        db.ChangeTracker.Clear();
+
         IDbContextTransaction? transaction = null;
         var createdEntraUserIds = new List<string>();
         var createdEntraUserIdSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -53,14 +63,16 @@ public sealed class DevelopmentDatabaseSeeder(
                     cancellationToken);
             }
 
-            var platformOrganization = await PreflightPlatformOrganizationAsync(cancellationToken);
             resolvedSuperadmins = await PreflightCanonicalSuperadminsAsync(cancellationToken);
+            var resolvedSuperadminIds = resolvedSuperadmins
+                .Select(resolved => resolved.EffectiveId)
+                .ToArray();
+            var platformOrganization = await PreflightPlatformOrganizationAsync(
+                resolvedSuperadminIds,
+                cancellationToken);
 
             StagePlatformOrganization(platformOrganization);
             await db.SaveChangesAsync(cancellationToken);
-
-            await DatabaseSeeder.Seed(db);
-            db.IsSeeding = true;
 
             var resolvedEntraUsers = new Dictionary<Guid, CreateEntraUserResult>();
             foreach (var resolvedSuperadmin in resolvedSuperadmins)
@@ -80,7 +92,15 @@ public sealed class DevelopmentDatabaseSeeder(
                     createdEntraUserIds.Add(entraUser.EntraUserId);
                 }
 
-                ValidateEntraIdentity(definition, entraUser, resolvedEntraUsers.Values);
+                ValidateEntraIdentity(resolvedSuperadmin, entraUser, resolvedEntraUsers.Values);
+                if (!string.IsNullOrWhiteSpace(resolvedSuperadmin.ExistingUser?.EntraId))
+                {
+                    entraUser = entraUser with
+                    {
+                        EntraUserId = resolvedSuperadmin.ExistingUser.EntraId
+                    };
+                }
+
                 resolvedEntraUsers.Add(definition.Id, entraUser);
             }
 
@@ -117,7 +137,7 @@ public sealed class DevelopmentDatabaseSeeder(
                 {
                     logger.LogError(
                         rollbackException,
-                        "Development seed database rollback failed.");
+                        "Platform identity bootstrap database rollback failed.");
                     failures.Add(rollbackException);
                 }
             }
@@ -133,7 +153,7 @@ public sealed class DevelopmentDatabaseSeeder(
                 {
                     logger.LogError(
                         compensationException,
-                        "Development Superadmin Entra compensation failed. EntraUserId: {EntraUserId}.",
+                        "Platform Superadmin Entra compensation failed. EntraUserId: {EntraUserId}.",
                         entraUserId);
                     failures.Add(compensationException);
                 }
@@ -142,7 +162,7 @@ public sealed class DevelopmentDatabaseSeeder(
             if (failures.Count > 1)
             {
                 throw new AggregateException(
-                    "Development seed failed and one or more rollback operations also failed.",
+                    "Platform identity bootstrap failed and one or more rollback operations also failed.",
                     failures);
             }
 
@@ -168,15 +188,15 @@ public sealed class DevelopmentDatabaseSeeder(
             var definition = resolvedSuperadmin.Definition;
             var entraUser = entraUsers[definition.Id];
             logger.LogInformation(
-                "Development platform Superadmin reconciled. UserId: {UserId}. OrganizationId: {OrganizationId}. EntraUserId: {EntraUserId}. EntraIdentityCreated: {EntraIdentityCreated}.",
-                definition.Id,
+                "Platform Superadmin reconciled. UserId: {UserId}. OrganizationId: {OrganizationId}. EntraIdentityCreated: {EntraIdentityCreated}.",
+                resolvedSuperadmin.EffectiveId,
                 PlatformOrganization.Id,
-                entraUser.EntraUserId,
                 entraUser.Created);
         }
     }
 
     private async Task<OrganizationRow?> PreflightPlatformOrganizationAsync(
+        IReadOnlyCollection<Guid> resolvedSuperadminIds,
         CancellationToken cancellationToken)
     {
         var reservedMatches = await db.Organizations
@@ -200,17 +220,20 @@ public sealed class DevelopmentDatabaseSeeder(
                 $"Reserved platform organization identity conflict: ID '{PlatformOrganization.Id}' and CVR '{PlatformOrganization.Cvr}' must identify the same organization.");
         }
 
-        await EnsurePlatformOrganizationIsUncontaminatedAsync(cancellationToken);
+        await EnsurePlatformOrganizationIsUncontaminatedAsync(
+            resolvedSuperadminIds,
+            cancellationToken);
         return platformOrganization;
     }
 
     private async Task EnsurePlatformOrganizationIsUncontaminatedAsync(
+        IReadOnlyCollection<Guid> resolvedSuperadminIds,
         CancellationToken cancellationToken)
     {
         if (await db.Users.AnyAsync(
                 user =>
                     user.OrganizationId == PlatformOrganization.Id &&
-                    !CanonicalSuperadminIds.Contains(user.Id),
+                    !resolvedSuperadminIds.Contains(user.Id),
                 cancellationToken))
         {
             throw PlatformContamination("non-canonical users");
@@ -320,27 +343,30 @@ public sealed class DevelopmentDatabaseSeeder(
                 .Where(user => NormalizeEmail(user.Email) == definition.Email)
                 .ToArray();
 
-            if (userWithCanonicalId is null)
-            {
-                if (usersWithCanonicalEmail.Length > 0)
-                {
-                    throw CanonicalIdentityConflict(definition);
-                }
-
-                resolvedSuperadmins.Add(new ResolvedSuperadmin(definition, ExistingUser: null));
-                continue;
-            }
-
-            if (NormalizeEmail(userWithCanonicalId.Email) != definition.Email ||
-                usersWithCanonicalEmail.Any(user => user.Id != definition.Id))
+            if (usersWithCanonicalEmail.Length > 1 ||
+                (userWithCanonicalId is not null &&
+                 usersWithCanonicalEmail.Any(user => user.Id != userWithCanonicalId.Id)))
             {
                 throw CanonicalIdentityConflict(definition);
             }
 
-            await EnsureNoTenantBoundReferencesAsync(definition.Id, cancellationToken);
+            var existingUser = userWithCanonicalId ?? usersWithCanonicalEmail.SingleOrDefault();
+            if (userWithCanonicalId is not null &&
+                NormalizeEmail(userWithCanonicalId.Email) != definition.Email)
+            {
+                throw CanonicalIdentityConflict(definition);
+            }
+
+            if (existingUser is null)
+            {
+                resolvedSuperadmins.Add(new ResolvedSuperadmin(definition, ExistingUser: null));
+                continue;
+            }
+
+            await EnsureNoTenantBoundReferencesAsync(existingUser.Id, cancellationToken);
             resolvedSuperadmins.Add(new ResolvedSuperadmin(
                 definition,
-                UserSnapshot.From(userWithCanonicalId)));
+                UserSnapshot.From(existingUser)));
         }
 
         return resolvedSuperadmins;
@@ -427,7 +453,7 @@ public sealed class DevelopmentDatabaseSeeder(
         CancellationToken cancellationToken)
     {
         var canonicalIds = resolvedSuperadmins
-            .Select(resolved => resolved.Definition.Id)
+            .Select(resolved => resolved.EffectiveId)
             .ToArray();
         var entraUserIds = entraUsers.Values
             .Select(user => user.EntraUserId)
@@ -444,7 +470,7 @@ public sealed class DevelopmentDatabaseSeeder(
         if (conflictingOwner is not null)
         {
             throw new InvalidOperationException(
-                $"Development Superadmin Entra identity '{conflictingOwner.EntraId}' is already linked to non-canonical Workslip user '{conflictingOwner.Id}'.");
+                $"Platform Superadmin Entra identity '{conflictingOwner.EntraId}' is already linked to a different Workslip user '{conflictingOwner.Id}'.");
         }
     }
 
@@ -476,7 +502,7 @@ public sealed class DevelopmentDatabaseSeeder(
         var existing = resolvedSuperadmin.ExistingUser;
         if (existing.OrganizationId != PlatformOrganization.Id)
         {
-            await DeleteEphemeralReferencesAsync(definition.Id, cancellationToken);
+            await DeleteEphemeralReferencesAsync(existing.Id, cancellationToken);
         }
 
         var requiresUpdate = !existing.MatchesDesired(definition, entraUser);
@@ -508,18 +534,18 @@ public sealed class DevelopmentDatabaseSeeder(
 
             if (affectedRows != 1)
             {
-                throw ConcurrentCanonicalUserChange(definition.Id);
+                throw ConcurrentCanonicalUserChange(existing.Id);
             }
 
             return;
         }
 
         var trackedUser = await db.Users.SingleOrDefaultAsync(
-            user => user.Id == definition.Id,
+            user => user.Id == existing.Id,
             cancellationToken);
         if (trackedUser is null || !existing.Matches(trackedUser))
         {
-            throw ConcurrentCanonicalUserChange(definition.Id);
+            throw ConcurrentCanonicalUserChange(existing.Id);
         }
 
         if (!requiresUpdate)
@@ -538,14 +564,23 @@ public sealed class DevelopmentDatabaseSeeder(
     }
 
     private static void ValidateEntraIdentity(
-        CanonicalSuperadminDefinition definition,
+        ResolvedSuperadmin resolvedSuperadmin,
         CreateEntraUserResult entraUser,
         IEnumerable<CreateEntraUserResult> alreadyResolvedUsers)
     {
+        var definition = resolvedSuperadmin.Definition;
         if (string.IsNullOrWhiteSpace(entraUser.EntraUserId))
         {
             throw new InvalidOperationException(
-                $"Graph returned no Entra user ID for canonical development Superadmin '{definition.Id}'.");
+                $"Graph returned no Entra user ID for platform Superadmin '{resolvedSuperadmin.EffectiveId}'.");
+        }
+
+        var existingEntraId = resolvedSuperadmin.ExistingUser?.EntraId;
+        if (!string.IsNullOrWhiteSpace(existingEntraId) &&
+            !string.Equals(existingEntraId, entraUser.EntraUserId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Graph resolved Entra user ID '{entraUser.EntraUserId}' for platform Superadmin '{resolvedSuperadmin.EffectiveId}', but the Workslip row is already bound to '{existingEntraId}'. The existing binding was preserved.");
         }
 
         if (alreadyResolvedUsers.Any(
@@ -555,7 +590,7 @@ public sealed class DevelopmentDatabaseSeeder(
                     StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException(
-                $"Graph returned Entra user ID '{entraUser.EntraUserId}' for more than one canonical development Superadmin.");
+                $"Graph returned Entra user ID '{entraUser.EntraUserId}' for more than one platform Superadmin.");
         }
     }
 
@@ -564,20 +599,20 @@ public sealed class DevelopmentDatabaseSeeder(
 
     private static InvalidOperationException PlatformContamination(string relation) =>
         new(
-            $"Reserved platform organization '{PlatformOrganization.Id}' contains {relation}. Remove the customer or operational data before development startup.");
+            $"Reserved platform organization '{PlatformOrganization.Id}' contains {relation}. Remove the customer or operational data before running platform identity bootstrap.");
 
     private static InvalidOperationException CanonicalIdentityConflict(
         CanonicalSuperadminDefinition definition) =>
         new(
-            $"Development Superadmin identity conflict: canonical ID '{definition.Id}' and normalized email '{definition.Email}' do not identify the same Workslip user.");
+            $"Platform Superadmin identity conflict: reserved create ID '{definition.Id}' and normalized email '{definition.Email}' identify different Workslip users.");
 
     private static InvalidOperationException TenantReferenceConflict(Guid userId, string relation) =>
         new(
-            $"Canonical development Superadmin '{userId}' has tenant-bound references in {relation} and cannot be moved to '{PlatformOrganization.Name}'.");
+            $"Platform Superadmin '{userId}' has tenant-bound references in {relation} and cannot be moved to '{PlatformOrganization.Name}'.");
 
     private static InvalidOperationException ConcurrentCanonicalUserChange(Guid userId) =>
         new(
-            $"Canonical development Superadmin '{userId}' changed after seed preflight; the platform reconciliation was aborted.");
+            $"Platform Superadmin '{userId}' changed after bootstrap preflight; reconciliation was aborted.");
 
     private sealed record CanonicalSuperadminDefinition(
         Guid Id,
@@ -587,7 +622,10 @@ public sealed class DevelopmentDatabaseSeeder(
 
     private sealed record ResolvedSuperadmin(
         CanonicalSuperadminDefinition Definition,
-        UserSnapshot? ExistingUser);
+        UserSnapshot? ExistingUser)
+    {
+        internal Guid EffectiveId => ExistingUser?.Id ?? Definition.Id;
+    }
 
     private sealed record UserSnapshot(
         Guid Id,

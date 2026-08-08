@@ -42,10 +42,9 @@ public sealed class JobDeletionNotificationService(
             catch (Exception exception)
             {
                 logger.LogError(
-                    exception,
-                    "Failed to queue job deletion notification. JobId: {JobId}. UserId: {UserId}.",
+                    "Failed to queue a job deletion notification. JobId {JobId}. FailureType {FailureType}.",
                     deletedJob.Id,
-                    recipient.Id);
+                    exception.GetType().Name);
             }
         }
     }

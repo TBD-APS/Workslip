@@ -61,11 +61,19 @@ try
         builder.ConfigureServices();
     });
 
-    var app = RunStartupValuePhase(7, "Build application host", builder.Build);
+    await using var app = RunStartupValuePhase(7, "Build application host", builder.Build);
     var releaseTestingEnabled = ReleaseTestingConfiguration.IsEnabled(
         app.Environment,
         app.Configuration);
     var seedDevelopmentData = DatabaseStartup.ShouldSeedDevelopmentData(app.Environment);
+
+    if (PlatformIdentityBootstrapCommand.IsRequested(args))
+    {
+        await RunStartupPhaseAsync(8, "Bootstrap platform Superadmins", () =>
+            PlatformIdentityBootstrapCommand.ExecuteAsync(app.Services));
+        Log.Information("[OPERATION] Platform Superadmin bootstrap completed successfully");
+        return;
+    }
 
     await RunStartupPhaseAsync(8, "Verify database readiness", () =>
         DatabaseStartup.VerifyIfRequiredAsync(

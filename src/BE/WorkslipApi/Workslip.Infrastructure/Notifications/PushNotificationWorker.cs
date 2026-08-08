@@ -22,9 +22,7 @@ public sealed class PushNotificationWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Temporary error-level trace so the existing Superadmin error dashboard
-        // proves that the hosted worker is running in production. Remove after WOR-317.
-        _logger.LogError("PUSH TRACE: PushNotificationWorker started and is polling.");
+        _logger.LogInformation("Push notification worker started.");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -33,8 +31,8 @@ public sealed class PushNotificationWorker : BackgroundService
                 var processedCount = await ProcessBatchAsync(stoppingToken);
                 if (processedCount > 0)
                 {
-                    _logger.LogError(
-                        "PUSH TRACE: Worker claimed and processed a batch containing {ProcessedCount} notifications.",
+                    _logger.LogDebug(
+                        "Push notification worker claimed a batch. ClaimedCount {ClaimedCount}.",
                         processedCount);
                 }
 
@@ -50,8 +48,8 @@ public sealed class PushNotificationWorker : BackgroundService
             catch (Exception exception)
             {
                 _logger.LogError(
-                    exception,
-                    "Error occurred during notification processing cycle.");
+                    "Push notification processing cycle failed. FailureType {FailureType}.",
+                    exception.GetType().Name);
             }
 
             try

@@ -11,7 +11,7 @@ public sealed class DevConfigurationTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task ConfigureDevEnvironment_MapsDevTokenOnlyWhenReleaseTestingIsEnabled(
+    public async Task ConfigureDevEnvironment_NeverMapsDevToken(
         bool releaseTestingEnabled)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -30,8 +30,6 @@ public sealed class DevConfigurationTests
             .Select(endpoint => endpoint.RoutePattern.RawText)
             .ToArray();
 
-        Assert.Equal(
-            releaseTestingEnabled,
-            routePatterns.Contains("/api/dev/token", StringComparer.Ordinal));
+        Assert.DoesNotContain("/api/dev/token", routePatterns, StringComparer.Ordinal);
     }
 }

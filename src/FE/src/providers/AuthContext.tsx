@@ -27,9 +27,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!authToken) return;
 
-    // Start the shell and jobs-route downloads alongside the authenticated
-    // provider and /api/auth/me request. Import failures still flow through the
-    // existing Vite stale-chunk recovery when the route is rendered.
     void preloadPrimaryAppRoute().catch(() => undefined);
   }, [authToken]);
 
@@ -57,23 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const devLogin = useCallback(
-    async (email: string): Promise<boolean> => {
-      try {
-        const { getDevToken } = await import('../features/auth/api/devToken');
-        const response = await getDevToken(email);
-        AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
-        AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
-        setAuthToken(response.token);
-        clearReauthInFlight();
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [],
-  );
-
   const publicValue = useMemo<AuthContextType>(
     () => ({
       hasAuthToken: false,
@@ -81,13 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: null,
       isLoading: false,
       login,
-      devLogin,
       logout: clearStoredSession,
       clearLocalSession: clearStoredSession,
       updateUser: () => undefined,
       meQuery: publicMeQuery,
     }),
-    [clearStoredSession, devLogin, login],
+    [clearStoredSession, login],
   );
 
   if (!authToken) {
@@ -105,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     >
       <AuthenticatedAppProvider
         login={login}
-        devLogin={devLogin}
         clearSession={clearStoredSession}
       >
         {children}

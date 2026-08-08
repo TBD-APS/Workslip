@@ -44,11 +44,6 @@ public sealed class PushNotificationProcessor
             }
             catch (Exception exception)
             {
-                _logger.LogError(
-                    exception,
-                    "Unexpected push processing failure for notification {NotificationId}.",
-                    notification.Id);
-
                 await RescheduleUnexpectedFailureAsync(notification, exception, cancellationToken);
             }
         }
@@ -67,17 +62,20 @@ public sealed class PushNotificationProcessor
         }
         catch (JsonException exception)
         {
-            _logger.LogWarning(
-                exception,
-                "Notification {NotificationId} contains an invalid payload.",
-                notification.Id);
             await MarkFailedAsync(notification, "Invalid notification payload.", cancellationToken);
+            _logger.LogError(
+                "Push notification {NotificationId} has an invalid payload. FailureType {FailureType}.",
+                notification.Id,
+                exception.GetType().Name);
             return;
         }
 
         if (payload is null)
         {
             await MarkFailedAsync(notification, "Missing notification payload.", cancellationToken);
+            _logger.LogError(
+                "Push notification {NotificationId} has a missing payload.",
+                notification.Id);
             return;
         }
 
@@ -87,6 +85,9 @@ public sealed class PushNotificationProcessor
                 out var notificationType))
         {
             await MarkFailedAsync(notification, "Unknown notification type.", cancellationToken);
+            _logger.LogError(
+                "Push notification {NotificationId} has an unknown notification type.",
+                notification.Id);
             return;
         }
 
@@ -94,15 +95,15 @@ public sealed class PushNotificationProcessor
             .GetActiveSubscriptionsForUserAsync(notification.UserId, cancellationToken);
         if (subscriptions.Count == 0)
         {
-            _logger.LogError(
-                "Push delivery has no active subscriptions for notification {NotificationId} of type {NotificationType}. RetryCount {RetryCount}.",
-                notification.Id,
-                notification.NotificationType,
-                notification.RetryCount);
-
             await _notificationRepository.MarkNotificationCompletedAsync(
                 notification.Id,
                 cancellationToken);
+
+            _logger.LogDebug(
+                "Push notification {NotificationId} has no active subscriptions. NotificationType {NotificationType}. RetryCount {RetryCount}.",
+                notification.Id,
+                notification.NotificationType,
+                notification.RetryCount);
             return;
         }
 
@@ -112,7 +113,7 @@ public sealed class PushNotificationProcessor
             .Where(subscription => !successfulSubscriptionIds.Contains(subscription.Id))
             .ToArray();
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Processing push notification {NotificationId} of type {NotificationType} with {ActiveSubscriptionCount} active subscriptions and {PendingSubscriptionCount} pending deliveries.",
             notification.Id,
             notification.NotificationType,
@@ -190,46 +191,39 @@ public sealed class PushNotificationProcessor
             hasTemporaryFailure = true;
         }
 
-        if (temporaryFailures > 0)
-        {
-            _logger.LogError(
-                "Push provider delivery failed temporarily for notification {NotificationId} of type {NotificationType}. Successful {SuccessfulCount}, expired {ExpiredCount}, temporary failures {TemporaryFailureCount}, retry count {RetryCount}.",
-                notification.Id,
-                notification.NotificationType,
-                successfulDeliveries,
-                expiredDeliveries,
-                temporaryFailures,
-                notification.RetryCount);
-        }
-        else if (expiredDeliveries > 0)
-        {
-            _logger.LogWarning(
-                "Push delivery completed with expired subscriptions for notification {NotificationId} of type {NotificationType}. Successful {SuccessfulCount}, expired {ExpiredCount}.",
-                notification.Id,
-                notification.NotificationType,
-                successfulDeliveries,
-                expiredDeliveries);
-        }
-        else
-        {
-            _logger.LogInformation(
-                "Push delivery completed for notification {NotificationId} of type {NotificationType}. Successful {SuccessfulCount}.",
-                notification.Id,
-                notification.NotificationType,
-                successfulDeliveries);
-        }
-
         if (!hasTemporaryFailure)
         {
             await _notificationRepository.MarkNotificationCompletedAsync(
                 notification.Id,
                 cancellationToken);
+
+            if (expiredDeliveries > 0)
+            {
+                _logger.LogWarning(
+                    "Push delivery completed with expired subscriptions for notification {NotificationId} of type {NotificationType}. Successful {SuccessfulCount}, expired {ExpiredCount}.",
+                    notification.Id,
+                    notification.NotificationType,
+                    successfulDeliveries,
+                    expiredDeliveries);
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "Push delivery completed for notification {NotificationId} of type {NotificationType}. Successful {SuccessfulCount}.",
+                    notification.Id,
+                    notification.NotificationType,
+                    successfulDeliveries);
+            }
+
             return;
         }
 
         await RescheduleDeliveryFailureAsync(
             notification,
             "Temporary push delivery failure.",
+            successfulDeliveries,
+            expiredDeliveries,
+            temporaryFailures,
             cancellationToken);
     }
 
@@ -251,23 +245,36 @@ public sealed class PushNotificationProcessor
             nextAttemptUtc,
             $"Unexpected push processing failure ({exception.GetType().Name}).",
             cancellationToken);
+
+        if (status == "Failed")
+        {
+            _logger.LogError(
+                "Push notification {NotificationId} failed after an unexpected processing failure. RetryCount {RetryCount}. FailureType {FailureType}.",
+                notification.Id,
+                nextRetryCount,
+                exception.GetType().Name);
+        }
+        else
+        {
+            _logger.LogWarning(
+                "Push notification {NotificationId} was rescheduled after an unexpected processing failure. RetryCount {RetryCount}. FailureType {FailureType}.",
+                notification.Id,
+                nextRetryCount,
+                exception.GetType().Name);
+        }
     }
 
     private async Task RescheduleDeliveryFailureAsync(
         NotificationQueueRow notification,
         string lastError,
+        int successfulDeliveries,
+        int expiredDeliveries,
+        int temporaryFailures,
         CancellationToken cancellationToken)
     {
         var nextRetryCount = notification.RetryCount + 1;
         if (nextRetryCount >= MaxRetryCount)
         {
-            _logger.LogError(
-                "Push delivery permanently failed for notification {NotificationId} of type {NotificationType} after {RetryCount} attempts. Failure {FailureReason}.",
-                notification.Id,
-                notification.NotificationType,
-                nextRetryCount,
-                lastError);
-
             await _notificationRepository.UpdateNotificationStatusAsync(
                 notification.Id,
                 "Failed",
@@ -275,6 +282,15 @@ public sealed class PushNotificationProcessor
                 DateTimeOffset.UtcNow,
                 "Push delivery failed after the maximum retry count.",
                 cancellationToken);
+
+            _logger.LogError(
+                "Push delivery permanently failed for notification {NotificationId}. NotificationType {NotificationType}. SuccessfulCount {SuccessfulCount}. ExpiredCount {ExpiredCount}. TemporaryFailureCount {TemporaryFailureCount}. RetryCount {RetryCount}.",
+                notification.Id,
+                notification.NotificationType,
+                successfulDeliveries,
+                expiredDeliveries,
+                temporaryFailures,
+                nextRetryCount);
             return;
         }
 
@@ -285,6 +301,15 @@ public sealed class PushNotificationProcessor
             DateTimeOffset.UtcNow.Add(GetRetryDelay(nextRetryCount)),
             lastError,
             cancellationToken);
+
+        _logger.LogWarning(
+            "Push delivery will be retried for notification {NotificationId}. NotificationType {NotificationType}. SuccessfulCount {SuccessfulCount}. ExpiredCount {ExpiredCount}. TemporaryFailureCount {TemporaryFailureCount}. RetryCount {RetryCount}.",
+            notification.Id,
+            notification.NotificationType,
+            successfulDeliveries,
+            expiredDeliveries,
+            temporaryFailures,
+            nextRetryCount);
     }
 
     private Task MarkFailedAsync(

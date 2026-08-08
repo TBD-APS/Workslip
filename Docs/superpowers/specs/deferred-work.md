@@ -22,3 +22,7 @@
 ## Repository context artifacts
 
 - Regenerate `src/repomix-output.xml` in a dedicated maintenance change. The established process currently produces roughly 71,000 lines of unrelated drift from the checked-in snapshot, so feature branches should not absorb that pre-existing repository-wide update.
+
+## Notification hardening
+
+- Preserve caller cancellation at the Web Push boundary: `WebPushSender` currently catches a cancellation-triggered `OperationCanceledException` as a generic provider failure, which can turn graceful shutdown into a retryable notification outcome. Address this behavior separately from WOR-365's logging-only scope and add cancellation coverage.
