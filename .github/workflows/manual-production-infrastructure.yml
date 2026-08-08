@@ -68,6 +68,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           & .\src\BE\infrastructure\deploy-infrastructure.ps1 prod
 
+      - name: Reconcile database migration identity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\src\BE\infrastructure\reconcile-database-migration-identity.ps1 `
+            -Environment prod `
+            -CompanyName mrsoftware
+
       - name: Verify diagnostics configuration and API health
         shell: pwsh
         run: |
