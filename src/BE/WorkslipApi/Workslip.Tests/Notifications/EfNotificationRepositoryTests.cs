@@ -4,6 +4,7 @@ using Workslip.Domain.Models;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using Workslip.Tests.TestInfrastructure;
 using Xunit;
 
 namespace Workslip.Tests.Notifications;
@@ -22,7 +23,7 @@ public sealed class EfNotificationRepositoryTests
 
         await using (var setupContext = new SqlDbContext(options))
         {
-            await setupContext.Database.EnsureCreatedAsync();
+            await SqliteTestSchema.CreateAsync(setupContext);
             setupContext.NotificationQueue.Add(CreateNotification(notificationId));
             await setupContext.SaveChangesAsync();
         }
@@ -123,7 +124,7 @@ public sealed class EfNotificationRepositoryTests
 
         await using (var setupContext = new SqlDbContext(options))
         {
-            await setupContext.Database.EnsureCreatedAsync();
+            await SqliteTestSchema.CreateAsync(setupContext);
             setupContext.NotificationQueue.AddRange(targetNotification, otherNotification);
             setupContext.PushSubscriptions.AddRange(
                 successfulSubscription,
