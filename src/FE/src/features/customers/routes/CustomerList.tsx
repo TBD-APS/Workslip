@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { type CustomerListItemViewModel } from '../../../api/generated/models';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
+import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
 import { PaginationControls } from '../../../components/pagination/PaginationControls';
@@ -288,7 +289,10 @@ export const CustomerList = () => {
                   </div>
                 </td>
                 <td>{customer.customerNumber}</td>
-                <td>{customer.address}</td>
+                <td>
+                  <span>{customer.address}</span>
+                  <CopyAddressButton address={customer.address} />
+                </td>
                 <td>{customer.email}</td>
                 <td>{customer.contactPerson}</td>
                 <td>{customer.phone}</td>
@@ -333,81 +337,91 @@ export const CustomerList = () => {
         </>
       ) : (
         <div className="job-list">
-          {pageItems.map((customer) => (
-            <div key={customer.id} className="job-card-wrapper">
-              <button
-                className="job-card"
-                onClick={() => navigate(`/app/customers/${customer.id}`)}
-                type="button"
-              >
-                <div className="job-card-top job-card-top-center">
-                  <div className="customer-card-identity">
-                    <h3 className="customer-name">{customer.name}</h3>
-                    {customer.customerNumber && (
-                      <span className="text-muted customer-number">#{customer.customerNumber}</span>
+          {pageItems.map((customer) => {
+            const openCustomer = () => navigate(`/app/customers/${customer.id}`);
+
+            return (
+              <div key={customer.id} className="job-card-wrapper">
+                <div
+                  className="job-card"
+                  onClick={openCustomer}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === 'Enter' || event.key === ' ') openCustomer();
+                  }}
+                  role="link"
+                  tabIndex={0}
+                >
+                  <div className="job-card-top job-card-top-center">
+                    <div className="customer-card-identity">
+                      <h3 className="customer-name">{customer.name}</h3>
+                      {customer.customerNumber && (
+                        <span className="text-muted customer-number">#{customer.customerNumber}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="job-card-body">
+                    <span className="meta-item customer-job-count">
+                      {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
+                    </span>
+                    {customer.address && (
+                      <span className="meta-item">
+                        <MapPin size={14} />
+                        <span>{customer.address}</span>
+                        <CopyAddressButton address={customer.address} />
+                      </span>
                     )}
+                    {customer.email && (
+                      <span className="meta-item">
+                        <Mail size={14} />
+                        <span>{customer.email}</span>
+                      </span>
+                    )}
+                    {customer.contactPerson && (
+                      <span className="meta-item">
+                        <Users size={14} />
+                        <span>{customer.contactPerson}</span>
+                      </span>
+                    )}
+                    {customer.phone && (
+                      <span className="meta-item">
+                        <Phone size={14} />
+                        <span>{customer.phone}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="job-card-footer">
+                    <span className={`btn-icon ${customer.isFavorite ? 'text-red' : 'opacity-30'}`} title={customer.isFavorite ? 'Favorit' : ''}>
+                      <Heart size={18} fill={customer.isFavorite ? 'currentColor' : 'none'} />
+                    </span>
+                    <span className="btn-icon" aria-label="Se kunde">
+                      <ChevronRight size={20} />
+                    </span>
                   </div>
                 </div>
 
-                <div className="job-card-body">
-                  <span className="meta-item customer-job-count">
-                     {customer.jobCount} {customer.jobCount === 1 ? 'sag' : 'sager'}
-                  </span>
-                  {customer.address && (
-                    <span className="meta-item">
-                      <MapPin size={14} />
-                      <span>{customer.address}</span>
-                    </span>
-                  )}
-                  {customer.email && (
-                    <span className="meta-item">
-                      <Mail size={14} />
-                      <span>{customer.email}</span>
-                    </span>
-                  )}
-                  {customer.contactPerson && (
-                    <span className="meta-item">
-                      <Users size={14} />
-                      <span>{customer.contactPerson}</span>
-                    </span>
-                  )}
-                  {customer.phone && (
-                    <span className="meta-item">
-                      <Phone size={14} />
-                      <span>{customer.phone}</span>
-                    </span>
-                  )}
-                </div>
-
-                <div className="job-card-footer">
-                  <span className={`btn-icon ${customer.isFavorite ? 'text-red' : 'opacity-30'}`} title={customer.isFavorite ? 'Favorit' : ''}>
-                    <Heart size={18} fill={customer.isFavorite ? 'currentColor' : 'none'} />
-                  </span>
-                  <span className="btn-icon" aria-label="Se kunde">
-                    <ChevronRight size={20} />
-                  </span>
-                </div>
-              </button>
-
-              <Can permission="user:manage">
-                <div className="worksheet-actions-menu-root customer-actions-anchor">
-                  <button
-                    type="button"
-                    className="btn-icon customer-actions-btn"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggleActionMenu(event, customer.id);
-                    }}
-                    aria-label="Åbn handlinger for kunde"
-                    aria-expanded={openActionMenu?.customerId === customer.id}
-                    title="Handlinger"
-                  >
-                    <MoreHorizontal size={18} />
-                  </button>
-                </div>
-              </Can>
-            </div>
-          ))}
+                <Can permission="user:manage">
+                  <div className="worksheet-actions-menu-root customer-actions-anchor">
+                    <button
+                      type="button"
+                      className="btn-icon customer-actions-btn"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleActionMenu(event, customer.id);
+                      }}
+                      aria-label="Åbn handlinger for kunde"
+                      aria-expanded={openActionMenu?.customerId === customer.id}
+                      title="Handlinger"
+                    >
+                      <MoreHorizontal size={18} />
+                    </button>
+                  </div>
+                </Can>
+              </div>
+            );
+          })}
 
           {customers.length === 0 && !isFetchingNextPage && (
             <div className="empty-state">

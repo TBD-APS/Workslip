@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ErrorState } from '../../../components/ErrorState';
+import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { useQueryClient } from '@tanstack/react-query';
 import { notify } from '../../../lib/toast';
 import { useScrollRestore } from '../../../hooks/useScrollRestore';
@@ -322,51 +323,60 @@ export const UserDetail = () => {
         defaultOpen={false}
         className="assigned-jobs-section"
       >
-        {user.assignedJobs.map((job) => (
-          <button
-            key={job.reportId}
-            className="job-card"
-            onClick={() => navigate(`/app/completed/${job.reportId}`, { state: { from: `/app/users/${id}` } })}
-            type="button"
-          >
-            <div className="job-card-top">
-              <div>
-                <span className="job-number">
-                  {formatJobNumber(job.reportNumber, job.reportId)}
+        {user.assignedJobs.map((job) => {
+          const openAssignedJob = () => navigate(`/app/completed/${job.reportId}`, { state: { from: `/app/users/${id}` } });
+          return (
+            <div
+              key={job.reportId}
+              className="job-card"
+              onClick={openAssignedJob}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === 'Enter' || event.key === ' ') openAssignedJob();
+              }}
+              role="link"
+              tabIndex={0}
+            >
+              <div className="job-card-top">
+                <div>
+                  <span className="job-number">
+                    {formatJobNumber(job.reportNumber, job.reportId)}
+                  </span>
+                </div>
+                <span className={`status-badge status-${job.status.toLowerCase()}`}>
+                  {formatJobStatus(job.status)}
                 </span>
               </div>
-              <span className={`status-badge status-${job.status.toLowerCase()}`}>
-                {formatJobStatus(job.status)}
-              </span>
-            </div>
-            <div className="job-card-body">
-              {job.customerName && (
-                <span className="meta-item">
-                  <Building2 size={14} />
-                  <span>{job.customerName}</span>
+              <div className="job-card-body">
+                {job.customerName && (
+                  <span className="meta-item">
+                    <Building2 size={14} />
+                    <span>{job.customerName}</span>
+                  </span>
+                )}
+                {job.customerEmail && (
+                  <span className="meta-item">
+                    <Mail size={14} />
+                    <span>{job.customerEmail}</span>
+                  </span>
+                )}
+                {job.customerAddress && (
+                  <span className="meta-item">
+                    <MapPin size={14} />
+                    <span>{job.customerAddress}</span>
+                    <CopyAddressButton address={job.customerAddress} />
+                  </span>
+                )}
+              </div>
+              <div className="job-card-meta">
+                <span className="meta-item meta-item--muted">
+                  <Clock size={14} />
+                  <span>Sidst opdateret: {formatDateLong(job.updatedAt)}</span>
                 </span>
-              )}
-              {job.customerEmail && (
-                <span className="meta-item">
-                  <Mail size={14} />
-                  <span>{job.customerEmail}</span>
-                </span>
-              )}
-              {job.customerAddress && (
-                <span className="meta-item">
-                  <MapPin size={14} />
-                  <span>{job.customerAddress}</span>
-                </span>
-              )}
+              </div>
             </div>
-            <div className="job-card-meta">
-              <span className="meta-item meta-item--muted">
-                <Clock size={14} />
-                <span>Sidst opdateret: {formatDateLong(job.updatedAt)}</span>
-              </span>
-            </div>
-          </button>
-        ))}
+          );
+        })}
 
         {user.assignedJobs.length === 0 && (
           <div className="empty-state">
@@ -382,13 +392,17 @@ export const UserDetail = () => {
     const isDisabled = isAssigning || job.softDeleted;
     const customerLabel = job.customerName ?? job.customer?.name ?? null;
     const alreadyAssigned = job.assignedUsers.some((u) => u.id === id);
+    const address = job.destinationAddress || job.customer?.address;
 
     return (
       <div
         key={job.id}
         className={`job-card${isDisabled ? ' job-card--disabled' : ''}`}
         onClick={() => navigate(`/app/job/${job.id}`)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/app/job/${job.id}`); }}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') navigate(`/app/job/${job.id}`);
+        }}
         role="link"
         tabIndex={0}
       >
@@ -403,7 +417,8 @@ export const UserDetail = () => {
 
         <p className="job-address-row">
           <MapPin size={14} />
-          <span className="job-address">{job.destinationAddress || job.customer?.address || 'Ingen adresse angivet'}</span>
+          <span className="job-address">{address || 'Ingen adresse angivet'}</span>
+          <CopyAddressButton address={address} />
         </p>
 
         <div className="job-card-meta">

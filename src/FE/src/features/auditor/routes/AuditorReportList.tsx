@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, MapPin, Timer, User } fr
 import type { JobListItemViewModel } from '../../../api/generated/models';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { ErrorState } from '../../../components/ErrorState';
+import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { StatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
@@ -290,7 +291,10 @@ export const AuditorReportList = () => {
               >
                 <td><span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span></td>
                 <td>{job.customer?.name || 'Ukendt kunde'}</td>
-                <td>{job.customer?.address || '—'}</td>
+                <td>
+                  <span>{job.customer?.address || '—'}</span>
+                  <CopyAddressButton address={job.customer?.address} />
+                </td>
                 <td>
                   <span className={`status-badge-cell cell-status-${job.status}`}>
                     {formatJobStatus(job.status)}
@@ -345,8 +349,18 @@ export const AuditorReportList = () => {
 };
 
 function ReportCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => void }) {
+  const address = job.customer?.address;
   return (
-    <button className="job-card" onClick={onOpen} type="button">
+    <div
+      className="job-card"
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === 'Enter' || event.key === ' ') onOpen();
+      }}
+      role="link"
+      tabIndex={0}
+    >
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}</span>
@@ -358,7 +372,8 @@ function ReportCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => 
       </div>
       <p className="job-address-row">
         <MapPin size={14} />
-        <span className="job-address">{job.customer?.address || 'Ingen adresse angivet'}</span>
+        <span className="job-address">{address || 'Ingen adresse angivet'}</span>
+        <CopyAddressButton address={address} />
       </p>
       <div className="job-card-meta">
         <span className="meta-item"><InstallationTypeTags types={job.installationTypes} /></span>
@@ -374,7 +389,7 @@ function ReportCard({ job, onOpen }: { job: JobListItemViewModel; onOpen: () => 
           <ChevronRight size={20} />
         </span>
       </div>
-    </button>
+    </div>
   );
 }
 
