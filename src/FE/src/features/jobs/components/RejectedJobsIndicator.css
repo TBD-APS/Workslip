@@ -2,6 +2,27 @@
   box-shadow: inset 3px 0 0 var(--danger);
 }
 
-.job-card--rejected::before {
-  background: var(--danger);
+.job-list > .job-card {
+  width: calc(100% - 0.75rem);
+  margin-inline: auto;
+}
+
+.job-list > .job-card::before {
+  background: #3b82f6;
+}
+
+.job-list > .job-card:has(.review-dot)::before {
+  background: #eab308;
+}
+
+.job-list > .job-card:has(.approved-dot)::before {
+  background: #22c55e;
+}
+
+.job-list > .job-card--rejected::before {
+  background: #ef4444;
+}
+
+.job-list > .job-card-skeleton::before {
+  background: transparent;
 }
