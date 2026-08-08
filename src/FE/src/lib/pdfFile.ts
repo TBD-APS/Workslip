@@ -37,7 +37,7 @@ export async function downloadPdfFile(request: PdfFileRequest): Promise<void> {
   triggerBrowserDownload(blob, fileName);
 }
 
-export function triggerBrowserDownload(blob: Blob, fileName: string) {
+function triggerBrowserDownload(blob: Blob, fileName: string) {
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
