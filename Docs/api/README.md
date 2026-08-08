@@ -1,17 +1,24 @@
 # API and integration documentation
 
-**State:** Draft  
-**Owner:** API owner (assign in Linear)  
-**Review cadence:** Every API contract, authentication or integration change.
+**Status:** Active  
+**Owner:** Backend/API owner  
+**Source of truth:** endpoint registrations, runtime OpenAPI and executable integration evidence  
+**Review cadence:** On API contract, authentication or integration changes
 
-The runtime OpenAPI document and endpoint implementation are the primary sources for implemented API behaviour. The Postman collection is executable integration evidence when it is run against an isolated non-production environment.
+## Where to look
 
-Until WOR-146 is completed:
+- [`contract.md`](contract.md) — shared HTTP/auth/error/idempotency contract.
+- [`change-policy.md`](change-policy.md) — compatibility and API-change rules.
+- [`integration-guide.md`](integration-guide.md) — integration usage and operational expectations.
+- [`endpoint-catalog.md`](endpoint-catalog.md) — historical pointer; the hand-maintained route catalog has been retired.
+- `src/BE/WorkslipApi/Endpoints/` — current route registrations.
+- runtime OpenAPI — generated contract for the running build when enabled for the target environment.
+- `src/BE/WorkslipApi/Postman/` — executable verification/examples, not a competing contract source.
 
-- inspect `src/BE/WorkslipApi/Endpoints/` for current routes;
-- inspect `ResultExtensions.ToHttpResult` for the common HTTP error mapping;
-- use the runtime OpenAPI endpoint and Scalar UI only in an approved non-production environment;
-- run `src/BE/WorkslipApi/Postman/run-integration-tests.sh` only against localhost, test or staging;
-- do not infer endpoint availability from dated plans.
+## Documentation policy
 
-This area will contain the maintained authentication, permissions, pagination/filtering, error-contract, correlation-ID, idempotency, retry and compatibility guidance.
+Do not maintain a second hand-written list of every route. It duplicates endpoint registrations/OpenAPI and drifts quickly.
+
+Document only behaviour that is not obvious from the generated contract: authorization semantics, tenant boundaries, compatibility rules, error conventions, idempotency/retry expectations and integration failure behaviour.
+
+When a contract changes, update the endpoint source first, regenerate dependent clients/contracts through the established process, then update the maintained guidance that explains the change.

@@ -1,55 +1,32 @@
 # API contract change policy
 
+**Status:** Active  
+**Owner:** Backend/API
+
+A change has API-contract impact when it changes a route/method, authorization policy, request/response model, enum, validation/error code, query semantics, required header, idempotency/retry behaviour, caching/correlation behaviour or OpenAPI generation.
+
 ## Required review
 
-A PR has API impact when it changes any of:
+For an API-impacting change:
 
-- route, HTTP method or authorization policy
-- request/response model or enum
-- validation rule or error code
-- pagination, filtering or sorting
-- required header, idempotency or retry behaviour
-- cache, ETag or correlation behaviour
-- OpenAPI generation or Postman examples
+1. update endpoint/contract source and response metadata;
+2. verify the runtime/generated OpenAPI representation;
+3. regenerate/review the frontend client when affected;
+4. update Postman examples/assertions when they are used as executable integration evidence;
+5. update only the maintained `Docs/api` guidance whose durable semantics changed;
+6. call out externally visible compatibility impact in the PR/release notes when relevant.
 
-The PR must then update or explicitly confirm:
+Do **not** maintain a second hand-written route catalog. Endpoint registrations and runtime OpenAPI own that fact.
 
-1. endpoint source and `Produces` metadata
-2. generated OpenAPI output
-3. frontend generated client where affected
-4. Postman request and assertions
-5. `Docs/api` catalog/guide
-6. release notes for externally visible changes
+## Compatibility
 
-## Compatibility classes
-
-| Class | Examples | Release treatment |
+| Class | Examples | Treatment |
 |---|---|---|
-| Additive | New optional field, new endpoint | Normal review; add examples/tests |
-| Behavioural | New validation, permission or default | Call out explicitly; regression tests required |
-| Breaking | Removed/renamed field, route, enum or error contract | Migration/deprecation plan required |
-| Security | Auth boundary, tenant scope, token handling | Security review and negative tests required |
+| Additive | new optional field or endpoint | normal review + relevant examples/tests |
+| Behavioural | new validation, permission or default | explicit callout + regression tests |
+| Breaking | removed/renamed field, route, enum or stable error code | migration/deprecation plan |
+| Security | auth boundary, tenant scope, token handling | security review + negative tests |
 
-## Deprecation
+A deprecated external contract should record its replacement, known consumers, removal condition/date and owner. Do not remove a route merely because the repository frontend no longer uses it; external consumers may exist.
 
-A deprecated contract must document:
-
-- replacement
-- first deprecated release/date
-- known consumers
-- removal condition/date
-- owner
-
-Do not silently remove a route because the frontend no longer uses it; integrations may exist outside the repository.
-
-## Waiver
-
-A release may temporarily proceed without a synchronized documentation artifact only when the PR records:
-
-- missing artifact
-- reason
-- owner
-- follow-up issue
-- expiry date
-
-The waiver is evidence of known debt, not proof that the contract is current.
+If a required generated/integration artifact cannot be synchronized in the same PR, record the missing artifact, reason, owner, follow-up issue and expiry. A waiver records debt; it does not make the contract current.

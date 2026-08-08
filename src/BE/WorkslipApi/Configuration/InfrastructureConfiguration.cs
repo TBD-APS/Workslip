@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using Azure.Core;
 using Azure.Identity;
 using Microsoft.Data.SqlClient;
 using QuestPDF.Infrastructure;
+using Serilog;
 
 namespace Workslip.Api.Configuration;
 
@@ -12,7 +14,15 @@ public static class InfrastructureConfiguration
     public static WebApplicationBuilder ConfigureInfrastructure(this WebApplicationBuilder builder, string[] args)
     {
         var configuration = builder.Configuration;
+
+        Log.Information("[STARTUP 02.1] Configure Azure credential - START");
         var azureCredential = CreateAzureCredential(configuration);
+        Log.Information(
+            "[STARTUP 02.1] Configure Azure credential - OK ({CredentialMode})",
+            string.IsNullOrWhiteSpace(configuration["Azure:ManagedIdentity:ClientId"])
+                ? "DefaultAzureCredential"
+                : "managed identity");
+
         AddAzureAppConfiguration(configuration, azureCredential);
         RestoreOperatorOverrides(builder.Environment, configuration, args);
         ConfigureDevelopmentSqlAuthentication(builder.Environment, configuration);
@@ -42,11 +52,32 @@ public static class InfrastructureConfiguration
         var endpoint = configuration["Azure:AppConfiguration:Endpoint"];
 
         if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            Log.Information("[STARTUP 02.2] Load Azure App Configuration and Key Vault references - SKIPPED (not configured)");
             return;
+        }
 
-        configuration.AddAzureAppConfiguration(options => options
-            .Connect(new Uri(endpoint), credential)
-            .ConfigureKeyVault(keyVault => keyVault.SetCredential(credential)));
+        var stopwatch = Stopwatch.StartNew();
+        Log.Information("[STARTUP 02.2] Load Azure App Configuration and Key Vault references - START");
+
+        try
+        {
+            configuration.AddAzureAppConfiguration(options => options
+                .Connect(new Uri(endpoint), credential)
+                .ConfigureKeyVault(keyVault => keyVault.SetCredential(credential)));
+
+            Log.Information(
+                "[STARTUP 02.2] Load Azure App Configuration and Key Vault references - OK ({ElapsedMilliseconds} ms)",
+                stopwatch.ElapsedMilliseconds);
+        }
+        catch (Exception exception)
+        {
+            Log.Error(
+                "[STARTUP 02.2] Load Azure App Configuration and Key Vault references - FAILED after {ElapsedMilliseconds} ms ({ExceptionType}). Check Azure authentication, RBAC and network access",
+                stopwatch.ElapsedMilliseconds,
+                exception.GetType().Name);
+            throw;
+        }
     }
 
     private static void RestoreOperatorOverrides(
@@ -54,6 +85,8 @@ public static class InfrastructureConfiguration
         ConfigurationManager configuration,
         string[] args)
     {
+        Log.Information("[STARTUP 02.3] Restore local operator configuration overrides - START");
+
         // Azure App Configuration supplies shared environment defaults. Local
         // development settings, environment variables and command-line values
         // retain the normal ASP.NET Core higher-precedence override behavior.
@@ -66,6 +99,13 @@ public static class InfrastructureConfiguration
         }
 
         configuration.AddEnvironmentVariables();
+
+        if (args.Length > 0)
+        {
+            configuration.AddCommandLine(args);
+        }
+
+        Log.Information("[STARTUP 02.3] Restore local operator configuration overrides - OK");
     }
 
     private static void ConfigureDevelopmentSqlAuthentication(
@@ -73,11 +113,17 @@ public static class InfrastructureConfiguration
         ConfigurationManager configuration)
     {
         if (!environment.IsDevelopment())
+        {
+            Log.Information("[STARTUP 02.4] Configure development SQL authentication - SKIPPED (non-development environment)");
             return;
+        }
 
         var connectionString = configuration[SqlConnectionStringKey];
         if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            Log.Information("[STARTUP 02.4] Configure development SQL authentication - SKIPPED (SQL connection is not configured)");
             return;
+        }
 
         SqlConnectionStringBuilder connectionStringBuilder;
         try
@@ -86,11 +132,15 @@ public static class InfrastructureConfiguration
         }
         catch (ArgumentException)
         {
+            Log.Warning("[STARTUP 02.4] Configure development SQL authentication - SKIPPED (SQL connection configuration could not be parsed)");
             return;
         }
 
         if (connectionStringBuilder.Authentication != SqlAuthenticationMethod.ActiveDirectoryManagedIdentity)
+        {
+            Log.Information("[STARTUP 02.4] Configure development SQL authentication - OK (no local adaptation required)");
             return;
+        }
 
         // App Configuration and Key Vault still own the server/database connection
         // details. Only the Azure-host-only authentication mode is adapted locally.
@@ -103,5 +153,7 @@ public static class InfrastructureConfiguration
         {
             [SqlConnectionStringKey] = connectionStringBuilder.ConnectionString
         });
+
+        Log.Information("[STARTUP 02.4] Configure development SQL authentication - OK (developer Azure identity enabled)");
     }
 }

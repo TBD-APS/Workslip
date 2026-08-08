@@ -29,6 +29,7 @@ public static class ServiceConfiguration
             services.GetService<TelemetryClient>()));
         builder.Services.AddScoped<IdempotencyStore>();
         builder.Services.AddScoped<IdempotentMutationService>();
+        builder.Services.AddSingleton<CustomerImportFileParser>();
 
         builder.Services.ConfigureHttpJsonOptions(options =>
         {

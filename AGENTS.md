@@ -1,30 +1,81 @@
-# Workslip agent instruction router
+# Workslip agent rules
 
-This file routes implementation agents to the scoped instructions for the part of Workslip being changed. Do not duplicate detailed rules here.
+This file contains the repository-wide rules that implementation agents must follow. Scoped `AGENTS.md` files add only rules that are specific to their directory.
 
-## Always read
+## Before changing code
 
-1. [`Docs/agents/OPERATING_CONTRACT.md`](Docs/agents/OPERATING_CONTRACT.md) — repository workflow, source-of-truth order, scope discipline, security, maintainability, scalability, documentation, and completion language.
-2. [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) — mandatory validation ladder, test selection, Playwright requirements, and evidence standards.
-3. [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) — mandatory GDPR and EU AI Act change gates, data/AI governance, release blockers, and compliance evidence requirements.
+1. Inspect the current branch/worktree and read the Linear issue that owns the change.
+2. Read the closest applicable scoped `AGENTS.md` file.
+3. Inspect the current implementation, tests, configuration, schema and active ADRs before making assumptions.
+4. Read [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) when implementing or validating a change.
+5. Read [`Docs/compliance/GDPR_AI_ACT_BASELINE.md`](Docs/compliance/GDPR_AI_ACT_BASELINE.md) only when personal-data processing, an external processor, or an AI system is affected.
 
-## Global architecture principle
+Do not begin editing until the branch belongs to one cohesive issue and the affected implementation is understood.
 
-Optimize for low cognitive load, explicit dependencies, predictable code placement, isolated use cases, and low hidden coupling across all layers.
+## Source of truth
 
-Use patterns only when they reduce complexity, maintenance cost, or change risk more than they introduce. Prefer thin entry points, feature-local logic, consistent contracts, and existing conventions. Avoid wrappers, interfaces, mapping layers, pipelines, and abstractions without a concrete need.
+For implemented technical behaviour, use this order:
 
-Small improvements that naturally reduce technical debt are encouraged when they stay within the current task's scope. Do not start opportunistic rewrites or widen an issue to pursue an architectural pattern.
+1. current source code, checked-in configuration, database mappings/migrations and executable tests;
+2. runtime-generated contracts and verified infrastructure definitions;
+3. accepted ADRs and maintained operational/compliance documentation;
+4. Linear for scope, priority, ownership and delivery status;
+5. dated plans/specifications for historical context only.
 
-## Read for the affected scope
+Generated repository snapshots are not a source of truth. Inspect the current repository directly.
 
-| Scope | Required instructions |
+When documentation disagrees with implementation, fix the maintained documentation in the same change unless the implementation itself is the bug.
+
+## Branch and scope discipline
+
+- Never push directly to `main`.
+- One Linear issue per branch and pull request.
+- Branch: `rbj--<issue>-<description>`.
+- PR title: `RBJ-<issue>: <description>`.
+- Prefer small, cohesive PRs and squash merging.
+- Do not mix unrelated cleanup into feature work.
+- Improve nearby technical debt only when it is required for correctness, materially lowers risk, or removes duplication inside the task boundary.
+
+## Engineering defaults
+
+- Keep frontend, backend, infrastructure and external integrations behind clear boundaries.
+- Prefer existing shared components, services, repositories, validators and conventions.
+- Do not add wrappers, abstractions, dependencies or patterns without a concrete current need.
+- Keep entry points thin and business rules in the appropriate application/domain layer.
+- Treat frontend authorization as UX only; authorization and tenant isolation are backend responsibilities.
+- Review transactions, retries, idempotency, concurrency, partial failure, cache isolation and sensitive logging where relevant.
+- Do not weaken tests or guards to make a change pass.
+
+If a verified bug, security issue, data-integrity risk or architectural violation is discovered inside the affected area, fix it when it belongs to the same cohesive change; otherwise report it and create/link follow-up work.
+
+## Safety and data
+
+Do not commit credentials, tokens, private keys, production personal data, restricted contracts or incident/rights-request material.
+
+Stop and escalate before destructive production operations, irreversible data semantics, unapproved processor/data transfers, or AI capabilities that require a legal/product decision. Engineering may recommend the decision but must not invent legal approval.
+
+## Validation and completion
+
+Run the smallest validation set that proves the changed risk. Follow [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) for the required level.
+
+Report evidence precisely: static review, build, automated tests, integration tests, Playwright, deployed smoke and compliance/operational evidence are different things. Do not say “done”, “works” or “validated” without stating what actually ran and what remains unverified.
+
+## Documentation and decisions
+
+- Prefer changing one maintained document over creating a competing source.
+- State current facts as facts, decisions as decisions, and planned work as planned work.
+- Do not make maintained documentation depend on an issue eventually being completed; describe the current state and link the issue only for context.
+- Record significant architecture/security/privacy decisions as ADRs.
+- Record important chat decisions in the repository or Linear.
+- Do not hand-edit generated contracts or clients; change their source and regenerate them.
+
+## Scoped instructions
+
+| Area | Additional rules |
 |---|---|
-| Frontend under `src/FE/` | [`src/FE/AGENTS.md`](src/FE/AGENTS.md) |
-| API/backend under `src/BE/WorkslipApi/` | [`src/BE/WorkslipApi/AGENTS.md`](src/BE/WorkslipApi/AGENTS.md) |
-| Infrastructure under `src/BE/infrastructure/` | [`src/BE/infrastructure/AGENTS.md`](src/BE/infrastructure/AGENTS.md) |
-| Maintained documentation under `Docs/` | [`Docs/AGENTS.md`](Docs/AGENTS.md) |
+| Frontend `src/FE/` | [`src/FE/AGENTS.md`](src/FE/AGENTS.md) |
+| Backend/API `src/BE/WorkslipApi/` | [`src/BE/WorkslipApi/AGENTS.md`](src/BE/WorkslipApi/AGENTS.md) |
+| Infrastructure `src/BE/infrastructure/` | [`src/BE/infrastructure/AGENTS.md`](src/BE/infrastructure/AGENTS.md) |
+| Maintained docs `Docs/` | [`Docs/AGENTS.md`](Docs/AGENTS.md) |
 
-For cross-layer changes, read every applicable scoped file before editing. The closest scoped `AGENTS.md` applies in addition to the three shared documents.
-
-Do not begin implementation until the relevant instructions, Linear issue, current branch state, applicable architecture documentation, and compliance impact have been inspected.
+For cross-layer changes, apply every relevant scoped file.

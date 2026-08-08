@@ -1,111 +1,46 @@
 # Workslip API contract
 
-**State:** Maintained  
+**Status:** Active  
 **Owner:** Backend/API  
-**Review:** With every endpoint, auth or response-shape change  
-**Linear:** WOR-107, WOR-146, WOR-193
+**Source of truth:** endpoint registrations and runtime OpenAPI  
+**Review cadence:** With every endpoint, authentication or response-contract change
 
-## Source of truth
+This page documents cross-cutting contract rules that are expensive to infer from generated OpenAPI. It intentionally does not repeat the full route catalog.
 
-Use these sources in this order:
+## Runtime contract
 
-1. Endpoint and contract source under `src/BE/WorkslipApi`.
-2. Runtime OpenAPI document at `/openapi/v1.json` for the exact deployed build.
-3. `Postman/postman_collection.json` for executable request examples and smoke assertions.
-4. This guide for conventions and integration behaviour.
+Use these sources in order:
 
-OpenAPI and Scalar are currently mapped by application startup. They must be treated as an operationally sensitive surface until environment restriction is verified. Dev endpoints are also mapped by the current startup code; do not assume that their names alone make them development-only.
+1. endpoint/contract source under `src/BE/WorkslipApi`;
+2. runtime OpenAPI for the exact running build when the target environment enables it;
+3. `Postman/postman_collection.json` for executable examples and smoke assertions;
+4. this page for shared semantics.
 
-## Authentication and authorization
+OpenAPI, Scalar and `/api/dev/*` are release-testing surfaces. They are registered only when the current release-testing policy enables them; do not assume they exist in every environment.
 
-Send local Workslip or accepted Entra access tokens as:
+## Authentication and tenant authority
+
+Send accepted Workslip/Entra bearer tokens as:
 
 ```http
 Authorization: Bearer <token>
 ```
 
-Policy meanings:
+The API derives user, role and effective organization from authenticated server context. Integrations must not treat a client-selected organization ID, frontend route state or UI guard as an authorization boundary.
 
-| Policy | Intended access |
+Policy intent:
+
+| Policy | Meaning |
 |---|---|
-| Anonymous | No bearer token required. |
-| `RequireReadAccess` | Authenticated read-capable role, including auditor where configured. |
-| `RequireUser` | Normal operational user or a higher configured role. |
-| `RequireAdmin` | Admin or a higher configured role. |
-| `RequireSuperAdmin` | Superadmin only. |
+| Anonymous | No bearer token required |
+| `RequireReadAccess` | Authenticated read-capable role |
+| `RequireUser` | Operational user or configured higher role |
+| `RequireAdmin` | Admin or configured higher role |
+| `RequireSuperAdmin` | Superadmin only |
 
-The API derives organization, user and role from authenticated claims. Integrations must not send or trust a client-selected organization ID as an authorization boundary except on explicitly Superadmin-only platform administration routes.
+Superadmin cross-tenant behaviour is valid only on explicitly Superadmin-scoped platform operations. Ordinary repositories/services remain tenant-scoped to the effective organization.
 
-## Organization administration
-
-The following platform operations require `RequireSuperAdmin`:
-
-```text
-GET  /api/organizations/
-POST /api/organizations/
-POST /api/organizations/{organizationId}/session
-PUT  /api/organizations/{organizationId}/admin
-```
-
-The GET operation returns all organizations ordered by name and CVR for the `/superadmin` administration page. This is an intentional cross-tenant read and must remain inside the exclusive Superadmin route group.
-
-Organization creation returns the organization and its initial local administrator placeholder. The administrator upsert accepts `email`, `displayName` and optional `phone`, normalizes the email address, creates a Microsoft Entra B2B invitation when needed, sends the Entra invitation message with `/login` as the redemption redirect, assigns the Entra `Admin` app role, and creates or updates the local `Admin` row in the selected organization.
-
-The admin response includes `entraInvitationSent`. It is `true` only when a new Entra guest and invitation message were created. It is `false` when an existing Entra identity was reused and its Admin role/local record was updated.
-
-Sequential upserts for the same organization and email are idempotent. An email already owned by another organization returns `email_in_use`, and an existing `Superadmin` account is never converted to `Admin` (`superadmin_role_protected`). Conditional writes reject stale concurrent changes with `admin_state_changed`; clients may reload and retry. If Workslip creates a new Entra guest but SQL persistence fails, it removes that guest only when no persisted user references the identity.
-
-Non-empty user emails are globally unique through the filtered SQL index `UX_Users_Email`, matching the identity lookup used by authentication. Schema initialization fails explicitly if legacy duplicate non-empty emails exist, because silently selecting one organization would violate tenant isolation.
-
-### Delegated organization sessions
-
-`POST /api/organizations/{organizationId}/session` validates that:
-
-- the authenticated claim role is `Superadmin`;
-- the current Workslip database row still has the `Superadmin` role;
-- the selected organization exists.
-
-On success it returns the standard `AuthTokenResponse` with a short-lived local Workslip token. The token keeps the real Superadmin user ID, email, display name and role, but its `organizationId` claim is the selected organization. It also contains:
-
-- `homeOrganizationId`: the Superadmin row's permanent organization;
-- `delegatedOrganizationSession=true`;
-- a unique `jti`.
-
-The delegated token expires after 15 minutes by default. `Jwt:OrganizationSessionExpiryMinutes` may configure a value from 1 through 30 minutes. It has no refresh flow. Selecting an organization does not update the user row, create a membership, modify Entra, or change any tenant service contract.
-
-The frontend preserves the original Superadmin token, clears tenant query state before entering or leaving an organization, displays the effective organization continuously, and restores the original token on explicit exit or delegated-token expiry. Superadmins cannot register tenant push subscriptions, and tenant notification/profile UI is hidden during delegated use.
-
-The official frontend exposes Superadmin organization administration and delegated
-organization sessions across desktop browsers, mobile browsers, and installed PWA
-contexts. Device family and viewport size do not change access. API clients must
-rely on the authorization policies and delegated-token validation documented above.
-
-Ordinary repositories continue using the authenticated `organizationId` claim. Audit data therefore records the real Superadmin actor while operational reads and writes remain scoped to the selected organization.
-
-## User role fields
-
-User list, user detail and current-user responses expose two role fields:
-
-- `role` is the canonical authorization value (`User`, `Auditor`, `Admin` or `Superadmin`). Clients must use this field for permission logic.
-- `roleDisplayName` is the backend-owned Danish display label used by the UI. It is presentation data and must not be used for authorization.
-
-The display field is additive. Clients that do not yet understand it may continue using the canonical `role` value.
-
-## Invitation administration
-
-Admin-authorized invitation operations are:
-
-```text
-POST   /api/auth/invite
-GET    /api/auth/invites
-DELETE /api/auth/invites/{inviteId}
-```
-
-`POST /api/auth/invite` accepts one or more e-mail addresses and an invitation role. The only assignable roles are canonical `User` and `Auditor`; missing or blank roles retain the backward-compatible `User` default. Any other value, including `Admin` and `Superadmin`, is rejected before an invitation or e-mail side effect occurs. Resending a pending invitation replaces its role with the latest valid selection.
-
-The delete operation is tenant-scoped by the authenticated organization. A pending invitation is atomically revoked and its token rotated before any external cleanup starts, so concurrent enrollment and clearing cannot both succeed. When Workslip created an Entra guest specifically for that pending invitation, the guest is removed before the revoked status row is deleted. If Graph cleanup fails, the revoked row remains as durable retry state. Accepted invitations only have their historical status row removed; the enrolled user is not deleted.
-
-## Standard headers
+## Standard request headers
 
 ```http
 Accept: application/json
@@ -114,11 +49,11 @@ X-Correlation-ID: <uuid-or-trace-id>
 Idempotency-Key: <stable-key-for-one-logical-mutation>
 ```
 
-`Idempotency-Key` is mandatory on currently protected mutation endpoints. Missing keys can return `428 Precondition Required`. Reusing a key with different content returns a conflict. A replay can return the stored original response.
+`Idempotency-Key` applies where the endpoint contract requires it. A retry of the same logical mutation should reuse the same key; using the same key for different content is a conflict.
 
-## Result and error contract
+## Result and error mapping
 
-Application services return `Ardalis.Result`; endpoints normally map it through `ResultExtensions.ToHttpResult`.
+Application services return `Ardalis.Result`; endpoints normally map through `ResultExtensions.ToHttpResult`.
 
 | Result | HTTP |
 |---|---:|
@@ -129,61 +64,35 @@ Application services return `Ardalis.Result`; endpoints normally map it through 
 | Forbidden | `403` |
 | Not found | `404` |
 | Conflict | `409` |
-| Missing idempotency key | `428` |
+| Missing required idempotency key | `428` |
 | Unexpected failure | `500` |
 
-Validation example:
+Integrations should branch primarily on HTTP status and use a stable `error` code where the endpoint returns one. Do not depend on human-readable error text as a machine contract.
 
-```json
-{
-  "title": "One or more validation errors occurred.",
-  "status": 400,
-  "errors": {
-    "Email": ["Email is invalid."]
-  }
-}
-```
+## Pagination, filtering and arrays
 
-Conflict example:
+List endpoints use their OpenAPI-defined query parameters. Common pagination parameters are `limit` and `offset`; common sort parameters are `sortBy` and `sortDirection`.
 
-```json
-{
-  "error": "duplicate_report_number",
-  "message": "duplicate_report_number"
-}
-```
-
-Some specialized endpoints return a direct `{ "error": "..." }` payload. Integrations must branch primarily on HTTP status and then use `error` as a stable machine-readable code where present.
-
-## Pagination, filtering and sorting
-
-List endpoints commonly use:
-
-```text
-limit=<positive integer>
-offset=<zero or positive integer>
-search=<text>
-sortBy=<supported field>
-sortDirection=asc|desc
-```
-
-Job listing additionally supports repeated status values and customer/report filters. Arrays are serialized as repeated query parameters:
+Repeated values are serialized as repeated query parameters when the contract defines an array, for example:
 
 ```text
 /api/jobs?status=Draft&status=InReview&limit=50&offset=0
 ```
 
-Responses that are paginated use an object containing `items` and `totalCount` unless the endpoint contract states otherwise.
+Paginated responses normally expose `items` plus `totalCount` when that shape is defined by the endpoint contract.
 
 ## Caching and correlation
 
-Selected GET endpoints return ETags and private revalidation headers. Clients may send `If-None-Match` and handle `304 Not Modified`.
+Selected GET endpoints use private ETag revalidation. Clients may send `If-None-Match` and must handle `304 Not Modified` when the endpoint advertises that behaviour.
 
-The API accepts/creates correlation identifiers and writes them to request telemetry. Preserve `X-Correlation-ID` across integration boundaries and include it in support reports.
+Preserve `X-Correlation-ID` across integration boundaries when supplied and include correlation identifiers in support/diagnostic reports. Do not put personal data or secrets into correlation values.
 
 ## Compatibility
 
-- Additive optional fields are normally backward compatible.
-- Removing or renaming fields, routes, enum values or error codes requires a migration/deprecation plan.
-- Generated frontend clients and the Postman collection must be reviewed with every contract change.
-- Planned behaviour is never documented as deployed behaviour.
+- Additive optional response fields are normally backward-compatible.
+- Removing/renaming routes, fields, enum values or stable error codes requires a migration/deprecation decision.
+- Authentication/tenant-boundary changes are security-sensitive even when the JSON shape is unchanged.
+- Generated frontend clients and executable Postman examples must be reviewed/regenerated when their source contract changes.
+- Planned behaviour must never be written here as deployed behaviour.
+
+Use [`change-policy.md`](change-policy.md) for change/deprecation rules and [`integration-guide.md`](integration-guide.md) for integration operation/failure guidance.
