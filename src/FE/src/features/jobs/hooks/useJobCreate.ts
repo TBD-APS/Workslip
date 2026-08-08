@@ -4,7 +4,6 @@ import type { AxiosError } from 'axios';
 import { notify } from '../../../lib/toast';
 import {
   usePostApiJobs,
-  usePostApiJobsIdAssign,
   usePostApiJobsIdLinks,
   getGetApiJobsQueryKey,
 } from '../../../api/generated/jobs/jobs';
@@ -24,6 +23,7 @@ type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
   createCustomerFromSnapshot?: boolean;
   jobType: 'KLS' | 'Diverse' | 'Unknown';
+  assignedUserIds?: string[];
 };
 
 export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: JobForm) {
@@ -41,7 +41,6 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const assignedUserIds = assignedUserIdsDraft ?? defaultAssignedUserIds;
   const [isSaving, setIsSaving] = useState(false);
   const [linksStatus, setLinksStatus] = useTimedStatus();
-  const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const createMutation = usePostApiJobs({
     mutation: {
@@ -55,10 +54,6 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
           promises.push(linkMutation.mutateAsync({ id: jobId, data: { targetReportIds: linkedJobIds } }));
         }
 
-        if (assignedUserIds.length > 0) {
-          promises.push(assignMutation.mutateAsync({ id: jobId, data: { userIds: assignedUserIds } }));
-        }
-
         Promise.all(promises).then(() => {
           queryClient.invalidateQueries({ queryKey: getGetApiJobsQueryKey() });
           queryClient.invalidateQueries({ queryKey: ['worksheets'] });
@@ -67,8 +62,8 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
           onCreated(jobId);
         }).catch((error) => {
           setIsSaving(false);
-          notify.error('Sagen er oprettet, men tildeling mislykkedes', { id: 'job-assign-error' });
-          console.error('Assignment failed:', error);
+          notify.error('Sagen er oprettet, men sammenkædning mislykkedes', { id: 'job-link-error' });
+          console.error('Linking failed:', error);
           onCreated(jobId);
         });
       },
@@ -83,13 +78,6 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const linkMutation = usePostApiJobsIdLinks({
     mutation: {
       onSuccess: () => setLinksStatus('saved'),
-    },
-    request: { skipGlobalErrorToast: true },
-  });
-
-  const assignMutation = usePostApiJobsIdAssign({
-    mutation: {
-      onSuccess: () => setAssignmentStatus('saved'),
     },
     request: { skipGlobalErrorToast: true },
   });
@@ -186,7 +174,6 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const updateAssignedUsers = (userIds: string[]) => {
     if (!isAdmin) return;
     setAssignedUserIdsDraft(userIds);
-    setAssignmentStatus('idle');
   };
 
   const updateWorkCategories = (categoryIds: string[]) => {
@@ -258,6 +245,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       destinationZipCode: targetForm.destinationZipCode.trim() || null,
       destinationCity: targetForm.destinationCity.trim() || null,
       jobType: targetForm.jobType,
+      assignedUserIds,
       work: null,
       observations: {
         reportDate: null,
@@ -301,7 +289,6 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     setAssignedUserIdsDraft(null);
     setIsSaving(false);
     setLinksStatus('idle');
-    setAssignmentStatus('idle');
   };
 
   return {
@@ -312,7 +299,6 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     isSaving,
     canSave,
     linksStatus,
-    assignmentStatus,
     referenceData,
     isLoadingReferenceData: referenceDataQuery.isLoading,
     isLoadingUsers: usersQuery.isLoading,
