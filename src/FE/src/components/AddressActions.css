@@ -65,6 +65,10 @@
   margin-left: auto;
 }
 
+.detail-form.is-editable .destination-address-actions {
+  display: none;
+}
+
 @media (min-width: 900px) and (hover: hover) and (pointer: fine) {
   .address-action {
     width: 1.875rem;
