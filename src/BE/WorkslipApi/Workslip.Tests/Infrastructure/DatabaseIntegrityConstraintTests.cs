@@ -313,6 +313,7 @@ public sealed class DatabaseIntegrityConstraintTests
 
             var options = new DbContextOptionsBuilder<SqlDbContext>()
                 .UseSqlite(connection)
+                .AddInterceptors(SqliteSchemaCompatibilityInterceptor.Instance)
                 .Options;
             var context = new SqlDbContext(options);
             await context.Database.EnsureCreatedAsync();
