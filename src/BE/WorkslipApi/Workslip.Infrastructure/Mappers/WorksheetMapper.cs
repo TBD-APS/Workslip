@@ -15,6 +15,7 @@ public static class WorksheetMapper
     {
         public DateTime WorkDate { get; init; }
         public Guid JobId { get; init; }
+        public Guid UserId { get; init; }
         public string? ReportNumber { get; init; }
         public string CustomerName { get; init; } = "";
         public string? CustomerAddress { get; init; }
