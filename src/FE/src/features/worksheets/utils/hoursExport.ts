@@ -29,7 +29,7 @@ export function buildHoursExportRows(data: MyWorksheetsMonthResponse): HoursExpo
         .map((entry) => ({
           workDate: entry.workDate,
           week: getIsoWeek(entry.workDate),
-          userId: entry.userId,
+          userId: getWorksheetEntryIdentity(entry),
           employeeName: entry.userDisplayName?.trim() || 'Ukendt medarbejder',
           reportNumber: entry.reportNumber?.trim() || '—',
           customerName: entry.customerName.trim() || 'Ukendt kunde',
@@ -105,6 +105,18 @@ export function hoursExportFilename(data: MyWorksheetsMonthResponse): string {
 
 export function sumExportHours(rows: HoursExportRow[]): number {
   return rows.reduce((sum, row) => sum + row.hours, 0);
+}
+
+function getWorksheetEntryIdentity(entry: { userId?: string | null; userDisplayName?: string | null }): string {
+  const stableUserId = typeof entry.userId === 'string' ? entry.userId.trim() : '';
+  if (stableUserId) return stableUserId;
+
+  // Frontend and backend deploy independently. During a rolling deployment the
+  // browser can briefly receive the pre-WOR-24 worksheet shape without userId.
+  // Preserve the previous name-based grouping semantics instead of crashing the
+  // entire Timer route while the backend catches up.
+  const legacyName = entry.userDisplayName?.trim().toLocaleLowerCase('da-DK') || 'ukendt medarbejder';
+  return `legacy:${legacyName}`;
 }
 
 function csvText(value: string): string {
