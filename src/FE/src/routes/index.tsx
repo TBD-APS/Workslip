@@ -4,6 +4,7 @@ import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 
 import { ErrorBoundary } from 'react-error-boundary';
 import { reportFrontendError } from '../applicationInsights';
 import { FullscreenSystemState } from '../components/common/FullscreenSystemState';
+import { NotFoundPage } from '../components/common/NotFoundPage';
 import { Login } from '../features/auth/routes/Login';
 import { ErrorFallback } from '../providers/ErrorFallback';
 import { RoleGuard } from '../providers/permissions';
@@ -246,7 +247,7 @@ export const router = createBrowserRouter([
           { path: 'customers', element: <RoleGuard permission="customer:view"><CustomerList /></RoleGuard> },
           { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /></RoleGuard> },
           { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /></RoleGuard> },
-          { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
+          { path: 'customers/:id/edit', element: <RoleGuard permission="customer:edit"><EditCustomerPage /></RoleGuard> },
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
@@ -281,7 +282,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '*',
-        element: <ErrorFallback error={new Error('Siden blev ikke fundet (404)')} resetErrorBoundary={() => {}} />,
+        element: <NotFoundPage />,
       },
     ],
   },

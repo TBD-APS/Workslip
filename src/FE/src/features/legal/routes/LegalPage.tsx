@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { NotFoundPage } from '../../../components/common/NotFoundPage';
 import { termsContent } from '../content/terms';
 import { privacyContent } from '../content/privacy';
 import { cookiesContent } from '../content/cookies';
@@ -18,11 +19,10 @@ export const LegalPage = () => {
 
   if (!content) {
     return (
-      <div className="page-container">
-        <div className="page-header">
-          <h2>Siden blev ikke fundet</h2>
-        </div>
-      </div>
+      <NotFoundPage
+        message="Den juridiske side findes ikke."
+        destination="/app"
+      />
     );
   }
 

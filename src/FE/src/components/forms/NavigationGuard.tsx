@@ -7,7 +7,7 @@ type NavigationGuardProps = {
   when: boolean;
   title?: string;
   message?: string;
-  onSave?: () => void | Promise<unknown>;
+  onSave?: () => void | boolean | Promise<unknown>;
   autoSaveOnLeave?: () => boolean | Promise<boolean>;
   autoSavePending?: boolean;
 };
@@ -22,6 +22,7 @@ export function NavigationGuard({
 }: NavigationGuardProps) {
   const blocker = useBlocker(when);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const autoSaveOnLeaveRef = useRef(autoSaveOnLeave);
   const autoSaveStartedRef = useRef(false);
   const isAutoSaveMode = Boolean(autoSaveOnLeave);
@@ -83,14 +84,27 @@ export function NavigationGuard({
       blocker.proceed?.();
       return;
     }
+
+    setSaveFailed(false);
     setIsSaving(true);
     try {
-      await onSave();
+      const result = await onSave();
+      if (result === false) {
+        setSaveFailed(true);
+        return;
+      }
+      blocker.proceed?.();
     } catch {
-      // proceed anyway
+      setSaveFailed(true);
+    } finally {
+      setIsSaving(false);
     }
-    blocker.proceed?.();
   }, [blocker, onSave]);
+
+  const handleCancel = () => {
+    setSaveFailed(false);
+    blocker.reset?.();
+  };
 
   if (blocker.state !== 'blocked') return null;
 
@@ -98,7 +112,7 @@ export function NavigationGuard({
     <div
       className="modal-backdrop"
       onClick={() => {
-        if (!isSaving && !isAutoSaveMode) blocker.reset?.();
+        if (!isSaving && !isAutoSaveMode) handleCancel();
       }}
     >
       <div
@@ -109,6 +123,11 @@ export function NavigationGuard({
       >
         <h3>{dialogTitle}</h3>
         <p>{dialogMessage}</p>
+        {saveFailed && (
+          <p role="alert">
+            Kunne ikke gemme ændringerne. Dine ændringer er stadig på siden.
+          </p>
+        )}
         <div className="modal-actions">
           {isSaving || isAutoSaveMode ? (
             <div className="saving-indicator">
@@ -123,20 +142,20 @@ export function NavigationGuard({
                     <button type="button" className="btn btn-secondary" onClick={() => blocker.proceed?.()}>
                       Forlad uden at gemme
                     </button>
-                    <button type="button" className="btn btn-primary" onClick={handleSaveAndLeave}>
-                      Gem og forlad
+                    <button type="button" className="btn btn-primary" onClick={() => { void handleSaveAndLeave(); }}>
+                      {saveFailed ? 'Prøv at gemme igen' : 'Gem og forlad'}
                     </button>
                   </div>
-                  <button type="button" className="btn btn-secondary" onClick={() => blocker.reset?.()}>
+                  <button type="button" className="btn btn-secondary" onClick={handleCancel}>
                     Annuller
                   </button>
                 </>
               ) : (
                 <div className="modal-actions--double">
-                  <button type="button" className="btn btn-secondary" onClick={() => blocker.reset?.()}>
+                  <button type="button" className="btn btn-secondary" onClick={handleCancel}>
                     Annuller
                   </button>
-                  <button type="button" className="btn btn-primary" onClick={handleSaveAndLeave}>
+                  <button type="button" className="btn btn-primary" onClick={() => { void handleSaveAndLeave(); }}>
                     Forlad siden
                   </button>
                 </div>
