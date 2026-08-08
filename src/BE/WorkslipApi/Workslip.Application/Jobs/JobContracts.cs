@@ -158,7 +158,8 @@ public sealed record CreateJobRequest(
     string? DestinationZipCode = null,
     string? DestinationCity = null,
     string? JobType = null,
-    IReadOnlyList<CreateTimesheetRequest>? Timesheets = null);
+    IReadOnlyList<CreateTimesheetRequest>? Timesheets = null,
+    IReadOnlyList<Guid>? AssignedUserIds = null);
 
 public sealed record CreateTimesheetRequest(
     string WorkDate,
@@ -375,4 +376,3 @@ public sealed record JobEventResponse(
     JsonObject? Before,
     JsonObject? After,
     DateTimeOffset CreatedAt);
-
