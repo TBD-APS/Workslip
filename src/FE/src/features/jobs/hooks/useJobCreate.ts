@@ -24,6 +24,7 @@ type CreateJobRequestWithSnapshot = CreateJobRequest & {
   customerSnapshot?: CustomerSnapshotData | null;
   createCustomerFromSnapshot?: boolean;
   jobType: 'KLS' | 'Diverse' | 'Unknown';
+  assignedUserIds?: string[];
 };
 
 export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: JobForm) {
@@ -48,14 +49,20 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       onSuccess: (response) => {
         const jobId = response.id;
         const reportNumber = response.reportNumber;
-
         const promises: Promise<unknown>[] = [];
 
         if (linkedJobIds.length > 0) {
           promises.push(linkMutation.mutateAsync({ id: jobId, data: { targetReportIds: linkedJobIds } }));
         }
 
-        if (assignedUserIds.length > 0) {
+        // New backends persist initial assignments inside the job-create transaction.
+        // Keep this conditional fallback so a newer frontend remains safe during a short
+        // frontend-before-backend deployment skew instead of silently losing assignment.
+        const persistedAssignedIds = new Set((response.assignedUsers ?? []).map((candidate) => candidate.id));
+        const assignmentAlreadyPersisted =
+          persistedAssignedIds.size === assignedUserIds.length
+          && assignedUserIds.every((id) => persistedAssignedIds.has(id));
+        if (!assignmentAlreadyPersisted) {
           promises.push(assignMutation.mutateAsync({ id: jobId, data: { userIds: assignedUserIds } }));
         }
 
@@ -67,8 +74,8 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
           onCreated(jobId);
         }).catch((error) => {
           setIsSaving(false);
-          notify.error('Sagen er oprettet, men tildeling mislykkedes', { id: 'job-assign-error' });
-          console.error('Assignment failed:', error);
+          notify.error('Sagen er oprettet, men tildeling eller sammenkædning mislykkedes', { id: 'job-create-followup-error' });
+          console.error('Job create follow-up failed:', error);
           onCreated(jobId);
         });
       },
@@ -258,6 +265,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       destinationZipCode: targetForm.destinationZipCode.trim() || null,
       destinationCity: targetForm.destinationCity.trim() || null,
       jobType: targetForm.jobType,
+      assignedUserIds,
       work: null,
       observations: {
         reportDate: null,
