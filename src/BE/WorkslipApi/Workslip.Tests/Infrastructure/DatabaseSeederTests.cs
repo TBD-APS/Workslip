@@ -29,6 +29,21 @@ public sealed class DatabaseSeederTests
         };
 
     [Fact]
+    public async Task Seed_on_empty_database_retains_demo_installation_snapshots()
+    {
+        await using var context = CreateContext();
+
+        await SeedAsync(context);
+
+        Assert.NotEmpty(await context.JobReports.AsNoTracking().ToListAsync());
+        Assert.NotEmpty(await context.JobReportInstallations.AsNoTracking().ToListAsync());
+        Assert.NotEmpty(await context.JobReportInstallationCategories.AsNoTracking().ToListAsync());
+        Assert.NotEmpty(await context.JobReportInstallationControlPoints.AsNoTracking().ToListAsync());
+        Assert.NotEmpty(await context.InstallationTypeDefinitions.AsNoTracking().ToListAsync());
+        Assert.NotEmpty(await context.InstallationTypeDefinitionMappings.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
     public async Task Seed_with_partially_seeded_database_adds_missing_development_users_to_oldest_organization()
     {
         await using var context = CreateContext();
@@ -59,7 +74,7 @@ public sealed class DatabaseSeederTests
         context.Users.AddRange(existingDevelopmentUser, unrelatedUser);
         await context.SaveChangesAsync();
 
-        await DatabaseSeeder.Seed(context);
+        await SeedAsync(context);
 
         var developmentUsers = await context.Users
             .AsNoTracking()
@@ -94,10 +109,10 @@ public sealed class DatabaseSeederTests
         context.Organizations.Add(organization);
         await context.SaveChangesAsync();
 
-        await DatabaseSeeder.Seed(context);
+        await SeedAsync(context);
         var firstSeed = await GetDevelopmentUserSnapshot(context);
 
-        await DatabaseSeeder.Seed(context);
+        await SeedAsync(context);
         var secondSeed = await GetDevelopmentUserSnapshot(context);
 
         Assert.Equal(ExpectedDevelopmentUsers.Count, await context.Users.CountAsync());
@@ -122,7 +137,7 @@ public sealed class DatabaseSeederTests
         context.Organizations.AddRange(platform, customer);
         await context.SaveChangesAsync();
 
-        await DatabaseSeeder.Seed(context);
+        await SeedAsync(context);
 
         var developmentUsers = await context.Users.AsNoTracking().ToListAsync();
         Assert.Equal(ExpectedDevelopmentUsers.Count, developmentUsers.Count);
@@ -156,7 +171,7 @@ public sealed class DatabaseSeederTests
         context.Users.Add(conflictingUser);
         await context.SaveChangesAsync();
 
-        await DatabaseSeeder.Seed(context);
+        await SeedAsync(context);
 
         var preserved = await context.Users.AsNoTracking().SingleAsync(user => user.Id == canonicalAdmin.Id);
         Assert.Equal("Renamed User", preserved.DisplayName);
@@ -196,7 +211,7 @@ public sealed class DatabaseSeederTests
         context.Users.Add(conflictingUser);
         await context.SaveChangesAsync();
 
-        await DatabaseSeeder.Seed(context);
+        await SeedAsync(context);
 
         var preserved = await context.Users.AsNoTracking().SingleAsync(user => user.Id == conflictingId);
         Assert.Equal("Existing Auditor Email", preserved.DisplayName);
@@ -222,6 +237,9 @@ public sealed class DatabaseSeederTests
                 user.CreatedAt,
                 user.UpdatedAt))
             .ToArrayAsync();
+
+    private static Task SeedAsync(SqlDbContext context) =>
+        DatabaseSeeder.Seed(context, new InstallationBaselineProvisioner(context));
 
     private static SqlDbContext CreateContext()
     {

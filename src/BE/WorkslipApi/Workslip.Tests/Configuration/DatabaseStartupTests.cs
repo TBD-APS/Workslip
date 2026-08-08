@@ -1,8 +1,12 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Workslip.Api.Configuration;
+using Workslip.Domain.Models;
+using Workslip.Infrastructure.Schema;
 using Xunit;
 
 namespace Workslip.Tests.Configuration;
@@ -10,30 +14,98 @@ namespace Workslip.Tests.Configuration;
 public sealed class DatabaseStartupTests
 {
     [Fact]
-    public async Task InitializeIfRequiredAsync_DuringOpenApiGeneration_DoesNotResolveDatabaseServices()
+    public async Task VerifyIfRequiredAsync_DuringOpenApiGeneration_DoesNotResolveDatabaseServices()
     {
         await using var services = new ServiceCollection().BuildServiceProvider();
         var configuration = BuildConfiguration(generateOpenApiOnly: true);
 
-        await DatabaseStartup.InitializeIfRequiredAsync(
+        await DatabaseStartup.VerifyIfRequiredAsync(
             services,
             configuration,
-            releaseTestingEnabled: false);
+            seedDevelopmentData: false);
     }
 
     [Fact]
-    public async Task InitializeIfRequiredAsync_DuringNormalRuntime_StillRequiresDatabaseServices()
+    public async Task VerifyIfRequiredAsync_DuringNormalRuntime_VerifiesConnectivityWithoutMigrationServices()
+    {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddDbContext<SqlDbContext>(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        await using var services = serviceCollection.BuildServiceProvider();
+        var configuration = BuildConfiguration(generateOpenApiOnly: false);
+
+        await DatabaseStartup.VerifyIfRequiredAsync(
+            services,
+            configuration,
+            seedDevelopmentData: false);
+    }
+
+    [Fact]
+    public async Task VerifyIfRequiredAsync_OutsideDevelopment_DoesNotMutateIncompleteTenantBaseline()
+    {
+        var serviceCollection = new ServiceCollection();
+        var databaseName = Guid.NewGuid().ToString();
+        serviceCollection.AddDbContext<SqlDbContext>(options =>
+            options.UseInMemoryDatabase(databaseName));
+        await using var services = serviceCollection.BuildServiceProvider();
+        await using (var setupScope = services.CreateAsyncScope())
+        {
+            var context = setupScope.ServiceProvider.GetRequiredService<SqlDbContext>();
+            var timestamp = DateTimeOffset.Parse("2025-01-01T00:00:00Z");
+            context.Organizations.Add(new OrganizationRow
+            {
+                Id = Guid.NewGuid(),
+                Name = "Incomplete tenant",
+                Cvr = "12345678",
+                CreatedAt = timestamp,
+                UpdatedAt = timestamp
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await DatabaseStartup.VerifyIfRequiredAsync(
+            services,
+            BuildConfiguration(generateOpenApiOnly: false),
+            seedDevelopmentData: false);
+
+        await using var verificationScope = services.CreateAsyncScope();
+        var verificationContext = verificationScope.ServiceProvider.GetRequiredService<SqlDbContext>();
+        Assert.Single(await verificationContext.Organizations.AsNoTracking().ToListAsync());
+        Assert.Empty(await verificationContext.ControlCategoryRow.AsNoTracking().ToListAsync());
+        Assert.Empty(await verificationContext.ControlPointRow.AsNoTracking().ToListAsync());
+        Assert.Empty(await verificationContext.InstallationTypeDefinitions.AsNoTracking().ToListAsync());
+        Assert.Empty(await verificationContext.InstallationTypeDefinitionMappings.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task VerifyIfRequiredAsync_DuringNormalRuntime_StillRequiresDatabaseServices()
     {
         await using var services = new ServiceCollection().BuildServiceProvider();
         var configuration = BuildConfiguration(generateOpenApiOnly: false);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            DatabaseStartup.InitializeIfRequiredAsync(
+            DatabaseStartup.VerifyIfRequiredAsync(
                 services,
                 configuration,
-                releaseTestingEnabled: false));
+                seedDevelopmentData: false));
 
         Assert.Contains("SqlDbContext", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Development", true)]
+    [InlineData("Staging", false)]
+    [InlineData("Production", false)]
+    public void ShouldSeedDevelopmentData_OnlyAllowsAspNetDevelopment(
+        string environmentName,
+        bool expected)
+    {
+        var environment = new TestHostEnvironment
+        {
+            EnvironmentName = environmentName
+        };
+
+        Assert.Equal(expected, DatabaseStartup.ShouldSeedDevelopmentData(environment));
     }
 
     [Theory]
@@ -63,4 +135,12 @@ public sealed class DatabaseStartupTests
                 [DatabaseStartup.GenerateOpenApiOnlyKey] = generateOpenApiOnly.ToString()
             })
             .Build();
+
+    private sealed class TestHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Production;
+        public string ApplicationName { get; set; } = "Workslip.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
 }

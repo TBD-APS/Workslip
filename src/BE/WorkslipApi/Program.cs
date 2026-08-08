@@ -65,6 +65,7 @@ try
     var releaseTestingEnabled = ReleaseTestingConfiguration.IsEnabled(
         app.Environment,
         app.Configuration);
+    var seedDevelopmentData = DatabaseStartup.ShouldSeedDevelopmentData(app.Environment);
 
     if (PlatformIdentityBootstrapCommand.IsRequested(args))
     {
@@ -74,11 +75,11 @@ try
         return;
     }
 
-    await RunStartupPhaseAsync(8, "Initialize database", () =>
-        DatabaseStartup.InitializeIfRequiredAsync(
+    await RunStartupPhaseAsync(8, "Verify database readiness", () =>
+        DatabaseStartup.VerifyIfRequiredAsync(
             app.Services,
             app.Configuration,
-            releaseTestingEnabled));
+            seedDevelopmentData));
 
     RunStartupPhase(9, "Configure HTTP pipeline", () =>
     {
