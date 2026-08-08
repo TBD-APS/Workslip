@@ -63,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationAdministrationRepository, EfOrganizationRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IWorksheetRepository, EfWorksheetRepository>();
+        services.AddSingleton<IMonthlyHoursPdfGenerator, MonthlyHoursPdfGenerator>();
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
         services.AddScoped<INotificationRepository, EfNotificationRepository>();
         services.AddScoped<IJobViewRepository, EfJobViewRepository>();
