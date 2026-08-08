@@ -16,6 +16,7 @@ import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatDateLong, formatDateTimeShort } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
+import { RejectedJobsIndicator } from '../components/RejectedJobsIndicator';
 
 
 const PAGE_SIZE = 20;
@@ -200,6 +201,12 @@ export const JobList = () => {
         )}
       </div>
 
+      <RejectedJobsIndicator
+        isAdmin={isAdmin}
+        userId={user?.id}
+        onSelect={() => handleStatusChange([JobStatus.Rejected])}
+      />
+
       <StatusFilter
         options={
           isAdmin
@@ -337,7 +344,7 @@ export const JobList = () => {
               desktopPageItems.map((job) => (
               <tr
                 key={job.id}
-                className="clickable"
+                className={`clickable${job.status === JobStatus.Rejected ? ' job-row--rejected' : ''}`}
                 onClick={() => navigate(isReadonlyState(job.status) ? `/app/completed/${job.id}` : `/app/job/${job.id}`, { state: { from: '/app' } })}
               >
                 <td>
@@ -451,7 +458,7 @@ export const JobList = () => {
 
 export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: () => void; isAdmin: boolean }) {
   return (
-    <button className="job-card" onClick={onOpen} type="button">
+    <button className={`job-card${job.status === JobStatus.Rejected ? ' job-card--rejected' : ''}`} onClick={onOpen} type="button">
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span>{formatJobType(job.jobType)}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span></span>
@@ -483,7 +490,7 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
 
       <div className="job-card-footer">
         <AssignedUsers users={job.assignedUsers} />
-        <span className="btn-icon" aria-label="\u00c5bn sag">
+        <span className="btn-icon" aria-label="Åbn sag">
           <ChevronRight size={20} />
         </span>
       </div>
