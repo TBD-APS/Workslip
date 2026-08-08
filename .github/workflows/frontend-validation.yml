@@ -17,7 +17,6 @@ env:
   DOTNET_VERSION: '10.0.x'
   NODE_VERSION: '24'
   BACKEND_SOLUTION: src/BE/WorkslipApi/Workslip.slnx
-  BACKEND_TEST_PROJECT: src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
 
 jobs:
   backend:
@@ -39,16 +38,7 @@ jobs:
       - name: Build
         run: dotnet build "${BACKEND_SOLUTION}" --configuration Release --no-restore --nologo
 
-      - name: Test merge-critical backend boundaries
-        run: >-
-          dotnet test "${BACKEND_TEST_PROJECT}"
-          --configuration Release
-          --no-build
-          --nologo
-          --filter "FullyQualifiedName~DatabaseStartupTests|FullyQualifiedName~InfrastructureConfigurationTests|FullyQualifiedName~AuthenticationConfigurationTests|FullyQualifiedName~EfOrganizationRepositoryOnboardingTests|FullyQualifiedName~UserServiceAuthorizationTests|FullyQualifiedName~AuthorizedJobServiceTests|FullyQualifiedName~AuditorDataScopeTests|FullyQualifiedName~AuditorCacheIsolationTests"
-
-      - name: Inventory full backend suite debt
-        continue-on-error: true
+      - name: Test
         run: >-
           dotnet test "${BACKEND_SOLUTION}"
           --configuration Release
