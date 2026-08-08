@@ -7,10 +7,6 @@
   width: min(32rem, calc(100% - 2rem));
   margin-inline: auto;
   padding: 0.9rem 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
   background: var(--surface-color);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-lg);
@@ -33,20 +29,4 @@
 .pwa-update-banner-copy span {
   color: var(--text-secondary);
   font-size: var(--fs-sm);
-}
-
-.pwa-update-banner-button {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-@media (max-width: 480px) {
-  .pwa-update-banner {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .pwa-update-banner-button {
-    width: 100%;
-  }
 }
