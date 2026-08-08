@@ -21,16 +21,21 @@ public sealed class EfNotificationRepositoryTests
             .AddInterceptors(SqliteSchemaCompatibilityInterceptor.Instance)
             .Options;
         var notificationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
 
         await using (var setupContext = new SqlDbContext(options))
         {
             await setupContext.Database.EnsureCreatedAsync();
-            setupContext.NotificationQueue.Add(CreateNotification(notificationId));
+            AddUser(setupContext, userId);
+            var existing = CreateNotification(notificationId);
+            existing.UserId = userId;
+            setupContext.NotificationQueue.Add(existing);
             await setupContext.SaveChangesAsync();
         }
 
         await using var context = new SqlDbContext(options);
         var duplicate = CreateNotification(notificationId);
+        duplicate.UserId = userId;
         var repository = new EfNotificationRepository(context, new NoRetryPolicy());
 
         await Assert.ThrowsAsync<DbUpdateException>(() =>
@@ -128,6 +133,7 @@ public sealed class EfNotificationRepositoryTests
         await using (var setupContext = new SqlDbContext(options))
         {
             await setupContext.Database.EnsureCreatedAsync();
+            AddUser(setupContext, userId);
             setupContext.NotificationQueue.AddRange(targetNotification, otherNotification);
             setupContext.PushSubscriptions.AddRange(
                 successfulSubscription,
@@ -170,6 +176,32 @@ public sealed class EfNotificationRepositoryTests
 
         Assert.Single(successfulIds);
         Assert.Contains(successfulSubscription.Id, successfulIds);
+    }
+
+    private static void AddUser(SqlDbContext context, Guid userId)
+    {
+        var organizationId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        context.Organizations.Add(new OrganizationRow
+        {
+            Id = organizationId,
+            Name = "Notification test organization",
+            Cvr = "12345678",
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+        context.Users.Add(new UserDataRow
+        {
+            Id = userId,
+            OrganizationId = organizationId,
+            Email = $"{userId:N}@example.test",
+            DisplayName = "Notification test user",
+            EntraId = $"entra-{userId:N}",
+            EntraEmail = $"{userId:N}@example.test",
+            Role = "User",
+            CreatedAt = now,
+            UpdatedAt = now
+        });
     }
 
     private static NotificationQueueRow CreateNotification(Guid id) => new()
