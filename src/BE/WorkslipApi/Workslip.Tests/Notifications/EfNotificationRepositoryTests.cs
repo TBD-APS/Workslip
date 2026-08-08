@@ -4,6 +4,7 @@ using Workslip.Domain.Models;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using Workslip.Tests.Infrastructure;
 using Xunit;
 
 namespace Workslip.Tests.Notifications;
@@ -17,6 +18,7 @@ public sealed class EfNotificationRepositoryTests
         await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<SqlDbContext>()
             .UseSqlite(connection)
+            .AddInterceptors(SqliteSchemaCompatibilityInterceptor.Instance)
             .Options;
         var notificationId = Guid.NewGuid();
 
@@ -44,6 +46,7 @@ public sealed class EfNotificationRepositoryTests
         await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<SqlDbContext>()
             .UseSqlite(connection)
+            .AddInterceptors(SqliteSchemaCompatibilityInterceptor.Instance)
             .Options;
         var userId = Guid.NewGuid();
         const string oldEndpoint = "https://push.example/old";
@@ -112,6 +115,7 @@ public sealed class EfNotificationRepositoryTests
         await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<SqlDbContext>()
             .UseSqlite(connection)
+            .AddInterceptors(SqliteSchemaCompatibilityInterceptor.Instance)
             .Options;
         var userId = Guid.NewGuid();
         var targetNotification = CreateNotification(Guid.NewGuid());
