@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Workslip.Api.Configuration;
 using Xunit;
@@ -40,11 +41,30 @@ public sealed class InfrastructureConfigurationTests
         Assert.Equal(ManagedIdentityClientId, connectionString.UserID);
     }
 
-    private static WebApplicationBuilder CreateBuilder(string environmentName) =>
+    [Fact]
+    public void ConfigureInfrastructure_RestoresCommandLineAsHighestOperatorOverride()
+    {
+        const string key = "Workslip:StartupDiagnosticsProbe";
+        var args = new[] { $"--{key}=command-line" };
+        var builder = CreateBuilder(Environments.Development, args);
+
+        // Simulate a provider added after the default WebApplication configuration,
+        // as Azure App Configuration is during ConfigureInfrastructure.
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [key] = "remote-configuration"
+        });
+
+        builder.ConfigureInfrastructure(args);
+
+        Assert.Equal("command-line", builder.Configuration[key]);
+    }
+
+    private static WebApplicationBuilder CreateBuilder(string environmentName, string[]? args = null) =>
         WebApplication.CreateBuilder(new WebApplicationOptions
         {
             EnvironmentName = environmentName,
-            Args = []
+            Args = args ?? []
         });
 
     private static string CreateManagedIdentityConnectionString() =>
