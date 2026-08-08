@@ -1,4 +1,3 @@
-import { forwardRef } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,24 +22,30 @@ vi.mock('../../../providers/authContextValue', () => ({
 }));
 
 vi.mock('./OneTimeCodeInput', () => ({
-  OneTimeCodeInput: forwardRef<HTMLInputElement, {
+  OneTimeCodeInput: ({
+    id,
+    name,
+    value,
+    onValueChange,
+    onBlur,
+    disabled,
+  }: {
     id?: string;
     name?: string;
     value: string;
     onValueChange: (value: string) => void;
     onBlur?: () => void;
     disabled?: boolean;
-  }>((props, ref) => (
+  }) => (
     <input
-      ref={ref}
-      id={props.id}
-      name={props.name}
-      value={props.value}
-      onChange={(event) => props.onValueChange(event.target.value)}
-      onBlur={props.onBlur}
-      disabled={props.disabled}
+      id={id}
+      name={name}
+      value={value}
+      onChange={(event) => onValueChange(event.target.value)}
+      onBlur={onBlur}
+      disabled={disabled}
     />
-  )),
+  ),
 }));
 
 function renderLogin(returnTo: string) {
