@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Workslip.Tests.Infrastructure;
 
-public sealed class DevelopmentDatabaseSeederTests
+public sealed class PlatformIdentityBootstrapperTests
 {
     private static readonly Guid CanonicalRasmusId =
         new("92779E5B-DA5B-4CC4-BBEB-07B40CAB806F");
@@ -16,8 +16,11 @@ public sealed class DevelopmentDatabaseSeederTests
     private static readonly Guid CanonicalMahadId =
         new("D4D4D4D4-DA5B-4CC4-BBEB-07B40CAB806F");
 
+    private static readonly Guid CanonicalMathiasCreateId =
+        new("E5E5E5E5-DA5B-4CC4-BBEB-07B40CAB806F");
+
     [Fact]
-    public async Task SeedAsync_FreshCustomerDatabaseCreatesStablePlatformMembership()
+    public async Task BootstrapAsync_FreshCustomerDatabaseCreatesExactlyThreeStablePlatformSuperadmins()
     {
         await using var context = CreateContext();
         var customer = CreateOrganization(Guid.NewGuid(), "Customer", "12345678");
@@ -26,35 +29,49 @@ public sealed class DevelopmentDatabaseSeederTests
         var entra = new FakeSuperadminEntraService();
         var seeder = CreateSeeder(context, entra);
 
-        await seeder.SeedAsync();
+        await seeder.BootstrapAsync();
         var firstSnapshot = await SnapshotAsync(context);
-        await seeder.SeedAsync();
+        await seeder.BootstrapAsync();
         var secondSnapshot = await SnapshotAsync(context);
 
         Assert.Equal(firstSnapshot, secondSnapshot);
         Assert.Equal(2, await context.Organizations.CountAsync());
-        Assert.Equal(5, await context.Users.CountAsync());
+        Assert.Equal(3, await context.Users.CountAsync());
         var platform = await context.Organizations.SingleAsync(
             organization => organization.Id == PlatformOrganization.Id);
         Assert.Equal(PlatformOrganization.Name, platform.Name);
         Assert.Equal(PlatformOrganization.Cvr, platform.Cvr);
         var superadmins = await context.Users
-            .Where(user => user.Id == CanonicalRasmusId || user.Id == CanonicalMahadId)
+            .Where(user => user.Id == CanonicalRasmusId ||
+                           user.Id == CanonicalMahadId ||
+                           user.Id == CanonicalMathiasCreateId)
             .ToListAsync();
+        Assert.Equal(3, superadmins.Count);
         Assert.All(superadmins, user => Assert.Equal(PlatformOrganization.Id, user.OrganizationId));
         Assert.All(superadmins, user => Assert.Equal(Roles.Superadmin, user.Role));
-        var ordinaryUsers = await context.Users
-            .Where(user => user.Id != CanonicalRasmusId && user.Id != CanonicalMahadId)
-            .ToListAsync();
-        Assert.Equal(3, ordinaryUsers.Count);
-        Assert.All(ordinaryUsers, user => Assert.Equal(customer.Id, user.OrganizationId));
-        Assert.Equal(4, entra.EnsureCalls.Count);
+        Assert.Equal(6, entra.EnsureCalls.Count);
+        Assert.Equal(2, entra.EnsureCalls.Count(email => email == "mathiaslt1@hotmail.dk"));
         Assert.Empty(entra.DeleteCalls);
         Assert.False(context.IsSeeding);
     }
 
     [Fact]
-    public async Task SeedAsync_ExistingPlatformRowsRepairsAllCanonicalFieldsAndPreservesCustomerUser()
+    public async Task DevelopmentSeeder_ComposesPlatformBootstrapWithSeparateDemoSeed()
+    {
+        await using var context = CreateContext();
+        var bootstrapper = CreateSeeder(context, new FakeSuperadminEntraService());
+        var developmentSeeder = new DevelopmentDatabaseSeeder(bootstrapper, context);
+
+        await developmentSeeder.SeedAsync();
+
+        Assert.Equal(2, await context.Organizations.CountAsync());
+        Assert.Equal(6, await context.Users.CountAsync());
+        Assert.Equal(3, await context.Users.CountAsync(user => user.Role == Roles.Superadmin));
+        Assert.Equal(3, await context.Users.CountAsync(user => user.Role != Roles.Superadmin));
+    }
+
+    [Fact]
+    public async Task BootstrapAsync_ExistingRowsPreserveStableIdsAndValidEntraBindingsWhileReconcilingFields()
     {
         await using var context = CreateContext();
         var customer = CreateOrganization(Guid.NewGuid(), "Customer", "12345678");
@@ -65,11 +82,16 @@ public sealed class DevelopmentDatabaseSeederTests
         var unrelated = CreateUser(Guid.NewGuid(), customer.Id, "unrelated@example.test");
         var rasmus = CreateUser(CanonicalRasmusId, platform.Id, "rasmusvm6@hotmail.com");
         var mahad = CreateUser(CanonicalMahadId, platform.Id, "mahad8@outlook.dk");
+        var existingMathiasId = Guid.NewGuid();
+        var mathias = CreateUser(existingMathiasId, platform.Id, "mathiaslt1@hotmail.dk");
+        SetValidEntraBinding(rasmus);
+        SetValidEntraBinding(mahad);
+        SetValidEntraBinding(mathias);
         context.Organizations.AddRange(customer, platform);
-        context.Users.AddRange(unrelated, rasmus, mahad);
+        context.Users.AddRange(unrelated, rasmus, mahad, mathias);
         await context.SaveChangesAsync();
 
-        await CreateSeeder(context, new FakeSuperadminEntraService()).SeedAsync();
+        await CreateSeeder(context, new FakeSuperadminEntraService()).BootstrapAsync();
 
         var storedRasmus = await context.Users.AsNoTracking().SingleAsync(user => user.Id == CanonicalRasmusId);
         Assert.Equal(PlatformOrganization.Id, storedRasmus.OrganizationId);
@@ -87,6 +109,15 @@ public sealed class DevelopmentDatabaseSeederTests
         Assert.Equal(Roles.Superadmin, storedMahad.Role);
         Assert.Equal("entra-mahad", storedMahad.EntraId);
         Assert.Equal("mahad#EXT#@tenant.onmicrosoft.com", storedMahad.EntraEmail);
+        var storedMathias = await context.Users.AsNoTracking().SingleAsync(user => user.Id == existingMathiasId);
+        Assert.Equal(existingMathiasId, storedMathias.Id);
+        Assert.Equal(PlatformOrganization.Id, storedMathias.OrganizationId);
+        Assert.Equal("Mathias Lambæk", storedMathias.DisplayName);
+        Assert.Equal("mathiaslt1@hotmail.dk", storedMathias.Email);
+        Assert.Equal(Roles.Superadmin, storedMathias.Role);
+        Assert.Equal("entra-mathias", storedMathias.EntraId);
+        Assert.Equal("mathias#EXT#@tenant.onmicrosoft.com", storedMathias.EntraEmail);
+        Assert.False(await context.Users.AnyAsync(user => user.Id == CanonicalMathiasCreateId));
         var storedUnrelated = await context.Users.AsNoTracking().SingleAsync(user => user.Id == unrelated.Id);
         Assert.Equal(customer.Id, storedUnrelated.OrganizationId);
         Assert.Equal(unrelated.DisplayName, storedUnrelated.DisplayName);
@@ -96,26 +127,51 @@ public sealed class DevelopmentDatabaseSeederTests
     [Theory]
     [InlineData(" RASMUSVM6@HOTMAIL.COM ")]
     [InlineData(" MAHAD8@OUTLOOK.DK ")]
-    public async Task SeedAsync_NormalizedCanonicalEmailOwnedByAnotherIdFailsBeforeMutationOrGraph(
-        string conflictingEmail)
+    [InlineData(" MATHIASLT1@HOTMAIL.DK ")]
+    public async Task BootstrapAsync_NormalizedEmailOnExistingRowPreservesItsStableWorkslipId(
+        string canonicalEmail)
     {
         await using var context = CreateContext();
-        var customer = CreateOrganization(Guid.NewGuid(), "Customer", "12345678");
-        var conflict = CreateUser(Guid.NewGuid(), customer.Id, conflictingEmail);
-        context.Organizations.Add(customer);
-        context.Users.Add(conflict);
+        var platform = CreateOrganization(
+            PlatformOrganization.Id,
+            PlatformOrganization.Name,
+            PlatformOrganization.Cvr);
+        var existing = CreateUser(Guid.NewGuid(), platform.Id, canonicalEmail);
+        SetValidEntraBinding(existing);
+        context.Organizations.Add(platform);
+        context.Users.Add(existing);
         await context.SaveChangesAsync();
         var entra = new FakeSuperadminEntraService();
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => CreateSeeder(context, entra).SeedAsync());
+        await CreateSeeder(context, entra).BootstrapAsync();
 
-        Assert.Contains("conflict", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Empty(entra.EnsureCalls);
-        Assert.Single(await context.Organizations.ToListAsync());
-        Assert.Single(await context.Users.ToListAsync());
-        Assert.False(await context.Organizations.AnyAsync(
-            organization => organization.Id == PlatformOrganization.Id));
+        var stored = await context.Users.AsNoTracking().SingleAsync(user => user.Id == existing.Id);
+        Assert.Equal(existing.Id, stored.Id);
+        Assert.Equal(PlatformOrganization.Id, stored.OrganizationId);
+        Assert.Equal(Roles.Superadmin, stored.Role);
+        Assert.Equal(3, entra.EnsureCalls.Count);
+    }
+
+    [Fact]
+    public async Task BootstrapAsync_ExistingEntraObjectIdDiffersFromGraph_PreservesBindingAndRollsBack()
+    {
+        await using var context = CreateContext();
+        var platform = CreateOrganization(
+            PlatformOrganization.Id,
+            PlatformOrganization.Name,
+            PlatformOrganization.Cvr);
+        var mathias = CreateUser(CanonicalMathiasCreateId, platform.Id, "mathiaslt1@hotmail.dk");
+        mathias.EntraId = "existing-valid-entra-object-id";
+        context.Organizations.Add(platform);
+        context.Users.Add(mathias);
+        await context.SaveChangesAsync();
+        var original = await SnapshotAsync(context);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateSeeder(context, new FakeSuperadminEntraService()).BootstrapAsync());
+
+        Assert.Contains("existing binding was preserved", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(original, await SnapshotAsync(context));
     }
 
     [Fact]
@@ -138,7 +194,7 @@ public sealed class DevelopmentDatabaseSeederTests
         var entra = new FakeSuperadminEntraService();
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => CreateSeeder(context, entra).SeedAsync());
+            () => CreateSeeder(context, entra).BootstrapAsync());
 
         Assert.Contains("tenant", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(entra.EnsureCalls);
@@ -161,7 +217,7 @@ public sealed class DevelopmentDatabaseSeederTests
         var entra = new FakeSuperadminEntraService();
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => CreateSeeder(context, entra).SeedAsync());
+            () => CreateSeeder(context, entra).BootstrapAsync());
 
         Assert.Contains("reserved", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(entra.EnsureCalls);
@@ -192,7 +248,7 @@ public sealed class DevelopmentDatabaseSeederTests
         var entra = new FakeSuperadminEntraService();
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => CreateSeeder(context, entra).SeedAsync());
+            () => CreateSeeder(context, entra).BootstrapAsync());
 
         Assert.Contains("reserved", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(entra.EnsureCalls);
@@ -212,7 +268,7 @@ public sealed class DevelopmentDatabaseSeederTests
         var entra = new FakeSuperadminEntraService();
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => CreateSeeder(context, entra).SeedAsync());
+            () => CreateSeeder(context, entra).BootstrapAsync());
 
         Assert.Contains(PlatformOrganization.Cvr, exception.Message, StringComparison.Ordinal);
         Assert.Empty(entra.EnsureCalls);
@@ -220,10 +276,10 @@ public sealed class DevelopmentDatabaseSeederTests
         Assert.Empty(await context.Users.ToListAsync());
     }
 
-    private static DevelopmentDatabaseSeeder CreateSeeder(
+    private static PlatformIdentityBootstrapper CreateSeeder(
         SqlDbContext context,
         ISuperadminEntraService entra) =>
-        new(context, entra, NullLogger<DevelopmentDatabaseSeeder>.Instance);
+        new(context, entra, NullLogger<PlatformIdentityBootstrapper>.Instance);
 
     private static SqlDbContext CreateContext()
     {
@@ -256,6 +312,26 @@ public sealed class DevelopmentDatabaseSeederTests
         UpdatedAt = DateTimeOffset.Parse("2025-01-02T00:00:00Z")
     };
 
+    private static void SetValidEntraBinding(UserDataRow user)
+    {
+        var localPart = ResolveLocalPart(user.Email);
+        user.EntraId = $"entra-{localPart}";
+        user.EntraEmail = $"{localPart}#EXT#@tenant.onmicrosoft.com";
+    }
+
+    private static string ResolveLocalPart(string email)
+    {
+        var normalizedEmail = email.Trim();
+        if (normalizedEmail.StartsWith("rasmus", StringComparison.OrdinalIgnoreCase))
+            return "rasmus";
+        if (normalizedEmail.StartsWith("mahad", StringComparison.OrdinalIgnoreCase))
+            return "mahad";
+        if (normalizedEmail.StartsWith("mathias", StringComparison.OrdinalIgnoreCase))
+            return "mathias";
+
+        throw new InvalidOperationException($"Unexpected canonical email '{email}'.");
+    }
+
     private static async Task<UserSnapshot[]> SnapshotAsync(SqlDbContext context) =>
         await context.Users
             .AsNoTracking()
@@ -284,9 +360,7 @@ public sealed class DevelopmentDatabaseSeederTests
             CancellationToken cancellationToken)
         {
             EnsureCalls.Add(email);
-            var localPart = email.StartsWith("rasmus", StringComparison.Ordinal)
-                ? "rasmus"
-                : "mahad";
+            var localPart = ResolveLocalPart(email);
             return Task.FromResult(new CreateEntraUserResult(
                 $"entra-{localPart}",
                 $"{localPart}#EXT#@tenant.onmicrosoft.com",
