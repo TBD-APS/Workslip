@@ -1,0 +1,44 @@
+name: WOR-384 regenerate lockfile
+
+on:
+  push:
+    branches: [rbj--384-repo-cleanup-dead-artifacts]
+    paths:
+      - src/FE/package.json
+      - .github/workflows/wor-384-regenerate-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: rbj--384-repo-cleanup-dead-artifacts
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Regenerate package lock
+        working-directory: src/FE
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Commit lockfile
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if git diff --quiet -- src/FE/package-lock.json; then
+            echo "package-lock.json already synchronized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/FE/package-lock.json
+          git commit -m "WOR-384: regenerate frontend lockfile"
+          git push origin HEAD:rbj--384-repo-cleanup-dead-artifacts
