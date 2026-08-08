@@ -10,7 +10,7 @@ Log.Information("[STARTUP] Workslip.Api bootstrap started");
 
 try
 {
-    var builder = RunStartupPhase(
+    var builder = RunStartupValuePhase(
         1,
         "Create application builder",
         () => WebApplication.CreateBuilder(args));
@@ -61,7 +61,7 @@ try
         builder.ConfigureServices();
     });
 
-    var app = RunStartupPhase(7, "Build application host", builder.Build);
+    var app = RunStartupValuePhase(7, "Build application host", builder.Build);
     var releaseTestingEnabled = ReleaseTestingConfiguration.IsEnabled(
         app.Environment,
         app.Configuration);
@@ -138,7 +138,7 @@ static void RunStartupPhase(int step, string phase, Action action)
     }
 }
 
-static T RunStartupPhase<T>(int step, string phase, Func<T> action)
+static T RunStartupValuePhase<T>(int step, string phase, Func<T> action)
 {
     var stopwatch = Stopwatch.StartNew();
     Log.Information("[STARTUP {StartupStep:00}] {StartupPhase} - START", step, phase);
