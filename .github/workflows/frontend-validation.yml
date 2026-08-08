@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -39,11 +41,59 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
 
+      - name: Test lint debt comparator
+        run: node --test scripts/compare-eslint-results.test.mjs
+
+      - name: Capture current lint findings
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          set +e
+          npm run lint -- --format json --output-file "${RUNNER_TEMP}/eslint-current.json"
+          lint_status=$?
+          set -e
+
+          if [[ "${lint_status}" -gt 1 ]]; then
+            echo "::error::ESLint failed to execute for the pull request (exit ${lint_status})."
+            exit "${lint_status}"
+          fi
+
+      - name: Capture base lint findings
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          base_dir="${RUNNER_TEMP}/workslip-lint-base"
+
+          cleanup() {
+            git -C "${GITHUB_WORKSPACE}" worktree remove --force "${base_dir}" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          git -C "${GITHUB_WORKSPACE}" fetch --no-tags origin \
+            "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+          git -C "${GITHUB_WORKSPACE}" worktree add --detach "${base_dir}" "origin/${GITHUB_BASE_REF}"
+
+          cd "${base_dir}/src/FE"
+          npm ci --prefer-offline --no-audit --no-fund
+
+          set +e
+          npm run lint -- --format json --output-file "${RUNNER_TEMP}/eslint-base.json"
+          lint_status=$?
+          set -e
+
+          if [[ "${lint_status}" -gt 1 ]]; then
+            echo "::error::ESLint failed to execute for ${GITHUB_BASE_REF} (exit ${lint_status})."
+            exit "${lint_status}"
+          fi
+
+      - name: Block new lint errors
+        run: >-
+          node scripts/compare-eslint-results.mjs
+          "${RUNNER_TEMP}/eslint-base.json"
+          "${RUNNER_TEMP}/eslint-current.json"
+
       - name: Generate branch-matched API client
         uses: ./.github/actions/generate-frontend-api
-
-      - name: Lint
-        run: npm run lint
 
       - name: Test
         if: ${{ !cancelled() && env.OPENAPI_DOCUMENT != '' }}

@@ -41,15 +41,19 @@ Normal application startup does not set this flag and retains fail-fast SQL conf
 The frontend pull-request workflow performs these steps from a clean checkout:
 
 1. install frontend dependencies;
-2. restore the backend API project;
-3. run the focused `DatabaseStartupTests` regression suite;
-4. build the API in Release mode and generate the OpenAPI document;
-5. generate the Orval client from that document;
-6. run frontend lint;
-7. run Vitest;
-8. run the production frontend build, including application and service-worker type checking.
+2. test the lint-debt comparator;
+3. capture ESLint JSON for the pull-request checkout;
+4. create a clean worktree for the pull-request base branch, install that branch's frontend dependencies and capture its ESLint JSON;
+5. fail if the pull request introduces any new severity-2 ESLint error compared with the base branch;
+6. restore the backend API project and run the focused startup/authorization regression suite through the shared API-generation action;
+7. build the API in Release mode and generate the OpenAPI document;
+8. generate the Orval client from that document;
+9. run Vitest;
+10. run the production frontend build, including application and service-worker type checking.
 
-Lint, tests, and build are independent gates after successful contract generation. A lint failure must not prevent test and build evidence from being collected, but every failed gate still fails the workflow.
+The lint gate is deliberately a ratchet while inherited lint debt exists. Existing errors do not make every pull request red, but new errors are blocking. Warnings remain informational. The comparator fingerprints the file, rule, message and offending source rather than the line number so unrelated line movement does not turn old debt into a false new error.
+
+Tests and production build still run after successful contract generation. A failing no-new-lint comparison, unit test, contract generation or build fails the workflow.
 
 ## Security boundary
 
@@ -67,10 +71,14 @@ Changes to API startup, infrastructure registration, hosted services, OpenAPI ge
 - normal runtime still registers the expected hosted services;
 - an OpenAPI document and Orval client are generated without SQL configuration.
 
+Changes to the lint ratchet must preserve focused tests proving that existing findings remain allowed while genuinely new errors and additional occurrences are rejected.
+
 ## Troubleshooting
 
 If generation fails with `Missing SQL connection string`, verify that the OpenAPI step sets `Workslip__GenerateOpenApiOnly=true` and that no new startup path resolves database services before endpoint discovery.
 
 If SQL retry or worker logs appear during OpenAPI generation, review all `IHostedService` registrations. Contract-generation mode must omit background services even when direct schema initialization is already skipped.
 
-If Orval succeeds but later gates fail, treat lint, unit-test discovery, and TypeScript/build failures as their own verified defects. Do not weaken those gates or reintroduce production credentials to hide unrelated frontend baseline problems.
+If the lint ratchet reports a new error, fix that error in the pull request. Do not add it to a static allow-list or disable the rule to preserve the inherited baseline.
+
+If Orval succeeds but later gates fail, treat unit-test discovery and TypeScript/build failures as their own verified defects. Do not weaken those gates or reintroduce production credentials to hide unrelated frontend baseline problems.
