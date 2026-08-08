@@ -11,20 +11,26 @@ This page records tenant/data-integrity boundaries that are expensive to reconst
 
 `OrganizationId` is the server-owned tenant boundary for Workslip operational data. API authorization and repository filters are still required; database constraints provide an additional integrity boundary and do not replace authorization.
 
-Current tenant-scoped relationships include users, customers, jobs, assignments, worksheets and top-level job installation selections. Composite keys/foreign keys are used where a child must reference an entity from the same organization.
+Current tenant-scoped relationships include users, customers, jobs, assignments, worksheets and the full selected-installation snapshot chain. Composite keys/foreign keys are used where a child must reference an entity from the same organization.
 
 Superadmin access does not remove ordinary tenant filtering from repositories. Cross-organization operational work uses the explicit delegated-organization session flow so existing services continue to operate with one effective organization context.
 
-## Known database-enforcement gap
+## Installation snapshot integrity
 
-Installation category/control-point snapshot rows remain a verified gap tracked by **WOR-160**:
+Selected installation snapshots carry `OrganizationId` through each database-owned relationship:
 
-- `JobReportInstallationCategoryRow` has no `OrganizationId`; its `ControlCategoryId` relationship is a simple foreign key.
-- `JobReportInstallationControlPointRow` has no `OrganizationId`; its `ControlPointId` relationship is a simple foreign key.
+```text
+JobReport
+  -> JobReportInstallation
+      -> JobReportInstallationCategory
+          -> JobReportInstallationControlPoint
+```
 
-The application can validate selections, but the database cannot currently prove that those two referenced definition rows belong to the same tenant as the parent installation. WOR-160 owns the relational fix and negative cross-tenant tests.
+The category snapshot has tenant-scoped composite foreign keys to both its parent installation and `ControlCategory`. The control-point snapshot has tenant-scoped composite foreign keys to both its parent category snapshot and `ControlPoint`.
 
-Do not describe installation snapshots as fully database tenant-enforced until that issue is implemented and verified.
+This means a valid entity ID from another organization cannot be attached to the snapshot chain merely because the ID exists. Application validation still rejects invalid input earlier, while the database constraint remains the final data-integrity boundary for direct SQL/import/worker paths.
+
+WOR-160 introduced this boundary and includes relational negative tests for cross-organization category/control-point references.
 
 ## Lifecycle and deletion
 
