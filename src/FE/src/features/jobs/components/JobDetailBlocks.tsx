@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Building2, FileText, Heart, Link2, Lock, Navigation, Users } from 'lucide-react';
+import { Building2, FileText, Heart, Link2, Lock, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { CopyAddressButton } from '../../../components/CopyAddressButton';
+import { AddressActions } from '../../../components/AddressActions';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown, type SingleSelectOption } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
@@ -14,12 +14,6 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import { validateEmail, validatePhoneNumber } from '../../../components/forms/validators';
 import { type AddressSuggestion } from '../hooks/useAddressAutocomplete';
 import { AddressAutocomplete } from './AddressAutocomplete';
-
-function getMapsUrl(address: string, zipCode: string, city: string): string | null {
-  const parts = [address, zipCode, city].filter((p) => p.trim().length > 0);
-  if (parts.length === 0) return null;
-  return `https://maps.google.com/?q=${encodeURIComponent(parts.join(', '))}`;
-}
 
 type CustomerBlockProps = {
   form: { customerId: string | null; customerSnapshot: CustomerSnapshotData | null; reportNumber: string };
@@ -89,20 +83,7 @@ export function DestinationAddressBlock({
           <FileText size={18} />
           <h3>Adresse (destination){required && <span className="required-asterisk">*</span>}</h3>
           {readOnly && <Lock size={14} className="readonly-indicator" />}
-          {displayValue && <CopyAddressButton address={displayValue} className="destination-copy-button" />}
-          {(() => {
-            const mapsUrl = getMapsUrl(value, zipCode, city);
-            return mapsUrl ? (
-              <a
-                href={mapsUrl}
-                className="nav-maps-link"
-                title="Åbn i Google Maps"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Navigation size={16} />
-              </a>
-            ) : null;
-          })()}
+          <AddressActions address={displayValue} className="destination-address-actions" />
         </div>
         <AddressAutocomplete
           value={displayValue}
@@ -110,6 +91,7 @@ export function DestinationAddressBlock({
           required={required}
           placeholder="Søg adresse..."
           readOnly={readOnly}
+          showAddressActions={false}
           onTextChange={handleTextChange}
           onSelectSuggestion={handleSelect}
           onClear={handleClear}
@@ -248,7 +230,7 @@ export function CustomerDetailsBlock({
               placeholder="Telefon"
               readOnly={isFieldReadOnly()}
             />
-            {(phoneError || fieldErrors.phone) && <p className="form-error-text">{phoneError || fieldErrors.phone}</p>}
+            {(emailError || fieldErrors.email) && <p className="form-error-text">{emailError || fieldErrors.email}</p>}
           </div>
           <div className="form-group">
             <label className="form-label">Kontaktperson</label>
