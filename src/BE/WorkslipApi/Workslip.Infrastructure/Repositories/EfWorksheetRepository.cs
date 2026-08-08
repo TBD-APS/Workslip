@@ -71,6 +71,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             {
                 WorkDate = w.WorkDate,
                 JobId = w.JobId,
+                UserId = w.UserId,
                 ReportNumber = r.ReportNumber,
                 CustomerName = r.CustomerName ?? (c != null ? c.Name : "Ukendt kunde"),
                 CustomerAddress = r.CustomerAddress ?? (c != null ? c.Address : null),
@@ -84,6 +85,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         return rows.Select(row => new MyWorksheetEntryResponse(
             DateOnly.FromDateTime(row.WorkDate),
             row.JobId,
+            row.UserId,
             row.ReportNumber,
             row.CustomerName,
             row.CustomerAddress,
@@ -119,6 +121,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
             {
                 WorkDate = w.WorkDate,
                 JobId = w.JobId,
+                UserId = w.UserId,
                 ReportNumber = r.ReportNumber,
                 CustomerName = r.CustomerName ?? (c != null ? c.Name : "Ukendt kunde"),
                 CustomerAddress = r.CustomerAddress ?? (c != null ? c.Address : null),
@@ -131,6 +134,7 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         return rows.Select(row => new MyWorksheetEntryResponse(
             DateOnly.FromDateTime(row.WorkDate),
             row.JobId,
+            row.UserId,
             row.ReportNumber,
             row.CustomerName,
             row.CustomerAddress,

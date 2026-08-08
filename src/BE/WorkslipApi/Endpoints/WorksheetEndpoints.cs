@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
 using Workslip.Api.ViewModels;
 using Workslip.Application.Jobs;
@@ -36,6 +36,25 @@ namespace Workslip.Api.Endpoints
                 var result = await service.GetAllWorksheetsAsync(year, month, cancellationToken);
                 return ResultExtensions.ToHttpResult(result);
             }).Produces<MyWorksheetsMonthResponse>(StatusCodes.Status200OK).RequireAuthorization(AuthPolicies.RequireAdmin);
+
+            group.MapGet("/all/report/pdf", async (
+                [FromQuery] int? year,
+                [FromQuery] int? month,
+                HttpContext httpContext,
+                IWorksheetService service,
+                CancellationToken cancellationToken) =>
+            {
+                var result = await service.GetAllWorksheetsPdfAsync(year, month, cancellationToken);
+                if (!result.IsSuccess)
+                    return ResultExtensions.ToHttpResult(result);
+
+                HttpCacheHeaders.SetNoStore(httpContext);
+                return Results.File(result.Value.Content, "application/pdf", result.Value.FileName);
+            })
+            .Produces(StatusCodes.Status200OK, contentType: "application/pdf")
+            .ProducesValidationProblem()
+            .Produces(StatusCodes.Status404NotFound)
+            .RequireAuthorization(AuthPolicies.RequireAdmin);
 
             return app;
         }
