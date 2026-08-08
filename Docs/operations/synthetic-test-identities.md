@@ -1,25 +1,31 @@
 # Synthetic test identities
 
+**Status:** Temporary; automated authenticated execution is blocked until an approved inbox reader exists
+
+**Owner:** Workslip product and release maintainers
+
+**Source of truth:** GitHub environment variables, deployed `/api/auth` behavior, and Playwright run evidence
+
+**Review cadence:** Before every authenticated release-test run and when the identity or inbox strategy changes
+
 ## Purpose
 
-Authenticated Playwright release tests use dedicated synthetic Workslip users and the normal one-time-code authentication flow. The test suite must not use `/api/dev/token`, fake login buttons, embedded bearer tokens, a human employee mailbox, or a temporary test-mail vendor account.
+Authenticated Playwright release tests temporarily use four existing non-production Workslip users and the normal one-time-code authentication flow. The historical `WORKSLIP_SYNTHETIC_*_EMAIL` names are retained so operations can replace an address without a source change.
 
-Email delivery is verified through an organization-owned Exchange Online shared mailbox. GitHub Actions reads that mailbox through Microsoft Graph using GitHub OIDC -> Microsoft Entra workload identity federation. No long-lived Graph client secret is required.
+The actual addresses are personal configuration data. Keep them in the approved GitHub environment or the operator's local process environment, never in repository files, reports, screenshots, command examples, or logs.
 
-## Mailbox model
+## Identity model
 
-Create one dedicated shared mailbox in the Microsoft 365 tenant, for example `workslip-e2e@<company-domain>`.
-
-Configure four durable role addresses that all deliver to that mailbox:
+Configure exactly one stable identity for each role:
 
 - `WORKSLIP_SYNTHETIC_USER_EMAIL`
 - `WORKSLIP_SYNTHETIC_AUDITOR_EMAIL`
 - `WORKSLIP_SYNTHETIC_ADMIN_EMAIL`
 - `WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL`
 
-They can be normal aliases on the shared mailbox. The Admin address must support Exchange Online plus-addressing because the tenant-isolation scenario derives unique secondary-admin addresses from it, for example `admin+<run-tag>@<company-domain>`. Exchange Online enables plus-addressing by default.
+These users already exist. This harness does not create users, mutate their roles, or accept a privileged setup token. The Auditor identity may be a disposable test-role account. A missing variable fails with the variable name, and a mismatch between the configured role and `/api/auth/me` rejects the login without logging the address.
 
-The shared mailbox should be company/test infrastructure. Do not bind CI to a developer's personal inbox. If another Microsoft 365 tenant is used, create the shared mailbox there and treat that tenant as an explicit external test-infrastructure dependency.
+The Admin inbox must receive any derived plus-address used by scenarios that create an isolated secondary organization. Verify that behavior manually before running `role-tenant-isolation`.
 
 ## Authentication flow
 
@@ -28,75 +34,46 @@ The shared mailbox should be company/test infrastructure. Do not bind CI to a de
 1. Open `/login`.
 2. Select the one-time-code login.
 3. Submit the synthetic email through `/api/auth/send-code`.
-4. The test runner obtains a GitHub OIDC assertion and exchanges it with Microsoft Entra for a Microsoft Graph access token.
-5. The runner polls the dedicated shared mailbox and matches the original recipient using message recipients/transport headers.
-6. Enter the six-digit code in the deployed Workslip UI.
-7. Workslip verifies the code through `/api/auth/verify-code/{code}` and returns the normal short-lived application JWT.
+4. The local operator reads the delivered code and enters it directly in the visible Workslip browser field.
+5. The page submits `/api/auth/verify-code/{code}` and stores the normal short-lived application JWT.
+6. The harness calls `/api/auth/me` with that token and verifies the expected role.
 
-The Graph access token exists only in the runner process. It is not passed to browser JavaScript, written to reports, or retained in Playwright artifacts.
+The Node harness never reads the code field or verify URL. Login screenshots mask the OTC field, and the email address and code must not be written to console output or retained artifacts.
 
-## Microsoft 365 / Entra setup
+## Fail-closed automation boundary
 
-Use a dedicated Entra application/service principal for the Playwright mailbox reader.
+There is currently no approved automated inbox reader for these addresses. Therefore:
 
-Configure a federated identity credential for the trusted GitHub workflow/ref or GitHub Environment used by the release test. The workflow needs `id-token: write` only to request the short-lived GitHub OIDC assertion.
+- `public-smoke` runs without identity configuration and sends no authentication mail;
+- every authenticated non-interactive run fails at startup before `/api/auth/send-code`;
+- GitHub Actions does not enable interactive mode and cannot run authenticated scenarios successfully;
+- there is no fallback authentication path, durable application token, or privileged identity setup path.
 
-Grant mailbox read access with Exchange Online **RBAC for Applications**, scoped only to the synthetic shared mailbox. Use the `Application Mail.Read` role and a management scope that includes only the test mailbox. Do not also grant an unscoped Microsoft Graph `Mail.Read` application permission in Entra; unscoped Entra grants are additive and would defeat the Exchange mailbox scope.
+This boundary is intentional. Adding mailbox credentials, a provider API, a browser session, another external processor, or a CI authentication grant requires explicit approval and a separate security/privacy review.
 
-The service principal requires no mail-send permission and no write permission.
+## Explicit local interactive run
 
-## GitHub configuration
-
-Required repository/environment variables:
-
-- `WORKSLIP_GRAPH_TENANT_ID`
-- `WORKSLIP_GRAPH_CLIENT_ID`
-- `WORKSLIP_SYNTHETIC_MAILBOX`
-- `WORKSLIP_SYNTHETIC_USER_EMAIL`
-- `WORKSLIP_SYNTHETIC_AUDITOR_EMAIL`
-- `WORKSLIP_SYNTHETIC_ADMIN_EMAIL`
-- `WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL`
-
-No permanent mailbox/API secret is required by the GitHub workflow.
-
-`public-smoke` does not consume the mailbox because it performs no authenticated work.
-
-For a manual local run, `WORKSLIP_GRAPH_ACCESS_TOKEN` may be supplied as a short-lived Graph token instead of GitHub OIDC. Never store that token in source control or as a durable CI secret.
-
-## One-time Workslip provisioning
-
-The four Workslip users must exist in the release-test tenant before authenticated scenarios run. Use `src/FE/scripts/bootstrap-synthetic-test-identities.mjs` with a short-lived **Superadmin** token obtained through a normal Workslip login.
-
-Required environment variables for the bootstrap:
-
-- `WORKSLIP_API_URL`
-- `WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN`
-- `WORKSLIP_SYNTHETIC_USER_EMAIL`
-- `WORKSLIP_SYNTHETIC_AUDITOR_EMAIL`
-- `WORKSLIP_SYNTHETIC_ADMIN_EMAIL`
-- `WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL`
-
-The script first verifies `/api/auth/me` reports `Superadmin`, then reads the tenant user list, leaves correctly configured identities unchanged, fails on role mismatches, and creates only missing identities through the normal `/api/users` contract.
-
-For a production-looking API target the script fails closed unless `WORKSLIP_ALLOW_PRODUCTION_SYNTHETIC_BOOTSTRAP=true` is explicitly supplied. That override is only for the deliberate one-time setup of a release-test tenant. Do not store `WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN` as a permanent CI secret; remove it after provisioning.
-
-Example PowerShell session:
+An operator who can access all inboxes needed by the selected scenario may run it locally from an interactive terminal. Set the four role variables without printing their values, then opt in:
 
 ```powershell
-$env:WORKSLIP_API_URL = "https://<api-host>"
-$env:WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN = "<short-lived-token>"
-$env:WORKSLIP_SYNTHETIC_USER_EMAIL = "<user-test-address>"
-$env:WORKSLIP_SYNTHETIC_AUDITOR_EMAIL = "<auditor-test-address>"
-$env:WORKSLIP_SYNTHETIC_ADMIN_EMAIL = "<admin-test-address>"
-$env:WORKSLIP_SYNTHETIC_SUPERADMIN_EMAIL = "<superadmin-test-address>"
-node .\src\FE\scripts\bootstrap-synthetic-test-identities.mjs
-Remove-Item Env:WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN
+$env:WORKSLIP_PLAYWRIGHT_INTERACTIVE_OTC = 'true'
+powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
+  -Mode Direct `
+  -Target Production `
+  -Scenario auth-session
+Remove-Item Env:WORKSLIP_PLAYWRIGHT_INTERACTIVE_OTC
 ```
+
+The harness requires both the exact opt-in value `true` and a TTY, and launches Chromium headed. For each login, enter the delivered code only in the browser and submit the visible form. Do not paste a code into the terminal. Target safety rules in `src/FE/config/release-environments.json` still apply.
 
 ## Data and security rules
 
-Synthetic users must live only in the designated release-test tenant. Test-generated customers, jobs, users, and worksheets follow the existing Playwright cleanup policy. The baseline synthetic identities are durable test principals and are not deleted by scenario cleanup.
+The four identities must be limited to the designated non-production/release-test context and keep one stable Workslip role each. Test-generated customers, jobs, users, and worksheets follow the existing Playwright cleanup policy; these existing identities are not deleted by scenario cleanup.
 
-The mailbox-reader application must remain read-only and mailbox-scoped. The shared mailbox account itself should have interactive sign-in blocked where supported by the tenant configuration.
+Email addresses and authentication artifacts are personal/security data. Limit access to repository/environment maintainers, do not expose them in source or artifacts, and follow the approved retention and access policy for GitHub variables and local shell history. This document records technical minimization controls, not proof of legal compliance.
 
-No replacement auth bypass is allowed. If Exchange Online, Microsoft Graph, GitHub OIDC, or OTC authentication is unavailable, authenticated tests fail rather than falling back to a static token or privileged endpoint.
+## Remaining validation and merge boundary
+
+The helper's source tests cover the deterministic pre-send failure, the explicit headed/TTY gate, and OTC URL redaction. They do not prove deployed email delivery or OTC login.
+
+Before PR #403 can leave draft, run an authenticated scenario against the deployed release-test target, verify the real send and verify endpoints plus `/api/auth/me`, record browser/viewport and scenario outcome without addresses or codes, and confirm the resulting report, screenshots, console output, and network-failure summary contain no sensitive values. Until then the authenticated suite is **implemented but Playwright-unvalidated**.

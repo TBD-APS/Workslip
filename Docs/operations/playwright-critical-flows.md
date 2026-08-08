@@ -122,7 +122,7 @@ Before customer go-live, retained fixtures and cleanup failures must be reviewed
 
 ## Authentication and sensitive evidence
 
-The authenticated suite uses deployed dev-login controls. The scenarios fail when those controls or the dev-token endpoint are unavailable; they must not silently switch to embedded credentials or assumed users. Tokens are kept in memory and are never written to artifacts.
+The authenticated suite uses the deployed one-time-code controls and the four role-specific `WORKSLIP_SYNTHETIC_*_EMAIL` variables described in [`synthetic-test-identities.md`](synthetic-test-identities.md). There is currently no approved automated inbox reader, so non-interactive authenticated runs fail before sending mail. A local operator may explicitly enable a headed TTY run and enter each delivered code only in the visible browser. The scenarios never fall back to another authentication path or assumed user. Tokens are kept in memory and are never written to artifacts.
 
 Authenticated Playwright traces are not uploaded because they can contain authorization headers, request bodies, and personal data. Artifacts contain redacted JSON reports and selected screenshots. Login steps do not take screenshots. The `notification-navigation` scenario uploads only its redacted JSON report and does not capture authenticated screenshots.
 

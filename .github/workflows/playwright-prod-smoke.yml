@@ -33,7 +33,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: playwright-critical-flows-${{ github.ref }}-${{ inputs.target }}-${{ inputs.scenario }}
@@ -99,7 +98,7 @@ jobs:
           node --check scripts/playwright-scenarios-core.mjs
           node --check scripts/playwright-scenarios-admin.mjs
           node --check scripts/playwright-synthetic-auth.mjs
-          node --check scripts/bootstrap-synthetic-test-identities.mjs
+          node --test scripts/playwright-synthetic-auth.test.mjs
           node -e "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8'))"
 
       - name: Run Playwright scenario
@@ -108,9 +107,6 @@ jobs:
           WORKSLIP_RELEASE_PHASE: ${{ steps.release-target.outputs.phase }}
           WORKSLIP_TEST_TARGET: ${{ steps.release-target.outputs.environment }}
           WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT: ${{ steps.release-target.outputs.allow_destructive_playwright }}
-          WORKSLIP_GRAPH_TENANT_ID: ${{ vars.WORKSLIP_GRAPH_TENANT_ID }}
-          WORKSLIP_GRAPH_CLIENT_ID: ${{ vars.WORKSLIP_GRAPH_CLIENT_ID }}
-          WORKSLIP_SYNTHETIC_MAILBOX: ${{ vars.WORKSLIP_SYNTHETIC_MAILBOX }}
           WORKSLIP_SYNTHETIC_USER_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_USER_EMAIL }}
           WORKSLIP_SYNTHETIC_AUDITOR_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_AUDITOR_EMAIL }}
           WORKSLIP_SYNTHETIC_ADMIN_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_ADMIN_EMAIL }}

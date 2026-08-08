@@ -6,7 +6,7 @@ import { createContractHelpers } from './playwright-critical-contract.mjs';
 import { createDomainHelpers } from './playwright-critical-domain.mjs';
 import { createCoreScenarioHandlers } from './playwright-scenarios-core.mjs';
 import { createAdminScenarioHandlers } from './playwright-scenarios-admin.mjs';
-import { createSyntheticInbox } from './playwright-synthetic-auth.mjs';
+import { createSyntheticAuth } from './playwright-synthetic-auth.mjs';
 
 const APP_URL = (process.env.PROD_URL ?? '').replace(/\/+$/, '');
 const SCENARIO = process.env.SCENARIO ?? 'public-smoke';
@@ -17,6 +17,7 @@ const RUN_STARTED = new Date();
 const RUN_ID = `${RUN_STARTED.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
 const API_TIMEOUT = 30_000;
 const UI_TIMEOUT = 25_000;
+const INTERACTIVE_OTC_TIMEOUT = 5 * 60_000;
 
 const CRITICAL_SCENARIOS = [
   'auth-session',
@@ -35,6 +36,9 @@ const SUPPORTED_SCENARIOS = ['public-smoke', ...CRITICAL_SCENARIOS, 'all-critica
 if (!APP_URL) throw new Error('PROD_URL is required.');
 if (!SUPPORTED_SCENARIOS.includes(SCENARIO)) throw new Error(`Unsupported scenario: ${SCENARIO}`);
 
+const syntheticAuth = createSyntheticAuth();
+syntheticAuth.assertScenarioReady(SCENARIO);
+
 await mkdir(ARTIFACT_DIR, { recursive: true });
 const postman = JSON.parse(await readFile(POSTMAN_PATH, 'utf8'));
 
@@ -48,26 +52,24 @@ const report = {
     postmanCollection: path.relative(process.cwd(), POSTMAN_PATH),
     runtimeOpenApi: null,
   },
-  dataPolicy: 'Authenticated flows use dedicated synthetic identities, an organization-owned Exchange Online mailbox, and the normal Workslip one-time-code login. Generated test identifiers follow Postman collection templates.',
+  dataPolicy: SCENARIO === 'public-smoke'
+    ? 'Public smoke does not authenticate or send one-time codes.'
+    : 'Authenticated flows use configured non-production identities and the normal Workslip one-time-code login. Codes are entered only in the visible browser. Generated test identifiers follow Postman collection templates.',
   scenarios: [],
   retainedFixtures: [],
   cleanupFailures: [],
 };
 
-let syntheticInbox;
-const getSyntheticInbox = () => {
-  syntheticInbox ??= createSyntheticInbox({ timeoutMs: Math.max(API_TIMEOUT, 30_000) });
-  return syntheticInbox;
-};
-
-const browser = await chromium.launch();
+const browser = await chromium.launch(syntheticAuth.browserLaunchOptions(SCENARIO));
 const helperEnv = { APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, ARTIFACT_DIR, postman, browser, devices, report };
 const contractHelpers = createContractHelpers(helperEnv);
 const domainHelpers = createDomainHelpers(helperEnv, contractHelpers);
 const helpers = { ...contractHelpers, ...domainHelpers };
 const { buildPostmanContract, buildDataFactory, validateContract, serializeError, redact, safeUrl, fileSafe, assertNoBrowserErrors } = contractHelpers;
 const postmanContract = buildPostmanContract(postman);
-const dataFactory = buildDataFactory(postman, RUN_ID);
+const dataFactory = SCENARIO === 'public-smoke'
+  ? { forScenario: () => ({}) }
+  : buildDataFactory(postman, RUN_ID);
 const scenarioEnv = { APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, browser, devices, report };
 const handlers = {
   ...createCoreScenarioHandlers(scenarioEnv, helpers),
@@ -139,12 +141,12 @@ async function runScenario(name) {
 
 async function authenticatePage(page, email) {
   const normalizedEmail = String(email ?? '').trim().toLowerCase();
-  const inbox = getSyntheticInbox();
+  if (!normalizedEmail) throw new Error('Synthetic authentication requires an email address.');
+  syntheticAuth.assertScenarioReady(SCENARIO);
   await page.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.getByRole('button', { name: 'Mistet dit login? Modtag engangskode', exact: true }).click();
   await page.getByLabel('Email', { exact: true }).fill(normalizedEmail);
 
-  const requestedAt = new Date();
   const sendResponsePromise = page.waitForResponse((response) =>
     response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/auth/send-code',
   { timeout: API_TIMEOUT });
@@ -152,20 +154,20 @@ async function authenticatePage(page, email) {
   const sendResponse = await sendResponsePromise;
   if (!sendResponse.ok()) throw new Error(`OTC request returned HTTP ${sendResponse.status()}.`);
 
-  const code = await inbox.waitForCode(normalizedEmail, requestedAt);
-  await page.getByLabel('Engangskode', { exact: true }).fill(code);
-
-  const verifyResponsePromise = page.waitForResponse((response) =>
+  await page.getByLabel('Engangskode', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  process.stdout.write('OTC sent. Enter the code in the visible Workslip browser and submit the login form.\n');
+  const verifyResponse = await page.waitForResponse((response) =>
     response.request().method() === 'POST' && new URL(response.url()).pathname.startsWith('/api/auth/verify-code/'),
-  { timeout: API_TIMEOUT });
-  await page.getByRole('button', { name: 'Log ind', exact: true }).click();
-  const verifyResponse = await verifyResponsePromise;
+  { timeout: INTERACTIVE_OTC_TIMEOUT });
   const tokenPayload = await verifyResponse.json().catch(() => null);
   if (!verifyResponse.ok() || !tokenPayload?.token || !tokenPayload?.user) {
     throw new Error(`OTC verification returned HTTP ${verifyResponse.status()}.`);
   }
+  await page.waitForURL(
+    (url) => url.pathname.startsWith('/app') || url.pathname.startsWith('/superadmin'),
+    { timeout: API_TIMEOUT },
+  );
 
-  await page.waitForURL((url) => url.pathname.startsWith('/app') || url.pathname.startsWith('/superadmin'), { timeout: API_TIMEOUT });
   return { tokenPayload, apiBase: new URL(verifyResponse.url()).origin };
 }
 
@@ -238,11 +240,15 @@ async function createSession(name, scenarioReport) {
     await page.screenshot({
       path: path.join(ARTIFACT_DIR, `${fileSafe(name)}-${fileSafe(label)}.png`),
       fullPage: true,
+      mask: [
+        page.getByLabel('Email', { exact: true }),
+        page.getByLabel('Engangskode', { exact: true }),
+      ],
     });
   }
 
   async function login(role = 'Admin') {
-    const email = getSyntheticInbox().emailForRole(role);
+    const email = syntheticAuth.emailForRole(role);
     const me = await authenticateEmail(email);
     if (String(me.role).toLowerCase() !== String(role).toLowerCase()) {
       throw new Error(`Synthetic ${role} identity resolved to role ${me.role}.`);
@@ -354,7 +360,7 @@ async function createSession(name, scenarioReport) {
     try {
       cleanupContext = await browser.newContext({ ...devices[VIEWPORT_NAME], locale: 'da-DK' });
       const cleanupPage = await cleanupContext.newPage();
-      const adminEmail = getSyntheticInbox().emailForRole('Admin');
+      const adminEmail = syntheticAuth.emailForRole('Admin');
       const { tokenPayload } = await authenticatePage(cleanupPage, adminEmail);
       const cleanupToken = tokenPayload.token;
 
