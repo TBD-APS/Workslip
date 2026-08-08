@@ -26,7 +26,6 @@ function renderAuditor(initialPath: string) {
     user: auditor,
     isLoading: false,
     login: vi.fn(),
-    devLogin: vi.fn(),
     logout: vi.fn(),
     clearLocalSession: vi.fn(),
     updateUser: vi.fn(),

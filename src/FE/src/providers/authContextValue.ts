@@ -79,7 +79,6 @@ export interface AuthContextType {
   user: UserViewModel | null;
   isLoading: boolean;
   login: (email: string, code: string) => Promise<boolean>;
-  devLogin: (email: string) => Promise<boolean>;
   logout: () => void;
   clearLocalSession: () => void;
   updateUser: (partial: Partial<Pick<UserViewModel, 'displayName' | 'phone'>>) => void;

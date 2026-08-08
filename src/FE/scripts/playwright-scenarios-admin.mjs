@@ -75,7 +75,6 @@ async function assignmentLifecycleFlow(session) {
   }, { screenshot: false });
   const job = await createKlsDraftViaUi(session, { role: 'Admin' });
 
-  const adminToken = session.auth.token;
   await session.step('assign and reassign through job UI', async () => {
     await session.page.goto(`${APP_URL}/app/job/${job.id}`, { waitUntil: 'domcontentloaded' });
     await waitForWizardStep(session.page, 'Sagsdetaljer');
@@ -104,11 +103,15 @@ async function assignmentLifecycleFlow(session) {
   await session.step('assigned user sees job without admin privileges', async () => {
     const assigned = session.assignmentUsers[1];
     await session.logout();
-    const tokenResult = await session.apiExpect('POST', '/api/dev/token', { email: assigned.email }, [200], { token: null });
-    const jobsResult = await session.api('GET', '/api/jobs/my-assigned', undefined, { token: tokenResult.token });
+    const assignedMe = await session.authenticateEmail(assigned.email);
+    if (String(assignedMe.role).toLowerCase() === 'admin' || String(assignedMe.role).toLowerCase() === 'superadmin') {
+      throw new Error(`Assigned-user authentication resolved to privileged role ${assignedMe.role}.`);
+    }
+    const jobsResult = await session.api('GET', '/api/jobs/my-assigned');
     if (jobsResult.response.status !== 200) throw new Error(`Assigned-user list returned ${jobsResult.response.status}.`);
     if (!unwrapCollection(jobsResult.payload).some((item) => item.id === job.id)) throw new Error('Assigned user cannot see the assigned job.');
-    session.auth.token = adminToken;
+    await session.logout();
+    await session.login('Admin');
   });
 }
 

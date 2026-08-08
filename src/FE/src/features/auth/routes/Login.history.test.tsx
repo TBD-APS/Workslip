@@ -18,7 +18,6 @@ const { authState, entraMocks } = vi.hoisted(() => ({
 vi.mock('../../../providers/useAuth', () => ({
   useAuth: () => ({
     isAuthenticated: authState.isAuthenticated,
-    devLogin: vi.fn(),
   }),
 }));
 

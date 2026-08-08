@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 export function createContractHelpers(env) {
   const { API_TIMEOUT, UI_TIMEOUT, postman } = env;
 
@@ -8,9 +10,14 @@ function buildDataFactory(collection, runId) {
   const userTemplate = requiredPostmanBody(collection, '/api/users');
   const organizationTemplate = requiredPostmanBody(collection, '/api/organizations');
 
-  const defaultEmail = requiredSource(variables.testEmail, 'Postman variable testEmail');
-  const emailDomain = defaultEmail.split('@')[1];
-  if (!emailDomain) throw new Error('Postman variable testEmail must contain a domain.');
+  const syntheticUserEmail = requiredSource(
+    process.env.WORKSLIP_SYNTHETIC_USER_EMAIL,
+    'WORKSLIP_SYNTHETIC_USER_EMAIL',
+  );
+  const syntheticAdminEmail = requiredSource(
+    process.env.WORKSLIP_SYNTHETIC_ADMIN_EMAIL,
+    'WORKSLIP_SYNTHETIC_ADMIN_EMAIL',
+  );
   const basePhone = requiredSource(variables.adminPhone || variables.userPhone || userTemplate.phone, 'Postman phone template');
   const baseOrg = requiredSource(variables.organizationName || organizationTemplate.name, 'Postman organizationName template');
   const baseAdmin = requiredSource(variables.adminDisplayName || organizationTemplate.adminDisplayName, 'Postman adminDisplayName template');
@@ -30,7 +37,7 @@ function buildDataFactory(collection, runId) {
         addressQuery,
         customerName: `${customerBase} PLAYWRIGHT ${suffix}`,
         updatedCustomerName: `${customerBase} PLAYWRIGHT UPDATED ${suffix}`,
-        customerEmail: `playwright-customer+${suffix}@${emailDomain}`,
+        customerEmail: plusAddress(syntheticUserEmail, `customer-${suffix}`),
         contactPerson: `${contactBase} ${suffix}`,
         phone: String(basePhone),
         reportNumber: `PW-${suffix}`.slice(0, 50),
@@ -39,20 +46,31 @@ function buildDataFactory(collection, runId) {
         retriedSaveText: `${taskBase} PLAYWRIGHT RECOVERED ${suffix}`,
         correctedObservation: `${taskBase} PLAYWRIGHT CORRECTED ${suffix}`,
         customWorkKind: `${taskBase} PLAYWRIGHT CUSTOM ${suffix}`,
-        inviteEmail: `playwright-invite+${suffix}@${emailDomain}`,
+        inviteEmail: plusAddress(syntheticUserEmail, `invite-${suffix}`),
         inviteeDisplayName: `${baseUser} Invite ${suffix}`,
         userDisplayName: `${baseUser} ${suffix}`,
-        userEmail: (index) => `playwright-user-${index}+${suffix}@${emailDomain}`,
+        userEmail: (index) => plusAddress(syntheticUserEmail, `user-${index}-${suffix}`),
         secondaryOrganization: {
           name: `${baseOrg} PLAYWRIGHT ${suffix}`,
           cvr: numeric,
           adminDisplayName: `${baseAdmin} ${suffix}`,
-          adminEmail: `playwright-admin+${suffix}@${emailDomain}`,
+          adminEmail: plusAddress(syntheticAdminEmail, `tenant-${suffix}`),
           adminPhone: String(basePhone),
         },
       };
     },
   };
+}
+
+function plusAddress(email, tag) {
+  const separator = email.lastIndexOf('@');
+  if (separator <= 0 || separator === email.length - 1) {
+    throw new Error('Synthetic email must contain a valid mailbox address.');
+  }
+  const local = email.slice(0, separator).split('+')[0];
+  const domain = email.slice(separator + 1);
+  const safeTag = String(tag).replace(/[^a-zA-Z0-9-]/g, '').slice(-48);
+  return `${local}+${safeTag}@${domain}`;
 }
 
 function requiredSource(value, label) {
@@ -165,8 +183,8 @@ async function checkRadioByCandidates(page, values, description) { for (const va
 async function waitForApiResponse(page, method, pathname, statuses) { const response = await page.waitForResponse((candidate) => candidate.request().method() === method && new URL(candidate.url()).pathname.replace(/\/$/, '') === pathname.replace(/\/$/, ''), { timeout: API_TIMEOUT }); if (!statuses.includes(response.status())) throw new Error(`${method} ${pathname} returned HTTP ${response.status()}.`); return response; }
 function assertNoBrowserErrors(session) { if (session.scenarioReport.pageErrors.length) throw new Error(`Unhandled page errors: ${session.scenarioReport.pageErrors.join(' | ')}`); const failedApi = session.scenarioReport.failedApiResponses.filter((item) => !item.expected); if (failedApi.length) throw new Error(`Unexpected failed API responses: ${JSON.stringify(failedApi)}`); }
 function serializeError(error) { return { message: redact(error instanceof Error ? error.message : String(error)), stack: redact(error instanceof Error ? error.stack ?? '' : '') }; }
-function redact(value) { return String(value ?? '').replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]').replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED_TOKEN]').replace(/[?&](code|token|state|session_state)=[^&\s]+/gi, '$1=[REDACTED]'); }
-function safeUrl(value) { try { const url = new URL(value); for (const key of [...url.searchParams.keys()]) url.searchParams.set(key, '[REDACTED]'); url.hash = ''; return url.toString(); } catch { return redact(value); } }
+function redact(value) { return String(value ?? '').replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]').replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED_TOKEN]').replace(/(\/api\/auth\/verify-code\/)[^/?#\s]+/gi, '$1[REDACTED]').replace(/[?&](code|token|state|session_state)=[^&\s]+/gi, '$1=[REDACTED]'); }
+function safeUrl(value) { try { const url = new URL(value); url.pathname = url.pathname.replace(/(\/api\/auth\/verify-code\/)[^/]+/gi, '$1REDACTED'); for (const key of [...url.searchParams.keys()]) url.searchParams.set(key, '[REDACTED]'); url.hash = ''; return url.toString(); } catch { return redact(value); } }
 function fileSafe(value) { return String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 100); }
 function escapeRegex(value) { return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 

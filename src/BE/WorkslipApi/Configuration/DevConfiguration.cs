@@ -1,5 +1,4 @@
 using Scalar.AspNetCore;
-using Workslip.Api.Endpoints;
 
 namespace Workslip.Api.Configuration;
 
@@ -15,7 +14,7 @@ public static class DevConfiguration
         if (!releaseTestingEnabled)
         {
             app.Logger.LogInformation(
-                "Development and release-testing endpoints are disabled. Environment={EnvironmentName}",
+                "Development and release-testing API reference endpoints are disabled. Environment={EnvironmentName}",
                 app.Environment.EnvironmentName);
             return app;
         }
@@ -23,11 +22,10 @@ public static class DevConfiguration
         if (!app.Environment.IsDevelopment())
         {
             app.Logger.LogWarning(
-                "Release-testing endpoints are enabled outside Development. Disable ReleaseTesting:Enabled before customer go-live.");
+                "Release-testing API reference endpoints are enabled outside Development. Disable ReleaseTesting:Enabled before customer go-live.");
         }
 
         app.MapOpenApi();
-        app.MapDevEndpoints();
         app.MapScalarApiReference();
 
         return app;

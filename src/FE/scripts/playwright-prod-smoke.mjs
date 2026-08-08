@@ -6,6 +6,7 @@ import { createContractHelpers } from './playwright-critical-contract.mjs';
 import { createDomainHelpers } from './playwright-critical-domain.mjs';
 import { createCoreScenarioHandlers } from './playwright-scenarios-core.mjs';
 import { createAdminScenarioHandlers } from './playwright-scenarios-admin.mjs';
+import { createSyntheticAuth } from './playwright-synthetic-auth.mjs';
 
 const APP_URL = (process.env.PROD_URL ?? '').replace(/\/+$/, '');
 const SCENARIO = process.env.SCENARIO ?? 'public-smoke';
@@ -16,6 +17,7 @@ const RUN_STARTED = new Date();
 const RUN_ID = `${RUN_STARTED.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
 const API_TIMEOUT = 30_000;
 const UI_TIMEOUT = 25_000;
+const INTERACTIVE_OTC_TIMEOUT = 5 * 60_000;
 
 const CRITICAL_SCENARIOS = [
   'auth-session',
@@ -34,6 +36,9 @@ const SUPPORTED_SCENARIOS = ['public-smoke', ...CRITICAL_SCENARIOS, 'all-critica
 if (!APP_URL) throw new Error('PROD_URL is required.');
 if (!SUPPORTED_SCENARIOS.includes(SCENARIO)) throw new Error(`Unsupported scenario: ${SCENARIO}`);
 
+const syntheticAuth = createSyntheticAuth();
+syntheticAuth.assertScenarioReady(SCENARIO);
+
 await mkdir(ARTIFACT_DIR, { recursive: true });
 const postman = JSON.parse(await readFile(POSTMAN_PATH, 'utf8'));
 
@@ -47,20 +52,24 @@ const report = {
     postmanCollection: path.relative(process.cwd(), POSTMAN_PATH),
     runtimeOpenApi: null,
   },
-  dataPolicy: 'Selectable and existing values are loaded from runtime APIs or third-party APIs. Generated test identifiers follow Postman collection templates.',
+  dataPolicy: SCENARIO === 'public-smoke'
+    ? 'Public smoke does not authenticate or send one-time codes.'
+    : 'Authenticated flows use configured non-production identities and the normal Workslip one-time-code login. Codes are entered only in the visible browser. Generated test identifiers follow Postman collection templates.',
   scenarios: [],
   retainedFixtures: [],
   cleanupFailures: [],
 };
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(syntheticAuth.browserLaunchOptions(SCENARIO));
 const helperEnv = { APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, ARTIFACT_DIR, postman, browser, devices, report };
 const contractHelpers = createContractHelpers(helperEnv);
 const domainHelpers = createDomainHelpers(helperEnv, contractHelpers);
 const helpers = { ...contractHelpers, ...domainHelpers };
 const { buildPostmanContract, buildDataFactory, validateContract, serializeError, redact, safeUrl, fileSafe, assertNoBrowserErrors } = contractHelpers;
 const postmanContract = buildPostmanContract(postman);
-const dataFactory = buildDataFactory(postman, RUN_ID);
+const dataFactory = SCENARIO === 'public-smoke'
+  ? { forScenario: () => ({}) }
+  : buildDataFactory(postman, RUN_ID);
 const scenarioEnv = { APP_URL, API_TIMEOUT, UI_TIMEOUT, VIEWPORT_NAME, browser, devices, report };
 const handlers = {
   ...createCoreScenarioHandlers(scenarioEnv, helpers),
@@ -130,6 +139,38 @@ async function runScenario(name) {
   }
 }
 
+async function authenticatePage(page, email) {
+  const normalizedEmail = String(email ?? '').trim().toLowerCase();
+  if (!normalizedEmail) throw new Error('Synthetic authentication requires an email address.');
+  syntheticAuth.assertScenarioReady(SCENARIO);
+  await page.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.getByRole('button', { name: 'Mistet dit login? Modtag engangskode', exact: true }).click();
+  await page.getByLabel('Email', { exact: true }).fill(normalizedEmail);
+
+  const sendResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/auth/send-code',
+  { timeout: API_TIMEOUT });
+  await page.getByRole('button', { name: 'Send kode', exact: true }).click();
+  const sendResponse = await sendResponsePromise;
+  if (!sendResponse.ok()) throw new Error(`OTC request returned HTTP ${sendResponse.status()}.`);
+
+  await page.getByLabel('Engangskode', { exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  process.stdout.write('OTC sent. Enter the code in the visible Workslip browser and submit the login form.\n');
+  const verifyResponse = await page.waitForResponse((response) =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname.startsWith('/api/auth/verify-code/'),
+  { timeout: INTERACTIVE_OTC_TIMEOUT });
+  const tokenPayload = await verifyResponse.json().catch(() => null);
+  if (!verifyResponse.ok() || !tokenPayload?.token || !tokenPayload?.user) {
+    throw new Error(`OTC verification returned HTTP ${verifyResponse.status()}.`);
+  }
+  await page.waitForURL(
+    (url) => url.pathname.startsWith('/app') || url.pathname.startsWith('/superadmin'),
+    { timeout: API_TIMEOUT },
+  );
+
+  return { tokenPayload, apiBase: new URL(verifyResponse.url()).origin };
+}
+
 async function createSession(name, scenarioReport) {
   const context = await browser.newContext({
     ...devices[VIEWPORT_NAME],
@@ -166,6 +207,7 @@ async function createSession(name, scenarioReport) {
     step,
     screenshot,
     login,
+    authenticateEmail,
     logout,
     api,
     apiExpect,
@@ -198,32 +240,34 @@ async function createSession(name, scenarioReport) {
     await page.screenshot({
       path: path.join(ARTIFACT_DIR, `${fileSafe(name)}-${fileSafe(label)}.png`),
       fullPage: true,
+      mask: [
+        page.getByLabel('Email', { exact: true }),
+        page.getByLabel('Engangskode', { exact: true }),
+      ],
     });
   }
 
   async function login(role = 'Admin') {
-    await page.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    const button = page.getByRole('button', { name: `Dev Login · ${role}`, exact: true });
-    await button.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-    const tokenResponsePromise = page.waitForResponse((response) =>
-      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/dev/token',
-    { timeout: API_TIMEOUT });
-    await button.click();
-    const tokenResponse = await tokenResponsePromise;
-    if (!tokenResponse.ok()) throw new Error(`Dev login for ${role} returned HTTP ${tokenResponse.status()}.`);
-    const tokenPayload = await tokenResponse.json();
-    if (!tokenPayload?.token || !tokenPayload?.user) throw new Error(`Dev login for ${role} did not return token and user data.`);
+    const email = syntheticAuth.emailForRole(role);
+    const me = await authenticateEmail(email);
+    if (String(me.role).toLowerCase() !== String(role).toLowerCase()) {
+      throw new Error(`Synthetic ${role} identity resolved to role ${me.role}.`);
+    }
+    return me;
+  }
+
+  async function authenticateEmail(email) {
+    const { tokenPayload, apiBase } = await authenticatePage(page, email);
     auth.token = tokenPayload.token;
     auth.user = tokenPayload.user;
     auth.role = tokenPayload.user.role;
-    auth.apiBase = new URL(tokenResponse.url()).origin;
+    auth.apiBase = apiBase;
+    auth.openApi = null;
     captureAuthenticatedNetwork = true;
-    await page.waitForURL((url) => url.pathname.startsWith('/app') || url.pathname.startsWith('/superadmin'), { timeout: API_TIMEOUT });
     await loadRuntimeContracts();
     const me = await apiExpect('GET', '/api/auth/me', undefined, [200]);
-    if (String(me.role).toLowerCase() !== String(auth.role).toLowerCase()) {
-      throw new Error(`Dev login role mismatch. Token reported ${auth.role}; /api/auth/me reported ${me.role}.`);
-    }
+    auth.user = me;
+    auth.role = me.role;
     return me;
   }
 
@@ -234,6 +278,7 @@ async function createSession(name, scenarioReport) {
     await page.waitForURL((url) => url.pathname === '/login', { timeout: UI_TIMEOUT });
     auth.token = null;
     auth.user = null;
+    auth.role = null;
     captureAuthenticatedNetwork = false;
   }
 
@@ -315,17 +360,9 @@ async function createSession(name, scenarioReport) {
     try {
       cleanupContext = await browser.newContext({ ...devices[VIEWPORT_NAME], locale: 'da-DK' });
       const cleanupPage = await cleanupContext.newPage();
-      await cleanupPage.goto(`${APP_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-      const adminButton = cleanupPage.getByRole('button', { name: 'Dev Login · Admin', exact: true });
-      await adminButton.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
-      const tokenResponsePromise = cleanupPage.waitForResponse((response) =>
-        response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/dev/token',
-      { timeout: API_TIMEOUT });
-      await adminButton.click();
-      const tokenResponse = await tokenResponsePromise;
-      if (!tokenResponse.ok()) throw new Error(`Cleanup admin login returned HTTP ${tokenResponse.status()}.`);
-      const cleanupToken = (await tokenResponse.json())?.token;
-      if (!cleanupToken) throw new Error('Cleanup admin login returned no token.');
+      const adminEmail = syntheticAuth.emailForRole('Admin');
+      const { tokenPayload } = await authenticatePage(cleanupPage, adminEmail);
+      const cleanupToken = tokenPayload.token;
 
       for (const jobId of [...fixtures.jobs].reverse()) {
         try {
