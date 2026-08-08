@@ -1,6 +1,7 @@
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { notify } from '../lib/toast';
+import './CopyAddressButton.css';
 
 async function copyWithLegacyFallback(value: string): Promise<void> {
   const textarea = document.createElement('textarea');
