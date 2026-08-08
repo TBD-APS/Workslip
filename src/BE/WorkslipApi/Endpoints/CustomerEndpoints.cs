@@ -130,12 +130,12 @@ public static class CustomerEndpoints
             }
             catch (CsvHelperException ex)
             {
-                logger.LogWarning(ex, "Failed to parse customer CSV {FileName}", file.FileName);
+                logger.LogWarning(ex, "Failed to parse customer CSV.");
                 return Results.BadRequest(new { error = "CSV-filen kunne ikke læses." });
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogWarning(ex, "Failed to parse customer import file {FileName}", file.FileName);
+                logger.LogWarning(ex, "Failed to parse customer import file.");
                 return Results.BadRequest(new { error = "Filen kunne ikke læses som en gyldig kundeimport." });
             }
 
