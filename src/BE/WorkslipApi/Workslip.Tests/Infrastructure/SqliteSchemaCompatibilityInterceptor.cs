@@ -16,7 +16,7 @@ internal sealed class SqliteSchemaCompatibilityInterceptor : DbCommandIntercepto
         CommandEventData eventData,
         InterceptionResult<int> result)
     {
-        RewriteSchemaTypes(command);
+        RewriteSqlServerSchemaSyntax(command);
         return result;
     }
 
@@ -26,15 +26,15 @@ internal sealed class SqliteSchemaCompatibilityInterceptor : DbCommandIntercepto
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        RewriteSchemaTypes(command);
+        RewriteSqlServerSchemaSyntax(command);
         return ValueTask.FromResult(result);
     }
 
-    private static void RewriteSchemaTypes(DbCommand command)
+    private static void RewriteSqlServerSchemaSyntax(DbCommand command)
     {
-        command.CommandText = command.CommandText.Replace(
-            "nvarchar(max)",
-            "TEXT",
-            StringComparison.OrdinalIgnoreCase);
+        command.CommandText = command.CommandText
+            .Replace("nvarchar(max)", "TEXT", StringComparison.OrdinalIgnoreCase)
+            .Replace("isjson(", "json_valid(", StringComparison.OrdinalIgnoreCase)
+            .Replace("sysutcdatetime()", "CURRENT_TIMESTAMP", StringComparison.OrdinalIgnoreCase);
     }
 }
