@@ -5,6 +5,7 @@ using Workslip.Domain.Models;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
+using Workslip.Tests.Infrastructure;
 using Xunit;
 
 namespace Workslip.Tests.Invitations;
@@ -136,6 +137,7 @@ public sealed class EfInviteRepositoryTests
 
             var options = new DbContextOptionsBuilder<SqlDbContext>()
                 .UseSqlite(connection)
+                .AddInterceptors(SqliteSchemaCompatibilityInterceptor.Instance)
                 .Options;
             var context = new SqlDbContext(options);
             await context.Database.EnsureCreatedAsync();
