@@ -3,6 +3,7 @@ using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.Extensions.Logging;
 using Workslip.Application.Auth;
+using Workslip.Domain;
 using Workslip.Domain.Models;
 
 namespace Workslip.Application.Users;
@@ -17,6 +18,12 @@ public sealed class UserService(
 {
     public async Task<Result<UserResponse>> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken)
     {
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<UserResponse>.Unauthorized();
+        }
+
         var validationResult = await createUserValidator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
@@ -25,6 +32,12 @@ public sealed class UserService(
                 string.Join(", ", errors.Select(e => e.Identifier).Distinct()));
 
             return Result<UserResponse>.Invalid(errors);
+        }
+
+        if (!CanAssignRole(request.Role))
+        {
+            logger.LogWarning("User create denied: assigning Superadmin requires a Superadmin actor.");
+            return Result<UserResponse>.Forbidden();
         }
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
@@ -38,7 +51,7 @@ public sealed class UserService(
 
         var entraUser = await entraService.CreateUserAsync(normalizedEmail, request.DisplayName, cancellationToken);
 
-        var user = BuildUserRow(normalizedEmail, request, entraUser, currentUser.OrganizationId.GetValueOrDefault());
+        var user = BuildUserRow(normalizedEmail, request, entraUser, organizationId.Value);
         var userId = await repository.CreateAsync(user, cancellationToken);
         user.Id = userId;
 
@@ -64,6 +77,12 @@ public sealed class UserService(
             return Result<UserResponse>.NotFound();
         }
 
+        if (!CanManageTarget(user))
+        {
+            logger.LogWarning("User read denied: managing a Superadmin requires a Superadmin actor.");
+            return Result<UserResponse>.Forbidden();
+        }
+
         return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
@@ -82,6 +101,12 @@ public sealed class UserService(
         {
             logger.LogInformation("User not found. UserId: {UserId}.", userId);
             return Result<UserDetailResponse>.NotFound();
+        }
+
+        if (!CanManageTarget(user))
+        {
+            logger.LogWarning("User detail denied: managing a Superadmin requires a Superadmin actor.");
+            return Result<UserDetailResponse>.Forbidden();
         }
 
         var assignedJobs = await repository.GetAssignedJobsAsync(organizationId.Value, userId, cancellationToken);
@@ -163,11 +188,23 @@ public sealed class UserService(
             return Result<UserResponse>.Unauthorized();
         }
 
+        if (!CanAssignRole(request.Role))
+        {
+            logger.LogWarning("User update denied: assigning Superadmin requires a Superadmin actor.");
+            return Result<UserResponse>.Forbidden();
+        }
+
         var user = await repository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
         {
             logger.LogInformation("User not found for update. UserId: {UserId}.", userId);
             return Result<UserResponse>.NotFound();
+        }
+
+        if (!CanManageTarget(user))
+        {
+            logger.LogWarning("User update denied: managing a Superadmin requires a Superadmin actor.");
+            return Result<UserResponse>.Forbidden();
         }
 
         if (!string.IsNullOrEmpty(request.DisplayName))
@@ -205,12 +242,30 @@ public sealed class UserService(
             return Result.NotFound();
         }
 
+        if (!CanManageTarget(user))
+        {
+            logger.LogWarning("User delete denied: managing a Superadmin requires a Superadmin actor.");
+            return Result.Forbidden();
+        }
+
         await repository.DeleteAsync(userId, cancellationToken);
 
         logger.LogInformation("User deleted. UserId: {UserId}.", userId);
 
         return Result.NoContent();
     }
+
+    private bool CanAssignRole(string? role) =>
+        !IsSuperadminRole(role) || IsCurrentActorSuperadmin();
+
+    private bool CanManageTarget(UserDataRow user) =>
+        !IsSuperadminRole(user.Role) || IsCurrentActorSuperadmin();
+
+    private bool IsCurrentActorSuperadmin() =>
+        string.Equals(currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSuperadminRole(string? role) =>
+        string.Equals(role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors
