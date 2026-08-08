@@ -1,16 +1,10 @@
 name: Backend API deploy
 
 on:
-  workflow_dispatch:
-    inputs:
-      release_ref:
-        description: 'Validated release/** branch'
-        required: true
-        type: string
-      release_sha:
-        description: 'Exact validated commit SHA'
-        required: true
-        type: string
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -20,11 +14,9 @@ env:
   DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
   AZURE_WEBAPP_NAME: api-mrsoftware-prod
   AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
-  RELEASE_REF: ${{ inputs.release_ref }}
-  RELEASE_SHA: ${{ inputs.release_sha }}
+  RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
 
 permissions:
-  actions: read
   contents: read
 
 concurrency:
@@ -32,126 +24,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify-release:
-    name: Verify release candidate
+  verify-ci:
+    name: Verify main CI
+    if: >-
+      ${{ github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     steps:
-      - name: Require dispatch from main
+      - name: Validate CI revision
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [[ "${GITHUB_REF_NAME}" != 'main' ]]; then
-            echo "::error::Production deployment workflow must be dispatched from main, not ${GITHUB_REF_NAME}."
-            exit 1
-          fi
-
-      - name: Validate release inputs
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          if [[ ! "${RELEASE_REF}" =~ ^release/[A-Za-z0-9._/-]+$ ]]; then
-            echo "::error::release_ref must name a release/** branch."
-            exit 1
-          fi
-
           if [[ ! "${RELEASE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo "::error::release_sha must be a full 40-character commit SHA."
+            echo "::error::CI did not provide a valid 40-character main commit SHA."
             exit 1
           fi
 
-      - name: Checkout deployment workflow baseline
+      - name: Checkout current main
         uses: actions/checkout@v7
         with:
+          ref: main
           fetch-depth: 0
 
-      - name: Verify release branch points to exact SHA
+      - name: Verify CI revision belongs to main
         shell: bash
         run: |
           set -Eeuo pipefail
-          remote_sha="$(
-            git ls-remote --heads origin "refs/heads/${RELEASE_REF}" |
-              awk 'NR == 1 { print $1 }'
-          )"
-
-          if [[ -z "${remote_sha}" ]]; then
-            echo "::error::Release branch ${RELEASE_REF} does not exist."
-            exit 1
-          fi
-
-          if [[ "${remote_sha,,}" != "${RELEASE_SHA,,}" ]]; then
-            echo "::error::Release branch ${RELEASE_REF} currently points to ${remote_sha}, not ${RELEASE_SHA}."
-            exit 1
-          fi
-
-          git fetch --no-tags origin "refs/heads/${RELEASE_REF}:refs/remotes/origin/${RELEASE_REF}"
-
           if ! git merge-base --is-ancestor "${RELEASE_SHA}" HEAD; then
-            echo "::error::Release candidate ${RELEASE_SHA} is not contained in current main."
+            echo "::error::Successful CI revision ${RELEASE_SHA} is not contained in current main."
             exit 1
           fi
-
-          echo "Release candidate identity verified: ${RELEASE_REF} @ ${RELEASE_SHA}."
-
-      - name: Require successful Release validation for exact SHA
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -Eeuo pipefail
-          response_file="$(mktemp)"
-          trap 'rm -f "${response_file}"' EXIT
-
-          curl --fail-with-body --silent --show-error --location --get \
-            -H 'Accept: application/vnd.github+json' \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H 'X-GitHub-Api-Version: 2026-03-10' \
-            --data-urlencode "branch=${RELEASE_REF}" \
-            --data-urlencode 'event=push' \
-            --data-urlencode "head_sha=${RELEASE_SHA}" \
-            --data-urlencode 'status=success' \
-            --data-urlencode 'per_page=10' \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/release-validation.yml/runs" \
-            --output "${response_file}"
-
-          matching_runs="$(
-            jq \
-              --arg sha "${RELEASE_SHA}" \
-              --arg branch "${RELEASE_REF}" \
-              '[.workflow_runs[] |
-                select(
-                  (.head_sha | ascii_downcase) == ($sha | ascii_downcase)
-                  and .head_branch == $branch
-                  and .event == "push"
-                  and .status == "completed"
-                  and .conclusion == "success"
-                )
-              ]' \
-              "${response_file}"
-          )"
-
-          if [[ "$(jq 'length' <<<"${matching_runs}")" -lt 1 ]]; then
-            echo "::error::No successful Release validation run exists for ${RELEASE_REF} @ ${RELEASE_SHA}."
-            exit 1
-          fi
-
-          validation_url="$(jq -r '.[0].html_url' <<<"${matching_runs}")"
-          echo "Release validation verified: ${validation_url}"
+          echo "Production revision verified: main @ ${RELEASE_SHA}."
 
   build:
     name: Build API
     runs-on: ubuntu-latest
-    needs: verify-release
+    needs: verify-ci
     outputs:
       release_phase: ${{ steps.release-target.outputs.phase }}
       release_testing_enabled: ${{ steps.release-target.outputs.enable_development_endpoints }}
-
     steps:
-      - name: Checkout exact release candidate
+      - name: Checkout exact main revision
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.release_sha }}
+          ref: ${{ env.RELEASE_SHA }}
 
       - name: Confirm checked out SHA
         shell: bash
@@ -162,7 +80,7 @@ jobs:
             echo "::error::Checkout resolved to ${actual_sha}, expected ${RELEASE_SHA}."
             exit 1
           fi
-          echo "Building ${RELEASE_REF} @ ${RELEASE_SHA}."
+          echo "Building main @ ${RELEASE_SHA}."
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -207,9 +125,10 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: workslip-api-${{ inputs.release_sha }}
+          name: workslip-api-${{ env.RELEASE_SHA }}
           path: ${{ env.DEPLOY_PACKAGE }}
           if-no-files-found: error
+          retention-days: 3
 
   deploy:
     name: Deploy API
@@ -220,15 +139,14 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - name: Record release candidate
+      - name: Record production revision
         shell: bash
-        run: |
-          echo "Deploying ${RELEASE_REF} @ ${RELEASE_SHA} to ${AZURE_WEBAPP_NAME}."
+        run: echo "Deploying main @ ${RELEASE_SHA} to ${AZURE_WEBAPP_NAME}."
 
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: workslip-api-${{ inputs.release_sha }}
+          name: workslip-api-${{ env.RELEASE_SHA }}
           path: ${{ github.workspace }}/publish
 
       - name: Azure login
@@ -249,8 +167,7 @@ jobs:
             --output tsv)"
 
           if [[ -z "${workspace_id}" || "${workspace_id}" == "null" ]]; then
-            echo "::error::The API is missing Azure__ApplicationInsights__WorkspaceId. Run the 'Production infrastructure deploy' workflow from main, then rerun this API deployment."
-            echo "::error::Backend deployment is blocked so diagnostics code cannot be released without its required Azure configuration."
+            echo "::error::The API is missing Azure__ApplicationInsights__WorkspaceId. Run the 'Production infrastructure deploy' workflow from main, then rerun this deployment."
             exit 1
           fi
 
@@ -393,7 +310,7 @@ jobs:
               --output /dev/null \
               "${HEALTH_URL}"; then
               echo "API health check passed: ${HEALTH_URL}"
-              echo "Deployed release candidate ${RELEASE_REF} @ ${RELEASE_SHA}."
+              echo "Deployed main @ ${RELEASE_SHA}."
               exit 0
             fi
 
