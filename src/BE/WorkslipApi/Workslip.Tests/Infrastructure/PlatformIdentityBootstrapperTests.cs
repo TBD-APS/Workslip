@@ -59,8 +59,12 @@ public sealed class PlatformIdentityBootstrapperTests
     public async Task DevelopmentSeeder_ComposesPlatformBootstrapWithSeparateDemoSeed()
     {
         await using var context = CreateContext();
-        var bootstrapper = CreateSeeder(context, new FakeSuperadminEntraService());
-        var developmentSeeder = new DevelopmentDatabaseSeeder(bootstrapper, context);
+        var entra = new FakeSuperadminEntraService();
+        var developmentSeeder = new DevelopmentDatabaseSeeder(
+            context,
+            new InstallationBaselineProvisioner(context),
+            entra,
+            NullLogger<DevelopmentDatabaseSeeder>.Instance);
 
         await developmentSeeder.SeedAsync();
 
