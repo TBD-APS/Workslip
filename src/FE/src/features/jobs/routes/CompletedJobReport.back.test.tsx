@@ -2,7 +2,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { CompletedJobReport } from './CompletedJobReport';
 
 const mocks = vi.hoisted(() => ({
@@ -12,7 +11,7 @@ const mocks = vi.hoisted(() => ({
     refetch: vi.fn(),
     job: {
       id: 'job-1',
-      status: JobStatus.Approved,
+      status: 'Approved',
       jobType: 'KLS',
       destinationAddress: 'Testvej 1',
       work: { installationTypes: [], remarks: null },
