@@ -31,6 +31,8 @@
 .hours-export-actions {
   display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 
@@ -43,11 +45,17 @@
   white-space: nowrap;
 }
 
-.hours-print-report {
-  display: none;
+.hours-export-spinner {
+  animation: hours-export-spin 0.8s linear infinite;
 }
 
-@media (max-width: 640px) {
+@keyframes hours-export-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 760px) {
   .hours-export-toolbar {
     align-items: stretch;
     flex-direction: column;
@@ -58,230 +66,6 @@
   }
 
   .hours-export-button {
-    flex: 1;
-  }
-}
-
-@media print {
-  @page {
-    size: A4 landscape;
-    margin: 10mm;
-  }
-
-  html,
-  body,
-  #root,
-  .app-shell,
-  .app-content {
-    width: auto !important;
-    height: auto !important;
-    min-height: 0 !important;
-    overflow: visible !important;
-    background: #fff !important;
-  }
-
-  .app-shell::before,
-  .app-header,
-  .organization-session-banner,
-  .bottom-nav,
-  .fab-create,
-  .drawer,
-  .drawer-overlay,
-  .bottom-sheet,
-  .bottom-sheet-overlay {
-    display: none !important;
-  }
-
-  .app-content {
-    padding: 0 !important;
-  }
-
-  .time-overview-page {
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  .time-overview-page > :not(.hours-print-report) {
-    display: none !important;
-  }
-
-  .hours-print-report {
-    display: block !important;
-    color: #111;
-    background: #fff;
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 9pt;
-    line-height: 1.35;
-  }
-
-  .hours-print-header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 16mm;
-    padding-bottom: 4mm;
-    border-bottom: 1.5pt solid #111;
-  }
-
-  .hours-print-brand {
-    margin-bottom: 1.5mm;
-    font-size: 8pt;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-  }
-
-  .hours-print-header h1 {
-    margin: 0;
-    color: #111;
-    font-size: 19pt;
-    font-weight: 700;
-  }
-
-  .hours-print-header p,
-  .hours-print-generated {
-    margin: 1mm 0 0;
-    color: #555;
-    font-size: 8.5pt;
-  }
-
-  .hours-print-generated {
-    flex-shrink: 0;
-    text-align: right;
-  }
-
-  .hours-print-kpis {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 3mm;
-    margin: 5mm 0 6mm;
-  }
-
-  .hours-print-kpi {
-    padding: 3mm 4mm;
-    border: 1px solid #cfcfcf;
-    background: #f5f5f5;
-  }
-
-  .hours-print-kpi span {
-    display: block;
-    color: #666;
-    font-size: 7.5pt;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .hours-print-kpi strong {
-    display: block;
-    margin-top: 0.5mm;
-    color: #111;
-    font-size: 15pt;
-    font-weight: 700;
-  }
-
-  .hours-print-section {
-    margin-top: 6mm;
-  }
-
-  .hours-print-section h2 {
-    margin: 0 0 2.5mm;
-    color: #111;
-    font-size: 11pt;
-    font-weight: 700;
-  }
-
-  .hours-print-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-  }
-
-  .hours-print-table thead {
-    display: table-header-group;
-  }
-
-  .hours-print-table th,
-  .hours-print-table td {
-    padding: 1.6mm 2mm;
-    border-bottom: 0.5pt solid #d7d7d7;
-    color: #111;
-    vertical-align: top;
-  }
-
-  .hours-print-table th {
-    background: #ededed !important;
-    font-size: 7.5pt;
-    font-weight: 700;
-    text-align: left;
-  }
-
-  .hours-print-table tr {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .hours-print-summary-table th:not(:first-child),
-  .hours-print-summary-table td:not(:first-child) {
-    width: 12mm;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .hours-print-total-row td {
-    border-top: 1pt solid #888;
-    background: #f5f5f5 !important;
-    font-weight: 700;
-  }
-
-  .hours-print-detail-section {
-    break-before: page;
-    page-break-before: always;
-  }
-
-  .hours-print-employee-block {
-    margin-bottom: 6mm;
-  }
-
-  .hours-print-employee-heading {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8mm;
-    margin-bottom: 1.5mm;
-    padding-bottom: 1.5mm;
-    border-bottom: 1pt solid #777;
-    break-after: avoid;
-    page-break-after: avoid;
-  }
-
-  .hours-print-employee-heading h3,
-  .hours-print-employee-heading strong {
-    margin: 0;
-    color: #111;
-    font-size: 9.5pt;
-    font-weight: 700;
-  }
-
-  .hours-print-detail-table th:nth-child(1),
-  .hours-print-detail-table td:nth-child(1) {
-    width: 25mm;
-  }
-
-  .hours-print-detail-table th:nth-child(2),
-  .hours-print-detail-table td:nth-child(2) {
-    width: 13mm;
-    text-align: center;
-  }
-
-  .hours-print-detail-table th:nth-child(3),
-  .hours-print-detail-table td:nth-child(3) {
-    width: 27mm;
-  }
-
-  .hours-print-detail-table th:nth-child(5),
-  .hours-print-detail-table td:nth-child(5) {
-    width: 18mm;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
+    flex: 1 1 100%;
   }
 }
