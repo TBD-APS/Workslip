@@ -14,6 +14,7 @@ env:
   DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
   AZURE_WEBAPP_NAME: api-mrsoftware-prod
   AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+  AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftware-prod-migration
   RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
 
 permissions:
@@ -131,7 +132,7 @@ jobs:
           retention-days: 3
 
   deploy:
-    name: Deploy API
+    name: Migrate database and deploy API
     runs-on: ubuntu-latest
     needs: build
     environment: prod
@@ -143,13 +144,81 @@ jobs:
         shell: bash
         run: echo "Deploying main @ ${RELEASE_SHA} to ${AZURE_WEBAPP_NAME}."
 
+      - name: Checkout exact main revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
           name: workslip-api-${{ env.RELEASE_SHA }}
           path: ${{ github.workspace }}/publish
 
-      - name: Azure login
+      - name: Azure login as application deployment identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve dedicated database migration identity
+        id: migration-identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          client_id="$(az identity show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_MIGRATION_IDENTITY_NAME}" \
+            --query clientId \
+            --output tsv 2>/dev/null || true)"
+
+          if [[ -z "${client_id}" || "${client_id}" == 'null' ]]; then
+            echo "::error::Database migration identity ${AZURE_MIGRATION_IDENTITY_NAME} is unavailable. Run the 'Production infrastructure deploy' workflow from main, then rerun this failed deployment."
+            exit 1
+          fi
+
+          if [[ ! "${client_id}" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::error::Database migration identity returned an invalid client ID."
+            exit 1
+          fi
+
+          echo "client_id=${client_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Logout application deployment identity
+        shell: bash
+        run: az logout
+
+      - name: Azure login as database migration identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.migration-identity.outputs.client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure Microsoft SqlServer PowerShell module
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module SqlServer -Scope CurrentUser -Repository PSGallery -Force -AllowClobber
+          }
+          Import-Module SqlServer -ErrorAction Stop
+          Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Apply reviewed database migrations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./src/BE/infrastructure/run-database-migrations.ps1 `
+            -Environment prod `
+            -CompanyName mrsoftware
+
+      - name: Logout database migration identity
+        shell: bash
+        run: az logout
+
+      - name: Azure login for application deployment
         uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
