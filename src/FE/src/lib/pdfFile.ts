@@ -11,6 +11,8 @@ type PdfFileRequest = {
   fallbackFileName: string;
 };
 
+const OBJECT_URL_LIFETIME_MS = 60_000;
+
 async function fetchPdfFile(request: PdfFileRequest) {
   const response = await AXIOS_INSTANCE.get<Blob>(request.url, {
     responseType: 'blob',
@@ -32,6 +34,38 @@ export async function createPdfFilePreview(request: PdfFileRequest): Promise<Pdf
   };
 }
 
+export async function openPdfFilePreview(request: PdfFileRequest): Promise<PdfFilePreview> {
+  // Safari/iOS may block a new tab if window.open happens after the authenticated fetch awaits.
+  // Open the target while the click still owns transient user activation, then navigate it to the Blob URL.
+  const previewWindow = window.open('', '_blank');
+  if (!previewWindow) {
+    throw new Error('pdf_preview_blocked');
+  }
+
+  previewWindow.opener = null;
+  let preview: PdfFilePreview | null = null;
+
+  try {
+    preview = await createPdfFilePreview(request);
+
+    if (previewWindow.closed) {
+      window.URL.revokeObjectURL(preview.url);
+      throw new Error('pdf_preview_closed');
+    }
+
+    previewWindow.location.replace(preview.url);
+    return preview;
+  } catch (error) {
+    if (preview?.url) {
+      window.URL.revokeObjectURL(preview.url);
+    }
+    if (!previewWindow.closed) {
+      previewWindow.close();
+    }
+    throw error;
+  }
+}
+
 export async function downloadPdfFile(request: PdfFileRequest): Promise<void> {
   const { blob, fileName } = await fetchPdfFile(request);
   triggerBrowserDownload(blob, fileName);
@@ -47,7 +81,7 @@ function triggerBrowserDownload(blob: Blob, fileName: string) {
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
-  setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+  setTimeout(() => window.URL.revokeObjectURL(url), OBJECT_URL_LIFETIME_MS);
 }
 
 function getPdfFileName(contentDisposition: unknown, fallbackFileName: string) {
