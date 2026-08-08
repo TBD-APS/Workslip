@@ -9,6 +9,7 @@ import {
   hoursExportFilename,
   sumExportHours,
 } from '../utils/hoursExport';
+import './AdminHoursExport.css';
 
 const PRINT_DATE_FORMATTER = new Intl.DateTimeFormat('da-DK', {
   day: '2-digit',
