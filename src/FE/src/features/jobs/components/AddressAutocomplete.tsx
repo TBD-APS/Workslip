@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Loader2, MapPin, X } from 'lucide-react';
-import { CopyAddressButton } from '../../../components/CopyAddressButton';
+import { AddressActions } from '../../../components/AddressActions';
 import { useAddressAutocomplete, type AddressSuggestion } from '../hooks/useAddressAutocomplete';
 
 type AddressAutocompleteProps = {
@@ -12,6 +12,7 @@ type AddressAutocompleteProps = {
   required?: boolean;
   placeholder?: string;
   readOnly?: boolean;
+  showAddressActions?: boolean;
 };
 
 export function AddressAutocomplete({
@@ -23,6 +24,7 @@ export function AddressAutocomplete({
   required,
   placeholder,
   readOnly,
+  showAddressActions = true,
 }: AddressAutocompleteProps) {
   const { suggestions, isLoading, search, clear } = useAddressAutocomplete();
   const [isOpen, setIsOpen] = useState(false);
@@ -36,6 +38,7 @@ export function AddressAutocomplete({
   const listboxId = useId();
   const visibleActiveIndex = activeIndex >= 0 && activeIndex < suggestions.length ? activeIndex : -1;
   const showSuggestions = !readOnly && isOpen && suggestions.length > 0;
+  const showReadOnlyActions = Boolean(readOnly && value && showAddressActions);
 
   const clearBlurTimer = useCallback(() => {
     clearTimeout(blurTimerRef.current);
@@ -148,7 +151,7 @@ export function AddressAutocomplete({
 
   return (
     <div className="form-group address-autocomplete" ref={wrapperRef}>
-      <div className="address-input-wrapper">
+      <div className={`address-input-wrapper${showReadOnlyActions ? ' has-address-actions' : ''}`}>
         <input
           ref={inputRef}
           className={`form-input${error ? ' form-input-invalid' : ''}`}
@@ -157,7 +160,7 @@ export function AddressAutocomplete({
           onFocus={handleFocus}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder ?? 'SÃ¸g adresse...'}
+          placeholder={placeholder ?? 'Søg adresse...'}
           required={required}
           readOnly={readOnly}
           autoComplete="off"
@@ -174,7 +177,7 @@ export function AddressAutocomplete({
             <X size={16} />
           </button>
         )}
-        {readOnly && value && <CopyAddressButton address={value} />}
+        {showReadOnlyActions && <AddressActions address={value} className="address-input-actions" />}
       </div>
       {showSuggestions && (
         <ul ref={listboxRef} id={listboxId} className="address-suggestions" role="listbox">
@@ -200,4 +203,3 @@ export function AddressAutocomplete({
     </div>
   );
 }
-

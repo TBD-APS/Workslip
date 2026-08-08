@@ -1,0 +1,83 @@
+.address-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  flex: 0 0 auto;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+
+.address-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+
+.address-action:hover {
+  color: var(--text-primary);
+  background: var(--surface-input);
+  border-color: var(--border);
+}
+
+.address-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.address-action:active {
+  transform: scale(0.94);
+}
+
+.address-action-copy.is-copied {
+  color: var(--text-primary);
+}
+
+.address-input-wrapper.has-address-actions .address-input-actions {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  z-index: 2;
+  margin-left: 0;
+  transform: translateY(-50%);
+}
+
+.address-input-wrapper.has-address-actions .form-input[readonly] {
+  padding-right: 4.5rem;
+}
+
+.destination-address-actions {
+  margin-left: auto;
+}
+
+.detail-form.is-editable .destination-address-actions {
+  display: none;
+}
+
+@media (min-width: 900px) and (hover: hover) and (pointer: fine) {
+  .address-action {
+    width: 1.875rem;
+    height: 1.875rem;
+    min-width: 1.875rem;
+    min-height: 1.875rem;
+  }
+
+  .address-actions {
+    gap: 0.2rem;
+  }
+}
