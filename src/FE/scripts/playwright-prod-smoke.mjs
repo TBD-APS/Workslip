@@ -48,7 +48,7 @@ const report = {
     postmanCollection: path.relative(process.cwd(), POSTMAN_PATH),
     runtimeOpenApi: null,
   },
-  dataPolicy: 'Authenticated flows use dedicated Mailosaur synthetic identities and the normal Workslip one-time-code login. Generated test identifiers follow Postman collection templates.',
+  dataPolicy: 'Authenticated flows use dedicated synthetic identities, an organization-owned Exchange Online mailbox, and the normal Workslip one-time-code login. Generated test identifiers follow Postman collection templates.',
   scenarios: [],
   retainedFixtures: [],
   cleanupFailures: [],
@@ -279,7 +279,7 @@ async function createSession(name, scenarioReport) {
   async function loadRuntimeContracts() {
     if (auth.openApi) return;
     const response = await fetch(`${auth.apiBase}/openapi/v1.json`, { signal: AbortSignal.timeout(API_TIMEOUT) });
-    if (!response.ok) throw new Error(`Runtime OpenAPI returned HTTP ${response.status}.`);
+    if (!response.ok) throw new Error(`Runtime OpenAPI returned HTTP ${response.status()}.`);
     auth.openApi = await response.json();
     report.contractSources.runtimeOpenApi ??= `${auth.apiBase}/openapi/v1.json`;
   }
