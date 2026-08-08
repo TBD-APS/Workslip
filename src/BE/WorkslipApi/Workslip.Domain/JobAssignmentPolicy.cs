@@ -5,4 +5,30 @@ public static class JobAssignmentPolicy
     public static bool CanReceiveAssignment(string? role) =>
         string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase)
         || string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase);
+
+    public static IReadOnlyList<Guid> ResolveInitialAssignments(
+        IReadOnlyList<Guid>? requestedUserIds,
+        Guid? actorId,
+        string? actorRole)
+    {
+        if (requestedUserIds is not null)
+        {
+            return requestedUserIds
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToArray();
+        }
+
+        return actorId.HasValue && CanReceiveAssignment(actorRole)
+            ? [actorId.Value]
+            : Array.Empty<Guid>();
+    }
+
+    public static bool AreTimesheetUsersAssigned(
+        IReadOnlyCollection<Guid> assignedUserIds,
+        IEnumerable<Guid> timesheetUserIds)
+    {
+        var assigned = assignedUserIds.ToHashSet();
+        return timesheetUserIds.All(assigned.Contains);
+    }
 }
