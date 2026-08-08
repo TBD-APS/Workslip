@@ -131,6 +131,14 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
         _dbContext.Organizations.Add(organization);
         _dbContext.Users.Add(user);
 
+        // Required tenant baseline is staged only during explicit organization onboarding.
+        // Application startup never backfills or reconciles tenant reference data in production.
+        await InstallationSeeder.Seed(
+            _dbContext,
+            organizationId,
+            jobReports: [],
+            cancellationToken: cancellationToken);
+
         try
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
