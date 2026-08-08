@@ -24,13 +24,11 @@ Normal delivery is:
 
 The pull-request `CI Gate` owns deterministic repository validation before merge:
 
-- backend Release build and merge-critical backend regression tests;
+- full backend Release build and test suite;
 - frontend no-new-lint regression checking;
 - branch-matched OpenAPI/Orval generation;
 - frontend tests and production build; and
 - repository contract/documentation checks.
-
-The inherited backend full-suite failures exposed during this cutover are tracked by WOR-382. The full suite is temporarily retained as visible inventory and must become blocking when that debt is removed.
 
 Code scanning has one owner: GitHub CodeQL Default setup. The normal CI workflow must not add an advanced CodeQL configuration while Default setup is enabled. Whether code-scanning results block merge is repository security/ruleset configuration, not a second CI implementation.
 
@@ -58,5 +56,4 @@ GitHub tags/releases may mark meaningful product versions, but they do not form 
 - The `main` repository ruleset is a critical control and must require `CI Gate`, pull requests and no direct/force pushes.
 - Vercel can start the frontend deployment immediately after merge, so the production frontend build must remain in pull-request CI.
 - Backend is intentionally more conservative: it waits for a successful post-merge CI run for the exact `main` SHA before Azure deployment.
-- The backend full test suite cannot become a trustworthy blocking gate until the inherited failures recorded in WOR-382 are removed; the temporary inventory step must not become permanent.
 - Large or unusually risky changes can still require additional Playwright, infrastructure or operational evidence; the simplified branch model does not reduce risk-based testing requirements.
