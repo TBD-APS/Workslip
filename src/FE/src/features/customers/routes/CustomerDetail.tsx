@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Clock, Hash, Heart, Mail, MapPin, MoreHorizontal, Phone, PlusCircle, Users } from 'lucide-react';
 import { Can } from '../../../providers/permissions/Can';
 import { ErrorState } from '../../../components/ErrorState';
+import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import {
   getGetApiCustomersIdQueryKey,
   getGetApiCustomersQueryKey,
@@ -162,7 +163,11 @@ export const CustomerDetail = () => {
             <div className="detail-row"><Hash size={16} /><span>{customer.customerNumber}</span></div>
           )}
           {fullAddress && (
-            <div className="detail-row"><MapPin size={16} /><span>{fullAddress}</span></div>
+            <div className="detail-row">
+              <MapPin size={16} />
+              <span>{fullAddress}</span>
+              <CopyAddressButton address={fullAddress} />
+            </div>
           )}
           {customer.email && (
             <div className="detail-row"><Mail size={16} /><span>{customer.email}</span></div>
@@ -179,13 +184,19 @@ export const CustomerDetail = () => {
       <div className="job-list">
         {customer.jobs.map((job) => {
           const destinationAddress = (job as typeof job & CustomerJobWithDestination).destinationAddress;
+          const openJob = () => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } });
 
           return (
-            <button
+            <div
               key={job.id}
               className="job-card"
-              onClick={() => navigate(`/app/completed/${job.id}`, { state: { from: `/app/customers/${customer.id}` } })}
-              type="button"
+              onClick={openJob}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === 'Enter' || event.key === ' ') openJob();
+              }}
+              role="link"
+              tabIndex={0}
             >
               <div className="job-card-top">
                 <div>
@@ -197,6 +208,7 @@ export const CustomerDetail = () => {
               <p className="job-address-row">
                 <MapPin size={14} />
                 <span className="job-address">{destinationAddress || 'Ingen destinationsadresse angivet'}</span>
+                <CopyAddressButton address={destinationAddress} />
               </p>
               <div className="job-card-body">
                 {job.contactPerson && <span className="meta-item"><Users size={14} /><span>{job.contactPerson}</span></span>}
@@ -205,7 +217,7 @@ export const CustomerDetail = () => {
               <div className="job-card-meta">
                 <span className="meta-item"><Clock size={14} /><span className="meta-item">Sidst opdateret: {formatDateLong(job.updatedAt)}</span></span>
               </div>
-            </button>
+            </div>
           );
         })}
 

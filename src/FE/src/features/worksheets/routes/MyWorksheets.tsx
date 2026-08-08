@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { BriefcaseBusiness, ChevronDown, ChevronLeft, ChevronRight, MapPin, ReceiptText, Timer } from 'lucide-react';
 import { ErrorState } from '../../../components/ErrorState';
+import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { apiClient } from '../../../lib/axios';
 import { abbreviateName } from '../../../lib/formatUtils';
 import { useIsAdmin } from '../../../providers/permissions';
@@ -375,28 +376,40 @@ function DayCell({
       </div>
 
       <div className="time-entry-list">
-        {day.entries.map((entry) => (
-          <button
-            key={`${entry.jobId}-${entry.workDate}-${entry.customerName}`}
-            type="button"
-            className="time-entry-card"
-            onClick={() => onOpenJob(entry.jobId)}
-            aria-label={`Åbn sag ${(entry.reportNumber || entry.jobId).toUpperCase()}`}
-          >
-            <div className="time-entry-top">
-              <span className="job-number">SAG-{(entry.reportNumber || entry.jobId.slice(0, 4)).toUpperCase()}</span>
-              <span className="time-entry-meta">
-                <span>{formatNumber(entry.hoursWorked)} t</span>
-                {entry.hasOutlay && <span className="time-entry-outlay"><ReceiptText size={12} /> Udlæg</span>}
-              </span>
+        {day.entries.map((entry) => {
+          const openEntry = () => onOpenJob(entry.jobId);
+          return (
+            <div
+              key={`${entry.jobId}-${entry.workDate}-${entry.customerName}`}
+              className="time-entry-card"
+              onClick={openEntry}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === 'Enter' || event.key === ' ') openEntry();
+              }}
+              role="link"
+              tabIndex={0}
+              aria-label={`Åbn sag ${(entry.reportNumber || entry.jobId).toUpperCase()}`}
+            >
+              <div className="time-entry-top">
+                <span className="job-number">SAG-{(entry.reportNumber || entry.jobId.slice(0, 4)).toUpperCase()}</span>
+                <span className="time-entry-meta">
+                  <span>{formatNumber(entry.hoursWorked)} t</span>
+                  {entry.hasOutlay && <span className="time-entry-outlay"><ReceiptText size={12} /> Udlæg</span>}
+                </span>
+              </div>
+              {entry.userDisplayName && <span className="time-entry-user">{abbreviateName(entry.userDisplayName)}</span>}
+              <strong>{entry.customerName}</strong>
+              {entry.customerAddress && (
+                <span className="time-entry-address">
+                  <MapPin size={12} />
+                  <span>{entry.customerAddress}</span>
+                  <CopyAddressButton address={entry.customerAddress} />
+                </span>
+              )}
             </div>
-            {entry.userDisplayName && <span className="time-entry-user">{abbreviateName(entry.userDisplayName)}</span>}
-            <strong>{entry.customerName}</strong>
-            {entry.customerAddress && (
-              <span className="time-entry-address"><MapPin size={12} /> {entry.customerAddress}</span>
-            )}
-          </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

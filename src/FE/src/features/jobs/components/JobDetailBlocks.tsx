@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Building2, FileText, Heart, Link2, Lock, Navigation, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { SingleSelectDropdown, type SingleSelectOption } from '../../../components/forms/SingleSelectDropdown';
 import { MultiSelectDropdown } from '../../../components/forms/MultiSelectDropdown';
@@ -88,6 +89,7 @@ export function DestinationAddressBlock({
           <FileText size={18} />
           <h3>Adresse (destination){required && <span className="required-asterisk">*</span>}</h3>
           {readOnly && <Lock size={14} className="readonly-indicator" />}
+          {displayValue && <CopyAddressButton address={displayValue} className="destination-copy-button" />}
           {(() => {
             const mapsUrl = getMapsUrl(value, zipCode, city);
             return mapsUrl ? (
