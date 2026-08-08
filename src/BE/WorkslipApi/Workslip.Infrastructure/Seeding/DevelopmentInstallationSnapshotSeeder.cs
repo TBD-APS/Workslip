@@ -52,6 +52,7 @@ internal static class DevelopmentInstallationSnapshotSeeder
                     var selectedCategory = new JobReportInstallationCategoryRow
                     {
                         Id = Guid.NewGuid(),
+                        OrganizationId = job.OrganizationId,
                         JobReportInstallationId = selectedInstallation.Id,
                         ControlCategoryId = categoryGroup.Key,
                         SortOrder = categorySortOrder++,
@@ -64,6 +65,7 @@ internal static class DevelopmentInstallationSnapshotSeeder
                         var isRelevant = !selectedCategory.IsIrrelevant;
                         selectedControlPoints.Add(new JobReportInstallationControlPointRow
                         {
+                            OrganizationId = job.OrganizationId,
                             JobReportInstallationCategoryId = selectedCategory.Id,
                             ControlPointId = mapping.ControlPointId,
                             SortOrder = mapping.SortOrder,
