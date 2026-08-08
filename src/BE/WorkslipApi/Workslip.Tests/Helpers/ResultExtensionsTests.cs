@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Ardalis.Result;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
 using ApiResultExtensions = Workslip.Api.Helpers.ResultExtensions;
 using Xunit;
@@ -56,13 +57,11 @@ public sealed class ResultExtensionsTests
     }
 
     [Fact]
-    public async Task ToHttpResult_maps_forbidden_to_403()
+    public void ToHttpResult_maps_forbidden_to_forbid_result()
     {
-        var context = CreateHttpContext();
+        var mapped = ApiResultExtensions.ToHttpResult(Result.Forbidden());
 
-        await ApiResultExtensions.ToHttpResult(Result.Forbidden()).ExecuteAsync(context);
-
-        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        Assert.IsType<ForbidHttpResult>(mapped);
     }
 
     [Fact]
