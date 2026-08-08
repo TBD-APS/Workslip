@@ -7,7 +7,7 @@ import { NavigationGuard } from './NavigationGuard';
 type GuardedPageProps = {
   autoSaveOnLeave?: () => boolean | Promise<boolean>;
   autoSavePending?: boolean;
-  onSave?: () => void | Promise<unknown>;
+  onSave?: () => void | boolean | Promise<unknown>;
 };
 
 function GuardedPage({ autoSaveOnLeave, autoSavePending, onSave }: GuardedPageProps) {
@@ -107,5 +107,66 @@ describe('NavigationGuard autosave navigation', () => {
     expect(await screen.findByRole('dialog', { name: 'Ugemte ændringer' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Forlad uden at gemme' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Gem og forlad' })).toBeInTheDocument();
+  });
+
+  it('keeps navigation blocked when save resolves false', async () => {
+    const onSave = vi.fn().mockResolvedValue(false);
+    renderGuardedPage(<GuardedPage onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forlad siden' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Gem og forlad' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Kunne ikke gemme ændringerne');
+    expect(screen.queryByRole('heading', { name: 'Anden side' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prøv at gemme igen' })).toBeInTheDocument();
+  });
+
+  it('keeps navigation blocked when save rejects', async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error('save failed'));
+    renderGuardedPage(<GuardedPage onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forlad siden' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Gem og forlad' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Kunne ikke gemme ændringerne');
+    expect(screen.queryByRole('heading', { name: 'Anden side' })).not.toBeInTheDocument();
+  });
+
+  it('retries a failed save and proceeds only after success', async () => {
+    const onSave = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    renderGuardedPage(<GuardedPage onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forlad siden' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Gem og forlad' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Prøv at gemme igen' }));
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Anden side' })).toBeInTheDocument());
+    expect(onSave).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows explicit discard after a failed save', async () => {
+    const onSave = vi.fn().mockResolvedValue(false);
+    renderGuardedPage(<GuardedPage onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forlad siden' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Gem og forlad' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Forlad uden at gemme' }));
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Anden side' })).toBeInTheDocument());
+  });
+
+  it('cancels navigation after a failed save without losing the form route', async () => {
+    const onSave = vi.fn().mockResolvedValue(false);
+    renderGuardedPage(<GuardedPage onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forlad siden' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Gem og forlad' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Annuller' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Forlad siden' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Anden side' })).not.toBeInTheDocument();
   });
 });
