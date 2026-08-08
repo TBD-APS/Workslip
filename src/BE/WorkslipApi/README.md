@@ -27,6 +27,43 @@ Health check:
 curl http://localhost:5262/health
 ```
 
+## Explicit platform Superadmin bootstrap
+
+The three permanent platform Superadmins are reconciled only through the explicit
+`bootstrap-superadmins` operation (or as a shared prerequisite of synthetic
+development seeding). Normal production startup does not run it unless this exact
+operation value is supplied.
+The operation verifies database connectivity, reuses or invites Entra guests through
+the existing Graph integration, and reconciles only the platform organization and
+Superadmin rows. It does not run schema migrations, demo/reference-data seeding,
+hosted workers, or the HTTP server.
+
+From an operator workstation, first verify the Azure CLI tenant, subscription, user,
+and the configured App Configuration endpoint. The current Development settings use
+the production App Configuration endpoint; override it explicitly when targeting a
+different approved environment.
+
+```powershell
+az login
+az account show --query "{tenantId:tenantId,subscriptionId:id,user:user.name}" --output table
+
+dotnet run --configuration Release --no-launch-profile -- `
+  --environment Development `
+  --Workslip:Operation=bootstrap-superadmins
+```
+
+The operator identity needs read access to App Configuration and Key Vault, database
+access, and the existing Graph permissions needed to read/invite users and assign the
+API `Superadmin` app role. Stop on a tenant, subscription, database, or configuration
+mismatch; do not compensate with manual SQL or a normal frontend invitation.
+
+A successful run logs exactly three `Platform Superadmin reconciled` messages and
+exits without starting the API. Run the same command a second time immediately. All
+three messages must report `EntraIdentityCreated: False`; the second run must not add
+Workslip rows or Entra guests. On failure, preserve the logs without personal data,
+fix the reported access/data conflict, and rerun the same idempotent operation. Newly
+created guests are removed automatically when a later bootstrap step fails.
+
 For the normal Azure-backed development path, authenticate the developer identity with Azure CLI before starting the API:
 
 ```powershell
