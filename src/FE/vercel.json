@@ -12,7 +12,7 @@
       "destination": "https://api-mrsoftware-prod.azurewebsites.net/api/:path*"
     },
     {
-      "source": "/((?!assets/|robots\\.txt$).*)",
+      "source": "/((?!api/|.*\\.[^/]+$).*)",
       "destination": "/index.html"
     }
   ],
