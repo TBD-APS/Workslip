@@ -1,85 +1,32 @@
 # Workslip frontend instructions
 
-Read the root `AGENTS.md`, `Docs/agents/OPERATING_CONTRACT.md`, and `Docs/agents/VALIDATION.md` before changing frontend code.
+Root [`../../AGENTS.md`](../../AGENTS.md) applies. These are frontend-specific rules for `src/FE/`.
 
-## Scope
+## Architecture and state
 
-These rules apply to `src/FE/`.
+- Reuse established feature folders, shared UI/form components, query helpers and generated/shared API clients.
+- Do not bypass the established API client with ad hoc `fetch` or another Axios instance.
+- Keep server state in React Query; use local state for UI state or explicit edit drafts, not duplicated server truth.
+- Avoid unnecessary effects, derived-state synchronization and provider expansion.
+- Split components only when the split creates a real responsibility boundary.
+- Keep authorization decisions on the backend. Frontend guards are navigation/presentation only.
+- Include user/tenant/session context in cache keys when isolation requires it, and clear relevant state when that context changes.
 
-## Architecture and implementation
+## Shared form and UI conventions
 
-- Reuse established feature folders, shared components, query helpers, and generated/shared API clients.
-- Do not bypass the established API client with ad hoc `fetch` or a separate Axios instance.
-- Keep server state in React Query. Do not duplicate it into local state unless editing requires an explicit draft.
-- Avoid unnecessary effects, derived-state synchronization, and provider expansion.
-- Split oversized components when the split creates a real responsibility boundary.
-- Lazy-load genuinely rare routes or features when it improves initial application behavior without making navigation noticeably worse.
-- Keep authorization decisions on the backend. Frontend guards are presentation and navigation controls only.
-- Tenant-, user-, and session-sensitive query keys must include the context required to prevent cache leakage.
-- Clear or invalidate relevant state when authentication or organization context changes.
+Use `src/components/forms/` and existing shared controls before creating new ones.
 
-## Shared form and UI components
+Use `NumericInput` instead of raw `<input type="number">` where numeric entry is required; native number inputs can lose Danish decimal-comma input.
 
-Use components under `src/FE/src/components/forms/` and other existing shared UI before creating new controls.
+Preserve accessibility, responsive/mobile behaviour, loading/disabled/empty/error/recovery states, duplicate-submit protection, browser navigation and PWA safe-area behaviour.
 
-Never use raw `<input type="number" />`. Use `NumericInput` because mobile browsers can strip Danish decimal commas from native number inputs.
+## Generated API and performance
 
-```tsx
-import { NumericInput } from './components/forms/NumericInput';
-
-<NumericInput
-  kind="decimal"
-  min={0}
-  value={value}
-  onChange={setValue}
-/>
-```
-
-Follow existing normalization helpers such as the `parseHours` pattern when converting display values.
-
-Preserve:
-
-- labels, accessible names, focus order, keyboard operation, and visible focus;
-- mobile and narrow-screen behavior;
-- loading, disabled, empty, success, error, and recovery states;
-- duplicate-submit protection;
-- browser-back and route restoration behavior;
-- stale-token and reauthentication handling;
-- safe-area behavior for installed PWA usage.
-
-## API and generated artifacts
-
-- Treat endpoint source and OpenAPI as the contract source.
-- Do not hand-edit generated API clients or generated models.
+- Endpoint source/OpenAPI define the API contract; do not hand-edit generated clients or models.
 - Regenerate clients through the established process after contract changes.
-- Keep mutations idempotent where the backend contract supports it.
-- Surface actionable errors without exposing sensitive backend details.
+- Watch for eager rare-feature imports, duplicate requests, unstable query keys, avoidable rerenders and tenant-unsafe service-worker/cache behaviour.
+- Do not optimize for Lighthouse at the expense of actual primary-route interaction speed.
 
-## Performance review
+## Validation delta
 
-Review frontend changes for:
-
-- unnecessary bundle growth;
-- eager imports of rare functionality;
-- duplicate requests;
-- unstable query keys;
-- avoidable rerenders and effects;
-- large lists without virtualization or bounded pagination where scale requires it;
-- service-worker or caching changes that can serve stale authentication or tenant data.
-
-Do not optimize solely for Lighthouse. Preserve actual interaction speed after login and on primary routes.
-
-## Required validation
-
-Any user-visible frontend change requires Playwright against a running application. This includes visual changes, inputs, dialogs, buttons, routing, authentication, session handling, notifications, responsive behavior, and error recovery.
-
-At minimum run:
-
-- frontend lint for the affected code;
-- TypeScript checking;
-- production frontend build;
-- the relevant Playwright flow from `Docs/agents/VALIDATION.md`.
-
-For mobile-sensitive controls, include a narrow mobile viewport. For authentication, routing, or session changes, verify redirects, browser back, reload, console errors, and network failures.
-
-A user-visible frontend PR without successful Playwright validation is **implemented but Playwright-unvalidated** and should remain draft or explicitly blocked.
+Follow [`../../Docs/agents/VALIDATION.md`](../../Docs/agents/VALIDATION.md). Any user-visible frontend change requires the relevant Playwright flow against a running application; mobile-sensitive work also requires a narrow viewport.

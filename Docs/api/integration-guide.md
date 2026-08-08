@@ -1,101 +1,70 @@
 # Integration guide
 
 **Status:** Active  
-**Owner:** API owner  
-**Source of truth:** runtime OpenAPI, endpoint code and the maintained Postman collection  
-**Review cadence:** on authentication or API-contract changes
+**Owner:** Backend/API  
+**Source of truth:** runtime OpenAPI, endpoint code and executable Postman evidence  
+**Review cadence:** On authentication or API-contract changes
 
-## 1. Choose an environment
+This page is for running and diagnosing integrations. Shared HTTP semantics belong in [`contract.md`](contract.md).
 
-Use localhost or a dedicated integration/staging deployment with isolated test data. Do not run mutation smoke tests against production.
+## Choose an environment
 
-The Postman runner rejects URLs that do not look like localhost/test/staging unless `ALLOW_PRODUCTION_INTEGRATION_TESTS=true` is explicitly set. Do not use that override in normal work.
+Use localhost or an isolated release-test/staging environment with synthetic data. Do not run destructive integration suites against live customer production.
 
-## 2. Obtain a token
+The repository release policy determines whether release-testing endpoints are enabled in a deployed environment. `/api/dev/token` is test tooling, not an integration authentication mechanism.
 
-Supported flows are:
+## Authenticate
 
-- local email code: `POST /api/auth/send-code`, then `POST /api/auth/verify-code/{code}`
-- Microsoft/Entra login: present an Entra JWT to `POST /api/auth/entra-login`
-- invitation enrollment: present an Entra JWT to `POST /api/auth/entra-enroll`
-- pre-issued integration token through `WORKSLIP_AUTH_TOKEN`
+Use the authentication flow appropriate to the integration/runtime contract. Current browser/user flows include Microsoft/Entra login and Workslip token exchange; local/release-test tooling may expose additional shortcuts when explicitly enabled.
 
-The `/api/dev/token` shortcut is not a production integration mechanism. Its current production exposure is tracked by WOR-182 and must not be relied on.
+For repeatable isolated API testing, a pre-issued token can be supplied to the Postman runner through its supported environment variable rather than embedding credentials in files or commands committed to the repository.
 
-## 3. Run the executable contract
+## Run the executable suite
 
 ```bash
 cd src/BE/WorkslipApi/Postman
-./run-integration-tests.sh https://<staging-api-base-url>
+./run-integration-tests.sh https://<test-or-staging-api>
 ```
 
-With a pre-issued token:
+With a pre-issued token, use the runner's documented `WORKSLIP_AUTH_TOKEN` input.
 
-```bash
-WORKSLIP_AUTH_TOKEN=<token> \
-  ./run-integration-tests.sh https://<staging-api-base-url>
-```
+There is no general production mutation-test workflow. Run the suite deliberately against the approved isolated target.
 
-There is no active GitHub Actions integration-test workflow. Run this suite manually or from explicitly approved isolated-environment automation.
+## Request conventions
 
-## 4. Make an authenticated request
+For authenticated JSON requests, use the headers defined in [`contract.md`](contract.md), including correlation and idempotency headers where the endpoint contract requires them.
+
+Example read:
 
 ```bash
 curl --fail-with-body \
   -H 'Accept: application/json' \
   -H 'Authorization: Bearer <token>' \
-  -H 'X-Correlation-ID: 6aabf9ef-b307-4c88-a07d-f405ec30d65a' \
-  'https://<staging-api>/api/jobs?status=Draft&limit=25&offset=0'
+  -H 'X-Correlation-ID: <correlation-id>' \
+  'https://<test-api>/api/jobs?status=Draft&limit=25&offset=0'
 ```
 
-Example paginated response:
+For an idempotent mutation, use one stable idempotency key for one logical request. Retry the same logical request with the same key only when the original result is unknown; use a new key when the content changes.
 
-```json
-{
-  "items": [],
-  "totalCount": 0
-}
-```
+## Failure handling
 
-## 5. Make an idempotent mutation
+- `400` — correct request/validation errors.
+- `401` — re-authenticate; do not retry indefinitely.
+- `403` — authenticated identity lacks permission.
+- `404` — treat as unavailable in the caller's scope; do not infer cross-tenant ownership.
+- `409` — inspect the stable error code and resolve the business/idempotency conflict.
+- `428` — supply the required idempotency key.
+- `429` — back off according to the endpoint/client policy.
+- `500` — preserve correlation context; retry only when the operation is known to be retry-safe.
 
-Use one stable key for one logical request. Generate a new key for a different payload.
+For cache-enabled reads, retain the returned ETag and revalidate with `If-None-Match`; a `304` means reuse the cached representation.
 
-```bash
-curl --fail-with-body \
-  -X POST \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Authorization: Bearer <token>' \
-  -H 'X-Correlation-ID: 9a8e50ac-9645-4558-8eb0-d25493e64fb8' \
-  -H 'Idempotency-Key: 9a8e50ac-9645-4558-8eb0-d25493e64fb8' \
-  --data @create-job.json \
-  'https://<staging-api>/api/jobs/'
-```
+## Verification checklist
 
-Retry the identical request with the same key only when the first result is unknown. Do not reuse the key for edited content.
-
-## 6. Handle failures
-
-- `400`: map field errors back to the request.
-- `401`: refresh or re-authenticate; do not retry forever.
-- `403`: identity is valid but lacks permission.
-- `404`: do not infer whether another organization owns the resource.
-- `409`: inspect `error`; resolve the business conflict or idempotency misuse.
-- `428`: add the required `Idempotency-Key`.
-- `429`: respect throttling and back off.
-- `500`: preserve the correlation ID and report it; retry only when the operation is known to be safe.
-
-## 7. Cache-aware reads
-
-Store the `ETag` returned by cache-enabled GET endpoints and revalidate with `If-None-Match`. Treat `304` as “use the cached representation”; it has no response body.
-
-## 8. Contract verification checklist
-
-1. Confirm the route exists in the running OpenAPI document.
-2. Confirm the authorization policy in endpoint source.
-3. Use or add its Postman request and assertions.
-4. Test success, validation, authorization, not-found and conflict paths where applicable.
-5. Verify organization isolation with two test tenants for tenant-owned data.
-6. Preserve correlation and idempotency headers.
-7. Record any contract difference before release.
+1. Confirm the route/shape in the OpenAPI document for the exact running build.
+2. Confirm authorization and tenant scope in endpoint/service source.
+3. Exercise the relevant Postman request or equivalent HTTP scenario.
+4. Cover failure paths that matter to the changed risk.
+5. Verify two-tenant behaviour when tenant-owned data is involved.
+6. Preserve correlation/idempotency behaviour across retries and support diagnostics.
+7. Record any difference between the running contract and maintained guidance as documentation drift.
