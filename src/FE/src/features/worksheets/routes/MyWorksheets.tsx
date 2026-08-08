@@ -7,42 +7,13 @@ import { apiClient } from '../../../lib/axios';
 import { abbreviateName } from '../../../lib/formatUtils';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useAppScrollRestoreKey } from '../../../hooks/useAppRouteScroll';
-
-type MyWorksheetEntryResponse = {
-  workDate: string;
-  jobId: string;
-  reportNumber: string | null;
-  customerName: string;
-  customerAddress: string | null;
-  hoursWorked: number | string;
-  hasOutlay: boolean;
-  userDisplayName?: string | null;
-};
-
-type MyWorksheetDayResponse = {
-  date: string;
-  totalHours: number | string;
-  outlayCount: number;
-  entries: MyWorksheetEntryResponse[];
-};
-
-type MyWorksheetWeekResponse = {
-  weekStart: string;
-  weekEnd: string;
-  totalHours: number | string;
-  outlayCount: number;
-  days: MyWorksheetDayResponse[];
-};
-
-type MyWorksheetsMonthResponse = {
-  year: number;
-  month: number;
-  monthStart: string;
-  monthEnd: string;
-  totalHours: number | string;
-  outlayCount: number;
-  weeks: MyWorksheetWeekResponse[];
-};
+import { AdminHoursExport } from '../components/AdminHoursExport';
+import type {
+  MyWorksheetDayResponse,
+  MyWorksheetEntryResponse,
+  MyWorksheetWeekResponse,
+  MyWorksheetsMonthResponse,
+} from '../worksheetOverviewTypes';
 
 type MonthCursor = { year: number; month: number };
 type TimerOverviewState = {
@@ -51,11 +22,18 @@ type TimerOverviewState = {
   scrollTop: number;
 };
 
+type AdminUserWeek = {
+  displayName: string;
+  totalHours: number;
+  days: Map<string, { hours: number; entries: MyWorksheetEntryResponse[] }>;
+};
+
 const TIMER_OVERVIEW_STATE_KEY = 'workslip.timerOverviewState';
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat('da-DK', { month: 'short', year: 'numeric' });
 const DAY_FORMATTER = new Intl.DateTimeFormat('da-DK', { weekday: 'short', day: 'numeric' });
 const WEEK_RANGE_FORMATTER = new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short' });
+const DANISH_NAME_COLLATOR = new Intl.Collator('da-DK', { sensitivity: 'base' });
 
 function AdminWeeklyOverview({
   data,
@@ -68,34 +46,31 @@ function AdminWeeklyOverview({
     <section className="admin-weekly-overview">
       {data.weeks.map((week) => {
         const isCurrentWeek = week.weekStart === currentWeekStart;
-        // Group entries by user and day
-        const userDayMap = new Map<string, Map<string, { hours: number; entries: MyWorksheetEntryResponse[] }>>();
-        
+        const users = new Map<string, AdminUserWeek>();
+
         week.days.forEach((day) => {
           day.entries.forEach((entry) => {
-            const user = abbreviateName(entry.userDisplayName) || 'Ukendt';
-            if (!userDayMap.has(user)) {
-              userDayMap.set(user, new Map());
-            }
-            const dayMap = userDayMap.get(user)!;
-            const key = day.date;
-            if (!dayMap.has(key)) {
-              dayMap.set(key, { hours: 0, entries: [] });
-            }
-            const dayData = dayMap.get(key)!;
-            dayData.hours += Number(entry.hoursWorked);
+            const hours = Number(entry.hoursWorked);
+            const existing = users.get(entry.userId);
+            const user = existing ?? {
+              displayName: entry.userDisplayName?.trim() || 'Ukendt medarbejder',
+              totalHours: 0,
+              days: new Map(),
+            };
+
+            const dayData = user.days.get(day.date) ?? { hours: 0, entries: [] };
+            dayData.hours += hours;
             dayData.entries.push(entry);
+            user.days.set(day.date, dayData);
+            user.totalHours += hours;
+
+            if (!existing) users.set(entry.userId, user);
           });
         });
 
-        // Calculate totals per user
-        const userTotals = new Map<string, number>();
-        userDayMap.forEach((dayMap, user) => {
-          let total = 0;
-          dayMap.forEach((dayData) => {
-            total += dayData.hours;
-          });
-          userTotals.set(user, total);
+        const orderedUsers = Array.from(users.entries()).sort((left, right) => {
+          const nameComparison = DANISH_NAME_COLLATOR.compare(left[1].displayName, right[1].displayName);
+          return nameComparison !== 0 ? nameComparison : left[0].localeCompare(right[0]);
         });
 
         return (
@@ -122,12 +97,12 @@ function AdminWeeklyOverview({
                 </tr>
               </thead>
               <tbody>
-                {Array.from(userDayMap.entries()).map(([user, dayMap]) => (
-                  <tr key={user} className="admin-user-row">
-                    <td className="admin-col-name admin-user-name">{user}</td>
-                    <td className="admin-col-total admin-user-total">{formatNumber(userTotals.get(user) || 0)}</td>
+                {orderedUsers.map(([userId, user]) => (
+                  <tr key={userId} className="admin-user-row">
+                    <td className="admin-col-name admin-user-name">{user.displayName}</td>
+                    <td className="admin-col-total admin-user-total">{formatNumber(user.totalHours)}</td>
                     {week.days.map((day) => {
-                      const dayData = dayMap.get(day.date);
+                      const dayData = user.days.get(day.date);
                       const date = parseDate(day.date);
                       const dayOfWeek = date.getDay();
                       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
@@ -140,8 +115,8 @@ function AdminWeeklyOverview({
                   </tr>
                 ))}
                 <tr className="admin-row-total">
-                   <td className="admin-col-name">I alt pr. dag</td>
-                   <td className="admin-col-total">{formatNumber(week.totalHours)}</td>
+                  <td className="admin-col-name">I alt pr. dag</td>
+                  <td className="admin-col-total">{formatNumber(week.totalHours)}</td>
                   {week.days.map((day) => {
                     const date = parseDate(day.date);
                     const dayOfWeek = date.getDay();
@@ -171,11 +146,9 @@ export function MyWorksheets() {
   const [cursor, setCursor] = useState<MonthCursor>(() => savedState.current?.cursor ?? getCurrentMonthCursor());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(() => {
     const saved = savedState.current?.expandedWeeks;
-    // If we have saved state, use it; otherwise only expand current week
     if (saved && saved.length > 0) {
       return new Set(saved);
     }
-    // Initialize with current week only
     return new Set([getCurrentWeekStart()]);
   });
 
@@ -265,6 +238,8 @@ export function MyWorksheets() {
           )}
         </div>
       </div>
+
+      {isAdmin && data && <AdminHoursExport data={data} monthLabel={monthLabel} />}
 
       {query.isLoading && (
         <div className="time-week-list">
@@ -530,12 +505,10 @@ function getIsoWeek(value: string) {
 function getCurrentWeekStart(): string {
   const today = new Date();
   const dayOfWeek = today.getDay();
-  // getDay(): 0 = Sunday, 1 = Monday, 2 = Tuesday, etc.
-  // We want Monday of the current week
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const monday = new Date(today);
   monday.setDate(today.getDate() - daysToMonday);
-  
+
   const yyyy = monday.getFullYear();
   const mm = String(monday.getMonth() + 1).padStart(2, '0');
   const dd = String(monday.getDate()).padStart(2, '0');
