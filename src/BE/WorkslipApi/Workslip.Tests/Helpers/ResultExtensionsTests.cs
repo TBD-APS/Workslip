@@ -90,6 +90,8 @@ public sealed class ResultExtensionsTests
     {
         var services = new ServiceCollection()
             .AddLogging()
+            .AddAuthentication()
+            .Services
             .AddProblemDetails()
             .BuildServiceProvider();
 
