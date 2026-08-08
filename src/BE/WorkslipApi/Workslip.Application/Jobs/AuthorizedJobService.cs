@@ -138,14 +138,37 @@ public sealed class AuthorizedJobService(
         return Result<JobReportSummaryResponse>.Success(filtered with { Links = visibleLinks });
     }
 
-    public Task<Result<IReadOnlyList<JobHistoryResponse>>> GetHistoryAsync(
+    public async Task<Result<IReadOnlyList<JobHistoryResponse>>> GetHistoryAsync(
         Guid id,
         int? limit,
         int? offset,
-        CancellationToken cancellationToken) =>
-        AuditorDataScope.AppliesTo(currentUser.Role)
-            ? Task.FromResult(Result<IReadOnlyList<JobHistoryResponse>>.Forbidden())
-            : inner.GetHistoryAsync(id, limit, offset, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (!AuditorDataScope.AppliesTo(currentUser.Role))
+        {
+            return await inner.GetHistoryAsync(id, limit, offset, cancellationToken);
+        }
+
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<IReadOnlyList<JobHistoryResponse>>.Unauthorized();
+        }
+
+        var job = await jobRepository.GetSingleJobAsync(id, organizationId.Value, cancellationToken);
+        if (job is null || !AuditorDataScope.CanAccess(job))
+        {
+            return Result<IReadOnlyList<JobHistoryResponse>>.NotFound();
+        }
+
+        var result = await inner.GetHistoryAsync(id, limit, offset, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return result;
+        }
+
+        return Result<IReadOnlyList<JobHistoryResponse>>.Success(AuditorDataScope.Filter(result.Value));
+    }
 
     public Task<Result<JobReportSummaryResponse>> UpdateAsync(
         Guid id,
