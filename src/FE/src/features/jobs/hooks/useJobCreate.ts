@@ -4,6 +4,7 @@ import type { AxiosError } from 'axios';
 import { notify } from '../../../lib/toast';
 import {
   usePostApiJobs,
+  usePostApiJobsIdAssign,
   usePostApiJobsIdLinks,
   getGetApiJobsQueryKey,
 } from '../../../api/generated/jobs/jobs';
@@ -41,17 +42,28 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const assignedUserIds = assignedUserIdsDraft ?? defaultAssignedUserIds;
   const [isSaving, setIsSaving] = useState(false);
   const [linksStatus, setLinksStatus] = useTimedStatus();
+  const [assignmentStatus, setAssignmentStatus] = useTimedStatus();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const createMutation = usePostApiJobs({
     mutation: {
       onSuccess: (response) => {
         const jobId = response.id;
         const reportNumber = response.reportNumber;
-
         const promises: Promise<unknown>[] = [];
 
         if (linkedJobIds.length > 0) {
           promises.push(linkMutation.mutateAsync({ id: jobId, data: { targetReportIds: linkedJobIds } }));
+        }
+
+        // New backends persist initial assignments inside the job-create transaction.
+        // Keep this conditional fallback so a newer frontend remains safe during a short
+        // frontend-before-backend deployment skew instead of silently losing assignment.
+        const persistedAssignedIds = new Set((response.assignedUsers ?? []).map((candidate) => candidate.id));
+        const assignmentAlreadyPersisted =
+          persistedAssignedIds.size === assignedUserIds.length
+          && assignedUserIds.every((id) => persistedAssignedIds.has(id));
+        if (!assignmentAlreadyPersisted) {
+          promises.push(assignMutation.mutateAsync({ id: jobId, data: { userIds: assignedUserIds } }));
         }
 
         Promise.all(promises).then(() => {
@@ -62,8 +74,8 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
           onCreated(jobId);
         }).catch((error) => {
           setIsSaving(false);
-          notify.error('Sagen er oprettet, men sammenkædning mislykkedes', { id: 'job-link-error' });
-          console.error('Linking failed:', error);
+          notify.error('Sagen er oprettet, men tildeling eller sammenkædning mislykkedes', { id: 'job-create-followup-error' });
+          console.error('Job create follow-up failed:', error);
           onCreated(jobId);
         });
       },
@@ -78,6 +90,13 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const linkMutation = usePostApiJobsIdLinks({
     mutation: {
       onSuccess: () => setLinksStatus('saved'),
+    },
+    request: { skipGlobalErrorToast: true },
+  });
+
+  const assignMutation = usePostApiJobsIdAssign({
+    mutation: {
+      onSuccess: () => setAssignmentStatus('saved'),
     },
     request: { skipGlobalErrorToast: true },
   });
@@ -174,6 +193,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
   const updateAssignedUsers = (userIds: string[]) => {
     if (!isAdmin) return;
     setAssignedUserIdsDraft(userIds);
+    setAssignmentStatus('idle');
   };
 
   const updateWorkCategories = (categoryIds: string[]) => {
@@ -289,6 +309,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     setAssignedUserIdsDraft(null);
     setIsSaving(false);
     setLinksStatus('idle');
+    setAssignmentStatus('idle');
   };
 
   return {
@@ -299,6 +320,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     isSaving,
     canSave,
     linksStatus,
+    assignmentStatus,
     referenceData,
     isLoadingReferenceData: referenceDataQuery.isLoading,
     isLoadingUsers: usersQuery.isLoading,
