@@ -21,11 +21,11 @@ A workflow should exist only when it provides an actionable signal or performs a
 
 The required merge signal is the `CI Gate` job. It succeeds only when these jobs succeed:
 
-- `Backend` — Release restore/build plus the merge-critical startup, authentication, authorization, tenant-isolation and auditor regression set.
+- `Backend` — full Release restore, build and backend test suite.
 - `Frontend + API contract` — no-new-errors ESLint ratchet, branch-matched OpenAPI/Orval generation, Vitest and production frontend build.
 - `Contracts + docs` — production release-policy checks, Playwright source checks, synthetic-auth tests, Postman JSON validation and `python tools/docs/check_docs.py`.
 
-The full backend suite is temporarily executed as a visible non-blocking inventory step in `Backend` while WOR-382 removes inherited relational-test debt. It must become blocking again when that suite is green; the temporary inventory is not permission to add failures or skips.
+The full backend suite is blocking. Do not replace it with a filtered allowlist, skips or `continue-on-error` to make CI green; repair failing regression tests or production code instead.
 
 The frontend carries inherited ESLint debt. CI therefore compares the pull-request findings with the exact base revision and blocks new severity-2 errors without treating inherited findings as permission to grow the baseline.
 
