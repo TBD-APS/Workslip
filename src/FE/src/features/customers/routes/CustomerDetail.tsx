@@ -117,7 +117,7 @@ export const CustomerDetail = () => {
             <Heart size={20} fill={isFavorite ? 'currentColor' : 'none'} />
           </button>
         </Can>
-        <Can permission="user:manage">
+        <Can permission="customer:edit">
           <div className="worksheet-actions-menu-root">
             <button
               type="button"
