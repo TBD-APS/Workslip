@@ -145,12 +145,12 @@ export const CustomerList = () => {
                       <Upload size={16} />
                       <span>Importér</span>
                     </button>
+                    <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
+                      <Plus size={18} />
+                      <span>Ny kunde</span>
+                    </button>
                   </>
                 </Can>
-                <button className="btn btn-primary" onClick={() => navigate('/app/customers/new')} type="button">
-                  <Plus size={18} />
-                  <span>Ny kunde</span>
-                </button>
               </div>
             )}
           </div>
@@ -402,7 +402,7 @@ export const CustomerList = () => {
                   </div>
                 </div>
 
-                <Can permission="user:manage">
+                <Can permission="customer:edit">
                   <div className="worksheet-actions-menu-root customer-actions-anchor">
                     <button
                       type="button"
