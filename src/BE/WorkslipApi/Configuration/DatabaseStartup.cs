@@ -75,7 +75,7 @@ public static class DatabaseStartup
         }
         catch (Exception exception)
         {
-            Log.Error(
+            Log.Warning(
                 "[STARTUP {StartupStep}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms ({ExceptionType})",
                 step,
                 phase,
