@@ -230,7 +230,7 @@ export function CustomerDetailsBlock({
               placeholder="Telefon"
               readOnly={isFieldReadOnly()}
             />
-            {(emailError || fieldErrors.email) && <p className="form-error-text">{emailError || fieldErrors.email}</p>}
+            {(phoneError || fieldErrors.phone) && <p className="form-error-text">{phoneError || fieldErrors.phone}</p>}
           </div>
           <div className="form-group">
             <label className="form-label">Kontaktperson</label>
