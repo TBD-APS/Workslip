@@ -2,7 +2,7 @@
 
 **Status:** Active  
 **Owner:** Workslip maintainers  
-**Source of truth:** `SqlDbContext`, domain models, schema initializer and executable persistence tests  
+**Source of truth:** `SqlDbContext`, domain models, versioned database migrations and executable persistence tests  
 **Review cadence:** On tenant-boundary, persistence or lifecycle changes
 
 This page records tenant/data-integrity boundaries that are expensive to reconstruct from individual entities. Exact columns, indexes and migration mechanics belong in the model/schema source.
@@ -34,10 +34,12 @@ Deletion behaviour should reflect ownership:
 - operational/history/reference relationships that must not disappear implicitly use restrictive deletion and explicit cleanup;
 - tenant-owned references must preserve organization scope during update/delete flows.
 
-The exact current foreign keys and delete behaviours are defined in `SqlDbContext`. When changing them, validate existing production data before tightening constraints and use relational tests for orphan, cross-tenant and delete behaviour.
+The exact current foreign keys and delete behaviours are defined in `SqlDbContext` plus applied versioned migrations. When changing them, validate existing production data before tightening constraints and use relational tests for orphan, cross-tenant and delete behaviour.
 
 ## Schema changes
 
-`DatabaseSchemaInitializer` is the current schema-control path. Schema/integrity changes must account for concurrent API starts, existing invalid data, rollback and the API runtime permissions needed to apply the change.
+Production schema/data changes are explicit deployment work under ADR 0006. Reviewed SQL migrations live in `src/BE/infrastructure/database/migrations`, are checksum-tracked and are applied by the protected backend deployment before the API package is deployed.
+
+Normal production API startup only verifies database connectivity/readiness. It does not call EF migration APIs, schema initializers or custom migration SQL. Development-only seeding remains an explicit local-development concern and is not a production migration mechanism.
 
 Do not copy one-off migration procedure details into this page after rollout. Keep durable integrity rules here and historical rollout details in the owning issue/PR.
