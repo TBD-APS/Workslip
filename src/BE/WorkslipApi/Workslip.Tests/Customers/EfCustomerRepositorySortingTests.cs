@@ -68,9 +68,9 @@ public sealed class EfCustomerRepositorySortingTests
             limit: 20,
             offset: 0,
             search: null,
-            sortBy,
-            sortDirection,
-            CancellationToken.None);
+            sortBy: sortBy,
+            sortDirection: sortDirection,
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(expectedNames, result.Select(customer => customer.Name));
     }
