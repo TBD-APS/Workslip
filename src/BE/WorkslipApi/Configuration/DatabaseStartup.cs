@@ -12,14 +12,17 @@ public static class DatabaseStartup
     public static bool IsOpenApiGeneration(IConfiguration configuration) =>
         configuration.GetValue<bool>(GenerateOpenApiOnlyKey);
 
-    public static async Task InitializeIfRequiredAsync(
+    public static bool ShouldSeedDevelopmentData(IHostEnvironment environment) =>
+        environment.IsDevelopment();
+
+    public static async Task VerifyIfRequiredAsync(
         IServiceProvider services,
         IConfiguration configuration,
-        bool releaseTestingEnabled)
+        bool seedDevelopmentData)
     {
         if (IsOpenApiGeneration(configuration))
         {
-            Log.Information("[STARTUP 08] Database initialization - SKIPPED (OpenAPI generation mode)");
+            Log.Information("[STARTUP 08] Database verification - SKIPPED (OpenAPI generation mode)");
             return;
         }
 
@@ -28,13 +31,6 @@ public static class DatabaseStartup
 
         await RunDatabasePhaseAsync(
             "08.1",
-            "Initialize database schema and migrations",
-            () => scope.ServiceProvider
-                .GetRequiredService<DatabaseSchemaInitializer>()
-                .InitializeAsync());
-
-        await RunDatabasePhaseAsync(
-            "08.2",
             "Verify database connectivity",
             async () =>
             {
@@ -44,18 +40,18 @@ public static class DatabaseStartup
                 }
             });
 
-        if (releaseTestingEnabled)
+        if (seedDevelopmentData)
         {
             await RunDatabasePhaseAsync(
-                "08.3",
-                "Seed release-test database",
+                "08.2",
+                "Seed development database",
                 () => scope.ServiceProvider
                     .GetRequiredService<DevelopmentDatabaseSeeder>()
                     .SeedAsync());
         }
         else
         {
-            Log.Information("[STARTUP 08.3] Seed release-test database - SKIPPED (release testing disabled)");
+            Log.Information("[STARTUP 08.2] Seed development database - SKIPPED (non-development environment)");
         }
     }
 
