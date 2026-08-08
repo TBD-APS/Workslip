@@ -2,17 +2,17 @@
 
 **Status:** Active  
 **Owner:** Workslip maintainers  
-**Applies to:** Pull requests that change the frontend, backend API contract, or the shared API-generation workflow
+**Applies to:** Unified pull-request and `main` CI
 
 ## Purpose
 
-Frontend validation must generate the Orval client from the backend OpenAPI contract in the same pull-request merge result. It must not depend on generated files from another branch, an anonymously exposed production OpenAPI endpoint, or production credentials.
+Frontend validation must generate the Orval client from the backend OpenAPI contract in the same revision. It must not depend on generated files from another branch, an anonymously exposed production OpenAPI endpoint, or production credentials.
 
-The shared action is `.github/actions/generate-frontend-api/action.yml`. The pull-request workflow is `.github/workflows/frontend-validation.yml`.
+The shared action is `.github/actions/generate-frontend-api/action.yml`. The unified workflow is `.github/workflows/frontend-validation.yml`, displayed in GitHub Actions as `CI`.
 
 ## Contract-generation startup mode
 
-The action sets the environment variable:
+The action sets:
 
 ```text
 Workslip__GenerateOpenApiOnly=true
@@ -20,65 +20,55 @@ Workslip__GenerateOpenApiOnly=true
 
 ASP.NET Core maps this to `Workslip:GenerateOpenApiOnly`.
 
-In this mode the API must still:
+In this mode the API must still register the services required for endpoint discovery, configure endpoint mappings and generate the OpenAPI document from the current backend revision.
 
-- register application and infrastructure services needed for endpoint discovery;
-- configure middleware and endpoint mappings;
-- generate the OpenAPI document from the current backend commit.
+It must not resolve production database services, alter schema, seed data or start database-backed workers merely to inspect the API contract.
 
-In this mode the API must not:
+Normal application startup does not set this flag and retains its runtime infrastructure checks and hosted services.
 
-- resolve `SqlDbContext` for startup validation;
-- initialize or alter the database schema;
-- test database connectivity;
-- seed release-testing data;
-- start database-backed hosted services or notification workers.
+## CI ownership
 
-Normal application startup does not set this flag and retains fail-fast SQL configuration, schema initialization, connectivity validation, optional release-testing seeding, and all hosted services.
+The shared API-generation action owns only:
 
-## Validation sequence
+1. .NET setup and API restore;
+2. isolated Release-mode OpenAPI generation;
+3. Orval generation from that document.
 
-The frontend pull-request workflow performs these steps from a clean checkout:
+Backend correctness tests are deliberately not hidden inside the action. The unified `Backend` CI job runs the full backend Release build and test suite once.
 
-1. install frontend dependencies;
-2. test the lint-debt comparator;
-3. capture ESLint JSON for the pull-request checkout;
-4. create a clean worktree for the pull-request base branch, install that branch's frontend dependencies and capture its ESLint JSON;
-5. fail if the pull request introduces any new severity-2 ESLint error compared with the base branch;
-6. restore the backend API project and run the focused startup/authorization regression suite through the shared API-generation action;
-7. build the API in Release mode and generate the OpenAPI document;
-8. generate the Orval client from that document;
-9. run Vitest;
-10. run the production frontend build, including application and service-worker type checking.
+The `Frontend + API contract` job owns:
 
-The lint gate is deliberately a ratchet while inherited lint debt exists. Existing errors do not make every pull request red, but new errors are blocking. Warnings remain informational. The comparator fingerprints the file, rule, message and offending source rather than the line number so unrelated line movement does not turn old debt into a false new error.
+1. frontend dependency installation;
+2. lint-ratchet regression tests;
+3. current ESLint inventory;
+4. exact baseline ESLint inventory;
+5. rejection of new severity-2 lint findings;
+6. branch-matched API client generation;
+7. Vitest; and
+8. the production frontend build, including application and service-worker type checking.
 
-Tests and production build still run after successful contract generation. A failing no-new-lint comparison, unit test, contract generation or build fails the workflow.
+On pull requests the lint baseline is the exact pull-request base SHA. On a `main` push it is the previous `main` SHA, so a bypassed or unexpected regression cannot silently grow the lint baseline.
 
 ## Security boundary
 
-Do not add a production SQL connection string, Azure SQL access, Key Vault secret, or production App Configuration access to pull-request validation merely to generate OpenAPI.
+Do not add a production SQL connection string, Azure SQL access, Key Vault secret or production App Configuration access to CI merely to generate OpenAPI.
 
-A pull request must never be able to run schema initialization or database-backed workers against production as a side effect of contract inspection. Endpoint metadata generation is a build-time concern and must remain isolated from runtime infrastructure side effects.
+A pull request must never be able to initialize production schema or start database-backed workers as a side effect of contract inspection. Endpoint metadata generation remains an isolated build-time concern.
 
 ## Regression requirements
 
-Changes to API startup, infrastructure registration, hosted services, OpenAPI generation, or the shared frontend validation action must preserve tests proving that:
+Changes to API startup, infrastructure registration, hosted services, OpenAPI generation or the shared action must preserve the contract-generation isolation boundary.
 
-- contract-generation mode does not resolve database services;
-- contract-generation mode registers no Workslip hosted services;
-- normal runtime still requires database services;
-- normal runtime still registers the expected hosted services;
-- an OpenAPI document and Orval client are generated without SQL configuration.
+Changes to the lint ratchet must preserve focused tests proving that inherited findings remain allowed while genuinely new errors and additional occurrences are rejected.
 
-Changes to the lint ratchet must preserve focused tests proving that existing findings remain allowed while genuinely new errors and additional occurrences are rejected.
+The full backend suite in the `Backend` job is the regression owner for startup, authorization, tenant isolation and other backend behavior; do not duplicate a hand-picked subset inside the contract generator.
 
 ## Troubleshooting
 
-If generation fails with `Missing SQL connection string`, verify that the OpenAPI step sets `Workslip__GenerateOpenApiOnly=true` and that no new startup path resolves database services before endpoint discovery.
+If generation fails with `Missing SQL connection string`, verify that the OpenAPI step sets `Workslip__GenerateOpenApiOnly=true` and that no startup path resolves database services before endpoint discovery.
 
-If SQL retry or worker logs appear during OpenAPI generation, review all `IHostedService` registrations. Contract-generation mode must omit background services even when direct schema initialization is already skipped.
+If SQL retry or worker logs appear during OpenAPI generation, review hosted-service registration. Contract-generation mode must omit background services.
 
-If the lint ratchet reports a new error, fix that error in the pull request. Do not add it to a static allow-list or disable the rule to preserve the inherited baseline.
+If the lint ratchet reports a new error, fix that error in the pull request. Do not add it to a static allow-list or disable the rule to preserve inherited debt.
 
-If Orval succeeds but later gates fail, treat unit-test discovery and TypeScript/build failures as their own verified defects. Do not weaken those gates or reintroduce production credentials to hide unrelated frontend baseline problems.
+If Orval succeeds but unit tests or the TypeScript/build gate fails, treat that as its own defect. Do not weaken the gate or add production credentials to hide it.
