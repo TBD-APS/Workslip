@@ -84,7 +84,7 @@ export function CopyAddressButton({ address, className }: CopyAddressButtonProps
       aria-label={copied ? 'Adresse kopieret' : 'Kopiér adresse'}
       title={copied ? 'Adresse kopieret' : 'Kopiér adresse'}
     >
-      {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
+      {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
     </button>
   );
 }
