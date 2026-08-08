@@ -9,6 +9,7 @@ import { abbreviateName } from '../../../lib/formatUtils';
 import { useIsAdmin } from '../../../providers/permissions';
 import { useAppScrollRestoreKey } from '../../../hooks/useAppRouteScroll';
 import { AdminHoursExport } from '../components/AdminHoursExport';
+import { getWorksheetEntryIdentity } from '../utils/worksheetEntryIdentity';
 import type {
   MyWorksheetDayResponse,
   MyWorksheetEntryResponse,
@@ -52,7 +53,8 @@ function AdminWeeklyOverview({
         week.days.forEach((day) => {
           day.entries.forEach((entry) => {
             const hours = Number(entry.hoursWorked);
-            const existing = users.get(entry.userId);
+            const userId = getWorksheetEntryIdentity(entry);
+            const existing = users.get(userId);
             const user = existing ?? {
               displayName: entry.userDisplayName?.trim() || 'Ukendt medarbejder',
               totalHours: 0,
@@ -65,7 +67,7 @@ function AdminWeeklyOverview({
             user.days.set(day.date, dayData);
             user.totalHours += hours;
 
-            if (!existing) users.set(entry.userId, user);
+            if (!existing) users.set(userId, user);
           });
         });
 
