@@ -59,6 +59,7 @@ const SimpleJobCreate = () => {
       },
     );
   }, initialForm);
+  const worksheetUsers = create.assignableUsers.filter((candidate) => create.assignedUserIds.includes(candidate.id));
 
   useEffect(() => {
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -112,7 +113,7 @@ const SimpleJobCreate = () => {
 
       <JobWorksheetsStep
         localMode
-        assignableUsers={create.assignableUsers}
+        assignableUsers={worksheetUsers}
         isLoadingUsers={create.isLoadingUsers}
         variant="list"
         onChange={setLocalWorksheets}
