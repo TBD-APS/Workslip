@@ -35,6 +35,10 @@ internal sealed class SqliteSchemaCompatibilityInterceptor : DbCommandIntercepto
         command.CommandText = command.CommandText
             .Replace("nvarchar(max)", "TEXT", StringComparison.OrdinalIgnoreCase)
             .Replace("isjson(", "json_valid(", StringComparison.OrdinalIgnoreCase)
-            .Replace("sysutcdatetime()", "CURRENT_TIMESTAMP", StringComparison.OrdinalIgnoreCase);
+            .Replace("sysutcdatetime()", "CURRENT_TIMESTAMP", StringComparison.OrdinalIgnoreCase)
+            .Replace(
+                "Cvr like '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'",
+                "Cvr GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'",
+                StringComparison.OrdinalIgnoreCase);
     }
 }
