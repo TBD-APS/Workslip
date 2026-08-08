@@ -26,7 +26,7 @@ async function copyWithLegacyFallback(value: string): Promise<void> {
   }
 }
 
-export async function copyTextToClipboard(value: string): Promise<void> {
+async function copyTextToClipboard(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(value);
