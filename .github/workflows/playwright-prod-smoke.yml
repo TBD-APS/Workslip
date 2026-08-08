@@ -33,6 +33,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: playwright-critical-flows-${{ github.ref }}-${{ inputs.target }}-${{ inputs.scenario }}
@@ -107,8 +108,9 @@ jobs:
           WORKSLIP_RELEASE_PHASE: ${{ steps.release-target.outputs.phase }}
           WORKSLIP_TEST_TARGET: ${{ steps.release-target.outputs.environment }}
           WORKSLIP_ALLOW_DESTRUCTIVE_PLAYWRIGHT: ${{ steps.release-target.outputs.allow_destructive_playwright }}
-          MAILOSAUR_API_KEY: ${{ secrets.MAILOSAUR_API_KEY }}
-          MAILOSAUR_SERVER_ID: ${{ vars.MAILOSAUR_SERVER_ID }}
+          WORKSLIP_GRAPH_TENANT_ID: ${{ vars.WORKSLIP_GRAPH_TENANT_ID }}
+          WORKSLIP_GRAPH_CLIENT_ID: ${{ vars.WORKSLIP_GRAPH_CLIENT_ID }}
+          WORKSLIP_SYNTHETIC_MAILBOX: ${{ vars.WORKSLIP_SYNTHETIC_MAILBOX }}
           WORKSLIP_SYNTHETIC_USER_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_USER_EMAIL }}
           WORKSLIP_SYNTHETIC_AUDITOR_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_AUDITOR_EMAIL }}
           WORKSLIP_SYNTHETIC_ADMIN_EMAIL: ${{ vars.WORKSLIP_SYNTHETIC_ADMIN_EMAIL }}
