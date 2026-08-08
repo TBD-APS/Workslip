@@ -41,9 +41,7 @@ public static class DependencyInjection
         {
             var configuration = sp.GetRequiredService<IConfiguration>();
             var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
-            options.UseSqlServer(connectionString, b =>
-                b.MigrationsAssembly("Workslip.Api")
-            );
+            options.UseSqlServer(connectionString);
 
             var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
@@ -66,7 +64,6 @@ public static class DependencyInjection
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
         services.AddScoped<INotificationRepository, EfNotificationRepository>();
         services.AddScoped<IJobViewRepository, EfJobViewRepository>();
-        services.AddScoped<DatabaseSchemaInitializer>();
         services.AddScoped<DevelopmentDatabaseSeeder>();
 
         services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>
