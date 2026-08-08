@@ -1,7 +1,8 @@
 import { defineConfig } from "orval";
 
+const localApiBaseUrl = process.env.VITE_API_BASE_URL ?? "http://localhost:5262";
 const openApiTarget = process.env.OPENAPI_DOCUMENT
-  ?? `${process.env.VITE_API_BASE_URL ?? ''}/openapi/v1.json`;
+  ?? `${localApiBaseUrl}/openapi/v1.json`;
 
 export default defineConfig({
   workslip: {
