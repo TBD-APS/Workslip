@@ -44,6 +44,7 @@ function renderLogin(initialEntries: string[] = ['/login'], initialIndex = initi
 
 beforeEach(() => {
   authState.isAuthenticated = true;
+  localStorage.clear();
   window.history.replaceState(null, '', '/login');
   entraMocks.clearEntraLoginSession.mockReset();
   entraMocks.completeEntraLogin.mockReset();
@@ -105,5 +106,32 @@ describe('Login browser history handling', () => {
     expect(window.location.pathname).toBe('/login');
     expect(window.location.search).toBe('');
     expect(screen.getByRole('button', { name: 'Log ind med Microsoft passkey' })).toBeEnabled();
+  });
+
+  it('uses the stored user email as a hint for silent reauthentication', async () => {
+    authState.isAuthenticated = false;
+    localStorage.setItem('userEmail', 'known.user@example.com');
+    window.history.replaceState(null, '', '/login?reauth=1&returnTo=%2Fapp%2Fcustomers');
+
+    renderLogin(['/login?reauth=1&returnTo=%2Fapp%2Fcustomers']);
+
+    await waitFor(() => expect(entraMocks.startEntraLogin).toHaveBeenCalledWith({
+      returnTo: '/app/customers',
+      prompt: 'none',
+      loginHint: 'known.user@example.com',
+    }));
+  });
+
+  it('skips silent reauthentication when no stored user email is available', async () => {
+    authState.isAuthenticated = false;
+    window.history.replaceState(null, '', '/login?reauth=1&returnTo=%2Fapp%2Fcustomers');
+
+    renderLogin(['/login?reauth=1&returnTo=%2Fapp%2Fcustomers']);
+
+    await waitFor(() => expect(entraMocks.startEntraLogin).toHaveBeenCalledWith({
+      returnTo: '/app/customers',
+      prompt: 'select_account',
+    }));
+    expect(entraMocks.startEntraLogin).not.toHaveBeenCalledWith(expect.objectContaining({ prompt: 'none' }));
   });
 });

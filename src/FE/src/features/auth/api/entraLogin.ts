@@ -13,6 +13,7 @@ interface PkceState {
 interface StartEntraLoginOptions {
   returnTo?: string;
   prompt?: 'none' | 'select_account' | 'login';
+  loginHint?: string;
 }
 
 export interface CompleteEntraLoginResult {
@@ -107,6 +108,7 @@ export const startEntraLogin = async (options: StartEntraLoginOptions = {}) => {
   const state = randomUrlSafe(32);
   const redirectUri = config.redirectUri || `${window.location.origin}/login`;
   const returnTo = options.returnTo ?? '/app';
+  const loginHint = options.loginHint?.trim();
 
   const pkce: PkceState = { state, codeVerifier, redirectUri, returnTo };
   sessionStorage.setItem(PKCE_KEY, JSON.stringify(pkce));
@@ -121,6 +123,7 @@ export const startEntraLogin = async (options: StartEntraLoginOptions = {}) => {
   authorizeUrl.searchParams.set('code_challenge', codeChallenge);
   authorizeUrl.searchParams.set('code_challenge_method', 'S256');
   authorizeUrl.searchParams.set('prompt', options.prompt ?? 'select_account');
+  if (loginHint) authorizeUrl.searchParams.set('login_hint', loginHint);
 
   window.location.assign(authorizeUrl.toString());
 };
