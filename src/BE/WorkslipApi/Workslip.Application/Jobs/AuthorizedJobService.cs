@@ -161,13 +161,35 @@ public sealed class AuthorizedJobService(
             return Result<IReadOnlyList<JobHistoryResponse>>.NotFound();
         }
 
-        var result = await inner.GetHistoryAsync(id, limit, offset, cancellationToken);
-        if (!result.IsSuccess)
+        var requestedLimit = Math.Clamp(limit ?? 50, 1, AuditorScanPageSize);
+        var requestedOffset = Math.Max(offset ?? 0, 0);
+        var visibleEvents = new List<JobHistoryResponse>();
+        var scanOffset = 0;
+
+        while (true)
         {
-            return result;
+            var page = await inner.GetHistoryAsync(id, AuditorScanPageSize, scanOffset, cancellationToken);
+            if (!page.IsSuccess)
+            {
+                return page;
+            }
+
+            visibleEvents.AddRange(AuditorDataScope.Filter(page.Value));
+
+            if (page.Value.Count < AuditorScanPageSize)
+            {
+                break;
+            }
+
+            scanOffset += page.Value.Count;
         }
 
-        return Result<IReadOnlyList<JobHistoryResponse>>.Success(AuditorDataScope.Filter(result.Value));
+        var requestedEvents = visibleEvents
+            .Skip(requestedOffset)
+            .Take(requestedLimit)
+            .ToArray();
+
+        return Result<IReadOnlyList<JobHistoryResponse>>.Success(requestedEvents);
     }
 
     public Task<Result<JobReportSummaryResponse>> UpdateAsync(
