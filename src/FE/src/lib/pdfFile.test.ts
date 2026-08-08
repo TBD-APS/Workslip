@@ -12,7 +12,10 @@ import { createPdfFilePreview } from './pdfFile';
 describe('pdf file helper', () => {
   beforeEach(() => {
     getMock.mockReset();
-    vi.spyOn(window.URL, 'createObjectURL').mockReturnValue('blob:pdf-preview');
+    Object.defineProperty(window.URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:pdf-preview'),
+    });
   });
 
   it('uses the authenticated API client and server filename for previews', async () => {
