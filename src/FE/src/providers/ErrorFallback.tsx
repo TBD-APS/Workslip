@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { useAuth } from './useAuth';
 import { reportFrontendError } from '../applicationInsights';
 
+const APP_HOME_PATH = '/app';
+const LOGIN_PATH = '/login';
+
 export function ErrorFallback({ error, resetErrorBoundary }: { error: unknown; resetErrorBoundary: () => void }) {
-  const navigate = useNavigate();
   const { logout } = useAuth();
   const message = error instanceof Error ? error.message : String(error);
 
@@ -13,9 +14,17 @@ export function ErrorFallback({ error, resetErrorBoundary }: { error: unknown; r
     reportFrontendError(error, 'react.error-boundary');
   }, [error]);
 
+  const handleGoHome = () => {
+    // A router navigation cannot recover while the surrounding ErrorBoundary is
+    // still rendering this fallback. A hard navigation rebuilds the React tree
+    // and preserves the current session.
+    window.location.replace(APP_HOME_PATH);
+  };
+
   const handleLogout = () => {
     logout();
-    navigate('/login', { replace: true });
+    // Keep logout usable even if the router/error-boundary state itself is broken.
+    window.location.replace(LOGIN_PATH);
   };
 
   return (
@@ -27,7 +36,7 @@ export function ErrorFallback({ error, resetErrorBoundary }: { error: unknown; r
         </p>
         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button className="btn btn-primary" onClick={resetErrorBoundary}>Prøv igen</button>
-          <button className="btn btn-secondary" onClick={() => navigate('/')}>Gå til forsiden</button>
+          <button className="btn btn-secondary" onClick={handleGoHome}>Gå til forsiden</button>
           <button className="btn btn-secondary" onClick={handleLogout}>
             <LogOut size={16} /> Log ud
           </button>
