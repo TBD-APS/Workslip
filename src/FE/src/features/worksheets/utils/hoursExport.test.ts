@@ -104,6 +104,26 @@ describe('hours export', () => {
     expect(employees.map((employee) => employee.totalHours)).toEqual([2.5, 7.5]);
   });
 
+  it('keeps legacy worksheet responses without userId renderable during deploy skew', () => {
+    const legacyData = structuredClone(monthData);
+    for (const week of legacyData.weeks) {
+      for (const day of week.days) {
+        for (const entry of day.entries) {
+          delete (entry as { userId?: string }).userId;
+        }
+      }
+    }
+
+    const rows = buildHoursExportRows(legacyData);
+    const employees = buildEmployeeHoursSummaries(rows);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.userId === 'legacy:alex jensen')).toBe(true);
+    expect(sumExportHours(rows)).toBe(10);
+    expect(employees).toHaveLength(1);
+    expect(employees[0]?.totalHours).toBe(10);
+  });
+
   it('creates a Danish Excel-friendly, privacy-minimized CSV', () => {
     const rows = buildHoursExportRows(monthData);
     const csv = buildHoursCsv(rows);
