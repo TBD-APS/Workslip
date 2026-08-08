@@ -279,7 +279,7 @@ async function createSession(name, scenarioReport) {
   async function loadRuntimeContracts() {
     if (auth.openApi) return;
     const response = await fetch(`${auth.apiBase}/openapi/v1.json`, { signal: AbortSignal.timeout(API_TIMEOUT) });
-    if (!response.ok) throw new Error(`Runtime OpenAPI returned HTTP ${response.status()}.`);
+    if (!response.ok) throw new Error(`Runtime OpenAPI returned HTTP ${response.status}.`);
     auth.openApi = await response.json();
     report.contractSources.runtimeOpenApi ??= `${auth.apiBase}/openapi/v1.json`;
   }
@@ -328,7 +328,7 @@ async function createSession(name, scenarioReport) {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(API_TIMEOUT),
     });
-    if (!response.ok) throw new Error(`DAWA autocomplete returned HTTP ${response.status()}.`);
+    if (!response.ok) throw new Error(`DAWA autocomplete returned HTTP ${response.status}.`);
     const suggestions = await response.json();
     const suggestion = Array.isArray(suggestions) ? suggestions.find((item) => item?.tekst || item?.adresse?.betegnelse) : null;
     if (!suggestion) throw new Error('DAWA returned no address suggestion.');
