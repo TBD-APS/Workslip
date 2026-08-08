@@ -13,6 +13,7 @@ public class WorksheetService : IWorksheetService
     private readonly IJobService _jobService;
     private readonly IValidator<UpsertWorksheetRequest> _validator;
     private readonly ICurrentUserContext _currentUserContext;
+    private readonly IMonthlyHoursPdfGenerator _monthlyHoursPdfGenerator;
     private readonly ILogger<WorksheetService> _logger;
 
     public WorksheetService(
@@ -20,12 +21,14 @@ public class WorksheetService : IWorksheetService
         IJobService jobService,
         IValidator<UpsertWorksheetRequest> validator,
         ICurrentUserContext currentUserContext,
+        IMonthlyHoursPdfGenerator monthlyHoursPdfGenerator,
         ILogger<WorksheetService> logger)
     {
         _repository = repository;
         _jobService = jobService;
         _validator = validator;
         _currentUserContext = currentUserContext;
+        _monthlyHoursPdfGenerator = monthlyHoursPdfGenerator;
         _logger = logger;
     }
 
@@ -82,6 +85,45 @@ public class WorksheetService : IWorksheetService
         var entries = await _repository.GetAllWorksheetsAsync(organizationId.Value, monthStart, monthEnd, cancellationToken);
 
         return Result<MyWorksheetsMonthResponse>.Success(BuildMonthResponse(selectedYear.Value, selectedMonth.Value, monthStart, monthEnd, entries));
+    }
+
+    public async Task<Result<MonthlyHoursPdfResponse>> GetAllWorksheetsPdfAsync(int? year, int? month, CancellationToken cancellationToken)
+    {
+        var monthResult = await GetAllWorksheetsAsync(year, month, cancellationToken);
+
+        if (monthResult.Status == ResultStatus.Unauthorized)
+        {
+            return Result<MonthlyHoursPdfResponse>.Unauthorized();
+        }
+
+        if (monthResult.Status == ResultStatus.Invalid)
+        {
+            return Result<MonthlyHoursPdfResponse>.Invalid(monthResult.ValidationErrors);
+        }
+
+        if (!monthResult.IsSuccess)
+        {
+            return Result<MonthlyHoursPdfResponse>.Error(monthResult.Errors.FirstOrDefault() ?? "worksheet_pdf_data_error");
+        }
+
+        var response = monthResult.Value;
+        var hasEntries = response.Weeks.SelectMany(week => week.Days).Any(day => day.Entries.Count > 0);
+        if (!hasEntries)
+        {
+            return Result<MonthlyHoursPdfResponse>.NotFound();
+        }
+
+        try
+        {
+            var pdf = _monthlyHoursPdfGenerator.Generate(response);
+            var fileName = $"workslip-timer-{response.Year}-{response.Month:00}.pdf";
+            return Result<MonthlyHoursPdfResponse>.Success(new MonthlyHoursPdfResponse(pdf, fileName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Monthly hours PDF generation failed. Year: {Year}, Month: {Month}", response.Year, response.Month);
+            return Result<MonthlyHoursPdfResponse>.Error("worksheet_pdf_generation_failed");
+        }
     }
 
     public async Task<Result<JobReportSummaryResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken)
