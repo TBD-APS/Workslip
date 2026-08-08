@@ -246,7 +246,7 @@ export const router = createBrowserRouter([
           { path: 'customers', element: <RoleGuard permission="customer:view"><CustomerList /></RoleGuard> },
           { path: 'customers/new', element: <RoleGuard permission="customer:edit"><CreateCustomerPage /></RoleGuard> },
           { path: 'customers/:id', element: <RoleGuard permission="customer:view"><CustomerDetail /></RoleGuard> },
-          { path: 'customers/:id/edit', element: <RoleGuard permission="user:manage"><EditCustomerPage /></RoleGuard> },
+          { path: 'customers/:id/edit', element: <RoleGuard permission="customer:edit"><EditCustomerPage /></RoleGuard> },
           { path: 'auditor', element: <RoleGuard permission="report:view"><AuditorReportList /></RoleGuard> },
           { path: 'profil', element: <Profile /> },
           { path: 'settings', element: <RoleGuard permission="user:manage"><Settings /></RoleGuard> },
