@@ -29,19 +29,22 @@
   padding-right: 2.75rem;
 }
 
-/* Destination address: place copy immediately left of the existing 24px maps action. */
-.detail-form:has(.nav-maps-link) {
-  position: relative;
+/* Destination address actions live in the header: copy directly before Maps. */
+.detail-form:has(.nav-maps-link) .section-header-row {
+  gap: var(--section-header-gap, 0.5rem);
 }
 
-.detail-form:has(.nav-maps-link) .address-input-wrapper {
-  position: static;
+.detail-form:has(.nav-maps-link) .section-header-row .destination-copy-button {
+  margin-left: auto;
 }
 
+.detail-form:has(.nav-maps-link) .section-header-row .destination-copy-button + .nav-maps-link {
+  margin-left: 0;
+}
+
+/* The destination header owns the copy action, so suppress the generic readonly-input copy. */
 .detail-form:has(.nav-maps-link) .address-input-wrapper .copy-address-button {
-  top: 0;
-  right: calc(1.5rem + var(--section-header-gap, 0.5rem));
-  transform: none;
+  display: none;
 }
 
 .detail-form:has(.nav-maps-link) .address-input-wrapper .form-input[readonly] {
