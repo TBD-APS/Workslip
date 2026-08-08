@@ -10,7 +10,8 @@ internal static class SqliteTestSchema
         CancellationToken cancellationToken = default)
     {
         var createScript = context.Database.GenerateCreateScript()
-            .Replace("nvarchar(max)", "TEXT", StringComparison.OrdinalIgnoreCase);
+            .Replace("nvarchar(max)", "TEXT", StringComparison.OrdinalIgnoreCase)
+            .Replace("isjson(", "json_valid(", StringComparison.OrdinalIgnoreCase);
 
         await context.Database.ExecuteSqlRawAsync(createScript, cancellationToken);
     }
