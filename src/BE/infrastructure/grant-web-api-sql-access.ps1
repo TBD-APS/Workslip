@@ -169,11 +169,12 @@ BEGIN
     EXEC sp_executesql @sql;
 END;
 
--- Temporary while DatabaseSchemaInitializer still mutates schema at API startup.
--- Remove this role together with WOR-136 when migrations move to deployment.
-IF IS_ROLEMEMBER(N'db_ddladmin', @userName) <> 1
+-- Production schema changes are deployment work (WOR-367), not API-runtime work.
+-- Actively remove the legacy DDL grant so later infrastructure reconciliation
+-- cannot leave the web API with schema-management privileges.
+IF IS_ROLEMEMBER(N'db_ddladmin', @userName) = 1
 BEGIN
-    SET @sql = N'ALTER ROLE db_ddladmin ADD MEMBER ' + QUOTENAME(@userName) + N';';
+    SET @sql = N'ALTER ROLE db_ddladmin DROP MEMBER ' + QUOTENAME(@userName) + N';';
     EXEC sp_executesql @sql;
 END;
 "@
