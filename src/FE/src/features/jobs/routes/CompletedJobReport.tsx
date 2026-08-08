@@ -299,7 +299,7 @@ export const CompletedJobReport = () => {
     <div className="page-container report-overview-page">
       <NavigationGuard when={isEditing && details.hasUnsavedChanges} onSave={() => details.saveAllChanges()} />
       <div className="detail-header report-overview-header">
-        <button className="btn-icon" type="button" onClick={() => navigate(-1)} aria-label="Tilbage til afsluttede sager">
+        <button className="btn-icon" type="button" onClick={() => navigate(from, { replace: true })} aria-label="Tilbage til afsluttede sager">
           <ArrowLeft size={22} />
         </button>
         <div>
@@ -537,7 +537,6 @@ export const CompletedJobReport = () => {
           )}
         </>
       )}
-
       <JobHistoryDrawer
         jobId={job.id}
         isOpen={historyOpen}
