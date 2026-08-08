@@ -1,0 +1,27 @@
+.copy-address-button {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+  color: var(--text-muted);
+}
+
+.copy-address-button:hover {
+  color: var(--text-primary);
+}
+
+.address-input-wrapper .copy-address-button {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  z-index: 2;
+  margin-left: 0;
+  transform: translateY(-50%);
+}
+
+.address-input-wrapper .form-input[readonly] {
+  padding-right: 2.75rem;
+}
