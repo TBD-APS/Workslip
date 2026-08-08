@@ -34,6 +34,7 @@ public sealed record WorksheetResponse(
 public sealed record MyWorksheetEntryResponse(
     DateOnly WorkDate,
     Guid JobId,
+    Guid UserId,
     string? ReportNumber,
     string CustomerName,
     string? CustomerAddress,
