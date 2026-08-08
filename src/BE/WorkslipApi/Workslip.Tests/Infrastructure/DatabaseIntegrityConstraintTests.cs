@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Schema;
+using Workslip.Tests.TestInfrastructure;
 using Xunit;
 
 namespace Workslip.Tests.Infrastructure;
@@ -315,7 +316,7 @@ public sealed class DatabaseIntegrityConstraintTests
                 .UseSqlite(connection)
                 .Options;
             var context = new SqlDbContext(options);
-            await context.Database.EnsureCreatedAsync();
+            await SqliteTestSchema.CreateAsync(context);
             await context.Database.ExecuteSqlRawAsync("PRAGMA ignore_check_constraints = ON;");
 
             return new RelationalTestDatabase(connection, context);
