@@ -1,0 +1,282 @@
+.hours-export-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: -0.75rem 0 1.5rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.hours-export-toolbar-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.hours-export-toolbar-copy strong {
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 500;
+}
+
+.hours-export-toolbar-copy span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.hours-export-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+.hours-export-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.hours-print-report {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .hours-export-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hours-export-actions {
+    width: 100%;
+  }
+
+  .hours-export-button {
+    flex: 1;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body,
+  #root,
+  .app-shell,
+  .app-content {
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .app-shell::before,
+  .app-header,
+  .bottom-nav,
+  .fab-create {
+    display: none !important;
+  }
+
+  .app-content {
+    padding: 0 !important;
+  }
+
+  .time-overview-page {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .time-overview-page > :not(.hours-print-report) {
+    display: none !important;
+  }
+
+  .hours-print-report {
+    display: block !important;
+    color: #111;
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9pt;
+    line-height: 1.35;
+  }
+
+  .hours-print-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16mm;
+    padding-bottom: 4mm;
+    border-bottom: 1.5pt solid #111;
+  }
+
+  .hours-print-brand {
+    margin-bottom: 1.5mm;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+  }
+
+  .hours-print-header h1 {
+    margin: 0;
+    color: #111;
+    font-size: 19pt;
+    font-weight: 700;
+  }
+
+  .hours-print-header p,
+  .hours-print-generated {
+    margin: 1mm 0 0;
+    color: #555;
+    font-size: 8.5pt;
+  }
+
+  .hours-print-generated {
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .hours-print-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3mm;
+    margin: 5mm 0 6mm;
+  }
+
+  .hours-print-kpi {
+    padding: 3mm 4mm;
+    border: 1px solid #cfcfcf;
+    background: #f5f5f5;
+  }
+
+  .hours-print-kpi span {
+    display: block;
+    color: #666;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .hours-print-kpi strong {
+    display: block;
+    margin-top: 0.5mm;
+    color: #111;
+    font-size: 15pt;
+    font-weight: 700;
+  }
+
+  .hours-print-section {
+    margin-top: 6mm;
+  }
+
+  .hours-print-section h2 {
+    margin: 0 0 2.5mm;
+    color: #111;
+    font-size: 11pt;
+    font-weight: 700;
+  }
+
+  .hours-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .hours-print-table thead {
+    display: table-header-group;
+  }
+
+  .hours-print-table th,
+  .hours-print-table td {
+    padding: 1.6mm 2mm;
+    border-bottom: 0.5pt solid #d7d7d7;
+    color: #111;
+    vertical-align: top;
+  }
+
+  .hours-print-table th {
+    background: #ededed !important;
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .hours-print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .hours-print-summary-table th:not(:first-child),
+  .hours-print-summary-table td:not(:first-child) {
+    width: 12mm;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hours-print-total-row td {
+    border-top: 1pt solid #888;
+    background: #f5f5f5 !important;
+    font-weight: 700;
+  }
+
+  .hours-print-detail-section {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .hours-print-employee-block {
+    margin-bottom: 6mm;
+  }
+
+  .hours-print-employee-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8mm;
+    margin-bottom: 1.5mm;
+    padding-bottom: 1.5mm;
+    border-bottom: 1pt solid #777;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .hours-print-employee-heading h3,
+  .hours-print-employee-heading strong {
+    margin: 0;
+    color: #111;
+    font-size: 9.5pt;
+    font-weight: 700;
+  }
+
+  .hours-print-detail-table th:nth-child(1),
+  .hours-print-detail-table td:nth-child(1) {
+    width: 25mm;
+  }
+
+  .hours-print-detail-table th:nth-child(2),
+  .hours-print-detail-table td:nth-child(2) {
+    width: 13mm;
+    text-align: center;
+  }
+
+  .hours-print-detail-table th:nth-child(3),
+  .hours-print-detail-table td:nth-child(3) {
+    width: 27mm;
+  }
+
+  .hours-print-detail-table th:nth-child(5),
+  .hours-print-detail-table td:nth-child(5) {
+    width: 18mm;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+}
