@@ -25,9 +25,15 @@ public static class UserEndpoints
         }).Produces<UserDetailViewModel>()
         .RequireAuthorization(AuthPolicies.RequireUser);
 
-        group.MapGet("/", async (int? limit, int? offset, string? search, string? sortBy, string? sortDirection, IUserService service, CancellationToken cancellationToken) =>
+        group.MapGet("/", async ([AsParameters] ListQueryOptions query, IUserService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.GetByOrganizationAsync(limit, offset, search, sortBy, sortDirection, cancellationToken);
+            var result = await service.GetByOrganizationAsync(
+                query.Limit,
+                query.Offset,
+                query.Search,
+                query.SortBy,
+                query.SortDirection,
+                cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUserList);
         }).Produces<UserListViewModel>();
 
