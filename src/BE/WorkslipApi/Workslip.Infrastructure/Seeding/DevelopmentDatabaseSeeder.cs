@@ -26,6 +26,11 @@ public sealed class DevelopmentDatabaseSeeder(
             new Guid("D4D4D4D4-DA5B-4CC4-BBEB-07B40CAB806F"),
             "Mahad",
             "mahad8@outlook.dk",
+            string.Empty),
+        new(
+            new Guid("E5E5E5E5-DA5B-4CC4-BBEB-07B40CAB806F"),
+            "Mathias Lambæk",
+            "mathiaslt1@hotmail.dk",
             string.Empty)
     ];
 
