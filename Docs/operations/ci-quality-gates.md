@@ -17,7 +17,17 @@ Workflow files describe intended automation; successful runs and target-environm
 
 `.github/workflows/frontend-validation.yml` runs on pull requests to `main` when the frontend, backend API, shared API-generation action or that workflow changes.
 
-It generates the frontend client from the pull request's own backend OpenAPI contract, then runs frontend lint, Vitest and the production build. Contract generation is isolated from production SQL/runtime startup. See [`BRANCH_MATCHED_FRONTEND_VALIDATION.md`](BRANCH_MATCHED_FRONTEND_VALIDATION.md) for the maintained boundary and troubleshooting details.
+The frontend currently carries inherited ESLint debt. Pull-request validation therefore uses a **no-new-errors ratchet** instead of treating the inherited debt as a permanently failing gate:
+
+- run ESLint against the pull request checkout and capture JSON findings;
+- run ESLint against the pull request base branch in a separate clean worktree with that branch's dependency graph;
+- compare only severity-2 ESLint errors using stable source fingerprints rather than line numbers;
+- fail when the pull request introduces an error fingerprint or additional occurrence that is not present on the base branch;
+- allow inherited errors to remain temporarily and report warnings without making them blocking.
+
+The ratchet itself has focused Node tests. Existing errors should still be removed under normal maintenance; the ratchet is not permission to disable correctness rules or grow the baseline.
+
+After the lint ratchet, the workflow generates the frontend client from the pull request's own backend OpenAPI contract, then runs Vitest and the production build. Contract generation is isolated from production SQL/runtime startup. See [`BRANCH_MATCHED_FRONTEND_VALIDATION.md`](BRANCH_MATCHED_FRONTEND_VALIDATION.md) for the maintained boundary and troubleshooting details.
 
 This is a targeted frontend/API-contract pull-request gate, not a general full-repository validation workflow. A workflow file proves intended execution only; whether GitHub currently requires its status is repository-ruleset state and must be verified in GitHub settings.
 
@@ -28,9 +38,11 @@ This is a targeted frontend/API-contract pull-request gate, not a general full-r
 It currently covers:
 
 - backend Release build, backend tests and C# CodeQL;
-- frontend lint, Vitest, production build and JavaScript/TypeScript CodeQL;
+- frontend inherited-lint inventory, Vitest, production build and JavaScript/TypeScript CodeQL;
 - release-environment policy plus Playwright/Postman source checks;
 - a final `Release gate` that succeeds only when the required jobs succeed.
+
+Known inherited ESLint debt is reported during release validation but is not allowed to make every release permanently red. New ESLint errors are blocked earlier by the pull-request ratchet before code reaches `main`. An ESLint execution/configuration failure still fails release validation.
 
 Other issue-scoped/local validation remains required when the changed risk is not covered by the targeted pull-request workflow.
 
