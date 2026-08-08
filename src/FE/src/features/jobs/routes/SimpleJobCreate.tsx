@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -35,11 +35,10 @@ const SimpleJobCreate = () => {
         jobType: 'Diverse',
       }
     : { ...emptyForm, jobType: 'Diverse' };
-  const initialFormRef = useRef(initialForm);
+  const [initialFormBaseline, setInitialFormBaseline] = useState<JobForm>(() => initialForm);
 
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
   const [localWorksheets, setLocalWorksheets] = useState<WorksheetDraft[]>([]);
-  const [pendingSave, setPendingSave] = useState(false);
 
   const { data: jobsData, isLoading: isLoadingJobs } = useQuery({
     queryKey: getGetApiJobsQueryKey({ status: [JobStatus.Draft, JobStatus.Approved, JobStatus.InReview], limit: 200 }),
@@ -65,18 +64,11 @@ const SimpleJobCreate = () => {
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  useEffect(() => {
-    if (pendingSave) {
-      setPendingSave(false);
-      create.save();
-    }
-  }, [pendingSave]);
-
   const handleCreateAnother = () => {
     const preservedCustomerId = create.form.customerId;
     const preservedSnapshot = create.form.customerSnapshot;
     create.reset({ customerId: preservedCustomerId, customerSnapshot: preservedSnapshot });
-    initialFormRef.current = { ...emptyForm, jobType: 'Diverse', customerId: preservedCustomerId, customerSnapshot: preservedSnapshot };
+    setInitialFormBaseline({ ...emptyForm, jobType: 'Diverse', customerId: preservedCustomerId, customerSnapshot: preservedSnapshot });
     setCreatedJobId(null);
     setLocalWorksheets([]);
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -95,11 +87,10 @@ const SimpleJobCreate = () => {
 
   const handleSave = () => {
     if (!canCreateJob) return;
-    create.updateTimesheets(localWorksheets);
-    setPendingSave(true);
+    create.saveWithTimesheets(localWorksheets);
   };
 
-  const hasUnsavedChanges = createdJobId === null && (!sameForm(create.form, initialFormRef.current) || create.linkedJobIds.length > 0 || localWorksheets.length > 0);
+  const hasUnsavedChanges = createdJobId === null && (!sameForm(create.form, initialFormBaseline) || create.linkedJobIds.length > 0 || localWorksheets.length > 0);
 
   return (
     <div className="page-container">

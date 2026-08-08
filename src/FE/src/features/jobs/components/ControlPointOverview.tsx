@@ -37,10 +37,6 @@ export function ControlPointOverview({
   selectedControlPoints: SelectedControlPoint[];
   irrelevantCategories: IrrelevantCategory[];
 }) {
-  if (selectedControlPoints.length === 0 && irrelevantCategories.length === 0) {
-    return <p className="empty-state-text">Ingen kontrolpunkter markeret.</p>;
-  }
-
   const groupedByInstallation = useMemo(() => {
     const installMap = new Map<string, { name: string; categories: Map<string, SelectedControlPoint[]> }>();
     for (const cp of selectedControlPoints) {
@@ -71,6 +67,10 @@ export function ControlPointOverview({
     }
     return [...map.values()];
   }, [irrelevantCategories]);
+
+  if (selectedControlPoints.length === 0 && irrelevantCategories.length === 0) {
+    return <p className="empty-state-text">Ingen kontrolpunkter markeret.</p>;
+  }
 
   return (
     <>

@@ -96,6 +96,15 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
 
   const { selectCustomer, updateEditSnapshot } = useCustomerSnapshot(setForm);
 
+  const clearFieldError = useCallback((field: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
+
   const createNewCustomer = () => {
     setForm((prev) => ({
       ...prev,
@@ -126,7 +135,6 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
 
   const updateJobType = (value: 'KLS' | 'Diverse') => {
     setForm((prev) => ({ ...prev, jobType: value }));
-    // Clear customer-related errors when switching to Diverse
     if (value === 'Diverse') {
       setFieldErrors((prev) => {
         const next = { ...prev };
@@ -167,7 +175,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       const fieldKey = field === 'name' ? 'customerName' : field;
       clearFieldError(fieldKey);
     },
-    [setForm],
+    [clearFieldError],
   );
 
   const updateLinkedJobs = (jobIds: string[]) => {
@@ -203,34 +211,25 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
 
   const canSave = isValidCreateForm(form, { requireDestinationAddress: isAdmin });
 
-  function computeFieldErrors(): Record<string, string> {
+  function computeFieldErrors(targetForm: JobForm): Record<string, string> {
     const errors: Record<string, string> = {};
 
-    if (form.jobType === 'KLS') {
-      const name = form.customerSnapshot?.name ?? null;
-      const email = form.customerSnapshot?.email ?? null;
-      const phone = form.customerSnapshot?.phone ?? null;
+    if (targetForm.jobType === 'KLS') {
+      const name = targetForm.customerSnapshot?.name ?? null;
+      const email = targetForm.customerSnapshot?.email ?? null;
+      const phone = targetForm.customerSnapshot?.phone ?? null;
 
       if ((name?.trim().length ?? 0) === 0) errors.customerName = 'Kundenavn er påkrævet';
       if (validateEmail(email) !== null) errors.email = validateEmail(email)!;
       if (validatePhoneNumber(phone) !== null) errors.phone = validatePhoneNumber(phone)!;
     }
 
-    if (isAdmin && form.destinationAddress.trim().length === 0) errors.destinationAddress = 'Adresse er påkrævet';
+    if (isAdmin && targetForm.destinationAddress.trim().length === 0) errors.destinationAddress = 'Adresse er påkrævet';
     return errors;
   }
 
-  const clearFieldError = (field: string) => {
-    setFieldErrors((prev) => {
-      if (!prev[field]) return prev;
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
-  };
-
-  const save = () => {
-    const errors = computeFieldErrors();
+  const saveForm = (targetForm: JobForm) => {
+    const errors = computeFieldErrors(targetForm);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const firstKey = Object.keys(errors)[0];
@@ -250,35 +249,25 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     setFieldErrors({});
 
     const request: CreateJobRequestWithSnapshot = {
-      customerId: form.customerId,
-      // Send `customerSnapshot` whenever it carries any data —
-      // selected-existing-customer, edited-existing-customer, and the
-      // brand-new-customer-via-snapshot flow all rely on the snapshot
-      // reaching the backend. Sending null only when the snapshot is
-      // genuinely empty (and `isValidCreateForm` blocks that anyway).
-      // Earlier this gated on `form.editSnapshot`, which dropped the
-      // snapshot when the user picked an existing customer and saved
-      // without toggling the edit checkbox — the repository then NRE'd
-      // at `CustomerName = customerSnapshot.Name`.
-      customerSnapshot: hasSnapshotData(form.customerSnapshot)
-        ? trimSnapshot(form.customerSnapshot)
+      customerId: targetForm.customerId,
+      customerSnapshot: hasSnapshotData(targetForm.customerSnapshot)
+        ? trimSnapshot(targetForm.customerSnapshot)
         : null,
-      createCustomerFromSnapshot: form.createCustomer || undefined,
-      destinationAddress: form.destinationAddress.trim() || null,
-      destinationZipCode: form.destinationZipCode.trim() || null,
-      destinationCity: form.destinationCity.trim() || null,
-      jobType: form.jobType,
+      createCustomerFromSnapshot: targetForm.createCustomer || undefined,
+      destinationAddress: targetForm.destinationAddress.trim() || null,
+      destinationZipCode: targetForm.destinationZipCode.trim() || null,
+      destinationCity: targetForm.destinationCity.trim() || null,
+      jobType: targetForm.jobType,
       work: null,
       observations: {
         reportDate: null,
-        taskDescription: form.taskDescription.trim() || null,
-        customerObservations: form.customerObservations.trim() || null,
-        technicalObservations: form.technicalObservations.trim() || null,
+        taskDescription: targetForm.taskDescription.trim() || null,
+        customerObservations: targetForm.customerObservations.trim() || null,
+        technicalObservations: targetForm.technicalObservations.trim() || null,
       },
-      // Include timesheets for Diverse jobs
-      ...(form.jobType === 'Diverse' && form.timesheets.length > 0
+      ...(targetForm.jobType === 'Diverse' && targetForm.timesheets.length > 0
         ? {
-            timesheets: form.timesheets.map(ts => ({
+            timesheets: targetForm.timesheets.map(ts => ({
               workDate: ts.workDate,
               userId: ts.userId,
               hoursWorked: typeof ts.hours === 'number' ? ts.hours : Number(String(ts.hours).replace(',', '.')),
@@ -290,6 +279,16 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
 
     setIsSaving(true);
     createMutation.mutate({ data: request });
+  };
+
+  const save = () => {
+    saveForm(form);
+  };
+
+  const saveWithTimesheets = (timesheets: WorksheetDraft[]) => {
+    const nextForm = { ...form, timesheets };
+    setForm(nextForm);
+    saveForm(nextForm);
   };
 
   const reset = (preserve?: { customerId?: string | null; customerSnapshot?: CustomerSnapshotData | null }) => {
@@ -337,6 +336,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     updateCustomWorkKind,
     fieldErrors,
     save,
+    saveWithTimesheets,
     reset,
   };
 }

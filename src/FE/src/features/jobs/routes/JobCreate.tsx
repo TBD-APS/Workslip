@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -32,7 +32,7 @@ export const JobCreate = () => {
         customerSnapshot: { ...locationState.customerSnapshot },
       }
     : undefined;
-  const initialFormRef = useRef(initialForm ?? emptyForm);
+  const [initialFormBaseline, setInitialFormBaseline] = useState<JobForm>(() => initialForm ?? emptyForm);
 
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
   const { data: jobsData, isLoading: isLoadingJobs } = useQuery({
@@ -57,11 +57,11 @@ export const JobCreate = () => {
       customerId: preservedCustomerId,
       customerSnapshot: preservedSnapshot,
     });
-    initialFormRef.current = {
+    setInitialFormBaseline({
       ...emptyForm,
       customerId: preservedCustomerId,
       customerSnapshot: preservedSnapshot,
-    };
+    });
     setCreatedJobId(null);
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -71,7 +71,7 @@ export const JobCreate = () => {
     navigate(`/app/job/${createdJobId}`, { replace: true, state: { from: '/app' } });
   };
 
-  const hasUnsavedChanges = createdJobId === null && (!sameForm(create.form, initialFormRef.current) || create.linkedJobIds.length > 0);
+  const hasUnsavedChanges = createdJobId === null && (!sameForm(create.form, initialFormBaseline) || create.linkedJobIds.length > 0);
 
   return (
     <div className="page-container">
