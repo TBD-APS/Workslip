@@ -73,9 +73,9 @@ public static class InfrastructureConfiguration
         catch (Exception exception)
         {
             Log.Error(
-                exception,
-                "[STARTUP 02.2] Load Azure App Configuration and Key Vault references - FAILED after {ElapsedMilliseconds} ms. Check Azure authentication, RBAC and network access",
-                stopwatch.ElapsedMilliseconds);
+                "[STARTUP 02.2] Load Azure App Configuration and Key Vault references - FAILED after {ElapsedMilliseconds} ms ({ExceptionType}). Check Azure authentication, RBAC and network access",
+                stopwatch.ElapsedMilliseconds,
+                exception.GetType().Name);
             throw;
         }
     }
