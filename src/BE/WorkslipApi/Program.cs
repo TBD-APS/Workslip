@@ -1,54 +1,182 @@
+using System.Diagnostics;
 using Serilog;
 using Workslip.Api.Configuration;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 
+var startupStopwatch = Stopwatch.StartNew();
+Log.Information("[STARTUP] Workslip.Api bootstrap started");
+
 try
 {
-    var builder = WebApplication.CreateBuilder(args);
+    var builder = RunStartupPhase(
+        1,
+        "Create application builder",
+        () => WebApplication.CreateBuilder(args));
 
-    builder.ConfigureInfrastructure(args);
+    Log.Information(
+        "[STARTUP] Environment: {EnvironmentName}",
+        builder.Environment.EnvironmentName);
+
+    RunStartupPhase(2, "Load infrastructure configuration", () =>
+    {
+        builder.ConfigureInfrastructure(args);
+    });
 
     var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
-    builder.Services.AddCors(x =>
+    RunStartupPhase(3, "Configure CORS", () =>
     {
-        x.AddPolicy("Frontend", policy =>
+        builder.Services.AddCors(x =>
         {
-            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                                 ?? new[]
-                                 {
-                                     "https://app.mrsoftware.dk",
-                                     "http://localhost:5270"
-                                 };
+            x.AddPolicy("Frontend", policy =>
+            {
+                var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                                     ?? new[]
+                                     {
+                                         "https://app.mrsoftware.dk",
+                                         "http://localhost:5270"
+                                     };
 
-            policy.WithOrigins(allowedOrigins)
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
+                policy.WithOrigins(allowedOrigins)
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+            });
         });
     });
 
-    builder.ConfigureAuthentication();
-    builder.ConfigureLogging(applicationInsightsConnectionString);
-    builder.ConfigureServices();
+    RunStartupPhase(4, "Configure authentication", () =>
+    {
+        builder.ConfigureAuthentication();
+    });
 
-    var app = builder.Build();
+    RunStartupPhase(5, "Configure logging and telemetry", () =>
+    {
+        builder.ConfigureLogging(applicationInsightsConnectionString);
+    });
+
+    RunStartupPhase(6, "Register application services", () =>
+    {
+        builder.ConfigureServices();
+    });
+
+    var app = RunStartupPhase(7, "Build application host", builder.Build);
     var releaseTestingEnabled = ReleaseTestingConfiguration.IsEnabled(
         app.Environment,
         app.Configuration);
 
-    await DatabaseStartup.InitializeIfRequiredAsync(
-        app.Services,
-        app.Configuration,
-        releaseTestingEnabled);
+    await RunStartupPhaseAsync(8, "Initialize database", () =>
+        DatabaseStartup.InitializeIfRequiredAsync(
+            app.Services,
+            app.Configuration,
+            releaseTestingEnabled));
 
-    app.ConfigurePipeline();
-    app.ConfigureEndpoints();
-    app.ConfigureDevEnvironment(releaseTestingEnabled);
+    RunStartupPhase(9, "Configure HTTP pipeline", () =>
+    {
+        app.ConfigurePipeline();
+    });
+
+    RunStartupPhase(10, "Map endpoints and environment-specific features", () =>
+    {
+        app.ConfigureEndpoints();
+        app.ConfigureDevEnvironment(releaseTestingEnabled);
+    });
+
+    Log.Information("[STARTUP 11] Start application host - START");
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        Log.Information(
+            "[STARTUP] READY - Workslip.Api started successfully in {ElapsedMilliseconds} ms",
+            startupStopwatch.ElapsedMilliseconds);
+    });
 
     await app.RunAsync();
+}
+catch (Exception exception)
+{
+    Log.Fatal(exception, "[STARTUP] Workslip.Api terminated because of an unhandled exception");
+    throw;
 }
 finally
 {
     await Log.CloseAndFlushAsync();
+}
+
+static void RunStartupPhase(int step, string phase, Action action)
+{
+    var stopwatch = Stopwatch.StartNew();
+    Log.Information("[STARTUP {StartupStep:00}] {StartupPhase} - START", step, phase);
+
+    try
+    {
+        action();
+        Log.Information(
+            "[STARTUP {StartupStep:00}] {StartupPhase} - OK ({ElapsedMilliseconds} ms)",
+            step,
+            phase,
+            stopwatch.ElapsedMilliseconds);
+    }
+    catch (Exception exception)
+    {
+        Log.Error(
+            exception,
+            "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms",
+            step,
+            phase,
+            stopwatch.ElapsedMilliseconds);
+        throw;
+    }
+}
+
+static T RunStartupPhase<T>(int step, string phase, Func<T> action)
+{
+    var stopwatch = Stopwatch.StartNew();
+    Log.Information("[STARTUP {StartupStep:00}] {StartupPhase} - START", step, phase);
+
+    try
+    {
+        var result = action();
+        Log.Information(
+            "[STARTUP {StartupStep:00}] {StartupPhase} - OK ({ElapsedMilliseconds} ms)",
+            step,
+            phase,
+            stopwatch.ElapsedMilliseconds);
+        return result;
+    }
+    catch (Exception exception)
+    {
+        Log.Error(
+            exception,
+            "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms",
+            step,
+            phase,
+            stopwatch.ElapsedMilliseconds);
+        throw;
+    }
+}
+
+static async Task RunStartupPhaseAsync(int step, string phase, Func<Task> action)
+{
+    var stopwatch = Stopwatch.StartNew();
+    Log.Information("[STARTUP {StartupStep:00}] {StartupPhase} - START", step, phase);
+
+    try
+    {
+        await action();
+        Log.Information(
+            "[STARTUP {StartupStep:00}] {StartupPhase} - OK ({ElapsedMilliseconds} ms)",
+            step,
+            phase,
+            stopwatch.ElapsedMilliseconds);
+    }
+    catch (Exception exception)
+    {
+        Log.Error(
+            exception,
+            "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms",
+            step,
+            phase,
+            stopwatch.ElapsedMilliseconds);
+        throw;
+    }
 }
