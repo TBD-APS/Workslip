@@ -17,7 +17,7 @@ import { ErrorState } from '../../../components/ErrorState';
 import { useIsAdmin } from '../../../providers/permissions/usePermissions';
 import { formatDateLong, formatDateTimeShort } from '../../../lib/formatDate';
 import { formatJobStatus } from '../statusLabels';
-import { RejectedJobsIndicator } from '../components/RejectedJobsIndicator';
+import '../components/RejectedJobsIndicator.css';
 
 
 const PAGE_SIZE = 20;
@@ -184,29 +184,11 @@ export const JobList = () => {
       {isFetching && <div className="data-table-loading-bar" />}
       <div className="page-header">
         {showLoadingSkeleton ? (
-          <>
-            <div className="skeleton skeleton-title" />
-            <div className="skeleton skeleton-subtitle" />
-          </>
+          <div className="skeleton skeleton-title" />
         ) : (
-          <div className="flex-row-between">
-            <div>
-              <h2>Opgaver</h2>
-              {isAdmin ? (
-                <p className="subtitle">{totalCount} registrerede opgaver</p>
-              ) : (
-                <p className="subtitle">Viser kun sager tildelt dig &middot; {displayedJobs.length} {displayedJobs.length === 1 ? 'sag' : 'sager'}</p>
-              )}
-            </div>
-          </div>
+          <h2>Opgaver</h2>
         )}
       </div>
-
-      <RejectedJobsIndicator
-        isAdmin={isAdmin}
-        userId={user?.id}
-        onSelect={() => handleStatusChange([JobStatus.Rejected])}
-      />
 
       <StatusFilter
         options={
