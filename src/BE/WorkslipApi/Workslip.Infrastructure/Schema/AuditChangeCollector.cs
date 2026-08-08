@@ -9,7 +9,7 @@ internal sealed class AuditChangeCollector
 {
     private static readonly HashSet<string> AuditNoiseProperties = new(StringComparer.Ordinal)
     {
-        "CreatedAt", "UpdatedAt", "AssignedAt", "OrganizationId"
+        "CreatedAt", "UpdatedAt", "AssignedAt", "OrganizationId", "SubmittedByUserId"
     };
 
     public AuditEntry BuildBaseEntry(AuditBuildContext context, EntityEntry entry)
