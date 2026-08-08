@@ -64,8 +64,6 @@ export function NavigationGuard({
   useEffect(() => {
     if (blocker.state === 'unblocked') {
       autoSaveStartedRef.current = false;
-      setSaveFailed(false);
-      setIsSaving(false);
       return;
     }
 
