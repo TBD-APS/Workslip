@@ -10,9 +10,10 @@ function buildDataFactory(collection, runId) {
   const userTemplate = requiredPostmanBody(collection, '/api/users');
   const organizationTemplate = requiredPostmanBody(collection, '/api/organizations');
 
-  const defaultEmail = requiredSource(variables.testEmail, 'Postman variable testEmail');
-  const emailDomain = defaultEmail.split('@')[1];
-  if (!emailDomain) throw new Error('Postman variable testEmail must contain a domain.');
+  const syntheticUserEmail = requiredSource(
+    process.env.WORKSLIP_SYNTHETIC_USER_EMAIL,
+    'WORKSLIP_SYNTHETIC_USER_EMAIL',
+  );
   const syntheticAdminEmail = requiredSource(
     process.env.WORKSLIP_SYNTHETIC_ADMIN_EMAIL,
     'WORKSLIP_SYNTHETIC_ADMIN_EMAIL',
@@ -36,7 +37,7 @@ function buildDataFactory(collection, runId) {
         addressQuery,
         customerName: `${customerBase} PLAYWRIGHT ${suffix}`,
         updatedCustomerName: `${customerBase} PLAYWRIGHT UPDATED ${suffix}`,
-        customerEmail: `playwright-customer+${suffix}@${emailDomain}`,
+        customerEmail: plusAddress(syntheticUserEmail, `customer-${suffix}`),
         contactPerson: `${contactBase} ${suffix}`,
         phone: String(basePhone),
         reportNumber: `PW-${suffix}`.slice(0, 50),
@@ -45,15 +46,15 @@ function buildDataFactory(collection, runId) {
         retriedSaveText: `${taskBase} PLAYWRIGHT RECOVERED ${suffix}`,
         correctedObservation: `${taskBase} PLAYWRIGHT CORRECTED ${suffix}`,
         customWorkKind: `${taskBase} PLAYWRIGHT CUSTOM ${suffix}`,
-        inviteEmail: `playwright-invite+${suffix}@${emailDomain}`,
+        inviteEmail: plusAddress(syntheticUserEmail, `invite-${suffix}`),
         inviteeDisplayName: `${baseUser} Invite ${suffix}`,
         userDisplayName: `${baseUser} ${suffix}`,
-        userEmail: (index) => `playwright-user-${index}+${suffix}@${emailDomain}`,
+        userEmail: (index) => plusAddress(syntheticUserEmail, `user-${index}-${suffix}`),
         secondaryOrganization: {
           name: `${baseOrg} PLAYWRIGHT ${suffix}`,
           cvr: numeric,
           adminDisplayName: `${baseAdmin} ${suffix}`,
-          adminEmail: plusAddress(syntheticAdminEmail, suffix),
+          adminEmail: plusAddress(syntheticAdminEmail, `tenant-${suffix}`),
           adminPhone: String(basePhone),
         },
       };
@@ -64,11 +65,11 @@ function buildDataFactory(collection, runId) {
 function plusAddress(email, tag) {
   const separator = email.lastIndexOf('@');
   if (separator <= 0 || separator === email.length - 1) {
-    throw new Error('WORKSLIP_SYNTHETIC_ADMIN_EMAIL must contain a valid mailbox address.');
+    throw new Error('Synthetic email must contain a valid mailbox address.');
   }
   const local = email.slice(0, separator).split('+')[0];
   const domain = email.slice(separator + 1);
-  const safeTag = String(tag).replace(/[^a-zA-Z0-9-]/g, '').slice(-40);
+  const safeTag = String(tag).replace(/[^a-zA-Z0-9-]/g, '').slice(-48);
   return `${local}+${safeTag}@${domain}`;
 }
 
