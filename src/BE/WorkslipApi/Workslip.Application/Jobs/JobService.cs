@@ -386,16 +386,20 @@ public sealed class JobService(
             var users = await userRepository.GetByOrganizationIdAsync(organizationId.Value, 1000, 0, null, null, null, cancellationToken);
             var admins = users.Where(x => x.Role == Roles.Admin);
             
+            var queuedNotificationCount = 0;
             foreach (var admin in admins)
             {
-                logger.LogInformation("Sending review notification to {UserName} with id {UserId}", admin.DisplayName, admin.Id);
-                
                 if (admin.Id == currentUser.UserId) 
                     continue;
 
                 await notificationService.QueueJobReadyForReviewAsync(admin.Id, admin.DisplayName, report.Id, reportNumber, address, cancellationToken);
-                logger.LogInformation("Sent review notification to {UserName} with id {UserId}", admin.DisplayName, admin.Id);
+                queuedNotificationCount++;
             }
+
+            logger.LogDebug(
+                "Queued job review notifications. JobId {JobId}. RecipientCount {RecipientCount}.",
+                report.Id,
+                queuedNotificationCount);
         }
         else if (targetStatus == JobStatus.Rejected)
         {
