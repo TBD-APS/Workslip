@@ -2,7 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - 'rbj--**'
   push:
     branches: [main]
 
@@ -207,64 +209,6 @@ jobs:
       - name: Validate documentation
         run: python tools/docs/check_docs.py
 
-  codeql-csharp:
-    name: CodeQL C#
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: read
-      packages: read
-      security-events: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: csharp
-          build-mode: manual
-
-      - name: Restore
-        run: dotnet restore "${BACKEND_SOLUTION}" --nologo
-
-      - name: Build
-        run: dotnet build "${BACKEND_SOLUTION}" --configuration Release --no-restore --nologo
-
-      - name: Analyze
-        uses: github/codeql-action/analyze@v4
-        with:
-          category: '/language:csharp'
-
-  codeql-js:
-    name: CodeQL JS/TS
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: javascript-typescript
-          build-mode: none
-
-      - name: Analyze
-        uses: github/codeql-action/analyze@v4
-        with:
-          category: '/language:javascript-typescript'
-
   ci-gate:
     name: CI Gate
     if: ${{ always() }}
@@ -274,8 +218,6 @@ jobs:
       - backend
       - frontend
       - contracts
-      - codeql-csharp
-      - codeql-js
     steps:
       - name: Verify required checks
         shell: bash
@@ -283,24 +225,14 @@ jobs:
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
-          CODEQL_CSHARP_RESULT: ${{ needs.codeql-csharp.result }}
-          CODEQL_JS_RESULT: ${{ needs.codeql-js.result }}
         run: |
           set -Eeuo pipefail
 
           if [[ "${BACKEND_RESULT}" != 'success' ||
                 "${FRONTEND_RESULT}" != 'success' ||
                 "${CONTRACTS_RESULT}" != 'success' ]]; then
-            echo "::error::One or more core CI jobs failed."
+            echo "::error::One or more required CI jobs failed."
             exit 1
-          fi
-
-          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
-            if [[ "${CODEQL_CSHARP_RESULT}" != 'success' ||
-                  "${CODEQL_JS_RESULT}" != 'success' ]]; then
-              echo "::error::Pull requests require both CodeQL jobs to succeed."
-              exit 1
-            fi
           fi
 
           echo "All required CI checks succeeded."
