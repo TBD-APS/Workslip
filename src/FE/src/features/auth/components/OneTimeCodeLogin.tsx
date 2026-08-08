@@ -8,6 +8,7 @@ import { notify } from '../../../lib/toast';
 import { clearReauthInFlight } from '../../../providers/authContextValue';
 import { useAuth } from '../../../providers/useAuth';
 import { sendAuthCode } from '../api/devToken';
+import { sanitizeReturnTo } from '../api/entraLogin';
 import { OneTimeCodeInput } from './OneTimeCodeInput';
 
 const EmailSchema = z.object({
@@ -33,6 +34,7 @@ export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
+  const returnTo = sanitizeReturnTo(new URLSearchParams(window.location.search).get('returnTo'));
 
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(EmailSchema),
@@ -78,7 +80,7 @@ export function OneTimeCodeLogin({ onBack }: OneTimeCodeLoginProps) {
       const success = await login(email, data.code);
       if (success) {
         clearReauthInFlight();
-        navigate('/app');
+        navigate(returnTo, { replace: true });
       } else {
         setErrorMsg('Ugyldig kode. Prøv igen.');
         notify.error('Ugyldig kode. Prøv igen.');
