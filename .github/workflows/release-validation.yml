@@ -145,7 +145,7 @@ jobs:
           category: '/language:javascript-typescript'
 
   contracts:
-    name: Playwright and API contract sources
+    name: Playwright, API contract and migration sources
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -163,6 +163,13 @@ jobs:
           node --check tools/release/resolve-release-environment.mjs
           node --test tools/release/resolve-release-environment.test.mjs
           node tools/release/resolve-release-environment.mjs --environment production --require-runnable
+
+      - name: Validate database migration sources
+        shell: pwsh
+        run: >-
+          ./src/BE/infrastructure/run-database-migrations.ps1
+          -Environment prod
+          -ValidateOnly
 
       - name: Validate Playwright sources
         working-directory: src/FE
