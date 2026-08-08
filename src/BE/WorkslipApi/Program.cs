@@ -5,6 +5,7 @@ using Workslip.Api.Configuration;
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 
 var startupStopwatch = Stopwatch.StartNew();
+var applicationStarted = false;
 Log.Information("[STARTUP] Workslip.Api bootstrap started");
 
 try
@@ -85,6 +86,7 @@ try
     Log.Information("[STARTUP 11] Start application host - START");
     app.Lifetime.ApplicationStarted.Register(() =>
     {
+        applicationStarted = true;
         Log.Information(
             "[STARTUP] READY - Workslip.Api started successfully in {ElapsedMilliseconds} ms",
             startupStopwatch.ElapsedMilliseconds);
@@ -94,7 +96,15 @@ try
 }
 catch (Exception exception)
 {
-    Log.Fatal(exception, "[STARTUP] Workslip.Api terminated because of an unhandled exception");
+    if (applicationStarted)
+    {
+        Log.Fatal(exception, "[HOST] Workslip.Api terminated because of an unhandled runtime exception");
+    }
+    else
+    {
+        Log.Fatal(exception, "[STARTUP] Workslip.Api terminated because of an unhandled startup exception");
+    }
+
     throw;
 }
 finally
@@ -119,11 +129,11 @@ static void RunStartupPhase(int step, string phase, Action action)
     catch (Exception exception)
     {
         Log.Error(
-            exception,
-            "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms",
+            "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms ({ExceptionType})",
             step,
             phase,
-            stopwatch.ElapsedMilliseconds);
+            stopwatch.ElapsedMilliseconds,
+            exception.GetType().Name);
         throw;
     }
 }
@@ -146,11 +156,11 @@ static T RunStartupPhase<T>(int step, string phase, Func<T> action)
     catch (Exception exception)
     {
         Log.Error(
-            exception,
-            "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms",
+            "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms ({ExceptionType})",
             step,
             phase,
-            stopwatch.ElapsedMilliseconds);
+            stopwatch.ElapsedMilliseconds,
+            exception.GetType().Name);
         throw;
     }
 }
@@ -172,11 +182,11 @@ static async Task RunStartupPhaseAsync(int step, string phase, Func<Task> action
     catch (Exception exception)
     {
         Log.Error(
-            exception,
-            "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms",
+            "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms ({ExceptionType})",
             step,
             phase,
-            stopwatch.ElapsedMilliseconds);
+            stopwatch.ElapsedMilliseconds,
+            exception.GetType().Name);
         throw;
     }
 }
