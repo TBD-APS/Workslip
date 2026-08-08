@@ -21,15 +21,14 @@ MAINTAINED_DOC_PATTERNS = (
     "AGENTS.md",
     "Docs/README.md",
     "Docs/AGENTS.md",
-    "Docs/agents/VALIDATION.md",
+    "Docs/agents/*.md",
     "Docs/api/*.md",
     "Docs/architecture/*.md",
     "Docs/architecture/adr/*.md",
     "Docs/compliance/GDPR_AI_ACT_BASELINE.md",
-    "Docs/operations/ci-quality-gates.md",
-    "Docs/operations/BRANCH_MATCHED_FRONTEND_VALIDATION.md",
-    "Docs/operations/github-pages-domain-runbook.md",
-    "Docs/operations/APPLICATION_INSIGHTS_ERROR_DASHBOARD.md",
+    "Docs/operations/*.md",
+    "Docs/release/*.md",
+    "Docs/testing/*.md",
     "src/FE/README.md",
     "src/FE/AGENTS.md",
     "src/BE/WorkslipApi/README.md",
@@ -47,9 +46,9 @@ ACTIVE_AGENT_FILES = (
     "src/BE/infrastructure/AGENTS.md",
 )
 
-RETIRED_ARTIFACTS = (
-    "repomix-output.xml",
-    ".repomixignore",
+RETIRED_ARTIFACT_PATTERNS = (
+    "**/repomix-output.xml",
+    "**/.repomixignore",
     ".github/workflows/update-repomix-after-release.yml",
 )
 
@@ -159,9 +158,12 @@ def validate_entrypoints() -> int:
 
 def validate_retired_artifacts() -> int:
     failures = 0
-    for relative in RETIRED_ARTIFACTS:
-        path = ROOT / relative
-        if path.exists():
+    seen: set[Path] = set()
+    for pattern in RETIRED_ARTIFACT_PATTERNS:
+        for path in ROOT.glob(pattern):
+            if not path.exists() or path in seen:
+                continue
+            seen.add(path)
             error(path, "Retired duplicated repository-snapshot artifact must not be reintroduced.")
             failures += 1
     return failures
