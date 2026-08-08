@@ -96,9 +96,9 @@ public sealed class ResultExtensionsTests
         serviceCollection.AddLogging();
         serviceCollection.AddProblemDetails();
         serviceCollection
-            .AddAuthentication(TestAuthenticationHandler.Scheme)
+            .AddAuthentication(TestAuthenticationHandler.SchemeName)
             .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
-                TestAuthenticationHandler.Scheme,
+                TestAuthenticationHandler.SchemeName,
                 _ => { });
 
         var context = new DefaultHttpContext
@@ -122,7 +122,7 @@ public sealed class ResultExtensionsTests
         UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
-        internal const string Scheme = "Test";
+        internal const string SchemeName = "Test";
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync() =>
             Task.FromResult(AuthenticateResult.NoResult());
