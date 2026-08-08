@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Loader2, MapPin, X } from 'lucide-react';
 import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { useAddressAutocomplete, type AddressSuggestion } from '../hooks/useAddressAutocomplete';
@@ -26,42 +26,125 @@ export function AddressAutocomplete({
 }: AddressAutocompleteProps) {
   const { suggestions, isLoading, search, clear } = useAddressAutocomplete();
   const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const suppressNextOpen = useRef(false);
+  const listboxRef = useRef<HTMLUListElement>(null);
+  const optionRefs = useRef<Array<HTMLLIElement | null>>([]);
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const suppressFocusSearchRef = useRef(false);
+  const listboxId = useId();
+  const visibleActiveIndex = activeIndex >= 0 && activeIndex < suggestions.length ? activeIndex : -1;
+  const showSuggestions = !readOnly && isOpen && suggestions.length > 0;
+
+  const clearBlurTimer = useCallback(() => {
+    clearTimeout(blurTimerRef.current);
+    blurTimerRef.current = undefined;
+  }, []);
+
+  useEffect(() => clearBlurTimer, [clearBlurTimer]);
+
+  useEffect(() => {
+    const listbox = listboxRef.current;
+    const option = optionRefs.current[visibleActiveIndex];
+    if (!listbox || !option) return;
+
+    const optionTop = option.offsetTop;
+    const optionBottom = optionTop + option.offsetHeight;
+    if (optionTop < listbox.scrollTop) {
+      listbox.scrollTop = optionTop;
+    } else if (optionBottom > listbox.scrollTop + listbox.clientHeight) {
+      listbox.scrollTop = optionBottom - listbox.clientHeight;
+    }
+  }, [visibleActiveIndex]);
+
+  const focusInputWithoutScrolling = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    suppressFocusSearchRef.current = true;
+    try {
+      input.focus({ preventScroll: true });
+    } finally {
+      suppressFocusSearchRef.current = false;
+    }
+  }, []);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (readOnly) return;
     const text = e.target.value;
+    clearBlurTimer();
     onTextChange(text);
+    clear();
     search(text);
+    setActiveIndex(-1);
     setIsOpen(true);
-  }, [onTextChange, readOnly, search]);
+  }, [clear, clearBlurTimer, onTextChange, readOnly, search]);
 
   const handleSelect = useCallback((suggestion: AddressSuggestion) => {
     if (readOnly) return;
-    suppressNextOpen.current = true;
+    clearBlurTimer();
     onSelectSuggestion(suggestion);
     clear();
+    setActiveIndex(-1);
     setIsOpen(false);
-  }, [onSelectSuggestion, clear, readOnly]);
+    focusInputWithoutScrolling();
+  }, [clear, clearBlurTimer, focusInputWithoutScrolling, onSelectSuggestion, readOnly]);
+
+  const handleClear = useCallback(() => {
+    if (readOnly) return;
+    clearBlurTimer();
+    onClear?.();
+    clear();
+    setActiveIndex(-1);
+    setIsOpen(false);
+    focusInputWithoutScrolling();
+  }, [clear, clearBlurTimer, focusInputWithoutScrolling, onClear, readOnly]);
 
   const handleFocus = useCallback(() => {
-    if (readOnly) return;
-    if (suppressNextOpen.current) {
-      suppressNextOpen.current = false;
-      return;
-    }
+    clearBlurTimer();
+    if (suppressFocusSearchRef.current || readOnly) return;
     if (value) {
       search(value);
+      setActiveIndex(-1);
       setIsOpen(true);
     }
-  }, [readOnly, value, search]);
+  }, [clearBlurTimer, readOnly, search, value]);
 
   const handleBlur = useCallback((e: React.FocusEvent) => {
     if (wrapperRef.current?.contains(e.relatedTarget)) return;
-    setTimeout(() => setIsOpen(false), 150);
-  }, []);
+    clearBlurTimer();
+    blurTimerRef.current = setTimeout(() => {
+      setActiveIndex(-1);
+      setIsOpen(false);
+      blurTimerRef.current = undefined;
+    }, 150);
+  }, [clearBlurTimer]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (readOnly || e.nativeEvent.isComposing) return;
+    if (e.key === 'ArrowDown' && suggestions.length > 0) {
+      e.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((current) => current < 0 || current >= suggestions.length - 1 ? 0 : current + 1);
+    } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
+      e.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((current) => current <= 0 || current >= suggestions.length ? suggestions.length - 1 : current - 1);
+    } else if (e.key === 'Enter' && showSuggestions && visibleActiveIndex >= 0) {
+      e.preventDefault();
+      handleSelect(suggestions[visibleActiveIndex]);
+    } else if (e.key === 'Escape' && isOpen) {
+      e.preventDefault();
+      clear();
+      setActiveIndex(-1);
+      setIsOpen(false);
+    } else if (e.key === 'Tab' && isOpen) {
+      clear();
+      setActiveIndex(-1);
+      setIsOpen(false);
+    }
+  }, [clear, handleSelect, isOpen, readOnly, showSuggestions, suggestions, visibleActiveIndex]);
 
   return (
     <div className="form-group address-autocomplete" ref={wrapperRef}>
@@ -73,29 +156,39 @@ export function AddressAutocomplete({
           onChange={handleInputChange}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          placeholder={placeholder ?? 'Søg adresse...'}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder ?? 'SÃ¸g adresse...'}
           required={required}
           readOnly={readOnly}
           autoComplete="off"
+          role="combobox"
+          aria-label={placeholder ?? 'Adresse'}
+          aria-autocomplete="list"
+          aria-expanded={showSuggestions}
+          aria-controls={showSuggestions ? listboxId : undefined}
+          aria-activedescendant={visibleActiveIndex >= 0 ? `${listboxId}-option-${visibleActiveIndex}` : undefined}
         />
         {!readOnly && isLoading && <Loader2 size={16} className="address-spinner" />}
         {!readOnly && !isLoading && value && onClear && (
-          <button type="button" className="address-clear-btn" title="Fjern adresse" onClick={onClear}>
+          <button type="button" className="address-clear-btn" title="Fjern adresse" aria-label="Fjern adresse" onMouseDown={(e) => e.preventDefault()} onClick={handleClear}>
             <X size={16} />
           </button>
         )}
         {readOnly && value && <CopyAddressButton address={value} />}
       </div>
-      {!readOnly && isOpen && suggestions.length > 0 && (
-        <ul className="address-suggestions" role="listbox">
-          {suggestions.map((s) => (
+      {showSuggestions && (
+        <ul ref={listboxRef} id={listboxId} className="address-suggestions" role="listbox">
+          {suggestions.map((s, index) => (
             <li
               key={s.display}
-              className="address-suggestion-item"
+              ref={(element) => { optionRefs.current[index] = element; }}
+              id={`${listboxId}-option-${index}`}
+              className={`address-suggestion-item${visibleActiveIndex === index ? ' is-active' : ''}`}
               role="option"
-              tabIndex={0}
-              onMouseDown={(e) => { e.preventDefault(); handleSelect(s); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSelect(s); }}
+              aria-selected={visibleActiveIndex === index}
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => setActiveIndex(index)}
+              onClick={() => handleSelect(s)}
             >
               <MapPin size={14} className="address-suggestion-icon" />
               <span>{s.display}</span>
@@ -107,3 +200,4 @@ export function AddressAutocomplete({
     </div>
   );
 }
+
