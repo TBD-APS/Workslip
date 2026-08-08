@@ -200,7 +200,6 @@ async function roleTenantIsolationFlow(session) {
     session.address = await session.getAddress();
     const primaryCustomer = await createCustomerFixtureViaApi(session);
     const primaryJob = await createMinimalJobFixtureViaApi(session, primaryCustomer);
-    const primaryToken = session.auth.token;
     await session.logout();
 
     await session.login('Superadmin');
@@ -220,7 +219,8 @@ async function roleTenantIsolationFlow(session) {
     const ownJobs = unwrapCollection((await session.api('GET', '/api/jobs/?limit=100&offset=0', undefined, { token: secondaryToken })).payload);
     if (ownJobs.some((item) => item.id === primaryJob.id)) throw new Error('Secondary tenant job list leaked a primary tenant job.');
 
-    session.auth.token = primaryToken;
+    await session.logout();
+    await session.login('Admin');
   });
 }
 
