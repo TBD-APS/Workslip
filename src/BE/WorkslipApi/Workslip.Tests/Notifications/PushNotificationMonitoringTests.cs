@@ -464,11 +464,11 @@ public sealed class PushNotificationMonitoringTests
         PayloadJson = payloadJson ?? JsonSerializer.Serialize(
             new NotificationPayload(
                 Guid.NewGuid(),
-                "123",
-                "Address",
+                "SENSITIVE-JOB-NUMBER-9F4A2C7E",
+                "SENSITIVE-CUSTOMER-ADDRESS-9F4A2C7E",
                 NotificationType.JobAssigned.ToString(),
-                "Recipient",
-                "/app/job/123"),
+                "SENSITIVE-RECIPIENT-9F4A2C7E",
+                "/app/job/sensitive-test-route-9f4a2c7e"),
             new JsonSerializerOptions(JsonSerializerDefaults.Web)),
         Status = "Processing",
         RetryCount = retryCount,
