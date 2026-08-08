@@ -1,49 +1,5 @@
-.rejected-jobs-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: -0.75rem 0 1rem;
-  padding: 0.45rem 0.65rem;
-  border: 1px solid var(--danger);
-  border-radius: var(--radius-pill);
-  background: var(--status-red-bg);
-  color: var(--status-red-text);
-  font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.rejected-jobs-indicator:hover {
-  border-color: var(--status-red-text);
-}
-
-.rejected-jobs-indicator:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.rejected-jobs-indicator-count {
-  min-width: 1.35rem;
-  height: 1.35rem;
-  padding: 0 0.35rem;
-  border-radius: var(--radius-pill);
-  background: var(--danger);
-  color: white;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--fs-xs);
-  line-height: 1;
-}
-
 .job-row--rejected > td:first-child {
   box-shadow: inset 3px 0 0 var(--danger);
-}
-
-.job-row--rejected .status-badge-cell,
-.job-card--rejected .job-number-status {
-  color: var(--status-red-text);
 }
 
 .job-card--rejected::before {
