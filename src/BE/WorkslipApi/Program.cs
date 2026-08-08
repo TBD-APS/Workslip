@@ -65,7 +65,9 @@ try
     var releaseTestingEnabled = ReleaseTestingConfiguration.IsEnabled(
         app.Environment,
         app.Configuration);
-    var seedDevelopmentData = DatabaseStartup.ShouldSeedDevelopmentData(app.Environment);
+    var seedDevelopmentData = DatabaseStartup.ShouldSeedDevelopmentData(
+        app.Environment,
+        app.Configuration);
 
     if (PlatformIdentityBootstrapCommand.IsRequested(args))
     {
