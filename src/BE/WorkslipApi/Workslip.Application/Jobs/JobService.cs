@@ -966,9 +966,7 @@ public sealed class JobService(
     }
 
     private static bool IsJobAssignableRole(string? role) =>
-        string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
+        JobAssignmentPolicy.CanReceiveAssignment(role);
 
     private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors
