@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Workslip.Api.Configuration;
+using Workslip.Domain.Models;
 using Workslip.Infrastructure.Schema;
 using Xunit;
 
@@ -37,6 +38,43 @@ public sealed class DatabaseStartupTests
             services,
             configuration,
             seedDevelopmentData: false);
+    }
+
+    [Fact]
+    public async Task VerifyIfRequiredAsync_OutsideDevelopment_DoesNotMutateIncompleteTenantBaseline()
+    {
+        var serviceCollection = new ServiceCollection();
+        var databaseName = Guid.NewGuid().ToString();
+        serviceCollection.AddDbContext<SqlDbContext>(options =>
+            options.UseInMemoryDatabase(databaseName));
+        await using var services = serviceCollection.BuildServiceProvider();
+        await using (var setupScope = services.CreateAsyncScope())
+        {
+            var context = setupScope.ServiceProvider.GetRequiredService<SqlDbContext>();
+            var timestamp = DateTimeOffset.Parse("2025-01-01T00:00:00Z");
+            context.Organizations.Add(new OrganizationRow
+            {
+                Id = Guid.NewGuid(),
+                Name = "Incomplete tenant",
+                Cvr = "12345678",
+                CreatedAt = timestamp,
+                UpdatedAt = timestamp
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await DatabaseStartup.VerifyIfRequiredAsync(
+            services,
+            BuildConfiguration(generateOpenApiOnly: false),
+            seedDevelopmentData: false);
+
+        await using var verificationScope = services.CreateAsyncScope();
+        var verificationContext = verificationScope.ServiceProvider.GetRequiredService<SqlDbContext>();
+        Assert.Single(await verificationContext.Organizations.AsNoTracking().ToListAsync());
+        Assert.Empty(await verificationContext.ControlCategoryRow.AsNoTracking().ToListAsync());
+        Assert.Empty(await verificationContext.ControlPointRow.AsNoTracking().ToListAsync());
+        Assert.Empty(await verificationContext.InstallationTypeDefinitions.AsNoTracking().ToListAsync());
+        Assert.Empty(await verificationContext.InstallationTypeDefinitionMappings.AsNoTracking().ToListAsync());
     }
 
     [Fact]

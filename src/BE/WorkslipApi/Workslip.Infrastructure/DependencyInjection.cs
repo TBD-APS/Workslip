@@ -64,6 +64,7 @@ public static class DependencyInjection
         services.AddScoped<IReferenceDataRepository, EfReferenceDataRepository>();
         services.AddScoped<INotificationRepository, EfNotificationRepository>();
         services.AddScoped<IJobViewRepository, EfJobViewRepository>();
+        services.AddScoped<InstallationBaselineProvisioner>();
         services.AddScoped<DevelopmentDatabaseSeeder>();
 
         services.AddHttpClient<IErrorDiagnosticsService, ApplicationInsightsErrorDiagnosticsService>(client =>

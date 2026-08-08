@@ -155,7 +155,11 @@ public sealed class DevelopmentDatabaseSeederRelationalTests
     private static DevelopmentDatabaseSeeder CreateSeeder(
         SqlDbContext context,
         ISuperadminEntraService entra) =>
-        new(context, entra, NullLogger<DevelopmentDatabaseSeeder>.Instance);
+        new(
+            context,
+            new InstallationBaselineProvisioner(context),
+            entra,
+            NullLogger<DevelopmentDatabaseSeeder>.Instance);
 
     private static OrganizationRow CreateOrganization() => new()
     {

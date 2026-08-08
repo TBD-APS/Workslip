@@ -6,6 +6,7 @@
 - Replace or harden the runtime schema-repair SQL in `DatabaseSchemaInitializer`: handle missing `NotificationQueue`, partially created `IdempotencyRecords` indexes/columns, incompatible existing column definitions, and concurrent application startup.
 - Diagnose the notification worker's Dapper `QueryAsync` failure using the complete `SqlException.Message` and `SqlException.Number`; the incomplete stack frame does not identify which `NotificationQueue` table or column assumption failed.
 - Make development-user reconciliation safe under concurrent API startups if local workflows commonly run more than one instance.
+- Harden installation `Data.json` validation in a dedicated change: reject empty/null collections, blank or duplicate keys/labels, conflicting repeated control-point definitions, and invalid sort orders before tenant onboarding.
 
 ## Existing test-suite failures
 

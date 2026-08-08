@@ -69,7 +69,7 @@ Superadmin delegated organization access uses the existing server-side organizat
 
 ## Persistence and schema
 
-Persistence uses EF Core/SQL Server. Startup currently performs schema initialization/verification, so schema lifecycle remains coupled to API startup. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
+Persistence uses EF Core/SQL Server. Staging and production startup only verify database connectivity; they do not apply schema changes, backfill tenant data or run development seeding. Development startup may run `DevelopmentDatabaseSeeder`. Schema changes require an explicit deployment operation, and new-tenant reference data is provisioned only during explicit organization onboarding. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
 
 Do not infer SQL behaviour from EF in-memory tests.
 

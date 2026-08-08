@@ -14,12 +14,18 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
     private readonly SqlDbContext _dbContext;
     private readonly IDatabaseRetryPolicy _retryPolicy;
     private readonly ICurrentUserContext _currentUser;
+    private readonly InstallationBaselineProvisioner _installationBaselineProvisioner;
 
-    public EfOrganizationRepository(SqlDbContext dbContext, IDatabaseRetryPolicy retryPolicy, ICurrentUserContext currentUser)
+    public EfOrganizationRepository(
+        SqlDbContext dbContext,
+        IDatabaseRetryPolicy retryPolicy,
+        ICurrentUserContext currentUser,
+        InstallationBaselineProvisioner installationBaselineProvisioner)
     {
         _dbContext = dbContext;
         _retryPolicy = retryPolicy;
         _currentUser = currentUser;
+        _installationBaselineProvisioner = installationBaselineProvisioner;
     }
 
     public Task<bool> CvrExistsAsync(string normalizedCvr, CancellationToken cancellationToken) =>
@@ -133,11 +139,9 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
 
         // Required tenant baseline is staged only during explicit organization onboarding.
         // Application startup never backfills or reconciles tenant reference data in production.
-        await InstallationSeeder.Seed(
-            _dbContext,
+        await _installationBaselineProvisioner.ProvisionAsync(
             organizationId,
-            jobReports: [],
-            cancellationToken: cancellationToken);
+            cancellationToken);
 
         try
         {

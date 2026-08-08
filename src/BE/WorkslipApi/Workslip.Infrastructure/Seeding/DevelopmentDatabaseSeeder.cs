@@ -11,6 +11,7 @@ namespace Workslip.Infrastructure.Schema;
 
 public sealed class DevelopmentDatabaseSeeder(
     SqlDbContext db,
+    InstallationBaselineProvisioner installationBaselineProvisioner,
     ISuperadminEntraService entraService,
     ILogger<DevelopmentDatabaseSeeder> logger)
 {
@@ -59,7 +60,7 @@ public sealed class DevelopmentDatabaseSeeder(
             StagePlatformOrganization(platformOrganization);
             await db.SaveChangesAsync(cancellationToken);
 
-            await DatabaseSeeder.Seed(db);
+            await DatabaseSeeder.Seed(db, installationBaselineProvisioner, cancellationToken);
             db.IsSeeding = true;
 
             var resolvedEntraUsers = new Dictionary<Guid, CreateEntraUserResult>();

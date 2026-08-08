@@ -111,7 +111,11 @@ public sealed class EfOrganizationAdministrationRepositoryTests
     }
 
     private static EfOrganizationRepository CreateRepository(SqlDbContext context, Guid organizationId) =>
-        new(context, new NoRetryPolicy(), new TestCurrentUserContext(organizationId));
+        new(
+            context,
+            new NoRetryPolicy(),
+            new TestCurrentUserContext(organizationId),
+            new InstallationBaselineProvisioner(context));
 
     private static OrganizationRow CreateOrganization(
         Guid? id = null,

@@ -33,12 +33,15 @@ public static class DatabaseSeeder
             Roles.Auditor)
     ];
 
-    public static async Task Seed(SqlDbContext db)
+    public static async Task Seed(
+        SqlDbContext db,
+        InstallationBaselineProvisioner installationBaselineProvisioner,
+        CancellationToken cancellationToken = default)
     {
         db.IsSeeding = true;
         try
         {
-            await SeedCore(db);
+            await SeedCore(db, installationBaselineProvisioner, cancellationToken);
         }
         finally
         {
@@ -46,7 +49,10 @@ public static class DatabaseSeeder
         }
     }
 
-    private static async Task SeedCore(SqlDbContext db)
+    private static async Task SeedCore(
+        SqlDbContext db,
+        InstallationBaselineProvisioner installationBaselineProvisioner,
+        CancellationToken cancellationToken)
     {
         await NormalizeExclusiveClosureFlagSelectionsAsync(db);
 
@@ -346,21 +352,28 @@ public static class DatabaseSeeder
             }
         }
 
-        await InstallationSeeder.Seed(db, organization.Id, jobs);
+        var installationBaseline = await installationBaselineProvisioner.ProvisionAsync(
+            organization.Id,
+            cancellationToken);
+        DevelopmentInstallationSnapshotSeeder.Stage(
+            db,
+            jobs,
+            installationBaseline,
+            cancellationToken);
 
         db.Organizations.Add(organization);
-        await db.JobReports.AddRangeAsync(jobs);
-        await db.JobAssignments.AddRangeAsync(assignments);
-        await db.JobWorkKinds.AddRangeAsync(jobWorkKinds);
-        await db.JobClosureFlags.AddRangeAsync(jobClosureFlags);
-        await db.JobReportClosureFlags.AddRangeAsync(jobClosureFlagJoins);
-        await db.JobReportLinks.AddRangeAsync(jobLinks);
+        await db.JobReports.AddRangeAsync(jobs, cancellationToken);
+        await db.JobAssignments.AddRangeAsync(assignments, cancellationToken);
+        await db.JobWorkKinds.AddRangeAsync(jobWorkKinds, cancellationToken);
+        await db.JobClosureFlags.AddRangeAsync(jobClosureFlags, cancellationToken);
+        await db.JobReportClosureFlags.AddRangeAsync(jobClosureFlagJoins, cancellationToken);
+        await db.JobReportLinks.AddRangeAsync(jobLinks, cancellationToken);
 
-        await db.Customers.AddRangeAsync(customers);
-        await db.Users.AddRangeAsync(users);
-        await db.Worksheets.AddRangeAsync(worksheets);
+        await db.Customers.AddRangeAsync(customers, cancellationToken);
+        await db.Users.AddRangeAsync(users, cancellationToken);
+        await db.Worksheets.AddRangeAsync(worksheets, cancellationToken);
 
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     private static void AddYearlyDemoWorksheets(
