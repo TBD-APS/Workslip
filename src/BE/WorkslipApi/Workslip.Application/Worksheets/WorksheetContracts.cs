@@ -65,10 +65,20 @@ public sealed record MyWorksheetsMonthResponse(
     int OutlayCount,
     IReadOnlyList<MyWorksheetWeekResponse> Weeks);
 
+public sealed record MonthlyHoursPdfResponse(
+    byte[] Content,
+    string FileName);
+
+public interface IMonthlyHoursPdfGenerator
+{
+    byte[] Generate(MyWorksheetsMonthResponse month);
+}
+
 public interface IWorksheetService
 {
     Task<Result<JobReportSummaryResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken);
     Task<Result<JobReportSummaryResponse>> DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken);
     Task<Result<MyWorksheetsMonthResponse>> GetWorksheetsForUserAsync(int? year, int? month, CancellationToken cancellationToken);
     Task<Result<MyWorksheetsMonthResponse>> GetAllWorksheetsAsync(int? year, int? month, CancellationToken cancellationToken);
+    Task<Result<MonthlyHoursPdfResponse>> GetAllWorksheetsPdfAsync(int? year, int? month, CancellationToken cancellationToken);
 }
