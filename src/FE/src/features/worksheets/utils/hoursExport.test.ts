@@ -6,6 +6,7 @@ import {
   buildHoursExportRows,
   hoursExportFilename,
   sumExportHours,
+  type HoursExportRow,
 } from './hoursExport';
 
 const monthData: MyWorksheetsMonthResponse = {
@@ -114,6 +115,25 @@ describe('hours export', () => {
     expect(csv).not.toContain('user-1');
     expect(csv).not.toContain('job-1');
     expect(csv).not.toContain('Skal ikke med');
+  });
+
+  it('neutralizes spreadsheet formula prefixes in exported text', () => {
+    const row: HoursExportRow = {
+      workDate: '2026-08-04',
+      week: 32,
+      userId: 'internal-user-id',
+      employeeName: '+Alex Jensen',
+      reportNumber: '=1+1',
+      customerName: '@SUM(A1:A2)',
+      hours: 1.5,
+    };
+
+    const csv = buildHoursCsv([row]);
+
+    expect(csv).toContain("\"'+Alex Jensen\"");
+    expect(csv).toContain("\"'=1+1\"");
+    expect(csv).toContain("\"'@SUM(A1:A2)\"");
+    expect(csv).not.toContain('internal-user-id');
   });
 
   it('uses a predictable month-based filename', () => {
