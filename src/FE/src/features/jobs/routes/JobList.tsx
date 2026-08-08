@@ -466,7 +466,16 @@ export const JobList = () => {
 export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: () => void; isAdmin: boolean }) {
   const address = job.destinationAddress || job.customer?.address;
   return (
-    <button className={`job-card${job.status === JobStatus.Rejected ? ' job-card--rejected' : ''}`} onClick={onOpen} type="button">
+    <div
+      className={`job-card${job.status === JobStatus.Rejected ? ' job-card--rejected' : ''}`}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === 'Enter' || event.key === ' ') onOpen();
+      }}
+      role="link"
+      tabIndex={0}
+    >
       <div className="job-card-top">
         <div>
           <span className="job-number">SAG-{(job.reportNumber || job.id.slice(0, 4)).toUpperCase()}<span className="job-number-sep">&middot;</span>{formatJobType(job.jobType)}<span className="job-number-sep">&middot;</span><span className="job-number-status">{formatJobStatus(job.status)}</span></span>
