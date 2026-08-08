@@ -29,6 +29,23 @@ test('allows existing errors even when their line number moves', () => {
   assert.deepEqual(findNewErrors(baseline, current), []);
 });
 
+test('ignores checkout-specific paths and code frames in the same diagnostic', () => {
+  const baseline = result('/tmp/base/src/FE/src/example.tsx', 'readRef();', [{
+    ...existingError,
+    line: 1,
+    endLine: 1,
+    message: 'Cannot access refs during render\n\n/tmp/base/src/FE/src/example.tsx:1:1\n> 1 | readRef();',
+  }]);
+  const current = result('/home/runner/work/repo/src/FE/src/example.tsx', 'const moved = true;\nreadRef();', [{
+    ...existingError,
+    line: 2,
+    endLine: 2,
+    message: 'Cannot access refs during render\n\n/home/runner/work/repo/src/FE/src/example.tsx:2:1\n> 2 | readRef();',
+  }]);
+
+  assert.deepEqual(findNewErrors(baseline, current), []);
+});
+
 test('blocks a new error while ignoring new warnings', () => {
   const baseline = result('/tmp/base/src/FE/src/example.tsx', 'const clean = true;', []);
   const current = result('/tmp/head/src/FE/src/example.tsx', 'setState(true);\nconst warning = true;', [

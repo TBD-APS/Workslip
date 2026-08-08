@@ -16,7 +16,7 @@ export function collectErrorFingerprints(results) {
       const fingerprint = JSON.stringify([
         relativePath,
         message.ruleId ?? 'fatal',
-        message.message ?? '',
+        fingerprintMessage(message.message),
         sourceExcerpt(sourceLines, message),
       ]);
 
@@ -24,7 +24,7 @@ export function collectErrorFingerprints(results) {
       details.set(fingerprint, {
         filePath: relativePath,
         ruleId: message.ruleId ?? 'fatal',
-        message: message.message ?? '',
+        message: fingerprintMessage(message.message),
         line: message.line ?? null,
       });
     }
@@ -60,6 +60,11 @@ function normalizeFilePath(filePath) {
   const marker = '/src/FE/';
   const markerIndex = normalized.lastIndexOf(marker);
   return markerIndex >= 0 ? normalized.slice(markerIndex + marker.length) : normalized;
+}
+
+function fingerprintMessage(message) {
+  if (typeof message !== 'string') return '';
+  return message.split(/\r?\n/, 1)[0].trim();
 }
 
 function sourceExcerpt(sourceLines, message) {
