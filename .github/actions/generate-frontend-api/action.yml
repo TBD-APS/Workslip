@@ -19,7 +19,7 @@ runs:
         dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
         --configuration Release
         --nologo
-        --filter "FullyQualifiedName~DatabaseStartupTests|FullyQualifiedName~InfrastructureConfigurationTests|FullyQualifiedName~AuthenticationConfigurationTests|FullyQualifiedName~EfOrganizationRepositoryOnboardingTests|FullyQualifiedName~UserServiceAuthorizationTests|FullyQualifiedName~AuditorDataScopeTests|FullyQualifiedName~AuditorCacheIsolationTests"
+        --filter "FullyQualifiedName~DatabaseStartupTests|FullyQualifiedName~InfrastructureConfigurationTests|FullyQualifiedName~AuthenticationConfigurationTests|FullyQualifiedName~EfOrganizationRepositoryOnboardingTests|FullyQualifiedName~UserServiceAuthorizationTests|FullyQualifiedName~AuthorizedJobServiceTests|FullyQualifiedName~AuditorDataScopeTests|FullyQualifiedName~AuditorCacheIsolationTests"
 
     - name: Generate OpenAPI document
       shell: bash
