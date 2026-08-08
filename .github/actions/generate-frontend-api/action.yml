@@ -13,13 +13,13 @@ runs:
       shell: bash
       run: dotnet restore src/BE/WorkslipApi/Workslip.Api.csproj --nologo
 
-    - name: Validate backend startup and authentication boundaries
+    - name: Validate startup, authentication and user authorization boundaries
       shell: bash
       run: >-
         dotnet test src/BE/WorkslipApi/Workslip.Tests/Workslip.Tests.csproj
         --configuration Release
         --nologo
-        --filter "FullyQualifiedName~DatabaseStartupTests|FullyQualifiedName~AuthenticationConfigurationTests"
+        --filter "FullyQualifiedName~DatabaseStartupTests|FullyQualifiedName~InfrastructureConfigurationTests|FullyQualifiedName~AuthenticationConfigurationTests|FullyQualifiedName~UserServiceAuthorizationTests"
 
     - name: Generate OpenAPI document
       shell: bash

@@ -96,7 +96,7 @@ public sealed class CustomerService(
         }
 
         var customer = ToCustomerData(request);
-        logger.LogInformation("Creating customer {CustomerName} in org {OrgId}", customer.Name, organizationId);
+        logger.LogInformation("Creating customer in org {OrgId}", organizationId);
 
         try
         {
@@ -106,7 +106,7 @@ public sealed class CustomerService(
         }
         catch (CustomerNumberConflictException)
         {
-            logger.LogWarning("Customer create conflict. CustomerNumber: {CustomerNumber}. OrgId: {OrgId}", customer.CustomerNumber, organizationId);
+            logger.LogWarning("Customer create conflict in org {OrgId}", organizationId);
             return Result<CustomerDetailResponse>.Conflict("customer_number_exists");
         }
     }
@@ -145,7 +145,7 @@ public sealed class CustomerService(
         }
         catch (CustomerNumberConflictException)
         {
-            logger.LogWarning("Customer update conflict. CustomerId: {CustomerId}. CustomerNumber: {CustomerNumber}. OrgId: {OrgId}", id, customer.CustomerNumber, organizationId);
+            logger.LogWarning("Customer update conflict. CustomerId: {CustomerId}. OrgId: {OrgId}", id, organizationId);
             return Result<CustomerDetailResponse>.Conflict("customer_number_exists");
         }
     }

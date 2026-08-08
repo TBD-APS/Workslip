@@ -1,4 +1,3 @@
-using CsvHelper;
 using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
 using Workslip.Api.Services;
@@ -10,8 +9,6 @@ namespace Workslip.Api.Endpoints;
 
 public static class CustomerEndpoints
 {
-    private const long MaxUploadSize = 10 * 1024 * 1024;
-
     public static IEndpointRouteBuilder MapCustomerEndpoints(this IEndpointRouteBuilder app)
     {
         var searchGroup = app.MapReadGroup("/api/customers", "customers");
@@ -46,7 +43,6 @@ public static class CustomerEndpoints
 
         adminGroup.MapPost("/", async (CreateCustomerRequest request, HttpContext httpContext, ICurrentUserContext currentUser, IdempotentMutationService idempotency, ICustomerService service, CancellationToken cancellationToken) =>
         {
-            HttpCacheHeaders.SetNoStore(httpContext);
             HttpCacheHeaders.SetNoStore(httpContext);
             if (!IdempotencyHttp.TryGetKey(httpContext, out var key))
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
@@ -99,44 +95,20 @@ public static class CustomerEndpoints
         adminGroup.MapPost("/import", async (
             IFormFile file,
             HttpContext httpContext,
+            CustomerImportFileParser fileParser,
             ICustomerService service,
-            ILoggerFactory loggerFactory,
             CancellationToken cancellationToken) =>
         {
             HttpCacheHeaders.SetNoStore(httpContext);
-            var logger = loggerFactory.CreateLogger("CustomerImport");
-            if (file is null or { Length: 0 })
-                return Results.BadRequest(new { error = "Der blev ikke uploadet en fil." });
-
-            if (file.Length > MaxUploadSize)
-                return Results.BadRequest(new { error = $"Filen er for stor. Maksimal størrelse er {MaxUploadSize / 1024 / 1024} MB." });
-
-            var isCsv = CustomerCsvParser.HasAllowedExtension(file.FileName) || CustomerCsvParser.IsAllowedContentType(file.ContentType);
-            var isExcel = CustomerExcelParser.HasAllowedExtension(file.FileName) || CustomerExcelParser.IsAllowedContentType(file.ContentType);
-            if (!isCsv && !isExcel)
-                return Results.BadRequest(new { error = "Kun .csv- og .xlsx-filer accepteres." });
 
             CustomerImportParseResult parsed;
             try
             {
-                using var stream = file.OpenReadStream();
-                parsed = isExcel
-                    ? CustomerExcelParser.Parse(stream)
-                    : CustomerCsvParser.Parse(stream, logger);
+                parsed = fileParser.Parse(file);
             }
             catch (CustomerImportFormatException ex)
             {
                 return Results.BadRequest(new { error = ex.Message });
-            }
-            catch (CsvHelperException ex)
-            {
-                logger.LogWarning(ex, "Failed to parse customer CSV {FileName}", file.FileName);
-                return Results.BadRequest(new { error = "CSV-filen kunne ikke læses." });
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogWarning(ex, "Failed to parse customer import file {FileName}", file.FileName);
-                return Results.BadRequest(new { error = "Filen kunne ikke læses som en gyldig kundeimport." });
             }
 
             var result = await service.ImportAsync(parsed.Customers, cancellationToken);
@@ -152,7 +124,7 @@ public static class CustomerEndpoints
         })
         .DisableAntiforgery()
         .RequireRateLimiting("customer-import")
-        .WithMetadata(new RequestSizeLimitAttribute(MaxUploadSize))
+        .WithMetadata(new RequestSizeLimitAttribute(CustomerImportFileParser.MaxUploadSize))
         .Produces<CustomerImportViewModel>();
 
         return app;
