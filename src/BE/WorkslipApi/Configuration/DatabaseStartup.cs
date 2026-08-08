@@ -8,12 +8,16 @@ namespace Workslip.Api.Configuration;
 public static class DatabaseStartup
 {
     public const string GenerateOpenApiOnlyKey = "Workslip:GenerateOpenApiOnly";
+    public const string SeedDevelopmentDataKey = "Workslip:SeedDevelopmentData";
 
     public static bool IsOpenApiGeneration(IConfiguration configuration) =>
         configuration.GetValue<bool>(GenerateOpenApiOnlyKey);
 
-    public static bool ShouldSeedDevelopmentData(IHostEnvironment environment) =>
-        environment.IsDevelopment();
+    public static bool ShouldSeedDevelopmentData(
+        IHostEnvironment environment,
+        IConfiguration configuration) =>
+        environment.IsDevelopment()
+        && configuration.GetValue<bool>(SeedDevelopmentDataKey);
 
     public static async Task VerifyIfRequiredAsync(
         IServiceProvider services,
@@ -51,7 +55,7 @@ public static class DatabaseStartup
         }
         else
         {
-            Log.Information("[STARTUP 08.2] Seed development database - SKIPPED (non-development environment)");
+            Log.Information("[STARTUP 08.2] Seed development database - SKIPPED (not explicitly enabled)");
         }
     }
 

@@ -93,19 +93,28 @@ public sealed class DatabaseStartupTests
     }
 
     [Theory]
-    [InlineData("Development", true)]
-    [InlineData("Staging", false)]
-    [InlineData("Production", false)]
-    public void ShouldSeedDevelopmentData_OnlyAllowsAspNetDevelopment(
+    [InlineData("Development", false, false)]
+    [InlineData("Development", true, true)]
+    [InlineData("Staging", false, false)]
+    [InlineData("Staging", true, false)]
+    [InlineData("Production", false, false)]
+    [InlineData("Production", true, false)]
+    public void ShouldSeedDevelopmentData_RequiresDevelopmentAndExplicitOptIn(
         string environmentName,
+        bool seedDevelopmentData,
         bool expected)
     {
         var environment = new TestHostEnvironment
         {
             EnvironmentName = environmentName
         };
+        var configuration = BuildConfiguration(
+            generateOpenApiOnly: false,
+            seedDevelopmentData: seedDevelopmentData);
 
-        Assert.Equal(expected, DatabaseStartup.ShouldSeedDevelopmentData(environment));
+        Assert.Equal(
+            expected,
+            DatabaseStartup.ShouldSeedDevelopmentData(environment, configuration));
     }
 
     [Theory]
@@ -128,11 +137,14 @@ public sealed class DatabaseStartupTests
         Assert.Equal(expectedHostedServiceCount, hostedServiceCount);
     }
 
-    private static IConfiguration BuildConfiguration(bool generateOpenApiOnly) =>
+    private static IConfiguration BuildConfiguration(
+        bool generateOpenApiOnly,
+        bool seedDevelopmentData = false) =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [DatabaseStartup.GenerateOpenApiOnlyKey] = generateOpenApiOnly.ToString()
+                [DatabaseStartup.GenerateOpenApiOnlyKey] = generateOpenApiOnly.ToString(),
+                [DatabaseStartup.SeedDevelopmentDataKey] = seedDevelopmentData.ToString()
             })
             .Build();
 
