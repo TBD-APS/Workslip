@@ -17,14 +17,15 @@ A workflow should exist only when it provides an actionable signal or performs a
 
 ## Pull request CI
 
-`.github/workflows/frontend-validation.yml` is the unified `CI` workflow. It runs for every pull request to `main`, so every change gets the same merge signal rather than a collection of path-specific checks.
+`.github/workflows/frontend-validation.yml` is the unified `CI` workflow. It runs for pull requests to `main` and for stacked pull requests whose base branch matches `rbj--**`. That lets each stacked PR keep a focused diff against its parent while still receiving the same build/test gate.
 
 The required merge signal is the `CI Gate` job. It succeeds only when these jobs succeed:
 
 - `Backend` — full Release restore, build and backend test suite.
 - `Frontend + API contract` — no-new-errors ESLint ratchet, branch-matched OpenAPI/Orval generation, Vitest and production frontend build.
 - `Contracts + docs` — production release-policy checks, Playwright source checks, synthetic-auth tests, Postman JSON validation and `python tools/docs/check_docs.py`.
-- `CodeQL C#` and `CodeQL JS/TS` — pull-request security analysis before code can become production.
+
+CodeQL is not part of the active CI gate. WOR-382 removed the unstable advanced CodeQL jobs rather than carrying a routinely failing security signal. Static/security analysis should only be reintroduced when it is stable, actionable and deliberately included in the required-check model.
 
 The frontend carries inherited ESLint debt. CI therefore compares the pull-request findings with the exact base revision and blocks new severity-2 errors without treating inherited findings as permission to grow the baseline.
 
@@ -34,11 +35,27 @@ The branch-matched frontend client is generated from the backend in the same rev
 
 The same `CI` workflow runs after a merge to `main`.
 
-Core backend, frontend/API-contract and contract/documentation checks run again against the exact production revision. CodeQL runs before merge and is not duplicated on the `main` push.
+Core backend, frontend/API-contract and contract/documentation checks run again against the exact production revision.
 
 The post-merge `CI Gate` is the backend deployment trigger. This gives Azure an exact successful `main` SHA to build and deploy.
 
-Frontend production does not wait for the post-merge GitHub CI run: Vercel is configured for Git deployments from `main`. This is why the pull-request `CI Gate`, especially the production frontend build and CodeQL checks, must be required before merge.
+Frontend production does not wait for the post-merge GitHub CI run: Vercel is configured for Git deployments from `main`. This is why the pull-request `CI Gate`, especially the production frontend build, must be required before merge.
+
+## Stacked pull requests
+
+A stack keeps each Linear issue in its own branch/PR. Child PRs target the immediately preceding `rbj--...` branch, not `main`, until their parent is merged.
+
+Example:
+
+```text
+main
+  └── rbj--wor-382-...
+       └── rbj--wor-367-...
+            └── rbj--wor-160-...
+                 └── rbj--wor-364-...
+```
+
+Each child still runs `CI Gate`. Merge from the bottom of the dependency graph: parent first. After a parent is squash-merged, restack/rebase the next child onto the new `main` before merging it so the child PR does not carry obsolete parent commits.
 
 ## Production deployment
 
