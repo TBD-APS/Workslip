@@ -88,7 +88,7 @@ public sealed class AuthService(
 
         if (user is null)
         {
-            logger.LogInformation("Login code requested for unknown email: {Email}", email);
+            logger.LogInformation("Login code requested for an unknown email address.");
             return;
         }
 
@@ -100,7 +100,7 @@ public sealed class AuthService(
 
         await emailService.SendOtcEmailAsync(email, code, cancellationToken);
 
-        logger.LogInformation("Login code sent to {Email}. ExpiresAt: {ExpiresAt}", email, expiresAt);
+        logger.LogInformation("Login code sent. ExpiresAt: {ExpiresAt}", expiresAt);
     }
 
     public Task<Result<AuthUserInfo>> VerifyLoginCodeAsync(VerifyCodeRequest request, CancellationToken cancellationToken)
@@ -109,14 +109,14 @@ public sealed class AuthService(
 
         if (!_otcStore.TryGetValue(email, out var entry))
         {
-            logger.LogWarning("Login code verification failed: no code requested for {Email}", email);
+            logger.LogWarning("Login code verification failed: no active code was found.");
             return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
 
         if (DateTimeOffset.UtcNow > entry.ExpiresAt)
         {
             _otcStore.TryRemove(email, out _);
-            logger.LogWarning("Login code verification failed: code expired for {Email}", email);
+            logger.LogWarning("Login code verification failed: code expired.");
             return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
 
@@ -127,12 +127,12 @@ public sealed class AuthService(
             if (newAttempts >= 3)
             {
                 _otcStore.TryRemove(email, out _);
-                logger.LogWarning("Login code verification failed: too many attempts for {Email}", email);
+                logger.LogWarning("Login code verification failed: too many attempts.");
             }
             else
             {
                 _otcStore[email] = entry with { Attempts = newAttempts };
-                logger.LogWarning("Login code verification failed: invalid code for {Email}. Attempt {Attempt}/3", email, newAttempts);
+                logger.LogWarning("Login code verification failed: invalid code. Attempt {Attempt}/3", newAttempts);
             }
             return Task.FromResult(Result<AuthUserInfo>.Unauthorized());
         }
@@ -154,7 +154,7 @@ public sealed class AuthService(
         var user = await userRepository.GetByIdAsync(userId.Value, cancellationToken);
         if (user is null)
         {
-            logger.LogWarning("Entra login failed: mapped Workslip user was not found. UserId: {UserId}.", userId);
+            logger.LogWarning("Entra login failed: mapped Workslip user was not found.");
             return Result<AuthUserInfo>.Unauthorized();
         }
 
@@ -171,7 +171,7 @@ public sealed class AuthService(
         var user = await userRepository.GetByEmailAsync(email, cancellationToken);
         if (user is null)
         {
-            logger.LogError("User not found after successful code verification: {Email}", email);
+            logger.LogError("User not found after successful login code verification.");
             return Result<AuthUserInfo>.Unauthorized();
         }
 
