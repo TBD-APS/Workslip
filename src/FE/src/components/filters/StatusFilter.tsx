@@ -19,7 +19,7 @@ export function getSavedStatusFilter<T extends string>(sectionKey: string, defau
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed as T[];
+        return [parsed[0] as T];
       }
     }
   } catch {}
@@ -86,9 +86,9 @@ export function StatusFilter<T extends string>({
 
   const toggle = (value: T) => {
     if (selected.includes(value)) {
-      onChange(selected.filter((s) => s !== value));
+      onChange([]);
     } else {
-      onChange([...selected, value]);
+      onChange([value]);
     }
   };
 
