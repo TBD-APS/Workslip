@@ -53,22 +53,23 @@ Moving a release branch after validation invalidates it for backend deployment b
 
 ### Backend production deployment
 
-`.github/workflows/main_api-mrsoftware-prod.yml` is manual-only. It must be dispatched from `main` with:
+`.github/workflows/backend-production-release.yml` is manual-only. A merge to `main` does not deploy the backend.
 
-- `release_ref`: an existing `release/**` branch;
-- `release_sha`: the full 40-character SHA that branch currently points to.
+To deploy a backend release candidate:
 
-Before building or contacting Azure, the workflow verifies that:
+1. merge the candidate commit to `main`, then create or update a `release/**` branch at that exact commit;
+2. wait for that branch's `Release validation` push workflow to complete successfully;
+3. open **Actions → Backend API release deploy → Run workflow** and keep **Use workflow from** set to `main`;
+4. supply the release branch name as `release_ref` and its full 40-character lowercase head SHA as `candidate_sha`;
+5. review the final workflow summary after health verification.
 
-- the dispatch itself uses the maintained workflow from `main`;
-- the supplied ref is a `release/**` branch;
-- the release branch currently points to the supplied SHA;
-- the candidate SHA is contained in current `main`;
-- `Release validation` has a completed successful push run for that same branch and SHA.
+The deployment orchestrator is trusted only when it runs from the current `main` version of `.github/workflows/backend-production-release.yml`. The candidate gate fails before source checkout, build, `prod` environment access or Azure authentication unless the release input is a `release/**` branch whose current head is the exact candidate SHA, that SHA is contained in current `main`, its `release-validation.yml` Git blob matches current `main`, and a completed successful push run of that workflow exists for the same branch and SHA. A branch moved before gate evaluation, partial or different SHA, release-only commit, altered or older validation workflow, untrusted orchestrator ref, or missing successful validation all reject the deployment.
 
-The API artifact is then built from that exact SHA. Only the deploy job receives `id-token: write`, binds to the `prod` GitHub Environment, uses Azure OIDC, applies the release-testing policy, deploys with bounded retries and verifies `/health`.
+After the gate, the build checks out the validated SHA directly and records a SHA-256 digest for the deployment package. The deploy job verifies that digest before Azure authentication. Only the deploy job receives GitHub OIDC permission; the Azure target, diagnostics prerequisite, release-testing policy, bounded deployment retries and API health verification remain unchanged. A final evidence summary is written only after health succeeds and relates the `main` orchestration SHA, release ref, candidate SHA, validation workflow blob/run, artifact digest, health URL/result and deployment run.
 
-The workflow logs the release ref and SHA so deployment evidence identifies the code that was actually released. Deployment success is not a substitute for authentication, database or critical-flow smoke when those paths changed.
+The `prod` GitHub Environment is the external backstop and must use a custom deployment branch policy that allows only `main`; secrets and reviewer behavior are independent settings. Verify that policy in GitHub whenever this workflow or environment configuration changes. Workflow YAML alone cannot enforce or prove the environment policy. The legacy `.github/workflows/main_api-mrsoftware-prod.yml` workflow ID is disabled and must remain disabled; the gated workflow uses a new path and workflow ID so pre-gate runs are not a normal rerun path. GitHub administrators retain their existing break-glass ability to change or bypass repository controls, which is outside the normal release path.
+
+This backend gate is the scope of WOR-368. Frontend/Vercel production policy is separate and remains tracked by WOR-369; the backend workflow does not establish or change that boundary.
 
 ### Frontend production deployment
 

@@ -1,0 +1,530 @@
+name: Backend API release deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: 'Release branch name (release/**) containing the validated candidate'
+        required: true
+        type: string
+      candidate_sha:
+        description: 'Full 40-character SHA at the release branch head'
+        required: true
+        type: string
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
+  API_PROJECT: src/BE/WorkslipApi/Workslip.Api.csproj
+  PUBLISH_DIR: ${{ github.workspace }}/publish/api
+  DEPLOY_PACKAGE: ${{ github.workspace }}/publish/workslip-api.zip
+  AZURE_WEBAPP_NAME: api-mrsoftware-prod
+  AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: azure-api-prod
+  cancel-in-progress: false
+
+jobs:
+  candidate-gate:
+    name: Verify trusted release provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      candidate_ref: ${{ steps.verify.outputs.candidate_ref }}
+      candidate_sha: ${{ steps.verify.outputs.candidate_sha }}
+      orchestration_sha: ${{ steps.verify.outputs.orchestration_sha }}
+      validation_workflow_blob_sha: ${{ steps.verify.outputs.validation_workflow_blob_sha }}
+      validation_run_url: ${{ steps.verify.outputs.validation_run_url }}
+
+    steps:
+      - name: Verify trusted orchestrator and release evidence
+        id: verify
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          RELEASE_REF: ${{ inputs.release_ref }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          ORCHESTRATION_REF: ${{ github.ref }}
+          ORCHESTRATION_SHA: ${{ github.sha }}
+          ORCHESTRATION_REF_TYPE: ${{ github.ref_type }}
+          ORCHESTRATION_WORKFLOW_REF: ${{ github.workflow_ref }}
+          DEPLOY_WORKFLOW_NAME: ${{ github.workflow }}
+        with:
+          script: |
+            const fail = (message) => core.setFailed(message);
+            const releaseRef = process.env.RELEASE_REF;
+            const candidateSha = process.env.CANDIDATE_SHA;
+            const orchestrationRef = process.env.ORCHESTRATION_REF;
+            const orchestrationSha = process.env.ORCHESTRATION_SHA;
+            const orchestrationRefType = process.env.ORCHESTRATION_REF_TYPE;
+            const validationPath = '.github/workflows/release-validation.yml';
+            const expectedWorkflowRef = `${context.repo.owner}/${context.repo.repo}/.github/workflows/backend-production-release.yml@refs/heads/main`;
+
+            if (context.eventName !== 'workflow_dispatch') {
+              fail(`Expected workflow_dispatch, received ${context.eventName}.`);
+              return;
+            }
+
+            if (process.env.DEPLOY_WORKFLOW_NAME !== 'Backend API release deploy') {
+              fail(`Unexpected deployment workflow identity: ${process.env.DEPLOY_WORKFLOW_NAME}.`);
+              return;
+            }
+
+            if (
+              orchestrationRefType !== 'branch' ||
+              orchestrationRef !== 'refs/heads/main' ||
+              process.env.ORCHESTRATION_WORKFLOW_REF !== expectedWorkflowRef
+            ) {
+              fail(`Run the trusted deployment workflow from main; received ${process.env.ORCHESTRATION_WORKFLOW_REF} at ${orchestrationRef}.`);
+              return;
+            }
+
+            if (!/^release\/.+/.test(releaseRef)) {
+              fail(`release_ref must be a release/** branch name; received ${releaseRef}.`);
+              return;
+            }
+
+            if (!/^[0-9a-f]{40}$/.test(candidateSha)) {
+              fail('candidate_sha must be the full 40-character lowercase commit SHA.');
+              return;
+            }
+
+            if (!/^[0-9a-f]{40}$/.test(orchestrationSha)) {
+              fail(`Unexpected orchestration SHA: ${orchestrationSha}.`);
+              return;
+            }
+
+            const mainBranch = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'heads/main',
+            });
+
+            if (mainBranch.data.object.type !== 'commit' || mainBranch.data.object.sha !== orchestrationSha) {
+              fail(`The trusted main head moved from orchestration SHA ${orchestrationSha} to ${mainBranch.data.object.sha}; dispatch the current main workflow again.`);
+              return;
+            }
+
+            const releaseBranch = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `heads/${releaseRef}`,
+            });
+
+            if (releaseBranch.data.object.type !== 'commit' || releaseBranch.data.object.sha !== candidateSha) {
+              fail(`Release branch ${releaseRef} does not point to candidate SHA ${candidateSha}; current head is ${releaseBranch.data.object.sha}.`);
+              return;
+            }
+
+            const comparison = await github.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              basehead: `${candidateSha}...${orchestrationSha}`,
+            });
+
+            if (
+              !['ahead', 'identical'].includes(comparison.data.status) ||
+              comparison.data.merge_base_commit.sha !== candidateSha
+            ) {
+              fail(`Candidate SHA ${candidateSha} is not contained in current main at ${orchestrationSha}.`);
+              return;
+            }
+
+            const [trustedValidationFile, candidateValidationFile] = await Promise.all([
+              github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: validationPath,
+                ref: orchestrationSha,
+              }),
+              github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: validationPath,
+                ref: candidateSha,
+              }),
+            ]);
+
+            if (
+              Array.isArray(trustedValidationFile.data) ||
+              Array.isArray(candidateValidationFile.data) ||
+              trustedValidationFile.data.type !== 'file' ||
+              candidateValidationFile.data.type !== 'file' ||
+              !trustedValidationFile.data.sha ||
+              candidateValidationFile.data.sha !== trustedValidationFile.data.sha
+            ) {
+              fail(`Candidate ${validationPath} blob ${candidateValidationFile.data.sha ?? 'missing'} does not match trusted main blob ${trustedValidationFile.data.sha ?? 'missing'}.`);
+              return;
+            }
+
+            const validationWorkflowBlobSha = trustedValidationFile.data.sha;
+            const validationWorkflow = await github.rest.actions.getWorkflow({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-validation.yml',
+            });
+
+            if (
+              validationWorkflow.data.name !== 'Release validation' ||
+              validationWorkflow.data.path !== validationPath ||
+              validationWorkflow.data.state !== 'active'
+            ) {
+              fail(`Unexpected release validation workflow identity or state: ${validationWorkflow.data.path} (${validationWorkflow.data.state}).`);
+              return;
+            }
+
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: validationWorkflow.data.id,
+              branch: releaseRef,
+              head_sha: candidateSha,
+              event: 'push',
+              status: 'success',
+              per_page: 100,
+            });
+
+            const validationRun = runs.data.workflow_runs.find((run) =>
+              run.workflow_id === validationWorkflow.data.id &&
+              run.event === 'push' &&
+              run.status === 'completed' &&
+              run.conclusion === 'success' &&
+              run.head_branch === releaseRef &&
+              run.head_sha === candidateSha &&
+              run.path === validationPath
+            );
+
+            if (!validationRun) {
+              fail(`No successful trusted release-validation.yml push run exists for ${releaseRef} at ${candidateSha}.`);
+              return;
+            }
+
+            core.setOutput('candidate_ref', releaseRef);
+            core.setOutput('candidate_sha', candidateSha);
+            core.setOutput('orchestration_sha', orchestrationSha);
+            core.setOutput('validation_workflow_blob_sha', validationWorkflowBlobSha);
+            core.setOutput('validation_run_url', validationRun.html_url);
+            await core.summary
+              .addHeading('Validated backend release candidate')
+              .addTable([
+                [{ data: 'Evidence', header: true }, { data: 'Value', header: true }],
+                ['Orchestration ref', 'main'],
+                ['Orchestration SHA', orchestrationSha],
+                ['Release ref', releaseRef],
+                ['Candidate SHA', candidateSha],
+                ['Validation workflow blob', validationWorkflowBlobSha],
+                ['Release validation', `<a href="${validationRun.html_url}">${validationRun.id}</a>`],
+              ])
+              .write();
+
+  build:
+    name: Build API
+    runs-on: ubuntu-latest
+    needs: candidate-gate
+    outputs:
+      release_phase: ${{ steps.release-target.outputs.phase }}
+      release_testing_enabled: ${{ steps.release-target.outputs.enable_development_endpoints }}
+      artifact_digest: ${{ steps.package.outputs.artifact_digest }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.candidate-gate.outputs.candidate_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Resolve production release policy
+        id: release-target
+        run: >-
+          node tools/release/resolve-release-environment.mjs
+          --environment production
+          --require-runnable
+          --github-output
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.API_PROJECT }} --nologo
+
+      - name: Build
+        run: dotnet build ${{ env.API_PROJECT }} --configuration Release --no-restore --nologo
+
+      - name: Publish
+        run: dotnet publish ${{ env.API_PROJECT }} --configuration Release --no-build --output "${{ env.PUBLISH_DIR }}" --nologo
+
+      - name: Create deployment package
+        id: package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f "${DEPLOY_PACKAGE}"
+          (
+            cd "${PUBLISH_DIR}"
+            zip -q -r "${DEPLOY_PACKAGE}" .
+          )
+          unzip -Z1 "${DEPLOY_PACKAGE}" | grep -qx 'Workslip.Api.dll'
+          package_bytes="$(stat -c '%s' "${DEPLOY_PACKAGE}")"
+          artifact_digest="$(sha256sum "${DEPLOY_PACKAGE}" | cut -d ' ' -f 1)"
+          echo "Deployment package size: ${package_bytes} bytes"
+          echo "Deployment package SHA-256: ${artifact_digest}"
+          echo "artifact_digest=${artifact_digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: workslip-api
+          path: ${{ env.DEPLOY_PACKAGE }}
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    needs:
+      - candidate-gate
+      - build
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    environment: prod
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: workslip-api
+          path: ${{ github.workspace }}/publish
+
+      - name: Verify deployment artifact digest
+        shell: bash
+        env:
+          EXPECTED_ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
+        run: |
+          set -Eeuo pipefail
+          actual_artifact_digest="$(sha256sum "${DEPLOY_PACKAGE}" | cut -d ' ' -f 1)"
+
+          if [[ ! "${EXPECTED_ARTIFACT_DIGEST}" =~ ^[0-9a-f]{64}$ ||
+                "${actual_artifact_digest}" != "${EXPECTED_ARTIFACT_DIGEST}" ]]; then
+            echo "::error::Downloaded deployment artifact digest ${actual_artifact_digest} does not match expected digest ${EXPECTED_ARTIFACT_DIGEST}."
+            exit 1
+          fi
+
+          echo "Verified deployment artifact SHA-256: ${actual_artifact_digest}"
+
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify diagnostics infrastructure prerequisite
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          workspace_id="$(az webapp config appsettings list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]" \
+            --output tsv)"
+
+          if [[ -z "${workspace_id}" || "${workspace_id}" == "null" ]]; then
+            echo "::error::The API is missing Azure__ApplicationInsights__WorkspaceId. Run the 'Production infrastructure deploy' workflow from main, then rerun this API deployment."
+            echo "::error::Backend deployment is blocked so diagnostics code cannot be released without its required Azure configuration."
+            exit 1
+          fi
+
+          if [[ ! "${workspace_id}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::Azure__ApplicationInsights__WorkspaceId is present but is not a valid workspace GUID. Reconcile production infrastructure before deploying the API."
+            exit 1
+          fi
+
+          echo "Application Insights workspace configuration is present."
+
+      - name: Apply release-testing safety mode
+        shell: bash
+        env:
+          RELEASE_PHASE: ${{ needs.build.outputs.release_phase }}
+          RELEASE_TESTING_ENABLED: ${{ needs.build.outputs.release_testing_enabled }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${RELEASE_TESTING_ENABLED}" != 'true' && "${RELEASE_TESTING_ENABLED}" != 'false' ]]; then
+            echo "::error::Resolved release-testing state is invalid: ${RELEASE_TESTING_ENABLED}"
+            exit 1
+          fi
+
+          echo "Applying release phase ${RELEASE_PHASE}; ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}."
+          az webapp config appsettings set \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --settings "ReleaseTesting__Enabled=${RELEASE_TESTING_ENABLED}" \
+            --output none
+
+      - name: Inspect deployment target
+        id: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          state="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query state \
+            --output tsv)"
+          host="$(az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query defaultHostName \
+            --output tsv)"
+
+          if [[ -z "${host}" || "${host}" == "null" ]]; then
+            echo "::error::Azure did not return a default hostname for ${AZURE_WEBAPP_NAME}."
+            exit 1
+          fi
+
+          echo "App Service state before deployment: ${state}"
+          echo "App Service host: ${host}"
+          echo "health_url=https://${host}/health" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy package with bounded retry
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          max_attempts=3
+          deployment_log="$(mktemp)"
+          trap 'rm -f "${deployment_log}"' EXIT
+
+          for attempt in $(seq 1 "${max_attempts}"); do
+            echo "App Service deployment attempt ${attempt}/${max_attempts}"
+            : > "${deployment_log}"
+
+            if az webapp deploy \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --name "${AZURE_WEBAPP_NAME}" \
+              --src-path "${DEPLOY_PACKAGE}" \
+              --type zip \
+              --clean true \
+              --restart true \
+              --enable-kudu-warmup true \
+              --enriched-errors true \
+              --track-status false \
+              --timeout 600000 2>&1 | tee "${deployment_log}"; then
+              exit 0
+            fi
+
+            disk_full=false
+            if grep -Fqi 'There is not enough space on the disk' "${deployment_log}"; then
+              disk_full=true
+              echo "::warning::Kudu reported a full local deployment disk."
+            fi
+
+            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+              if [[ "${disk_full}" == "true" ]]; then
+                echo "Recycling ${AZURE_WEBAPP_NAME} to clear its temporary local storage before retrying."
+                az webapp restart \
+                  --resource-group "${AZURE_RESOURCE_GROUP}" \
+                  --name "${AZURE_WEBAPP_NAME}" \
+                  --output none
+                delay_seconds=30
+              else
+                delay_seconds=$((attempt * 30))
+              fi
+
+              echo "::warning::App Service deployment attempt ${attempt} failed. Retrying in ${delay_seconds} seconds."
+              sleep "${delay_seconds}"
+            fi
+          done
+
+          echo "::error::App Service deployment failed after ${max_attempts} attempts."
+          echo "Safe App Service state:"
+          az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
+            --output jsonc || true
+
+          echo "Recent deployment records:"
+          az webapp log deployment list \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '[0:5]' \
+            --output jsonc || true
+
+          echo "Latest deployment log:"
+          az webapp log deployment show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --output jsonc || true
+
+          exit 1
+
+      - name: Verify API health
+        id: health
+        shell: bash
+        env:
+          HEALTH_URL: ${{ steps.target.outputs.health_url }}
+        run: |
+          set -Eeuo pipefail
+          max_attempts=15
+
+          for attempt in $(seq 1 "${max_attempts}"); do
+            if curl --fail --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 10 \
+              --output /dev/null \
+              "${HEALTH_URL}"; then
+              echo "API health check passed: ${HEALTH_URL}"
+              echo 'result=success' >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+
+            if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+              echo "Health check attempt ${attempt}/${max_attempts} failed; retrying in 10 seconds."
+              sleep 10
+            fi
+          done
+
+          echo "::error::API deployment completed, but ${HEALTH_URL} did not become healthy."
+          az webapp show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_WEBAPP_NAME}" \
+            --query '{name:name,state:state,enabled:enabled,availabilityState:availabilityState,defaultHostName:defaultHostName,lastModifiedTimeUtc:lastModifiedTimeUtc}' \
+            --output jsonc || true
+          exit 1
+
+      - name: Record successful deployment evidence
+        shell: bash
+        env:
+          ORCHESTRATION_SHA: ${{ needs.candidate-gate.outputs.orchestration_sha }}
+          CANDIDATE_REF: ${{ needs.candidate-gate.outputs.candidate_ref }}
+          CANDIDATE_SHA: ${{ needs.candidate-gate.outputs.candidate_sha }}
+          VALIDATION_WORKFLOW_BLOB_SHA: ${{ needs.candidate-gate.outputs.validation_workflow_blob_sha }}
+          VALIDATION_RUN_URL: ${{ needs.candidate-gate.outputs.validation_run_url }}
+          ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
+          HEALTH_URL: ${{ steps.target.outputs.health_url }}
+          HEALTH_RESULT: ${{ steps.health.outputs.result }}
+        run: |
+          set -Eeuo pipefail
+          {
+            echo '## Successful backend production deployment'
+            echo
+            echo "- Orchestration ref: \`main\`"
+            echo "- Orchestration SHA: \`${ORCHESTRATION_SHA}\`"
+            echo "- Release ref: \`${CANDIDATE_REF}\`"
+            echo "- Candidate SHA: \`${CANDIDATE_SHA}\`"
+            echo "- Validation workflow blob: \`${VALIDATION_WORKFLOW_BLOB_SHA}\`"
+            echo "- Release validation: ${VALIDATION_RUN_URL}"
+            echo "- Deployment artifact SHA-256: \`${ARTIFACT_DIGEST}\`"
+            echo "- Health result: \`${HEALTH_RESULT}\` at ${HEALTH_URL}"
+            echo "- Deployment run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "${GITHUB_STEP_SUMMARY}"
