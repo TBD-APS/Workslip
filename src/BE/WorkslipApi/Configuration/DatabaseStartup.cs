@@ -76,11 +76,11 @@ public static class DatabaseStartup
         catch (Exception exception)
         {
             Log.Error(
-                exception,
-                "[STARTUP {StartupStep}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms",
+                "[STARTUP {StartupStep}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms ({ExceptionType})",
                 step,
                 phase,
-                stopwatch.ElapsedMilliseconds);
+                stopwatch.ElapsedMilliseconds,
+                exception.GetType().Name);
             throw;
         }
     }
