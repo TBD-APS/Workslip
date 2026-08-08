@@ -82,8 +82,13 @@
 
   .app-shell::before,
   .app-header,
+  .organization-session-banner,
   .bottom-nav,
-  .fab-create {
+  .fab-create,
+  .drawer,
+  .drawer-overlay,
+  .bottom-sheet,
+  .bottom-sheet-overlay {
     display: none !important;
   }
 
