@@ -2,7 +2,6 @@ import process from 'node:process';
 
 const apiBaseUrl = requireEnv('WORKSLIP_API_URL').replace(/\/+$/, '');
 const bootstrapToken = requireEnv('WORKSLIP_BOOTSTRAP_SUPERADMIN_TOKEN');
-const serverId = requireEnv('MAILOSAUR_SERVER_ID');
 const allowProduction = process.env.WORKSLIP_ALLOW_PRODUCTION_SYNTHETIC_BOOTSTRAP === 'true';
 
 if (/mrsoftware\.dk|prod/i.test(apiBaseUrl) && !allowProduction) {
@@ -56,10 +55,8 @@ for (const expected of identities) {
 }
 
 function identity(role, displayName, phone) {
-  const prefix = role.toLowerCase();
-  const override = process.env[`WORKSLIP_SYNTHETIC_${role.toUpperCase()}_EMAIL`]?.trim();
   return {
-    email: override || `${prefix}@${serverId}.mailosaur.net`,
+    email: requireEnv(`WORKSLIP_SYNTHETIC_${role.toUpperCase()}_EMAIL`).toLowerCase(),
     displayName,
     phone,
     role,
