@@ -9,6 +9,8 @@ namespace Workslip.Tests.Infrastructure;
 
 public sealed class DatabaseIntegrityConstraintTests
 {
+    private static int nextTestCvr = 12_345_670;
+
     [Fact]
     public void Model_uses_required_user_and_tenant_scoped_foreign_keys()
     {
@@ -240,7 +242,7 @@ public sealed class DatabaseIntegrityConstraintTests
         {
             Id = organizationId,
             Name = $"Tenant {organizationId:N}",
-            Cvr = "12345678",
+            Cvr = Interlocked.Increment(ref nextTestCvr).ToString(),
             CreatedAt = now,
             UpdatedAt = now
         });
@@ -313,6 +315,7 @@ public sealed class DatabaseIntegrityConstraintTests
 
             var options = new DbContextOptionsBuilder<SqlDbContext>()
                 .UseSqlite(connection)
+                .AddInterceptors(SqliteSchemaCompatibilityInterceptor.Instance)
                 .Options;
             var context = new SqlDbContext(options);
             await context.Database.EnsureCreatedAsync();

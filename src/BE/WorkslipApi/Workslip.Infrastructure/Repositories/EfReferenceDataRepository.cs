@@ -78,11 +78,18 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
 
     private async Task<ReferenceDataResponse> GetCoreAsync(Guid? organizationId, CancellationToken cancellationToken)
     {
-        var definitions = await _dbContext.InstallationTypeDefinitions
+        var definitionRows = await _dbContext.InstallationTypeDefinitions
             .AsNoTracking()
-            .AsSplitQuery()
             .Where(d => d.OrganizationId == organizationId)
+            .Include(d => d.Mappings)
+                .ThenInclude(m => m.ControlCategory)
+            .Include(d => d.Mappings)
+                .ThenInclude(m => m.ControlPoint)
+            .AsSplitQuery()
             .OrderBy(d => d.Name)
+            .ToArrayAsync(cancellationToken);
+
+        var definitions = definitionRows
             .Select(d => new InstallationTypeDefinitionResponse(
                 d.Id,
                 d.Name,
@@ -102,7 +109,7 @@ public sealed class EfReferenceDataRepository : IReferenceDataRepository
                             m.IsRequired))
                             .ToArray()))
                     .ToArray()))
-            .ToArrayAsync(cancellationToken);
+            .ToArray();
 
         var workKinds = await _dbContext.JobWorkKinds
             .AsNoTracking()
