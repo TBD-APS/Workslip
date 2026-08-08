@@ -19,6 +19,7 @@ export type EmployeeHoursSummary = {
 };
 
 const DANISH_NAME_COLLATOR = new Intl.Collator('da-DK', { sensitivity: 'base' });
+const SPREADSHEET_FORMULA_PREFIX = /^[=+\-@\t\r]/;
 
 export function buildHoursExportRows(data: MyWorksheetsMonthResponse): HoursExportRow[] {
   const rows = data.weeks.flatMap((week) =>
@@ -107,7 +108,8 @@ export function sumExportHours(rows: HoursExportRow[]): number {
 }
 
 function csvText(value: string): string {
-  return `"${value.replaceAll('"', '""')}"`;
+  const safeValue = SPREADSHEET_FORMULA_PREFIX.test(value) ? `'${value}` : value;
+  return `"${safeValue.replaceAll('"', '""')}"`;
 }
 
 function formatCsvHours(value: number): string {
