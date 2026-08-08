@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { AddressActions, getAddressMapsUrl } from './AddressActions';
+import { AddressActions } from './AddressActions';
+import { getAddressMapsUrl } from './addressActionsUtils';
 
 describe('AddressActions', () => {
   it('uses the same normalized address for Google Maps', () => {
