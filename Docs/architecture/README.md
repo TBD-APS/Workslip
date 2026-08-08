@@ -24,6 +24,7 @@ Do not create a page merely to fill the list. Add it only when it reduces redisc
 - [`adr/0003-github-infrastructure-oidc-bootstrap.md`](adr/0003-github-infrastructure-oidc-bootstrap.md)
 - [`adr/0003-vapid-key-rotation-and-subscription-repair.md`](adr/0003-vapid-key-rotation-and-subscription-repair.md)
 - [`adr/0004-retire-maintained-repository-snapshots.md`](adr/0004-retire-maintained-repository-snapshots.md)
+- [`adr/0005-explicit-database-migrations-with-deployment-identity.md`](adr/0005-explicit-database-migrations-with-deployment-identity.md)
 
 Two historical accepted ADRs already use number `0003`. Keep their filenames stable so existing links do not break; allocate the next new ADR number after the highest existing number and do not create another duplicate.
 
