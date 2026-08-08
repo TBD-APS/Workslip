@@ -1,7 +1,6 @@
 import {
   createPdfFilePreview,
   downloadPdfFile,
-  triggerBrowserDownload,
   type PdfFilePreview,
 } from '../../../lib/pdfFile';
 
@@ -26,5 +25,3 @@ export function createJobReportPdfPreview(job: JobReportPdfTarget): Promise<JobR
 export function downloadJobReportPdf(job: JobReportPdfTarget): Promise<void> {
   return downloadPdfFile(requestFor(job));
 }
-
-export { triggerBrowserDownload };
