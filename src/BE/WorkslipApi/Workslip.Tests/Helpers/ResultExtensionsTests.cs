@@ -1,7 +1,11 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Ardalis.Result;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ApiResultExtensions = Workslip.Api.Helpers.ResultExtensions;
 using Xunit;
 
@@ -88,16 +92,18 @@ public sealed class ResultExtensionsTests
 
     private static DefaultHttpContext CreateHttpContext()
     {
-        var services = new ServiceCollection()
-            .AddLogging()
-            .AddAuthentication()
-            .Services
-            .AddProblemDetails()
-            .BuildServiceProvider();
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddLogging();
+        serviceCollection.AddProblemDetails();
+        serviceCollection
+            .AddAuthentication(TestAuthenticationHandler.Scheme)
+            .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
+                TestAuthenticationHandler.Scheme,
+                _ => { });
 
         var context = new DefaultHttpContext
         {
-            RequestServices = services
+            RequestServices = serviceCollection.BuildServiceProvider()
         };
         context.Response.Body = new MemoryStream();
         return context;
@@ -108,5 +114,17 @@ public sealed class ResultExtensionsTests
         context.Response.Body.Position = 0;
         using var response = await JsonDocument.ParseAsync(context.Response.Body);
         return response.RootElement.Clone();
+    }
+
+    private sealed class TestAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        internal const string Scheme = "Test";
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync() =>
+            Task.FromResult(AuthenticateResult.NoResult());
     }
 }
