@@ -1,9 +1,12 @@
 .copy-address-button {
   display: inline-flex;
-  width: 1.75rem;
-  height: 1.75rem;
-  min-width: 1.75rem;
-  min-height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  padding: 0.25rem;
   margin-left: 0.25rem;
   vertical-align: middle;
   color: var(--text-muted);
@@ -24,4 +27,23 @@
 
 .address-input-wrapper .form-input[readonly] {
   padding-right: 2.75rem;
+}
+
+/* Destination address: place copy immediately left of the existing 24px maps action. */
+.detail-form:has(.nav-maps-link) {
+  position: relative;
+}
+
+.detail-form:has(.nav-maps-link) .address-input-wrapper {
+  position: static;
+}
+
+.detail-form:has(.nav-maps-link) .address-input-wrapper .copy-address-button {
+  top: 0;
+  right: calc(1.5rem + var(--section-header-gap, 0.5rem));
+  transform: none;
+}
+
+.detail-form:has(.nav-maps-link) .address-input-wrapper .form-input[readonly] {
+  padding-right: var(--input-padding-x, 0.85rem);
 }
