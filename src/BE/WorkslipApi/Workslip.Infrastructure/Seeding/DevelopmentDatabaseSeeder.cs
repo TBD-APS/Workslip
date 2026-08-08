@@ -59,7 +59,7 @@ public sealed class DevelopmentDatabaseSeeder(
             StagePlatformOrganization(platformOrganization);
             await db.SaveChangesAsync(cancellationToken);
 
-            await DatabaseSeeder.Seed(db);
+            await DatabaseSeeder.Seed(db, installationBaselineProvisioner);
             db.IsSeeding = true;
 
             var resolvedEntraUsers = new Dictionary<Guid, CreateEntraUserResult>();
