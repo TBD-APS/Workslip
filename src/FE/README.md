@@ -13,10 +13,14 @@ React 19 + TypeScript + Vite PWA frontend.
 
 ## Run locally
 
+Start the Workslip API first, then:
+
 ```bash
 npm ci
 npm run dev
 ```
+
+`npm run dev` generates the local Orval API client before starting Vite, so a fresh checkout does not require a separate generation command. If `VITE_API_BASE_URL` is not set, local API generation uses `http://localhost:5262`.
 
 The dev server listens on `http://127.0.0.1:5270`. `/api` is proxied to the local backend by `vite.config.ts` unless an explicit local API base URL is configured.
 
@@ -26,12 +30,12 @@ The authoritative command list is `package.json`.
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | sync required font assets and start Vite |
+| `npm run dev` | generate the local API client, sync required font assets and start Vite |
 | `npm run lint` | ESLint |
 | `npm run test -- --run` | run Vitest once |
 | `npm run build` | production type-check/build including service worker |
 | `npm run preview` | preview the production build |
-| `npm run generate:api:local` | generate API client from local environment config |
+| `npm run generate:api:local` | generate API client from local environment config; defaults to `http://localhost:5262` |
 | `npm run generate:api:dev` | generate API client from development environment config |
 | `npm run generate:api:prod` | generate API client from production environment config |
 | `npm run typecheck:sw` | type-check the service worker |
@@ -64,7 +68,7 @@ PWA update activation policy is an accepted product decision recorded in [`../..
 
 Only `VITE_` values are eligible for inclusion in browser code. Never place client secrets, database credentials, signing keys or privileged tokens in frontend environment files.
 
-`VITE_API_BASE_URL` is for local/non-Vercel API targeting. Vercel-hosted production traffic uses the same-origin `/api` rewrite defined by the deployed frontend configuration.
+`VITE_API_BASE_URL` is for local/non-Vercel API targeting. Local development defaults to `http://localhost:5262`. Vercel-hosted production traffic uses the same-origin `/api` rewrite defined by the deployed frontend configuration.
 
 ## Validation
 
