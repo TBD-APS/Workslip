@@ -20,9 +20,6 @@ const AppLayout = lazy(() =>
 const JobList = lazy(() =>
   import('../features/jobs/routes/JobList').then((module) => ({ default: module.JobList })),
 );
-const JobEntryRoute = lazy(() =>
-  import('../features/jobs/routes/JobEntryRoute').then((module) => ({ default: module.JobEntryRoute })),
-);
 const JobCreate = lazy(() =>
   import('../features/jobs/routes/JobCreate').then((module) => ({ default: module.JobCreate })),
 );
@@ -71,6 +68,9 @@ const SuperAdmin = lazy(() =>
 const CacheDiagnostics = lazy(() =>
   import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
 );
+
+const loadJobEntryRoute = () =>
+  import('../features/jobs/routes/JobEntryRoute').then((module) => ({ Component: module.JobEntryRoute }));
 
 interface StartupRecoveryProps {
   isRetrying: boolean;
@@ -239,8 +239,8 @@ export const router = createBrowserRouter([
           { path: 'create', element: <Create /> },
           { path: 'job/new', element: <RoleGuard permission="job:create"><JobCreate /></RoleGuard> },
           { path: 'job/simple/new', element: <RoleGuard permission="job:create"><SimpleJobCreate /></RoleGuard> },
-          { path: 'job/:id', element: <JobEntryRoute /> },
-          { path: 'completed/:id', element: <JobEntryRoute /> },
+          { path: 'job/:id', lazy: loadJobEntryRoute },
+          { path: 'completed/:id', lazy: loadJobEntryRoute },
           { path: 'users', element: <RoleGuard permission="user:manage"><UserList /></RoleGuard> },
           { path: 'users/:id', element: <RoleGuard permission="user:manage"><UserDetail /></RoleGuard> },
           { path: 'customers', element: <RoleGuard permission="customer:view"><CustomerList /></RoleGuard> },
