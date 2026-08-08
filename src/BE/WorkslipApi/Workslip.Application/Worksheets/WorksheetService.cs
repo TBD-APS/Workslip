@@ -145,6 +145,28 @@ public class WorksheetService : IWorksheetService
             return Result<JobReportSummaryResponse>.Invalid(errors);
         }
 
+        var jobResult = await _jobService.GetSingleJobAsync(request.JobId, cancellationToken);
+        if (jobResult.Status == ResultStatus.Unauthorized)
+        {
+            return Result<JobReportSummaryResponse>.Unauthorized();
+        }
+        if (!jobResult.IsSuccess)
+        {
+            return Result<JobReportSummaryResponse>.NotFound();
+        }
+        if (!jobResult.Value.AssignedUsers.Any(user => user.Id == request.UserId))
+        {
+            _logger.LogWarning(
+                "Worksheet upsert rejected because user is not assigned. JobId: {JobId}. OrganizationId: {OrganizationId}.",
+                request.JobId,
+                organizationId.Value);
+            return Result<JobReportSummaryResponse>.Invalid([new ValidationError
+            {
+                Identifier = nameof(UpsertWorksheetRequest.UserId),
+                ErrorMessage = "Timer kan kun registreres på medarbejdere, der er tildelt sagen."
+            }]);
+        }
+
         try
         {
             await _repository.UpsertAsync(request, cancellationToken);
