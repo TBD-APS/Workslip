@@ -4,6 +4,7 @@ import { Navigate, Outlet, createBrowserRouter, useLocation, useNavigate } from 
 import { ErrorBoundary } from 'react-error-boundary';
 import { reportFrontendError } from '../applicationInsights';
 import { FullscreenSystemState } from '../components/common/FullscreenSystemState';
+import { NotFoundPage } from '../components/common/NotFoundPage';
 import { Login } from '../features/auth/routes/Login';
 import { ErrorFallback } from '../providers/ErrorFallback';
 import { RoleGuard } from '../providers/permissions';
@@ -281,7 +282,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '*',
-        element: <ErrorFallback error={new Error('Siden blev ikke fundet (404)')} resetErrorBoundary={() => {}} />,
+        element: <NotFoundPage />,
       },
     ],
   },
