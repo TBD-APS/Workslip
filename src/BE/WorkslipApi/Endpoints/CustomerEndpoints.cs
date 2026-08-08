@@ -27,9 +27,15 @@ public static class CustomerEndpoints
 
         var userGroup = app.MapUserGroup("/api/customers", "customers");
 
-        userGroup.MapGet("/", async (int? limit, int? offset, string? search, string? sortBy, string? sortDirection, ICustomerService service, CancellationToken cancellationToken) =>
+        userGroup.MapGet("/", async ([AsParameters] ListQueryOptions query, ICustomerService service, CancellationToken cancellationToken) =>
         {
-            var result = await service.ListAsync(limit, offset, search, sortBy, sortDirection, cancellationToken);
+            var result = await service.ListAsync(
+                query.Limit,
+                query.Offset,
+                query.Search,
+                query.SortBy,
+                query.SortDirection,
+                cancellationToken);
             return ResultExtensions.ToHttpResult(result, CustomerViewModelBuilder.ToList);
         }).Produces<CustomerListViewModel>();
 

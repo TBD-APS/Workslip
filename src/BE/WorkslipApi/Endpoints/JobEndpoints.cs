@@ -1,10 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
 using Workslip.Api.Helpers;
 using Workslip.Api.Services;
 using Workslip.Api.ViewModels;
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
-using Workslip.Domain;
 
 namespace Workslip.Api.Endpoints;
 
@@ -16,23 +14,25 @@ public static class JobEndpoints
         var adminGroup = app.MapAdminGroup("/api/jobs", "jobs");
 
         readGroup.MapGet("/", async (
-            [FromQuery(Name = "status")] JobStatus[]? statuses,
-            [FromQuery] string? reportNumber,
-            [FromQuery] string? customerName,
-            [FromQuery] string? customerEmail,
-            [FromQuery] string? customerAddress,
-            [FromQuery] string? search,
-            [FromQuery] string? sortBy,
-            [FromQuery] string? sortDirection,
-            [FromQuery] int? limit,
-            [FromQuery] int? offset,
+            [AsParameters] JobListQueryOptions query,
             HttpContext httpContext,
             ICurrentUserContext currentUser,
             IJobService service,
             CancellationToken cancellationToken) =>
         {
-            var statusList = statuses?.ToList();
-            var result = await service.ListAsync(statusList, reportNumber, customerName, customerEmail, customerAddress, search, sortBy, sortDirection, limit, offset, cancellationToken);
+            var statusList = query.Statuses?.ToList();
+            var result = await service.ListAsync(
+                statusList,
+                query.ReportNumber,
+                query.CustomerName,
+                query.CustomerEmail,
+                query.CustomerAddress,
+                query.Search,
+                query.SortBy,
+                query.SortDirection,
+                query.Limit,
+                query.Offset,
+                cancellationToken);
             return CachedOk(
                 result,
                 httpContext,
