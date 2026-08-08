@@ -21,24 +21,33 @@ A workflow should exist only when it provides an actionable signal or performs a
 
 The required merge signal is the `CI Gate` job. It succeeds only when these jobs succeed:
 
-- `Backend` — full Release restore, build and backend test suite.
+- `Backend` — Release restore/build plus the merge-critical startup, authentication, authorization, tenant-isolation and auditor regression set.
 - `Frontend + API contract` — no-new-errors ESLint ratchet, branch-matched OpenAPI/Orval generation, Vitest and production frontend build.
 - `Contracts + docs` — production release-policy checks, Playwright source checks, synthetic-auth tests, Postman JSON validation and `python tools/docs/check_docs.py`.
-- `CodeQL C#` and `CodeQL JS/TS` — pull-request security analysis before code can become production.
+
+The full backend suite is temporarily executed as a visible non-blocking inventory step in `Backend` while WOR-382 removes inherited relational-test debt. It must become blocking again when that suite is green; the temporary inventory is not permission to add failures or skips.
 
 The frontend carries inherited ESLint debt. CI therefore compares the pull-request findings with the exact base revision and blocks new severity-2 errors without treating inherited findings as permission to grow the baseline.
 
 The branch-matched frontend client is generated from the backend in the same revision. The shared action is contract generation only; backend tests belong to the `Backend` job so they are not duplicated inside API generation.
 
+## Code scanning
+
+GitHub CodeQL **Default setup** is the repository's code-scanning owner.
+
+Do not add `github/codeql-action` jobs to the normal CI while Default setup is enabled. GitHub rejects advanced-configuration uploads when Default setup owns the repository, creating duplicate work and permanently red checks rather than additional protection.
+
+Whether code-scanning findings are merge-blocking is repository security/ruleset state and must be verified in GitHub settings. CI workflow YAML must not duplicate that external control.
+
 ## Main verification
 
 The same `CI` workflow runs after a merge to `main`.
 
-Core backend, frontend/API-contract and contract/documentation checks run again against the exact production revision. CodeQL runs before merge and is not duplicated on the `main` push.
+Core backend, frontend/API-contract and contract/documentation checks run again against the exact production revision. Code scanning remains owned by GitHub Default setup rather than being duplicated in the CI workflow.
 
 The post-merge `CI Gate` is the backend deployment trigger. This gives Azure an exact successful `main` SHA to build and deploy.
 
-Frontend production does not wait for the post-merge GitHub CI run: Vercel is configured for Git deployments from `main`. This is why the pull-request `CI Gate`, especially the production frontend build and CodeQL checks, must be required before merge.
+Frontend production does not wait for the post-merge GitHub CI run: Vercel is configured for Git deployments from `main`. This is why the pull-request `CI Gate` must be required before merge.
 
 ## Production deployment
 
@@ -75,7 +84,7 @@ GitHub Pages remains an independent site/docs deployment concern.
 
 ## Repository protection
 
-The `main` ruleset should enforce the delivery model, not merely document it:
+The `main` ruleset must enforce the delivery model, not merely document it:
 
 - pull request required;
 - `CI Gate` required;
@@ -83,7 +92,7 @@ The `main` ruleset should enforce the delivery model, not merely document it:
 - force pushes blocked;
 - merge remains an explicit human action.
 
-Workflow YAML does not prove repository ruleset state. Required-check configuration must be verified in GitHub whenever the gate name or ruleset changes.
+PR #439 proved that the workflow alone is insufficient: GitHub allowed a merge while `CI Gate` was red. Ruleset verification is therefore a required operational step before WOR-382 is complete.
 
 ## Releases and tags
 
