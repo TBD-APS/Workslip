@@ -62,7 +62,6 @@ These locations are useful context but are not current implementation truth:
 
 - `Docs/superpowers/plans/`
 - `Docs/superpowers/specs/`
-- `.hermes/specs/`
 - `src/docs/`
 - documents explicitly marked Historical/Superseded
 
