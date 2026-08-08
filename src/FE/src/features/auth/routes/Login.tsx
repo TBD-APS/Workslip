@@ -101,6 +101,12 @@ export const Login = () => {
     reauthStartedRef.current = true;
 
     const returnTo = sanitizeReturnTo(params.get('returnTo'));
+    const loginHint = AuthStorage.getItem(USER_EMAIL_KEY)?.trim() || undefined;
+    const startInteractiveLogin = () => startEntraLogin({
+      returnTo,
+      prompt: 'select_account',
+      ...(loginHint ? { loginHint } : {}),
+    });
 
     if (isCallback) {
       completeEntraLogin()
@@ -117,7 +123,7 @@ export const Login = () => {
             clearReauthInFlight();
             clearEntraLoginSession();
             window.history.replaceState(null, '', '/login');
-            startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
+            startInteractiveLogin().catch(() => {
               recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
             });
             return;
@@ -132,10 +138,21 @@ export const Login = () => {
       return;
     }
 
-    startEntraLogin({ returnTo, prompt: 'none' }).catch((err: unknown) => {
+    // Silent reauth is useful only when Microsoft knows which account to try.
+    // Without a login hint, `prompt=none` commonly bounces back with
+    // interaction_required/account_selection_required and creates an avoidable
+    // second Microsoft roundtrip. Go interactive immediately in that case.
+    if (!loginHint) {
+      startInteractiveLogin().catch(() => {
+        recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
+      });
+      return;
+    }
+
+    startEntraLogin({ returnTo, prompt: 'none', loginHint }).catch((err: unknown) => {
       if (err instanceof InteractiveLoginRequiredError) {
         clearReauthInFlight();
-        startEntraLogin({ returnTo, prompt: 'select_account' }).catch(() => {
+        startInteractiveLogin().catch(() => {
           recoverToLogin('Sessionen udløb. Log ind med passkey for at fortsætte.');
         });
         return;
