@@ -1,30 +1,57 @@
-name: Frontend validation
+name: CI
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - '.github/actions/generate-frontend-api/**'
-      - '.github/workflows/frontend-validation.yml'
-      - 'src/BE/WorkslipApi/**'
-      - 'src/FE/**'
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: frontend-validation-${{ github.event.pull_request.number }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24'
+  BACKEND_SOLUTION: src/BE/WorkslipApi/Workslip.slnx
+
 jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore "${BACKEND_SOLUTION}" --nologo
+
+      - name: Build
+        run: dotnet build "${BACKEND_SOLUTION}" --configuration Release --no-restore --nologo
+
+      - name: Test
+        run: >-
+          dotnet test "${BACKEND_SOLUTION}"
+          --configuration Release
+          --no-build
+          --nologo
+
   frontend:
-    name: Branch-matched frontend validation
+    name: Frontend + API contract
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
       run:
         working-directory: src/FE
-
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -34,7 +61,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: src/FE/package-lock.json
 
@@ -43,6 +70,28 @@ jobs:
 
       - name: Test lint debt comparator
         run: node --test scripts/compare-eslint-results.test.mjs
+
+      - name: Resolve lint baseline
+        id: lint-base
+        shell: bash
+        working-directory: .
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            base_sha="${PR_BASE_SHA}"
+          else
+            base_sha="${PUSH_BEFORE_SHA}"
+          fi
+
+          if [[ ! "${base_sha}" =~ ^[0-9a-fA-F]{40}$ || "${base_sha}" =~ ^0{40}$ ]]; then
+            echo "::error::Unable to resolve a valid lint baseline SHA."
+            exit 1
+          fi
+
+          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
 
       - name: Capture current lint findings
         shell: bash
@@ -54,12 +103,15 @@ jobs:
           set -e
 
           if [[ "${lint_status}" -gt 1 ]]; then
-            echo "::error::ESLint failed to execute for the pull request (exit ${lint_status})."
+            echo "::error::ESLint failed to execute for the current revision (exit ${lint_status})."
             exit "${lint_status}"
           fi
 
-      - name: Capture base lint findings
+      - name: Capture baseline lint findings
         shell: bash
+        working-directory: .
+        env:
+          LINT_BASE_SHA: ${{ steps.lint-base.outputs.sha }}
         run: |
           set -Eeuo pipefail
           base_dir="${RUNNER_TEMP}/workslip-lint-base"
@@ -69,9 +121,10 @@ jobs:
           }
           trap cleanup EXIT
 
-          git -C "${GITHUB_WORKSPACE}" fetch --no-tags origin \
-            "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
-          git -C "${GITHUB_WORKSPACE}" worktree add --detach "${base_dir}" "origin/${GITHUB_BASE_REF}"
+          if ! git -C "${GITHUB_WORKSPACE}" cat-file -e "${LINT_BASE_SHA}^{commit}" 2>/dev/null; then
+            git -C "${GITHUB_WORKSPACE}" fetch --no-tags origin "${LINT_BASE_SHA}"
+          fi
+          git -C "${GITHUB_WORKSPACE}" worktree add --detach "${base_dir}" "${LINT_BASE_SHA}"
 
           cd "${base_dir}/src/FE"
           npm ci --prefer-offline --no-audit --no-fund
@@ -82,7 +135,7 @@ jobs:
           set -e
 
           if [[ "${lint_status}" -gt 1 ]]; then
-            echo "::error::ESLint failed to execute for ${GITHUB_BASE_REF} (exit ${lint_status})."
+            echo "::error::ESLint failed to execute for baseline ${LINT_BASE_SHA} (exit ${lint_status})."
             exit "${lint_status}"
           fi
 
@@ -96,9 +149,146 @@ jobs:
         uses: ./.github/actions/generate-frontend-api
 
       - name: Test
-        if: ${{ !cancelled() && env.OPENAPI_DOCUMENT != '' }}
         run: npm run test -- --run
 
       - name: Build
-        if: ${{ !cancelled() && env.OPENAPI_DOCUMENT != '' }}
         run: npm run build
+
+  contracts:
+    name: Contracts + docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate production release policy
+        run: |
+          node --check tools/release/resolve-release-environment.mjs
+          node --test tools/release/resolve-release-environment.test.mjs
+          node tools/release/resolve-release-environment.mjs --environment production --require-runnable
+
+      - name: Validate Playwright sources
+        working-directory: src/FE
+        run: |
+          node --check scripts/playwright-release-runner.mjs
+          node --check scripts/playwright-prod-smoke.mjs
+          node --check scripts/playwright-notification-navigation.mjs
+          node --check scripts/playwright-critical-contract.mjs
+          node --check scripts/playwright-critical-domain.mjs
+          node --check scripts/playwright-scenarios-core.mjs
+          node --check scripts/playwright-scenarios-admin.mjs
+          node --check scripts/playwright-synthetic-auth.mjs
+          node --test scripts/playwright-synthetic-auth.test.mjs
+
+      - name: Validate Postman collection
+        working-directory: src/FE
+        run: >-
+          node -e
+          "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8')); console.log('Postman collection JSON OK');"
+
+      - name: Validate documentation
+        run: python tools/docs/check_docs.py
+
+  codeql-csharp:
+    name: CodeQL C#
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: csharp
+          build-mode: manual
+
+      - name: Restore
+        run: dotnet restore "${BACKEND_SOLUTION}" --nologo
+
+      - name: Build
+        run: dotnet build "${BACKEND_SOLUTION}" --configuration Release --no-restore --nologo
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:csharp'
+
+  codeql-js:
+    name: CodeQL JS/TS
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:javascript-typescript'
+
+  ci-gate:
+    name: CI Gate
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    needs:
+      - backend
+      - frontend
+      - contracts
+      - codeql-csharp
+      - codeql-js
+    steps:
+      - name: Verify required checks
+        shell: bash
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          CODEQL_CSHARP_RESULT: ${{ needs.codeql-csharp.result }}
+          CODEQL_JS_RESULT: ${{ needs.codeql-js.result }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${BACKEND_RESULT}" != 'success' ||
+                "${FRONTEND_RESULT}" != 'success' ||
+                "${CONTRACTS_RESULT}" != 'success' ]]; then
+            echo "::error::One or more core CI jobs failed."
+            exit 1
+          fi
+
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            if [[ "${CODEQL_CSHARP_RESULT}" != 'success' ||
+                  "${CODEQL_JS_RESULT}" != 'success' ]]; then
+              echo "::error::Pull requests require both CodeQL jobs to succeed."
+              exit 1
+            fi
+          fi
+
+          echo "All required CI checks succeeded."
