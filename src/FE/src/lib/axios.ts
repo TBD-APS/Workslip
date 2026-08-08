@@ -24,7 +24,6 @@ declare module 'axios' {
 import qs from 'qs';
 import {
   AUTH_TOKEN_KEY,
-  USER_EMAIL_KEY,
   AuthStorage,
   clearReauthInFlight,
   isReauthInFlight,
@@ -200,11 +199,11 @@ apiClient.interceptors.response.use(
 
       // A 401 from /api/auth/me definitively rejects the stored JWT. Treat it
       // like any other expired authenticated request instead of leaving the user
-      // on the startup recovery screen. Timeouts and 5xx responses remain
-      // recoverable without deleting a potentially valid session.
+      // on the startup recovery screen. Preserve the last verified user email as
+      // a reauth login hint; explicit logout/local-session cleanup still removes it.
+      // Timeouts and 5xx responses remain recoverable without deleting a potentially valid session.
       if (shouldHandleSessionExpiry) {
         AuthStorage.removeItem(AUTH_TOKEN_KEY);
-        AuthStorage.removeItem(USER_EMAIL_KEY);
 
         const isReauthRoute = window.location.pathname.includes('/login')
           && new URLSearchParams(window.location.search).get('reauth') === '1';
