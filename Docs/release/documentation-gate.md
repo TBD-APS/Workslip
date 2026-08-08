@@ -9,7 +9,8 @@ A release is not documentation-ready because files merely exist. The artifacts m
 
 ## Required checks
 
-- [ ] `Documentation Quality / Validate documentation` is green.
+- [ ] `CI Gate` is green for the pull request being merged.
+- [ ] `python tools/docs/check_docs.py` is green when maintained documentation changed.
 - [ ] Every included PR selected exactly one documentation decision.
 - [ ] No expired documentation waiver is included.
 - [ ] Changed API routes, auth, errors or contracts are reflected in OpenAPI, Postman and `Docs/api`.
@@ -35,22 +36,22 @@ A release is not documentation-ready because files merely exist. The artifacts m
 
 Stop the release when:
 
-- documentation describes planned behaviour as deployed
-- runtime OpenAPI and endpoint source disagree
-- an authorization or tenant boundary changed without negative verification
-- a destructive schema change lacks recovery/roll-forward guidance
-- a required runbook owner is unknown
-- a waiver is incomplete or expired
+- documentation describes planned behaviour as deployed;
+- runtime OpenAPI and endpoint source disagree;
+- an authorization or tenant boundary changed without negative verification;
+- a destructive schema change lacks recovery/roll-forward guidance;
+- a required runbook owner is unknown; or
+- a waiver is incomplete or expired.
 
 ## Release record
 
-Record with the release:
+For meaningful tagged releases, record:
 
-- release identifier and commit SHA
-- reviewer
-- changed documentation artifacts
-- Postman/OpenAPI verification result
-- active waivers and follow-up issues
-- known limitations
+- release identifier and commit SHA;
+- reviewer;
+- changed documentation artifacts;
+- Postman/OpenAPI verification result;
+- active waivers and follow-up issues; and
+- known limitations.
 
-The release record may live in the release PR, GitHub release or Linear release item, but it must link to the exact code revision.
+The release record may live in a GitHub release or Linear release item, but it must link to the exact code revision. Routine production deployment is driven by an explicitly merged, CI-approved `main` revision rather than by a separate release branch.

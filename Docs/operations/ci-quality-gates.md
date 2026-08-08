@@ -2,108 +2,95 @@
 
 **Status:** Active  
 **Owner:** Workslip repository owner  
-**Source of truth:** `.github/workflows/`, repository rulesets and current successful runs  
-**Review cadence:** When workflows, release environments or required checks change
+**Source of truth:** `.github/workflows/`, repository rulesets, Vercel project configuration and current successful runs  
+**Review cadence:** When workflows, deployment targets or required checks change
 
 ## Principle
 
-A workflow should exist only when it provides an actionable signal or performs a required deployment task. Do not keep duplicated, placeholder or routinely ignored automation.
+Workslip uses one normal delivery path:
 
-Workflow files describe intended automation; successful runs and target-environment checks provide execution evidence.
+`rbj--<issue>-...` branch → pull request → `CI Gate` → explicit manual merge → `main` → production.
 
-## Current boundaries
+`main` is the production code boundary. A separate `release/**` candidate branch is not part of the active release process.
 
-### Frontend pull-request validation
+A workflow should exist only when it provides an actionable signal or performs a required operational task. Do not keep issue-specific, duplicated or routinely ignored automation.
 
-`.github/workflows/frontend-validation.yml` runs on pull requests to `main` when the frontend, backend API, shared API-generation action or that workflow changes.
+## Pull request CI
 
-The frontend currently carries inherited ESLint debt. Pull-request validation therefore uses a **no-new-errors ratchet** instead of treating the inherited debt as a permanently failing gate:
+`.github/workflows/frontend-validation.yml` is the unified `CI` workflow. It runs for every pull request to `main`, so every change gets the same merge signal rather than a collection of path-specific checks.
 
-- run ESLint against the pull request checkout and capture JSON findings;
-- run ESLint against the pull request base branch in a separate clean worktree with that branch's dependency graph;
-- compare only severity-2 ESLint errors using stable source fingerprints rather than line numbers;
-- fail when the pull request introduces an error fingerprint or additional occurrence that is not present on the base branch;
-- allow inherited errors to remain temporarily and report warnings without making them blocking.
+The required merge signal is the `CI Gate` job. It succeeds only when these jobs succeed:
 
-The ratchet itself has focused Node tests. Existing errors should still be removed under normal maintenance; the ratchet is not permission to disable correctness rules or grow the baseline.
+- `Backend` — full Release restore, build and backend test suite.
+- `Frontend + API contract` — no-new-errors ESLint ratchet, branch-matched OpenAPI/Orval generation, Vitest and production frontend build.
+- `Contracts + docs` — production release-policy checks, Playwright source checks, synthetic-auth tests, Postman JSON validation and `python tools/docs/check_docs.py`.
+- `CodeQL C#` and `CodeQL JS/TS` — pull-request security analysis before code can become production.
 
-After the lint ratchet, the workflow generates the frontend client from the pull request's own backend OpenAPI contract, then runs Vitest and the production build. Contract generation is isolated from production SQL/runtime startup. See [`BRANCH_MATCHED_FRONTEND_VALIDATION.md`](BRANCH_MATCHED_FRONTEND_VALIDATION.md) for the maintained boundary and troubleshooting details.
+The frontend carries inherited ESLint debt. CI therefore compares the pull-request findings with the exact base revision and blocks new severity-2 errors without treating inherited findings as permission to grow the baseline.
 
-This is a targeted frontend/API-contract pull-request gate, not a general full-repository validation workflow. A workflow file proves intended execution only; whether GitHub currently requires its status is repository-ruleset state and must be verified in GitHub settings.
+The branch-matched frontend client is generated from the backend in the same revision. The shared action is contract generation only; backend tests belong to the `Backend` job so they are not duplicated inside API generation.
 
-### Release validation
+## Main verification
 
-`.github/workflows/release-validation.yml` runs for pushes to `release/**` and is the full-code release validation boundary.
+The same `CI` workflow runs after a merge to `main`.
 
-It currently covers:
+Core backend, frontend/API-contract and contract/documentation checks run again against the exact production revision. CodeQL runs before merge and is not duplicated on the `main` push.
 
-- backend Release build, backend tests and C# CodeQL;
-- frontend inherited-lint inventory, Vitest, production build and JavaScript/TypeScript CodeQL;
-- release-environment policy plus Playwright/Postman source checks;
-- a final `Release gate` that succeeds only when the required jobs succeed.
+The post-merge `CI Gate` is the backend deployment trigger. This gives Azure an exact successful `main` SHA to build and deploy.
 
-Known inherited ESLint debt is reported during release validation but is not allowed to make every release permanently red. New ESLint errors are blocked earlier by the pull-request ratchet before code reaches `main`. An ESLint execution/configuration failure still fails release validation.
+Frontend production does not wait for the post-merge GitHub CI run: Vercel is configured for Git deployments from `main`. This is why the pull-request `CI Gate`, especially the production frontend build and CodeQL checks, must be required before merge.
 
-Other issue-scoped/local validation remains required when the changed risk is not covered by the targeted pull-request workflow.
+## Production deployment
 
-### Release candidate process
+### Frontend
 
-Normal implementation stays on one Linear issue, one `rbj--<issue>-...` branch and one focused pull request. `main` is the integration branch.
+`src/FE/vercel.json` allows Git deployment from `main` and disables other branches. Its ignored-build command lets Vercel skip a deployment when the configured frontend project root did not change.
 
-A production candidate is an ephemeral `release/**` branch created from an exact commit already contained in `main`, for example `release/2026-08-08-rc1`. The release branch is a candidate pointer, not a development branch:
+Therefore an explicit merge to `main` is the frontend production release action.
 
-1. select the exact `main` commit intended for release;
-2. create the `release/**` branch at that SHA;
-3. wait for the `Release validation` workflow to succeed for that branch and SHA;
-4. deploy the exact validated SHA;
-5. run the required target-environment smoke checks;
-6. tag/version the deployed commit when the release is accepted.
+### Backend
 
-Do not fix defects directly on a release branch. Fix the owning/new Linear issue on a normal `rbj--...` branch, merge it through a focused PR to `main`, then create a new candidate such as `rc2`.
+`.github/workflows/main_api-mrsoftware-prod.yml` listens for a successful `CI` workflow run caused by a push to `main`.
 
-Moving a release branch after validation invalidates it for backend deployment because the production workflow requires the branch's current head, the supplied SHA and the successful validation run to identify the same commit.
+The workflow:
 
-### Backend production deployment
+1. records the exact successful `main` SHA;
+2. verifies that SHA is still contained in `main`;
+3. builds and packages the API from that exact SHA;
+4. keeps Azure OIDC permission scoped to the `prod` deployment job;
+5. verifies required diagnostics configuration;
+6. applies the production release-testing policy;
+7. deploys with bounded retries; and
+8. requires the API `/health` endpoint to recover.
 
-`.github/workflows/main_api-mrsoftware-prod.yml` is manual-only. It must be dispatched from `main` with:
+There is no release-branch handoff between CI and deployment.
 
-- `release_ref`: an existing `release/**` branch;
-- `release_sha`: the full 40-character SHA that branch currently points to.
+### Infrastructure and critical-flow testing
 
-Before building or contacting Azure, the workflow verifies that:
+Production infrastructure remains a separate manual operation through `.github/workflows/manual-production-infrastructure.yml`.
 
-- the dispatch itself uses the maintained workflow from `main`;
-- the supplied ref is a `release/**` branch;
-- the release branch currently points to the supplied SHA;
-- the candidate SHA is contained in current `main`;
-- `Release validation` has a completed successful push run for that same branch and SHA.
+Deployed Playwright scenarios remain available through `.github/workflows/playwright-prod-smoke.yml`. They are used when the changed risk requires target-environment evidence; they are not a substitute for the pre-merge CI gate.
 
-The API artifact is then built from that exact SHA. Only the deploy job receives `id-token: write`, binds to the `prod` GitHub Environment, uses Azure OIDC, applies the release-testing policy, deploys with bounded retries and verifies `/health`.
+GitHub Pages remains an independent site/docs deployment concern.
 
-The workflow logs the release ref and SHA so deployment evidence identifies the code that was actually released. Deployment success is not a substitute for authentication, database or critical-flow smoke when those paths changed.
+## Repository protection
 
-### Frontend production deployment
+The `main` ruleset should enforce the delivery model, not merely document it:
 
-Vercel production deployment policy is defined from the frontend project/configuration. Repository workflow documentation should not duplicate Vercel dashboard state that cannot be proven from the repository.
+- pull request required;
+- `CI Gate` required;
+- direct pushes blocked;
+- force pushes blocked;
+- merge remains an explicit human action.
 
-Until that external configuration is explicitly verified, backend release-candidate gating must not be presented as proof that frontend and backend production deployments share the same release boundary.
+Workflow YAML does not prove repository ruleset state. Required-check configuration must be verified in GitHub whenever the gate name or ruleset changes.
 
-### Documentation checks
+## Releases and tags
 
-`python tools/docs/check_docs.py` is the local documentation drift check. It is deliberately not a broad automatic pull-request workflow; reviewers run it when documentation or documentation-owning sources change.
-
-## Required-check changes
-
-When adding, renaming or removing a required check:
-
-1. update the workflow and repository ruleset together;
-2. prove the new check can succeed on its intended branch/event;
-3. prove a controlled failure blocks or reports as intended;
-4. remove stale required-check names;
-5. document the owner and remediation path when the check is non-obvious.
-
-A YAML change alone does not prove repository ruleset configuration.
+GitHub tags/releases are optional release-history markers for meaningful product versions. They do not control production deployment and should not recreate a second release pipeline.
 
 ## Security
 
 Use GitHub OIDC for Azure deployment. Grant `id-token: write` only to the job that needs the Azure token. Do not introduce publish profiles, long-lived Azure credentials or privileged repository-writing automation without a concrete requirement and reviewed least-privilege design.
+
+The durable decision behind this model is recorded in [`../architecture/adr/0005-main-as-production-boundary.md`](../architecture/adr/0005-main-as-production-boundary.md).
