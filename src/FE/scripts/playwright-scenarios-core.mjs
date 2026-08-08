@@ -200,16 +200,17 @@ async function roleTenantIsolationFlow(session) {
     session.address = await session.getAddress();
     const primaryCustomer = await createCustomerFixtureViaApi(session);
     const primaryJob = await createMinimalJobFixtureViaApi(session, primaryCustomer);
-    const primaryToken = session.auth.token;
     await session.logout();
 
     await session.login('Superadmin');
     const secondary = session.data.secondaryOrganization;
     const organization = await session.apiExpect('POST', '/api/organizations/', secondary, [200, 201]);
     report.retainedFixtures.push({ type: 'organization', identifier: organization?.organization?.id ?? secondary.cvr, reason: 'No organization delete contract exists.' });
-    const tokenResult = await session.apiExpect('POST', '/api/dev/token', { email: secondary.adminEmail }, [200]);
-    const secondaryToken = tokenResult.token;
-    if (!secondaryToken) throw new Error('Secondary organization admin token was not returned.');
+    const secondaryAdmin = await session.authenticateEmail(secondary.adminEmail);
+    const secondaryToken = session.auth.token;
+    if (!secondaryToken || String(secondaryAdmin.role).toLowerCase() !== 'admin') {
+      throw new Error('Secondary organization admin could not authenticate through OTC.');
+    }
 
     for (const resourcePath of [`/api/jobs/${primaryJob.id}`, `/api/customers/${primaryCustomer.id}`]) {
       const result = await session.api('GET', resourcePath, undefined, { token: secondaryToken });
@@ -218,7 +219,8 @@ async function roleTenantIsolationFlow(session) {
     const ownJobs = unwrapCollection((await session.api('GET', '/api/jobs/?limit=100&offset=0', undefined, { token: secondaryToken })).payload);
     if (ownJobs.some((item) => item.id === primaryJob.id)) throw new Error('Secondary tenant job list leaked a primary tenant job.');
 
-    session.auth.token = primaryToken;
+    await session.logout();
+    await session.login('Admin');
   });
 }
 
