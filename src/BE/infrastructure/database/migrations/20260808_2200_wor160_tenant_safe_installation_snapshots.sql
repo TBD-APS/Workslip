@@ -82,42 +82,50 @@ ALTER TABLE dbo.JobReportInstallationCategories
 ALTER TABLE dbo.JobReportInstallationControlPoints
     ALTER COLUMN OrganizationId uniqueidentifier NOT NULL;
 
--- Composite FK targets must be candidate keys. These indexes also make tenant-scoped
--- joins cheap and match the server-owned OrganizationId invariant used elsewhere.
+-- Composite foreign-key targets are explicit alternate-key constraints. This mirrors
+-- EF HasAlternateKey and makes the database ownership invariant self-describing.
 IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE object_id = OBJECT_ID(N'dbo.JobReportInstallations')
-      AND name = N'UX_JobReportInstallations_Organization_Id')
+    SELECT 1
+    FROM sys.key_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.JobReportInstallations')
+      AND name = N'AK_JobReportInstallations_OrganizationId_Id')
 BEGIN
-    CREATE UNIQUE INDEX UX_JobReportInstallations_Organization_Id
-        ON dbo.JobReportInstallations (OrganizationId, Id);
+    ALTER TABLE dbo.JobReportInstallations
+        ADD CONSTRAINT AK_JobReportInstallations_OrganizationId_Id
+        UNIQUE (OrganizationId, Id);
 END;
 
 IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE object_id = OBJECT_ID(N'dbo.ControlCategories')
-      AND name = N'UX_ControlCategories_Organization_Id')
+    SELECT 1
+    FROM sys.key_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.ControlCategories')
+      AND name = N'AK_ControlCategories_OrganizationId_Id')
 BEGIN
-    CREATE UNIQUE INDEX UX_ControlCategories_Organization_Id
-        ON dbo.ControlCategories (OrganizationId, Id);
+    ALTER TABLE dbo.ControlCategories
+        ADD CONSTRAINT AK_ControlCategories_OrganizationId_Id
+        UNIQUE (OrganizationId, Id);
 END;
 
 IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE object_id = OBJECT_ID(N'dbo.ControlPoints')
-      AND name = N'UX_ControlPoints_Organization_Id')
+    SELECT 1
+    FROM sys.key_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.ControlPoints')
+      AND name = N'AK_ControlPoints_OrganizationId_Id')
 BEGIN
-    CREATE UNIQUE INDEX UX_ControlPoints_Organization_Id
-        ON dbo.ControlPoints (OrganizationId, Id);
+    ALTER TABLE dbo.ControlPoints
+        ADD CONSTRAINT AK_ControlPoints_OrganizationId_Id
+        UNIQUE (OrganizationId, Id);
 END;
 
 IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE object_id = OBJECT_ID(N'dbo.JobReportInstallationCategories')
-      AND name = N'UX_JobReportInstallationCategories_Organization_Id')
+    SELECT 1
+    FROM sys.key_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.JobReportInstallationCategories')
+      AND name = N'AK_JobReportInstallationCategories_OrganizationId_Id')
 BEGIN
-    CREATE UNIQUE INDEX UX_JobReportInstallationCategories_Organization_Id
-        ON dbo.JobReportInstallationCategories (OrganizationId, Id);
+    ALTER TABLE dbo.JobReportInstallationCategories
+        ADD CONSTRAINT AK_JobReportInstallationCategories_OrganizationId_Id
+        UNIQUE (OrganizationId, Id);
 END;
 
 IF OBJECT_ID(N'dbo.FK_JobReportInstallationCategories_JobReportInstallations_JobReportInstallationId', N'F') IS NOT NULL
