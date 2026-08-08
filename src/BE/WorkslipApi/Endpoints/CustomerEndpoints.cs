@@ -11,7 +11,7 @@ public static class CustomerEndpoints
 {
     public static IEndpointRouteBuilder MapCustomerEndpoints(this IEndpointRouteBuilder app)
     {
-        var searchGroup = app.MapReadGroup("/api/customers", "customers");
+        var searchGroup = app.MapUserGroup("/api/customers", "customers");
 
         searchGroup.MapGet("/search", async (string? query, int? limit, ICustomerService service, CancellationToken cancellationToken) =>
         {

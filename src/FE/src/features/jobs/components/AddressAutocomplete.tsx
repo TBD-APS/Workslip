@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { Loader2, MapPin, X } from 'lucide-react';
+import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { useAddressAutocomplete, type AddressSuggestion } from '../hooks/useAddressAutocomplete';
 
 type AddressAutocompleteProps = {
@@ -83,6 +84,7 @@ export function AddressAutocomplete({
             <X size={16} />
           </button>
         )}
+        {readOnly && value && <CopyAddressButton address={value} />}
       </div>
       {!readOnly && isOpen && suggestions.length > 0 && (
         <ul className="address-suggestions" role="listbox">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Clock, MapPin, RefreshCw, Timer, User } from 'lucide-react';
 import { type JobListItemViewModel, JobStatus, type AssignedUserResponse } from '../../../api/generated/models';
 import { formatJobType } from '../statusLabels';
+import { CopyAddressButton } from '../../../components/CopyAddressButton';
 import { SearchBar } from '../../../components/filters/SearchBar';
 import { StatusFilter, getSavedStatusFilter, saveStatusFilter, announceSection } from '../../../components/filters/StatusFilter';
 import { InfiniteScrollSentinel } from '../../../components/pagination/InfiniteScrollSentinel';
@@ -341,7 +342,9 @@ export const JobList = () => {
                 </tr>
               ))
             ) : (
-              desktopPageItems.map((job) => (
+              desktopPageItems.map((job) => {
+                const address = job.destinationAddress || job.customer?.address;
+                return (
               <tr
                 key={job.id}
                 className={`clickable${job.status === JobStatus.Rejected ? ' job-row--rejected' : ''}`}
@@ -357,7 +360,10 @@ export const JobList = () => {
                 </td>
                 <td><span className={`job-type-badge job-type-${job.jobType?.toLowerCase()}`}>{formatJobType(job.jobType)}</span></td>
                 <td>{job.customer?.name || job.taskDescription}</td>
-                <td>{job.destinationAddress || job.customer?.address}</td>
+                <td>
+                  <span>{address}</span>
+                  <CopyAddressButton address={address} />
+                </td>
                 <td>
                   <InstallationTypeTags types={job.installationTypes} />
                 </td>
@@ -376,7 +382,8 @@ export const JobList = () => {
                   <ChevronRight size={16} className="row-link-icon" />
                 </td>
               </tr>
-            )))}
+                );
+              }))}
           </tbody>
         </table>
         <PaginationControls
@@ -457,6 +464,7 @@ export const JobList = () => {
 };
 
 export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; onOpen: () => void; isAdmin: boolean }) {
+  const address = job.destinationAddress || job.customer?.address;
   return (
     <button className={`job-card${job.status === JobStatus.Rejected ? ' job-card--rejected' : ''}`} onClick={onOpen} type="button">
       <div className="job-card-top">
@@ -473,7 +481,8 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
 
       <p className="job-address-row">
         <MapPin size={14} />
-        <span className="job-address">{job.destinationAddress || job.customer?.address || 'Ingen adresse angivet'}</span>
+        <span className="job-address">{address || 'Ingen adresse angivet'}</span>
+        <CopyAddressButton address={address} />
       </p>
 
       <div className="job-card-meta">
@@ -494,7 +503,7 @@ export function JobCard({ job, onOpen, isAdmin }: { job: JobListItemViewModel; o
           <ChevronRight size={20} />
         </span>
       </div>
-    </button>
+    </div>
   );
 }
 

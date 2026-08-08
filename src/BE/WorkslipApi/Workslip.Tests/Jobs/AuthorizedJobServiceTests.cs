@@ -62,6 +62,39 @@ public sealed class AuthorizedJobServiceTests
         Assert.Equal(0, repository.TransitionCalls);
     }
 
+    [Fact]
+    public async Task MarkJobAsSeenAsync_returns_not_found_for_auditor_job_outside_discipline_scope()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Approved, "Varme"));
+        var service = CreateService(repository, organizationId, Roles.Auditor);
+
+        var result = await service.MarkJobAsSeenAsync(
+            repository.Job!.Id,
+            JobViewTypes.New,
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+    }
+
+    [Fact]
+    public async Task GetHistoryAsync_returns_not_found_for_auditor_job_outside_discipline_scope()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new StubJobRepository(CreateJob(organizationId, JobStatus.Approved, "Ventilation"));
+        var service = CreateService(repository, organizationId, Roles.Auditor);
+
+        var result = await service.GetHistoryAsync(
+            repository.Job!.Id,
+            50,
+            0,
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal(1, repository.GetSingleCalls);
+    }
+
     private static AuthorizedJobService CreateService(
         IJobRepository repository,
         Guid organizationId,
@@ -72,7 +105,7 @@ public sealed class AuthorizedJobServiceTests
             currentUser: new StubCurrentUserContext(Guid.NewGuid(), organizationId, role),
             logger: NullLogger<AuthorizedJobService>.Instance);
 
-    private static JobReportResponse CreateJob(Guid organizationId, JobStatus status) =>
+    private static JobReportResponse CreateJob(Guid organizationId, JobStatus status, params string[] installationTypes) =>
         new(
             Id: Guid.NewGuid(),
             OrganizationId: organizationId,
@@ -89,7 +122,11 @@ public sealed class AuthorizedJobServiceTests
             TaskDescription: null,
             CustomerObservations: null,
             TechnicalObservations: null,
-            InstallationTypes: Array.Empty<InstallationTypeResponse>(),
+            InstallationTypes: installationTypes.Select((name, index) => new InstallationTypeResponse(
+                Guid.NewGuid(),
+                name,
+                index + 1,
+                Array.Empty<InstallationTypeCategoryResponse>())).ToArray(),
             WorkKind: null,
             Remarks: null,
             ClosureFlags: Array.Empty<ClosureFlagResponse>(),

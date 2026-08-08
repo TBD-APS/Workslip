@@ -139,7 +139,7 @@ static void RunStartupPhase(int step, string phase, Action action)
     }
     catch (Exception exception)
     {
-        Log.Error(
+        Log.Warning(
             "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms ({ExceptionType})",
             step,
             phase,
@@ -166,7 +166,7 @@ static T RunStartupValuePhase<T>(int step, string phase, Func<T> action)
     }
     catch (Exception exception)
     {
-        Log.Error(
+        Log.Warning(
             "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms ({ExceptionType})",
             step,
             phase,
@@ -192,7 +192,7 @@ static async Task RunStartupPhaseAsync(int step, string phase, Func<Task> action
     }
     catch (Exception exception)
     {
-        Log.Error(
+        Log.Warning(
             "[STARTUP {StartupStep:00}] {StartupPhase} - FAILED after {ElapsedMilliseconds} ms ({ExceptionType})",
             step,
             phase,

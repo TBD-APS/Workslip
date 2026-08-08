@@ -46,33 +46,11 @@ public static class HttpCacheHeaders
 
     public static string JobReportEtag(JobReportSummaryResponse report)
     {
-        var builder = new StringBuilder()
-            .Append("job:")
-            .Append(report.OrganizationId.ToString("N"))
-            .Append(':')
-            .Append(report.Id.ToString("N"))
-            .Append(':')
-            .Append(report.UpdatedAt.UtcTicks);
-
-        foreach (var link in report.Links.OrderBy(link => link.Id))
-        {
-            builder
-                .Append("|link:")
-                .Append(link.Id.ToString("N"))
-                .Append(':')
-                .Append(link.LinkedReportId.ToString("N"))
-                .Append(':')
-                .Append(link.LinkedStatus);
-        }
-
-        foreach (var user in report.AssignedUsers.OrderBy(user => user.Id))
-        {
-            builder
-                .Append("|user:")
-                .Append(user.Id.ToString("N"));
-        }
-
-        return ToWeakEtag(builder.ToString());
+        // Job detail is role-scoped (for example Auditor only receives the
+        // permitted installation disciplines). Hash the complete application
+        // response so a role change can never revalidate a broader cached body.
+        var representation = JsonSerializer.Serialize(report);
+        return ToWeakEtag($"job:{report.OrganizationId:N}:{report.Id:N}:{representation}");
     }
 
     public static string JobListEtag(

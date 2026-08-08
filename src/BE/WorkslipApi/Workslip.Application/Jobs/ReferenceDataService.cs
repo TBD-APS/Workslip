@@ -21,6 +21,11 @@ public sealed class ReferenceDataService : IReferenceDataService
             return Result<ReferenceDataResponse>.Forbidden();
 
         var data = await _repository.GetAsync(orgId.Value, cancellationToken);
+        if (AuditorDataScope.AppliesTo(_currentUser.Role))
+        {
+            data = AuditorDataScope.Filter(data);
+        }
+
         return Result<ReferenceDataResponse>.Success(data);
     }
 }
