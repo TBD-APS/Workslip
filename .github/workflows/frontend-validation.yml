@@ -173,6 +173,18 @@ jobs:
           node --test tools/release/resolve-release-environment.test.mjs
           node tools/release/resolve-release-environment.mjs --environment production --require-runnable
 
+      - name: Install lightweight Playwright runtime
+        working-directory: src/FE
+        run: >-
+          npm install
+          --prefix scripts
+          --no-save
+          --package-lock=false
+          --ignore-scripts
+          --no-audit
+          --no-fund
+          playwright@1.55.0
+
       - name: Validate Playwright sources
         working-directory: src/FE
         run: |
