@@ -35,6 +35,8 @@ The implementation follows these rules:
 
 The default Filial uses the Organization ID as its own ID. This makes migration/backfill deterministic and retry-safe without constraining IDs for additional Filials created later.
 
+Production rollout follows expand/contract because reviewed database migrations run before the new API package. The expand migration backfills ownership and enables composite constraints while temporary insert compatibility keeps the previous API write-safe. A following migration contracts the columns to physical `NOT NULL` after the Filial-aware API is live.
+
 ## Consequences
 
 Single-filial customers keep the current interaction model while the database is ready for later multi-filial administration, selection and filtering.
