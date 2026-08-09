@@ -11,6 +11,8 @@ namespace Workslip.Tests.Worksheets;
 
 public sealed class MonthlyHoursPdfTests
 {
+    private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
     [Fact]
     public async Task Service_scopes_monthly_pdf_data_to_current_organization()
     {
@@ -46,7 +48,8 @@ public sealed class MonthlyHoursPdfTests
         Assert.Equal(organizationId, repository.RequestedOrganizationId);
         Assert.Equal(new DateOnly(2026, 8, 1), repository.RequestedMonthStart);
         Assert.Equal(new DateOnly(2026, 8, 31), repository.RequestedMonthEnd);
-        Assert.Equal(["<svg>page</svg>"], result.Value.Pages);
+        Assert.Equal("image/png", result.Value.ContentType);
+        Assert.Equal(["AQID"], result.Value.Pages);
         Assert.NotNull(generator.PreviewMonth);
         Assert.Equal(7.5m, generator.PreviewMonth.TotalHours);
     }
@@ -68,7 +71,7 @@ public sealed class MonthlyHoursPdfTests
     }
 
     [Fact]
-    public void Generator_creates_pdf_and_svg_preview_from_same_monthly_hours_data()
+    public void Generator_creates_pdf_and_png_preview_from_same_monthly_hours_data()
     {
         QuestPDF.Settings.License = LicenseType.Community;
         var month = CreateMonth();
@@ -80,7 +83,7 @@ public sealed class MonthlyHoursPdfTests
         Assert.True(pdf.Length > 1000);
         Assert.Equal("%PDF-", Encoding.ASCII.GetString(pdf, 0, 5));
         Assert.NotEmpty(previewPages);
-        Assert.All(previewPages, page => Assert.Contains("<svg", page, StringComparison.OrdinalIgnoreCase));
+        Assert.All(previewPages, page => Assert.True(page.AsSpan().StartsWith(PngSignature)));
     }
 
     private static CapturingWorksheetRepository CreateRepository(Guid userId) =>
@@ -154,10 +157,10 @@ public sealed class MonthlyHoursPdfTests
             return [1, 2, 3];
         }
 
-        public IReadOnlyList<string> GeneratePreviewPages(MyWorksheetsMonthResponse month)
+        public IReadOnlyList<byte[]> GeneratePreviewPages(MyWorksheetsMonthResponse month)
         {
             PreviewMonth = month;
-            return ["<svg>page</svg>"];
+            return [new byte[] { 1, 2, 3 }];
         }
     }
 
