@@ -10,6 +10,8 @@ export function validateControlPoints(
   const selectedInstallationTypes = referenceData?.installationTypes.filter((t) => form.work.categoryIds.includes(t.id));
 
   for (const installationType of selectedInstallationTypes ?? []) {
+    let hasAnyControlPoint = false;
+
     for (const cat of installationType.categories) {
       const compositeId = `${installationType.id}-${cat.id}`;
       const isIrrelevant = form.work.irrelevantCategoryIds.includes(compositeId);
@@ -19,13 +21,22 @@ export function validateControlPoints(
           (cp) => form.work.controlPointSelections[cp.id],
         );
 
-        if (!hasSelectedControlPoint) {
+        if (hasSelectedControlPoint) {
+          hasAnyControlPoint = true;
+        } else {
           return {
             valid: false,
             error: `Mindst et kontrolpunkt skal vælges for "${installationType.name} i ${capitalizeFirstLetter(cat.name)}"`,
           };
         }
       }
+    }
+
+    if (!hasAnyControlPoint) {
+      return {
+        valid: false,
+        error: `Mindst én kategori i "${installationType.name}" skal have et kontrolpunkt valgt (kan ikke markere alle som "ikke relevant")`,
+      };
     }
   }
 
