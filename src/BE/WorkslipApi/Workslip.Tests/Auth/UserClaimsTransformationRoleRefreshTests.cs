@@ -47,9 +47,9 @@ public sealed class UserClaimsTransformationRoleRefreshTests
         var transformed = await transformation.TransformAsync(principal);
 
         Assert.Equal(1, repository.ExternalIdentityCalls);
-        Assert.Equal(organizationId.ToString(), transformed.FindFirstValue("organizationId"));
-        Assert.Equal(userId.ToString(), transformed.FindFirstValue("workslipUserId"));
-        Assert.Equal(Roles.Admin, transformed.FindFirstValue(ClaimTypes.Role));
+        Assert.Equal(organizationId.ToString(), transformed.FindFirst("organizationId")?.Value);
+        Assert.Equal(userId.ToString(), transformed.FindFirst("workslipUserId")?.Value);
+        Assert.Equal(Roles.Admin, transformed.FindFirst(ClaimTypes.Role)?.Value);
         Assert.DoesNotContain(transformed.Claims, claim => claim.Type == ClaimTypes.Role && claim.Value == Roles.User);
     }
 
@@ -73,8 +73,8 @@ public sealed class UserClaimsTransformationRoleRefreshTests
         var transformed = await transformation.TransformAsync(principal);
 
         Assert.Equal(0, repository.ExternalIdentityCalls);
-        Assert.Equal(effectiveOrganizationId.ToString(), transformed.FindFirstValue("organizationId"));
-        Assert.Equal(Roles.Superadmin, transformed.FindFirstValue(ClaimTypes.Role));
+        Assert.Equal(effectiveOrganizationId.ToString(), transformed.FindFirst("organizationId")?.Value);
+        Assert.Equal(Roles.Superadmin, transformed.FindFirst(ClaimTypes.Role)?.Value);
     }
 
     private static UserClaimsTransformation CreateTransformation(IUserRepository repository)
