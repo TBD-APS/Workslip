@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Workslip.Api.Configuration;
 
 namespace Workslip.Tests.Configuration;
@@ -9,11 +8,11 @@ namespace Workslip.Tests.Configuration;
 public sealed class DevConfigurationTests
 {
     [Theory]
-    [InlineData(Environments.Development, false, true)]
-    [InlineData(Environments.Development, true, true)]
-    [InlineData(Environments.Staging, true, false)]
-    [InlineData(Environments.Production, false, false)]
-    [InlineData(Environments.Production, true, false)]
+    [InlineData("Development", false, true)]
+    [InlineData("Development", true, true)]
+    [InlineData("Staging", true, false)]
+    [InlineData("Production", false, false)]
+    [InlineData("Production", true, false)]
     public async Task ConfigureDevEnvironment_MapsDevTokenOnlyInDevelopment(
         string environmentName,
         bool releaseTestingEnabled,
