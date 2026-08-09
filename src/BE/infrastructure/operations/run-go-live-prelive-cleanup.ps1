@@ -102,41 +102,24 @@ if ($Execute) {
 
 $executeValue = if ($Execute) { '1' } else { '0' }
 
-# sqlcmd supports scripting variables from environment variables. Use that path instead
-# of forwarding multiple -v arguments, which isn't parsed consistently across the
-# sqlcmd variants/package-manager builds used by Workslip developers on macOS/Windows.
-$variableNames = @('ExpectedDatabaseName', 'ExpectedJobCount', 'Execute')
-$previousEnvironmentValues = @{}
-foreach ($variableName in $variableNames) {
-    $previousEnvironmentValues[$variableName] = [Environment]::GetEnvironmentVariable($variableName, 'Process')
-}
+# Pass every sqlcmd scripting variable through its own -v option. This is the
+# explicit documented path and avoids relying on shell/process environment
+# propagation differences between sqlcmd variants on macOS and Windows.
+$sqlcmdArguments = @(
+    '-S', $Server,
+    '-d', $Database,
+    '-G',
+    '-b',
+    '-l', '30',
+    '-v', "ExpectedDatabaseName=$Database",
+    '-v', "ExpectedJobCount=$ExpectedJobCount",
+    '-v', "Execute=$executeValue",
+    '-i', $cleanupScript
+)
 
-try {
-    [Environment]::SetEnvironmentVariable('ExpectedDatabaseName', $Database, 'Process')
-    [Environment]::SetEnvironmentVariable('ExpectedJobCount', [string]$ExpectedJobCount, 'Process')
-    [Environment]::SetEnvironmentVariable('Execute', $executeValue, 'Process')
-
-    $sqlcmdArguments = @(
-        '-S', $Server,
-        '-d', $Database,
-        '-G',
-        '-b',
-        '-l', '30',
-        '-i', $cleanupScript
-    )
-
-    & $sqlcmd.Source @sqlcmdArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "WOR-348 cleanup command failed with sqlcmd exit code $LASTEXITCODE. No success claim should be made; review the SQL error and rollback state."
-    }
-}
-finally {
-    foreach ($variableName in $variableNames) {
-        [Environment]::SetEnvironmentVariable(
-            $variableName,
-            $previousEnvironmentValues[$variableName],
-            'Process')
-    }
+& $sqlcmd.Source @sqlcmdArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "WOR-348 cleanup command failed with sqlcmd exit code $LASTEXITCODE. No success claim should be made; review the SQL error and rollback state."
 }
 
 if ($Execute) {
