@@ -9,6 +9,8 @@ public sealed record SuperAdminUserRecord(
     Guid FilialId,
     string FilialName,
     string Email,
+    string EntraEmail,
+    string EntraId,
     string DisplayName,
     string Phone,
     string Role,
