@@ -2502,58 +2502,6 @@
 
 
 /* ------------------------------------------------------------
-   Step indicators (stepper)
-   ------------------------------------------------------------ */
-.step-indicators {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1.15rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
-}
-
-.step-dot {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 46px;
-  padding: 0.6rem 0.9rem;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-  font-size: var(--fs-sm);
-  white-space: nowrap;
-  transition: border-color 0.2s, background 0.2s, color 0.2s;
-  flex-shrink: 0;
-}
-
-.step-dot.active {
-  color: white;
-  background: var(--primary);
-  border: none;
-}
-
-.step-dot.completed {
-  background: var(--surface-selected-strong);
-  color: var(--text);
-  border: none;
-}
-
-.step-dot[aria-disabled="true"] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-
-.step-label {
-  font-weight: 400;
-}
-
-/* ------------------------------------------------------------
    Step navigation (prev / next buttons)
    ------------------------------------------------------------ */
 .step-nav-anchor {

@@ -1,0 +1,145 @@
+/* Lineær trinbjælke. Erstatter .step-indicators / .step-dot.
+   Bruger temavariablerne fra base.css, så den følger dark og [data-theme="day"]. */
+
+.job-step-bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.job-step-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.job-step-bar-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.job-step-bar-title span {
+  color: var(--text-muted);
+}
+
+.job-step-bar-missing {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.job-step-bar-track {
+  display: flex;
+  gap: 3px;
+}
+
+/* 44 px trykflade omkring en 2 px streg. */
+.job-step-seg {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.job-step-seg-line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--surface-elevated);
+  transition: height 0.15s ease, background-color 0.15s ease;
+}
+
+.job-step-seg.is-done .job-step-seg-line {
+  background: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+
+.job-step-seg.is-current .job-step-seg-line {
+  background: var(--primary);
+}
+
+.job-step-seg.is-peeked .job-step-seg-line {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.job-step-seg.is-peeked.is-todo .job-step-seg-line {
+  background: var(--border-strong);
+}
+
+.job-step-seg:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.job-step-peek {
+  position: absolute;
+  top: calc(100% - 0.35rem);
+  max-width: 78%;
+  z-index: 20;
+  background: var(--surface-floating);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  animation: job-step-peek-in 0.15s ease-out;
+}
+
+.job-step-peek-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+}
+
+.job-step-peek-check {
+  color: var(--primary);
+}
+
+.job-step-peek-body {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.job-step-peek-hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--primary);
+}
+
+@keyframes job-step-peek-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-step-peek {
+    animation: none;
+  }
+  .job-step-seg-line {
+    transition: none;
+  }
+}
