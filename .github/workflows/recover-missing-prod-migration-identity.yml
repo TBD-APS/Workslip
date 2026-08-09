@@ -1,4 +1,4 @@
-name: Recover missing production migration identity
+name: Recover incomplete production bootstrap
 
 on:
   workflow_run:
@@ -10,6 +10,7 @@ permissions:
   actions: write
   contents: read
   id-token: write
+  statuses: write
 
 concurrency:
   group: azure-api-prod-bootstrap-recovery
@@ -17,17 +18,39 @@ concurrency:
 
 jobs:
   recover:
-    name: Recover missing migration identity
+    name: Recover production bootstrap
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 75
     environment: prod
     env:
       AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+      AZURE_WEBAPP_NAME: api-mrsoftware-prod
       MIGRATION_IDENTITY_NAME: id-mrsoftware-prod-migration
       FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
       FAILED_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+      FAILED_RUN_URL: ${{ github.event.workflow_run.html_url }}
     steps:
+      - name: Mark recovery pending
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $headers = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $body = @{
+            state = 'pending'
+            context = 'production/bootstrap-recovery'
+            description = 'Inspecting failed backend deployment prerequisites'
+            target_url = $env:FAILED_RUN_URL
+          } | ConvertTo-Json
+          $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/statuses/$env:FAILED_RUN_SHA"
+          Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType 'application/json' -Body $body | Out-Null
+
       - name: Verify recovery target
         shell: pwsh
         run: |
@@ -57,32 +80,51 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Check migration identity
-        id: migration-identity
+      - name: Inspect production bootstrap prerequisites
+        id: bootstrap
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $identityId = @(& az identity list `
-            --resource-group $env:AZURE_RESOURCE_GROUP `
-            --query "[?name=='$env:MIGRATION_IDENTITY_NAME'].id | [0]" `
-            --output tsv 2>&1 | ForEach-Object { $_.ToString() })
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not inspect migration identity.`n$($identityId -join [Environment]::NewLine)"
+          function Invoke-AzureTsv {
+            param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+            $output = @(& az @Arguments 2>&1 | ForEach-Object { $_.ToString() })
+            if ($LASTEXITCODE -ne 0) {
+              throw "Azure CLI inspection failed with exit code $LASTEXITCODE.`n$($output -join [Environment]::NewLine)"
+            }
+
+            return ($output -join [Environment]::NewLine).Trim()
           }
 
-          $identityId = ($identityId -join [Environment]::NewLine).Trim()
-          if ([string]::IsNullOrWhiteSpace($identityId)) {
-            'missing=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-            Write-Host "Migration identity is missing; starting one-time recovery."
+          $migrationIdentityId = Invoke-AzureTsv -Arguments @(
+            'identity', 'list',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--query', "[?name=='$env:MIGRATION_IDENTITY_NAME'].id | [0]",
+            '--output', 'tsv'
+          )
+          $workspaceId = Invoke-AzureTsv -Arguments @(
+            'webapp', 'config', 'appsettings', 'list',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:AZURE_WEBAPP_NAME,
+            '--query', "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]",
+            '--output', 'tsv'
+          )
+
+          $workspaceIdIsValid = $workspaceId -match '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          $bootstrapRequired = [string]::IsNullOrWhiteSpace($migrationIdentityId) -or -not $workspaceIdIsValid
+
+          if ($bootstrapRequired) {
+            'required=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host 'Production bootstrap is incomplete; reconciling the authoritative production infrastructure path.'
           }
           else {
-            'missing=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-            Write-Host "Migration identity already exists. This failed deployment has a different cause; recovery will not mutate infrastructure or rerun it."
+            'required=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host 'Known production bootstrap prerequisites are present. This backend failure has a different cause; recovery will not mutate infrastructure or rerun it.'
           }
 
       - name: Ensure sqlcmd
-        if: ${{ steps.migration-identity.outputs.missing == 'true' }}
+        if: ${{ steps.bootstrap.outputs.required == 'true' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -96,8 +138,15 @@ jobs:
 
           Get-Command sqlcmd -ErrorAction Stop | Out-Null
 
+      - name: Reconcile Azure infrastructure
+        if: ${{ steps.bootstrap.outputs.required == 'true' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\src\BE\infrastructure\deploy-infrastructure.ps1 prod
+
       - name: Reconcile database migration identity
-        if: ${{ steps.migration-identity.outputs.missing == 'true' }}
+        if: ${{ steps.bootstrap.outputs.required == 'true' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -105,28 +154,47 @@ jobs:
             -Environment prod `
             -CompanyName mrsoftware
 
-      - name: Verify migration identity recovery
-        if: ${{ steps.migration-identity.outputs.missing == 'true' }}
+      - name: Verify production bootstrap recovery
+        if: ${{ steps.bootstrap.outputs.required == 'true' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $clientId = @(& az identity show `
-            --resource-group $env:AZURE_RESOURCE_GROUP `
-            --name $env:MIGRATION_IDENTITY_NAME `
-            --query clientId `
-            --output tsv 2>&1 | ForEach-Object { $_.ToString() })
-          if ($LASTEXITCODE -ne 0) {
-            throw "Migration identity was not available after recovery.`n$($clientId -join [Environment]::NewLine)"
+          function Invoke-AzureTsv {
+            param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+            $output = @(& az @Arguments 2>&1 | ForEach-Object { $_.ToString() })
+            if ($LASTEXITCODE -ne 0) {
+              throw "Azure CLI verification failed with exit code $LASTEXITCODE.`n$($output -join [Environment]::NewLine)"
+            }
+
+            return ($output -join [Environment]::NewLine).Trim()
           }
 
-          $clientId = ($clientId -join [Environment]::NewLine).Trim()
+          $clientId = Invoke-AzureTsv -Arguments @(
+            'identity', 'show',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:MIGRATION_IDENTITY_NAME,
+            '--query', 'clientId',
+            '--output', 'tsv'
+          )
           if ($clientId -notmatch '^[0-9a-fA-F-]{36}$') {
-            throw "Migration identity returned an invalid client ID after recovery."
+            throw 'Migration identity returned an invalid client ID after recovery.'
+          }
+
+          $workspaceId = Invoke-AzureTsv -Arguments @(
+            'webapp', 'config', 'appsettings', 'list',
+            '--resource-group', $env:AZURE_RESOURCE_GROUP,
+            '--name', $env:AZURE_WEBAPP_NAME,
+            '--query', "[?name=='Azure__ApplicationInsights__WorkspaceId'].value | [0]",
+            '--output', 'tsv'
+          )
+          if ($workspaceId -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') {
+            throw 'API diagnostics workspace setting is still missing or invalid after production infrastructure recovery.'
           }
 
       - name: Rerun failed backend deployment jobs
-        if: ${{ steps.migration-identity.outputs.missing == 'true' }}
+        if: ${{ steps.bootstrap.outputs.required == 'true' }}
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -141,5 +209,54 @@ jobs:
           $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/runs/$env:FAILED_RUN_ID/rerun-failed-jobs"
           Invoke-RestMethod -Method Post -Uri $uri -Headers $headers | Out-Null
 
-          "Recovered missing production migration identity and requested rerun of Backend API deploy run $env:FAILED_RUN_ID for $env:FAILED_RUN_SHA." |
+          "Reconciled production bootstrap prerequisites and requested rerun of Backend API deploy run $env:FAILED_RUN_ID for $env:FAILED_RUN_SHA." |
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Mark recovery success
+        if: ${{ success() }}
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BOOTSTRAP_REQUIRED: ${{ steps.bootstrap.outputs.required }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $headers = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $description = if ($env:BOOTSTRAP_REQUIRED -eq 'true') {
+            'Production bootstrap repaired; backend deployment rerun requested'
+          }
+          else {
+            'Bootstrap prerequisites present; backend failure has another cause'
+          }
+          $body = @{
+            state = 'success'
+            context = 'production/bootstrap-recovery'
+            description = $description
+            target_url = $env:FAILED_RUN_URL
+          } | ConvertTo-Json
+          $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/statuses/$env:FAILED_RUN_SHA"
+          Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType 'application/json' -Body $body | Out-Null
+
+      - name: Mark recovery failure
+        if: ${{ failure() }}
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $headers = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $body = @{
+            state = 'failure'
+            context = 'production/bootstrap-recovery'
+            description = 'Production bootstrap recovery failed; inspect workflow run'
+            target_url = $env:FAILED_RUN_URL
+          } | ConvertTo-Json
+          $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/statuses/$env:FAILED_RUN_SHA"
+          Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType 'application/json' -Body $body | Out-Null
