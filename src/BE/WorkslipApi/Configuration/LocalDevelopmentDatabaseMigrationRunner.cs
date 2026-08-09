@@ -46,7 +46,7 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
             return true;
 
         string host;
-        if (normalized.StartsWith('[', StringComparison.Ordinal))
+        if (normalized.StartsWith("[", StringComparison.Ordinal))
         {
             var closingBracket = normalized.IndexOf(']');
             host = closingBracket > 0 ? normalized[1..closingBracket] : normalized;
