@@ -9,6 +9,7 @@ public static class DatabaseStartup
 {
     public const string GenerateOpenApiOnlyKey = "Workslip:GenerateOpenApiOnly";
     public const string SeedDevelopmentDataKey = "Workslip:SeedDevelopmentData";
+    public const string SeedDevelopmentEntraIdentitiesKey = "Workslip:SeedDevelopmentEntraIdentities";
 
     public static bool IsOpenApiGeneration(IConfiguration configuration) =>
         configuration.GetValue<bool>(GenerateOpenApiOnlyKey);
@@ -19,15 +20,28 @@ public static class DatabaseStartup
         environment.IsDevelopment()
         && configuration.GetValue<bool>(SeedDevelopmentDataKey);
 
+    public static bool ShouldSeedDevelopmentEntraIdentities(
+        IHostEnvironment environment,
+        IConfiguration configuration) =>
+        ShouldSeedDevelopmentData(environment, configuration)
+        && configuration.GetValue<bool>(SeedDevelopmentEntraIdentitiesKey);
+
     public static async Task VerifyIfRequiredAsync(
         IServiceProvider services,
         IConfiguration configuration,
-        bool seedDevelopmentData)
+        bool seedDevelopmentData,
+        bool seedDevelopmentEntraIdentities)
     {
         if (IsOpenApiGeneration(configuration))
         {
             Log.Information("[STARTUP 08] Database verification - SKIPPED (OpenAPI generation mode)");
             return;
+        }
+
+        if (seedDevelopmentEntraIdentities && !seedDevelopmentData)
+        {
+            throw new InvalidOperationException(
+                $"{SeedDevelopmentEntraIdentitiesKey} requires {SeedDevelopmentDataKey}=true.");
         }
 
         await using var scope = services.CreateAsyncScope();
@@ -44,19 +58,29 @@ public static class DatabaseStartup
                 }
             });
 
-        if (seedDevelopmentData)
+        if (!seedDevelopmentData)
+        {
+            Log.Information("[STARTUP 08.2] Seed development database - SKIPPED (not explicitly enabled)");
+            return;
+        }
+
+        if (seedDevelopmentEntraIdentities)
         {
             await RunDatabasePhaseAsync(
                 "08.2",
-                "Seed development database",
+                "Seed development database and reconcile Entra identities",
                 () => scope.ServiceProvider
                     .GetRequiredService<DevelopmentDatabaseSeeder>()
                     .SeedAsync());
+            return;
         }
-        else
-        {
-            Log.Information("[STARTUP 08.2] Seed development database - SKIPPED (not explicitly enabled)");
-        }
+
+        await RunDatabasePhaseAsync(
+            "08.2",
+            "Seed development database (DB only)",
+            () => DatabaseSeeder.Seed(
+                db,
+                scope.ServiceProvider.GetRequiredService<InstallationBaselineProvisioner>()));
     }
 
     private static async Task RunDatabasePhaseAsync(string step, string phase, Func<Task> action)

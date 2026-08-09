@@ -68,6 +68,9 @@ try
     var seedDevelopmentData = DatabaseStartup.ShouldSeedDevelopmentData(
         app.Environment,
         app.Configuration);
+    var seedDevelopmentEntraIdentities = DatabaseStartup.ShouldSeedDevelopmentEntraIdentities(
+        app.Environment,
+        app.Configuration);
 
     if (PlatformIdentityBootstrapCommand.IsRequested(args))
     {
@@ -81,7 +84,8 @@ try
         DatabaseStartup.VerifyIfRequiredAsync(
             app.Services,
             app.Configuration,
-            seedDevelopmentData));
+            seedDevelopmentData,
+            seedDevelopmentEntraIdentities));
 
     RunStartupPhase(9, "Configure HTTP pipeline", () =>
     {
