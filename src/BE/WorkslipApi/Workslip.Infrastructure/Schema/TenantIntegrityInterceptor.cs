@@ -66,9 +66,9 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
 
             filialSet.Add(new OrganizationFilialRow
             {
-                // The default filial intentionally reuses the Organization ID.
-                // It is deterministic for migration/retry purposes while future
-                // additional filials can use ordinary independent GUIDs.
+                // Default Filial IDs deliberately reuse Organization IDs. This
+                // keeps migration/backfill deterministic while later Filials can
+                // use independent GUIDs.
                 Id = organization.Id,
                 OrganizationId = organization.Id,
                 Organization = organization,
@@ -108,13 +108,10 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
             .Select(filial => new FilialKey(filial.OrganizationId, filial.Id, filial.IsDefault))
             .ToListAsync(cancellationToken);
 
-        var trackedFilialEntities = context.ChangeTracker
+        var trackedFilials = context.ChangeTracker
             .Entries<OrganizationFilialRow>()
             .Where(entry => entry.State == EntityState.Added && organizationIds.Contains(entry.Entity.OrganizationId))
-            .Select(entry => entry.Entity)
-            .ToArray();
-        var trackedFilials = trackedFilialEntities
-            .Select(filial => new FilialKey(filial.OrganizationId, filial.Id, filial.IsDefault))
+            .Select(entry => new FilialKey(entry.Entity.OrganizationId, entry.Entity.Id, entry.Entity.IsDefault))
             .ToArray();
 
         var availableFilials = persistedFilials
@@ -148,8 +145,6 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
             }
 
             EnsureFilialBelongsToOrganization(user.OrganizationId, user.FilialId, availableFilials);
-            user.Filial = trackedFilialEntities.SingleOrDefault(
-                filial => filial.OrganizationId == user.OrganizationId && filial.Id == user.FilialId);
         }
 
         foreach (var job in addedJobs)
@@ -160,8 +155,6 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
             }
 
             EnsureFilialBelongsToOrganization(job.OrganizationId, job.FilialId, availableFilials);
-            job.Filial = trackedFilialEntities.SingleOrDefault(
-                filial => filial.OrganizationId == job.OrganizationId && filial.Id == job.FilialId);
         }
     }
 
