@@ -292,6 +292,8 @@ export function isValidWork(form: JobForm, referenceData: ReferenceDataResponse 
 }
 
 export function getWorkValidationMessage(form: JobForm, referenceData: ReferenceDataResponse | null) {
+  if (form.jobType === 'Diverse') return null;
+
   const selectedWorkKind = referenceData?.workKinds.find(
     (kind) => kind.normalizedLabel === form.work.workKind,
   );
