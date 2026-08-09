@@ -26,6 +26,7 @@ Do not create a page merely to fill the list. Add it only when it reduces redisc
 - [`adr/0004-retire-maintained-repository-snapshots.md`](adr/0004-retire-maintained-repository-snapshots.md)
 - [`adr/0005-main-as-production-boundary.md`](adr/0005-main-as-production-boundary.md)
 - [`adr/0006-explicit-database-migrations-with-deployment-identity.md`](adr/0006-explicit-database-migrations-with-deployment-identity.md)
+- [`adr/0007-filial-under-organization.md`](adr/0007-filial-under-organization.md)
 
 Two historical accepted ADRs already use number `0003`. Keep their filenames stable so existing links do not break; allocate the next new ADR number after the highest existing number and do not create another duplicate.
 

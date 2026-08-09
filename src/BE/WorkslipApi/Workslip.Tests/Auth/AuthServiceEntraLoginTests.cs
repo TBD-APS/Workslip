@@ -281,6 +281,7 @@ public sealed class AuthServiceEntraLoginTests
                     CREATE TABLE Users (
                         Id TEXT NOT NULL PRIMARY KEY,
                         OrganizationId TEXT NOT NULL,
+                        FilialId TEXT NOT NULL,
                         Email TEXT NOT NULL,
                         DisplayName TEXT NOT NULL,
                         Phone TEXT NOT NULL,

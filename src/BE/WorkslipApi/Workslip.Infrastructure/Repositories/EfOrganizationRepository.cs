@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Workslip.Application.Auth;
 using Workslip.Application.Organizations;
 using Workslip.Domain.Models;
@@ -134,22 +135,45 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             UpdatedAt = now
         };
 
-        _dbContext.Organizations.Add(organization);
-        _dbContext.Users.Add(user);
-
-        // Required tenant baseline is staged only during explicit organization onboarding.
-        // Application startup never backfills or reconciles tenant reference data in production.
-        await _installationBaselineProvisioner.ProvisionAsync(
-            organizationId,
-            cancellationToken);
-
+        IDbContextTransaction? transaction = null;
         try
         {
+            if (_dbContext.Database.IsRelational())
+            {
+                transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            }
+
+            // Persist Organization + default Filial first so the database-level
+            // composite Filial FK is present before the creator is inserted.
+            // The surrounding transaction keeps onboarding atomic.
+            _dbContext.Organizations.Add(organization);
             await _dbContext.SaveChangesAsync(cancellationToken);
+
+            _dbContext.Users.Add(user);
+
+            // Required tenant baseline is staged only during explicit organization onboarding.
+            // Application startup never backfills or reconciles tenant reference data in production.
+            await _installationBaselineProvisioner.ProvisionAsync(
+                organizationId,
+                cancellationToken);
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
         }
         catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
         {
             return null;
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
         }
 
         return new OrganizationOnboardingResponse(

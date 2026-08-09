@@ -461,6 +461,7 @@ public sealed class DevelopmentDatabaseSeeder(
             {
                 Id = definition.Id,
                 OrganizationId = PlatformOrganization.Id,
+                FilialId = PlatformOrganization.Id,
                 DisplayName = definition.DisplayName,
                 Email = definition.Email,
                 Phone = definition.Phone,
@@ -497,6 +498,7 @@ public sealed class DevelopmentDatabaseSeeder(
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(user => user.OrganizationId, PlatformOrganization.Id)
+                        .SetProperty(user => user.FilialId, PlatformOrganization.Id)
                         .SetProperty(user => user.DisplayName, definition.DisplayName)
                         .SetProperty(user => user.Email, definition.Email)
                         .SetProperty(user => user.Phone, definition.Phone)
@@ -528,6 +530,7 @@ public sealed class DevelopmentDatabaseSeeder(
         }
 
         trackedUser.OrganizationId = PlatformOrganization.Id;
+        trackedUser.FilialId = PlatformOrganization.Id;
         trackedUser.DisplayName = definition.DisplayName;
         trackedUser.Email = definition.Email;
         trackedUser.Phone = definition.Phone;

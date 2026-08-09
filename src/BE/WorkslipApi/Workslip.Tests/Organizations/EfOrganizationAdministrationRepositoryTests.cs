@@ -146,6 +146,7 @@ public sealed class EfOrganizationAdministrationRepositoryTests
     {
         Id = user.Id,
         OrganizationId = user.OrganizationId,
+        FilialId = user.FilialId,
         Email = user.Email,
         DisplayName = user.DisplayName,
         Phone = user.Phone,
@@ -212,6 +213,7 @@ public sealed class EfOrganizationAdministrationRepositoryTests
                 CREATE TABLE Users (
                     Id TEXT NOT NULL PRIMARY KEY,
                     OrganizationId TEXT NOT NULL,
+                    FilialId TEXT NOT NULL,
                     Email TEXT NOT NULL,
                     DisplayName TEXT NOT NULL,
                     Phone TEXT NOT NULL,
