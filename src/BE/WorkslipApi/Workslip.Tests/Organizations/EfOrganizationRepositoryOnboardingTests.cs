@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Application.Organizations;
 using Workslip.Domain;
+using Workslip.Domain.Models;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Resilience;
 using Workslip.Infrastructure.Schema;
@@ -51,15 +52,24 @@ public sealed class EfOrganizationRepositoryOnboardingTests
         Assert.Equal(0, await context.JobReportInstallationControlPoints.CountAsync());
         Assert.Equal(1, await context.Organizations.CountAsync());
         Assert.Equal(1, await context.Users.CountAsync());
+
+        var filial = Assert.Single(await context.Set<OrganizationFilialRow>().ToListAsync());
+        var user = Assert.Single(await context.Users.ToListAsync());
+        Assert.Equal(organizationId, filial.Id);
+        Assert.Equal(organizationId, filial.OrganizationId);
+        Assert.True(filial.IsDefault);
+        Assert.Equal(request.Name, filial.Name);
+        Assert.Equal(filial.Id, user.FilialId);
     }
 
     [Fact]
-    public async Task CreateAsync_WhenRelationalSaveFails_RollsBackOrganizationAdminAndBaseline()
+    public async Task CreateAsync_WhenRelationalSaveFails_RollsBackOrganizationFilialAdminAndBaseline()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<SqlDbContext>()
             .UseSqlite(connection)
+            .AddInterceptors(new TenantIntegrityInterceptor())
             .Options;
 
         await using (var context = new SqlDbContext(options))
@@ -83,6 +93,7 @@ public sealed class EfOrganizationRepositoryOnboardingTests
 
         await using var verificationContext = new SqlDbContext(options);
         Assert.Equal(0, await verificationContext.Organizations.CountAsync());
+        Assert.Equal(0, await verificationContext.Set<OrganizationFilialRow>().CountAsync());
         Assert.Equal(0, await verificationContext.Users.CountAsync());
         Assert.Equal(0, await verificationContext.ControlCategoryRow.CountAsync());
         Assert.Equal(0, await verificationContext.ControlPointRow.CountAsync());
@@ -94,6 +105,7 @@ public sealed class EfOrganizationRepositoryOnboardingTests
     {
         var options = new DbContextOptionsBuilder<SqlDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(new TenantIntegrityInterceptor())
             .Options;
 
         return new SqlDbContext(options);
@@ -111,9 +123,21 @@ public sealed class EfOrganizationRepositoryOnboardingTests
                 UpdatedAt TEXT NOT NULL
             );
 
+            CREATE TABLE OrganizationFilials (
+                Id TEXT NOT NULL PRIMARY KEY,
+                OrganizationId TEXT NOT NULL,
+                Name TEXT NOT NULL,
+                IsDefault INTEGER NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL,
+                UNIQUE (OrganizationId, Id),
+                FOREIGN KEY (OrganizationId) REFERENCES Organizations (Id)
+            );
+
             CREATE TABLE Users (
                 Id TEXT NOT NULL PRIMARY KEY,
                 OrganizationId TEXT NOT NULL,
+                FilialId TEXT NOT NULL,
                 Email TEXT NOT NULL CHECK (Email <> 'admin@example.test'),
                 DisplayName TEXT NOT NULL,
                 EntraId TEXT NOT NULL,
@@ -122,7 +146,9 @@ public sealed class EfOrganizationRepositoryOnboardingTests
                 Role TEXT NOT NULL,
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL,
-                FOREIGN KEY (OrganizationId) REFERENCES Organizations (Id)
+                FOREIGN KEY (OrganizationId) REFERENCES Organizations (Id),
+                FOREIGN KEY (OrganizationId, FilialId)
+                    REFERENCES OrganizationFilials (OrganizationId, Id)
             );
 
             CREATE TABLE ControlCategories (
