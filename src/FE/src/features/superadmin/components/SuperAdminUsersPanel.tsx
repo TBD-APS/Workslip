@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from 'react';
+import { useDeferredValue, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Mail, Pencil, Trash2, UserPlus, Users } from 'lucide-react';
 import { ConfirmDeleteDialog } from '../../../components/common/ConfirmDeleteDialog';
@@ -137,7 +137,7 @@ export function SuperAdminUsersPanel() {
     }));
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     setFormError(null);
 
@@ -210,6 +210,15 @@ export function SuperAdminUsersPanel() {
         />
         <span className="superadmin-users-count">{total} {total === 1 ? 'bruger' : 'brugere'}</span>
       </div>
+
+      {optionsQuery.isError && (
+        <div className="superadmin-alert superadmin-alert-error" role="alert">
+          <span>{getSuperadminErrorMessage(optionsQuery.error)}</span>
+          <button type="button" className="btn btn-secondary" onClick={() => { void optionsQuery.refetch(); }}>
+            Prøv igen
+          </button>
+        </div>
+      )}
 
       {formOpen && (
         <form className="superadmin-user-form" onSubmit={handleSubmit}>
