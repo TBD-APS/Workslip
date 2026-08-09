@@ -22,8 +22,9 @@ SET XACT_ABORT ON;
 
 DECLARE @ExpectedDatabaseName sysname = N'$(ExpectedDatabaseName)';
 DECLARE @TablesRaw nvarchar(max) = N'$(TablesToClear)';
-DECLARE @ExpectedCountSignature varchar(64) = '$(ExpectedCountSignature)';
-DECLARE @Execute bit = TRY_CONVERT(bit, N'$(Execute)');
+DECLARE @ExpectedCountSignature varchar(128) = '$(ExpectedCountSignature)';
+DECLARE @ExecuteRaw nvarchar(10) = N'$(Execute)';
+DECLARE @Execute bit;
 
 IF @ExpectedDatabaseName = N'$(ExpectedDatabaseName)'
    OR NULLIF(LTRIM(RTRIM(@ExpectedDatabaseName)), N'') IS NULL
@@ -36,15 +37,25 @@ IF @TablesRaw = N'$(TablesToClear)'
    OR NULLIF(LTRIM(RTRIM(@TablesRaw)), N'') IS NULL
     THROW 51102, 'TablesToClear must contain one or more semicolon-separated schema.table names.', 1;
 
-IF @Execute IS NULL
-    THROW 51103, 'Execute must be supplied through sqlcmd -v as 0 or 1.', 1;
+IF @ExecuteRaw = N'$(Execute)' OR @ExecuteRaw NOT IN (N'0', N'1')
+    THROW 51103, 'Execute must be supplied through sqlcmd -v as exactly 0 or 1.', 1;
+
+SET @Execute = CONVERT(bit, @ExecuteRaw);
 
 IF @ExpectedCountSignature = '$(ExpectedCountSignature)'
    OR NULLIF(LTRIM(RTRIM(@ExpectedCountSignature)), '') IS NULL
     THROW 51104, 'ExpectedCountSignature must be supplied. Use DISCOVER for dry-run.', 1;
 
-IF @Execute = 1 AND UPPER(@ExpectedCountSignature) = 'DISCOVER'
-    THROW 51105, 'Execute=1 requires the exact CountSignature from the immediately preceding dry run.', 1;
+IF @Execute = 0 AND UPPER(@ExpectedCountSignature) <> 'DISCOVER'
+    THROW 51105, 'Execute=0 requires ExpectedCountSignature=DISCOVER.', 1;
+
+IF @Execute = 1
+   AND
+   (
+       LEN(@ExpectedCountSignature) <> 64
+       OR @ExpectedCountSignature LIKE '%[^0-9A-Fa-f]%'
+   )
+    THROW 51106, 'Execute=1 requires the exact 64-character hexadecimal CountSignature from the immediately preceding dry run.', 1;
 
 CREATE TABLE #RequestedTables
 (
@@ -62,7 +73,7 @@ FROM STRING_SPLIT(@TablesRaw, N';')
 WHERE NULLIF(LTRIM(RTRIM(value)), N'') IS NOT NULL;
 
 IF NOT EXISTS (SELECT 1 FROM #RequestedTables)
-    THROW 51106, 'TablesToClear did not contain any table names after parsing.', 1;
+    THROW 51107, 'TablesToClear did not contain any table names after parsing.', 1;
 
 IF EXISTS
 (
@@ -80,7 +91,7 @@ BEGIN
        OR PARSENAME(RawName, 3) IS NOT NULL
     ORDER BY RawName;
 
-    THROW 51107, 'Every TablesToClear item must use exactly schema.table format.', 1;
+    THROW 51108, 'Every TablesToClear item must use exactly schema.table format.', 1;
 END;
 
 CREATE TABLE #Targets
@@ -113,7 +124,7 @@ BEGIN
     WHERE target.ObjectId IS NULL
     ORDER BY requested.RawName;
 
-    THROW 51108, 'One or more requested tables do not exist in the connected database.', 1;
+    THROW 51109, 'One or more requested tables do not exist in the connected database.', 1;
 END;
 
 -- These tables are explicitly retained by WOR-348 or are required schema/reference state.
@@ -158,7 +169,7 @@ BEGIN
      AND protected.TableName = target.TableName
     ORDER BY target.SchemaName, target.TableName;
 
-    THROW 51109, 'TablesToClear contains a table protected by the WOR-348 go-live retention rules.', 1;
+    THROW 51110, 'TablesToClear contains a table protected by the WOR-348 go-live retention rules.', 1;
 END;
 
 IF EXISTS
@@ -181,7 +192,7 @@ BEGIN
        OR t.is_tracked_by_cdc = 1
     ORDER BY target.SchemaName, target.TableName;
 
-    THROW 51110, 'Temporal or CDC-tracked tables require an explicit reviewed cleanup path and are not supported by this helper.', 1;
+    THROW 51111, 'Temporal or CDC-tracked tables require an explicit reviewed cleanup path and are not supported by this helper.', 1;
 END;
 
 -- DELETE triggers can mutate tables that are not in TablesToClear. Fail closed rather
@@ -217,7 +228,7 @@ BEGIN
       )
     ORDER BY target.SchemaName, target.TableName, trigger_row.name;
 
-    THROW 51111, 'A selected table has an enabled DELETE trigger. Review it explicitly before cleanup.', 1;
+    THROW 51112, 'A selected table has an enabled DELETE trigger. Review it explicitly before cleanup.', 1;
 END;
 
 -- A foreign key from a non-target child into a target parent means deleting the target
@@ -260,7 +271,7 @@ BEGIN
         child_table.name,
         fk.name;
 
-    THROW 51112, 'A non-selected table references a selected table. Add the child table intentionally or use a purpose-built cleanup.', 1;
+    THROW 51113, 'A non-selected table references a selected table. Add the child table intentionally or use a purpose-built cleanup.', 1;
 END;
 
 -- Determine a child-before-parent delete order using the current SQL Server FK graph.
@@ -329,7 +340,7 @@ BEGIN
           AND fk.parent_object_id <> fk.referenced_object_id
         ORDER BY ChildSchema, ChildTable, ParentSchema, ParentTable, fk.name;
 
-        THROW 51113, 'Selected tables contain a foreign-key cycle that requires a purpose-built cleanup.', 1;
+        THROW 51114, 'Selected tables contain a foreign-key cycle that requires a purpose-built cleanup.', 1;
     END;
 
     SET @DeleteBatch += 1;
@@ -424,7 +435,7 @@ BEGIN
 END;
 
 IF UPPER(@ExpectedCountSignature) <> @PreviewSignature
-    THROW 51114, 'CountSignature does not match the current pre-lock preview. Run a new dry run and review it before executing.', 1;
+    THROW 51115, 'CountSignature does not match the current pre-lock preview. Run a new dry run and review it before executing.', 1;
 
 BEGIN TRY
     BEGIN TRANSACTION;
@@ -480,7 +491,7 @@ BEGIN TRY
         CONVERT(varchar(64), HASHBYTES('SHA2_256', @LockedMaterial), 2);
 
     IF @LockedSignature <> UPPER(@ExpectedCountSignature)
-        THROW 51115, 'Selected-table counts changed while acquiring locks. Transaction will be rolled back; run a new dry run.', 1;
+        THROW 51116, 'Selected-table counts changed while acquiring locks. Transaction will be rolled back; run a new dry run.', 1;
 
     CREATE TABLE #DeletedRows
     (
@@ -561,7 +572,7 @@ BEGIN TRY
         WHERE RowCount <> 0
         ORDER BY SchemaName, TableName;
 
-        THROW 51116, 'Post-check failed: one or more selected tables still contain rows. Transaction will be rolled back.', 1;
+        THROW 51117, 'Post-check failed: one or more selected tables still contain rows. Transaction will be rolled back.', 1;
     END;
 
     COMMIT TRANSACTION;
