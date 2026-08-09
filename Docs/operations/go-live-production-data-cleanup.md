@@ -3,7 +3,7 @@
 **Status:** Planned and implementation-ready; production execution not yet performed  
 **Owner:** Workslip product owner / backend-infrastructure maintainer  
 **Linear:** WOR-348, followed by WOR-351  
-**Source of truth:** production Azure SQL state, current EF mappings, `src/BE/infrastructure/operations/cleanup-prelive-orders.sql`, executed command evidence, and production smoke evidence  
+**Source of truth:** production Azure SQL state, current EF mappings, `src/BE/infrastructure/operations/cleanup-prelive-orders.sql`, `src/BE/infrastructure/operations/clear-selected-tables.sql`, executed command evidence, and production smoke evidence  
 **Review cadence:** before the first customer go-live and whenever the cleanup scope changes
 
 ## Required end state
@@ -27,6 +27,7 @@ The current product decision is that historical cases/orders are not imported fo
 - Stop the API/background workers for the destructive maintenance window so no new case or notification can be created concurrently.
 - Verify Azure SQL point-in-time recovery/rollback capability before mutation and record the recovery point/time in the restricted operational record. Do not put customer content, tokens or credentials in GitHub/Linear.
 - If any count or post-condition differs from the expected state, stop. Do not weaken the script guards to make it continue.
+- Do not use `Sql queries/DropTablesQuery.sql` for go-live data cleanup. It intentionally drops foreign keys and tables and is only a full schema-reset utility.
 
 ## Why the cleanup is explicit
 
@@ -38,6 +39,58 @@ Current relational behavior is mixed:
 - idempotency records have no job foreign key; records that contain a target job GUID in scope/key/response are removed explicitly.
 
 The cleanup is therefore a one-time controlled SQL operation, not startup behavior and not a permanent migration.
+
+## Configurable whole-table cleanup helper
+
+`src/BE/infrastructure/operations/clear-selected-tables.sql` exists for additional operator-approved cleanup where the **entire contents** of explicitly selected tables may be removed.
+
+It does **not** replace `cleanup-prelive-orders.sql` as the canonical WOR-348 job cleanup. The job-specific script remains necessary because notifications and idempotency records can reference jobs without foreign keys, and it performs additional retained-identity/reference-data checks.
+
+The configurable helper accepts a semicolon-separated allowlist:
+
+```text
+TablesToClear="dbo.TableA;dbo.TableB"
+```
+
+It fails closed when:
+
+- the connected database name differs from `ExpectedDatabaseName`;
+- a selected table does not exist;
+- the list contains a protected go-live table (`Users`, `Customers`, `Organizations`, installation/reference data, push subscriptions, invitations, or migration history);
+- a selected table is temporal or CDC-tracked;
+- a selected table has an enabled `DELETE` trigger;
+- a non-selected table has a foreign key into a selected table;
+- the selected tables contain a cross-table foreign-key cycle;
+- the table/count signature differs from the reviewed dry run;
+- any selected table still contains rows after deletion.
+
+The helper never drops or disables constraints. It calculates a child-before-parent delete order from SQL Server metadata, uses `DELETE`, executes inside one transaction, locks the selected tables before mutation, and outputs only table names/counts and a count signature.
+
+Dry run example:
+
+```powershell
+$tables = "dbo.JobEvents;dbo.JobReports"
+
+sqlcmd `
+  -S "<production-sql-server>.database.windows.net" `
+  -d "<production-database>" `
+  -G -b -l 30 `
+  -v ExpectedDatabaseName="<production-database>" TablesToClear="$tables" ExpectedCountSignature="DISCOVER" Execute="0" `
+  -i ".\src\BE\infrastructure\operations\clear-selected-tables.sql"
+```
+
+Review the exact table list, counts and `CountSignature`. Destructive execution requires the same table set and the exact immediately preceding signature:
+
+```powershell
+sqlcmd `
+  -S "<production-sql-server>.database.windows.net" `
+  -d "<production-database>" `
+  -G -b -l 30 `
+  -v ExpectedDatabaseName="<production-database>" TablesToClear="$tables" ExpectedCountSignature="<dry-run-signature>" Execute="1" `
+  -i ".\src\BE\infrastructure\operations\clear-selected-tables.sql"
+```
+
+If a logical reference is stored in JSON, text, a file, external storage or any other non-FK location, this generic helper cannot infer it. Use a purpose-built cleanup such as `cleanup-prelive-orders.sql`.
 
 ## Phase 0 — prerequisites
 
