@@ -1,5 +1,11 @@
 -- WOR-385
 -- Introduce Filial under Organization and close the remaining installation snapshot tenant-integrity gap.
+--
+-- Deployment compatibility matters here: production migrations run before the new API package is deployed.
+-- The four new ownership columns therefore remain nullable during this expand phase. Transitional INSERT
+-- triggers populate them for the previous API version during the deploy window. A later contract migration
+-- can make the columns physically NOT NULL and remove the triggers after WOR-385 is live everywhere.
+--
 -- Preflight must remain before the first schema/data mutation.
 
 IF OBJECT_ID(N'dbo.Organizations', N'U') IS NULL
@@ -25,37 +31,42 @@ DECLARE @errorMessage nvarchar(2048);
 
 SELECT @invalidCategoryCount = COUNT(*)
 FROM dbo.JobReportInstallationCategories AS snapshotCategory
-INNER JOIN dbo.JobReportInstallations AS installation
+LEFT JOIN dbo.JobReportInstallations AS installation
     ON installation.Id = snapshotCategory.JobReportInstallationId
-INNER JOIN dbo.ControlCategories AS controlCategory
+LEFT JOIN dbo.ControlCategories AS controlCategory
     ON controlCategory.Id = snapshotCategory.ControlCategoryId
-WHERE installation.OrganizationId <> controlCategory.OrganizationId;
+WHERE installation.Id IS NULL
+   OR controlCategory.Id IS NULL
+   OR installation.OrganizationId <> controlCategory.OrganizationId;
 
 IF @invalidCategoryCount > 0
 BEGIN
     SET @errorMessage = CONCAT(
         'WOR-385 blocked: ',
         @invalidCategoryCount,
-        ' installation category snapshot row(s) reference another organization.');
+        ' installation category snapshot row(s) have missing or cross-organization references.');
     THROW 51386, @errorMessage, 1;
 END;
 
 SELECT @invalidControlPointCount = COUNT(*)
 FROM dbo.JobReportInstallationControlPoints AS snapshotPoint
-INNER JOIN dbo.JobReportInstallationCategories AS snapshotCategory
+LEFT JOIN dbo.JobReportInstallationCategories AS snapshotCategory
     ON snapshotCategory.Id = snapshotPoint.JobReportInstallationCategoryId
-INNER JOIN dbo.JobReportInstallations AS installation
+LEFT JOIN dbo.JobReportInstallations AS installation
     ON installation.Id = snapshotCategory.JobReportInstallationId
-INNER JOIN dbo.ControlPoints AS controlPoint
+LEFT JOIN dbo.ControlPoints AS controlPoint
     ON controlPoint.Id = snapshotPoint.ControlPointId
-WHERE installation.OrganizationId <> controlPoint.OrganizationId;
+WHERE snapshotCategory.Id IS NULL
+   OR installation.Id IS NULL
+   OR controlPoint.Id IS NULL
+   OR installation.OrganizationId <> controlPoint.OrganizationId;
 
 IF @invalidControlPointCount > 0
 BEGIN
     SET @errorMessage = CONCAT(
         'WOR-385 blocked: ',
         @invalidControlPointCount,
-        ' installation control-point snapshot row(s) reference another organization.');
+        ' installation control-point snapshot row(s) have missing or cross-organization references.');
     THROW 51387, @errorMessage, 1;
 END;
 
@@ -87,9 +98,8 @@ BEGIN
         WHERE IsDefault = 1;
 END;
 
--- The default Filial deliberately reuses OrganizationId as its Id. This makes
--- backfill deterministic and keeps retries/idempotency simple without coupling
--- later non-default Filial IDs to the Organization ID.
+-- Default Filial IDs deliberately reuse Organization IDs. The mapping is deterministic
+-- for backfill/retry purposes; later non-default Filials use independent GUIDs.
 INSERT INTO dbo.OrganizationFilials
 (
     Id,
@@ -168,9 +178,6 @@ BEGIN
     THROW 51390, 'WOR-385 could not assign every job to a filial in the same organization.', 1;
 END;
 
-ALTER TABLE dbo.Users ALTER COLUMN FilialId uniqueidentifier NOT NULL;
-ALTER TABLE dbo.JobReports ALTER COLUMN FilialId uniqueidentifier NOT NULL;
-
 IF OBJECT_ID(N'dbo.FK_Users_OrganizationFilials_OrganizationId_FilialId', N'F') IS NULL
 BEGIN
     ALTER TABLE dbo.Users WITH CHECK
@@ -229,11 +236,6 @@ IF EXISTS (SELECT 1 FROM dbo.JobReportInstallationCategories WHERE OrganizationI
 IF EXISTS (SELECT 1 FROM dbo.JobReportInstallationControlPoints WHERE OrganizationId IS NULL)
     THROW 51392, 'WOR-385 could not derive OrganizationId for every control-point snapshot.', 1;
 
-ALTER TABLE dbo.JobReportInstallationCategories
-    ALTER COLUMN OrganizationId uniqueidentifier NOT NULL;
-ALTER TABLE dbo.JobReportInstallationControlPoints
-    ALTER COLUMN OrganizationId uniqueidentifier NOT NULL;
-
 IF NOT EXISTS (
     SELECT 1
     FROM sys.key_constraints
@@ -278,37 +280,14 @@ BEGIN
         UNIQUE (OrganizationId, Id);
 END;
 
-IF OBJECT_ID(N'dbo.FK_JobReportInstallationCategories_JobReportInstallations_JobReportInstallationId', N'F') IS NOT NULL
-BEGIN
-    ALTER TABLE dbo.JobReportInstallationCategories
-        DROP CONSTRAINT FK_JobReportInstallationCategories_JobReportInstallations_JobReportInstallationId;
-END;
-
-IF OBJECT_ID(N'dbo.FK_JobReportInstallationCategories_ControlCategories_ControlCategoryId', N'F') IS NOT NULL
-BEGIN
-    ALTER TABLE dbo.JobReportInstallationCategories
-        DROP CONSTRAINT FK_JobReportInstallationCategories_ControlCategories_ControlCategoryId;
-END;
-
-IF OBJECT_ID(N'dbo.FK_JobReportInstallationControlPoints_JobReportInstallationCategories_JobReportInstallationCategoryId', N'F') IS NOT NULL
-BEGIN
-    ALTER TABLE dbo.JobReportInstallationControlPoints
-        DROP CONSTRAINT FK_JobReportInstallationControlPoints_JobReportInstallationCategories_JobReportInstallationCategoryId;
-END;
-
-IF OBJECT_ID(N'dbo.FK_JobReportInstallationControlPoints_ControlPoints_ControlPointId', N'F') IS NOT NULL
-BEGIN
-    ALTER TABLE dbo.JobReportInstallationControlPoints
-        DROP CONSTRAINT FK_JobReportInstallationControlPoints_ControlPoints_ControlPointId;
-END;
-
+-- Keep the existing simple foreign keys because EF currently models them and they own
+-- cascade behavior. The additional composite FKs below are the tenant-integrity guard.
 IF OBJECT_ID(N'dbo.FK_JobReportInstallationCategories_JobReportInstallations_Organization', N'F') IS NULL
 BEGIN
     ALTER TABLE dbo.JobReportInstallationCategories WITH CHECK
         ADD CONSTRAINT FK_JobReportInstallationCategories_JobReportInstallations_Organization
         FOREIGN KEY (OrganizationId, JobReportInstallationId)
-        REFERENCES dbo.JobReportInstallations (OrganizationId, Id)
-        ON DELETE CASCADE;
+        REFERENCES dbo.JobReportInstallations (OrganizationId, Id);
 END;
 
 IF OBJECT_ID(N'dbo.FK_JobReportInstallationCategories_ControlCategories_Organization', N'F') IS NULL
@@ -324,8 +303,7 @@ BEGIN
     ALTER TABLE dbo.JobReportInstallationControlPoints WITH CHECK
         ADD CONSTRAINT FK_JobReportInstallationControlPoints_Categories_Organization
         FOREIGN KEY (OrganizationId, JobReportInstallationCategoryId)
-        REFERENCES dbo.JobReportInstallationCategories (OrganizationId, Id)
-        ON DELETE CASCADE;
+        REFERENCES dbo.JobReportInstallationCategories (OrganizationId, Id);
 END;
 
 IF OBJECT_ID(N'dbo.FK_JobReportInstallationControlPoints_ControlPoints_Organization', N'F') IS NULL
@@ -335,3 +313,121 @@ BEGIN
         FOREIGN KEY (OrganizationId, ControlPointId)
         REFERENCES dbo.ControlPoints (OrganizationId, Id);
 END;
+
+-- Transitional INSERT compatibility for the previous API version. These triggers are
+-- intentionally narrow: they only fill newly introduced ownership columns when omitted.
+EXEC(N'
+CREATE OR ALTER TRIGGER dbo.TR_WOR385_Users_DefaultFilial
+ON dbo.Users
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE users
+    SET FilialId = filial.Id
+    FROM dbo.Users AS users
+    INNER JOIN inserted AS insertedUser
+        ON insertedUser.Id = users.Id
+    INNER JOIN dbo.OrganizationFilials AS filial
+        ON filial.OrganizationId = users.OrganizationId
+       AND filial.IsDefault = 1
+    WHERE users.FilialId IS NULL;
+
+    IF EXISTS (
+        SELECT 1
+        FROM dbo.Users AS users
+        INNER JOIN inserted AS insertedUser
+            ON insertedUser.Id = users.Id
+        WHERE users.FilialId IS NULL)
+    BEGIN
+        THROW 51393, ''WOR-385 could not assign the default filial to a newly inserted user.'', 1;
+    END;
+END;');
+
+EXEC(N'
+CREATE OR ALTER TRIGGER dbo.TR_WOR385_JobReports_DefaultFilial
+ON dbo.JobReports
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE jobs
+    SET FilialId = filial.Id
+    FROM dbo.JobReports AS jobs
+    INNER JOIN inserted AS insertedJob
+        ON insertedJob.Id = jobs.Id
+    INNER JOIN dbo.OrganizationFilials AS filial
+        ON filial.OrganizationId = jobs.OrganizationId
+       AND filial.IsDefault = 1
+    WHERE jobs.FilialId IS NULL;
+
+    IF EXISTS (
+        SELECT 1
+        FROM dbo.JobReports AS jobs
+        INNER JOIN inserted AS insertedJob
+            ON insertedJob.Id = jobs.Id
+        WHERE jobs.FilialId IS NULL)
+    BEGIN
+        THROW 51394, ''WOR-385 could not assign the default filial to a newly inserted job.'', 1;
+    END;
+END;');
+
+EXEC(N'
+CREATE OR ALTER TRIGGER dbo.TR_WOR385_InstallationCategories_Organization
+ON dbo.JobReportInstallationCategories
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE snapshotCategory
+    SET OrganizationId = installation.OrganizationId
+    FROM dbo.JobReportInstallationCategories AS snapshotCategory
+    INNER JOIN inserted AS insertedCategory
+        ON insertedCategory.Id = snapshotCategory.Id
+    INNER JOIN dbo.JobReportInstallations AS installation
+        ON installation.Id = snapshotCategory.JobReportInstallationId
+    WHERE snapshotCategory.OrganizationId IS NULL;
+
+    IF EXISTS (
+        SELECT 1
+        FROM dbo.JobReportInstallationCategories AS snapshotCategory
+        INNER JOIN inserted AS insertedCategory
+            ON insertedCategory.Id = snapshotCategory.Id
+        WHERE snapshotCategory.OrganizationId IS NULL)
+    BEGIN
+        THROW 51395, ''WOR-385 could not derive OrganizationId for a newly inserted category snapshot.'', 1;
+    END;
+END;');
+
+EXEC(N'
+CREATE OR ALTER TRIGGER dbo.TR_WOR385_InstallationControlPoints_Organization
+ON dbo.JobReportInstallationControlPoints
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE snapshotPoint
+    SET OrganizationId = snapshotCategory.OrganizationId
+    FROM dbo.JobReportInstallationControlPoints AS snapshotPoint
+    INNER JOIN inserted AS insertedPoint
+        ON insertedPoint.JobReportInstallationCategoryId = snapshotPoint.JobReportInstallationCategoryId
+       AND insertedPoint.ControlPointId = snapshotPoint.ControlPointId
+    INNER JOIN dbo.JobReportInstallationCategories AS snapshotCategory
+        ON snapshotCategory.Id = snapshotPoint.JobReportInstallationCategoryId
+    WHERE snapshotPoint.OrganizationId IS NULL;
+
+    IF EXISTS (
+        SELECT 1
+        FROM dbo.JobReportInstallationControlPoints AS snapshotPoint
+        INNER JOIN inserted AS insertedPoint
+            ON insertedPoint.JobReportInstallationCategoryId = snapshotPoint.JobReportInstallationCategoryId
+           AND insertedPoint.ControlPointId = snapshotPoint.ControlPointId
+        WHERE snapshotPoint.OrganizationId IS NULL)
+    BEGIN
+        THROW 51396, ''WOR-385 could not derive OrganizationId for a newly inserted control-point snapshot.'', 1;
+    END;
+END;');
