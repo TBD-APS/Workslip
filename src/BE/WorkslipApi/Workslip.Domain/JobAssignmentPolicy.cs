@@ -9,11 +9,22 @@ public static class JobAssignmentPolicy
     public static bool CanReceiveAssignment(string? role) =>
         string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase);
 
+    public static bool CanReceiveAssignment(
+        string? role,
+        Guid assigneeId,
+        Guid? actorId) =>
+        CanReceiveAssignment(role)
+        || (actorId.HasValue
+            && actorId.Value == assigneeId
+            && string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase));
+
     public static bool CanReceiveAssignmentInFilial(
         string? role,
+        Guid assigneeId,
+        Guid? actorId,
         Guid userFilialId,
         Guid jobFilialId) =>
-        CanReceiveAssignment(role)
+        CanReceiveAssignment(role, assigneeId, actorId)
         && userFilialId != Guid.Empty
         && jobFilialId != Guid.Empty
         && userFilialId == jobFilialId;
@@ -31,7 +42,7 @@ public static class JobAssignmentPolicy
                 .ToArray();
         }
 
-        return actorId.HasValue && CanReceiveAssignment(actorRole)
+        return actorId.HasValue && CanReceiveAssignment(actorRole, actorId.Value, actorId)
             ? [actorId.Value]
             : Array.Empty<Guid>();
     }
