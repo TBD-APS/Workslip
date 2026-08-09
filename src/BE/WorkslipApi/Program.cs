@@ -24,6 +24,23 @@ try
         builder.ConfigureInfrastructure(args);
     });
 
+    if (LocalDatabaseBootstrapCommand.IsRequested(args))
+    {
+        RunStartupPhase(3, "Register local database bootstrap services", () =>
+        {
+            builder.ConfigureServices();
+        });
+
+        await using var bootstrapApp = RunStartupValuePhase(4, "Build local database bootstrap host", builder.Build);
+        await RunStartupPhaseAsync(5, "Bootstrap local development database", () =>
+            LocalDatabaseBootstrapCommand.ExecuteAsync(
+                bootstrapApp.Services,
+                bootstrapApp.Environment,
+                bootstrapApp.Configuration));
+        Log.Information("[OPERATION] Local development database bootstrap completed successfully");
+        return;
+    }
+
     var applicationInsightsConnectionString = builder.Configuration["Azure:ApplicationInsights:ConnectionString"];
 
     RunStartupPhase(3, "Configure CORS", () =>
