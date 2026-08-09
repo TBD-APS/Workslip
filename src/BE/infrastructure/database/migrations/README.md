@@ -15,6 +15,22 @@ Remote or ambiguous SQL targets are never auto-migrated. `Workslip:ApplyLocalMig
 - Migrations execute in lexical filename order and under a database application lock.
 - A failed migration is rolled back and blocks the relevant startup/deployment operation.
 
+## Fresh local database bootstrap
+
+On Windows, the default first-time developer path is:
+
+```powershell
+.\tools\dev\setup-local-db.cmd
+```
+
+The command targets SQL Server LocalDB only. It creates/starts the `MSSQLLocalDB` instance when needed and invokes the explicit Development-only `bootstrap-local-db` operation against `WorkslipLocal`.
+
+Historical production migrations are not a supported from-zero schema definition. When the explicit bootstrap operation creates a brand-new empty local schema from the checked-out EF model, it records the currently known migration IDs/checksums in `dbo.WorkslipSchemaMigrations` with `AppliedBy=local-bootstrap` rather than replaying historical migration SQL against a schema that already represents the checked-out code. It then runs the DB-only synthetic development seed.
+
+This baseline behavior is allowed only when EF `EnsureCreated` actually created the schema. An existing database is never re-baselined or recreated: bootstrap applies pending migrations normally and reconciles the idempotent development seed.
+
+If a migration introduces a persistent database requirement that is not represented by the EF model, the owning change must also preserve fresh-local-bootstrap equivalence. Do not assume a historical migration will run after `EnsureCreated` on a new developer database.
+
 ## Local development execution
 
 Supported local targets are deliberately narrow: `localhost`, IPv4/IPv6 loopback, `.`, `(local)`, SQL Server local instances such as `.\SQLEXPRESS`, and LocalDB. A machine name, Azure SQL hostname, LAN address or other remote/ambiguous target does not qualify.
@@ -28,7 +44,7 @@ dotnet run --launch-profile http
 
 Startup applies only migrations missing from `dbo.WorkslipSchemaMigrations`. Re-running the same branch is idempotent. A checksum mismatch for an already-applied migration fails closed; the existing narrow LF/CRLF checksum reconciliation is preserved without rerunning migration SQL.
 
-Development seeding remains a separate explicit opt-in through `Workslip:SeedDevelopmentData`. Auto-migration does not enable seeding or Entra provisioning.
+Development seeding remains a separate explicit opt-in through `Workslip:SeedDevelopmentData` after initial bootstrap. Auto-migration does not enable seeding or Entra provisioning.
 
 ## Data and destructive changes
 
