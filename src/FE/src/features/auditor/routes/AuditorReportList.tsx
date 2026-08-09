@@ -24,6 +24,13 @@ const SCROLL_CONTAINER_SELECTOR = '.app-shell';
 const SCROLL_STORAGE_KEY = 'auditorReportListScrollTop';
 const PAGE_SIZE = 20;
 const COMPLETED_STATUSES = [JobStatus.Approved] as const;
+const MOBILE_SORT_OPTIONS = [
+  { field: 'reportNumber', label: 'Sagsnr.' },
+  { field: 'name', label: 'Kundenavn' },
+  { field: 'address', label: 'Adresse' },
+  { field: 'reportDate', label: 'Rapportdato' },
+  { field: 'updatedAt', label: 'Opdateret' },
+] as const;
 
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector(SCROLL_CONTAINER_SELECTOR);
@@ -81,23 +88,33 @@ export const AuditorReportList = () => {
   };
 
   const fetchStatuses = useMemo(() => [...COMPLETED_STATUSES], []);
+  const mobileServerSortBy = !isDesktop && MOBILE_SORT_OPTIONS.some((option) => option.field === sortBy)
+    ? sortBy
+    : '';
 
   const fetchJobsPage = useCallback(
     async ({ limit, offset }: { limit: number; offset: number }) => {
       const data = await apiClient.get('/api/jobs', {
         params: {
           status: fetchStatuses,
+          sortBy: mobileServerSortBy || undefined,
+          sortDirection: mobileServerSortBy ? sortDirection : undefined,
           limit,
           offset,
         },
       }) as { items: JobListItemViewModel[]; totalCount: number };
       return data;
     },
-    [fetchStatuses],
+    [fetchStatuses, mobileServerSortBy, sortDirection],
   );
 
   const query = useInfiniteList({
-    queryKey: ['/api/jobs', { status: fetchStatuses, limit: PAGE_SIZE }],
+    queryKey: ['/api/jobs', {
+      status: fetchStatuses,
+      sortBy: mobileServerSortBy || undefined,
+      sortDirection: mobileServerSortBy ? sortDirection : undefined,
+      limit: PAGE_SIZE,
+    }],
     fetchPage: fetchJobsPage,
     pageSize: PAGE_SIZE,
   });
@@ -130,7 +147,7 @@ export const AuditorReportList = () => {
   );
 
   const jobs = useMemo(() => {
-    if (!sortBy) return searched;
+    if (!sortBy || mobileServerSortBy) return searched;
     return [...searched].sort((a, b) => {
       let cmp = 0;
       switch (sortBy) {
@@ -155,7 +172,7 @@ export const AuditorReportList = () => {
       }
       return sortDirection === 'asc' ? cmp : -cmp;
     });
-  }, [searched, sortBy, sortDirection]);
+  }, [searched, sortBy, sortDirection, mobileServerSortBy]);
 
   const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE));
   const safeViewPage = Math.min(viewPage, totalPages);
@@ -326,23 +343,48 @@ export const AuditorReportList = () => {
         />
         </>
       ) : (
-        <div className="job-list">
-          {jobs.map((job) => (
-            <ReportCard
-              key={job.id}
-              job={job}
-              onOpen={() => navigate(`/app/completed/${job.id}`, { state: { from: '/app/auditor', readOnly: true } })}
-            />
-          ))}
-          {jobs.length === 0 && !query.isFetchingNextPage && (
-            <div className="empty-state">
-              <p>Ingen afsluttede rapporter</p>
+        <>
+          <div className="job-sort-controls-scroll">
+            <div className="job-sort-controls" role="group" aria-label="Sortering af rapporter">
+              {MOBILE_SORT_OPTIONS.map(({ field, label }) => {
+                const isActive = sortBy === field;
+                const currentDirection = sortDirection === 'asc' ? 'stigende' : 'faldende';
+                const nextDirection = isActive && sortDirection === 'asc' ? 'faldende' : 'stigende';
+
+                return (
+                  <button
+                    key={field}
+                    type="button"
+                    className={`sort-btn${isActive ? ' active' : ''}`}
+                    aria-pressed={isActive}
+                    aria-label={isActive
+                      ? `${label}, sorteret ${currentDirection}. Aktivér for ${nextDirection} sortering.`
+                      : `${label}. Aktivér for stigende sortering.`}
+                    onClick={() => handleSort(field)}
+                  >
+                    {label}
+                    {isActive && (sortDirection === 'asc' ? <ArrowUp size={10} aria-hidden="true" /> : <ArrowDown size={10} aria-hidden="true" />)}
+                  </button>
+                );
+              })}
             </div>
-          )}
-          {!isDesktop && (
+          </div>
+          <div className="job-list">
+            {jobs.map((job) => (
+              <ReportCard
+                key={job.id}
+                job={job}
+                onOpen={() => navigate(`/app/completed/${job.id}`, { state: { from: '/app/auditor', readOnly: true } })}
+              />
+            ))}
+            {jobs.length === 0 && !query.isFetchingNextPage && (
+              <div className="empty-state">
+                <p>Ingen afsluttede rapporter</p>
+              </div>
+            )}
             <InfiniteScrollSentinel sentinelRef={sentinelRef} isLoading={query.isFetchingNextPage} />
-          )}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
