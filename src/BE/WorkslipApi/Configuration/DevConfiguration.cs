@@ -1,4 +1,5 @@
 using Scalar.AspNetCore;
+using Workslip.Api.Endpoints;
 
 namespace Workslip.Api.Configuration;
 
@@ -9,12 +10,15 @@ public static class DevConfiguration
         bool releaseTestingEnabled)
     {
         if (app.Environment.IsDevelopment())
+        {
             app.UseDeveloperExceptionPage();
+            app.MapDevEndpoints();
+        }
 
         if (!releaseTestingEnabled)
         {
             app.Logger.LogInformation(
-                "Development and release-testing API reference endpoints are disabled. Environment={EnvironmentName}",
+                "Development API reference endpoints are disabled. Environment={EnvironmentName}",
                 app.Environment.EnvironmentName);
             return app;
         }
