@@ -1,24 +1,31 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Workslip.Api.Configuration;
+using Workslip.Application.Users;
 
 namespace Workslip.Tests.Configuration;
 
 public sealed class DevConfigurationTests
 {
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ConfigureDevEnvironment_NeverMapsDevToken(
-        bool releaseTestingEnabled)
+    [InlineData("Development", false, true)]
+    [InlineData("Development", true, true)]
+    [InlineData("Staging", true, false)]
+    [InlineData("Production", false, false)]
+    [InlineData("Production", true, false)]
+    public async Task ConfigureDevEnvironment_MapsDevTokenOnlyInDevelopment(
+        string environmentName,
+        bool releaseTestingEnabled,
+        bool expectedDevToken)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
-            EnvironmentName = Environments.Production
+            EnvironmentName = environmentName
         });
         builder.Services.AddOpenApi();
+        builder.Services.AddScoped<IUserRepository>(_ =>
+            throw new InvalidOperationException("Dev route registration test must not resolve IUserRepository."));
 
         await using var app = builder.Build();
 
@@ -30,6 +37,8 @@ public sealed class DevConfigurationTests
             .Select(endpoint => endpoint.RoutePattern.RawText)
             .ToArray();
 
-        Assert.DoesNotContain("/api/dev/token", routePatterns, StringComparer.Ordinal);
+        Assert.Equal(
+            expectedDevToken,
+            routePatterns.Contains("/api/dev/token", StringComparer.Ordinal));
     }
 }
