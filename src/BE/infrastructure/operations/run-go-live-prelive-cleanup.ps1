@@ -35,9 +35,11 @@ if (-not $Execute -and $ExpectedJobCount -ne -1) {
     throw 'Dry run must use the default ExpectedJobCount=-1. Run a fresh dry run immediately before execution.'
 }
 
-$preservedTables = @(
+# Fixed first-go-live policy. These are intentionally not command-line options:
+# extra cleanup decisions must be reviewed separately instead of widening WOR-348 ad hoc.
+$defaultPreservedTables = @(
     'dbo.Organizations',
-    'dbo.OrganizationFilials', # created by WOR-385 / PR #492 when that migration is deployed
+    'dbo.OrganizationFilials', # created by WOR-385 when that migration is deployed
     'dbo.Users',
     'dbo.Customers',
     'dbo.InstallationTypeDefinitions',
@@ -52,7 +54,7 @@ $preservedTables = @(
     'dbo.__EFMigrationsHistory'
 )
 
-$jobTablesCleared = @(
+$defaultJobTablesCleared = @(
     'dbo.JobReportInstallationControlPoints',
     'dbo.JobReportInstallationCategories',
     'dbo.JobReportInstallations',
@@ -65,7 +67,7 @@ $jobTablesCleared = @(
     'dbo.JobReports'
 )
 
-$jobLinkedRowsClearedOnly = @(
+$defaultJobLinkedRowsClearedOnly = @(
     'dbo.NotificationDeliveryLog',
     'dbo.NotificationQueue',
     'dbo.IdempotencyRecords'
@@ -78,16 +80,16 @@ Write-Host "  Database: $Database"
 Write-Host "  Mode:     $(if ($Execute) { 'EXECUTE' } else { 'DRY RUN' })"
 Write-Host ''
 
-Write-Host 'Preserved completely:' -ForegroundColor Green
-$preservedTables | ForEach-Object { Write-Host "  KEEP  $_" }
+Write-Host 'DEFAULT KEEP - preserved completely:' -ForegroundColor Green
+$defaultPreservedTables | ForEach-Object { Write-Host "  KEEP    $_" }
 Write-Host ''
 
-Write-Host 'Pre-live job data cleared:' -ForegroundColor Yellow
-$jobTablesCleared | ForEach-Object { Write-Host "  CLEAR $_" }
+Write-Host 'DEFAULT CLEAR - pre-live job data:' -ForegroundColor Yellow
+$defaultJobTablesCleared | ForEach-Object { Write-Host "  CLEAR   $_" }
 Write-Host ''
 
-Write-Host 'Only rows linked to the deleted JobReports are cleared from:' -ForegroundColor Yellow
-$jobLinkedRowsClearedOnly | ForEach-Object { Write-Host "  PARTIAL $_" }
+Write-Host 'DEFAULT PARTIAL - only rows linked to deleted JobReports:' -ForegroundColor Yellow
+$defaultJobLinkedRowsClearedOnly | ForEach-Object { Write-Host "  PARTIAL $_" }
 Write-Host ''
 
 if ($Execute) {
