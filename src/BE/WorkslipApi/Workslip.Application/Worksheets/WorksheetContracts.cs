@@ -70,12 +70,13 @@ public sealed record MonthlyHoursPdfResponse(
     string FileName);
 
 public sealed record MonthlyHoursPdfPreviewResponse(
+    string ContentType,
     IReadOnlyList<string> Pages);
 
 public interface IMonthlyHoursPdfGenerator
 {
     byte[] Generate(MyWorksheetsMonthResponse month);
-    IReadOnlyList<string> GeneratePreviewPages(MyWorksheetsMonthResponse month);
+    IReadOnlyList<byte[]> GeneratePreviewPages(MyWorksheetsMonthResponse month);
 }
 
 public interface IWorksheetService
