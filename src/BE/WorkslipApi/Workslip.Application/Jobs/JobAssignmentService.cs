@@ -1,5 +1,4 @@
 using Ardalis.Result;
-using FluentValidation.Results;
 using Workslip.Application.Auth;
 using Workslip.Domain;
 
@@ -41,7 +40,7 @@ public sealed class JobAssignmentService(
             JobAssignmentValidationStatus.InvalidAssignee => Result<JobReportSummaryResponse>.Invalid([
                 new ValidationError
                 {
-                    PropertyName = nameof(AssignJobRequest.UserIds),
+                    Identifier = nameof(AssignJobRequest.UserIds),
                     ErrorMessage = validation.ErrorMessage ?? "Ugyldig tildeling."
                 }
             ]),
