@@ -131,7 +131,6 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
               referenceData={details.referenceData}
               onToggleControlPoint={details.toggleControlPoint}
               onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
-              onAllIrrelevantReasonChange={details.updateAllIrrelevantReason}
             />
           </section>
         </>
