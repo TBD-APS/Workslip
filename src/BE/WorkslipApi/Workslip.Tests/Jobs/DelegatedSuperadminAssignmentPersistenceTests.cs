@@ -2,7 +2,6 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Auth;
 using Workslip.Domain;
-using Workslip.Domain.Models;
 using Workslip.Infrastructure.Repositories;
 using Workslip.Infrastructure.Schema;
 
@@ -77,67 +76,21 @@ public sealed class DelegatedSuperadminAssignmentPersistenceTests
             .Options;
         var context = new SqlDbContext(options);
 
-        await context.Database.EnsureCreatedAsync();
         await context.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;");
-        await context.Database.ExecuteSqlRawAsync("PRAGMA ignore_check_constraints = ON;");
+        await CreateMinimalRelationalSchemaAsync(context);
 
-        var now = DateTimeOffset.UtcNow;
-        context.IsSeeding = true;
-        context.Organizations.AddRange(
-            new OrganizationRow
-            {
-                Id = tenantOrganizationId,
-                Name = "Tenant",
-                Cvr = "11111111",
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new OrganizationRow
-            {
-                Id = platformOrganizationId,
-                Name = "Platform",
-                Cvr = "22222222",
-                CreatedAt = now,
-                UpdatedAt = now
-            });
-        context.Users.AddRange(
-            new UserDataRow
-            {
-                Id = superadminId,
-                OrganizationId = platformOrganizationId,
-                Email = "superadmin@example.test",
-                DisplayName = "Platform Superadmin",
-                EntraId = "superadmin-entra",
-                EntraEmail = "superadmin@example.test",
-                Phone = string.Empty,
-                Role = Roles.Superadmin,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new UserDataRow
-            {
-                Id = assignedUserId,
-                OrganizationId = tenantOrganizationId,
-                Email = "tech@example.test",
-                DisplayName = "Tech Tim",
-                EntraId = "tech-entra",
-                EntraEmail = "tech@example.test",
-                Phone = string.Empty,
-                Role = Roles.User,
-                CreatedAt = now,
-                UpdatedAt = now
-            });
-        context.JobReports.Add(new JobReportRow
-        {
-            Id = jobId,
-            OrganizationId = tenantOrganizationId,
-            ReportNumber = "JOB-1",
-            Status = status.ToString(),
-            CreatedAt = now,
-            UpdatedAt = now
-        });
-        await context.SaveChangesAsync();
-        context.IsSeeding = false;
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO Users (Id, OrganizationId, DisplayName)
+            VALUES ({superadminId}, {platformOrganizationId}, {"Platform Superadmin"});
+            """);
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO Users (Id, OrganizationId, DisplayName)
+            VALUES ({assignedUserId}, {tenantOrganizationId}, {"Tech Tim"});
+            """);
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO JobReports (Id, OrganizationId, ReportNumber, Status)
+            VALUES ({jobId}, {tenantOrganizationId}, {"JOB-1"}, {status.ToString()});
+            """);
 
         return new Fixture(
             connection,
@@ -148,6 +101,59 @@ public sealed class DelegatedSuperadminAssignmentPersistenceTests
             assignedUserId,
             jobId);
     }
+
+    private static Task CreateMinimalRelationalSchemaAsync(SqlDbContext context) =>
+        context.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE Users (
+                Id TEXT NOT NULL,
+                OrganizationId TEXT NOT NULL,
+                DisplayName TEXT NOT NULL,
+                CONSTRAINT PK_Users PRIMARY KEY (Id),
+                CONSTRAINT AK_Users_Organization_Id UNIQUE (OrganizationId, Id)
+            );
+
+            CREATE TABLE JobReports (
+                Id TEXT NOT NULL,
+                OrganizationId TEXT NOT NULL,
+                ReportNumber TEXT NULL,
+                Status TEXT NOT NULL,
+                CONSTRAINT PK_JobReports PRIMARY KEY (Id),
+                CONSTRAINT AK_JobReports_Organization_Id UNIQUE (OrganizationId, Id)
+            );
+
+            CREATE TABLE JobAssignments (
+                Id TEXT NOT NULL,
+                OrganizationId TEXT NOT NULL,
+                ReportId TEXT NOT NULL,
+                UserId TEXT NOT NULL,
+                AssignedByUserId TEXT NULL,
+                AssignedAt TEXT NOT NULL,
+                CONSTRAINT PK_JobAssignments PRIMARY KEY (Id),
+                CONSTRAINT FK_JobAssignments_Report FOREIGN KEY (OrganizationId, ReportId)
+                    REFERENCES JobReports (OrganizationId, Id) ON DELETE CASCADE,
+                CONSTRAINT FK_JobAssignments_User FOREIGN KEY (OrganizationId, UserId)
+                    REFERENCES Users (OrganizationId, Id) ON DELETE RESTRICT,
+                CONSTRAINT FK_JobAssignments_AssignedBy FOREIGN KEY (OrganizationId, AssignedByUserId)
+                    REFERENCES Users (OrganizationId, Id) ON DELETE RESTRICT
+            );
+
+            CREATE TABLE JobEvents (
+                Id TEXT NOT NULL,
+                OrganizationId TEXT NOT NULL,
+                ReportId TEXT NOT NULL,
+                ActorId TEXT NULL,
+                EventType TEXT NOT NULL,
+                Summary TEXT NULL,
+                BeforeJson TEXT NULL,
+                AfterJson TEXT NULL,
+                CreatedAt TEXT NOT NULL,
+                CONSTRAINT PK_JobEvents PRIMARY KEY (Id),
+                CONSTRAINT FK_JobEvents_Report FOREIGN KEY (OrganizationId, ReportId)
+                    REFERENCES JobReports (OrganizationId, Id) ON DELETE CASCADE,
+                CONSTRAINT FK_JobEvents_Actor FOREIGN KEY (OrganizationId, ActorId)
+                    REFERENCES Users (OrganizationId, Id) ON DELETE RESTRICT
+            );
+            """);
 
     private sealed record Fixture(
         SqliteConnection Connection,
