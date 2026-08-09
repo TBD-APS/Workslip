@@ -83,8 +83,6 @@ public sealed class PlatformIdentityBootstrapper(
                     definition.DisplayName,
                     cancellationToken);
 
-                // Record every usable newly-created identity before any later
-                // validation can fail so compensation cannot lose it.
                 if (entraUser.Created &&
                     !string.IsNullOrWhiteSpace(entraUser.EntraUserId) &&
                     createdEntraUserIdSet.Add(entraUser.EntraUserId))
@@ -239,89 +237,30 @@ public sealed class PlatformIdentityBootstrapper(
             throw PlatformContamination("non-canonical users");
         }
 
-        if (await db.Customers.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.Customers.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("customers");
-        }
-
-        if (await db.JobReports.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobReports.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job reports");
-        }
-
-        if (await db.JobAssignments.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobAssignments.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job assignments");
-        }
-
-        if (await db.JobReportLinks.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobReportLinks.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job report links");
-        }
-
-        if (await db.JobEvents.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobEvents.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job events");
-        }
-
-        if (await db.InviteTokens.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.InviteTokens.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("invite tokens");
-        }
-
-        if (await db.Worksheets.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.Worksheets.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("worksheets");
-        }
-
-        if (await db.JobReportClosureFlags.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobReportClosureFlags.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job closure selections");
-        }
-
-        if (await db.JobReportInstallations.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.JobReportInstallations.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("job installations");
-        }
-
-        if (await db.ControlCategoryRow.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.ControlCategoryRow.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("control categories");
-        }
-
-        if (await db.ControlPointRow.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.ControlPointRow.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("control points");
-        }
-
-        if (await db.InstallationTypeDefinitions.AnyAsync(
-                row => row.OrganizationId == PlatformOrganization.Id,
-                cancellationToken))
-        {
+        if (await db.InstallationTypeDefinitions.AnyAsync(row => row.OrganizationId == PlatformOrganization.Id, cancellationToken))
             throw PlatformContamination("installation definitions");
-        }
     }
 
     private async Task<IReadOnlyList<ResolvedSuperadmin>> PreflightCanonicalSuperadminsAsync(
@@ -383,36 +322,19 @@ public sealed class PlatformIdentityBootstrapper(
             throw TenantReferenceConflict(userId, "job assignments");
         }
 
-        if (await db.JobEvents.AnyAsync(
-                row => row.ActorId == userId,
-                cancellationToken))
-        {
+        if (await db.JobEvents.AnyAsync(row => row.ActorId == userId, cancellationToken))
             throw TenantReferenceConflict(userId, "job events");
-        }
-
-        if (await db.Worksheets.AnyAsync(
-                row => row.UserId == userId,
-                cancellationToken))
-        {
+        if (await db.Worksheets.AnyAsync(row => row.UserId == userId, cancellationToken))
             throw TenantReferenceConflict(userId, "worksheets");
-        }
     }
 
-    private async Task DeleteEphemeralReferencesAsync(
-        Guid userId,
-        CancellationToken cancellationToken)
+    private async Task DeleteEphemeralReferencesAsync(Guid userId, CancellationToken cancellationToken)
     {
         if (db.Database.IsRelational())
         {
-            await db.JobViews
-                .Where(view => view.UserId == userId)
-                .ExecuteDeleteAsync(cancellationToken);
-            await db.PushSubscriptions
-                .Where(subscription => subscription.UserId == userId)
-                .ExecuteDeleteAsync(cancellationToken);
-            await db.NotificationQueue
-                .Where(notification => notification.UserId == userId)
-                .ExecuteDeleteAsync(cancellationToken);
+            await db.JobViews.Where(view => view.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+            await db.PushSubscriptions.Where(subscription => subscription.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+            await db.NotificationQueue.Where(notification => notification.UserId == userId).ExecuteDeleteAsync(cancellationToken);
             return;
         }
 
@@ -438,9 +360,7 @@ public sealed class PlatformIdentityBootstrapper(
         }
 
         if (platformOrganization.Name == PlatformOrganization.Name)
-        {
             return;
-        }
 
         var entry = db.Entry(platformOrganization);
         entry.Property(organization => organization.Name).CurrentValue = PlatformOrganization.Name;
@@ -452,19 +372,13 @@ public sealed class PlatformIdentityBootstrapper(
         IReadOnlyDictionary<Guid, CreateEntraUserResult> entraUsers,
         CancellationToken cancellationToken)
     {
-        var canonicalIds = resolvedSuperadmins
-            .Select(resolved => resolved.EffectiveId)
-            .ToArray();
-        var entraUserIds = entraUsers.Values
-            .Select(user => user.EntraUserId)
-            .ToArray();
+        var canonicalIds = resolvedSuperadmins.Select(resolved => resolved.EffectiveId).ToArray();
+        var entraUserIds = entraUsers.Values.Select(user => user.EntraUserId).ToArray();
 
         var conflictingOwner = await db.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                user =>
-                    !canonicalIds.Contains(user.Id) &&
-                    entraUserIds.Contains(user.EntraId),
+                user => !canonicalIds.Contains(user.Id) && entraUserIds.Contains(user.EntraId),
                 cancellationToken);
 
         if (conflictingOwner is not null)
@@ -487,6 +401,7 @@ public sealed class PlatformIdentityBootstrapper(
             {
                 Id = definition.Id,
                 OrganizationId = PlatformOrganization.Id,
+                FilialId = PlatformOrganization.Id,
                 DisplayName = definition.DisplayName,
                 Email = definition.Email,
                 Phone = definition.Phone,
@@ -523,6 +438,7 @@ public sealed class PlatformIdentityBootstrapper(
                 .ExecuteUpdateAsync(
                     setters => setters
                         .SetProperty(user => user.OrganizationId, PlatformOrganization.Id)
+                        .SetProperty(user => user.FilialId, PlatformOrganization.Id)
                         .SetProperty(user => user.DisplayName, definition.DisplayName)
                         .SetProperty(user => user.Email, definition.Email)
                         .SetProperty(user => user.Phone, definition.Phone)
@@ -533,27 +449,20 @@ public sealed class PlatformIdentityBootstrapper(
                     cancellationToken);
 
             if (affectedRows != 1)
-            {
                 throw ConcurrentCanonicalUserChange(existing.Id);
-            }
 
             return;
         }
 
-        var trackedUser = await db.Users.SingleOrDefaultAsync(
-            user => user.Id == existing.Id,
-            cancellationToken);
+        var trackedUser = await db.Users.SingleOrDefaultAsync(user => user.Id == existing.Id, cancellationToken);
         if (trackedUser is null || !existing.Matches(trackedUser))
-        {
             throw ConcurrentCanonicalUserChange(existing.Id);
-        }
 
         if (!requiresUpdate)
-        {
             return;
-        }
 
         trackedUser.OrganizationId = PlatformOrganization.Id;
+        trackedUser.FilialId = PlatformOrganization.Id;
         trackedUser.DisplayName = definition.DisplayName;
         trackedUser.Email = definition.Email;
         trackedUser.Phone = definition.Phone;
@@ -568,7 +477,6 @@ public sealed class PlatformIdentityBootstrapper(
         CreateEntraUserResult entraUser,
         IEnumerable<CreateEntraUserResult> alreadyResolvedUsers)
     {
-        var definition = resolvedSuperadmin.Definition;
         if (string.IsNullOrWhiteSpace(entraUser.EntraUserId))
         {
             throw new InvalidOperationException(
@@ -583,42 +491,29 @@ public sealed class PlatformIdentityBootstrapper(
                 $"Graph resolved Entra user ID '{entraUser.EntraUserId}' for platform Superadmin '{resolvedSuperadmin.EffectiveId}', but the Workslip row is already bound to '{existingEntraId}'. The existing binding was preserved.");
         }
 
-        if (alreadyResolvedUsers.Any(
-                resolved => string.Equals(
-                    resolved.EntraUserId,
-                    entraUser.EntraUserId,
-                    StringComparison.OrdinalIgnoreCase)))
+        if (alreadyResolvedUsers.Any(resolved =>
+                string.Equals(resolved.EntraUserId, entraUser.EntraUserId, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException(
                 $"Graph returned Entra user ID '{entraUser.EntraUserId}' for more than one platform Superadmin.");
         }
     }
 
-    private static string NormalizeEmail(string email) =>
-        email.Trim().ToLowerInvariant();
+    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
     private static InvalidOperationException PlatformContamination(string relation) =>
-        new(
-            $"Reserved platform organization '{PlatformOrganization.Id}' contains {relation}. Remove the customer or operational data before running platform identity bootstrap.");
+        new($"Reserved platform organization '{PlatformOrganization.Id}' contains {relation}. Remove the customer or operational data before running platform identity bootstrap.");
 
-    private static InvalidOperationException CanonicalIdentityConflict(
-        CanonicalSuperadminDefinition definition) =>
-        new(
-            $"Platform Superadmin identity conflict: reserved create ID '{definition.Id}' and normalized email '{definition.Email}' identify different Workslip users.");
+    private static InvalidOperationException CanonicalIdentityConflict(CanonicalSuperadminDefinition definition) =>
+        new($"Platform Superadmin identity conflict: reserved create ID '{definition.Id}' and normalized email '{definition.Email}' identify different Workslip users.");
 
     private static InvalidOperationException TenantReferenceConflict(Guid userId, string relation) =>
-        new(
-            $"Platform Superadmin '{userId}' has tenant-bound references in {relation} and cannot be moved to '{PlatformOrganization.Name}'.");
+        new($"Platform Superadmin '{userId}' has tenant-bound references in {relation} and cannot be moved to '{PlatformOrganization.Name}'.");
 
     private static InvalidOperationException ConcurrentCanonicalUserChange(Guid userId) =>
-        new(
-            $"Platform Superadmin '{userId}' changed after bootstrap preflight; reconciliation was aborted.");
+        new($"Platform Superadmin '{userId}' changed after bootstrap preflight; reconciliation was aborted.");
 
-    private sealed record CanonicalSuperadminDefinition(
-        Guid Id,
-        string DisplayName,
-        string Email,
-        string Phone);
+    private sealed record CanonicalSuperadminDefinition(Guid Id, string DisplayName, string Email, string Phone);
 
     private sealed record ResolvedSuperadmin(
         CanonicalSuperadminDefinition Definition,
