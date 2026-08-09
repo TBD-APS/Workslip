@@ -10,6 +10,7 @@ export type JobWorkForm = {
   workKind: string;
   customWorkKind: string;
   controlPointSelections: Record<string, boolean>;
+  controlPointComments: Record<string, string>;
   irrelevantCategoryIds: string[];
   closureFlags: string[];
 };
