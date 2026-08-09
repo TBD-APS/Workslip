@@ -28,4 +28,52 @@
   .report-overview-page {
     max-width: 72rem;
   }
+
+  /* App.css already moves the existing navigation above the content on desktop.
+     Refine that same markup instead of introducing a second navigation model. */
+  .app-header,
+  .bottom-nav {
+    padding-inline: clamp(2rem, 3vw, 3rem);
+  }
+
+  .app-header-actions {
+    gap: 0.5rem;
+  }
+
+  .app-header-user {
+    max-width: 18rem;
+  }
+
+  .bottom-nav {
+    gap: 0.25rem;
+    background: var(--nav-bg);
+  }
+
+  .nav-item {
+    min-height: 2.75rem;
+    padding: 0.55rem 0.8rem;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .nav-item.active {
+    color: var(--text);
+    background: var(--surface-selected);
+  }
+
+  .nav-item:focus-visible,
+  .logo-header:focus-visible,
+  .user-avatar:focus-visible,
+  .app-header-logout:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .nav-item:hover {
+    color: var(--text);
+    background: var(--surface-raised);
+  }
 }
