@@ -34,20 +34,33 @@ public sealed class JobAssignmentPolicyTests
     [InlineData(Roles.Superadmin)]
     [InlineData(null)]
     [InlineData("")]
-    public void CanReceiveAssignment_rejects_non_employee_roles(string? role)
+    public void CanReceiveAssignment_without_actor_context_rejects_non_employee_roles(string? role)
     {
         Assert.False(JobAssignmentPolicy.CanReceiveAssignment(role));
     }
 
     [Fact]
-    public void CanReceiveAssignmentInFilial_requires_employee_role_and_matching_filial()
+    public void CanReceiveAssignment_allows_admin_only_when_assigning_self()
+    {
+        var adminId = Guid.NewGuid();
+
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, adminId, adminId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, Guid.NewGuid(), adminId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Superadmin, adminId, adminId));
+    }
+
+    [Fact]
+    public void CanReceiveAssignmentInFilial_requires_allowed_target_and_matching_filial()
     {
         var filialId = Guid.NewGuid();
+        var employeeId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
 
-        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, filialId, filialId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, filialId, filialId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, Guid.NewGuid(), filialId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, Guid.Empty, filialId));
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, filialId, filialId));
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, adminId, adminId, filialId, filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, Guid.NewGuid(), adminId, filialId, filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Guid.NewGuid(), filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Guid.Empty, filialId));
     }
 
     [Fact]
@@ -61,20 +74,22 @@ public sealed class JobAssignmentPolicyTests
         Assert.Equal([assignedId], result);
     }
 
-    [Fact]
-    public void ResolveInitialAssignments_assigns_employee_actor_by_default()
+    [Theory]
+    [InlineData(Roles.User)]
+    [InlineData(Roles.Admin)]
+    public void ResolveInitialAssignments_assigns_eligible_actor_by_default(string role)
     {
         var actorId = Guid.NewGuid();
 
-        var result = JobAssignmentPolicy.ResolveInitialAssignments(null, actorId, Roles.User);
+        var result = JobAssignmentPolicy.ResolveInitialAssignments(null, actorId, role);
 
         Assert.Equal([actorId], result);
     }
 
     [Theory]
-    [InlineData(Roles.Admin)]
+    [InlineData(Roles.Auditor)]
     [InlineData(Roles.Superadmin)]
-    public void ResolveInitialAssignments_does_not_assign_manager_actor(string role)
+    public void ResolveInitialAssignments_does_not_assign_ineligible_actor(string role)
     {
         var result = JobAssignmentPolicy.ResolveInitialAssignments(null, Guid.NewGuid(), role);
 
