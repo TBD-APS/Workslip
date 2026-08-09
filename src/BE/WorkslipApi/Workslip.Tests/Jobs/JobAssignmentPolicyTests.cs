@@ -4,22 +4,32 @@ namespace Workslip.Tests.Jobs;
 
 public sealed class JobAssignmentPolicyTests
 {
-    [Theory]
-    [InlineData(Roles.User)]
-    [InlineData(Roles.Admin)]
-    public void CanReceiveAssignment_allows_tenant_worker_roles(string role)
+    [Fact]
+    public void CanReceiveAssignment_allows_employee_role()
     {
-        Assert.True(JobAssignmentPolicy.CanReceiveAssignment(role));
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignment(Roles.User));
     }
 
     [Theory]
+    [InlineData(Roles.Admin)]
     [InlineData(Roles.Auditor)]
     [InlineData(Roles.Superadmin)]
     [InlineData(null)]
     [InlineData("")]
-    public void CanReceiveAssignment_rejects_non_worker_roles(string? role)
+    public void CanReceiveAssignment_rejects_non_employee_roles(string? role)
     {
         Assert.False(JobAssignmentPolicy.CanReceiveAssignment(role));
+    }
+
+    [Fact]
+    public void CanReceiveAssignmentInFilial_requires_employee_role_and_matching_filial()
+    {
+        var filialId = Guid.NewGuid();
+
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, filialId, filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, filialId, filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, Guid.NewGuid(), filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, Guid.Empty, filialId));
     }
 
     [Fact]
@@ -34,19 +44,21 @@ public sealed class JobAssignmentPolicyTests
     }
 
     [Fact]
-    public void ResolveInitialAssignments_preserves_legacy_actor_fallback()
+    public void ResolveInitialAssignments_assigns_employee_actor_by_default()
     {
         var actorId = Guid.NewGuid();
 
-        var result = JobAssignmentPolicy.ResolveInitialAssignments(null, actorId, Roles.Admin);
+        var result = JobAssignmentPolicy.ResolveInitialAssignments(null, actorId, Roles.User);
 
         Assert.Equal([actorId], result);
     }
 
-    [Fact]
-    public void ResolveInitialAssignments_does_not_assign_superadmin_actor()
+    [Theory]
+    [InlineData(Roles.Admin)]
+    [InlineData(Roles.Superadmin)]
+    public void ResolveInitialAssignments_does_not_assign_manager_actor(string role)
     {
-        var result = JobAssignmentPolicy.ResolveInitialAssignments(null, Guid.NewGuid(), Roles.Superadmin);
+        var result = JobAssignmentPolicy.ResolveInitialAssignments(null, Guid.NewGuid(), role);
 
         Assert.Empty(result);
     }
