@@ -82,7 +82,17 @@
   .nav-item:focus-visible,
   .logo-header:focus-visible,
   .user-avatar:focus-visible,
-  .app-header-logout:focus-visible {
+  .app-header-logout:focus-visible,
+  .btn-icon:focus-visible,
+  .btn-icon-back:focus-visible,
+  .status-filter-btn:focus-visible,
+  .time-today-button:focus-visible,
+  .time-week-toggle:focus-visible,
+  .nav-maps-link:focus-visible,
+  .report-overview-link-card:focus-visible,
+  .create-type-tile:focus-visible,
+  .create-sheet-tile:focus-visible,
+  .job-card[tabindex]:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
@@ -105,6 +115,18 @@
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
+  }
+
+  .error-state-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .page-container > .empty-state,
+  .page-container > .error-state {
+    width: min(100%, 36rem);
+    margin-inline: auto;
   }
 }
 
