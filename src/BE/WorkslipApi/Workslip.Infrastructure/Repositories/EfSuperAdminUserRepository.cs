@@ -303,9 +303,19 @@ public sealed class EfSuperAdminUserRepository(
             || await dbContext.JobEvents.AsNoTracking().AnyAsync(
                 jobEvent => jobEvent.ActorId == userId,
                 cancellationToken)
+            || await dbContext.JobReports.AsNoTracking().AnyAsync(
+                report => report.SubmittedByUserId == userId,
+                cancellationToken)
             || await dbContext.Worksheets.AsNoTracking().AnyAsync(
                 worksheet => worksheet.UserId == userId,
-                cancellationToken);
+                cancellationToken)
+            || await (
+                from delivery in dbContext.NotificationDeliveryLog.AsNoTracking()
+                join subscription in dbContext.PushSubscriptions.AsNoTracking()
+                    on delivery.SubscriptionId equals subscription.Id
+                where subscription.UserId == userId
+                select delivery.Id)
+                .AnyAsync(cancellationToken);
         if (hasHistory)
         {
             return SuperAdminUserDeleteStatus.HasHistory;
@@ -320,11 +330,11 @@ public sealed class EfSuperAdminUserRepository(
                 await dbContext.JobViews
                     .Where(view => view.UserId == userId)
                     .ExecuteDeleteAsync(cancellationToken);
-                await dbContext.PushSubscriptions
-                    .Where(subscription => subscription.UserId == userId)
-                    .ExecuteDeleteAsync(cancellationToken);
                 await dbContext.NotificationQueue
                     .Where(notification => notification.UserId == userId)
+                    .ExecuteDeleteAsync(cancellationToken);
+                await dbContext.PushSubscriptions
+                    .Where(subscription => subscription.UserId == userId)
                     .ExecuteDeleteAsync(cancellationToken);
                 var deletedRows = await dbContext.Users
                     .Where(candidate => candidate.Id == userId && candidate.OrganizationId != PlatformOrganization.Id)
@@ -339,8 +349,8 @@ public sealed class EfSuperAdminUserRepository(
             }
 
             dbContext.JobViews.RemoveRange(dbContext.JobViews.Where(view => view.UserId == userId));
-            dbContext.PushSubscriptions.RemoveRange(dbContext.PushSubscriptions.Where(subscription => subscription.UserId == userId));
             dbContext.NotificationQueue.RemoveRange(dbContext.NotificationQueue.Where(notification => notification.UserId == userId));
+            dbContext.PushSubscriptions.RemoveRange(dbContext.PushSubscriptions.Where(subscription => subscription.UserId == userId));
             var trackedUser = await dbContext.Users.FirstOrDefaultAsync(
                 candidate => candidate.Id == userId && candidate.OrganizationId != PlatformOrganization.Id,
                 cancellationToken);
