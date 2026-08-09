@@ -18,6 +18,8 @@ public static IServiceCollection AddWorkslipApplication(this IServiceCollection 
 {
     services.AddScoped<JobService>();
     services.AddScoped<IJobService, AuthorizedJobService>();
+    services.AddScoped<IJobAssignmentValidator, JobAssignmentValidator>();
+    services.AddScoped<IJobAssignmentService, JobAssignmentService>();
     services.AddScoped<JobValidationService>();
     services.AddScoped<JobDeletionNotificationService>();
     services.AddScoped<IOrganizationService, OrganizationService>();

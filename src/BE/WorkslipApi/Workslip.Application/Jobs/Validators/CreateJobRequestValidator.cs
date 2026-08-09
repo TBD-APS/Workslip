@@ -1,7 +1,6 @@
 using System.Globalization;
 using FluentValidation;
 using Workslip.Application.Auth;
-using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
 using Workslip.Domain;
 
@@ -10,7 +9,7 @@ namespace Workslip.Application.Jobs.Validators;
 public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobRequest>
 {
     public CreateJobRequestValidator(
-        IUserRepository userRepository,
+        IJobAssignmentValidator assignmentValidator,
         IWorksheetRepository worksheetRepository,
         ICurrentUserContext currentUser)
     {
@@ -27,18 +26,15 @@ public sealed class CreateJobRequestValidator : AbstractValidator<CreateJobReque
                 currentUser.UserId,
                 currentUser.Role);
 
-            foreach (var userId in assignedUserIds)
+            var assignmentValidation = await assignmentValidator.ValidateForDefaultFilialAsync(
+                assignedUserIds,
+                cancellationToken);
+            if (assignmentValidation.Status == JobAssignmentValidationStatus.InvalidAssignee)
             {
-                var user = await userRepository.GetByIdAsync(userId, cancellationToken);
-                if (user is null
-                    || user.OrganizationId != organizationId.Value
-                    || !JobAssignmentPolicy.CanReceiveAssignment(user.Role))
-                {
-                    context.AddFailure(
-                        nameof(CreateJobRequest.AssignedUserIds),
-                        "Sager kan kun tildeles brugere eller administratorer i samme organisation.");
-                    return;
-                }
+                context.AddFailure(
+                    nameof(CreateJobRequest.AssignedUserIds),
+                    assignmentValidation.ErrorMessage ?? "Ugyldig tildeling.");
+                return;
             }
 
             if (request.Timesheets is null || request.Timesheets.Count == 0)
