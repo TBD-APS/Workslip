@@ -1,4 +1,4 @@
-/* Trinbjælke med synlige labels. Erstatter .step-indicators / .step-dot.
+/* Trinbjælke: tynd fremdriftslinje pr. trin + label altid synlig.
    Bruger temavariablerne fra base.css, så den følger dark og [data-theme="day"]. */
 
 .job-step-bar {
@@ -10,61 +10,85 @@
   scroll-behavior: smooth;
 }
 
-.job-step-pill {
+.job-step-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  min-width: 56px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.job-step-seg-line {
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 1.5px;
+  background: var(--surface-elevated);
+  transition: background-color 0.15s ease;
+}
+
+.job-step-seg.is-done .job-step-seg-line {
+  background: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+
+.job-step-seg.is-current .job-step-seg-line {
+  background: var(--primary);
+}
+
+.job-step-seg-label {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  min-height: 44px;
-  padding: 0.55rem 0.9rem;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-  font-size: var(--fs-sm);
+  gap: 0.3rem;
+  max-width: 100%;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.job-step-seg-text {
+  min-width: 0;
   white-space: nowrap;
-  flex-shrink: 0;
-  touch-action: manipulation;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.job-step-pill-label {
-  font-weight: 400;
-}
-
-.job-step-pill.is-current {
-  background: var(--primary);
-  color: white;
-}
-
-.job-step-pill.is-done {
-  background: var(--surface-selected-strong);
+.job-step-seg.is-current .job-step-seg-label {
   color: var(--text);
+  font-weight: 500;
 }
 
-.job-step-pill.is-done .job-step-pill-check {
-  color: var(--primary);
+.job-step-seg.is-locked .job-step-seg-label {
+  opacity: 0.6;
 }
 
-.job-step-pill.is-locked {
-  opacity: 0.5;
-  cursor: not-allowed;
+.job-step-seg-lock {
+  flex-shrink: 0;
 }
 
-.job-step-pill-missing {
+.job-step-seg-missing {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.1rem;
-  height: 1.1rem;
+  min-width: 1rem;
+  height: 1rem;
   padding: 0 0.3rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
-  font-size: var(--fs-xs);
+  background: var(--surface-selected-strong);
+  color: var(--text);
+  font-size: 0.65rem;
   line-height: 1;
 }
 
-.job-step-pill:focus-visible {
+.job-step-seg:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }

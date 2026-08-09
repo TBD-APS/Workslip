@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { JOB_STEPS } from './jobSteps';
 import './JobStepBar.css';
 
@@ -34,17 +34,16 @@ export function JobStepBar({
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
-    const activePill = track.querySelector<HTMLButtonElement>('button[aria-current="step"]');
-    if (!activePill) return;
+    const activeSeg = track.querySelector<HTMLButtonElement>('button[aria-current="step"]');
+    if (!activeSeg) return;
 
-    const targetLeft = activePill.offsetLeft - (track.clientWidth - activePill.clientWidth) / 2;
+    const targetLeft = activeSeg.offsetLeft - (track.clientWidth - activeSeg.clientWidth) / 2;
     track.scrollTo({ left: targetLeft, behavior: 'smooth' });
   }, [currentStep]);
 
   return (
     <div className="job-step-bar" ref={trackRef} role="tablist" aria-label="Trin i sagen">
       {JOB_STEPS.map((step, index) => {
-        const StepIcon = step.icon;
         const locked = isLocked(index, completedSteps);
         const done = index < currentStep;
         const current = index === currentStep;
@@ -53,30 +52,28 @@ export function JobStepBar({
         const tooltip = locked
           ? meta?.lockedReason ?? 'Låst, indtil de forrige trin er udfyldt.'
           : meta?.summary;
+        const state = current ? 'current' : done ? 'done' : 'todo';
 
         return (
           <button
             key={step.label}
             type="button"
             role="tab"
-            className={`job-step-pill${current ? ' is-current' : ''}${done ? ' is-done' : ''}${locked ? ' is-locked' : ''}`}
+            className={`job-step-seg is-${state}${locked ? ' is-locked' : ''}`}
             aria-current={current ? 'step' : undefined}
             aria-disabled={locked || undefined}
             aria-label={`Trin ${index + 1}: ${step.label}${locked ? ' — låst' : ''}`}
             title={tooltip}
             onClick={() => onStepChange(index)}
           >
-            {locked ? (
-              <Lock size={14} />
-            ) : done ? (
-              <Check size={14} className="job-step-pill-check" />
-            ) : (
-              <StepIcon size={14} />
-            )}
-            <span className="job-step-pill-label">{step.label}</span>
-            {current && missing > 0 && (
-              <span className="job-step-pill-missing">{missing}</span>
-            )}
+            <span className="job-step-seg-line" />
+            <span className="job-step-seg-label">
+              {locked && <Lock size={11} className="job-step-seg-lock" />}
+              <span className="job-step-seg-text">{step.label}</span>
+              {current && missing > 0 && (
+                <span className="job-step-seg-missing">{missing}</span>
+              )}
+            </span>
           </button>
         );
       })}
