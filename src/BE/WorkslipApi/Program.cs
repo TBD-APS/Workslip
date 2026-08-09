@@ -83,6 +83,7 @@ try
     await RunStartupPhaseAsync(8, "Verify database readiness", () =>
         DatabaseStartup.VerifyIfRequiredAsync(
             app.Services,
+            app.Environment,
             app.Configuration,
             seedDevelopmentData,
             seedDevelopmentEntraIdentities));
