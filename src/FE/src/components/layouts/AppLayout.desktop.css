@@ -29,6 +29,23 @@
     max-width: 72rem;
   }
 
+  /* Existing edit/create forms are intentionally denser than overview tables.
+     Constrain their page rather than introducing another form wrapper. */
+  .page-container:has(> .detail-form),
+  .page-container:has(> .customer-edit-form) {
+    max-width: 52rem;
+  }
+
+  .customer-edit-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.25rem;
+  }
+
+  .customer-edit-form .form-group:has(.address-autocomplete) {
+    grid-column: 1 / -1;
+  }
+
   /* App.css already moves the existing navigation above the content on desktop.
      Refine that same markup instead of introducing a second navigation model. */
   .app-header,
