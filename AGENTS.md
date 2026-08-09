@@ -33,8 +33,27 @@ When documentation disagrees with implementation, fix the maintained documentati
 - Branch: `rbj--<issue>-<description>`.
 - PR title: `RBJ-<issue>: <description>`.
 - Prefer small, cohesive PRs and squash merging.
+- Prefer sequential PRs from updated `main` when issues are independently mergeable. Use a stacked branch/PR only when there is a real code dependency that prevents independent review or validation.
 - Do not mix unrelated cleanup into feature work.
 - Improve nearby technical debt only when it is required for correctness, materially lowers risk, or removes duplication inside the task boundary.
+
+## Delivery loop
+
+For implementation batches, keep the execution loop short and deterministic:
+
+1. verify the problem against current source/runtime evidence;
+2. create or confirm the owning Linear issue and exact scope;
+3. implement the smallest complete correction;
+4. add meaningful regression protection for the changed risk;
+5. run the required validation from [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md);
+6. update the PR body with the validation that actually completed;
+7. merge only after the required gate is green or an explicit documented exception exists;
+8. update Linear with delivered behaviour and concrete evidence;
+9. close superseded/duplicate PRs and remove temporary delivery artifacts before moving on.
+
+Do not leave a merged PR describing validation as `pending` when the result is known. Do not leave abandoned stacked PRs open after an equivalent rebased/sequential PR has replaced them.
+
+After a larger multi-issue batch, perform a short delivery retro: identify throughput wins, mistakes, avoidable ceremony, unvalidated risk, open operational gaps and one or two concrete process improvements. Record durable process decisions in the repository or Linear rather than relying on chat history.
 
 ## Engineering defaults
 
@@ -59,6 +78,14 @@ Stop and escalate before destructive production operations, irreversible data se
 Run the smallest validation set that proves the changed risk. Follow [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md) for the required level.
 
 Report evidence precisely: static review, build, automated tests, integration tests, Playwright, deployed smoke and compliance/operational evidence are different things. Do not say “done”, “works” or “validated” without stating what actually ran and what remains unverified.
+
+Before calling implementation complete, confirm all of the following that apply:
+
+- the final PR body reflects completed CI/test/browser/deployment evidence rather than planned evidence;
+- Linear status and delivery notes match what was actually merged;
+- superseded or duplicate PRs are closed with a pointer to the replacement;
+- known validation gaps are named explicitly, especially missing Playwright/browser evidence for user-visible critical flows;
+- deployment status is checked when deployment is part of the requested outcome.
 
 ## Documentation and decisions
 
