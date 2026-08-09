@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Eye, Loader2 } from 'lucide-react';
 import { notify } from '../../../lib/toast';
-import { createPdfFilePreview, downloadPdfFile } from '../../../lib/pdfFile';
+import { downloadPdfFile, openPdfFilePreview } from '../../../lib/pdfFile';
 import type { MyWorksheetsMonthResponse } from '../worksheetOverviewTypes';
 import {
   buildHoursCsv,
@@ -16,6 +16,8 @@ type AdminHoursExportProps = {
 };
 
 type PdfAction = 'preview' | 'download';
+
+const OBJECT_URL_LIFETIME_MS = 60_000;
 
 export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
   const rows = useMemo(() => buildHoursExportRows(data), [data]);
@@ -45,7 +47,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    window.setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_LIFETIME_MS);
   };
 
   const previewPdf = async () => {
@@ -53,18 +55,17 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
     setPdfAction('preview');
 
     try {
-      const { url } = await createPdfFilePreview(pdfRequest);
+      const { url } = await openPdfFilePreview(pdfRequest);
       if (previewUrlRef.current) {
         window.URL.revokeObjectURL(previewUrlRef.current);
       }
       previewUrlRef.current = url;
-      window.open(url, '_blank');
       setTimeout(() => {
         if (previewUrlRef.current === url) {
           window.URL.revokeObjectURL(url);
           previewUrlRef.current = null;
         }
-      }, 60000);
+      }, OBJECT_URL_LIFETIME_MS);
     } catch {
       notify.error(`Kunne ikke hente PDF for ${monthLabel}`);
     } finally {
