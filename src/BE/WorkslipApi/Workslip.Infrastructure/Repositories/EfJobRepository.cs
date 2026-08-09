@@ -870,6 +870,7 @@ if (request.Work.ClosureFlags is not null)
             controlPoint.SortOrder = controlPointRequest.SortOrder ?? mapping.SortOrder;
             controlPoint.IsRequired = controlPointRequest.IsRequired ?? mapping.IsRequired;
             controlPoint.IsChecked = controlPointRequest.IsChecked ?? false;
+            controlPoint.Comment = ValueOrNull(controlPointRequest.Comment);
         }
     }
 
@@ -1009,6 +1010,7 @@ if (request.Work.ClosureFlags is not null)
                         SortOrder = controlPointRequest.SortOrder ?? mapping?.SortOrder ?? controlPointIndex + 1,
                         IsRequired = controlPointRequest.IsRequired ?? mapping?.IsRequired ?? false,
                         IsChecked = controlPointRequest.IsChecked ?? false,
+                        Comment = ValueOrNull(controlPointRequest.Comment),
                         JobReportInstallationCategory = selectedCategory
                     });
                 }
