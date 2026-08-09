@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import type { JobForm } from './types';
 import { emptyForm, isValidCreateForm, isValidJobForm } from './utils';
 
-const validKlsForm = {
+const validKlsForm: JobForm = {
   ...emptyForm,
   customerSnapshot: {
-    ...emptyForm.customerSnapshot,
     name: 'Testkunde',
+    email: null,
+    phone: null,
+    address: null,
+    contactPerson: null,
   },
 };
 
