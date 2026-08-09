@@ -83,10 +83,10 @@ try
     await RunStartupPhaseAsync(8, "Verify database readiness", () =>
         DatabaseStartup.VerifyIfRequiredAsync(
             app.Services,
-            app.Environment,
             app.Configuration,
             seedDevelopmentData,
-            seedDevelopmentEntraIdentities));
+            seedDevelopmentEntraIdentities,
+            app.Environment));
 
     RunStartupPhase(9, "Configure HTTP pipeline", () =>
     {
