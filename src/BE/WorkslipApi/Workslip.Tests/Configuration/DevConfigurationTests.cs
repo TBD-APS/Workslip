@@ -9,14 +9,19 @@ namespace Workslip.Tests.Configuration;
 public sealed class DevConfigurationTests
 {
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ConfigureDevEnvironment_NeverMapsDevToken(
-        bool releaseTestingEnabled)
+    [InlineData(Environments.Development, false, true)]
+    [InlineData(Environments.Development, true, true)]
+    [InlineData(Environments.Staging, true, false)]
+    [InlineData(Environments.Production, false, false)]
+    [InlineData(Environments.Production, true, false)]
+    public async Task ConfigureDevEnvironment_MapsDevTokenOnlyInDevelopment(
+        string environmentName,
+        bool releaseTestingEnabled,
+        bool expectedDevToken)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
-            EnvironmentName = Environments.Production
+            EnvironmentName = environmentName
         });
         builder.Services.AddOpenApi();
 
@@ -30,6 +35,8 @@ public sealed class DevConfigurationTests
             .Select(endpoint => endpoint.RoutePattern.RawText)
             .ToArray();
 
-        Assert.DoesNotContain("/api/dev/token", routePatterns, StringComparer.Ordinal);
+        Assert.Equal(
+            expectedDevToken,
+            routePatterns.Contains("/api/dev/token", StringComparer.Ordinal));
     }
 }
