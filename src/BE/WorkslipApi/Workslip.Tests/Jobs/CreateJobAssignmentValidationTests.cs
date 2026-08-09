@@ -2,6 +2,7 @@ using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Jobs.Validators;
 using Workslip.Application.Users;
+using Workslip.Application.Worksheets;
 using Workslip.Domain;
 using Workslip.Domain.Models;
 
@@ -17,6 +18,7 @@ public sealed class CreateJobAssignmentValidationTests
         var arne = CreateUser(organizationId, "arne@example.invalid");
         var validator = new CreateJobRequestValidator(
             new StubUserRepository(niels, arne),
+            new EmptyWorksheetRepository(),
             new TestCurrentUserContext(Guid.NewGuid(), organizationId, Roles.Admin));
 
         var request = new CreateJobRequest(
@@ -39,6 +41,7 @@ public sealed class CreateJobAssignmentValidationTests
         var niels = CreateUser(organizationId, "niels@example.invalid");
         var validator = new CreateJobRequestValidator(
             new StubUserRepository(niels),
+            new EmptyWorksheetRepository(),
             new TestCurrentUserContext(Guid.NewGuid(), organizationId, Roles.Admin));
 
         var request = new CreateJobRequest(
@@ -84,5 +87,17 @@ public sealed class CreateJobAssignmentValidationTests
         public Task<IReadOnlyList<AssignedJobResponse>> GetAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<decimal?> GetTotalHoursAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyDictionary<Guid, UserPeriodHours>> GetPeriodHoursAsync(Guid organizationId, DateOnly biweeklyStart, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class EmptyWorksheetRepository : IWorksheetRepository
+    {
+        public Task<decimal> GetHoursForUserDayAsync(Guid organizationId, Guid userId, DateOnly workDate, CancellationToken cancellationToken) => Task.FromResult(0m);
+        public Task<WorksheetResponse> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<WorksheetResponse>> ListByJobAsync(Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<WorksheetUserGroupResponse>> GetGroupedByJobAsync(Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<Guid, decimal?>> GetTotalHoursByJobAsync(IEnumerable<Guid> jobIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<MyWorksheetEntryResponse>> GetWorksheetsForUserAsync(Guid userId, Guid organizationId, DateOnly monthStart, DateOnly monthEnd, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<MyWorksheetEntryResponse>> GetAllWorksheetsAsync(Guid organizationId, DateOnly monthStart, DateOnly monthEnd, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }
