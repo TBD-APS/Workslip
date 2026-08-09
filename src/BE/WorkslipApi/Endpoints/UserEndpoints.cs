@@ -53,6 +53,69 @@ public static class UserEndpoints
             return ResultExtensions.ToHttpResult(result);
         });
 
+        var superAdminGroup = app.MapSuperAdminGroup("/api/superadmin/users", "superadmin-users");
+
+        superAdminGroup.MapGet("/", async (
+            [AsParameters] ListQueryOptions query,
+            ISuperAdminUserService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var result = await service.ListAsync(
+                query.Limit,
+                query.Offset,
+                query.Search,
+                query.SortBy,
+                query.SortDirection,
+                cancellationToken);
+            return ResultExtensions.ToHttpResult(result, response => response);
+        }).Produces<SuperAdminUserListResponse>();
+
+        superAdminGroup.MapGet("/options", async (
+            ISuperAdminUserService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var result = await service.GetOptionsAsync(cancellationToken);
+            return ResultExtensions.ToHttpResult(result, response => response);
+        }).Produces<SuperAdminUserOptionsResponse>();
+
+        superAdminGroup.MapPost("/", async (
+            SuperAdminCreateUserRequest request,
+            ISuperAdminUserService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var result = await service.CreateAsync(request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, response => response);
+        }).Produces<SuperAdminUserResponse>();
+
+        superAdminGroup.MapPatch("/{id:guid}", async (
+            Guid id,
+            SuperAdminUpdateUserRequest request,
+            ISuperAdminUserService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var result = await service.UpdateAsync(id, request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, response => response);
+        }).Produces<SuperAdminUserResponse>();
+
+        superAdminGroup.MapDelete("/{id:guid}", async (
+            Guid id,
+            ISuperAdminUserService service,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var result = await service.DeleteAsync(id, cancellationToken);
+            return ResultExtensions.ToHttpResult(result);
+        });
+
         return app;
     }
 }
