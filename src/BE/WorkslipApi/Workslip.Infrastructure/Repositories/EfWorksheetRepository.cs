@@ -308,7 +308,20 @@ public sealed class EfWorksheetRepository : IWorksheetRepository
         public decimal? TotalHours { get; init; }
     }
 
-
+    public Task<decimal> GetHoursForUserDayAsync(
+        Guid organizationId,
+        Guid userId,
+        DateOnly workDate,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "worksheets.daily-hours",
+            token => _dbContext.Worksheets
+                .AsNoTracking()
+                .Where(w => w.OrganizationId == organizationId
+                    && w.UserId == userId
+                    && w.WorkDate == workDate.ToDateTime(TimeOnly.MinValue))
+                .SumAsync(w => w.HoursWorked, token),
+            cancellationToken);
 
     public async Task<IReadOnlyDictionary<Guid, decimal?>> GetTotalHoursByJobAsync(
         IEnumerable<Guid> jobIds, CancellationToken cancellationToken)
