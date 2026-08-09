@@ -232,9 +232,9 @@ export const CustomerList = () => {
           <thead>
             <tr>
               <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('name')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('name')}>
                   Navn<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
               <th className="col-number">
@@ -242,33 +242,33 @@ export const CustomerList = () => {
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
               <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('address')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('address')}>
                   Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
               <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('email')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('email')}>
                   Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(3, e)} />
               </th>
               <th className={`col-contact sortable${sortBy === 'contactPerson' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('contactPerson')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('contactPerson')}>
                   Kontakt<span className="sort-icon">{sortBy === 'contactPerson' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
               </th>
               <th className={`col-phone sortable${sortBy === 'phone' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('phone')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('phone')}>
                   Telefon<span className="sort-icon">{sortBy === 'phone' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
               </th>
               <th className={`col-hours sortable${sortBy === 'jobCount' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('jobCount')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('jobCount')}>
                   Sager<span className="sort-icon">{sortBy === 'jobCount' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
               </th>
               <th className="col-actions">
