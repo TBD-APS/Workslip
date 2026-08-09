@@ -45,6 +45,43 @@ function ConvertTo-SqlLiteral {
     return $Value.Replace("'", "''")
 }
 
+function Get-Sha256Hex {
+    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([Convert]::ToHexString($sha256.ComputeHash($Bytes))).ToLowerInvariant()
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
+function Get-MigrationChecksumInfo {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Sql
+    )
+
+    # Git may materialize text files with LF or CRLF depending on runner/platform.
+    # Migration identity is therefore based on UTF-8 SQL with canonical LF newlines.
+    $normalizedSql = $Sql.Replace("`r`n", "`n").Replace("`r", "`n")
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    $canonicalChecksum = Get-Sha256Hex -Bytes $utf8NoBom.GetBytes($normalizedSql)
+    $rawChecksum = (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $crlfChecksum = Get-Sha256Hex -Bytes $utf8NoBom.GetBytes($normalizedSql.Replace("`n", "`r`n"))
+
+    $legacyChecksums = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    [void]$legacyChecksums.Add($rawChecksum)
+    [void]$legacyChecksums.Add($crlfChecksum)
+    [void]$legacyChecksums.Remove($canonicalChecksum)
+
+    [pscustomobject]@{
+        CanonicalSha256 = $canonicalChecksum
+        LegacySha256 = @($legacyChecksums)
+    }
+}
+
 if (-not (Test-Path $MigrationsPath)) {
     throw "Migration directory not found: $MigrationsPath"
 }
@@ -69,17 +106,21 @@ foreach ($file in $migrationFiles) {
         throw "Migration '$($file.Name)' contains a GO batch separator. Workslip migrations must be one transaction-safe T-SQL batch."
     }
 
-    $checksum = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $checksumInfo = Get-MigrationChecksumInfo -Path $file.FullName -Sql $sql
     $migrations += [pscustomobject]@{
         Id = $file.BaseName
         Sql = $sql
-        Sha256 = $checksum
+        Sha256 = $checksumInfo.CanonicalSha256
+        LegacySha256 = $checksumInfo.LegacySha256
     }
 }
 
 Write-Host "Validated $($migrations.Count) versioned database migration file(s)."
 foreach ($migration in $migrations) {
     Write-Host "  $($migration.Id)  $($migration.Sha256)" -ForegroundColor DarkGray
+    foreach ($legacyChecksum in $migration.LegacySha256) {
+        Write-Host "    compatible legacy line-ending checksum: $legacyChecksum" -ForegroundColor DarkGray
+    }
 }
 
 if ($ValidateOnly) {
@@ -182,12 +223,65 @@ COMMIT TRANSACTION;
             -ErrorAction Stop)
 
         if ($existing.Count -gt 0) {
-            $existingChecksum = [string]$existing[0].Sha256
-            if ($existingChecksum -ne $migration.Sha256) {
+            $existingChecksum = ([string]$existing[0].Sha256).Trim().ToLowerInvariant()
+            if ($existingChecksum -eq $migration.Sha256) {
+                Write-Host "Migration already applied: $($migration.Id)" -ForegroundColor DarkGray
+                continue
+            }
+
+            $legacyChecksumMatch = @($migration.LegacySha256 | Where-Object { $_ -eq $existingChecksum } | Select-Object -First 1)
+            if ($legacyChecksumMatch.Count -eq 0) {
                 throw "Applied migration '$($migration.Id)' has checksum '$existingChecksum', but the repository contains '$($migration.Sha256)'. Applied migrations are immutable."
             }
 
-            Write-Host "Migration already applied: $($migration.Id)" -ForegroundColor DarkGray
+            $legacyChecksum = ConvertTo-SqlLiteral $existingChecksum
+            $reconcileSql = @"
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    DECLARE @lockResult int;
+    EXEC @lockResult = sys.sp_getapplock
+        @Resource = N'$migrationLockName',
+        @LockMode = 'Exclusive',
+        @LockOwner = 'Transaction',
+        @LockTimeout = 60000;
+    IF @lockResult < 0
+        THROW 51000, 'Could not acquire the Workslip schema migration lock.', 1;
+
+    DECLARE @storedChecksum char(64) =
+        (SELECT Sha256 FROM dbo.WorkslipSchemaMigrations WITH (UPDLOCK, HOLDLOCK) WHERE MigrationId = N'$migrationId');
+
+    IF @storedChecksum IS NULL OR @storedChecksum <> '$legacyChecksum'
+        THROW 51002, 'Migration checksum changed while reconciling a legacy line-ending checksum.', 1;
+
+    UPDATE dbo.WorkslipSchemaMigrations
+    SET Sha256 = '$checksum'
+    WHERE MigrationId = N'$migrationId'
+      AND Sha256 = '$legacyChecksum';
+
+    IF @@ROWCOUNT <> 1
+        THROW 51003, 'Legacy migration checksum reconciliation did not update exactly one history row.', 1;
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
+"@
+
+            Invoke-Sqlcmd `
+                -ServerInstance $sqlServerFqdn `
+                -Database $sqlDatabaseName `
+                -AccessToken $accessToken `
+                -Query $reconcileSql `
+                -QueryTimeout 120 `
+                -AbortOnError `
+                -ErrorAction Stop | Out-Null
+
+            Write-Host "Reconciled legacy line-ending checksum without re-running migration SQL: $($migration.Id)" -ForegroundColor Yellow
             continue
         }
 
