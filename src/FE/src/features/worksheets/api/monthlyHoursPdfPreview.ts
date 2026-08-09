@@ -1,6 +1,7 @@
 import { customAxiosInstance } from '../../../api/fetcherOrval';
 
 export type MonthlyHoursPdfPreview = {
+  contentType: string;
   pages: string[];
 };
 
