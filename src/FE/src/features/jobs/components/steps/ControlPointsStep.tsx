@@ -9,6 +9,7 @@ type ControlPointsStepProps = {
   form: JobForm;
   referenceData: ReferenceDataResponse;
   onToggleControlPoint: (cpId: string) => void;
+  onControlPointCommentChange: (cpId: string, value: string) => void;
   onToggleCategoryIrrelevant: (typeId: string, categoryId: string) => void;
 };
 
@@ -25,6 +26,7 @@ export function ControlPointsStep({
   form,
   referenceData,
   onToggleControlPoint,
+  onControlPointCommentChange,
   onToggleCategoryIrrelevant,
 }: ControlPointsStepProps) {
   const [validationError] = useState<string | null>(null);
@@ -99,15 +101,31 @@ export function ControlPointsStep({
                     </span>
                   </button>
 
-                  {!isIrrelevant && (cat.controlPoints ?? []).sort(bySortOrder).map((cp) => (
-                    <Checkbox
-                      key={cp.id}
-                      checked={form.work.controlPointSelections[cp.id] ?? false}
-                      label={cp.name}
-                      onChange={() => onToggleControlPoint(cp.id)}
-                      alignRight
-                    />
-                  ))}
+                  {!isIrrelevant && (cat.controlPoints ?? []).sort(bySortOrder).map((cp) => {
+                    const commentInputId = `control-point-comment-${cp.id}`;
+                    return (
+                      <div key={cp.id}>
+                        <Checkbox
+                          checked={form.work.controlPointSelections[cp.id] ?? false}
+                          label={cp.name}
+                          onChange={() => onToggleControlPoint(cp.id)}
+                          alignRight
+                        />
+                        <div className="form-group">
+                          <label className="form-label" htmlFor={commentInputId}>Kommentar</label>
+                          <input
+                            id={commentInputId}
+                            className="form-input"
+                            type="text"
+                            value={form.work.controlPointComments[cp.id] ?? ''}
+                            onChange={(event) => onControlPointCommentChange(cp.id, event.target.value)}
+                            placeholder="Tilføj kommentar (valgfri)"
+                            aria-label={`Kommentar til ${cp.name}`}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
