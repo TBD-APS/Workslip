@@ -1,4 +1,4 @@
-import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { useGetApiJobsId } from '../../../api/generated/jobs/jobs';
 import { JobStatus } from '../../../api/generated/models/jobStatus';
 import { ErrorState } from '../../../components/ErrorState';
@@ -25,7 +25,6 @@ function shouldOpenReport(
 export function JobEntryRoute() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
-  const navigate = useNavigate();
   const isAdmin = useIsAdmin();
   const state = (location.state as JobEntryLocationState | null) ?? undefined;
   const query = useGetApiJobsId(id ?? '', {
@@ -74,26 +73,5 @@ export function JobEntryRoute() {
     );
   }
 
-  if (!reportMode) {
-    return <JobDetail />;
-  }
-
-  return (
-    <>
-      <CompletedJobReport />
-      {!state?.readOnly && (
-        <div className="page-container">
-          <div className="edit-form-bottom-actions">
-            <button
-              className="btn btn-secondary edit-form-bottom-btn"
-              type="button"
-              onClick={() => navigate('/app', { replace: true })}
-            >
-              Tilbage til opgaver
-            </button>
-          </div>
-        </div>
-      )}
-    </>
-  );
+  return reportMode ? <CompletedJobReport /> : <JobDetail />;
 }
