@@ -119,7 +119,7 @@ FROM dbo.InstallationTypeDefinitionMappings;
 CREATE TABLE #AdditionalKeepCountsBefore
 (
     TableName sysname NOT NULL PRIMARY KEY,
-    RowCount bigint NOT NULL
+    ProtectedRowCount bigint NOT NULL
 );
 
 DECLARE @KeepTable sysname;
@@ -147,7 +147,7 @@ FETCH NEXT FROM keep_before_cursor INTO @KeepTable;
 WHILE @@FETCH_STATUS = 0
 BEGIN
     SET @KeepSql =
-        N'INSERT INTO #AdditionalKeepCountsBefore (TableName, RowCount) ' +
+        N'INSERT INTO #AdditionalKeepCountsBefore (TableName, ProtectedRowCount) ' +
         N'SELECT N''' + REPLACE(@KeepTable, N'''', N'''''') + N''', COUNT_BIG(*) FROM dbo.' +
         QUOTENAME(@KeepTable) + N';';
 
@@ -222,7 +222,7 @@ SELECT
 
 SELECT
     TableName AS AdditionalKeepTable,
-    RowCount AS PreservedRows
+    ProtectedRowCount AS PreservedRows
 FROM #AdditionalKeepCountsBefore
 ORDER BY TableName;
 
@@ -427,7 +427,7 @@ BEGIN TRY
     CREATE TABLE #AdditionalKeepCountsAfter
     (
         TableName sysname NOT NULL PRIMARY KEY,
-        RowCount bigint NOT NULL
+        ProtectedRowCount bigint NOT NULL
     );
 
     DECLARE keep_after_cursor CURSOR LOCAL FAST_FORWARD FOR
@@ -452,7 +452,7 @@ BEGIN TRY
     WHILE @@FETCH_STATUS = 0
     BEGIN
         SET @KeepSql =
-            N'INSERT INTO #AdditionalKeepCountsAfter (TableName, RowCount) ' +
+            N'INSERT INTO #AdditionalKeepCountsAfter (TableName, ProtectedRowCount) ' +
             N'SELECT N''' + REPLACE(@KeepTable, N'''', N'''''') + N''', COUNT_BIG(*) FROM dbo.' +
             QUOTENAME(@KeepTable) + N';';
 
@@ -465,14 +465,14 @@ BEGIN TRY
 
     IF EXISTS
     (
-        SELECT TableName, RowCount FROM #AdditionalKeepCountsBefore
+        SELECT TableName, ProtectedRowCount FROM #AdditionalKeepCountsBefore
         EXCEPT
-        SELECT TableName, RowCount FROM #AdditionalKeepCountsAfter
+        SELECT TableName, ProtectedRowCount FROM #AdditionalKeepCountsAfter
     ) OR EXISTS
     (
-        SELECT TableName, RowCount FROM #AdditionalKeepCountsAfter
+        SELECT TableName, ProtectedRowCount FROM #AdditionalKeepCountsAfter
         EXCEPT
-        SELECT TableName, RowCount FROM #AdditionalKeepCountsBefore
+        SELECT TableName, ProtectedRowCount FROM #AdditionalKeepCountsBefore
     )
         THROW 51025, 'Safety check failed: a protected KEEP table row count changed. Transaction will be rolled back.', 1;
 
