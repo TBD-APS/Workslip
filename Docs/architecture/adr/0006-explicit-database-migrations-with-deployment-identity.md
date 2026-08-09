@@ -2,7 +2,7 @@
 
 **Status:** Accepted  
 **Date:** 2026-08-08  
-**Issue:** WOR-367, amended by WOR-410
+**Issue:** WOR-367, amended by WOR-410 and WOR-413
 
 ## Context
 
@@ -13,6 +13,8 @@ Future tenant-integrity and branch work requires reviewed schema/data changes. T
 The first rollout of this model exposed an operational gap: if the protected production bootstrap had not been reconciled before the backend deployment ran, the deployment failed closed as designed but production remained on the previous API binary. Frontend releases could therefore advance beyond the production API contract until an operator manually reconciled infrastructure and the migration identity.
 
 Local branch development has a different operational need. A branch may contain a new reviewed migration that the branch code already depends on. Requiring developers to remember a second manual migration command creates avoidable local version skew, but allowing general API-startup migrations would weaken the production safety boundary this ADR established.
+
+A fresh developer machine also needs an initial local schema. Historical production migrations are not a complete from-zero schema baseline, so replaying them against an empty database is not a supported provisioning mechanism.
 
 ## Decision
 
@@ -43,21 +45,28 @@ Production database migrations are an explicit deployment operation.
 
 The local startup runner preserves the production migration semantics that matter for correctness: lexical migration order, `dbo.WorkslipSchemaMigrations`, canonical SHA-256 verification, the narrow existing LF/CRLF checksum reconciliation, one transaction per migration and the database application lock. It does not create a second migration format or edit production migration history.
 
+A separate explicit `bootstrap-local-db` Development operation may initialize a **brand-new local database** from the checked-out EF model. `EnsureCreated` is permitted only inside that operation and only after the SQL target is verified local. When `EnsureCreated` reports that it created the schema, the operation records all currently known versioned migrations in `dbo.WorkslipSchemaMigrations` with `AppliedBy=local-bootstrap` instead of replaying historical migrations against a schema that already represents the checked-out code. It then runs the existing DB-only development seeder.
+
+If the database already contains a schema, bootstrap never re-baselines or recreates it. It uses the normal pending local-migration path and the idempotent DB-only development seed. Destructive local reset is not part of this decision.
+
 This exception is intentionally fail-closed:
 
 - non-Development environments never use it;
-- remote or ambiguous Development SQL targets are skipped by default;
-- `Workslip:ApplyLocalMigrations=false` disables it;
+- remote or ambiguous Development SQL targets are skipped by normal startup and refused by explicit local bootstrap;
+- `Workslip:ApplyLocalMigrations=false` disables normal local auto-migration;
 - `Workslip:ApplyLocalMigrations=true` acts as a strict assertion and fails startup when the target is not provably local;
-- OpenAPI generation remains database-free and does not evaluate or execute local migrations.
+- OpenAPI generation remains database-free and does not evaluate or execute local migrations;
+- local database bootstrap does not contact Entra or enable Entra seeding.
 
-This is a developer-workstation convenience, not a deployment mechanism. It does not change the production migration identity, workflow, permissions or release ordering.
+This is developer-workstation provisioning, not a deployment mechanism. It does not change the production migration identity, workflow, permissions or release ordering.
 
 ## Operational rules
 
 Migration files are forward-only release artifacts. They are not silently edited after production application. A checksum mismatch fails closed unless the stored value is proven to be a pre-canonical LF/CRLF representation of the exact current migration; that narrow bookkeeping reconciliation never reapplies migration SQL and preserves `AppliedAt`/`AppliedBy`.
 
 A destructive or material data-transforming migration must document its production-data preconditions, backup/restore expectation, expected locking/availability impact and recovery/forward-fix strategy in the owning PR/release evidence before execution.
+
+A migration that introduces a persistent database object or semantic requirement not represented by the EF model must also preserve fresh-local-bootstrap equivalence. Do not rely on replaying historical migration SQL after `EnsureCreated`; add the required local bootstrap support or relational validation in the same owning change.
 
 Automatic down-migration is deliberately not part of production rollback. Application rollback is allowed only when the resulting schema remains compatible; otherwise recovery is an explicit database operation.
 
@@ -72,8 +81,9 @@ The production infrastructure identity remains deployment-only. Normal API runti
 - The API runtime identity no longer carries production schema-management rights.
 - Schema changes are visible in deployment logs and happen before incompatible application code is released.
 - Concurrent production migration attempts are controlled.
-- Future schema work such as WOR-160 and WOR-364 has one durable rollout mechanism instead of adding production startup mutation.
+- Future schema work has one durable production rollout mechanism instead of adding production startup mutation.
 - A developer switching to a branch with pending schema work can bring a local database forward by starting the API, reducing branch/code schema skew.
+- A fresh Windows developer database can be created, configured and seeded through one local-only command without Azure or Entra side effects.
 - The local convenience cannot silently mutate Azure SQL or another remote database because target locality is verified before execution.
 - Operators can intentionally advance the production schema from reviewed `main` migrations without coupling that action to an API package deployment.
 - The manual migration path can repair its own missing dedicated migration identity without requiring a separate full infrastructure deployment first.
@@ -84,7 +94,9 @@ The production infrastructure identity remains deployment-only. Normal API runti
 
 ### Trade-offs
 
-- Development startup can now mutate schema, but only on a connection target verified as local. Developers still need a supported local SQL Server and a local connection string; this ADR does not provision one.
+- Development startup can mutate schema, but only on a connection target verified as local.
+- Fresh local bootstrap uses the checked-out EF model as the current-schema baseline rather than proving every historical migration from an empty database; migrations that own non-EF persistent artifacts therefore have an explicit local-bootstrap compatibility obligation.
+- SQL Server LocalDB is the default one-command path and is Windows-specific; custom local SQL Server targets remain manually configurable.
 - The local C# runner duplicates a small amount of migration execution mechanics from the production PowerShell runner. Both deliberately share the migration file/history/checksum contract; changes to that contract must keep the two implementations aligned.
 - The protected recovery workflow needs access to the existing production infrastructure OIDC identity, but only for the incomplete-bootstrap repair path; normal backend deployment and application runtime keep their narrower identities.
 - The manual production migration workflow also needs conditional access to the production infrastructure OIDC identity solely to create/reconcile the dedicated migration identity when that identity is absent; migration SQL still runs only as the dedicated migration identity.
