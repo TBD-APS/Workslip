@@ -40,13 +40,14 @@ public sealed class JobAssignmentPolicyTests
     }
 
     [Fact]
-    public void CanReceiveAssignment_allows_admin_only_when_assigning_self()
+    public void CanReceiveAssignment_allows_admin_only_when_admin_actor_assigns_self()
     {
         var adminId = Guid.NewGuid();
 
-        Assert.True(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, adminId, adminId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, Guid.NewGuid(), adminId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Superadmin, adminId, adminId));
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, adminId, adminId, Roles.Admin));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, Guid.NewGuid(), adminId, Roles.Admin));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Admin, adminId, adminId, Roles.Superadmin));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignment(Roles.Superadmin, adminId, adminId, Roles.Superadmin));
     }
 
     [Fact]
@@ -56,11 +57,11 @@ public sealed class JobAssignmentPolicyTests
         var employeeId = Guid.NewGuid();
         var adminId = Guid.NewGuid();
 
-        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, filialId, filialId));
-        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, adminId, adminId, filialId, filialId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, Guid.NewGuid(), adminId, filialId, filialId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Guid.NewGuid(), filialId));
-        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Guid.Empty, filialId));
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Roles.Admin, filialId, filialId));
+        Assert.True(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, adminId, adminId, Roles.Admin, filialId, filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.Admin, Guid.NewGuid(), adminId, Roles.Admin, filialId, filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Roles.Admin, Guid.NewGuid(), filialId));
+        Assert.False(JobAssignmentPolicy.CanReceiveAssignmentInFilial(Roles.User, employeeId, adminId, Roles.Admin, Guid.Empty, filialId));
     }
 
     [Fact]
