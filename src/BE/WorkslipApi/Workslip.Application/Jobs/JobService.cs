@@ -101,6 +101,15 @@ public sealed class JobService(
 
             return await ToSummaryResultAsync(created, cancellationToken);
         }
+        catch (WorksheetDailyHoursExceededException)
+        {
+            logger.LogWarning("Job create rejected because daily worksheet hours would exceed the limit. OrganizationId: {OrganizationId}.", organizationId.Value);
+            return Result<JobReportSummaryResponse>.Invalid([new ValidationError
+            {
+                Identifier = nameof(CreateJobRequest.Timesheets),
+                ErrorMessage = WorksheetHourRules.DailyLimitMessage
+            }]);
+        }
         catch (DuplicateReportNumberException ex)
         {
             logger.LogWarning(ex, "Job create duplicate report number. OrganizationId: {OrganizationId}. ReportNumber: {ReportNumber}", organizationId.Value, ex.ReportNumber);
@@ -284,6 +293,15 @@ public sealed class JobService(
         try
         {
             updated = await _jobRepository.UpdateAsync(id, organizationId.Value, request, cancellationToken);
+        }
+        catch (WorksheetDailyHoursExceededException)
+        {
+            logger.LogWarning("Job update rejected because daily worksheet hours would exceed the limit. JobId: {JobId}. OrganizationId: {OrganizationId}.", id, organizationId.Value);
+            return Result<JobReportSummaryResponse>.Invalid([new ValidationError
+            {
+                Identifier = nameof(UpdateJobRequest.Timesheets),
+                ErrorMessage = WorksheetHourRules.DailyLimitMessage
+            }]);
         }
         catch (DuplicateReportNumberException ex)
         {
