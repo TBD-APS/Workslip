@@ -22,7 +22,7 @@ public sealed class JobAssignmentService(
         IReadOnlyList<Guid> userIds,
         CancellationToken cancellationToken)
     {
-        if (!IsAssignmentManager(currentUser.Role))
+        if (!JobAssignmentPolicy.CanManageAssignments(currentUser.Role))
         {
             return Result<JobReportSummaryResponse>.Forbidden();
         }
@@ -47,8 +47,4 @@ public sealed class JobAssignmentService(
             _ => Result<JobReportSummaryResponse>.Error("job_assignment_validation_failed")
         };
     }
-
-    private static bool IsAssignmentManager(string? role) =>
-        string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
 }
