@@ -16,7 +16,75 @@ public sealed class MonthlyHoursPdfTests
     {
         var organizationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var repository = new CapturingWorksheetRepository
+        var repository = CreateRepository(userId);
+        var generator = new CapturingPdfGenerator();
+        var service = CreateService(repository, generator, organizationId);
+
+        var result = await service.GetAllWorksheetsPdfAsync(2026, 8, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(organizationId, repository.RequestedOrganizationId);
+        Assert.Equal(new DateOnly(2026, 8, 1), repository.RequestedMonthStart);
+        Assert.Equal(new DateOnly(2026, 8, 31), repository.RequestedMonthEnd);
+        Assert.Equal("workslip-timer-2026-08.pdf", result.Value.FileName);
+        Assert.Equal([1, 2, 3], result.Value.Content);
+        Assert.NotNull(generator.PdfMonth);
+        Assert.Equal(7.5m, generator.PdfMonth.TotalHours);
+    }
+
+    [Fact]
+    public async Task Service_scopes_monthly_preview_data_to_current_organization()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = CreateRepository(Guid.NewGuid());
+        var generator = new CapturingPdfGenerator();
+        var service = CreateService(repository, generator, organizationId);
+
+        var result = await service.GetAllWorksheetsPdfPreviewAsync(2026, 8, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(organizationId, repository.RequestedOrganizationId);
+        Assert.Equal(new DateOnly(2026, 8, 1), repository.RequestedMonthStart);
+        Assert.Equal(new DateOnly(2026, 8, 31), repository.RequestedMonthEnd);
+        Assert.Equal(["<svg>page</svg>"], result.Value.Pages);
+        Assert.NotNull(generator.PreviewMonth);
+        Assert.Equal(7.5m, generator.PreviewMonth.TotalHours);
+    }
+
+    [Fact]
+    public async Task Service_returns_not_found_for_empty_month_without_generating_document()
+    {
+        var repository = new CapturingWorksheetRepository { Entries = [] };
+        var generator = new CapturingPdfGenerator();
+        var service = CreateService(repository, generator, Guid.NewGuid());
+
+        var pdfResult = await service.GetAllWorksheetsPdfAsync(2026, 8, CancellationToken.None);
+        var previewResult = await service.GetAllWorksheetsPdfPreviewAsync(2026, 8, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, pdfResult.Status);
+        Assert.Equal(ResultStatus.NotFound, previewResult.Status);
+        Assert.Null(generator.PdfMonth);
+        Assert.Null(generator.PreviewMonth);
+    }
+
+    [Fact]
+    public void Generator_creates_pdf_and_svg_preview_from_same_monthly_hours_data()
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+        var month = CreateMonth();
+        var generator = new MonthlyHoursPdfGenerator();
+
+        var pdf = generator.Generate(month);
+        var previewPages = generator.GeneratePreviewPages(month);
+
+        Assert.True(pdf.Length > 1000);
+        Assert.Equal("%PDF-", Encoding.ASCII.GetString(pdf, 0, 5));
+        Assert.NotEmpty(previewPages);
+        Assert.All(previewPages, page => Assert.Contains("<svg", page, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static CapturingWorksheetRepository CreateRepository(Guid userId) =>
+        new()
         {
             Entries =
             [
@@ -32,38 +100,9 @@ public sealed class MonthlyHoursPdfTests
                     "Alex Jensen")
             ]
         };
-        var generator = new CapturingPdfGenerator();
-        var service = CreateService(repository, generator, organizationId);
 
-        var result = await service.GetAllWorksheetsPdfAsync(2026, 8, CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(organizationId, repository.RequestedOrganizationId);
-        Assert.Equal(new DateOnly(2026, 8, 1), repository.RequestedMonthStart);
-        Assert.Equal(new DateOnly(2026, 8, 31), repository.RequestedMonthEnd);
-        Assert.Equal("workslip-timer-2026-08.pdf", result.Value.FileName);
-        Assert.Equal([1, 2, 3], result.Value.Content);
-        Assert.NotNull(generator.Month);
-        Assert.Equal(7.5m, generator.Month.TotalHours);
-    }
-
-    [Fact]
-    public async Task Service_returns_not_found_for_empty_month_without_generating_pdf()
+    private static MyWorksheetsMonthResponse CreateMonth()
     {
-        var repository = new CapturingWorksheetRepository { Entries = [] };
-        var generator = new CapturingPdfGenerator();
-        var service = CreateService(repository, generator, Guid.NewGuid());
-
-        var result = await service.GetAllWorksheetsPdfAsync(2026, 8, CancellationToken.None);
-
-        Assert.Equal(ResultStatus.NotFound, result.Status);
-        Assert.Null(generator.Month);
-    }
-
-    [Fact]
-    public void Generator_creates_a_pdf_from_monthly_hours_data()
-    {
-        QuestPDF.Settings.License = LicenseType.Community;
         var firstUser = Guid.NewGuid();
         var secondUser = Guid.NewGuid();
         var day = new MyWorksheetDayResponse(
@@ -74,7 +113,8 @@ public sealed class MonthlyHoursPdfTests
                 new MyWorksheetEntryResponse(new DateOnly(2026, 8, 4), Guid.NewGuid(), firstUser, "R-1", "Kunde A", null, 6m, false, "Alex Jensen"),
                 new MyWorksheetEntryResponse(new DateOnly(2026, 8, 4), Guid.NewGuid(), secondUser, "R-2", "Kunde B", null, 4m, false, "Alex Jensen")
             ]);
-        var month = new MyWorksheetsMonthResponse(
+
+        return new MyWorksheetsMonthResponse(
             2026,
             8,
             new DateOnly(2026, 8, 1),
@@ -82,11 +122,6 @@ public sealed class MonthlyHoursPdfTests
             10m,
             0,
             [new MyWorksheetWeekResponse(new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 9), 10m, 0, [day])]);
-
-        var pdf = new MonthlyHoursPdfGenerator().Generate(month);
-
-        Assert.True(pdf.Length > 1000);
-        Assert.Equal("%PDF-", Encoding.ASCII.GetString(pdf, 0, 5));
     }
 
     private static WorksheetService CreateService(
@@ -110,12 +145,19 @@ public sealed class MonthlyHoursPdfTests
 
     private sealed class CapturingPdfGenerator : IMonthlyHoursPdfGenerator
     {
-        public MyWorksheetsMonthResponse? Month { get; private set; }
+        public MyWorksheetsMonthResponse? PdfMonth { get; private set; }
+        public MyWorksheetsMonthResponse? PreviewMonth { get; private set; }
 
         public byte[] Generate(MyWorksheetsMonthResponse month)
         {
-            Month = month;
+            PdfMonth = month;
             return [1, 2, 3];
+        }
+
+        public IReadOnlyList<string> GeneratePreviewPages(MyWorksheetsMonthResponse month)
+        {
+            PreviewMonth = month;
+            return ["<svg>page</svg>"];
         }
     }
 
