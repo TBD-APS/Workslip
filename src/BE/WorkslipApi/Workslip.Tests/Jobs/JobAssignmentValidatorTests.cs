@@ -15,7 +15,7 @@ public sealed class JobAssignmentValidatorTests
         var validator = CreateValidator(
             organizationId,
             filialId,
-            new JobAssignmentUserScope(employeeId, filialId, Roles.User));
+            new JobAssignmentUserScope(employeeId, filialId, Roles.User, "Employee"));
 
         var result = await validator.ValidateForExistingJobAsync(
             Guid.NewGuid(),
@@ -34,7 +34,7 @@ public sealed class JobAssignmentValidatorTests
         var validator = CreateValidator(
             organizationId,
             jobFilialId,
-            new JobAssignmentUserScope(employeeId, Guid.NewGuid(), Roles.User));
+            new JobAssignmentUserScope(employeeId, Guid.NewGuid(), Roles.User, "Employee"));
 
         var result = await validator.ValidateForExistingJobAsync(
             Guid.NewGuid(),
@@ -53,7 +53,7 @@ public sealed class JobAssignmentValidatorTests
         var validator = CreateValidator(
             organizationId,
             filialId,
-            new JobAssignmentUserScope(adminId, filialId, Roles.Admin));
+            new JobAssignmentUserScope(adminId, filialId, Roles.Admin, "Admin"));
 
         var result = await validator.ValidateForExistingJobAsync(
             Guid.NewGuid(),
@@ -103,7 +103,7 @@ public sealed class JobAssignmentValidatorTests
         var validator = CreateValidator(
             organizationId,
             filialId,
-            new JobAssignmentUserScope(employeeId, filialId, Roles.User));
+            new JobAssignmentUserScope(employeeId, filialId, Roles.User, "Employee"));
 
         var result = await validator.ValidateForDefaultFilialAsync(
             [employeeId],
@@ -144,5 +144,12 @@ public sealed class JobAssignmentValidatorTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<JobAssignmentUserScope>>(
                 users.Where(user => userIds.Contains(user.Id)).ToArray());
+
+        public Task<IReadOnlyList<JobAssignmentUserScope>> GetAssignableUsersAsync(
+            Guid organizationId,
+            Guid filialId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<JobAssignmentUserScope>>(
+                users.Where(user => user.FilialId == filialId && user.Role == Roles.User).ToArray());
     }
 }
