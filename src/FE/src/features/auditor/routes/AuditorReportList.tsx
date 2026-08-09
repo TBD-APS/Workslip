@@ -24,6 +24,12 @@ const SCROLL_CONTAINER_SELECTOR = '.app-shell';
 const SCROLL_STORAGE_KEY = 'auditorReportListScrollTop';
 const PAGE_SIZE = 20;
 const COMPLETED_STATUSES = [JobStatus.Approved] as const;
+const MOBILE_SORT_OPTIONS = [
+  { field: 'reportNumber', label: 'Sagsnr.' },
+  { field: 'name', label: 'Kundenavn' },
+  { field: 'address', label: 'Adresse' },
+  { field: 'updatedAt', label: 'Opdateret' },
+] as const;
 
 function getScrollContainer(): HTMLElement | null {
   return document.querySelector(SCROLL_CONTAINER_SELECTOR);
@@ -230,21 +236,21 @@ export const AuditorReportList = () => {
           <thead>
             <tr>
               <th className={`col-number sortable${sortBy === 'reportNumber' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('reportNumber')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('reportNumber')}>
                   Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
               <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('name')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('name')}>
                   Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
               <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('address')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('address')}>
                   Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
               <th className="col-status">
@@ -256,9 +262,9 @@ export const AuditorReportList = () => {
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
               </th>
               <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('totalHours')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('totalHours')}>
                   Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
               </th>
               <th className="col-users">
@@ -266,15 +272,15 @@ export const AuditorReportList = () => {
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'reportDate' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('reportDate')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('reportDate')}>
                   Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'updatedAt' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('updatedAt')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('updatedAt')}>
                   Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(8, e)} />
               </th>
               <th className="col-actions">
@@ -326,23 +332,48 @@ export const AuditorReportList = () => {
         />
         </>
       ) : (
-        <div className="job-list">
-          {jobs.map((job) => (
-            <ReportCard
-              key={job.id}
-              job={job}
-              onOpen={() => navigate(`/app/completed/${job.id}`, { state: { from: '/app/auditor', readOnly: true } })}
-            />
-          ))}
-          {jobs.length === 0 && !query.isFetchingNextPage && (
-            <div className="empty-state">
-              <p>Ingen afsluttede rapporter</p>
+        <>
+          <div className="job-sort-controls-scroll">
+            <div className="job-sort-controls" role="group" aria-label="Sortering af rapporter">
+              {MOBILE_SORT_OPTIONS.map(({ field, label }) => {
+                const isActive = sortBy === field;
+                const currentDirection = sortDirection === 'asc' ? 'stigende' : 'faldende';
+                const nextDirection = isActive && sortDirection === 'asc' ? 'faldende' : 'stigende';
+
+                return (
+                  <button
+                    key={field}
+                    type="button"
+                    className={`sort-btn${isActive ? ' active' : ''}`}
+                    aria-pressed={isActive}
+                    aria-label={isActive
+                      ? `${label}, sorteret ${currentDirection}. Aktivér for ${nextDirection} sortering.`
+                      : `${label}. Aktivér for stigende sortering.`}
+                    onClick={() => handleSort(field)}
+                  >
+                    {label}
+                    {isActive && (sortDirection === 'asc' ? <ArrowUp size={10} aria-hidden="true" /> : <ArrowDown size={10} aria-hidden="true" />)}
+                  </button>
+                );
+              })}
             </div>
-          )}
-          {!isDesktop && (
+          </div>
+          <div className="job-list">
+            {jobs.map((job) => (
+              <ReportCard
+                key={job.id}
+                job={job}
+                onOpen={() => navigate(`/app/completed/${job.id}`, { state: { from: '/app/auditor', readOnly: true } })}
+              />
+            ))}
+            {jobs.length === 0 && !query.isFetchingNextPage && (
+              <div className="empty-state">
+                <p>Ingen afsluttede rapporter</p>
+              </div>
+            )}
             <InfiniteScrollSentinel sentinelRef={sentinelRef} isLoading={query.isFetchingNextPage} />
-          )}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

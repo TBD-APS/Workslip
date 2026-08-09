@@ -265,12 +265,10 @@ export function sameWork(left: JobForm, right: JobForm) {
 }
 
 export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?: boolean; requireDestinationAddress?: boolean }) {
-  // For Diverse jobs, skip customer/work validation
+  // Destination address is optional for all roles. Keep the legacy option in
+  // the signature until the remaining callers are cleaned up.
   if (form.jobType === 'Diverse') {
-    return (
-      (options?.reportNumberReadOnly || form.reportNumber.trim().length > 0) &&
-      (!options?.requireDestinationAddress || form.destinationAddress.trim().length > 0)
-    );
+    return options?.reportNumberReadOnly || form.reportNumber.trim().length > 0;
   }
 
   const name = form.customerSnapshot?.name ?? null;
@@ -281,8 +279,7 @@ export function isValidJobForm(form: JobForm, options?: { reportNumberReadOnly?:
     (options?.reportNumberReadOnly || form.reportNumber.trim().length > 0) &&
     (name?.trim().length ?? 0) > 0 &&
     validateEmail(email) === null &&
-    validatePhoneNumber(phone) === null &&
-    (!options?.requireDestinationAddress || form.destinationAddress.trim().length > 0)
+    validatePhoneNumber(phone) === null
   );
 }
 

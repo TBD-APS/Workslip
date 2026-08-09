@@ -50,8 +50,11 @@ vi.mock('./steps/JobAttestationStep', () => ({
 }));
 
 vi.mock('./steps/JobStepNavigation', () => ({
-  StepIndicators: () => <div>step-indicators</div>,
   StepNavigation: () => <div>step-navigation</div>,
+}));
+
+vi.mock('./steps/JobStepBar', () => ({
+  JobStepBar: () => <div>job-step-bar</div>,
 }));
 
 vi.mock('./JobHistoryDrawer', () => ({

@@ -21,7 +21,8 @@ import { validateControlPoints } from './steps/controlPointsValidation';
 import { JobAttestationStep } from './steps/JobAttestationStep';
 import { JobCompletionStep } from './steps/JobCompletionStep';
 import { JobOverviewStep } from './steps/JobOverviewStep';
-import { StepIndicators, StepNavigation } from './steps/JobStepNavigation';
+import { StepNavigation } from './steps/JobStepNavigation';
+import { JobStepBar } from './steps/JobStepBar';
 import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
 import { WorkCategoryStep } from './steps/WorkCategoryStep';
 import { JOB_STEPS } from './steps/jobSteps';
@@ -190,7 +191,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
         onDelete={canDeleteJob ? handleDelete : undefined}
         onShowHistory={() => setHistoryOpen(true)}
       />
-      <StepIndicators
+      <JobStepBar
         currentStep={details.currentStep}
         onStepChange={handleStepChange}
         completedSteps={completedSteps}

@@ -48,6 +48,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
+        var assignedByUserId = TenantActorPolicy.ResolveTenantUserReference(actorId, _currentUser.Role);
         var normalizedUserIds = userIds
             .Where(id => id != Guid.Empty)
             .Distinct()
@@ -76,7 +77,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 OrganizationId = organizationId,
                 ReportId = jobId,
                 UserId = userId,
-                AssignedByUserId = actorId,
+                AssignedByUserId = assignedByUserId,
                 AssignedAt = now
             });
         }
@@ -241,6 +242,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
         IReadOnlyList<Guid> userIds, Guid? actorId,
         DateTimeOffset now, CancellationToken cancellationToken)
     {
+        var assignedByUserId = TenantActorPolicy.ResolveTenantUserReference(actorId, _currentUser.Role);
         foreach (var userId in userIds)
         {
             _dbContext.JobAssignments.Add(new JobAssignmentRow
@@ -249,7 +251,7 @@ public sealed class EfAssignmentRepository : IAssignmentRepository
                 OrganizationId = organizationId,
                 ReportId = reportId,
                 UserId = userId,
-                AssignedByUserId = actorId,
+                AssignedByUserId = assignedByUserId,
                 AssignedAt = now
             });
         }
