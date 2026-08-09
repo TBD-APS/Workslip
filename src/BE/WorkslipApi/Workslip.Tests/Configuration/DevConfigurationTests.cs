@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Workslip.Api.Configuration;
+using Workslip.Application.Users;
 
 namespace Workslip.Tests.Configuration;
 
@@ -23,6 +24,8 @@ public sealed class DevConfigurationTests
             EnvironmentName = environmentName
         });
         builder.Services.AddOpenApi();
+        builder.Services.AddScoped<IUserRepository>(_ =>
+            throw new InvalidOperationException("Dev route registration test must not resolve IUserRepository."));
 
         await using var app = builder.Build();
 
