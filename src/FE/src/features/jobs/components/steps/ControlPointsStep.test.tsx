@@ -17,8 +17,10 @@ const referenceData = {
   }],
 } as ReferenceDataResponse;
 
+const reasonLabel = 'Kommentar – hvorfor var ingen kontrolpunkter relevante?';
+
 describe('ControlPointsStep', () => {
-  it('only shows the shared reason when every category is irrelevant', () => {
+  it('only shows the shared comment at the bottom when every category is irrelevant', () => {
     const onReasonChange = vi.fn();
     const { rerender } = render(
       <ControlPointsStep
@@ -30,7 +32,7 @@ describe('ControlPointsStep', () => {
       />,
     );
 
-    expect(screen.queryByLabelText('Hvorfor er alle kontrolpunkter irrelevante?')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(reasonLabel)).not.toBeInTheDocument();
 
     rerender(
       <ControlPointsStep
@@ -50,7 +52,7 @@ describe('ControlPointsStep', () => {
       />,
     );
 
-    const reason = screen.getByLabelText('Hvorfor er alle kontrolpunkter irrelevante?');
+    const reason = screen.getByLabelText(reasonLabel);
     expect(reason).toHaveValue('Ikke en del af opgaven');
     fireEvent.change(reason, { target: { value: 'Ny begrundelse' } });
     expect(onReasonChange).toHaveBeenCalledWith('Ny begrundelse');
