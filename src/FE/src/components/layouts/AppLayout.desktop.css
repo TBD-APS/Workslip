@@ -1,0 +1,31 @@
+/*
+ * Desktop refinements that build on the existing responsive rules in App.css.
+ * Keep narrow/mobile behaviour in the mobile-first stylesheet and only tighten
+ * how already-responsive surfaces use wide desktop viewports here.
+ */
+@media (min-width: 1024px) {
+  .app-content {
+    padding-inline: clamp(2rem, 3vw, 3rem);
+  }
+
+  .page-container {
+    width: 100%;
+    max-width: 90rem;
+    min-width: 0;
+    margin-inline: auto;
+  }
+
+  /* Timer already has its own desktop padding in App.css. Let the app shell own
+     horizontal page gutters so the overview does not receive them twice. */
+  .time-overview-page {
+    max-width: 90rem;
+    padding-inline: 0;
+  }
+
+  /* Detail/report views already use structured sections and grids. Keep those
+     readable on very wide displays instead of stretching them edge to edge. */
+  .job-detail-page,
+  .report-overview-page {
+    max-width: 72rem;
+  }
+}

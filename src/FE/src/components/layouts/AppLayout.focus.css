@@ -1,3 +1,5 @@
+@import './AppLayout.desktop.css';
+
 /*
  * Keep mobile navigation visibility derived from the browser's actual focus
  * state. This avoids JavaScript focus timers becoming stale when fields move,
