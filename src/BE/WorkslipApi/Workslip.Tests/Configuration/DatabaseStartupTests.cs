@@ -246,5 +246,7 @@ public sealed class DatabaseStartupTests
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 
-    private sealed class EntraSeedResolvedException : Exception;
+    private sealed class EntraSeedResolvedException : Exception
+    {
+    }
 }
