@@ -1,4 +1,6 @@
+using System.Globalization;
 using FluentValidation;
+using Workslip.Application.Worksheets;
 using Workslip.Domain;
 
 namespace Workslip.Application.Jobs.Validators;
@@ -15,6 +17,8 @@ public static class SharedJobRequestRules
         ApplyCustomerSnapshot(validator, x => x.CustomerSnapshot);
         ApplyJobType(validator, x => x.JobType);
         ApplyWork(validator, x => x.Work);
+        validator.RuleForEach(x => x.Timesheets)
+            .SetValidator(new TimesheetRequestValidator());
     }
 
     public static void AddCommonRules(AbstractValidator<UpdateJobRequest> validator)
@@ -22,6 +26,8 @@ public static class SharedJobRequestRules
         ApplyCustomerSnapshot(validator, x => x.CustomerSnapshot);
         ApplyJobType(validator, x => x.JobType);
         ApplyWork(validator, x => x.Work);
+        validator.RuleForEach(x => x.Timesheets)
+            .SetValidator(new TimesheetRequestValidator());
     }
 
     private static void ApplyCustomerSnapshot<T>(
@@ -90,5 +96,24 @@ public static class SharedJobRequestRules
             validator.RuleFor(x => getWork(x)!.ClosureFlags)
                 .Must(JobRequestValidationRules.HaveNoDuplicates).WithMessage("Det samme afslutningsflag må ikke vælges flere gange.");
         });
+    }
+
+    private sealed class TimesheetRequestValidator : AbstractValidator<CreateTimesheetRequest>
+    {
+        public TimesheetRequestValidator()
+        {
+            RuleFor(x => x.UserId)
+                .Must(value => Guid.TryParse(value, out var id) && id != Guid.Empty)
+                .WithMessage("Bruger-id på timeregistreringen er ugyldigt.");
+
+            RuleFor(x => x.WorkDate)
+                .Must(value => DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                .WithMessage("Arbejdsdato på timeregistreringen er ugyldig.");
+
+            RuleFor(x => x.HoursWorked)
+                .GreaterThan(0).WithMessage("Antal timer skal være større end 0.")
+                .LessThanOrEqualTo(WorksheetHourRules.MaxDailyHours).WithMessage(WorksheetHourRules.DailyLimitMessage)
+                .Must(WorksheetHourRules.IsValidIncrement).WithMessage("Antal timer skal angives i intervaller på 0,25 time.");
+        }
     }
 }
