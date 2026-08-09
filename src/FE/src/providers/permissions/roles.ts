@@ -34,8 +34,13 @@ export function isRoleAtLeast(role: string | null | undefined, min: Role): boole
   return ROLE_RANK[r] >= ROLE_RANK[min];
 }
 
-export function canReceiveJobAssignment(role: string | null | undefined): boolean {
-  return hasAnyRole(role, [ROLES.User]);
+export function canReceiveJobAssignment(
+  role: string | null | undefined,
+  isCurrentUser = false,
+): boolean {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === ROLES.User
+    || (isCurrentUser && normalizedRole === ROLES.Admin);
 }
 
 export function hasAnyRole(role: string | null | undefined, allowed: readonly Role[]): boolean {
