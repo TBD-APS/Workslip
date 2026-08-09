@@ -58,6 +58,11 @@ public sealed class SqlDbContext : DbContext
 
     public DbSet<JobViewRow> JobViews => Set<JobViewRow>();
     public DbSet<IdempotencyRecordRow> IdempotencyRecords => Set<IdempotencyRecordRow>();
+    public DbSet<InventoryMaterialRow> InventoryMaterials => Set<InventoryMaterialRow>();
+    public DbSet<InventoryLocationRow> InventoryLocations => Set<InventoryLocationRow>();
+    public DbSet<InventoryBalanceRow> InventoryBalances => Set<InventoryBalanceRow>();
+    public DbSet<JobMaterialRow> JobMaterials => Set<JobMaterialRow>();
+    public DbSet<InventoryMovementRow> InventoryMovements => Set<InventoryMovementRow>();
 
 
 
@@ -130,6 +135,18 @@ public sealed class SqlDbContext : DbContext
         ConfigureNotificationDeliveryLog(modelBuilder);
         ConfigureJobViews(modelBuilder);
         ConfigureIdempotencyRecords(modelBuilder);
+        ConfigureInventory(modelBuilder);
+
+        // SQLite is used for relational contract tests and does not accept SQL Server's
+        // nvarchar(max) spelling. Production remains mapped to nvarchar(max).
+        if (Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+        {
+            foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(x => x.GetProperties()))
+            {
+                if (string.Equals(property.GetColumnType(), "nvarchar(max)", StringComparison.OrdinalIgnoreCase))
+                    property.SetColumnType("TEXT");
+            }
+        }
     }
 
 
@@ -1619,6 +1636,72 @@ entity.Property(e => e.Status)
         entity.Property(x => x.ExpiresAt).HasColumnType("datetimeoffset");
         entity.HasIndex(x => new { x.Scope, x.Key }).IsUnique().HasDatabaseName("UX_IdempotencyRecords_Scope_Key");
         entity.HasIndex(x => x.ExpiresAt).HasDatabaseName("IX_IdempotencyRecords_ExpiresAt");
+    }
+
+    private static void ConfigureInventory(ModelBuilder modelBuilder)
+    {
+        var material = modelBuilder.Entity<InventoryMaterialRow>();
+        material.ToTable("InventoryMaterials");
+        material.HasKey(x => x.Id);
+        material.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        material.Property(x => x.Unit).HasMaxLength(50).IsRequired();
+        material.Property(x => x.UnitCost).HasPrecision(18, 4);
+        material.HasAlternateKey(x => new { x.OrganizationId, x.Id });
+
+        var location = modelBuilder.Entity<InventoryLocationRow>();
+        location.ToTable("InventoryLocations");
+        location.HasKey(x => x.Id);
+        location.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        location.HasAlternateKey(x => new { x.OrganizationId, x.Id });
+
+        var balance = modelBuilder.Entity<InventoryBalanceRow>();
+        balance.ToTable("InventoryBalances", t => t.HasCheckConstraint("CK_InventoryBalances_NonNegative", "Quantity >= 0"));
+        balance.HasKey(x => new { x.OrganizationId, x.MaterialId, x.LocationId });
+        balance.Property(x => x.Quantity).HasPrecision(18, 4);
+        balance.HasOne<InventoryMaterialRow>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.MaterialId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        balance.HasOne<InventoryLocationRow>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.LocationId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+        var jobMaterial = modelBuilder.Entity<JobMaterialRow>();
+        jobMaterial.ToTable("JobMaterials", t =>
+        {
+            t.HasCheckConstraint("CK_JobMaterials_Quantity_Positive", "Quantity > 0");
+            t.HasCheckConstraint("CK_JobMaterials_PostedQuantity_Valid", "PostedQuantity >= 0 AND PostedQuantity <= Quantity");
+        });
+        jobMaterial.HasKey(x => x.Id);
+        jobMaterial.Property(x => x.Quantity).HasPrecision(18, 4);
+        jobMaterial.Property(x => x.PostedQuantity).HasPrecision(18, 4);
+        jobMaterial.Property(x => x.MaterialNameSnapshot).HasMaxLength(200);
+        jobMaterial.Property(x => x.UnitSnapshot).HasMaxLength(50);
+        jobMaterial.Property(x => x.UnitCostSnapshot).HasPrecision(18, 4);
+        jobMaterial.HasIndex(x => new { x.OrganizationId, x.JobId, x.MaterialId, x.LocationId }).IsUnique();
+        jobMaterial.HasAlternateKey(x => new { x.OrganizationId, x.Id });
+        jobMaterial.HasOne<JobReportRow>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.JobId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        jobMaterial.HasOne<InventoryMaterialRow>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.MaterialId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        jobMaterial.HasOne<InventoryLocationRow>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.LocationId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+        var movement = modelBuilder.Entity<InventoryMovementRow>();
+        movement.ToTable("InventoryMovements");
+        movement.HasKey(x => x.Id);
+        movement.Property(x => x.Quantity).HasPrecision(18, 4);
+        movement.Property(x => x.MaterialNameSnapshot).HasMaxLength(200).IsRequired();
+        movement.Property(x => x.UnitSnapshot).HasMaxLength(50).IsRequired();
+        movement.Property(x => x.UnitCostSnapshot).HasPrecision(18, 4);
+        movement.Property(x => x.CreatedAt).HasColumnType("datetimeoffset");
+        movement.HasIndex(x => new { x.OrganizationId, x.PostingBatchId });
+        movement.HasIndex(x => new { x.JobMaterialId, x.PostingBatchId }).IsUnique();
+        movement.HasOne<JobMaterialRow>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.JobMaterialId })
+            .HasPrincipalKey(x => new { x.OrganizationId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     }
 
 

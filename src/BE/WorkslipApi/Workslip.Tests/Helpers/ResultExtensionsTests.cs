@@ -60,6 +60,19 @@ public sealed class ResultExtensionsTests
     }
 
     [Fact]
+    public async Task ToHttpResult_maps_insufficient_stock_to_actionable_conflict()
+    {
+        var context = CreateHttpContext();
+
+        await ApiResultExtensions.ToHttpResult(Result.Conflict("insufficient_stock")).ExecuteAsync(context);
+        var root = await ReadResponseAsync(context);
+
+        Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+        Assert.Equal("insufficient_stock", root.GetProperty("error").GetString());
+        Assert.Equal("Der er ikke nok på lager til at indsende sagen.", root.GetProperty("message").GetString());
+    }
+
+    [Fact]
     public async Task ToHttpResult_maps_forbidden_to_403()
     {
         var context = CreateHttpContext();
