@@ -35,7 +35,7 @@ export function isRoleAtLeast(role: string | null | undefined, min: Role): boole
 }
 
 export function canReceiveJobAssignment(role: string | null | undefined): boolean {
-  return hasAnyRole(role, [ROLES.User, ROLES.Admin]);
+  return hasAnyRole(role, [ROLES.User]);
 }
 
 export function hasAnyRole(role: string | null | undefined, allowed: readonly Role[]): boolean {
