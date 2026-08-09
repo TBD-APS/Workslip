@@ -324,6 +324,35 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    -- The previous API creates Organization + creator without knowing about Filial.
+    -- Lazily establish the deterministic default here so that onboarding remains
+    -- write-safe between this migration and deployment of the Filial-aware API.
+    INSERT INTO dbo.OrganizationFilials
+    (
+        Id,
+        OrganizationId,
+        Name,
+        IsDefault,
+        CreatedAt,
+        UpdatedAt
+    )
+    SELECT DISTINCT
+        organization.Id,
+        organization.Id,
+        LEFT(organization.Name, 200),
+        1,
+        organization.CreatedAt,
+        organization.UpdatedAt
+    FROM inserted AS insertedUser
+    INNER JOIN dbo.Organizations AS organization
+        ON organization.Id = insertedUser.OrganizationId
+    WHERE insertedUser.FilialId IS NULL
+      AND NOT EXISTS (
+          SELECT 1
+          FROM dbo.OrganizationFilials AS filial
+          WHERE filial.OrganizationId = organization.Id
+            AND filial.IsDefault = 1);
+
     UPDATE users
     SET FilialId = filial.Id
     FROM dbo.Users AS users
