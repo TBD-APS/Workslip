@@ -49,6 +49,61 @@
   animation: hours-export-spin 0.8s linear infinite;
 }
 
+.hours-pdf-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+.hours-pdf-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0.75rem max(1rem, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.hours-pdf-preview-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.hours-pdf-preview-title strong {
+  color: var(--text);
+}
+
+.hours-pdf-preview-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.hours-pdf-preview-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.hours-pdf-preview-frame {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 0;
+  background: white;
+}
+
 @keyframes hours-export-spin {
   to {
     transform: rotate(360deg);
@@ -67,6 +122,16 @@
 
   .hours-export-button {
     flex: 1 1 100%;
+    min-height: 44px;
+  }
+
+  .hours-pdf-preview-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .hours-pdf-preview-close {
+    width: 100%;
     min-height: 44px;
   }
 }
