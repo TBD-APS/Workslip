@@ -43,7 +43,7 @@ export function validateControlPoints(
   return { valid: true };
 }
 
-function capitalizeFirstLetter(str: string) {
+function capitalizeFirstLetter(str: string): string {
   if (!str) return str;
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
