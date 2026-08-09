@@ -25,8 +25,8 @@ public sealed class LocalDevelopmentDatabaseMigrationTests
     }
 
     [Theory]
-    [InlineData(Environments.Staging)]
-    [InlineData(Environments.Production)]
+    [InlineData("Staging")]
+    [InlineData("Production")]
     public void ShouldApplyLocalMigrations_NonDevelopmentNeverApplies(string environmentName)
     {
         var environment = CreateEnvironment(environmentName);
