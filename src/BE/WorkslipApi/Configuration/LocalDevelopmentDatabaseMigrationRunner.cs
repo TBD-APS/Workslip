@@ -73,19 +73,8 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
         string contentRootPath,
         CancellationToken cancellationToken = default)
     {
-        if (!IsLocalSqlTarget(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Local development migrations refused the configured SQL target because it is not provably local.");
-        }
-
-        var migrationsPath = Path.GetFullPath(Path.Combine(
-            contentRootPath,
-            "..",
-            "infrastructure",
-            "database",
-            "migrations"));
-        var migrations = LoadMigrations(migrationsPath);
+        EnsureLocalTarget(connectionString);
+        var migrations = LoadMigrationsForContentRoot(contentRootPath);
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
@@ -135,7 +124,12 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
                 }
 
                 await ExecuteMigrationAsync(connection, transaction, migration, cancellationToken);
-                await RecordMigrationAsync(connection, transaction, migration, cancellationToken);
+                await RecordMigrationAsync(
+                    connection,
+                    transaction,
+                    migration,
+                    "local-dev",
+                    cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
                 appliedCount++;
@@ -153,6 +147,66 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
         Log.Information(
             "[STARTUP 08.1] Local database migrations complete. Applied: {AppliedCount}, TotalKnown: {MigrationCount}",
             appliedCount,
+            migrations.Count);
+    }
+
+    public static async Task BaselineCurrentSchemaAsync(
+        string connectionString,
+        string contentRootPath,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureLocalTarget(connectionString);
+        var migrations = LoadMigrationsForContentRoot(contentRootPath);
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await EnsureMigrationHistoryTableAsync(connection, cancellationToken);
+
+        var recordedCount = 0;
+        foreach (var migration in migrations)
+        {
+            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                await AcquireMigrationLockAsync(connection, transaction, cancellationToken);
+                var storedChecksum = await GetStoredChecksumAsync(
+                    connection,
+                    transaction,
+                    migration.Id,
+                    cancellationToken);
+
+                if (storedChecksum is not null)
+                {
+                    if (!storedChecksum.Equals(migration.Sha256, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException(
+                            $"Local bootstrap cannot baseline migration '{migration.Id}' because history contains " +
+                            $"checksum '{storedChecksum}' instead of '{migration.Sha256}'.");
+                    }
+
+                    await transaction.CommitAsync(cancellationToken);
+                    continue;
+                }
+
+                await RecordMigrationAsync(
+                    connection,
+                    transaction,
+                    migration,
+                    "local-bootstrap",
+                    cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                recordedCount++;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                throw;
+            }
+        }
+
+        Log.Information(
+            "[LOCAL DB] Current schema baseline recorded. Added: {RecordedCount}, TotalKnown: {MigrationCount}",
+            recordedCount,
             migrations.Count);
     }
 
@@ -184,6 +238,26 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
         }
 
         return migrations;
+    }
+
+    private static IReadOnlyList<LocalMigration> LoadMigrationsForContentRoot(string contentRootPath)
+    {
+        var migrationsPath = Path.GetFullPath(Path.Combine(
+            contentRootPath,
+            "..",
+            "infrastructure",
+            "database",
+            "migrations"));
+        return LoadMigrations(migrationsPath);
+    }
+
+    private static void EnsureLocalTarget(string connectionString)
+    {
+        if (!IsLocalSqlTarget(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Local development database operation refused the configured SQL target because it is not provably local.");
+        }
     }
 
     private static async Task EnsureMigrationHistoryTableAsync(
@@ -303,6 +377,7 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
         SqlConnection connection,
         SqlTransaction transaction,
         LocalMigration migration,
+        string appliedBy,
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
@@ -310,10 +385,11 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
         command.CommandTimeout = 30;
         command.CommandText = $"""
             INSERT INTO {MigrationHistoryTable} (MigrationId, Sha256, AppliedBy)
-            VALUES (@migrationId, @sha256, N'local-dev');
+            VALUES (@migrationId, @sha256, @appliedBy);
             """;
         command.Parameters.AddWithValue("@migrationId", migration.Id);
         command.Parameters.AddWithValue("@sha256", migration.Sha256);
+        command.Parameters.AddWithValue("@appliedBy", appliedBy);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
