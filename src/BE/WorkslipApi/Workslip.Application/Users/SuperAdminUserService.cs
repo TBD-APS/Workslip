@@ -37,6 +37,7 @@ public sealed class SuperAdminUserService(
     IValidator<CreateUserRequest> createUserValidator,
     IValidator<UpdateUserRequest> updateUserValidator,
     IUserEntraService entraService,
+    IUserClaimsCacheInvalidator claimsCache,
     ICurrentUserContext currentUser,
     ILogger<SuperAdminUserService> logger) : ISuperAdminUserService
 {
@@ -269,6 +270,9 @@ public sealed class SuperAdminUserService(
             ]);
         }
 
+        var identity = await repository.GetByEmailAsync(
+            current.Email.Trim().ToLowerInvariant(),
+            cancellationToken);
         var displayName = request.DisplayName?.Trim() ?? current.DisplayName;
         var phone = request.Phone?.Trim() ?? current.Phone;
         var role = request.Role ?? current.Role;
@@ -286,6 +290,8 @@ public sealed class SuperAdminUserService(
         {
             return Result<SuperAdminUserResponse>.NotFound();
         }
+
+        claimsCache.Invalidate(identity?.EntraId, current.Email, identity?.EntraEmail);
 
         var response = await repository.GetAsync(userId, cancellationToken);
         if (response is null)
@@ -310,7 +316,21 @@ public sealed class SuperAdminUserService(
             return Result.Forbidden();
         }
 
+        var current = await repository.GetAsync(userId, cancellationToken);
+        if (current is null)
+        {
+            return Result.NotFound();
+        }
+
+        var identity = await repository.GetByEmailAsync(
+            current.Email.Trim().ToLowerInvariant(),
+            cancellationToken);
         var status = await repository.DeleteAsync(userId, cancellationToken);
+        if (status == SuperAdminUserDeleteStatus.Deleted)
+        {
+            claimsCache.Invalidate(identity?.EntraId, current.Email, identity?.EntraEmail);
+        }
+
         return status switch
         {
             SuperAdminUserDeleteStatus.Deleted => Result.NoContent(),
@@ -336,7 +356,7 @@ public sealed class SuperAdminUserService(
         user.CreatedAt,
         user.UpdatedAt);
 
-    private static List<ValidationError> MapValidationErrors(FluentValidation.Results.ValidationResult result) =>
+    private static List<ValidationError> MapValidationErrors(ValidationResult result) =>
         result.Errors
             .Select(error => new ValidationError
             {
