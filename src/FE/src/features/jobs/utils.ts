@@ -43,7 +43,6 @@ export const emptyForm: JobForm = {
     customWorkKind: '',
     controlPointSelections: {},
     irrelevantCategoryIds: [],
-    allIrrelevantReason: '',
     closureFlags: [],
   },
   jobType: 'KLS',
@@ -116,7 +115,6 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       customWorkKind: job.work.workKind?.customWorkKind ?? '',
       controlPointSelections,
       irrelevantCategoryIds,
-      allIrrelevantReason: job.work.remarks ?? '',
       closureFlags: job.work.closureFlags ? job.work.closureFlags.map((flag) => flag.normalizedLabel) : [],
     },
     jobType: job.jobType === 'Diverse' ? 'Diverse' : 'KLS',
@@ -206,22 +204,8 @@ export function toWorkRequest(
     workKind: form.work.workKind || null,
     customWorkKind: form.work.customWorkKind.trim() || null,
     closureFlags: form.work.closureFlags || [],
-    remarks: areAllSelectedCategoriesIrrelevant(form, referenceData)
-      ? form.work.allIrrelevantReason.trim() || null
-      : null,
+    remarks: null,
   };
-}
-
-export function areAllSelectedCategoriesIrrelevant(
-  form: JobForm,
-  referenceData: ReferenceDataResponse | null,
-) {
-  const selectedCategories = referenceData?.installationTypes
-    .filter((type) => form.work.categoryIds.includes(type.id))
-    .flatMap((type) => type.categories.map((category) => `${type.id}-${category.id}`)) ?? [];
-
-  return selectedCategories.length > 0 &&
-    selectedCategories.every((id) => form.work.irrelevantCategoryIds.includes(id));
 }
 
 export function sameForm(left: JobForm, right: JobForm) {
