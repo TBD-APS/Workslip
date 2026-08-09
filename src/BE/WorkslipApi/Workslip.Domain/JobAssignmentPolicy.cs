@@ -2,6 +2,10 @@ namespace Workslip.Domain;
 
 public static class JobAssignmentPolicy
 {
+    public static bool CanManageAssignments(string? role) =>
+        string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
+
     public static bool CanReceiveAssignment(string? role) =>
         string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase);
 
