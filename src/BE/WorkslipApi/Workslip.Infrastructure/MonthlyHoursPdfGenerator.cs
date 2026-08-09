@@ -14,7 +14,13 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
     private static readonly Color Border = Color.FromHex("#CBD5E1");
     private static readonly Color Muted = Color.FromHex("#64748B");
 
-    public byte[] Generate(MyWorksheetsMonthResponse month)
+    public byte[] Generate(MyWorksheetsMonthResponse month) =>
+        CreateDocument(month).GeneratePdf();
+
+    public IReadOnlyList<string> GeneratePreviewPages(MyWorksheetsMonthResponse month) =>
+        CreateDocument(month).GenerateSvgFiles().ToArray();
+
+    private static IDocument CreateDocument(MyWorksheetsMonthResponse month)
     {
         var rows = Flatten(month);
         var employees = rows
@@ -57,7 +63,7 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
                     text.TotalPages();
                 });
             });
-        }).GeneratePdf();
+        });
     }
 
     private static void ComposeHeader(IContainer container, MyWorksheetsMonthResponse month)
