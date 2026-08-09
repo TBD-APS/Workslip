@@ -27,12 +27,40 @@ Health check:
 curl http://localhost:5262/health
 ```
 
+## Development database seeding
+
+Development seeding is explicit opt-in and is database-only by default. `Workslip:SeedDevelopmentData=true` seeds the existing synthetic Workslip development dataset without resolving or invoking the Entra Superadmin provisioning service.
+
+From macOS/Linux:
+
+```bash
+Workslip__SeedDevelopmentData=true dotnet run --launch-profile http
+```
+
+From PowerShell:
+
+```powershell
+$env:Workslip__SeedDevelopmentData="true"
+dotnet run --launch-profile http
+```
+
+Entra identity reconciliation has a separate fail-closed gate. It runs only when both development-data seeding and the Entra flag are explicitly enabled:
+
+```text
+Workslip:SeedDevelopmentData=true
+Workslip:SeedDevelopmentEntraIdentities=true
+```
+
+Do not enable `Workslip:SeedDevelopmentEntraIdentities` for ordinary local database work. When platform identities are the actual operation being performed, prefer the explicit `bootstrap-superadmins` command below.
+
+Neither seed flag enables seeding outside the Development environment.
+
 ## Explicit platform Superadmin bootstrap
 
-The three permanent platform Superadmins are reconciled only through the explicit
-`bootstrap-superadmins` operation (or as a shared prerequisite of synthetic
-development seeding). Normal production startup does not run it unless this exact
-operation value is supplied.
+The three permanent platform Superadmins are reconciled through the explicit
+`bootstrap-superadmins` operation, or through the separately gated development Entra
+seed described above. Normal production startup does not run either path unless the
+corresponding explicit operation/configuration is supplied.
 The operation verifies database connectivity, reuses or invites Entra guests through
 the existing Graph integration, and reconciles only the platform organization and
 Superadmin rows. It does not run schema migrations, demo/reference-data seeding,
@@ -106,7 +134,7 @@ Superadmin delegated organization access uses the existing server-side organizat
 
 ## Persistence and schema
 
-Persistence uses EF Core/SQL Server. Staging and production startup only verify database connectivity; they do not apply schema changes, backfill tenant data or run development seeding. Development startup may run `DevelopmentDatabaseSeeder`. Schema changes require an explicit deployment operation, and new-tenant reference data is provisioned only during explicit organization onboarding. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
+Persistence uses EF Core/SQL Server. Staging and production startup only verify database connectivity; they do not apply schema changes, backfill tenant data or run development seeding. Development database seeding requires the explicit `Workslip:SeedDevelopmentData` flag, and external Entra identity reconciliation additionally requires `Workslip:SeedDevelopmentEntraIdentities`. Schema changes require an explicit deployment operation, and new-tenant reference data is provisioned only during explicit organization onboarding. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
 
 Do not infer SQL behaviour from EF in-memory tests.
 

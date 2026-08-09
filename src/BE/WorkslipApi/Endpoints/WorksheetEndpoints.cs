@@ -56,6 +56,25 @@ namespace Workslip.Api.Endpoints
             .Produces(StatusCodes.Status404NotFound)
             .RequireAuthorization(AuthPolicies.RequireAdmin);
 
+            group.MapGet("/all/report/pdf/preview", async (
+                [FromQuery] int? year,
+                [FromQuery] int? month,
+                HttpContext httpContext,
+                IWorksheetService service,
+                CancellationToken cancellationToken) =>
+            {
+                var result = await service.GetAllWorksheetsPdfPreviewAsync(year, month, cancellationToken);
+                if (!result.IsSuccess)
+                    return ResultExtensions.ToHttpResult(result);
+
+                HttpCacheHeaders.SetNoStore(httpContext);
+                return Results.Ok(result.Value);
+            })
+            .Produces<MonthlyHoursPdfPreviewResponse>(StatusCodes.Status200OK)
+            .ProducesValidationProblem()
+            .Produces(StatusCodes.Status404NotFound)
+            .RequireAuthorization(AuthPolicies.RequireAdmin);
+
             return app;
         }
     }

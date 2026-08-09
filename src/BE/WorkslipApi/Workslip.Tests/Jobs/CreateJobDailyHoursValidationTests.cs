@@ -1,10 +1,8 @@
 using Workslip.Application.Auth;
 using Workslip.Application.Jobs;
 using Workslip.Application.Jobs.Validators;
-using Workslip.Application.Users;
 using Workslip.Application.Worksheets;
 using Workslip.Domain;
-using Workslip.Domain.Models;
 
 namespace Workslip.Tests.Jobs;
 
@@ -54,7 +52,7 @@ public sealed class CreateJobDailyHoursValidationTests
 
     private static CreateJobRequestValidator CreateValidator(decimal existingHours) =>
         new(
-            new StubUserRepository(),
+            new AllowAssignmentValidator(),
             new StubWorksheetRepository(existingHours),
             new StubCurrentUserContext(OrganizationId));
 
@@ -68,35 +66,13 @@ public sealed class CreateJobDailyHoursValidationTests
         public string? Role => Roles.Admin;
     }
 
-    private sealed class StubUserRepository : IUserRepository
+    private sealed class AllowAssignmentValidator : IJobAssignmentValidator
     {
-        public Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<UserDataRow?>(id == UserId
-                ? new UserDataRow
-                {
-                    Id = UserId,
-                    OrganizationId = OrganizationId,
-                    Email = "worker@example.invalid",
-                    DisplayName = "Worker",
-                    EntraId = "entra-worker",
-                    EntraEmail = "worker@example.invalid",
-                    Role = Roles.User,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                }
-                : null);
+        public Task<JobAssignmentValidationResult> ValidateForExistingJobAsync(Guid jobId, IReadOnlyList<Guid> userIds, CancellationToken cancellationToken) =>
+            Task.FromResult(JobAssignmentValidationResult.Valid());
 
-        public Task<UserDataRow?> GetAuthenticatedActorAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<UserDataRow?> GetByExternalIdentityAsync(string? entraId, IReadOnlyCollection<string> emailCandidates, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<int> GetCountByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task UpdateAsync(UserDataRow user, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task DeleteAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IReadOnlyList<AssignedJobResponse>> GetAssignedJobsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<decimal?> GetTotalHoursAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IReadOnlyDictionary<Guid, UserPeriodHours>> GetPeriodHoursAsync(Guid organizationId, DateOnly biweeklyStart, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<JobAssignmentValidationResult> ValidateForDefaultFilialAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken) =>
+            Task.FromResult(JobAssignmentValidationResult.Valid());
     }
 
     private sealed class StubWorksheetRepository(decimal existingHours) : IWorksheetRepository

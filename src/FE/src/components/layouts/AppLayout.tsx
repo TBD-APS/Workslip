@@ -19,6 +19,7 @@ import {
 import '../../features/superadmin/organizationSession.css';
 import '../../authenticated-base.css';
 import '../../App.css';
+import '../../features/jobs/jobWizardTheme.css';
 import './AppLayout.focus.css';
 import {
   AppScrollRestoreBoundary,
@@ -226,6 +227,15 @@ export const AppLayout = () => {
       {location.pathname === '/app' && (
         <Can permission="job:create">
           <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny sag">
+            <PlusCircle size={22} />
+          </button>
+        </Can>
+      )}
+
+      {/* Floating Create Button - on Customers list */}
+      {location.pathname === '/app/customers' && (
+        <Can permission="user:manage">
+          <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny kunde">
             <PlusCircle size={22} />
           </button>
         </Can>

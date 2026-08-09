@@ -33,7 +33,6 @@ export function CreateOverviewStep({ create, linkableJobs, isLoadingJobs }: Crea
         onChange={create.updateDestinationAddress}
         onZipCodeChange={create.updateDestinationZipCode}
         onCityChange={create.updateDestinationCity}
-        required={isAdmin}
         error={create.fieldErrors.destinationAddress}
       />
 

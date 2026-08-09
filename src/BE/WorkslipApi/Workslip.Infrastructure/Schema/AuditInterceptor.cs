@@ -62,7 +62,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
                     Id = Guid.NewGuid(),
                     OrganizationId = ae.OrganizationId,
                     ReportId = ae.ReportId,
-                    ActorId = ae.ActorId,
+                    ActorId = TenantActorPolicy.ResolveTenantUserReference(ae.ActorId, currentUser.Role),
                     EventType = ae.EventType,
                     Summary = ae.Summary,
                     BeforeJson = ae.BeforeValues.Count > 0 ? JsonSerializer.Serialize(ae.BeforeValues, JsonOptions) : null,

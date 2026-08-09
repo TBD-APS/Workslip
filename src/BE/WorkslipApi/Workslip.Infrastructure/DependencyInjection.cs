@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
         services.AddScoped<IApplicationTransactionFactory, EfApplicationTransactionFactory>();
 
+        services.AddScoped<TenantIntegrityInterceptor>();
         services.AddScoped<JobStatusTransitionInterceptor>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<WorksheetDailyHoursInterceptor>();
@@ -44,16 +45,22 @@ public static class DependencyInjection
             var connectionString = SqlConnectionFactory.ResolveConnectionString(configuration);
             options.UseSqlServer(connectionString);
 
+            var tenantIntegrityInterceptor = sp.GetRequiredService<TenantIntegrityInterceptor>();
             var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
             var worksheetDailyHoursInterceptor = sp.GetRequiredService<WorksheetDailyHoursInterceptor>();
-            options.AddInterceptors(transitionInterceptor, auditInterceptor, worksheetDailyHoursInterceptor);
+            options.AddInterceptors(
+                tenantIntegrityInterceptor,
+                transitionInterceptor,
+                auditInterceptor,
+                worksheetDailyHoursInterceptor);
 
             options.ConfigureWarnings(warnings =>
                 warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
         });
 
         services.AddScoped<IAssignmentRepository, EfAssignmentRepository>();
+        services.AddScoped<IJobAssignmentScopeRepository, EfJobAssignmentScopeRepository>();
         services.AddScoped<ICustomerRepository, EfCustomerRepository>();
         services.AddScoped<IInviteRepository, EfInviteRepository>();
         services.AddScoped<IInvitationStatusRepository, EfInviteRepository>();

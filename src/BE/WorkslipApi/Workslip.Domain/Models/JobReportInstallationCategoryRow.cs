@@ -3,6 +3,7 @@ namespace Workslip.Domain.Models;
 public sealed class JobReportInstallationCategoryRow : IAuditable
 {
     public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
     public Guid JobReportInstallationId { get; set; }
     public JobReportInstallationRow JobReportInstallation { get; set; } = null!;
     public Guid ControlCategoryId { get; set; }

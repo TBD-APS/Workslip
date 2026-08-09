@@ -1,0 +1,220 @@
+name: Production database migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type MIGRATE to apply pending production migrations
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  # Share the production deployment lock with Backend API deploy so a manual
+  # migration cannot run concurrently with an application release/migration.
+  group: azure-api-prod
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply production database migrations
+    runs-on: windows-2022
+    timeout-minutes: 45
+    environment: prod
+    env:
+      AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+      AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftware-prod-migration
+    steps:
+      - name: Verify production migration request
+        shell: pwsh
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw "Production database migrations may only be dispatched from main. Selected ref: $env:GITHUB_REF"
+          }
+
+          if ($env:CONFIRMATION -ne 'MIGRATE') {
+            throw 'Confirmation must be exactly MIGRATE.'
+          }
+
+          Write-Host "Production migration request accepted for main @ $env:GITHUB_SHA."
+
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Azure login as application deployment identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Inspect database migration identity
+        id: identity-check
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $clientIdOutput = @(& az identity show `
+            --resource-group $env:AZURE_RESOURCE_GROUP `
+            --name $env:AZURE_MIGRATION_IDENTITY_NAME `
+            --query clientId `
+            --output tsv 2>$null | ForEach-Object { $_.ToString() })
+          $exitCode = $LASTEXITCODE
+          $clientId = ($clientIdOutput -join [Environment]::NewLine).Trim()
+
+          if ($exitCode -ne 0 -or [string]::IsNullOrWhiteSpace($clientId) -or $clientId -eq 'null') {
+            'missing=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Database migration identity '$env:AZURE_MIGRATION_IDENTITY_NAME' is missing and will be reconciled through the protected infrastructure identity."
+            return
+          }
+
+          if ($clientId -notmatch '^[0-9a-fA-F-]{36}$') {
+            throw 'Database migration identity returned an invalid client ID.'
+          }
+
+          'missing=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Database migration identity is present: $env:AZURE_MIGRATION_IDENTITY_NAME"
+
+      - name: Logout application deployment identity before bootstrap
+        if: ${{ steps.identity-check.outputs.missing == 'true' }}
+        shell: pwsh
+        run: az logout
+
+      - name: Verify infrastructure identity for migration bootstrap
+        if: ${{ steps.identity-check.outputs.missing == 'true' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace('${{ vars.AZURE_INFRA_CLIENT_ID }}')) {
+            throw 'GitHub environment prod is missing AZURE_INFRA_CLIENT_ID; the migration identity cannot be bootstrapped safely.'
+          }
+
+      - name: Azure login as infrastructure identity
+        if: ${{ steps.identity-check.outputs.missing == 'true' }}
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_INFRA_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure sqlcmd for migration identity bootstrap
+        if: ${{ steps.identity-check.outputs.missing == 'true' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
+            choco install sqlcmd --yes --no-progress
+            if ($LASTEXITCODE -ne 0) {
+              throw "Chocolatey failed to install sqlcmd with exit code $LASTEXITCODE."
+            }
+          }
+
+          Get-Command sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Reconcile missing database migration identity
+        if: ${{ steps.identity-check.outputs.missing == 'true' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\src\BE\infrastructure\reconcile-database-migration-identity.ps1 `
+            -Environment prod `
+            -CompanyName mrsoftware
+
+      - name: Logout infrastructure identity
+        if: ${{ steps.identity-check.outputs.missing == 'true' }}
+        shell: pwsh
+        run: az logout
+
+      - name: Refresh Azure login as application deployment identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve dedicated database migration identity
+        id: migration-identity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $clientIdOutput = @(& az identity show `
+            --resource-group $env:AZURE_RESOURCE_GROUP `
+            --name $env:AZURE_MIGRATION_IDENTITY_NAME `
+            --query clientId `
+            --output tsv 2>&1 | ForEach-Object { $_.ToString() })
+          if ($LASTEXITCODE -ne 0) {
+            throw "Database migration identity '$env:AZURE_MIGRATION_IDENTITY_NAME' is unavailable after reconciliation.`n$($clientIdOutput -join [Environment]::NewLine)"
+          }
+
+          $clientId = ($clientIdOutput -join [Environment]::NewLine).Trim()
+          if ($clientId -notmatch '^[0-9a-fA-F-]{36}$') {
+            throw 'Database migration identity returned an invalid client ID after reconciliation.'
+          }
+
+          "client_id=$clientId" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Logout application deployment identity
+        shell: pwsh
+        run: az logout
+
+      - name: Azure login as database migration identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.migration-identity.outputs.client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure Microsoft SqlServer PowerShell module
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module SqlServer -Scope CurrentUser -Repository PSGallery -Force -AllowClobber
+          }
+          Import-Module SqlServer -ErrorAction Stop
+          Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Apply pending production migrations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\src\BE\infrastructure\run-database-migrations.ps1 `
+            -Environment prod `
+            -CompanyName mrsoftware
+
+      - name: Logout database migration identity
+        if: ${{ always() }}
+        shell: pwsh
+        run: az logout || $true
+
+      - name: Migration summary
+        if: ${{ success() }}
+        shell: pwsh
+        env:
+          IDENTITY_BOOTSTRAPPED: ${{ steps.identity-check.outputs.missing }}
+        run: |
+          $bootstrapSummary = if ($env:IDENTITY_BOOTSTRAPPED -eq 'true') {
+            'The missing dedicated migration identity was reconciled first through the protected production infrastructure identity.'
+          }
+          else {
+            'The existing dedicated migration identity was used.'
+          }
+
+          @"
+          ## Production database migrations
+
+          Applied all pending reviewed migrations from main @ ``$env:GITHUB_SHA``.
+          $bootstrapSummary
+          No application package or general infrastructure deployment was performed.
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

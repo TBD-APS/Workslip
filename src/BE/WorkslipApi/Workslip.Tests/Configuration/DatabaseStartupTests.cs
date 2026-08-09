@@ -22,7 +22,8 @@ public sealed class DatabaseStartupTests
         await DatabaseStartup.VerifyIfRequiredAsync(
             services,
             configuration,
-            seedDevelopmentData: false);
+            seedDevelopmentData: false,
+            seedDevelopmentEntraIdentities: false);
     }
 
     [Fact]
@@ -37,7 +38,8 @@ public sealed class DatabaseStartupTests
         await DatabaseStartup.VerifyIfRequiredAsync(
             services,
             configuration,
-            seedDevelopmentData: false);
+            seedDevelopmentData: false,
+            seedDevelopmentEntraIdentities: false);
     }
 
     [Fact]
@@ -66,7 +68,8 @@ public sealed class DatabaseStartupTests
         await DatabaseStartup.VerifyIfRequiredAsync(
             services,
             BuildConfiguration(generateOpenApiOnly: false),
-            seedDevelopmentData: false);
+            seedDevelopmentData: false,
+            seedDevelopmentEntraIdentities: false);
 
         await using var verificationScope = services.CreateAsyncScope();
         var verificationContext = verificationScope.ServiceProvider.GetRequiredService<SqlDbContext>();
@@ -87,9 +90,67 @@ public sealed class DatabaseStartupTests
             DatabaseStartup.VerifyIfRequiredAsync(
                 services,
                 configuration,
-                seedDevelopmentData: false));
+                seedDevelopmentData: false,
+                seedDevelopmentEntraIdentities: false));
 
         Assert.Contains("SqlDbContext", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task VerifyIfRequiredAsync_DbOnlySeed_DoesNotResolveDevelopmentDatabaseSeeder()
+    {
+        var serviceCollection = new ServiceCollection();
+        var databaseName = Guid.NewGuid().ToString();
+        serviceCollection.AddDbContext<SqlDbContext>(options =>
+            options.UseInMemoryDatabase(databaseName));
+        serviceCollection.AddScoped<InstallationBaselineProvisioner>();
+        serviceCollection.AddScoped<DevelopmentDatabaseSeeder>(_ => throw new EntraSeedResolvedException());
+        await using var services = serviceCollection.BuildServiceProvider();
+
+        await using (var setupScope = services.CreateAsyncScope())
+        {
+            var context = setupScope.ServiceProvider.GetRequiredService<SqlDbContext>();
+            var timestamp = DateTimeOffset.Parse("2025-01-01T00:00:00Z");
+            context.Organizations.Add(new OrganizationRow
+            {
+                Id = Guid.NewGuid(),
+                Name = "Local development tenant",
+                Cvr = "12345678",
+                CreatedAt = timestamp,
+                UpdatedAt = timestamp
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await DatabaseStartup.VerifyIfRequiredAsync(
+            services,
+            BuildConfiguration(generateOpenApiOnly: false, seedDevelopmentData: true),
+            seedDevelopmentData: true,
+            seedDevelopmentEntraIdentities: false);
+
+        await using var verificationScope = services.CreateAsyncScope();
+        var verificationContext = verificationScope.ServiceProvider.GetRequiredService<SqlDbContext>();
+        Assert.Equal(3, await verificationContext.Users.CountAsync());
+    }
+
+    [Fact]
+    public async Task VerifyIfRequiredAsync_EntraOptIn_ResolvesDevelopmentDatabaseSeeder()
+    {
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddDbContext<SqlDbContext>(options =>
+            options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        serviceCollection.AddScoped<DevelopmentDatabaseSeeder>(_ => throw new EntraSeedResolvedException());
+        await using var services = serviceCollection.BuildServiceProvider();
+
+        await Assert.ThrowsAsync<EntraSeedResolvedException>(() =>
+            DatabaseStartup.VerifyIfRequiredAsync(
+                services,
+                BuildConfiguration(
+                    generateOpenApiOnly: false,
+                    seedDevelopmentData: true,
+                    seedDevelopmentEntraIdentities: true),
+                seedDevelopmentData: true,
+                seedDevelopmentEntraIdentities: true));
     }
 
     [Theory]
@@ -118,6 +179,33 @@ public sealed class DatabaseStartupTests
     }
 
     [Theory]
+    [InlineData("Development", false, false, false)]
+    [InlineData("Development", false, true, false)]
+    [InlineData("Development", true, false, false)]
+    [InlineData("Development", true, true, true)]
+    [InlineData("Staging", true, true, false)]
+    [InlineData("Production", true, true, false)]
+    public void ShouldSeedDevelopmentEntraIdentities_RequiresDevelopmentDataAndSeparateOptIn(
+        string environmentName,
+        bool seedDevelopmentData,
+        bool seedDevelopmentEntraIdentities,
+        bool expected)
+    {
+        var environment = new TestHostEnvironment
+        {
+            EnvironmentName = environmentName
+        };
+        var configuration = BuildConfiguration(
+            generateOpenApiOnly: false,
+            seedDevelopmentData: seedDevelopmentData,
+            seedDevelopmentEntraIdentities: seedDevelopmentEntraIdentities);
+
+        Assert.Equal(
+            expected,
+            DatabaseStartup.ShouldSeedDevelopmentEntraIdentities(environment, configuration));
+    }
+
+    [Theory]
     [InlineData(true, 0)]
     [InlineData(false, 3)]
     public void ConfigureServices_RegistersHostedServicesOnlyForRuntime(
@@ -139,12 +227,14 @@ public sealed class DatabaseStartupTests
 
     private static IConfiguration BuildConfiguration(
         bool generateOpenApiOnly,
-        bool seedDevelopmentData = false) =>
+        bool seedDevelopmentData = false,
+        bool seedDevelopmentEntraIdentities = false) =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DatabaseStartup.GenerateOpenApiOnlyKey] = generateOpenApiOnly.ToString(),
-                [DatabaseStartup.SeedDevelopmentDataKey] = seedDevelopmentData.ToString()
+                [DatabaseStartup.SeedDevelopmentDataKey] = seedDevelopmentData.ToString(),
+                [DatabaseStartup.SeedDevelopmentEntraIdentitiesKey] = seedDevelopmentEntraIdentities.ToString()
             })
             .Build();
 
@@ -154,5 +244,9 @@ public sealed class DatabaseStartupTests
         public string ApplicationName { get; set; } = "Workslip.Tests";
         public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private sealed class EntraSeedResolvedException : Exception
+    {
     }
 }

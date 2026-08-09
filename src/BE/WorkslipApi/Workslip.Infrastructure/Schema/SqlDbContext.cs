@@ -206,7 +206,7 @@ public sealed class SqlDbContext : DbContext
 
 
 
-        entity.ToTable("Users");
+        entity.ToTable("Users", table => table.UseSqlOutputClause(false));
 
         entity.HasKey(e => e.Id);
 
@@ -519,6 +519,8 @@ public sealed class SqlDbContext : DbContext
         entity.ToTable("JobReports", t =>
 
         {
+
+            t.UseSqlOutputClause(false);
 
             t.HasCheckConstraint("CK_JobReports_Status",
 
@@ -987,8 +989,6 @@ entity.Property(e => e.Status)
 
             .HasColumnType("datetimeoffset");
 
-
-
         entity.Property(e => e.EntraCleanedAt)
 
             .HasColumnType("datetimeoffset");
@@ -1301,7 +1301,7 @@ entity.Property(e => e.Status)
 
 
 
-        entity.ToTable("JobReportInstallationCategories", "dbo");
+        entity.ToTable("JobReportInstallationCategories", "dbo", table => table.UseSqlOutputClause(false));
 
         entity.HasKey(x => x.Id);
 
@@ -1353,7 +1353,7 @@ entity.Property(e => e.Status)
 
 
 
-        entity.ToTable("JobReportInstallationControlPoints", "dbo");
+        entity.ToTable("JobReportInstallationControlPoints", "dbo", table => table.UseSqlOutputClause(false));
 
         entity.HasKey(x => new { x.JobReportInstallationCategoryId, x.ControlPointId });
 

@@ -126,6 +126,51 @@ public class WorksheetService : IWorksheetService
         }
     }
 
+    public async Task<Result<MonthlyHoursPdfPreviewResponse>> GetAllWorksheetsPdfPreviewAsync(int? year, int? month, CancellationToken cancellationToken)
+    {
+        var monthResult = await GetAllWorksheetsAsync(year, month, cancellationToken);
+
+        if (monthResult.Status == ResultStatus.Unauthorized)
+        {
+            return Result<MonthlyHoursPdfPreviewResponse>.Unauthorized();
+        }
+
+        if (monthResult.Status == ResultStatus.Invalid)
+        {
+            return Result<MonthlyHoursPdfPreviewResponse>.Invalid(monthResult.ValidationErrors);
+        }
+
+        if (!monthResult.IsSuccess)
+        {
+            return Result<MonthlyHoursPdfPreviewResponse>.Error(monthResult.Errors.FirstOrDefault() ?? "worksheet_pdf_preview_data_error");
+        }
+
+        var response = monthResult.Value;
+        var hasEntries = response.Weeks.SelectMany(week => week.Days).Any(day => day.Entries.Count > 0);
+        if (!hasEntries)
+        {
+            return Result<MonthlyHoursPdfPreviewResponse>.NotFound();
+        }
+
+        try
+        {
+            var pageImages = _monthlyHoursPdfGenerator.GeneratePreviewPages(response);
+            if (pageImages.Count == 0)
+            {
+                return Result<MonthlyHoursPdfPreviewResponse>.Error("worksheet_pdf_preview_empty");
+            }
+
+            var pages = pageImages.Select(Convert.ToBase64String).ToArray();
+            return Result<MonthlyHoursPdfPreviewResponse>.Success(
+                new MonthlyHoursPdfPreviewResponse("image/png", pages));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Monthly hours PDF preview generation failed. Year: {Year}, Month: {Month}", response.Year, response.Month);
+            return Result<MonthlyHoursPdfPreviewResponse>.Error("worksheet_pdf_preview_generation_failed");
+        }
+    }
+
     public async Task<Result<JobReportSummaryResponse>> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken)
     {
         var organizationId = _currentUserContext.OrganizationId;

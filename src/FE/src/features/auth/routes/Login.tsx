@@ -25,6 +25,7 @@ const OneTimeCodeLogin = lazy(() =>
 );
 
 const LOGIN_INTERRUPTED_MESSAGE = 'Login afbrudt. Klik på knappen for at prøve igen.';
+const devLoginEnabled = import.meta.env.DEV;
 
 const isBackForwardNavigation = () =>
   typeof performance !== 'undefined' &&
@@ -158,6 +159,25 @@ export const Login = () => {
     }
   };
 
+  const handleDevLogin = async (email: string, redirect: string) => {
+    if (!devLoginEnabled) return;
+
+    setErrorMsg(null);
+    setIsSubmitting(true);
+
+    try {
+      const { getDevToken } = await import('../api/devLogin');
+      const response = await getDevToken(email);
+      AuthStorage.setItem(AUTH_TOKEN_KEY, response.token);
+      AuthStorage.setItem(USER_EMAIL_KEY, response.user.email);
+      clearReauthInFlight();
+      window.location.replace(redirect);
+    } catch {
+      setErrorMsg(`Dev login failed - ${email} not found`);
+      setIsSubmitting(false);
+    }
+  };
+
   if (isAuthenticated) {
     return <Navigate to="/app" replace />;
   }
@@ -245,6 +265,27 @@ export const Login = () => {
                 Mistet dit login? Modtag engangskode
               </button>
             </div>
+
+            {devLoginEnabled && (
+              <div className="login-email-step" aria-label="Developer login">
+                {[
+                  { label: 'Dev Login · User', email: 'user@17v3ygzs.mailosaur.net', redirect: '/app' },
+                  { label: 'Dev Login · Auditor', email: 'auditor@17v3ygzs.mailosaur.net', redirect: '/app/auditor' },
+                  { label: 'Dev Login · Admin', email: 'admin@17v3ygzs.mailosaur.net', redirect: '/app' },
+                  { label: 'Dev Login · Superadmin', email: 'rasmusvm6@hotmail.com', redirect: '/app' },
+                ].map((entry) => (
+                  <button
+                    key={entry.email}
+                    type="button"
+                    onClick={() => void handleDevLogin(entry.email, entry.redirect)}
+                    disabled={isSubmitting}
+                    className="btn btn-secondary login-submit-btn"
+                  >
+                    {entry.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>

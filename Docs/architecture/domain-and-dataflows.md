@@ -11,20 +11,42 @@ This page records tenant/data-integrity boundaries that are expensive to reconst
 
 `OrganizationId` is the server-owned tenant boundary for Workslip operational data. API authorization and repository filters are still required; database constraints provide an additional integrity boundary and do not replace authorization.
 
-Current tenant-scoped relationships include users, customers, jobs, assignments, worksheets and top-level job installation selections. Composite keys/foreign keys are used where a child must reference an entity from the same organization.
+Current tenant-scoped relationships include users, customers, jobs, assignments, worksheets and the selected-installation snapshot chain. Composite keys/foreign keys are used where a child must reference an entity from the same organization.
 
 Superadmin access does not remove ordinary tenant filtering from repositories. Cross-organization operational work uses the explicit delegated-organization session flow so existing services continue to operate with one effective organization context.
 
-## Known database-enforcement gap
+## Filial ownership
 
-Installation category/control-point snapshot rows remain a verified gap tracked by **WOR-160**:
+Workslips domain term is **Filial**. `Branch`, `BranchId`, `OrganizationBranch` and similar names are not Workslip domain terminology; Git branch remains ordinary version-control terminology.
 
-- `JobReportInstallationCategoryRow` has no `OrganizationId`; its `ControlCategoryId` relationship is a simple foreign key.
-- `JobReportInstallationControlPointRow` has no `OrganizationId`; its `ControlPointId` relationship is a simple foreign key.
+A Filial is a child of an Organization, not a tenant boundary:
 
-The application can validate selections, but the database cannot currently prove that those two referenced definition rows belong to the same tenant as the parent installation. WOR-160 owns the relational fix and negative cross-tenant tests.
+```text
+Organization
+  └── Filial
+       ├── Users
+       └── Jobs
+```
 
-Do not describe installation snapshots as fully database tenant-enforced until that issue is implemented and verified.
+Every Organization has one default Filial. `Users` and `JobReports` carry `FilialId`, while `OrganizationId` remains the security/tenant authority. Database relationships use `(OrganizationId, FilialId)` so an ID from another Organization cannot be attached as a Filial.
+
+Job assignments are Filial-scoped. Only tenant `User` employees can be assignment targets, and the assigned User must have the same `OrganizationId` and `FilialId` as the Job. Admin and Superadmin roles may manage assignments but are not assignment targets themselves.
+
+Current single-filial flows resolve the default Filial server-side. Existing create-user/create-job contracts therefore do not require clients to send `FilialId`. Customers and installation/reference data remain Organization-level until a concrete product requirement says otherwise.
+
+## Installation snapshot integrity
+
+Selected installation snapshots carry `OrganizationId` through the database-owned hierarchy:
+
+```text
+JobReportInstallation
+  -> JobReportInstallationCategory
+      -> JobReportInstallationControlPoint
+```
+
+Category snapshots are constrained to the same Organization as both their parent installation and referenced `ControlCategory`. Control-point snapshots are constrained to the same Organization as both their parent category snapshot and referenced `ControlPoint`.
+
+Application code derives snapshot ownership from the tenant-scoped parent and only loads allowed definitions through the effective Organization. Composite database foreign keys are the final integrity boundary for direct SQL/import/worker paths.
 
 ## Lifecycle and deletion
 
@@ -34,7 +56,7 @@ Deletion behaviour should reflect ownership:
 - operational/history/reference relationships that must not disappear implicitly use restrictive deletion and explicit cleanup;
 - tenant-owned references must preserve organization scope during update/delete flows.
 
-The exact current foreign keys and delete behaviours are defined in `SqlDbContext` plus applied versioned migrations. When changing them, validate existing production data before tightening constraints and use relational tests for orphan, cross-tenant and delete behaviour.
+The exact current foreign keys and delete behaviours are defined by the current model plus applied versioned migrations. When changing them, validate existing production data before tightening constraints and use relational tests for orphan, cross-tenant and delete behaviour.
 
 ## Schema changes
 
