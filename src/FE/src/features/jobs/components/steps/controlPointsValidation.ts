@@ -5,6 +5,7 @@ export function validateControlPoints(
   form: JobForm,
   referenceData: ReferenceDataResponse | null,
 ): { valid: boolean; error?: string } {
+  if (form.jobType === 'Diverse') return { valid: true };
 
   const selectedInstallationTypes = referenceData?.installationTypes.filter((t) => form.work.categoryIds.includes(t.id));
 
@@ -26,7 +27,6 @@ export function validateControlPoints(
         }
       }
     }
-
   }
 
   return { valid: true };
