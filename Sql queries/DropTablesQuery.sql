@@ -1,8 +1,7 @@
 -- DESTRUCTIVE SCHEMA RESET ONLY.
 -- This file drops every foreign key and every table in the selected database.
 -- Do NOT use it for go-live data cleanup.
--- Use src/BE/infrastructure/operations/cleanup-prelive-orders.sql for WOR-348,
--- or clear-selected-tables.sql when an explicitly reviewed whole-table row cleanup is intended.
+-- Use src/BE/infrastructure/operations/run-go-live-prelive-cleanup.ps1 for WOR-348.
 
 USE [db-mrsoftware-prod]
 GO
