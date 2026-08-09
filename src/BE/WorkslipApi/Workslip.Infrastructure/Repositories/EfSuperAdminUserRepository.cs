@@ -101,32 +101,108 @@ public sealed class EfSuperAdminUserRepository(
         string? sortDirection,
         CancellationToken cancellationToken)
     {
-        var query = BuildQuery(search);
+        var query =
+            from user in dbContext.Users.AsNoTracking()
+            join organization in dbContext.Organizations.AsNoTracking()
+                on user.OrganizationId equals organization.Id
+            join filial in dbContext.Set<OrganizationFilialRow>().AsNoTracking()
+                on new { user.OrganizationId, Id = user.FilialId }
+                equals new { filial.OrganizationId, filial.Id }
+            where organization.Id != PlatformOrganization.Id
+            select new { User = user, Organization = organization, Filial = filial };
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(row =>
+                row.User.DisplayName.Contains(term) ||
+                row.User.Email.Contains(term) ||
+                row.User.Phone.Contains(term) ||
+                row.User.Role.Contains(term) ||
+                row.Organization.Name.Contains(term) ||
+                row.Filial.Name.Contains(term));
+        }
+
         query = (sortBy, sortDirection) switch
         {
-            ("displayName", "asc") => query.OrderBy(user => user.DisplayName),
-            ("displayName", "desc") => query.OrderByDescending(user => user.DisplayName),
-            ("email", "asc") => query.OrderBy(user => user.Email),
-            ("email", "desc") => query.OrderByDescending(user => user.Email),
-            ("organization", "asc") => query.OrderBy(user => user.OrganizationName).ThenBy(user => user.DisplayName),
-            ("organization", "desc") => query.OrderByDescending(user => user.OrganizationName).ThenBy(user => user.DisplayName),
-            ("role", "asc") => query.OrderBy(user => user.Role).ThenBy(user => user.DisplayName),
-            ("role", "desc") => query.OrderByDescending(user => user.Role).ThenBy(user => user.DisplayName),
-            _ => query.OrderBy(user => user.OrganizationName).ThenBy(user => user.DisplayName)
+            ("displayName", "asc") => query.OrderBy(row => row.User.DisplayName),
+            ("displayName", "desc") => query.OrderByDescending(row => row.User.DisplayName),
+            ("email", "asc") => query.OrderBy(row => row.User.Email),
+            ("email", "desc") => query.OrderByDescending(row => row.User.Email),
+            ("organization", "asc") => query.OrderBy(row => row.Organization.Name).ThenBy(row => row.User.DisplayName),
+            ("organization", "desc") => query.OrderByDescending(row => row.Organization.Name).ThenBy(row => row.User.DisplayName),
+            ("role", "asc") => query.OrderBy(row => row.User.Role).ThenBy(row => row.User.DisplayName),
+            ("role", "desc") => query.OrderByDescending(row => row.User.Role).ThenBy(row => row.User.DisplayName),
+            _ => query.OrderBy(row => row.Organization.Name).ThenBy(row => row.User.DisplayName)
         };
 
         return await query
             .Skip(offset)
             .Take(limit)
+            .Select(row => new SuperAdminUserRecord(
+                row.User.Id,
+                row.User.OrganizationId,
+                row.Organization.Name,
+                row.User.FilialId,
+                row.Filial.Name,
+                row.User.Email,
+                row.User.DisplayName,
+                row.User.Phone,
+                row.User.Role,
+                row.User.CreatedAt,
+                row.User.UpdatedAt))
             .ToListAsync(cancellationToken);
     }
 
-    private Task<int> CountCoreAsync(string? search, CancellationToken cancellationToken) =>
-        BuildQuery(search).CountAsync(cancellationToken);
+    private async Task<int> CountCoreAsync(string? search, CancellationToken cancellationToken)
+    {
+        var query =
+            from user in dbContext.Users.AsNoTracking()
+            join organization in dbContext.Organizations.AsNoTracking()
+                on user.OrganizationId equals organization.Id
+            join filial in dbContext.Set<OrganizationFilialRow>().AsNoTracking()
+                on new { user.OrganizationId, Id = user.FilialId }
+                equals new { filial.OrganizationId, filial.Id }
+            where organization.Id != PlatformOrganization.Id
+            select new { User = user, Organization = organization, Filial = filial };
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(row =>
+                row.User.DisplayName.Contains(term) ||
+                row.User.Email.Contains(term) ||
+                row.User.Phone.Contains(term) ||
+                row.User.Role.Contains(term) ||
+                row.Organization.Name.Contains(term) ||
+                row.Filial.Name.Contains(term));
+        }
+
+        return await query.CountAsync(cancellationToken);
+    }
 
     private Task<SuperAdminUserRecord?> GetCoreAsync(Guid userId, CancellationToken cancellationToken) =>
-        BuildQuery(search: null)
-            .FirstOrDefaultAsync(user => user.Id == userId, cancellationToken);
+        (
+            from user in dbContext.Users.AsNoTracking()
+            join organization in dbContext.Organizations.AsNoTracking()
+                on user.OrganizationId equals organization.Id
+            join filial in dbContext.Set<OrganizationFilialRow>().AsNoTracking()
+                on new { user.OrganizationId, Id = user.FilialId }
+                equals new { filial.OrganizationId, filial.Id }
+            where organization.Id != PlatformOrganization.Id && user.Id == userId
+            select new SuperAdminUserRecord(
+                user.Id,
+                user.OrganizationId,
+                organization.Name,
+                user.FilialId,
+                filial.Name,
+                user.Email,
+                user.DisplayName,
+                user.Phone,
+                user.Role,
+                user.CreatedAt,
+                user.UpdatedAt))
+        .FirstOrDefaultAsync(cancellationToken);
 
     private async Task<IReadOnlyList<SuperAdminFilialRecord>> ListFilialsCoreAsync(CancellationToken cancellationToken)
     {
@@ -283,44 +359,6 @@ public sealed class EfSuperAdminUserRepository(
                 await transaction.DisposeAsync();
             }
         }
-    }
-
-    private IQueryable<SuperAdminUserRecord> BuildQuery(string? search)
-    {
-        var query =
-            from user in dbContext.Users.AsNoTracking()
-            join organization in dbContext.Organizations.AsNoTracking()
-                on user.OrganizationId equals organization.Id
-            join filial in dbContext.Set<OrganizationFilialRow>().AsNoTracking()
-                on new { user.OrganizationId, Id = user.FilialId }
-                equals new { filial.OrganizationId, filial.Id }
-            where organization.Id != PlatformOrganization.Id
-            select new SuperAdminUserRecord(
-                user.Id,
-                user.OrganizationId,
-                organization.Name,
-                user.FilialId,
-                filial.Name,
-                user.Email,
-                user.DisplayName,
-                user.Phone,
-                user.Role,
-                user.CreatedAt,
-                user.UpdatedAt);
-
-        if (string.IsNullOrWhiteSpace(search))
-        {
-            return query;
-        }
-
-        var term = search.Trim();
-        return query.Where(user =>
-            user.DisplayName.Contains(term) ||
-            user.Email.Contains(term) ||
-            user.Phone.Contains(term) ||
-            user.Role.Contains(term) ||
-            user.OrganizationName.Contains(term) ||
-            user.FilialName.Contains(term));
     }
 
     private static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
