@@ -85,7 +85,8 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
       return data.items;
     },
   });
-  const assignableUsers = (usersQuery.data?.users ?? []).filter((candidate) => canReceiveJobAssignment(candidate.role));
+  const assignableUsers = (usersQuery.data?.users ?? []).filter((candidate) =>
+    canReceiveJobAssignment(candidate.role, candidate.id === user?.id));
   const referenceData = referenceDataQuery.data!;
 
   const linkableJobs = getLinkableJobs(jobsQuery.data, jobId);
