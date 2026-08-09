@@ -154,13 +154,15 @@ public class WorksheetService : IWorksheetService
 
         try
         {
-            var pages = _monthlyHoursPdfGenerator.GeneratePreviewPages(response);
-            if (pages.Count == 0)
+            var pageImages = _monthlyHoursPdfGenerator.GeneratePreviewPages(response);
+            if (pageImages.Count == 0)
             {
                 return Result<MonthlyHoursPdfPreviewResponse>.Error("worksheet_pdf_preview_empty");
             }
 
-            return Result<MonthlyHoursPdfPreviewResponse>.Success(new MonthlyHoursPdfPreviewResponse(pages));
+            var pages = pageImages.Select(Convert.ToBase64String).ToArray();
+            return Result<MonthlyHoursPdfPreviewResponse>.Success(
+                new MonthlyHoursPdfPreviewResponse("image/png", pages));
         }
         catch (Exception ex)
         {
