@@ -4,6 +4,24 @@ namespace Workslip.Tests.Jobs;
 
 public sealed class JobAssignmentPolicyTests
 {
+    [Theory]
+    [InlineData(Roles.Admin)]
+    [InlineData(Roles.Superadmin)]
+    public void CanManageAssignments_allows_admin_roles(string role)
+    {
+        Assert.True(JobAssignmentPolicy.CanManageAssignments(role));
+    }
+
+    [Theory]
+    [InlineData(Roles.User)]
+    [InlineData(Roles.Auditor)]
+    [InlineData(null)]
+    [InlineData("")]
+    public void CanManageAssignments_rejects_non_admin_roles(string? role)
+    {
+        Assert.False(JobAssignmentPolicy.CanManageAssignments(role));
+    }
+
     [Fact]
     public void CanReceiveAssignment_allows_employee_role()
     {
