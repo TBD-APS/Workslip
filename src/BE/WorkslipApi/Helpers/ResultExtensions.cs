@@ -88,6 +88,7 @@ public static class ResultExtensions
         "invite_expired" => "Invitationen er udløbet.",
         "worksheet_rule_violation" => "Arbejdssedlen kunne ikke gemmes, fordi oplysningerne er ugyldige.",
         "invalid_job_status_transition" => "Statusændringen er ikke tilladt fra sagens nuværende status.",
+        "insufficient_stock" => "Der er ikke nok på lager til at indsende sagen.",
         _ => GenericConflictMessage
     };
 

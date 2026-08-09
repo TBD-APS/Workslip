@@ -368,7 +368,23 @@ public sealed class JobService(
             return Result<JobReportSummaryResponse>.Unauthorized();
         }
 
-        var transition = await _jobRepository.TransitionAsync(id, organizationId.Value, targetStatus, actorId, rejectionNote, cancellationToken);
+        JobTransitionResult? transition;
+        try
+        {
+            transition = await _jobRepository.TransitionAsync(id, organizationId.Value, targetStatus, actorId, rejectionNote, cancellationToken);
+        }
+        catch (InventoryPostingException exception) when (exception.Failure == InventoryPostingFailure.InactiveOrForeignReference)
+        {
+            return Result<JobReportSummaryResponse>.Invalid([new ValidationError
+            {
+                Identifier = "materials",
+                ErrorMessage = "Et eller flere materialer eller lagerlokationer er ikke længere aktive."
+            }]);
+        }
+        catch (InventoryPostingException exception) when (exception.Failure == InventoryPostingFailure.InsufficientStock)
+        {
+            return Result<JobReportSummaryResponse>.Conflict("insufficient_stock");
+        }
         if (transition is null)
         {
             logger.LogWarning("Job transition returned not found. JobId: {JobId}. TargetStatus: {TargetStatus}. ActorId: {ActorId}.",

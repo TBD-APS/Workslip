@@ -495,6 +495,9 @@ if (request.Work.ClosureFlags is not null)
                 : new JobTransitionResult(alreadyApplied, false, existing.SubmittedByUserId);
         }
 
+        if (nextStatus == JobStatus.InReview)
+            await PostJobMaterialsAsync(existing.Id, organizationId, cancellationToken);
+
         var now = DateTimeOffset.UtcNow;
         var entry = _dbContext.Entry(existing);
         entry.Property(e => e.Status).CurrentValue = nextStatus.ToString();
@@ -520,6 +523,53 @@ if (request.Work.ClosureFlags is not null)
         return transitioned is null
             ? null
             : new JobTransitionResult(transitioned, true, submittedByUserId);
+    }
+
+    private async Task PostJobMaterialsAsync(Guid jobId, Guid organizationId, CancellationToken cancellationToken)
+    {
+        var lines = await _dbContext.JobMaterials
+            .Where(x => x.JobId == jobId && x.OrganizationId == organizationId && x.Quantity > x.PostedQuantity)
+            .OrderBy(x => x.MaterialId).ThenBy(x => x.LocationId)
+            .ToListAsync(cancellationToken);
+        if (lines.Count == 0) return;
+
+        var materialIds = lines.Select(x => x.MaterialId).Distinct().ToArray();
+        var locationIds = lines.Select(x => x.LocationId).Distinct().ToArray();
+        var materials = await _dbContext.InventoryMaterials
+            .Where(x => x.OrganizationId == organizationId && x.IsActive && materialIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        var locations = await _dbContext.InventoryLocations
+            .Where(x => x.OrganizationId == organizationId && x.IsActive && locationIds.Contains(x.Id))
+            .Select(x => x.Id).ToHashSetAsync(cancellationToken);
+        if (materials.Count != materialIds.Length || locations.Count != locationIds.Length)
+            throw new InventoryPostingException(InventoryPostingFailure.InactiveOrForeignReference);
+
+        var postingBatchId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        foreach (var line in lines)
+        {
+            var delta = line.Quantity - line.PostedQuantity;
+            var updated = await _dbContext.InventoryBalances
+                .Where(x => x.OrganizationId == organizationId && x.MaterialId == line.MaterialId &&
+                            x.LocationId == line.LocationId && x.Quantity >= delta)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.Quantity, x => x.Quantity - delta), cancellationToken);
+            if (updated != 1)
+                throw new InventoryPostingException(InventoryPostingFailure.InsufficientStock);
+
+            var material = materials[line.MaterialId];
+            line.PostedQuantity = line.Quantity;
+            line.MaterialNameSnapshot = material.Name;
+            line.UnitSnapshot = material.Unit;
+            line.UnitCostSnapshot = material.UnitCost;
+            line.PostingBatchId = postingBatchId;
+            _dbContext.InventoryMovements.Add(new InventoryMovementRow
+            {
+                Id = Guid.NewGuid(), OrganizationId = organizationId, MaterialId = line.MaterialId,
+                LocationId = line.LocationId, JobId = jobId, JobMaterialId = line.Id,
+                PostingBatchId = postingBatchId, Quantity = -delta, MaterialNameSnapshot = material.Name,
+                UnitSnapshot = material.Unit, UnitCostSnapshot = material.UnitCost, CreatedAt = now
+            });
+        }
     }
 
     public Task<JobDeleteRepositoryResult> DeleteAsync(Guid id, Guid organizationId, CancellationToken cancellationToken) =>
