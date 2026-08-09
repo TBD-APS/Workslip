@@ -11,7 +11,12 @@ permissions:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # PR runs are disposable when the same PR gets a newer commit. A running
+  # main push is different: Backend API deploy waits for a successful completed
+  # main CI run, so cancelling it on every subsequent merge can permanently
+  # starve Azure while Vercel keeps advancing. Keep the active main run alive;
+  # GitHub still coalesces older pending runs in this concurrency group.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   DOTNET_VERSION: '10.0.x'
