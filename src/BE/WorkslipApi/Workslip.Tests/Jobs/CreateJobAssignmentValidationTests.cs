@@ -70,7 +70,7 @@ public sealed class CreateJobAssignmentValidationTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, error =>
             error.PropertyName == nameof(CreateJobRequest.AssignedUserIds)
-            && error.ErrorMessage == "Sager kan kun tildeles medarbejdere i samme filial.");
+            && error.ErrorMessage == JobAssignmentValidationResult.InvalidAssignee().ErrorMessage);
     }
 
     private sealed record TestCurrentUserContext(Guid? UserId, Guid? OrganizationId, string? Role) : ICurrentUserContext;
