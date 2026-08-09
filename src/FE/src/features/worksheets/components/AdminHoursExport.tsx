@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Eye, Loader2, X } from 'lucide-react';
 import { notify } from '../../../lib/toast';
-import { createPdfFilePreview, downloadPdfFile, type PdfFilePreview } from '../../../lib/pdfFile';
+import { downloadPdfFile } from '../../../lib/pdfFile';
+import { getMonthlyHoursPdfPreview } from '../api/monthlyHoursPdfPreview';
 import type { MyWorksheetsMonthResponse } from '../worksheetOverviewTypes';
 import {
   buildHoursCsv,
@@ -17,32 +18,39 @@ type AdminHoursExportProps = {
 
 type PdfAction = 'preview' | 'download';
 
+type PdfPreview = {
+  fileName: string;
+  pageUrls: string[];
+};
+
 const OBJECT_URL_LIFETIME_MS = 60_000;
 
 export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
   const rows = useMemo(() => buildHoursExportRows(data), [data]);
   const [pdfAction, setPdfAction] = useState<PdfAction | null>(null);
-  const [pdfPreview, setPdfPreview] = useState<PdfFilePreview | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
+  const previewUrlsRef = useRef<string[]>([]);
   const hasRows = rows.length > 0;
   const pdfRequest = useMemo(() => ({
     url: `/api/worksheets/all/report/pdf?year=${data.year}&month=${data.month}`,
     fallbackFileName: `workslip-timer-${data.year}-${String(data.month).padStart(2, '0')}.pdf`,
   }), [data.month, data.year]);
 
-  const closePdfPreview = useCallback(() => {
-    if (previewUrlRef.current) {
-      window.URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = null;
+  const revokePreviewUrls = useCallback(() => {
+    for (const url of previewUrlsRef.current) {
+      window.URL.revokeObjectURL(url);
     }
-    setPdfPreview(null);
+    previewUrlsRef.current = [];
   }, []);
 
+  const closePdfPreview = useCallback(() => {
+    revokePreviewUrls();
+    setPdfPreview(null);
+  }, [revokePreviewUrls]);
+
   useEffect(() => () => {
-    if (previewUrlRef.current) {
-      window.URL.revokeObjectURL(previewUrlRef.current);
-    }
-  }, []);
+    revokePreviewUrls();
+  }, [revokePreviewUrls]);
 
   useEffect(() => {
     if (!pdfPreview) return undefined;
@@ -75,12 +83,21 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
     setPdfAction('preview');
 
     try {
-      const preview = await createPdfFilePreview(pdfRequest);
-      if (previewUrlRef.current) {
-        window.URL.revokeObjectURL(previewUrlRef.current);
+      const preview = await getMonthlyHoursPdfPreview(data.year, data.month);
+      if (preview.pages.length === 0) {
+        throw new Error('worksheet_pdf_preview_empty');
       }
-      previewUrlRef.current = preview.url;
-      setPdfPreview(preview);
+
+      const pageUrls = preview.pages.map((page) =>
+        window.URL.createObjectURL(new Blob([page], { type: 'image/svg+xml' })),
+      );
+
+      revokePreviewUrls();
+      previewUrlsRef.current = pageUrls;
+      setPdfPreview({
+        fileName: pdfRequest.fallbackFileName,
+        pageUrls,
+      });
     } catch {
       notify.error(`Kunne ikke hente PDF for ${monthLabel}`);
     } finally {
@@ -165,11 +182,20 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
               Luk
             </button>
           </header>
-          <iframe
-            className="hours-pdf-preview-frame"
-            src={pdfPreview.url}
-            title={`PDF-preview af timer for ${monthLabel}`}
-          />
+          <div
+            className="hours-pdf-preview-pages"
+            role="document"
+            aria-label={`Dokumentpreview af timer for ${monthLabel}`}
+          >
+            {pdfPreview.pageUrls.map((url, index) => (
+              <img
+                key={url}
+                className="hours-pdf-preview-page"
+                src={url}
+                alt={`Side ${index + 1} af ${pdfPreview.pageUrls.length}`}
+              />
+            ))}
+          </div>
         </div>
       )}
     </>
