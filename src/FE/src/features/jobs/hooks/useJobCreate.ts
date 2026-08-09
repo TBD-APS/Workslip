@@ -216,7 +216,7 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
     setForm((prev) => ({ ...prev, work: { ...prev.work, customWorkKind } }));
   };
 
-  const canSave = isValidCreateForm(form, { requireDestinationAddress: isAdmin });
+  const canSave = isValidCreateForm(form);
 
   function computeFieldErrors(targetForm: JobForm): Record<string, string> {
     const errors: Record<string, string> = {};
@@ -231,7 +231,6 @@ export function useJobCreate(onCreated: (jobId: string) => void, initialForm?: J
       if (validatePhoneNumber(phone) !== null) errors.phone = validatePhoneNumber(phone)!;
     }
 
-    if (isAdmin && targetForm.destinationAddress.trim().length === 0) errors.destinationAddress = 'Adresse er påkrævet';
     return errors;
   }
 
