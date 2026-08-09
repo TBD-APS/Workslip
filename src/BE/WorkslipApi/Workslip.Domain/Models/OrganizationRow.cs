@@ -7,4 +7,5 @@ public sealed class OrganizationRow
     public string Cvr { get; init; } = "";
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
+    public ICollection<OrganizationFilialRow> Filials { get; set; } = [];
 }
