@@ -109,6 +109,10 @@ try
 
     await app.RunAsync();
 }
+catch (Microsoft.Extensions.Hosting.HostAbortedException)
+{
+    throw;
+}
 catch (Exception exception)
 {
     if (applicationStarted)
@@ -167,6 +171,10 @@ static T RunStartupValuePhase<T>(int step, string phase, Func<T> action)
             phase,
             stopwatch.ElapsedMilliseconds);
         return result;
+    }
+    catch (Microsoft.Extensions.Hosting.HostAbortedException)
+    {
+        throw;
     }
     catch (Exception exception)
     {
