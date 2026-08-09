@@ -10,6 +10,7 @@ import { PaginationControls } from '../../../components/pagination/PaginationCon
 import { usePaginatedList } from '../../../hooks/usePaginatedList';
 import { useColumnResize } from '../../../hooks/useColumnResize';
 import { apiClient } from '../../../lib/axios';
+import { useAuth } from '../../../providers/useAuth';
 import { UserRoleBadge } from '../components/UserRoleBadge';
 
 const PAGE_SIZE = 20;
@@ -42,6 +43,7 @@ const SkeletonCard = () => (
 
 export const UserList = () => {
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
 
   const fetchUsersPage = useCallback(async ({ limit, offset, search, sortBy, sortDirection }: { limit: number; offset: number; search?: string; sortBy?: string; sortDirection?: string }) => {
     const response = (await apiClient.get('/api/users', {
@@ -71,7 +73,15 @@ export const UserList = () => {
     sentinelRef,
     isDesktop,
   } = usePaginatedList<UserListItem>({
-    queryKey: ['/api/users', 'list'],
+    queryKey: [
+      '/api/users',
+      'list',
+      {
+        actorId: currentUser?.id ?? null,
+        organizationId: currentUser?.organizationId ?? null,
+        role: currentUser?.role ?? null,
+      },
+    ],
     fetchPage: fetchUsersPage,
     pageSize: PAGE_SIZE,
     storageKey: 'users',
