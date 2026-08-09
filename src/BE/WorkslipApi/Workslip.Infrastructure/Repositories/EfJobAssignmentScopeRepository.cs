@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Jobs;
-using Workslip.Domain;
 using Workslip.Domain.Models;
 using Workslip.Infrastructure.Schema;
 
@@ -45,23 +44,7 @@ public sealed class EfJobAssignmentScopeRepository(SqlDbContext dbContext) : IJo
         return await dbContext.Users
             .AsNoTracking()
             .Where(user => user.OrganizationId == organizationId && normalizedUserIds.Contains(user.Id))
-            .Select(user => new JobAssignmentUserScope(user.Id, user.FilialId, user.Role, user.DisplayName))
-            .ToArrayAsync(cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<JobAssignmentUserScope>> GetAssignableUsersAsync(
-        Guid organizationId,
-        Guid filialId,
-        CancellationToken cancellationToken)
-    {
-        return await dbContext.Users
-            .AsNoTracking()
-            .Where(user => user.OrganizationId == organizationId
-                && user.FilialId == filialId
-                && user.Role == Roles.User)
-            .OrderBy(user => user.DisplayName)
-            .ThenBy(user => user.Id)
-            .Select(user => new JobAssignmentUserScope(user.Id, user.FilialId, user.Role, user.DisplayName))
+            .Select(user => new JobAssignmentUserScope(user.Id, user.FilialId, user.Role))
             .ToArrayAsync(cancellationToken);
     }
 }
