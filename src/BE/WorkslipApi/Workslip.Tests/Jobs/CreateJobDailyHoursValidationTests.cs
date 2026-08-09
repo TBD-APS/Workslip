@@ -8,73 +8,83 @@ using Workslip.Domain.Models;
 
 namespace Workslip.Tests.Jobs;
 
-public sealed class CreateJobAssignmentValidationTests
+public sealed class CreateJobDailyHoursValidationTests
 {
-    [Fact]
-    public async Task Validator_rejects_timesheet_for_user_not_assigned_to_job()
-    {
-        var organizationId = Guid.NewGuid();
-        var niels = CreateUser(organizationId, "niels@example.invalid");
-        var arne = CreateUser(organizationId, "arne@example.invalid");
-        var validator = new CreateJobRequestValidator(
-            new StubUserRepository(niels, arne),
-            new EmptyWorksheetRepository(),
-            new TestCurrentUserContext(Guid.NewGuid(), organizationId, Roles.Admin));
+    private static readonly Guid OrganizationId = Guid.NewGuid();
+    private static readonly Guid UserId = Guid.NewGuid();
 
-        var request = new CreateJobRequest(
-            JobType: JobType.Diverse.ToString(),
-            Timesheets: [new CreateTimesheetRequest("2026-08-09", arne.Id.ToString(), 8m, false)],
-            AssignedUserIds: [niels.Id]);
+    [Fact]
+    public async Task Validator_rejects_hours_above_24_across_existing_jobs()
+    {
+        var validator = CreateValidator(existingHours: 20m);
+        var request = CreateRequest(new CreateTimesheetRequest("2026-08-09", UserId.ToString(), 4.25m, false));
 
         var result = await validator.ValidateAsync(request);
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, error =>
             error.PropertyName == nameof(CreateJobRequest.Timesheets)
-            && error.ErrorMessage.Contains("tildelt sagen", StringComparison.Ordinal));
+            && error.ErrorMessage == WorksheetHourRules.DailyLimitMessage);
     }
 
     [Fact]
-    public async Task Validator_allows_timesheet_for_assigned_user()
+    public async Task Validator_sums_multiple_new_entries_for_same_user_and_day()
     {
-        var organizationId = Guid.NewGuid();
-        var niels = CreateUser(organizationId, "niels@example.invalid");
-        var validator = new CreateJobRequestValidator(
-            new StubUserRepository(niels),
-            new EmptyWorksheetRepository(),
-            new TestCurrentUserContext(Guid.NewGuid(), organizationId, Roles.Admin));
+        var validator = CreateValidator(existingHours: 0m);
+        var request = CreateRequest(
+            new CreateTimesheetRequest("2026-08-09", UserId.ToString(), 12m, false),
+            new CreateTimesheetRequest("2026-08-09", UserId.ToString(), 12.25m, false));
 
-        var request = new CreateJobRequest(
-            JobType: JobType.Diverse.ToString(),
-            Timesheets: [new CreateTimesheetRequest("2026-08-09", niels.Id.ToString(), 8m, false)],
-            AssignedUserIds: [niels.Id]);
+        var result = await validator.ValidateAsync(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(CreateJobRequest.Timesheets));
+    }
+
+    [Fact]
+    public async Task Validator_allows_exactly_24_hours_for_assigned_user()
+    {
+        var validator = CreateValidator(existingHours: 20m);
+        var request = CreateRequest(new CreateTimesheetRequest("2026-08-09", UserId.ToString(), 4m, false));
 
         var result = await validator.ValidateAsync(request);
 
         Assert.True(result.IsValid);
     }
 
-    private static UserDataRow CreateUser(Guid organizationId, string email) => new()
+    private static CreateJobRequestValidator CreateValidator(decimal existingHours) =>
+        new(
+            new StubUserRepository(),
+            new StubWorksheetRepository(existingHours),
+            new StubCurrentUserContext(OrganizationId));
+
+    private static CreateJobRequest CreateRequest(params CreateTimesheetRequest[] timesheets) =>
+        new(JobType: JobType.Diverse.ToString(), Timesheets: timesheets, AssignedUserIds: [UserId]);
+
+    private sealed class StubCurrentUserContext(Guid organizationId) : ICurrentUserContext
     {
-        Id = Guid.NewGuid(),
-        OrganizationId = organizationId,
-        Email = email,
-        DisplayName = email,
-        EntraId = $"entra-{Guid.NewGuid():N}",
-        EntraEmail = email,
-        Role = Roles.User,
-        CreatedAt = DateTimeOffset.UtcNow,
-        UpdatedAt = DateTimeOffset.UtcNow
-    };
+        public Guid? UserId { get; } = Guid.NewGuid();
+        public Guid? OrganizationId => organizationId;
+        public string? Role => Roles.Admin;
+    }
 
-    private sealed record TestCurrentUserContext(Guid? UserId, Guid? OrganizationId, string? Role) : ICurrentUserContext;
-
-    private sealed class StubUserRepository(params UserDataRow[] users) : IUserRepository
+    private sealed class StubUserRepository : IUserRepository
     {
-        private readonly IReadOnlyDictionary<Guid, UserDataRow> _users = users.ToDictionary(user => user.Id);
-
         public Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult(_users.GetValueOrDefault(id));
+            Task.FromResult<UserDataRow?>(id == UserId
+                ? new UserDataRow
+                {
+                    Id = UserId,
+                    OrganizationId = OrganizationId,
+                    Email = "worker@example.invalid",
+                    DisplayName = "Worker",
+                    EntraId = "entra-worker",
+                    EntraEmail = "worker@example.invalid",
+                    Role = Roles.User,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                }
+                : null);
 
         public Task<UserDataRow?> GetAuthenticatedActorAsync(Guid id, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -89,9 +99,11 @@ public sealed class CreateJobAssignmentValidationTests
         public Task<IReadOnlyDictionary<Guid, UserPeriodHours>> GetPeriodHoursAsync(Guid organizationId, DateOnly biweeklyStart, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class EmptyWorksheetRepository : IWorksheetRepository
+    private sealed class StubWorksheetRepository(decimal existingHours) : IWorksheetRepository
     {
-        public Task<decimal> GetHoursForUserDayAsync(Guid organizationId, Guid userId, DateOnly workDate, CancellationToken cancellationToken) => Task.FromResult(0m);
+        public Task<decimal> GetHoursForUserDayAsync(Guid organizationId, Guid userId, DateOnly workDate, CancellationToken cancellationToken) =>
+            Task.FromResult(existingHours);
+
         public Task<WorksheetResponse> UpsertAsync(UpsertWorksheetRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task DeleteAsync(Guid worksheetId, Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<WorksheetResponse>> ListByJobAsync(Guid jobId, CancellationToken cancellationToken) => throw new NotSupportedException();

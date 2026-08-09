@@ -36,6 +36,7 @@ public static class DependencyInjection
 
         services.AddScoped<JobStatusTransitionInterceptor>();
         services.AddScoped<AuditInterceptor>();
+        services.AddScoped<WorksheetDailyHoursInterceptor>();
 
         services.AddDbContext<SqlDbContext>((sp, options) =>
         {
@@ -45,7 +46,8 @@ public static class DependencyInjection
 
             var transitionInterceptor = sp.GetRequiredService<JobStatusTransitionInterceptor>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
-            options.AddInterceptors(transitionInterceptor, auditInterceptor);
+            var worksheetDailyHoursInterceptor = sp.GetRequiredService<WorksheetDailyHoursInterceptor>();
+            options.AddInterceptors(transitionInterceptor, auditInterceptor, worksheetDailyHoursInterceptor);
 
             options.ConfigureWarnings(warnings =>
                 warnings.Throw(RelationalEventId.MultipleCollectionIncludeWarning));
