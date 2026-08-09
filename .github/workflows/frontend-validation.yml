@@ -210,14 +210,47 @@ jobs:
           node --check scripts/playwright-synthetic-auth.mjs
           node --test scripts/playwright-synthetic-auth.test.mjs
 
-      - name: Validate Postman collection
-        working-directory: src/FE
-        run: >-
-          node -e
-          "JSON.parse(require('node:fs').readFileSync('../BE/WorkslipApi/Postman/postman_collection.json', 'utf8')); console.log('Postman collection JSON OK');"
-
       - name: Validate documentation
         run: python tools/docs/check_docs.py
+
+  postman:
+    name: Postman integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: workslip-postman-integration
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify isolated integration configuration
+        shell: bash
+        env:
+          WORKSLIP_INTEGRATION_BASE_URL: ${{ secrets.WORKSLIP_INTEGRATION_BASE_URL }}
+          WORKSLIP_AUTH_TOKEN: ${{ secrets.WORKSLIP_AUTH_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${WORKSLIP_INTEGRATION_BASE_URL}" ]]; then
+            echo '::error::WORKSLIP_INTEGRATION_BASE_URL is required for the blocking Postman integration job.'
+            exit 64
+          fi
+          if [[ -z "${WORKSLIP_AUTH_TOKEN}" ]]; then
+            echo '::error::WORKSLIP_AUTH_TOKEN is required for the blocking Postman integration job.'
+            exit 66
+          fi
+
+      - name: Run Postman scripts with Newman
+        shell: bash
+        env:
+          WORKSLIP_INTEGRATION_BASE_URL: ${{ secrets.WORKSLIP_INTEGRATION_BASE_URL }}
+          WORKSLIP_AUTH_TOKEN: ${{ secrets.WORKSLIP_AUTH_TOKEN }}
+        run: src/BE/WorkslipApi/Postman/run-integration-tests.sh
 
   ci-gate:
     name: CI Gate
@@ -228,6 +261,7 @@ jobs:
       - backend
       - frontend
       - contracts
+      - postman
     steps:
       - name: Verify required checks
         shell: bash
@@ -235,12 +269,14 @@ jobs:
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          POSTMAN_RESULT: ${{ needs.postman.result }}
         run: |
           set -Eeuo pipefail
 
           if [[ "${BACKEND_RESULT}" != 'success' ||
                 "${FRONTEND_RESULT}" != 'success' ||
-                "${CONTRACTS_RESULT}" != 'success' ]]; then
+                "${CONTRACTS_RESULT}" != 'success' ||
+                "${POSTMAN_RESULT}" != 'success' ]]; then
             echo "::error::One or more required CI jobs failed."
             exit 1
           fi
