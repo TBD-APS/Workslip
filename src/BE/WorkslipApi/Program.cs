@@ -130,7 +130,7 @@ finally
 static void RunStartupPhase(int step, string phase, Action action)
 {
     var stopwatch = Stopwatch.StartNew();
-    Log.Information("[STARTUP {StartupStep:00}] {StartupPhase} - START", step, phase);
+    Log.Information("[STARTUP {StartupStep:00}] {StartupPhase} - START.", step, phase);
 
     try
     {
