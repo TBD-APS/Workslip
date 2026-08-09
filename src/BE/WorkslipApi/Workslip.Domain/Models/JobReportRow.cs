@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Workslip.Domain.Models;
 
 public sealed class JobReportRow : IJobRelated
@@ -5,6 +7,7 @@ public sealed class JobReportRow : IJobRelated
     public Guid Id { get; init; }
     public Guid JobReportId => Id;
     public Guid OrganizationId { get; init; }
+    public Guid FilialId { get; set; }
     public OrganizationRow? OrganizationRow { get; set; }
     public Guid? CustomerId { get; init; }
     public CustomerRow? CustomerRow { get; set; }
@@ -27,6 +30,7 @@ public sealed class JobReportRow : IJobRelated
     public JobWorkKindRow? WorkKindRow { get; set; }
     public Guid? WorkKindId { get; set; }
     public string? CustomWorkKind { get; init; }
+    [Column("NoControlPointsRelevantReason")]
     public string? Remarks { get; init; }
     public List<JobReportClosureFlagRow> ClosureFlags { get; set; } = new();
     public List<JobReportLinkRow> Links{ get; set; } = new();
