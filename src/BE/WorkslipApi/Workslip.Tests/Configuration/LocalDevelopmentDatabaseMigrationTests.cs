@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Workslip.Api.Configuration;
@@ -85,7 +86,7 @@ public sealed class LocalDevelopmentDatabaseMigrationTests
     [Fact]
     public async Task VerifyIfRequiredAsync_OpenApiModeDoesNotEvaluateRemoteMigrationTarget()
     {
-        await using var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+        await using var services = new ServiceCollection()
             .BuildServiceProvider();
         var environment = CreateEnvironment(Environments.Development);
         var configuration = new ConfigurationBuilder()
