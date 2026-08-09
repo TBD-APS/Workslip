@@ -428,6 +428,19 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     });
   };
 
+  const updateControlPointComment = (cpId: string, value: string) => {
+    updateForm((prev) => ({
+      ...prev,
+      work: {
+        ...prev.work,
+        controlPointComments: {
+          ...prev.work.controlPointComments,
+          [cpId]: value,
+        },
+      },
+    }));
+  };
+
   const toggleCategoryIrrelevant = (typeId: string, categoryId: string) => {
     const compositeId = `${typeId}-${categoryId}`;
     const isIrrelevant = form.work.irrelevantCategoryIds.includes(compositeId);
@@ -707,6 +720,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateCustomWorkKind,
     updateClosureFlags,
     toggleControlPoint,
+    updateControlPointComment,
     toggleCategoryIrrelevant,
     upsertWorksheet,
     deleteWorksheet,
