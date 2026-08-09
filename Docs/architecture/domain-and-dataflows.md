@@ -30,6 +30,8 @@ Organization
 
 Every Organization has one default Filial. `Users` and `JobReports` carry `FilialId`, while `OrganizationId` remains the security/tenant authority. Database relationships use `(OrganizationId, FilialId)` so an ID from another Organization cannot be attached as a Filial.
 
+Job assignments are Filial-scoped. Only tenant `User` employees can be assignment targets, and the assigned User must have the same `OrganizationId` and `FilialId` as the Job. Admin and Superadmin roles may manage assignments but are not assignment targets themselves.
+
 Current single-filial flows resolve the default Filial server-side. Existing create-user/create-job contracts therefore do not require clients to send `FilialId`. Customers and installation/reference data remain Organization-level until a concrete product requirement says otherwise.
 
 ## Installation snapshot integrity
