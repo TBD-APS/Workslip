@@ -53,3 +53,24 @@ public sealed class ListQueryOptions
     [FromQuery(Name = "sortDirection")]
     public string? SortDirection { get; init; }
 }
+
+public sealed class AdminUserListQueryOptions
+{
+    [FromQuery(Name = "organizationId")]
+    public Guid? OrganizationId { get; init; }
+
+    [FromQuery(Name = "limit")]
+    public int? Limit { get; init; }
+
+    [FromQuery(Name = "offset")]
+    public int? Offset { get; init; }
+
+    [FromQuery(Name = "search")]
+    public string? Search { get; init; }
+
+    [FromQuery(Name = "sortBy")]
+    public string? SortBy { get; init; }
+
+    [FromQuery(Name = "sortDirection")]
+    public string? SortDirection { get; init; }
+}

@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '../../lib/axios';
 import {
+  createAdminUser,
   createOrganization,
   createOrganizationSession,
+  deleteAdminUser,
+  getAdminUsers,
   getOrganizations,
+  getSuperadminErrorMessage,
   inviteOrganizationAdmin,
+  updateAdminUser,
 } from './api';
 
 vi.mock('../../lib/axios', () => ({
@@ -12,6 +17,8 @@ vi.mock('../../lib/axios', () => ({
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -109,5 +116,73 @@ describe('Superadmin API', () => {
       },
       { skipGlobalErrorToast: true },
     );
+  });
+
+  it('uses the cross-org admin user endpoints', async () => {
+    const user = {
+      id: 'user-id',
+      organizationId: 'organization-id',
+      organizationName: 'Kunde A/S',
+      email: 'user@example.com',
+      displayName: 'Bruger',
+      phone: '',
+      role: 'User',
+      roleDisplayName: 'Medarbejder',
+    };
+    const list = { users: [user], total: 1 };
+
+    vi.mocked(apiClient.get).mockResolvedValue(list);
+    vi.mocked(apiClient.post).mockResolvedValue(user);
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...user, role: 'Admin' });
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+
+    await expect(getAdminUsers({ organizationId: 'organization-id', limit: 20, offset: 0 }))
+      .resolves.toEqual(list);
+    await expect(createAdminUser({
+      organizationId: 'organization-id',
+      email: ' new@example.com ',
+      displayName: ' New User ',
+      phone: '',
+      role: 'User',
+    })).resolves.toEqual(user);
+    await expect(updateAdminUser('user-id', { role: 'Admin' }))
+      .resolves.toEqual({ ...user, role: 'Admin' });
+    await expect(deleteAdminUser('user-id')).resolves.toBeUndefined();
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/superadmin/users', {
+      params: { organizationId: 'organization-id', limit: 20, offset: 0 },
+      skipGlobalErrorToast: true,
+    });
+    expect(apiClient.post).toHaveBeenCalledWith('/api/superadmin/users', {
+      organizationId: 'organization-id',
+      email: 'new@example.com',
+      displayName: 'New User',
+      phone: null,
+      role: 'User',
+    }, { skipGlobalErrorToast: true });
+    expect(apiClient.patch).toHaveBeenCalledWith('/api/superadmin/users/user-id', {
+      displayName: null,
+      phone: null,
+      role: 'Admin',
+    }, { skipGlobalErrorToast: true });
+    expect(apiClient.delete).toHaveBeenCalledWith('/api/superadmin/users/user-id', {
+      skipGlobalErrorToast: true,
+    });
+  });
+
+  it('maps self-action and stale-state conflicts to Danish messages', () => {
+    const selfActionError = {
+      isAxiosError: true,
+      response: { status: 409, data: { error: 'self_action_not_allowed' } },
+    };
+    const staleStateError = {
+      isAxiosError: true,
+      response: { status: 409, data: { error: 'user_state_changed' } },
+    };
+
+    expect(getSuperadminErrorMessage(selfActionError))
+      .toBe('Du kan ikke ændre rolle eller slette din egen Superadmin-konto herfra.');
+    expect(getSuperadminErrorMessage(staleStateError))
+      .toBe('Brugeren blev ændret samtidig. Genindlæs listen og prøv igen.');
   });
 });

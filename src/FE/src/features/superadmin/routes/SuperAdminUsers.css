@@ -1,0 +1,56 @@
+.superadmin-users-page .superadmin-page-heading {
+  gap: 0.75rem;
+}
+
+.superadmin-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.superadmin-back-button:hover {
+  color: var(--text-primary);
+  border-color: var(--primary);
+}
+
+.superadmin-users-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.superadmin-users-filters .superadmin-select {
+  max-width: 16rem;
+}
+
+.data-table-wrap {
+  overflow-x: auto;
+}
+
+.superadmin-role-select {
+  min-width: 11rem;
+}
+
+.data-table .col-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.superadmin-delete-user {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+}

@@ -44,3 +44,33 @@ export interface InviteOrganizationAdminInput {
   displayName: string;
   phone: string;
 }
+
+export interface AdminUser {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  email: string;
+  displayName: string;
+  phone: string;
+  role: string;
+  roleDisplayName: string;
+}
+
+export interface AdminUserListResponse {
+  users: AdminUser[];
+  total: number;
+}
+
+export interface CreateAdminUserInput {
+  organizationId: string;
+  email: string;
+  displayName: string;
+  phone: string;
+  role: string;
+}
+
+export interface UpdateAdminUserInput {
+  displayName?: string;
+  phone?: string;
+  role?: string;
+}

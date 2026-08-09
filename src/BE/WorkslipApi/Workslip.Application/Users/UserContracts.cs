@@ -84,3 +84,30 @@ public sealed record InviteOpenResponse(
     bool UserExists,
     bool Consumed);
 
+public sealed record AdminUserResponse(
+    Guid Id,
+    Guid OrganizationId,
+    string OrganizationName,
+    string Email,
+    string DisplayName,
+    string Phone,
+    string Role,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+public sealed record AdminUserListResponse(
+    IReadOnlyList<AdminUserResponse> Users,
+    int Total);
+
+public sealed record CreateAdminUserRequest(
+    Guid OrganizationId,
+    string Email,
+    string DisplayName,
+    string? Phone,
+    string Role);
+
+public sealed record UpdateAdminUserRequest(
+    string? DisplayName,
+    string? Phone,
+    string? Role);
+

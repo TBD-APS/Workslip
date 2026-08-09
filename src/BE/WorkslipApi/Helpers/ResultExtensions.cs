@@ -83,6 +83,8 @@ public static class ResultExtensions
         "duplicate_report_number" => "Rapportnummeret er allerede i brug.",
         "organization_cvr_exists" => "Der findes allerede en organisation med dette CVR-nummer.",
         "email_in_use" => "E-mailadressen er allerede i brug.",
+        "self_action_not_allowed" => "Du kan ikke ændre rolle eller slette din egen Superadmin-konto herfra.",
+        "user_state_changed" => "Brugeren blev ændret samtidig. Genindlæs listen og prøv igen.",
         "entra_user_not_provisioned" => "Den inviterede bruger er ikke klar endnu. Prøv igen.",
         "invite_consumed" => "Invitationen er allerede brugt.",
         "invite_expired" => "Invitationen er udløbet.",

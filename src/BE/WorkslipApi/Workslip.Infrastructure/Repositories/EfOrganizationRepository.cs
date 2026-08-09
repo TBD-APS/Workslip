@@ -90,6 +90,53 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
             token => UpdateAdminAsyncCoreAsync(admin, expectedEmail, expectedEntraId, token),
             cancellationToken);
 
+    public Task<IReadOnlyList<OrganizationUserRow>> ListUsersAsync(
+        Guid? organizationId,
+        int limit,
+        int offset,
+        string? search,
+        string? sortBy,
+        string? sortDirection,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "organization-admin.list-users",
+            token => ListUsersAsyncCoreAsync(organizationId, limit, offset, search, sortBy, sortDirection, token),
+            cancellationToken);
+
+    public Task<int> CountUsersAsync(Guid? organizationId, string? search, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "organization-admin.count-users",
+            token => CountUsersAsyncCoreAsync(organizationId, search, token),
+            cancellationToken);
+
+    public Task<OrganizationUserRow?> GetUserWithOrganizationAsync(Guid userId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "organization-admin.get-user",
+            token => GetUserWithOrganizationAsyncCoreAsync(userId, token),
+            cancellationToken);
+
+    public Task<Guid?> CreateUserAsync(UserDataRow user, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "organization-admin.create-user",
+            token => CreateUserAsyncCoreAsync(user, token),
+            cancellationToken);
+
+    public Task<bool> UpdateUserAsync(
+        UserDataRow user,
+        string expectedEmail,
+        string expectedEntraId,
+        CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "organization-admin.update-user",
+            token => UpdateUserAsyncCoreAsync(user, expectedEmail, expectedEntraId, token),
+            cancellationToken);
+
+    public Task<bool> DeleteUserAsync(Guid userId, CancellationToken cancellationToken) =>
+        _retryPolicy.ExecuteAsync(
+            "organization-admin.delete-user",
+            token => DeleteUserAsyncCoreAsync(userId, token),
+            cancellationToken);
+
     private async Task<bool> CvrExistsAsyncCoreAsync(string normalizedCvr, CancellationToken cancellationToken) =>
         await _dbContext.Organizations.AnyAsync(organization => organization.Cvr == normalizedCvr, cancellationToken);
 
@@ -303,6 +350,135 @@ public sealed class EfOrganizationRepository : IOrganizationRepository, IOrganiz
                     .SetProperty(user => user.Role, Roles.Admin)
                     .SetProperty(user => user.UpdatedAt, admin.UpdatedAt),
                 cancellationToken);
+
+        return affectedRows == 1;
+    }
+
+    private async Task<IReadOnlyList<OrganizationUserRow>> ListUsersAsyncCoreAsync(
+        Guid? organizationId,
+        int limit,
+        int offset,
+        string? search,
+        string? sortBy,
+        string? sortDirection,
+        CancellationToken cancellationToken)
+    {
+        var query =
+            from user in _dbContext.Users.AsNoTracking()
+            join organization in _dbContext.Organizations.AsNoTracking()
+                on user.OrganizationId equals organization.Id
+            where organization.Id != PlatformOrganization.Id
+                && (organizationId == null || user.OrganizationId == organizationId)
+            select new { user, organization.Name };
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(row =>
+                row.user.DisplayName.Contains(term) ||
+                row.user.Email.Contains(term) ||
+                row.user.Phone.Contains(term) ||
+                row.user.Role.Contains(term) ||
+                row.Name.Contains(term));
+        }
+
+        var sorted = (sortBy, sortDirection) switch
+        {
+            ("displayName", "asc") => query.OrderBy(row => row.user.DisplayName),
+            ("displayName", "desc") => query.OrderByDescending(row => row.user.DisplayName),
+            ("email", "asc") => query.OrderBy(row => row.user.Email),
+            ("email", "desc") => query.OrderByDescending(row => row.user.Email),
+            ("role", "asc") => query.OrderBy(row => row.user.Role),
+            ("role", "desc") => query.OrderByDescending(row => row.user.Role),
+            ("organizationName", "asc") => query.OrderBy(row => row.Name),
+            ("organizationName", "desc") => query.OrderByDescending(row => row.Name),
+            _ => query.OrderByDescending(row => row.user.CreatedAt)
+        };
+
+        var rows = await sorted
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(row => new OrganizationUserRow(row.user, row.Name)).ToList();
+    }
+
+    private async Task<int> CountUsersAsyncCoreAsync(Guid? organizationId, string? search, CancellationToken cancellationToken)
+    {
+        var query =
+            from user in _dbContext.Users.AsNoTracking()
+            join organization in _dbContext.Organizations.AsNoTracking()
+                on user.OrganizationId equals organization.Id
+            where organization.Id != PlatformOrganization.Id
+                && (organizationId == null || user.OrganizationId == organizationId)
+            select new { user, organization.Name };
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(row =>
+                row.user.DisplayName.Contains(term) ||
+                row.user.Email.Contains(term) ||
+                row.user.Phone.Contains(term) ||
+                row.user.Role.Contains(term) ||
+                row.Name.Contains(term));
+        }
+
+        return await query.CountAsync(cancellationToken);
+    }
+
+    private async Task<OrganizationUserRow?> GetUserWithOrganizationAsyncCoreAsync(Guid userId, CancellationToken cancellationToken) =>
+        await (
+            from user in _dbContext.Users.AsNoTracking()
+            join organization in _dbContext.Organizations.AsNoTracking()
+                on user.OrganizationId equals organization.Id
+            where user.Id == userId && organization.Id != PlatformOrganization.Id
+            select new OrganizationUserRow(user, organization.Name))
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private async Task<Guid?> CreateUserAsyncCoreAsync(UserDataRow user, CancellationToken cancellationToken)
+    {
+        _dbContext.Users.Add(user);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return user.Id;
+        }
+        catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+        {
+            _dbContext.Entry(user).State = EntityState.Detached;
+            return null;
+        }
+    }
+
+    private async Task<bool> UpdateUserAsyncCoreAsync(
+        UserDataRow user,
+        string expectedEmail,
+        string expectedEntraId,
+        CancellationToken cancellationToken)
+    {
+        var affectedRows = await _dbContext.Users
+            .Where(candidate => candidate.Id == user.Id
+                && candidate.OrganizationId == user.OrganizationId
+                && candidate.OrganizationId != PlatformOrganization.Id
+                && candidate.Email == expectedEmail
+                && candidate.EntraId == expectedEntraId)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(candidate => candidate.DisplayName, user.DisplayName)
+                    .SetProperty(candidate => candidate.Phone, user.Phone)
+                    .SetProperty(candidate => candidate.Role, user.Role)
+                    .SetProperty(candidate => candidate.UpdatedAt, user.UpdatedAt),
+                cancellationToken);
+
+        return affectedRows == 1;
+    }
+
+    private async Task<bool> DeleteUserAsyncCoreAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var affectedRows = await _dbContext.Users
+            .Where(user => user.Id == userId && user.OrganizationId != PlatformOrganization.Id)
+            .ExecuteDeleteAsync(cancellationToken);
 
         return affectedRows == 1;
     }

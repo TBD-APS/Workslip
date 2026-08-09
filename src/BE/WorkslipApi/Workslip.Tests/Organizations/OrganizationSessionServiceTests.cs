@@ -160,6 +160,35 @@ public sealed class OrganizationSessionServiceTests
             string expectedEntraId,
             CancellationToken cancellationToken) =>
             Task.FromResult(false);
+
+        public Task<IReadOnlyList<OrganizationUserRow>> ListUsersAsync(
+            Guid? organizationId,
+            int limit,
+            int offset,
+            string? search,
+            string? sortBy,
+            string? sortDirection,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<OrganizationUserRow>>([]);
+
+        public Task<int> CountUsersAsync(Guid? organizationId, string? search, CancellationToken cancellationToken) =>
+            Task.FromResult(0);
+
+        public Task<OrganizationUserRow?> GetUserWithOrganizationAsync(Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult<OrganizationUserRow?>(null);
+
+        public Task<Guid?> CreateUserAsync(UserDataRow user, CancellationToken cancellationToken) =>
+            Task.FromResult<Guid?>(null);
+
+        public Task<bool> UpdateUserAsync(
+            UserDataRow user,
+            string expectedEmail,
+            string expectedEntraId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
+        public Task<bool> DeleteUserAsync(Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     private sealed class FakeUserRepository(UserDataRow? user) : IUserRepository

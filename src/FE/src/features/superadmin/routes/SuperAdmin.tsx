@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowRight, Building2, CheckCircle2, Gauge, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Activity, ArrowRight, Building2, CheckCircle2, Gauge, RefreshCw, ShieldCheck, Users } from 'lucide-react';
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useNavigate } from 'react-router-dom';
@@ -154,6 +154,14 @@ export function SuperAdmin() {
           </div>
         </div>
         <div className="superadmin-header-actions">
+          <button
+            type="button"
+            className="btn btn-secondary superadmin-refresh"
+            onClick={() => navigate('/superadmin/users')}
+          >
+            <Users size={16} aria-hidden="true" />
+            <span>Brugere</span>
+          </button>
           <button
             type="button"
             className="btn btn-secondary superadmin-refresh"

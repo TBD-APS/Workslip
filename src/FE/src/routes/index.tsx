@@ -69,6 +69,9 @@ const SuperAdmin = lazy(() =>
 const CacheDiagnostics = lazy(() =>
   import('../features/superadmin/routes/CacheDiagnostics').then((module) => ({ default: module.CacheDiagnostics })),
 );
+const SuperAdminUsers = lazy(() =>
+  import('../features/superadmin/routes/SuperAdminUsers').then((module) => ({ default: module.SuperAdminUsers })),
+);
 
 const loadJobEntryRoute = () =>
   import('../features/jobs/routes/JobEntryRoute').then((module) => ({ Component: module.JobEntryRoute }));
@@ -275,6 +278,14 @@ export const router = createBrowserRouter([
             element: (
               <RoleGuard permission="organization:manage" redirectTo="/app">
                 <CacheDiagnostics />
+              </RoleGuard>
+            ),
+          },
+          {
+            path: 'users',
+            element: (
+              <RoleGuard permission="organization:manage" redirectTo="/app">
+                <SuperAdminUsers />
               </RoleGuard>
             ),
           },

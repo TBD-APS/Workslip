@@ -18,6 +18,7 @@ public static class EndpointConfiguration
         app.MapOrganizationEndpoints();
         app.MapAuthEndpoints();
         app.MapUserEndpoints();
+        app.MapSuperadminUserEndpoints();
         app.MapJobEndpoints();
         app.MapCustomerEndpoints();
         app.MapJobLinkEndpoints();
