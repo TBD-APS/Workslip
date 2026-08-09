@@ -71,6 +71,7 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
                 // additional filials can use ordinary independent GUIDs.
                 Id = organization.Id,
                 OrganizationId = organization.Id,
+                Organization = organization,
                 Name = organization.Name,
                 IsDefault = true,
                 CreatedAt = organization.CreatedAt == default ? now : organization.CreatedAt,
@@ -107,10 +108,13 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
             .Select(filial => new FilialKey(filial.OrganizationId, filial.Id, filial.IsDefault))
             .ToListAsync(cancellationToken);
 
-        var trackedFilials = context.ChangeTracker
+        var trackedFilialEntities = context.ChangeTracker
             .Entries<OrganizationFilialRow>()
             .Where(entry => entry.State == EntityState.Added && organizationIds.Contains(entry.Entity.OrganizationId))
-            .Select(entry => new FilialKey(entry.Entity.OrganizationId, entry.Entity.Id, entry.Entity.IsDefault))
+            .Select(entry => entry.Entity)
+            .ToArray();
+        var trackedFilials = trackedFilialEntities
+            .Select(filial => new FilialKey(filial.OrganizationId, filial.Id, filial.IsDefault))
             .ToArray();
 
         var availableFilials = persistedFilials
@@ -144,6 +148,8 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
             }
 
             EnsureFilialBelongsToOrganization(user.OrganizationId, user.FilialId, availableFilials);
+            user.Filial = trackedFilialEntities.SingleOrDefault(
+                filial => filial.OrganizationId == user.OrganizationId && filial.Id == user.FilialId);
         }
 
         foreach (var job in addedJobs)
@@ -154,6 +160,8 @@ public sealed class TenantIntegrityInterceptor : SaveChangesInterceptor
             }
 
             EnsureFilialBelongsToOrganization(job.OrganizationId, job.FilialId, availableFilials);
+            job.Filial = trackedFilialEntities.SingleOrDefault(
+                filial => filial.OrganizationId == job.OrganizationId && filial.Id == job.FilialId);
         }
     }
 
