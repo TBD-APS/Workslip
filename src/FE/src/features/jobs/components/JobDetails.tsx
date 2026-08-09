@@ -222,6 +222,7 @@ export function JobDetailsPage({ details, onBack, onDone, onGoToReport }: JobDet
             form={details.form}
             referenceData={details.referenceData}
             onToggleControlPoint={details.toggleControlPoint}
+            onControlPointCommentChange={details.updateControlPointComment}
             onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
           />
         )}
