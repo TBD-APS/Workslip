@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Workslip.Application.Jobs;
+using Workslip.Domain.Models;
 using Workslip.Infrastructure.Schema;
 
 namespace Workslip.Infrastructure.Repositories;
@@ -10,7 +11,7 @@ public sealed class EfJobAssignmentScopeRepository(SqlDbContext dbContext) : IJo
         Guid organizationId,
         CancellationToken cancellationToken)
     {
-        return await dbContext.Set<Domain.Models.OrganizationFilialRow>()
+        return await dbContext.Set<OrganizationFilialRow>()
             .AsNoTracking()
             .Where(filial => filial.OrganizationId == organizationId && filial.IsDefault)
             .Select(filial => (Guid?)filial.Id)
