@@ -3,8 +3,16 @@ namespace Workslip.Domain;
 public static class JobAssignmentPolicy
 {
     public static bool CanReceiveAssignment(string? role) =>
-        string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(role, Roles.Admin, StringComparison.OrdinalIgnoreCase);
+        string.Equals(role, Roles.User, StringComparison.OrdinalIgnoreCase);
+
+    public static bool CanReceiveAssignmentInFilial(
+        string? role,
+        Guid userFilialId,
+        Guid jobFilialId) =>
+        CanReceiveAssignment(role)
+        && userFilialId != Guid.Empty
+        && jobFilialId != Guid.Empty
+        && userFilialId == jobFilialId;
 
     public static IReadOnlyList<Guid> ResolveInitialAssignments(
         IReadOnlyList<Guid>? requestedUserIds,
