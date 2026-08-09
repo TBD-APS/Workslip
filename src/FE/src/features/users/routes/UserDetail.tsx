@@ -28,6 +28,7 @@ import { formatJobStatus } from '../../jobs/statusLabels';
 import { CollapsibleSection } from '../../../components/forms/CollapsibleSection';
 import { announceSection } from '../../../components/filters/StatusFilter';
 import { canReceiveJobAssignment } from '../../../providers/permissions';
+import { useAuth } from '../../../providers/useAuth';
 
 function formatHours(value: number | string | null): string {
   if (value == null) return '\u2013';
@@ -69,6 +70,7 @@ export const UserDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
   const query = useGetApiUsersId(id!);
   const user = query.data;
 
@@ -212,7 +214,7 @@ export const UserDetail = () => {
     );
   }
 
-  const canReceiveJobs = canReceiveJobAssignment(user.role);
+  const canReceiveJobs = canReceiveJobAssignment(user.role, user.id === currentUser?.id);
 
   return (
     <div className="page-container">
@@ -313,7 +315,7 @@ export const UserDetail = () => {
         </>
       ) : (
         <div className="empty-state">
-          <p>Auditorer og superadmins kan ikke tildeles sager.</p>
+          <p>Denne bruger kan ikke tildeles sager.</p>
         </div>
       )}
 
