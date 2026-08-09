@@ -181,9 +181,9 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         }).Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
 
-        userGroup.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobService jobService, CancellationToken cancellationToken) =>
+        adminGroup.MapPost("/{id:guid}/assign", async (Guid id, AssignJobRequest request, IJobAssignmentService assignmentService, CancellationToken cancellationToken) =>
         {
-            var result = await jobService.AssignAsync(id, request.UserIds, cancellationToken);
+            var result = await assignmentService.AssignAsync(id, request.UserIds, cancellationToken);
             return ResultExtensions.ToHttpResult(result, JobViewModelBuilder.ToSummary);
         })
         .Produces<JobReportSummaryViewModel>(StatusCodes.Status200OK);
