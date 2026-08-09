@@ -48,6 +48,7 @@ $preservedTables = @(
     'dbo.JobClosureFlags',
     'dbo.PushSubscriptions',
     'dbo.InviteTokens',
+    'dbo.WorkslipSchemaMigrations',
     'dbo.__EFMigrationsHistory'
 )
 
