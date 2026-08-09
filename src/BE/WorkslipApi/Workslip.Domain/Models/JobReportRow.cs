@@ -5,6 +5,7 @@ public sealed class JobReportRow : IJobRelated
     public Guid Id { get; init; }
     public Guid JobReportId => Id;
     public Guid OrganizationId { get; init; }
+    public Guid FilialId { get; set; }
     public OrganizationRow? OrganizationRow { get; set; }
     public Guid? CustomerId { get; init; }
     public CustomerRow? CustomerRow { get; set; }
