@@ -165,18 +165,6 @@ public static class JobEndpoints
             return ResultExtensions.ToHttpResult(result);
         }).Produces(StatusCodes.Status204NoContent);
 
-        adminGroup.MapGet("/assignment-candidates", async (IJobAssignmentService assignmentService, CancellationToken cancellationToken) =>
-        {
-            var result = await assignmentService.GetDefaultCandidatesAsync(cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
-        }).Produces<IReadOnlyList<JobAssignmentCandidateResponse>>(StatusCodes.Status200OK);
-
-        adminGroup.MapGet("/{id:guid}/assignment-candidates", async (Guid id, IJobAssignmentService assignmentService, CancellationToken cancellationToken) =>
-        {
-            var result = await assignmentService.GetCandidatesForJobAsync(id, cancellationToken);
-            return ResultExtensions.ToHttpResult(result);
-        }).Produces<IReadOnlyList<JobAssignmentCandidateResponse>>(StatusCodes.Status200OK);
-
         adminGroup.MapDelete("/{id:guid}", async (Guid id, IJobService service, CancellationToken cancellationToken) =>
         {
             var result = await service.DeleteAsync(id, cancellationToken);
