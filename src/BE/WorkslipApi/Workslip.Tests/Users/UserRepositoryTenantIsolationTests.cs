@@ -36,8 +36,8 @@ public sealed class UserRepositoryTenantIsolationTests
             limit: 100,
             offset: 0,
             search: null,
-            sortBy: null,
-            sortDirection: null,
+            sortBy: "displayName",
+            sortDirection: "asc",
             CancellationToken.None);
         var count = await fixture.Repository.GetCountByOrganizationIdAsync(
             organizationA,
@@ -73,8 +73,8 @@ public sealed class UserRepositoryTenantIsolationTests
             limit: 100,
             offset: 0,
             search: null,
-            sortBy: null,
-            sortDirection: null,
+            sortBy: "displayName",
+            sortDirection: "asc",
             CancellationToken.None);
         var count = await fixture.Repository.GetCountByOrganizationIdAsync(
             organizationB,
