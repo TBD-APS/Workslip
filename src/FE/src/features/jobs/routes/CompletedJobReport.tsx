@@ -537,6 +537,21 @@ export const CompletedJobReport = () => {
           )}
         </>
       )}
+
+      {!readOnly && !isEditing && (
+        <div className="edit-form-bottom-actions">
+          <button
+            className="btn btn-secondary edit-form-bottom-btn"
+            type="button"
+            onClick={() => navigate('/app', { replace: true })}
+            aria-label="Tilbage til opgaver"
+          >
+            <ArrowLeft size={18} />
+            Tilbage til opgaver
+          </button>
+        </div>
+      )}
+
       <JobHistoryDrawer
         jobId={job.id}
         isOpen={historyOpen}
