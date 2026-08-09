@@ -54,7 +54,14 @@ public interface ISuperAdminUserRepository
 
     Task<Guid?> CreateAsync(UserDataRow user, CancellationToken cancellationToken);
 
-    Task<bool> UpdateAsync(UserDataRow user, CancellationToken cancellationToken);
+    Task<bool> UpdateAsync(
+        Guid userId,
+        string displayName,
+        string phone,
+        string role,
+        Guid filialId,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken);
 
     Task<SuperAdminUserDeleteStatus> DeleteAsync(Guid userId, CancellationToken cancellationToken);
 
