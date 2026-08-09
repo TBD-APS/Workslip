@@ -104,7 +104,8 @@ public sealed record InstallationTypeControlPointResponse(
     string Name,
     int SortOrder,
     bool IsRequired,
-    bool IsChecked);
+    bool IsChecked,
+    string? Comment = null);
 
 public sealed record InstallationTypeCategoryResponse(
     Guid Id,
@@ -123,7 +124,8 @@ public sealed record CreateInstallationTypeControlPointRequest(
     Guid Id,
     int? SortOrder,
     bool? IsRequired,
-    bool? IsChecked = null);
+    bool? IsChecked = null,
+    string? Comment = null);
 
 public sealed record CreateInstallationTypeCategoryRequest(
     Guid Id,
