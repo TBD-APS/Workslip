@@ -1,0 +1,128 @@
+name: Production database migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type MIGRATE to apply pending production migrations
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  # Share the production deployment lock with Backend API deploy so a manual
+  # migration cannot run concurrently with an application release/migration.
+  group: azure-api-prod
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply production database migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: prod
+    env:
+      AZURE_RESOURCE_GROUP: rg-mrsoftware-prod
+      AZURE_MIGRATION_IDENTITY_NAME: id-mrsoftware-prod-migration
+    steps:
+      - name: Verify production migration request
+        shell: bash
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${GITHUB_REF}" != 'refs/heads/main' ]]; then
+            echo "::error::Production database migrations may only be dispatched from main. Selected ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+          if [[ "${CONFIRMATION}" != 'MIGRATE' ]]; then
+            echo "::error::Confirmation must be exactly MIGRATE."
+            exit 1
+          fi
+
+          echo "Production migration request accepted for main @ ${GITHUB_SHA}."
+
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Azure login as application deployment identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve dedicated database migration identity
+        id: migration-identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          client_id="$(az identity show \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${AZURE_MIGRATION_IDENTITY_NAME}" \
+            --query clientId \
+            --output tsv 2>/dev/null || true)"
+
+          if [[ -z "${client_id}" || "${client_id}" == 'null' ]]; then
+            echo "::error::Database migration identity ${AZURE_MIGRATION_IDENTITY_NAME} is unavailable. Run the 'Production infrastructure deploy' workflow from main first."
+            exit 1
+          fi
+
+          if [[ ! "${client_id}" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::error::Database migration identity returned an invalid client ID."
+            exit 1
+          fi
+
+          echo "client_id=${client_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Logout application deployment identity
+        shell: bash
+        run: az logout
+
+      - name: Azure login as database migration identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.migration-identity.outputs.client_id }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure Microsoft SqlServer PowerShell module
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module SqlServer -Scope CurrentUser -Repository PSGallery -Force -AllowClobber
+          }
+          Import-Module SqlServer -ErrorAction Stop
+          Get-Command Invoke-Sqlcmd -ErrorAction Stop | Out-Null
+
+      - name: Apply pending production migrations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./src/BE/infrastructure/run-database-migrations.ps1 `
+            -Environment prod `
+            -CompanyName mrsoftware
+
+      - name: Logout database migration identity
+        if: ${{ always() }}
+        shell: bash
+        run: az logout || true
+
+      - name: Migration summary
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          {
+            echo '## Production database migrations'
+            echo
+            echo "Applied all pending reviewed migrations from main @ \`${GITHUB_SHA}\`."
+            echo 'No application package or infrastructure deployment was performed.'
+          } >> "${GITHUB_STEP_SUMMARY}"
