@@ -42,6 +42,7 @@ export const emptyForm: JobForm = {
     workKind: '',
     customWorkKind: '',
     controlPointSelections: {},
+    controlPointComments: {},
     irrelevantCategoryIds: [],
     closureFlags: [],
   },
@@ -70,6 +71,7 @@ export function getLinkableJobs(
 
 export function toForm(job: JobReportSummaryViewModel): JobForm {
   const controlPointSelections: Record<string, boolean> = {};
+  const controlPointComments: Record<string, string> = {};
   const irrelevantCategoryIds: string[] = [];
 
   for (const instType of job.work.installationTypes) {
@@ -79,6 +81,9 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       }
       for (const cp of cat.controlPoints) {
         controlPointSelections[cp.id] = cp.isChecked;
+        if (cp.comment) {
+          controlPointComments[cp.id] = cp.comment;
+        }
       }
     }
   }
@@ -114,6 +119,7 @@ export function toForm(job: JobReportSummaryViewModel): JobForm {
       workKind: job.work.workKind?.normalizedLabel ?? '',
       customWorkKind: job.work.workKind?.customWorkKind ?? '',
       controlPointSelections,
+      controlPointComments,
       irrelevantCategoryIds,
       closureFlags: job.work.closureFlags ? job.work.closureFlags.map((flag) => flag.normalizedLabel) : [],
     },
@@ -197,6 +203,7 @@ export function toWorkRequest(
           sortOrder: cp.sortOrder,
           isRequired: cp.isRequired,
           isChecked: form.work.controlPointSelections[cp.id] ?? false,
+          comment: form.work.controlPointComments[cp.id]?.trim() || null,
         })),
         isIrrelevant: form.work.irrelevantCategoryIds.includes(`${type.id}-${cat.id}`),
       })),
