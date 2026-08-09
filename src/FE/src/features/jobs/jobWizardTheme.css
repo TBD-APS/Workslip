@@ -1,0 +1,32 @@
+/* JobWizard-specific contrast rules.
+   Keep selected work controls on the primary surface so their light text stays readable in night mode. */
+.category-choice-grid .choice-card.selected,
+.work-kind-list .work-kind-option.selected,
+.control-points-list .multi-select-option.selected {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+/* Keep the primary wizard action on the primary palette during interaction.
+   App.css previously switched hover/active to a light surface while retaining white text. */
+.step-nav-btn-next:not(:disabled) {
+  color: #fff;
+  background: var(--primary);
+}
+
+.step-nav-btn-next:not(:disabled) svg {
+  color: currentColor;
+}
+
+.step-nav-btn-next:not(:disabled):active {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+@media (hover: hover) {
+  .step-nav-btn-next:not(:disabled):hover {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+  }
+}
