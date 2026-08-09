@@ -13,12 +13,18 @@ public sealed class MonthlyHoursPdfGenerator : IMonthlyHoursPdfGenerator
     private static readonly Color LightBackground = Color.FromHex("#F8FAFC");
     private static readonly Color Border = Color.FromHex("#CBD5E1");
     private static readonly Color Muted = Color.FromHex("#64748B");
+    private static readonly ImageGenerationSettings PreviewImageSettings = new()
+    {
+        ImageFormat = ImageFormat.Png,
+        ImageCompressionQuality = ImageCompressionQuality.High,
+        RasterDpi = 144
+    };
 
     public byte[] Generate(MyWorksheetsMonthResponse month) =>
         CreateDocument(month).GeneratePdf();
 
-    public IReadOnlyList<string> GeneratePreviewPages(MyWorksheetsMonthResponse month) =>
-        CreateDocument(month).GenerateSvgFiles().ToArray();
+    public IReadOnlyList<byte[]> GeneratePreviewPages(MyWorksheetsMonthResponse month) =>
+        CreateDocument(month).GenerateImages(PreviewImageSettings).ToArray();
 
     private static IDocument CreateDocument(MyWorksheetsMonthResponse month)
     {
