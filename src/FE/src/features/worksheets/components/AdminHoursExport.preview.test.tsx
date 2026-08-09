@@ -59,17 +59,8 @@ describe('AdminHoursExport PDF preview', () => {
     getMonthlyHoursPdfPreviewMock.mockReset();
     downloadPdfFileMock.mockReset();
     getMonthlyHoursPdfPreviewMock.mockResolvedValue({
-      pages: ['<svg>page 1</svg>', '<svg>page 2</svg>'],
-    });
-
-    let objectUrlIndex = 0;
-    Object.defineProperty(window.URL, 'createObjectURL', {
-      configurable: true,
-      value: vi.fn(() => `blob:timer-preview-${++objectUrlIndex}`),
-    });
-    Object.defineProperty(window.URL, 'revokeObjectURL', {
-      configurable: true,
-      value: vi.fn(),
+      contentType: 'image/png',
+      pages: ['AQID', 'BAUG'],
     });
   });
 
@@ -81,16 +72,17 @@ describe('AdminHoursExport PDF preview', () => {
     const dialog = await screen.findByRole('dialog', { name: 'PDF-preview af timer for august 2026' });
     expect(dialog).toBeInTheDocument();
     expect(getMonthlyHoursPdfPreviewMock).toHaveBeenCalledWith(2026, 8);
-    expect(screen.queryByTitle('PDF-preview af timer for august 2026')).not.toBeInTheDocument();
+    expect(dialog.querySelector('iframe')).toBeNull();
 
     const pages = screen.getAllByRole('img');
     expect(pages).toHaveLength(2);
-    expect(pages[0]).toHaveAttribute('src', 'blob:timer-preview-1');
+    expect(pages[0]).toHaveAttribute('src', 'data:image/png;base64,AQID');
     expect(pages[0]).toHaveAttribute('alt', 'Side 1 af 2');
-    expect(pages[1]).toHaveAttribute('src', 'blob:timer-preview-2');
+    expect(pages[1]).toHaveAttribute('src', 'data:image/png;base64,BAUG');
   });
 
-  it('revokes every SVG page URL when the preview closes', async () => {
+  it('closes the in-app preview without opening the native PDF viewer', async () => {
+    const open = vi.spyOn(window, 'open');
     render(<AdminHoursExport data={data} monthLabel="august 2026" />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Vis PDF' }));
@@ -98,7 +90,6 @@ describe('AdminHoursExport PDF preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Luk PDF-preview' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('blob:timer-preview-1');
-    expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('blob:timer-preview-2');
+    expect(open).not.toHaveBeenCalled();
   });
 });
