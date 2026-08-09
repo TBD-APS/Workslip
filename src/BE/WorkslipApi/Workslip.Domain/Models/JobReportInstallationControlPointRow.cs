@@ -9,4 +9,5 @@ public sealed class JobReportInstallationControlPointRow : IAuditable
     public int SortOrder { get; set; }
     public bool IsRequired { get; set; }
     public bool IsChecked { get; set; }
+    public string? Comment { get; set; }
 }
