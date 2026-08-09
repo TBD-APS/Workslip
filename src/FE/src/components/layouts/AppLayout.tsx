@@ -231,6 +231,15 @@ export const AppLayout = () => {
           </button>
         </Can>
       )}
+
+      {/* Floating Create Button - on Customers list */}
+      {location.pathname === '/app/customers' && (
+        <Can permission="user:manage">
+          <button className="fab-create" onClick={() => setCreateSheetOpen(true)} aria-label="Opret ny kunde">
+            <PlusCircle size={22} />
+          </button>
+        </Can>
+      )}
       <CreateBottomSheet isOpen={createSheetOpen} onClose={() => setCreateSheetOpen(false)} />
       {canUseNotifications && (
         <NotificationsDrawer
