@@ -23,6 +23,8 @@ Production database migrations are an explicit deployment operation.
 - The manual migration workflow may run only from `main`, requires the protected `prod` environment and an explicit `MIGRATE` confirmation, uses the same dedicated migration identity and migration runner as normal backend deployment, and shares the `azure-api-prod` concurrency group with backend deployment.
 - If the dedicated migration identity is missing when the manual workflow starts, that workflow may use the existing protected production infrastructure identity only to run `reconcile-database-migration-identity.ps1`; it must then switch back to the dedicated migration identity before executing any migration.
 - Applied migration IDs and SHA-256 checksums are recorded in `dbo.WorkslipSchemaMigrations`; an applied file is immutable.
+- Migration checksums are canonical SHA-256 values over UTF-8 SQL after normalizing CRLF/CR line endings to LF, so Windows and Linux checkouts identify the same reviewed migration.
+- A stored pre-canonical checksum may be reconciled only when it exactly matches the current migration bytes or the same current SQL rendered with CRLF line endings. Reconciliation updates only the stored `Sha256` under the migration lock and does not rerun migration SQL; every other mismatch fails closed.
 - Migration execution uses a database application lock plus the existing production deployment concurrency gate.
 - A dedicated user-assigned identity, `id-<company>-<environment>-migration`, owns production schema migration permissions.
 - The migration identity receives only the database DDL/data roles required to perform reviewed migrations and SQL-server firewall management needed for the ephemeral GitHub runner connection.
@@ -35,7 +37,7 @@ Production database migrations are an explicit deployment operation.
 
 ## Operational rules
 
-Migration files are forward-only release artifacts. They are not silently edited after production application. A checksum mismatch fails closed.
+Migration files are forward-only release artifacts. They are not silently edited after production application. A checksum mismatch fails closed unless the stored value is proven to be a pre-canonical LF/CRLF representation of the exact current migration; that narrow bookkeeping reconciliation never reapplies migration SQL and preserves `AppliedAt`/`AppliedBy`.
 
 A destructive or material data-transforming migration must document its production-data preconditions, backup/restore expectation, expected locking/availability impact and recovery/forward-fix strategy in the owning PR/release evidence before execution.
 
@@ -58,6 +60,7 @@ The production infrastructure identity remains deployment-only. Normal API runti
 - A missed production bootstrap no longer leaves production indefinitely on a stale API revision after later green `main` releases.
 - Recovery remains narrow: it runs only after a failed backend deployment, mutates infrastructure only when known bootstrap prerequisites are incomplete, and reruns only that failed deployment.
 - Recovery status is visible on the affected commit, making production bootstrap failures distinguishable from unrelated backend deployment failures.
+- Migration identity is stable across Windows and Linux runner line-ending materialization without weakening immutable migration detection.
 
 ### Trade-offs
 
