@@ -121,13 +121,13 @@ export function ControlPointsStep({
 
       {allCategoriesIrrelevant && (
         <div className="form-field control-points-all-irrelevant-reason">
-          <label htmlFor="all-irrelevant-reason">Hvorfor er alle kontrolpunkter irrelevante?</label>
+          <label htmlFor="all-irrelevant-reason">Kommentar – hvorfor var ingen kontrolpunkter relevante?</label>
           <textarea
             id="all-irrelevant-reason"
             className="form-input form-textarea"
             value={form.work.allIrrelevantReason}
             onChange={(event) => onAllIrrelevantReasonChange(event.target.value)}
-            placeholder="Tilføj en samlet begrundelse"
+            placeholder="Tilføj en kort begrundelse"
             rows={3}
           />
         </div>
