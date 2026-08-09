@@ -69,9 +69,14 @@ public sealed record MonthlyHoursPdfResponse(
     byte[] Content,
     string FileName);
 
+public sealed record MonthlyHoursPdfPreviewResponse(
+    string ContentType,
+    IReadOnlyList<string> Pages);
+
 public interface IMonthlyHoursPdfGenerator
 {
     byte[] Generate(MyWorksheetsMonthResponse month);
+    IReadOnlyList<byte[]> GeneratePreviewPages(MyWorksheetsMonthResponse month);
 }
 
 public interface IWorksheetService
@@ -81,4 +86,5 @@ public interface IWorksheetService
     Task<Result<MyWorksheetsMonthResponse>> GetWorksheetsForUserAsync(int? year, int? month, CancellationToken cancellationToken);
     Task<Result<MyWorksheetsMonthResponse>> GetAllWorksheetsAsync(int? year, int? month, CancellationToken cancellationToken);
     Task<Result<MonthlyHoursPdfResponse>> GetAllWorksheetsPdfAsync(int? year, int? month, CancellationToken cancellationToken);
+    Task<Result<MonthlyHoursPdfPreviewResponse>> GetAllWorksheetsPdfPreviewAsync(int? year, int? month, CancellationToken cancellationToken);
 }
