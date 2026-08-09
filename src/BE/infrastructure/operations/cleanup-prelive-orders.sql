@@ -2,29 +2,39 @@
 --
 -- This script is intentionally fail-closed and must be run through sqlcmd with
 -- explicit variables. It never deletes Users, Customers, Organizations, or
--- installation reference data.
+-- installation/reference/identity/migration state retained by the go-live policy.
 --
 -- Dry run example:
---   sqlcmd ... -v ExpectedDatabaseName="<production-db>" ExpectedJobCount="-1" Execute="0" -i cleanup-prelive-orders.sql
+--   sqlcmd ... -v ExpectedDatabaseName="<production-db>" -v ExpectedJobCount="-1" -v Execute="0" -i cleanup-prelive-orders.sql
 --
 -- Execute only after reviewing the dry-run count and verifying rollback/PITR:
---   sqlcmd ... -v ExpectedDatabaseName="<production-db>" ExpectedJobCount="<dry-run-count>" Execute="1" -i cleanup-prelive-orders.sql
+--   sqlcmd ... -v ExpectedDatabaseName="<production-db>" -v ExpectedJobCount="<dry-run-count>" -v Execute="1" -i cleanup-prelive-orders.sql
 
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 DECLARE @ExpectedDatabaseName sysname = N'$(ExpectedDatabaseName)';
-DECLARE @ExpectedJobCount int = TRY_CONVERT(int, N'$(ExpectedJobCount)');
-DECLARE @Execute bit = TRY_CONVERT(bit, N'$(Execute)');
+DECLARE @ExpectedJobCountRaw nvarchar(30) = N'$(ExpectedJobCount)';
+DECLARE @ExecuteRaw nvarchar(10) = N'$(Execute)';
+DECLARE @ExpectedJobCount int = TRY_CONVERT(int, @ExpectedJobCountRaw);
+DECLARE @Execute bit;
 
-IF @ExpectedDatabaseName = N'$(ExpectedDatabaseName)' OR NULLIF(LTRIM(RTRIM(@ExpectedDatabaseName)), N'') IS NULL
+-- Build the unexpanded sqlcmd sentinels through concatenation so sqlcmd cannot
+-- substitute the guard value itself. Comparing directly with N'$(Variable)'
+-- would compare the substituted value to itself and always fail.
+IF NULLIF(LTRIM(RTRIM(@ExpectedDatabaseName)), N'') IS NULL
+   OR @ExpectedDatabaseName = N'$' + N'(ExpectedDatabaseName)'
     THROW 51000, 'ExpectedDatabaseName must be supplied through sqlcmd -v.', 1;
 
-IF @ExpectedJobCount IS NULL
+IF @ExpectedJobCountRaw = N'$' + N'(ExpectedJobCount)'
+   OR @ExpectedJobCount IS NULL
     THROW 51001, 'ExpectedJobCount must be supplied through sqlcmd -v. Use -1 for dry-run discovery only.', 1;
 
-IF @Execute IS NULL
-    THROW 51002, 'Execute must be supplied through sqlcmd -v as 0 or 1.', 1;
+IF @ExecuteRaw = N'$' + N'(Execute)'
+   OR @ExecuteRaw NOT IN (N'0', N'1')
+    THROW 51002, 'Execute must be supplied through sqlcmd -v as exactly 0 or 1.', 1;
+
+SET @Execute = CONVERT(bit, @ExecuteRaw);
 
 IF DB_NAME() <> @ExpectedDatabaseName
     THROW 51003, 'Connected database does not match ExpectedDatabaseName.', 1;
@@ -103,6 +113,51 @@ INSERT INTO #InstallationMappingsBefore (InstallationTypeDefinitionId, ControlCa
 SELECT InstallationTypeDefinitionId, ControlCategoryId, ControlPointId
 FROM dbo.InstallationTypeDefinitionMappings;
 
+-- Additional fixed KEEP tables are protected by before/after row counts. Some are
+-- rollout-dependent (for example OrganizationFilials), so only existing tables are
+-- included. No row contents are emitted or copied outside the SQL session.
+CREATE TABLE #AdditionalKeepCountsBefore
+(
+    TableName sysname NOT NULL PRIMARY KEY,
+    RowCount bigint NOT NULL
+);
+
+DECLARE @KeepTable sysname;
+DECLARE @KeepSql nvarchar(max);
+
+DECLARE keep_before_cursor CURSOR LOCAL FAST_FORWARD FOR
+SELECT keep.TableName
+FROM
+(
+    VALUES
+        (N'OrganizationFilials'),
+        (N'JobWorkKinds'),
+        (N'JobClosureFlags'),
+        (N'PushSubscriptions'),
+        (N'InviteTokens'),
+        (N'WorkslipSchemaMigrations'),
+        (N'__EFMigrationsHistory')
+) AS keep(TableName)
+WHERE OBJECT_ID(N'dbo.' + keep.TableName, N'U') IS NOT NULL
+ORDER BY keep.TableName;
+
+OPEN keep_before_cursor;
+FETCH NEXT FROM keep_before_cursor INTO @KeepTable;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @KeepSql =
+        N'INSERT INTO #AdditionalKeepCountsBefore (TableName, RowCount) ' +
+        N'SELECT N''' + REPLACE(@KeepTable, N'''', N'''''') + N''', COUNT_BIG(*) FROM dbo.' +
+        QUOTENAME(@KeepTable) + N';';
+
+    EXEC sys.sp_executesql @KeepSql;
+    FETCH NEXT FROM keep_before_cursor INTO @KeepTable;
+END;
+
+CLOSE keep_before_cursor;
+DEALLOCATE keep_before_cursor;
+
 CREATE TABLE #TargetJobs
 (
     Id uniqueidentifier NOT NULL PRIMARY KEY,
@@ -164,6 +219,12 @@ SELECT
     (SELECT COUNT(*) FROM #ControlCategoriesBefore) AS ControlCategoriesPreserved,
     (SELECT COUNT(*) FROM #ControlPointsBefore) AS ControlPointsPreserved,
     (SELECT COUNT(*) FROM #InstallationMappingsBefore) AS InstallationMappingsPreserved;
+
+SELECT
+    TableName AS AdditionalKeepTable,
+    RowCount AS PreservedRows
+FROM #AdditionalKeepCountsBefore
+ORDER BY TableName;
 
 IF @Execute = 0
 BEGIN
@@ -362,6 +423,58 @@ BEGIN TRY
         SELECT InstallationTypeDefinitionId, ControlCategoryId, ControlPointId FROM #InstallationMappingsBefore
     )
         THROW 51024, 'Safety check failed: installation mappings changed. Transaction will be rolled back.', 1;
+
+    CREATE TABLE #AdditionalKeepCountsAfter
+    (
+        TableName sysname NOT NULL PRIMARY KEY,
+        RowCount bigint NOT NULL
+    );
+
+    DECLARE keep_after_cursor CURSOR LOCAL FAST_FORWARD FOR
+    SELECT keep.TableName
+    FROM
+    (
+        VALUES
+            (N'OrganizationFilials'),
+            (N'JobWorkKinds'),
+            (N'JobClosureFlags'),
+            (N'PushSubscriptions'),
+            (N'InviteTokens'),
+            (N'WorkslipSchemaMigrations'),
+            (N'__EFMigrationsHistory')
+    ) AS keep(TableName)
+    WHERE OBJECT_ID(N'dbo.' + keep.TableName, N'U') IS NOT NULL
+    ORDER BY keep.TableName;
+
+    OPEN keep_after_cursor;
+    FETCH NEXT FROM keep_after_cursor INTO @KeepTable;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        SET @KeepSql =
+            N'INSERT INTO #AdditionalKeepCountsAfter (TableName, RowCount) ' +
+            N'SELECT N''' + REPLACE(@KeepTable, N'''', N'''''') + N''', COUNT_BIG(*) FROM dbo.' +
+            QUOTENAME(@KeepTable) + N';';
+
+        EXEC sys.sp_executesql @KeepSql;
+        FETCH NEXT FROM keep_after_cursor INTO @KeepTable;
+    END;
+
+    CLOSE keep_after_cursor;
+    DEALLOCATE keep_after_cursor;
+
+    IF EXISTS
+    (
+        SELECT TableName, RowCount FROM #AdditionalKeepCountsBefore
+        EXCEPT
+        SELECT TableName, RowCount FROM #AdditionalKeepCountsAfter
+    ) OR EXISTS
+    (
+        SELECT TableName, RowCount FROM #AdditionalKeepCountsAfter
+        EXCEPT
+        SELECT TableName, RowCount FROM #AdditionalKeepCountsBefore
+    )
+        THROW 51025, 'Safety check failed: a protected KEEP table row count changed. Transaction will be rolled back.', 1;
 
     COMMIT TRANSACTION;
 END TRY
