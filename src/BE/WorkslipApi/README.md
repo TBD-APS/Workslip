@@ -8,10 +8,22 @@ ASP.NET Core .NET 10 API split into API host, application, domain, infrastructur
 ## Prerequisites
 
 - .NET SDK 10
-- access to the configured SQL Server database
-- Azure credentials when local configuration uses Azure App Configuration, Key Vault, Graph or other Azure integrations
+- SQL Server LocalDB on Windows for the default one-command local database path, or access to another explicitly configured SQL Server database
+- Azure credentials only when local configuration uses Azure App Configuration, Key Vault, Graph or other Azure integrations
 
 ## Run locally
+
+For a fresh Windows checkout, run the local database bootstrap once from the repository root before starting the API:
+
+```powershell
+.\tools\dev\setup-local-db.cmd
+```
+
+The command is intentionally local-only. It verifies SQL Server LocalDB, creates/starts the `MSSQLLocalDB` instance when needed, creates a `WorkslipLocal` database when the database has no schema, initializes the current EF schema, records the current versioned migrations as that fresh local schema baseline, seeds the existing synthetic DB-only development dataset, and writes the local SQL override to ignored `appsettings.Development.json`.
+
+It does **not** contact Azure App Configuration during the bootstrap operation, does not provision or reconcile Entra identities, and refuses non-local SQL targets. Rerunning the command does not delete or recreate an existing local database; it applies pending local migrations and reconciles the idempotent development seed instead.
+
+After first-time setup, normal API startup is unchanged:
 
 ```bash
 cd src/BE/WorkslipApi
@@ -35,10 +47,10 @@ The local path accepts only localhost/loopback, `.`, `(local)`, local SQL Server
 
 `Workslip:ApplyLocalMigrations=false` disables local auto-migration. `Workslip:ApplyLocalMigrations=true` is a strict safety assertion: startup fails if the configured target is not recognized as local instead of applying migrations remotely.
 
-For example, on a machine with SQL Server LocalDB, keep the connection override in ignored local configuration or an environment variable:
+The one-command bootstrap writes the standard LocalDB override automatically. For a custom local SQL Server, keep the connection override in ignored local configuration or an environment variable:
 
 ```powershell
-$env:Azure__Sql__ConnectionString='Server=(localdb)\MSSQLLocalDB;Database=WorkslipLocal;Integrated Security=true;TrustServerCertificate=true'
+$env:Azure__Sql__ConnectionString='Server=localhost;Database=WorkslipLocal;Integrated Security=true;TrustServerCertificate=true'
 dotnet run --launch-profile http
 ```
 
@@ -46,7 +58,7 @@ The migration history, checksum immutability, transaction and application-lock c
 
 ## Development database seeding
 
-Development seeding is explicit opt-in and is database-only by default. `Workslip:SeedDevelopmentData=true` seeds the existing synthetic Workslip development dataset without resolving or invoking the Entra Superadmin provisioning service.
+The first-time local database bootstrap seeds the existing synthetic dataset DB-only. For an existing development database, seeding can still be explicitly reconciled with `Workslip:SeedDevelopmentData=true`; it never resolves or invokes the Entra Superadmin provisioning service by itself.
 
 From macOS/Linux:
 
@@ -137,7 +149,7 @@ Use [`AGENTS.md`](AGENTS.md) for backend architecture rules. Application service
 
 ## Runtime configuration
 
-Azure App Configuration owns non-secret runtime configuration. Secret values are resolved through Key Vault references/managed identity where configured. Infrastructure ownership and deployment details live in [`../infrastructure/README.md`](../infrastructure/README.md).
+Azure App Configuration owns non-secret shared runtime configuration. Secret values are resolved through Key Vault references/managed identity where configured. Ignored `appsettings.Development.json` may override the SQL target for local developer work. Infrastructure ownership and deployment details live in [`../infrastructure/README.md`](../infrastructure/README.md).
 
 Development/release-test endpoints (OpenAPI, Scalar and `/api/dev/*`) are registered only when the current release-testing policy enables them. `UseDeveloperExceptionPage` remains a Development-only concern. Treat the current release policy/configuration as authoritative rather than assuming those endpoints are always present.
 
@@ -153,7 +165,9 @@ Superadmin delegated organization access uses the existing server-side organizat
 
 Persistence uses EF Core/SQL Server. Staging and production startup only verify database connectivity; they do not apply schema changes, backfill tenant data or run development seeding. Production schema changes require the explicit protected deployment migration operation.
 
-Development startup may apply pending versioned migrations only when the configured SQL target is provably local, as described above. Development database seeding remains a separate explicit `Workslip:SeedDevelopmentData` opt-in, and external Entra identity reconciliation additionally requires `Workslip:SeedDevelopmentEntraIdentities`. New-tenant reference data is provisioned only during explicit organization onboarding. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
+A brand-new local database may be created from the current EF model only through the explicit Development/local-only bootstrap operation. Because that schema already represents the checked-out code, the bootstrap records the currently known versioned migrations as the initial local baseline instead of replaying historical migrations against a fresh current-model schema. Existing local databases are never re-baselined; they use the normal pending-migration path.
+
+Development startup may apply pending versioned migrations only when the configured SQL target is provably local, as described above. Development database seeding remains a separate explicit `Workslip:SeedDevelopmentData` opt-in after bootstrap, and external Entra identity reconciliation additionally requires `Workslip:SeedDevelopmentEntraIdentities`. New-tenant reference data is provisioned only during explicit organization onboarding. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
 
 Do not infer SQL behaviour from EF in-memory tests.
 
