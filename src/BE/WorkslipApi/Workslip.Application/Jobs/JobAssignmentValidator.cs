@@ -132,6 +132,7 @@ public sealed class JobAssignmentValidator(
                 user.Role,
                 user.Id,
                 currentUser.UserId,
+                currentUser.Role,
                 user.FilialId,
                 filialId))
             ? JobAssignmentValidationResult.Valid()
