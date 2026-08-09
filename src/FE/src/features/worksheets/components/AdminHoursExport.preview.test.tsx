@@ -2,13 +2,16 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyWorksheetsMonthResponse } from '../worksheetOverviewTypes';
 
-const { createPdfFilePreviewMock, downloadPdfFileMock } = vi.hoisted(() => ({
-  createPdfFilePreviewMock: vi.fn(),
+const { getMonthlyHoursPdfPreviewMock, downloadPdfFileMock } = vi.hoisted(() => ({
+  getMonthlyHoursPdfPreviewMock: vi.fn(),
   downloadPdfFileMock: vi.fn(),
 }));
 
+vi.mock('../api/monthlyHoursPdfPreview', () => ({
+  getMonthlyHoursPdfPreview: getMonthlyHoursPdfPreviewMock,
+}));
+
 vi.mock('../../../lib/pdfFile', () => ({
-  createPdfFilePreview: createPdfFilePreviewMock,
   downloadPdfFile: downloadPdfFileMock,
 }));
 
@@ -53,12 +56,16 @@ const data: MyWorksheetsMonthResponse = {
 
 describe('AdminHoursExport PDF preview', () => {
   beforeEach(() => {
-    createPdfFilePreviewMock.mockReset();
+    getMonthlyHoursPdfPreviewMock.mockReset();
     downloadPdfFileMock.mockReset();
-    createPdfFilePreviewMock.mockResolvedValue({
-      blob: new Blob(['pdf'], { type: 'application/pdf' }),
-      fileName: 'workslip-timer-2026-08.pdf',
-      url: 'blob:timer-preview',
+    getMonthlyHoursPdfPreviewMock.mockResolvedValue({
+      pages: ['<svg>page 1</svg>', '<svg>page 2</svg>'],
+    });
+
+    let objectUrlIndex = 0;
+    Object.defineProperty(window.URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => `blob:timer-preview-${++objectUrlIndex}`),
     });
     Object.defineProperty(window.URL, 'revokeObjectURL', {
       configurable: true,
@@ -66,25 +73,24 @@ describe('AdminHoursExport PDF preview', () => {
     });
   });
 
-  it('renders the authenticated PDF Blob inside Workslip without opening a popup', async () => {
-    const open = vi.spyOn(window, 'open');
+  it('renders server-generated preview pages inside Workslip without a native PDF iframe', async () => {
     render(<AdminHoursExport data={data} monthLabel="august 2026" />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Vis PDF' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'PDF-preview af timer for august 2026' });
     expect(dialog).toBeInTheDocument();
-    expect(createPdfFilePreviewMock).toHaveBeenCalledWith({
-      url: '/api/worksheets/all/report/pdf?year=2026&month=8',
-      fallbackFileName: 'workslip-timer-2026-08.pdf',
-    });
-    expect(open).not.toHaveBeenCalled();
+    expect(getMonthlyHoursPdfPreviewMock).toHaveBeenCalledWith(2026, 8);
+    expect(screen.queryByTitle('PDF-preview af timer for august 2026')).not.toBeInTheDocument();
 
-    const frame = screen.getByTitle('PDF-preview af timer for august 2026');
-    expect(frame).toHaveAttribute('src', 'blob:timer-preview');
+    const pages = screen.getAllByRole('img');
+    expect(pages).toHaveLength(2);
+    expect(pages[0]).toHaveAttribute('src', 'blob:timer-preview-1');
+    expect(pages[0]).toHaveAttribute('alt', 'Side 1 af 2');
+    expect(pages[1]).toHaveAttribute('src', 'blob:timer-preview-2');
   });
 
-  it('revokes the preview Blob URL when the preview closes', async () => {
+  it('revokes every SVG page URL when the preview closes', async () => {
     render(<AdminHoursExport data={data} monthLabel="august 2026" />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Vis PDF' }));
@@ -92,6 +98,7 @@ describe('AdminHoursExport PDF preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Luk PDF-preview' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('blob:timer-preview');
+    expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('blob:timer-preview-1');
+    expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('blob:timer-preview-2');
   });
 });
