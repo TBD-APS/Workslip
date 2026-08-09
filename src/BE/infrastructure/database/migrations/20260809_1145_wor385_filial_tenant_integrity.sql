@@ -140,6 +140,9 @@ IF COL_LENGTH(N'dbo.Users', N'FilialId') IS NULL
 IF COL_LENGTH(N'dbo.JobReports', N'FilialId') IS NULL
     ALTER TABLE dbo.JobReports ADD FilialId uniqueidentifier NULL;
 
+-- SQL Server compiles a batch before executing preceding ALTER TABLE statements.
+-- Defer all references to newly-added FilialId columns until after those ALTERs execute.
+EXEC(N'
 UPDATE users
 SET FilialId = filial.Id
 FROM dbo.Users AS users
@@ -164,7 +167,7 @@ IF EXISTS (
        AND filial.Id = users.FilialId
     WHERE users.FilialId IS NULL OR filial.Id IS NULL)
 BEGIN
-    THROW 51389, 'WOR-385 could not assign every user to a filial in the same organization.', 1;
+    THROW 51389, ''WOR-385 could not assign every user to a filial in the same organization.'', 1;
 END;
 
 IF EXISTS (
@@ -175,10 +178,10 @@ IF EXISTS (
        AND filial.Id = jobs.FilialId
     WHERE jobs.FilialId IS NULL OR filial.Id IS NULL)
 BEGIN
-    THROW 51390, 'WOR-385 could not assign every job to a filial in the same organization.', 1;
+    THROW 51390, ''WOR-385 could not assign every job to a filial in the same organization.'', 1;
 END;
 
-IF OBJECT_ID(N'dbo.FK_Users_OrganizationFilials_OrganizationId_FilialId', N'F') IS NULL
+IF OBJECT_ID(N''dbo.FK_Users_OrganizationFilials_OrganizationId_FilialId'', N''F'') IS NULL
 BEGIN
     ALTER TABLE dbo.Users WITH CHECK
         ADD CONSTRAINT FK_Users_OrganizationFilials_OrganizationId_FilialId
@@ -186,7 +189,7 @@ BEGIN
         REFERENCES dbo.OrganizationFilials (OrganizationId, Id);
 END;
 
-IF OBJECT_ID(N'dbo.FK_JobReports_OrganizationFilials_OrganizationId_FilialId', N'F') IS NULL
+IF OBJECT_ID(N''dbo.FK_JobReports_OrganizationFilials_OrganizationId_FilialId'', N''F'') IS NULL
 BEGIN
     ALTER TABLE dbo.JobReports WITH CHECK
         ADD CONSTRAINT FK_JobReports_OrganizationFilials_OrganizationId_FilialId
@@ -196,8 +199,8 @@ END;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE object_id = OBJECT_ID(N'dbo.Users')
-      AND name = N'IX_Users_Organization_FilialId')
+    WHERE object_id = OBJECT_ID(N''dbo.Users'')
+      AND name = N''IX_Users_Organization_FilialId'')
 BEGIN
     CREATE INDEX IX_Users_Organization_FilialId
         ON dbo.Users (OrganizationId, FilialId);
@@ -205,18 +208,21 @@ END;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE object_id = OBJECT_ID(N'dbo.JobReports')
-      AND name = N'IX_JobReports_Organization_FilialId')
+    WHERE object_id = OBJECT_ID(N''dbo.JobReports'')
+      AND name = N''IX_JobReports_Organization_FilialId'')
 BEGIN
     CREATE INDEX IX_JobReports_Organization_FilialId
         ON dbo.JobReports (OrganizationId, FilialId);
 END;
+');
 
 IF COL_LENGTH(N'dbo.JobReportInstallationCategories', N'OrganizationId') IS NULL
     ALTER TABLE dbo.JobReportInstallationCategories ADD OrganizationId uniqueidentifier NULL;
 IF COL_LENGTH(N'dbo.JobReportInstallationControlPoints', N'OrganizationId') IS NULL
     ALTER TABLE dbo.JobReportInstallationControlPoints ADD OrganizationId uniqueidentifier NULL;
 
+-- Same deferred-compilation rule for the newly-added snapshot OrganizationId columns.
+EXEC(N'
 UPDATE snapshotCategory
 SET OrganizationId = installation.OrganizationId
 FROM dbo.JobReportInstallationCategories AS snapshotCategory
@@ -232,15 +238,15 @@ INNER JOIN dbo.JobReportInstallationCategories AS snapshotCategory
 WHERE snapshotPoint.OrganizationId IS NULL;
 
 IF EXISTS (SELECT 1 FROM dbo.JobReportInstallationCategories WHERE OrganizationId IS NULL)
-    THROW 51391, 'WOR-385 could not derive OrganizationId for every category snapshot.', 1;
+    THROW 51391, ''WOR-385 could not derive OrganizationId for every category snapshot.'', 1;
 IF EXISTS (SELECT 1 FROM dbo.JobReportInstallationControlPoints WHERE OrganizationId IS NULL)
-    THROW 51392, 'WOR-385 could not derive OrganizationId for every control-point snapshot.', 1;
+    THROW 51392, ''WOR-385 could not derive OrganizationId for every control-point snapshot.'', 1;
 
 IF NOT EXISTS (
     SELECT 1
     FROM sys.key_constraints
-    WHERE parent_object_id = OBJECT_ID(N'dbo.JobReportInstallations')
-      AND name = N'AK_JobReportInstallations_OrganizationId_Id')
+    WHERE parent_object_id = OBJECT_ID(N''dbo.JobReportInstallations'')
+      AND name = N''AK_JobReportInstallations_OrganizationId_Id'')
 BEGIN
     ALTER TABLE dbo.JobReportInstallations
         ADD CONSTRAINT AK_JobReportInstallations_OrganizationId_Id
@@ -250,8 +256,8 @@ END;
 IF NOT EXISTS (
     SELECT 1
     FROM sys.key_constraints
-    WHERE parent_object_id = OBJECT_ID(N'dbo.ControlCategories')
-      AND name = N'AK_ControlCategories_OrganizationId_Id')
+    WHERE parent_object_id = OBJECT_ID(N''dbo.ControlCategories'')
+      AND name = N''AK_ControlCategories_OrganizationId_Id'')
 BEGIN
     ALTER TABLE dbo.ControlCategories
         ADD CONSTRAINT AK_ControlCategories_OrganizationId_Id
@@ -261,8 +267,8 @@ END;
 IF NOT EXISTS (
     SELECT 1
     FROM sys.key_constraints
-    WHERE parent_object_id = OBJECT_ID(N'dbo.ControlPoints')
-      AND name = N'AK_ControlPoints_OrganizationId_Id')
+    WHERE parent_object_id = OBJECT_ID(N''dbo.ControlPoints'')
+      AND name = N''AK_ControlPoints_OrganizationId_Id'')
 BEGIN
     ALTER TABLE dbo.ControlPoints
         ADD CONSTRAINT AK_ControlPoints_OrganizationId_Id
@@ -272,8 +278,8 @@ END;
 IF NOT EXISTS (
     SELECT 1
     FROM sys.key_constraints
-    WHERE parent_object_id = OBJECT_ID(N'dbo.JobReportInstallationCategories')
-      AND name = N'AK_JobReportInstallationCategories_OrganizationId_Id')
+    WHERE parent_object_id = OBJECT_ID(N''dbo.JobReportInstallationCategories'')
+      AND name = N''AK_JobReportInstallationCategories_OrganizationId_Id'')
 BEGIN
     ALTER TABLE dbo.JobReportInstallationCategories
         ADD CONSTRAINT AK_JobReportInstallationCategories_OrganizationId_Id
@@ -282,7 +288,7 @@ END;
 
 -- Keep the existing simple foreign keys because EF currently models them and they own
 -- cascade behavior. The additional composite FKs below are the tenant-integrity guard.
-IF OBJECT_ID(N'dbo.FK_JobReportInstallationCategories_JobReportInstallations_Organization', N'F') IS NULL
+IF OBJECT_ID(N''dbo.FK_JobReportInstallationCategories_JobReportInstallations_Organization'', N''F'') IS NULL
 BEGIN
     ALTER TABLE dbo.JobReportInstallationCategories WITH CHECK
         ADD CONSTRAINT FK_JobReportInstallationCategories_JobReportInstallations_Organization
@@ -290,7 +296,7 @@ BEGIN
         REFERENCES dbo.JobReportInstallations (OrganizationId, Id);
 END;
 
-IF OBJECT_ID(N'dbo.FK_JobReportInstallationCategories_ControlCategories_Organization', N'F') IS NULL
+IF OBJECT_ID(N''dbo.FK_JobReportInstallationCategories_ControlCategories_Organization'', N''F'') IS NULL
 BEGIN
     ALTER TABLE dbo.JobReportInstallationCategories WITH CHECK
         ADD CONSTRAINT FK_JobReportInstallationCategories_ControlCategories_Organization
@@ -298,7 +304,7 @@ BEGIN
         REFERENCES dbo.ControlCategories (OrganizationId, Id);
 END;
 
-IF OBJECT_ID(N'dbo.FK_JobReportInstallationControlPoints_Categories_Organization', N'F') IS NULL
+IF OBJECT_ID(N''dbo.FK_JobReportInstallationControlPoints_Categories_Organization'', N''F'') IS NULL
 BEGIN
     ALTER TABLE dbo.JobReportInstallationControlPoints WITH CHECK
         ADD CONSTRAINT FK_JobReportInstallationControlPoints_Categories_Organization
@@ -306,13 +312,14 @@ BEGIN
         REFERENCES dbo.JobReportInstallationCategories (OrganizationId, Id);
 END;
 
-IF OBJECT_ID(N'dbo.FK_JobReportInstallationControlPoints_ControlPoints_Organization', N'F') IS NULL
+IF OBJECT_ID(N''dbo.FK_JobReportInstallationControlPoints_ControlPoints_Organization'', N''F'') IS NULL
 BEGIN
     ALTER TABLE dbo.JobReportInstallationControlPoints WITH CHECK
         ADD CONSTRAINT FK_JobReportInstallationControlPoints_ControlPoints_Organization
         FOREIGN KEY (OrganizationId, ControlPointId)
         REFERENCES dbo.ControlPoints (OrganizationId, Id);
 END;
+');
 
 -- Transitional INSERT compatibility for the previous API version. These triggers are
 -- intentionally narrow: they only fill newly introduced ownership columns when omitted.
