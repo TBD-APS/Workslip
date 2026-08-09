@@ -18,15 +18,17 @@ public static class UserEndpoints
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
         }).Produces<UserViewModel>();
 
-        group.MapGet("/{id}", async (Guid id, IUserService service, CancellationToken cancellationToken) =>
+        group.MapGet("/{id}", async (Guid id, IUserService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.GetDetailAsync(id, cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUserDetail);
         }).Produces<UserDetailViewModel>()
         .RequireAuthorization(AuthPolicies.RequireUser);
 
-        group.MapGet("/", async ([AsParameters] ListQueryOptions query, IUserService service, CancellationToken cancellationToken) =>
+        group.MapGet("/", async ([AsParameters] ListQueryOptions query, IUserService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
+            HttpCacheHeaders.SetNoStore(httpContext);
             var result = await service.GetByOrganizationAsync(
                 query.Limit,
                 query.Offset,
