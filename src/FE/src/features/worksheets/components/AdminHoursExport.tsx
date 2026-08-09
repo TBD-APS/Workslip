@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Eye, Loader2, X } from 'lucide-react';
 import { notify } from '../../../lib/toast';
 import { downloadPdfFile } from '../../../lib/pdfFile';
@@ -29,28 +29,15 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
   const rows = useMemo(() => buildHoursExportRows(data), [data]);
   const [pdfAction, setPdfAction] = useState<PdfAction | null>(null);
   const [pdfPreview, setPdfPreview] = useState<PdfPreview | null>(null);
-  const previewUrlsRef = useRef<string[]>([]);
   const hasRows = rows.length > 0;
   const pdfRequest = useMemo(() => ({
     url: `/api/worksheets/all/report/pdf?year=${data.year}&month=${data.month}`,
     fallbackFileName: `workslip-timer-${data.year}-${String(data.month).padStart(2, '0')}.pdf`,
   }), [data.month, data.year]);
 
-  const revokePreviewUrls = useCallback(() => {
-    for (const url of previewUrlsRef.current) {
-      window.URL.revokeObjectURL(url);
-    }
-    previewUrlsRef.current = [];
-  }, []);
-
   const closePdfPreview = useCallback(() => {
-    revokePreviewUrls();
     setPdfPreview(null);
-  }, [revokePreviewUrls]);
-
-  useEffect(() => () => {
-    revokePreviewUrls();
-  }, [revokePreviewUrls]);
+  }, []);
 
   useEffect(() => {
     if (!pdfPreview) return undefined;
@@ -84,19 +71,13 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
 
     try {
       const preview = await getMonthlyHoursPdfPreview(data.year, data.month);
-      if (preview.pages.length === 0) {
-        throw new Error('worksheet_pdf_preview_empty');
+      if (preview.pages.length === 0 || preview.contentType !== 'image/png') {
+        throw new Error('worksheet_pdf_preview_invalid');
       }
 
-      const pageUrls = preview.pages.map((page) =>
-        window.URL.createObjectURL(new Blob([page], { type: 'image/svg+xml' })),
-      );
-
-      revokePreviewUrls();
-      previewUrlsRef.current = pageUrls;
       setPdfPreview({
         fileName: pdfRequest.fallbackFileName,
-        pageUrls,
+        pageUrls: preview.pages.map((page) => `data:${preview.contentType};base64,${page}`),
       });
     } catch {
       notify.error(`Kunne ikke hente PDF for ${monthLabel}`);
@@ -189,7 +170,7 @@ export function AdminHoursExport({ data, monthLabel }: AdminHoursExportProps) {
           >
             {pdfPreview.pageUrls.map((url, index) => (
               <img
-                key={url}
+                key={index}
                 className="hours-pdf-preview-page"
                 src={url}
                 alt={`Side ${index + 1} af ${pdfPreview.pageUrls.length}`}
