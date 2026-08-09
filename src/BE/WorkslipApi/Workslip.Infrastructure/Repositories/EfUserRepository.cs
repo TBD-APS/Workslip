@@ -91,11 +91,12 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken)
     {
-        var currentUserRole = _currentUser.Role;
+        var isSuperadmin = string.Equals(_currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
+        var isCurrentOrganization = _currentUser.OrganizationId == organizationId;
         var query = _dbContext.Users
             .AsNoTracking()
             .Where(u => u.OrganizationId == organizationId
-                && (currentUserRole == Roles.Superadmin || u.Role != Roles.Superadmin));
+                && (isSuperadmin || (isCurrentOrganization && u.Role != Roles.Superadmin)));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -128,9 +129,10 @@ public sealed class EfUserRepository : IUserRepository
 
     public async Task<int> GetCountByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken)
     {
-        var currentUserRole = _currentUser.Role;
+        var isSuperadmin = string.Equals(_currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
+        var isCurrentOrganization = _currentUser.OrganizationId == organizationId;
         return await _dbContext.Users.CountAsync(u => u.OrganizationId == organizationId
-            && (currentUserRole == Roles.Superadmin || u.Role != Roles.Superadmin), cancellationToken);
+            && (isSuperadmin || (isCurrentOrganization && u.Role != Roles.Superadmin)), cancellationToken);
     }
 
     public async Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken)
