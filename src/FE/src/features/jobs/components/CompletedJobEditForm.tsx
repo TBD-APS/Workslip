@@ -1,5 +1,5 @@
 import { FileText, MessageSquare, Wrench, FileCheck2, CheckCircle2, X, Save, Loader2 } from 'lucide-react';
-import { AssignmentBlock, CustomerDetailsBlock, LinkedJobsBlock, TextAreaBlock } from './JobDetailBlocks';
+import { AssignmentBlock, CustomerDetailsBlock, DestinationAddressBlock, LinkedJobsBlock, TextAreaBlock } from './JobDetailBlocks';
 import { ControlPointsStep } from './steps/ControlPointsStep';
 import { JobCompletionStep } from './steps/JobCompletionStep';
 import { JobWorksheetsStep } from './steps/JobWorksheetsStep';
@@ -15,103 +15,127 @@ type CompletedJobEditFormProps = {
 export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJobEditFormProps) {
   if (!details.job) return null;
 
+  const isSimpleJob = details.job.jobType === 'Diverse';
+
   return (
     <>
-      <CustomerDetailsBlock
-        form={details.form}
-        customerSnapshot={details.form.customerSnapshot}
-        editSnapshot={details.form.editSnapshot}
-        createCustomer={details.form.createCustomer}
-        onCreateCustomerChange={details.updateCreateCustomer}
-        onCustomerSelect={details.selectCustomer}
-        onSnapshotFieldChange={details.updateSnapshotField}
-        onEditSnapshotChange={details.updateEditSnapshot}
-        showEditCheckbox={true}
-      />
-      <AssignmentBlock assignment={{
-          users: details.assignableUsers!,
-          assignedUserIds: details.assignedUserIds,
-          isLoadingUsers: details.isLoadingUsers,
-          onAssignedUsersChange: details.updateAssignedUsers,
-        }} />
-
-      <LinkedJobsBlock
-        jobs={details.linkableJobs}
-        linkedJobIds={details.linkedJobIds}
-        isLoading={details.isLoadingJobs}
-        onChange={details.updateLinkedJobs}
-      />
-
-      <section className="detail-section attestation-summary-section">
-        <div className="section-header-row attestation-compact-header">
-          <FileCheck2 size={18} />
-          <h3>Observationer og noter</h3>
-        </div>
-        <TextAreaBlock
-          icon={<FileText size={18} />}
-          title="Opgave"
-          value={details.form.taskDescription}
-          onChange={details.updateTaskDescription}
-          placeholder="Beskriv opgaven..."
-        />
-        <div className="form-divider" />
-        <TextAreaBlock
-          icon={<MessageSquare size={18} />}
-          title="Kundeinfo"
-          value={details.form.customerObservations}
-          onChange={details.updateCustomerObservations}
-          placeholder="Notér oplysninger til kunden..."
-        />
-        <div className="form-divider" />
-        <TextAreaBlock
-          icon={<Wrench size={18} />}
-          title="Teknisk"
-          value={details.form.technicalObservations}
-          onChange={details.updateTechnicalObservations}
-          placeholder="Notér tekniske observationer..."
-        />
-      </section>
-
-      <section className="detail-section">
-        <div className="section-header-row attestation-compact-header">
-          <FileCheck2 size={18} />
-          <h3>Opgavetype</h3>
-        </div>
-        <WorkCategoryStep
-          form={details.form}
-          referenceData={details.referenceData}
-          isLoading={details.isLoadingReferenceData}
-          onCategoriesChange={details.updateWorkCategories}
-          onWorkKindChange={details.updateWorkKind}
-          onCustomWorkKindChange={details.updateCustomWorkKind}
-          mode="work-kind"
-        />
-      </section>
-
-      <section className="detail-section">
-        <div className="section-header-row attestation-compact-header">
-          <CheckCircle2 size={18} />
-          <h3>Anlægstyper og kontrolpunkter</h3>
-        </div>
-        <div className="detail-section-spacer">
-          <WorkCategoryStep
-            form={details.form}
-            referenceData={details.referenceData}
-            isLoading={details.isLoadingReferenceData}
-            onCategoriesChange={details.updateWorkCategories}
-            onWorkKindChange={details.updateWorkKind}
-            onCustomWorkKindChange={details.updateCustomWorkKind}
-            mode="categories"
+      {isSimpleJob ? (
+        <>
+          <DestinationAddressBlock
+            value={details.form.destinationAddress}
+            zipCode={details.form.destinationZipCode}
+            city={details.form.destinationCity}
+            onChange={details.updateDestinationAddress}
+            onZipCodeChange={details.updateDestinationZipCode}
+            onCityChange={details.updateDestinationCity}
           />
-        </div>
-        <ControlPointsStep
-          form={details.form}
-          referenceData={details.referenceData}
-          onToggleControlPoint={details.toggleControlPoint}
-          onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
-          onAllIrrelevantReasonChange={details.updateAllIrrelevantReason}
-        />
-      </section>
+          <TextAreaBlock
+            icon={<FileText size={18} />}
+            title="Opgavebeskrivelse"
+            value={details.form.taskDescription}
+            onChange={details.updateTaskDescription}
+            placeholder="Beskriv opgaven..."
+          />
+        </>
+      ) : (
+        <>
+          <CustomerDetailsBlock
+            form={details.form}
+            customerSnapshot={details.form.customerSnapshot}
+            editSnapshot={details.form.editSnapshot}
+            createCustomer={details.form.createCustomer}
+            onCreateCustomerChange={details.updateCreateCustomer}
+            onCustomerSelect={details.selectCustomer}
+            onSnapshotFieldChange={details.updateSnapshotField}
+            onEditSnapshotChange={details.updateEditSnapshot}
+            showEditCheckbox={true}
+          />
+          <AssignmentBlock assignment={{
+              users: details.assignableUsers!,
+              assignedUserIds: details.assignedUserIds,
+              isLoadingUsers: details.isLoadingUsers,
+              onAssignedUsersChange: details.updateAssignedUsers,
+            }} />
+
+          <LinkedJobsBlock
+            jobs={details.linkableJobs}
+            linkedJobIds={details.linkedJobIds}
+            isLoading={details.isLoadingJobs}
+            onChange={details.updateLinkedJobs}
+          />
+
+          <section className="detail-section attestation-summary-section">
+            <div className="section-header-row attestation-compact-header">
+              <FileCheck2 size={18} />
+              <h3>Observationer og noter</h3>
+            </div>
+            <TextAreaBlock
+              icon={<FileText size={18} />}
+              title="Opgave"
+              value={details.form.taskDescription}
+              onChange={details.updateTaskDescription}
+              placeholder="Beskriv opgaven..."
+            />
+            <div className="form-divider" />
+            <TextAreaBlock
+              icon={<MessageSquare size={18} />}
+              title="Kundeinfo"
+              value={details.form.customerObservations}
+              onChange={details.updateCustomerObservations}
+              placeholder="Notér oplysninger til kunden..."
+            />
+            <div className="form-divider" />
+            <TextAreaBlock
+              icon={<Wrench size={18} />}
+              title="Teknisk"
+              value={details.form.technicalObservations}
+              onChange={details.updateTechnicalObservations}
+              placeholder="Notér tekniske observationer..."
+            />
+          </section>
+
+          <section className="detail-section">
+            <div className="section-header-row attestation-compact-header">
+              <FileCheck2 size={18} />
+              <h3>Opgavetype</h3>
+            </div>
+            <WorkCategoryStep
+              form={details.form}
+              referenceData={details.referenceData}
+              isLoading={details.isLoadingReferenceData}
+              onCategoriesChange={details.updateWorkCategories}
+              onWorkKindChange={details.updateWorkKind}
+              onCustomWorkKindChange={details.updateCustomWorkKind}
+              mode="work-kind"
+            />
+          </section>
+
+          <section className="detail-section">
+            <div className="section-header-row attestation-compact-header">
+              <CheckCircle2 size={18} />
+              <h3>Anlægstyper og kontrolpunkter</h3>
+            </div>
+            <div className="detail-section-spacer">
+              <WorkCategoryStep
+                form={details.form}
+                referenceData={details.referenceData}
+                isLoading={details.isLoadingReferenceData}
+                onCategoriesChange={details.updateWorkCategories}
+                onWorkKindChange={details.updateWorkKind}
+                onCustomWorkKindChange={details.updateCustomWorkKind}
+                mode="categories"
+              />
+            </div>
+            <ControlPointsStep
+              form={details.form}
+              referenceData={details.referenceData}
+              onToggleControlPoint={details.toggleControlPoint}
+              onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
+              onAllIrrelevantReasonChange={details.updateAllIrrelevantReason}
+            />
+          </section>
+        </>
+      )}
 
       <JobWorksheetsStep
         jobId={details.job.id}
@@ -127,13 +151,15 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
         variant="list"
       />
 
-      <JobCompletionStep
-        form={details.form}
-        referenceData={details.referenceData}
-        isLoading={details.isLoadingReferenceData}
-        onClosureFlagsChange={details.updateClosureFlags}
-        worksheetCount={details.worksheets.length}
-      />
+      {!isSimpleJob && (
+        <JobCompletionStep
+          form={details.form}
+          referenceData={details.referenceData}
+          isLoading={details.isLoadingReferenceData}
+          onClosureFlagsChange={details.updateClosureFlags}
+          worksheetCount={details.worksheets.length}
+        />
+      )}
 
       <div className="edit-form-bottom-actions">
         <button className="btn btn-secondary edit-form-bottom-btn" type="button" onClick={onCancel} disabled={details.saveStatus === 'saving'}>
