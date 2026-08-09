@@ -28,7 +28,6 @@ const MOBILE_SORT_OPTIONS = [
   { field: 'reportNumber', label: 'Sagsnr.' },
   { field: 'name', label: 'Kundenavn' },
   { field: 'address', label: 'Adresse' },
-  { field: 'reportDate', label: 'Rapportdato' },
   { field: 'updatedAt', label: 'Opdateret' },
 ] as const;
 
@@ -88,33 +87,23 @@ export const AuditorReportList = () => {
   };
 
   const fetchStatuses = useMemo(() => [...COMPLETED_STATUSES], []);
-  const mobileServerSortBy = !isDesktop && MOBILE_SORT_OPTIONS.some((option) => option.field === sortBy)
-    ? sortBy
-    : '';
 
   const fetchJobsPage = useCallback(
     async ({ limit, offset }: { limit: number; offset: number }) => {
       const data = await apiClient.get('/api/jobs', {
         params: {
           status: fetchStatuses,
-          sortBy: mobileServerSortBy || undefined,
-          sortDirection: mobileServerSortBy ? sortDirection : undefined,
           limit,
           offset,
         },
       }) as { items: JobListItemViewModel[]; totalCount: number };
       return data;
     },
-    [fetchStatuses, mobileServerSortBy, sortDirection],
+    [fetchStatuses],
   );
 
   const query = useInfiniteList({
-    queryKey: ['/api/jobs', {
-      status: fetchStatuses,
-      sortBy: mobileServerSortBy || undefined,
-      sortDirection: mobileServerSortBy ? sortDirection : undefined,
-      limit: PAGE_SIZE,
-    }],
+    queryKey: ['/api/jobs', { status: fetchStatuses, limit: PAGE_SIZE }],
     fetchPage: fetchJobsPage,
     pageSize: PAGE_SIZE,
   });
@@ -147,7 +136,7 @@ export const AuditorReportList = () => {
   );
 
   const jobs = useMemo(() => {
-    if (!sortBy || mobileServerSortBy) return searched;
+    if (!sortBy) return searched;
     return [...searched].sort((a, b) => {
       let cmp = 0;
       switch (sortBy) {
@@ -172,7 +161,7 @@ export const AuditorReportList = () => {
       }
       return sortDirection === 'asc' ? cmp : -cmp;
     });
-  }, [searched, sortBy, sortDirection, mobileServerSortBy]);
+  }, [searched, sortBy, sortDirection]);
 
   const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE));
   const safeViewPage = Math.min(viewPage, totalPages);
