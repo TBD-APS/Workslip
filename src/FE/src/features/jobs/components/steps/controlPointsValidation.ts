@@ -5,6 +5,7 @@ export function validateControlPoints(
   form: JobForm,
   referenceData: ReferenceDataResponse | null,
 ): { valid: boolean; error?: string } {
+  if (form.jobType === 'Diverse') return { valid: true };
 
   const selectedInstallationTypes = referenceData?.installationTypes.filter((t) => form.work.categoryIds.includes(t.id));
 
@@ -42,7 +43,7 @@ export function validateControlPoints(
   return { valid: true };
 }
 
-function capitalizeFirstLetter(str: string): string {
+function capitalizeFirstLetter(str: string) {
   if (!str) return str;
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
