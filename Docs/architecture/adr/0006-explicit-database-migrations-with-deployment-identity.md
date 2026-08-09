@@ -19,6 +19,8 @@ Production database migrations are an explicit deployment operation.
 - Versioned T-SQL files live under `src/BE/infrastructure/database/migrations`.
 - CI validates migration filenames and transaction/batch constraints before a change is eligible to merge to `main`.
 - The protected backend deployment applies pending migrations before the API package is deployed. Migration failure stops the release.
+- A separate `Production database migrations` workflow may apply pending reviewed migrations manually without deploying the API or reconciling infrastructure.
+- The manual migration workflow may run only from `main`, requires the protected `prod` environment and an explicit `MIGRATE` confirmation, uses the same dedicated migration identity and migration runner as normal backend deployment, and shares the `azure-api-prod` concurrency group with backend deployment.
 - Applied migration IDs and SHA-256 checksums are recorded in `dbo.WorkslipSchemaMigrations`; an applied file is immutable.
 - Migration execution uses a database application lock plus the existing production deployment concurrency gate.
 - A dedicated user-assigned identity, `id-<company>-<environment>-migration`, owns production schema migration permissions.
@@ -38,6 +40,8 @@ A destructive or material data-transforming migration must document its producti
 
 Automatic down-migration is deliberately not part of production rollback. Application rollback is allowed only when the resulting schema remains compatible; otherwise recovery is an explicit database operation.
 
+Normal production delivery remains the preferred migration path: reviewed migrations merge to `main`, the backend deployment applies them, then the API package is deployed. The manual `Production database migrations` workflow is for explicit operator-controlled migration execution when the database must be advanced independently of an application deployment; it never runs arbitrary SQL supplied as workflow input.
+
 The production infrastructure identity remains deployment-only. Normal API runtime never receives or depends on that credential. Recovery is allowed only inside the protected `prod` GitHub environment and reuses `deploy-infrastructure.ps1` plus `reconcile-database-migration-identity.ps1` so resource configuration, role assignments and identity ownership still have one authoritative implementation.
 
 ## Consequences
@@ -48,6 +52,7 @@ The production infrastructure identity remains deployment-only. Normal API runti
 - Schema changes are visible in deployment logs and happen before incompatible application code is released.
 - Concurrent production migration attempts are controlled.
 - Future schema work such as WOR-160 and WOR-364 has one durable rollout mechanism instead of adding startup mutation.
+- Operators can intentionally advance the production schema from reviewed `main` migrations without coupling that action to an API package deployment.
 - A missed production bootstrap no longer leaves production indefinitely on a stale API revision after later green `main` releases.
 - Recovery remains narrow: it runs only after a failed backend deployment, mutates infrastructure only when known bootstrap prerequisites are incomplete, and reruns only that failed deployment.
 - Recovery status is visible on the affected commit, making production bootstrap failures distinguishable from unrelated backend deployment failures.
@@ -55,6 +60,7 @@ The production infrastructure identity remains deployment-only. Normal API runti
 ### Trade-offs
 
 - The protected recovery workflow needs access to the existing production infrastructure OIDC identity, but only for the incomplete-bootstrap repair path; normal backend deployment and application runtime keep their narrower identities.
+- The manual production migration workflow adds an explicit operator path that can advance schema before the matching application release; migrations therefore remain responsible for forward compatibility when that path is used.
 - When bootstrap recovery is required, the existing production infrastructure deployment may reconcile multiple idempotent Azure resources rather than only the originally missing identity. This deliberately matches the manual production bootstrap path instead of maintaining a second partial infrastructure definition.
 - The deployment runner temporarily opens its own public IPv4 address on the Azure SQL firewall and removes it in `finally`; cleanup failure is treated as an operational failure.
 - The migration runner intentionally rejects `GO` batch separators. Migrations that require batch-scoped constructs must be redesigned or the runner deliberately extended first.
