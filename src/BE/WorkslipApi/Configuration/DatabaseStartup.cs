@@ -56,10 +56,10 @@ public static class DatabaseStartup
 
     public static async Task VerifyIfRequiredAsync(
         IServiceProvider services,
-        IHostEnvironment environment,
         IConfiguration configuration,
         bool seedDevelopmentData,
-        bool seedDevelopmentEntraIdentities)
+        bool seedDevelopmentEntraIdentities,
+        IHostEnvironment? environment = null)
     {
         if (IsOpenApiGeneration(configuration))
         {
@@ -73,7 +73,8 @@ public static class DatabaseStartup
                 $"{SeedDevelopmentEntraIdentitiesKey} requires {SeedDevelopmentDataKey}=true.");
         }
 
-        if (ShouldApplyLocalMigrations(environment, configuration))
+        environment ??= services.GetService<IHostEnvironment>();
+        if (environment is not null && ShouldApplyLocalMigrations(environment, configuration))
         {
             await RunDatabasePhaseAsync(
                 "08.1",
