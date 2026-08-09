@@ -108,6 +108,7 @@ export function CompletedJobEditForm({ details, onCancel, onSave }: CompletedJob
           form={details.form}
           referenceData={details.referenceData}
           onToggleControlPoint={details.toggleControlPoint}
+          onControlPointCommentChange={details.updateControlPointComment}
           onToggleCategoryIrrelevant={details.toggleCategoryIrrelevant}
         />
       </section>
