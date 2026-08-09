@@ -137,7 +137,8 @@ public static class JobReportMapper
                                 cp.ControlPoint.Name,
                                 cp.SortOrder,
                                 cp.IsRequired,
-                                cp.IsChecked
+                                cp.IsChecked,
+                                cp.Comment
                             })
                             .ToList()
                     })
@@ -149,7 +150,7 @@ public static class JobReportMapper
             i.DefId, i.DefName, i.SortOrder, i.Categories.Select(c => new InstallationTypeCategoryResponse(
                 c.CatId, c.CatName, c.SortOrder,
                 c.ControlPoints.Select(cp => new InstallationTypeControlPointResponse(
-                    cp.Id, cp.Name, cp.SortOrder, cp.IsRequired, cp.IsChecked
+                    cp.Id, cp.Name, cp.SortOrder, cp.IsRequired, cp.IsChecked, cp.Comment
                 )).ToArray(),
                 c.IsIrrelevant
             )).ToArray()
