@@ -149,21 +149,21 @@ export const UserList = () => {
           <thead>
             <tr>
               <th className={`col-name sortable${sortBy === 'displayName' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('displayName')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('displayName')}>
                   Navn<span className="sort-icon">{sortBy === 'displayName' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
               <th className={`col-email sortable${sortBy === 'email' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('email')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('email')}>
                   Email<span className="sort-icon">{sortBy === 'email' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
               <th className={`col-role sortable${sortBy === 'role' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('role')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('role')}>
                   Rolle<span className="sort-icon">{sortBy === 'role' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
               <th className="col-hours">Uge</th>

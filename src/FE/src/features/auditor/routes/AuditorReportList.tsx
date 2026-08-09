@@ -230,21 +230,21 @@ export const AuditorReportList = () => {
           <thead>
             <tr>
               <th className={`col-number sortable${sortBy === 'reportNumber' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('reportNumber')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('reportNumber')}>
                   Sagsnr.<span className="sort-icon">{sortBy === 'reportNumber' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(0, e)} />
               </th>
               <th className={`col-name sortable${sortBy === 'name' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('name')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('name')}>
                   Kunde<span className="sort-icon">{sortBy === 'name' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(1, e)} />
               </th>
               <th className={`col-address sortable${sortBy === 'address' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('address')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('address')}>
                   Adresse<span className="sort-icon">{sortBy === 'address' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(2, e)} />
               </th>
               <th className="col-status">
@@ -256,9 +256,9 @@ export const AuditorReportList = () => {
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(4, e)} />
               </th>
               <th className={`col-hours sortable${sortBy === 'totalHours' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('totalHours')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('totalHours')}>
                   Timer<span className="sort-icon">{sortBy === 'totalHours' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(5, e)} />
               </th>
               <th className="col-users">
@@ -266,15 +266,15 @@ export const AuditorReportList = () => {
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(6, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'reportDate' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('reportDate')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('reportDate')}>
                   Rapp. dato<span className="sort-icon">{sortBy === 'reportDate' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(7, e)} />
               </th>
               <th className={`col-date sortable${sortBy === 'updatedAt' ? ' sorted' : ''}`}>
-                <span className="sort-trigger" onClick={() => handleSort('updatedAt')}>
+                <button type="button" className="sort-trigger" onClick={() => handleSort('updatedAt')}>
                   Opdateret<span className="sort-icon">{sortBy === 'updatedAt' ? (sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <ArrowUpDown size={14} />}</span>
-                </span>
+                </button>
                 <div className="col-resize-handle" onMouseDown={(e) => handleMouseDown(8, e)} />
               </th>
               <th className="col-actions">
