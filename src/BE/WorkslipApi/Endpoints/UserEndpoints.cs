@@ -10,6 +10,7 @@ public static class UserEndpoints
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapAdminGroup("/api/users", "users");
+        var superAdminGroup = app.MapSuperAdminGroup("/api/users", "users");
 
         group.MapPost("/", async (CreateUserRequest request, IUserService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
@@ -45,6 +46,13 @@ public static class UserEndpoints
             var result = await service.UpdateAsync(id, request, cancellationToken);
             return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
         }).Produces<UserViewModel>().RequireAuthorization(AuthPolicies.RequireUser);
+
+        superAdminGroup.MapPatch("/{id}/kind", async (Guid id, SetUserKindRequest request, IUserService service, HttpContext httpContext, CancellationToken cancellationToken) =>
+        {
+            HttpCacheHeaders.SetNoStore(httpContext);
+            var result = await service.SetUserKindAsync(id, request, cancellationToken);
+            return ResultExtensions.ToHttpResult(result, UserViewModelBuilder.ToUser);
+        }).Produces<UserViewModel>();
 
         group.MapDelete("/{id}", async (Guid id, IUserService service, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
