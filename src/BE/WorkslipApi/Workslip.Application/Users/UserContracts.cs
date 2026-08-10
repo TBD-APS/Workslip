@@ -11,6 +11,8 @@ public sealed record UpdateUserRequest(
     string? Phone,
     string? Role);
 
+public sealed record SetUserKindRequest(string UserKind);
+
 public sealed record UserResponse(
     Guid Id,
     Guid OrganizationId,
@@ -18,6 +20,7 @@ public sealed record UserResponse(
     string DisplayName,
     string Phone,
     string Role,
+    string UserKind,
     decimal? HoursThisWeek = null,
     decimal? HoursThisMonth = null,
     decimal? HoursBiweekly = null);
@@ -42,6 +45,7 @@ public sealed record UserDetailResponse(
     string DisplayName,
     string Phone,
     string Role,
+    string UserKind,
     IReadOnlyList<AssignedJobResponse> AssignedJobs,
     decimal? TotalHours,
     decimal? HoursThisWeek = null,
@@ -66,6 +70,7 @@ public sealed record InviteTokenResponse(
     Guid Id,
     string Email,
     string? Role,
+    string UserKind,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
     bool Consumed,
@@ -83,4 +88,3 @@ public sealed record InviteOpenResponse(
     string Email,
     bool UserExists,
     bool Consumed);
-
