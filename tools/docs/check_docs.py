@@ -80,6 +80,7 @@ ISSUE_STATUS_LANGUAGE_RE = re.compile(
 )
 NPM_RUN_RE = re.compile(r"\bnpm\s+run\s+([A-Za-z0-9:_-]+)")
 BULLET_RE = re.compile(r"^\s*-\s+(.+?)\s*$")
+HTML_H1_RE = re.compile(r"<h1(?:\s[^>]*)?>.*?</h1>", re.IGNORECASE)
 
 
 def error(path: Path, message: str, line: int = 1) -> None:
@@ -134,8 +135,9 @@ def validate_markdown(path: Path) -> int:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
 
-    if not any(re.match(r"^#\s+\S", line) for line in lines):
-        error(path, "Expected at least one H1 heading.")
+    has_h1 = any(re.match(r"^#\s+\S", line) or HTML_H1_RE.search(line) for line in lines)
+    if not has_h1:
+        error(path, "Expected at least one Markdown or HTML H1 heading.")
         failures += 1
 
     fence_count = sum(1 for line in lines if re.match(r"^\s*(?:```|~~~)", line))
