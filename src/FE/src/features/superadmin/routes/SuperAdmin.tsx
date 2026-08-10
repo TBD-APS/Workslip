@@ -12,9 +12,12 @@ import {
   getSuperadminErrorMessage,
   inviteOrganizationAdmin,
   superadminOrganizationQueryKey,
+  superadminUserOptionsQueryKey,
+  superadminUserQueryKey,
 } from '../api';
 import { AdminInviteForm } from '../components/AdminInviteForm';
 import { OrganizationCreateForm } from '../components/OrganizationCreateForm';
+import { SuperAdminUsersPanel } from '../components/SuperAdminUsersPanel';
 import { DiagnosticsSupportCopyButton } from '../diagnostics/DiagnosticsSupportCopyButton';
 import {
   activateOrganizationSession,
@@ -75,6 +78,11 @@ export function SuperAdmin() {
     mutationFn: createOrganizationSession,
   });
 
+  const refreshUserManagement = () => {
+    void queryClient.invalidateQueries({ queryKey: superadminUserQueryKey });
+    void queryClient.invalidateQueries({ queryKey: superadminUserOptionsQueryKey });
+  };
+
   const handleCreateOrganization = async (input: CreateOrganizationInput) => {
     setCreateError(null);
     setLastAdminResult(null);
@@ -85,6 +93,7 @@ export function SuperAdmin() {
         const withoutCreated = current.filter((organization) => organization.id !== created.organization.id);
         return [...withoutCreated, created.organization];
       });
+      refreshUserManagement();
       setRequestedOrganizationId(created.organization.id);
       notify.success(`${created.organization.name} er oprettet`);
     } catch (error) {
@@ -101,6 +110,7 @@ export function SuperAdmin() {
     try {
       const admin = await inviteMutation.mutateAsync(input);
       setLastAdminResult(admin);
+      refreshUserManagement();
       notify.success(
         admin.entraInvitationSent
           ? `Entra-invitation sendt til ${admin.email}`
@@ -150,7 +160,7 @@ export function SuperAdmin() {
           </span>
           <div>
             <h1>Superadmin</h1>
-            <p>Administrér organisationer, og åbn en tidsbegrænset organisationssession.</p>
+            <p>Administrér organisationer, brugere og tidsbegrænsede organisationssessioner.</p>
           </div>
         </div>
         <div className="superadmin-header-actions">
@@ -165,7 +175,10 @@ export function SuperAdmin() {
           <button
             type="button"
             className="btn btn-secondary superadmin-refresh"
-            onClick={() => { void organizationsQuery.refetch(); }}
+            onClick={() => {
+              void organizationsQuery.refetch();
+              refreshUserManagement();
+            }}
             disabled={organizationsQuery.isFetching}
           >
             <RefreshCw
@@ -201,6 +214,8 @@ export function SuperAdmin() {
           <strong>{activeOrganizationSession?.name ?? 'Superadmin-hjemmeorganisation'}</strong>
         </div>
       </div>
+
+      <SuperAdminUsersPanel />
 
       <section className="superadmin-diagnostics-entry" aria-labelledby="diagnostics-entry-title">
         <span className="superadmin-card-icon" aria-hidden="true">
