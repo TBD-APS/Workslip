@@ -89,6 +89,7 @@ public sealed class UserServiceAuthorizationTests
         Assert.Equal(1, repository.CreateCalls);
         Assert.Equal(1, entra.CreateCalls);
         Assert.Equal(Roles.Superadmin, result.Value!.Role);
+        Assert.Equal(UserKinds.Member, result.Value.UserKind);
     }
 
     [Fact]
@@ -106,29 +107,147 @@ public sealed class UserServiceAuthorizationTests
         Assert.Equal(1, repository.CreateCalls);
         Assert.Equal(1, entra.CreateCalls);
         Assert.Equal(Roles.Admin, result.Value!.Role);
+        Assert.Equal(UserKinds.Member, result.Value.UserKind);
+    }
+
+    [Fact]
+    public async Task CreateAsync_InternalTestAdminCreatesInternalTestPeer()
+    {
+        var repository = new FakeUserRepository(UserKinds.InternalTest);
+        var service = CreateService(Roles.Admin, repository, new FakeEntraService());
+
+        var result = await service.CreateAsync(
+            new CreateUserRequest("test-peer@example.test", "Test peer", "+4512345678", Roles.User),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(UserKinds.InternalTest, result.Value!.UserKind);
+    }
+
+    [Fact]
+    public async Task GetDetailAsync_MemberAdminCannotDiscoverInternalTestUser()
+    {
+        var target = CreateUser(Roles.User, UserKinds.InternalTest);
+        var repository = new FakeUserRepository { ExistingById = target };
+        var service = CreateService(Roles.Admin, repository, new FakeEntraService());
+
+        var result = await service.GetDetailAsync(target.Id, CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_MemberAdminCannotModifyInternalTestUser()
+    {
+        var target = CreateUser(Roles.User, UserKinds.InternalTest);
+        var repository = new FakeUserRepository { ExistingById = target };
+        var service = CreateService(Roles.Admin, repository, new FakeEntraService());
+
+        var result = await service.UpdateAsync(
+            target.Id,
+            new UpdateUserRequest("Changed", null, null),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.NotFound, result.Status);
+        Assert.Equal("Target", target.DisplayName);
+        Assert.Equal(0, repository.UpdateCalls);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_InternalTestAdminCanModifyInternalTestUser()
+    {
+        var target = CreateUser(Roles.User, UserKinds.InternalTest);
+        var repository = new FakeUserRepository(UserKinds.InternalTest) { ExistingById = target };
+        var service = CreateService(Roles.Admin, repository, new FakeEntraService());
+
+        var result = await service.UpdateAsync(
+            target.Id,
+            new UpdateUserRequest("Changed", null, null),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal("Changed", target.DisplayName);
+        Assert.Equal(1, repository.UpdateCalls);
+    }
+
+    [Fact]
+    public async Task SetUserKindAsync_AdminCannotClassifyTestIdentity()
+    {
+        var target = CreateUser(Roles.User);
+        var repository = new FakeUserRepository { ExistingById = target };
+        var service = CreateService(Roles.Admin, repository, new FakeEntraService());
+
+        var result = await service.SetUserKindAsync(
+            target.Id,
+            new SetUserKindRequest(UserKinds.InternalTest),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
+        Assert.Equal(UserKinds.Member, target.UserKind);
+        Assert.Equal(0, repository.UpdateCalls);
+    }
+
+    [Fact]
+    public async Task SetUserKindAsync_SuperadminCanClassifyTestIdentity()
+    {
+        var target = CreateUser(Roles.User);
+        var repository = new FakeUserRepository { ExistingById = target };
+        var service = CreateService(Roles.Superadmin, repository, new FakeEntraService());
+
+        var result = await service.SetUserKindAsync(
+            target.Id,
+            new SetUserKindRequest(UserKinds.InternalTest),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Ok, result.Status);
+        Assert.Equal(UserKinds.InternalTest, target.UserKind);
+        Assert.Equal(UserKinds.InternalTest, result.Value!.UserKind);
+        Assert.Equal(1, repository.UpdateCalls);
+    }
+
+    [Fact]
+    public async Task SetUserKindAsync_RejectsUnknownKind()
+    {
+        var target = CreateUser(Roles.User);
+        var repository = new FakeUserRepository { ExistingById = target };
+        var service = CreateService(Roles.Superadmin, repository, new FakeEntraService());
+
+        var result = await service.SetUserKindAsync(
+            target.Id,
+            new SetUserKindRequest("Hidden"),
+            CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Invalid, result.Status);
+        Assert.Equal(UserKinds.Member, target.UserKind);
+        Assert.Equal(0, repository.UpdateCalls);
     }
 
     private static UserService CreateService(
         string actorRole,
         FakeUserRepository repository,
-        FakeEntraService entra) =>
-        new(
+        FakeEntraService entra)
+    {
+        repository.AuthenticatedActor.Role = actorRole;
+        return new UserService(
             repository,
             new CreateUserRequestValidator(),
             new UpdateUserRequestValidator(),
             entra,
             new FakeCurrentUserContext(actorRole),
             NullLogger<UserService>.Instance);
+    }
 
-    private static UserDataRow CreateUser(string role) =>
+    private static UserDataRow CreateUser(string role, string userKind = UserKinds.Member) =>
         new()
         {
             Id = Guid.NewGuid(),
             OrganizationId = FakeCurrentUserContext.Organization,
+            FilialId = Guid.Parse("33333333-3333-3333-3333-333333333333"),
             Email = "target@example.test",
             DisplayName = "Target",
             Phone = "+4512345678",
             Role = role,
+            UserKind = userKind,
             EntraId = "entra-target",
             EntraEmail = "target@example.test",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -138,7 +257,8 @@ public sealed class UserServiceAuthorizationTests
     private sealed class FakeCurrentUserContext(string role) : ICurrentUserContext
     {
         public static readonly Guid Organization = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        public Guid? UserId { get; } = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        public static readonly Guid ActorId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        public Guid? UserId { get; } = ActorId;
         public Guid? OrganizationId { get; } = Organization;
         public string? Role { get; } = role;
     }
@@ -161,13 +281,20 @@ public sealed class UserServiceAuthorizationTests
 
     private sealed class FakeUserRepository : IUserRepository
     {
+        public FakeUserRepository(string actorUserKind = UserKinds.Member)
+        {
+            AuthenticatedActor = CreateUser(Roles.Admin, actorUserKind);
+            AuthenticatedActor.Id = FakeCurrentUserContext.ActorId;
+        }
+
+        public UserDataRow AuthenticatedActor { get; }
         public UserDataRow? ExistingById { get; init; }
         public int CreateCalls { get; private set; }
         public int UpdateCalls { get; private set; }
         public int DeleteCalls { get; private set; }
 
         public Task<UserDataRow?> GetAuthenticatedActorAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<UserDataRow?>(null);
+            Task.FromResult<UserDataRow?>(AuthenticatedActor.Id == id ? AuthenticatedActor : null);
 
         public Task<UserDataRow?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(ExistingById?.Id == id ? ExistingById : null);
