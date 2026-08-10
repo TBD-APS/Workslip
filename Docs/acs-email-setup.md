@@ -2,8 +2,8 @@
 
 **Status:** Maintained  
 **Owner:** Workslip  
-**Source of truth:** `src/BE/infrastructure/main.bicep` and `Workslip.Infrastructure/AcsEmailService.cs`  
-**Review cadence:** Review whenever the ACS email domain, DNS provider, sender address, or invitation flow changes.
+**Source of truth:** `src/BE/infrastructure/main.bicep` and `src/BE/WorkslipApi/Workslip.Infrastructure/AcsEmailService.cs`  
+**Review cadence:** Review whenever the ACS email domain, DNS provider, sender address, invitation flow, or one-time-code flow changes.
 
 ## Purpose
 
@@ -76,7 +76,7 @@ foreach ($verificationType in $verificationTypes) {
 
 ## Application configuration
 
-`AcsEmailService` reads:
+`AcsEmailService` currently reads:
 
 ```text
 Azure:Acs:ConnectionString
@@ -85,7 +85,12 @@ Azure:Acs:InviteBaseUrl
 Azure:Acs:PLainHeaderText
 Azure:Acs:PlainInviteText
 Azure:Acs:HtmlInviteText
+Azure:Acs:OtcHeaderText
+Azure:Acs:OtcPlainText
+Azure:Acs:OtcHtmlText
 ```
+
+The `PLainHeaderText` spelling is retained because it is the current application configuration key; do not silently normalize it in documentation without changing the application/configuration contract in the same reviewed change.
 
 Bicep owns `Azure:Acs:SenderAddress`; manual App Configuration edits are overwritten by the next deployment. Production uses `noreply@mrsoftware.dk`; non-production uses its generated Azure-managed sender address.
 
@@ -120,3 +125,4 @@ An emergency switch to the Azure-managed sender requires a dedicated reviewed in
 | DKIM or DKIM2 fails | CNAME host or target was copied incorrectly | Recreate the exact selector record returned by Azure |
 | `Invalid sender address` | Custom domain is not linked, sender was not created, or App Configuration is stale | Re-run infrastructure deployment and verify `Azure:Acs:SenderAddress` |
 | Invitation arrives but link is wrong | `Azure:Acs:InviteBaseUrl` is stale | Set it to the production `app.mrsoftware.dk` invitation route and redeploy configuration |
+| OTC mail fails while invitations work | One or more `Azure:Acs:Otc*` templates are missing or stale | Reconcile the three OTC template keys in configuration and retry the safe login flow |
