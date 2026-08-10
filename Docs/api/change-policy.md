@@ -29,4 +29,4 @@ Do **not** maintain a second hand-written route catalog. Endpoint registrations 
 
 A deprecated external contract should record its replacement, known consumers, removal condition/date and owner. Do not remove a route merely because the repository frontend no longer uses it; external consumers may exist.
 
-If a required generated/integration artifact cannot be synchronized in the same PR, record the missing artifact, reason, owner, follow-up issue and expiry. A waiver records debt; it does not make the contract current.
+If a required generated or executable integration artifact cannot be synchronized in the same PR, record the exact gap, reason, owner and follow-up issue. Do not describe the contract as current until the missing artifact has been reconciled.
