@@ -117,13 +117,8 @@ function Set-RepositoryRuleset {
 
 Assert-GitHubCli
 
-Set-RepositoryRuleset \
-    -Name 'Workslip main protection' \
-    -IncludedRefs @('refs/heads/main')
-
-Set-RepositoryRuleset \
-    -Name 'Workslip release protection' \
-    -IncludedRefs @("refs/heads/$ReleasePattern")
+Set-RepositoryRuleset -Name 'Workslip main protection' -IncludedRefs @('refs/heads/main')
+Set-RepositoryRuleset -Name 'Workslip release protection' -IncludedRefs @("refs/heads/$ReleasePattern")
 
 Write-Host 'Branch rules configured.'
 Write-Host "main: PR required, '$RequiredStatusCheck' required, squash only, deletion/force-push blocked, no bypass actors."
