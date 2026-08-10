@@ -2,29 +2,37 @@
 
 **Status:** Accepted  
 **Date:** 2026-08-08  
+**Amended:** 2026-08-10  
 **Decision owners:** Workslip maintainers
 
 ## Context
 
-Workslip had two production boundaries.
+Workslip previously mixed release-candidate branches and production deployment boundaries in ways that made frontend/backend delivery difficult to reason about. The production property that must remain stable is that only code explicitly promoted to `main` can trigger application production deployment.
 
-The Vercel frontend already treated a merge to `main` as a production deployment, while the backend required a second `release/**` branch, a separate release-validation workflow and an explicit branch/SHA handoff before Azure deployment.
+The team now also wants a release integration branch where multiple reviewed changes can be accumulated and stabilized before one explicit promotion to `main`.
 
-That split added operational ceremony and duplicated validation without preventing frontend code from reaching production first. It also made the meaning of `main`, release branches and GitHub Actions difficult to explain and easy to operate inconsistently.
+These are separate concerns:
 
-The desired operating property is simpler: the code that is explicitly approved and merged is the code being released, while strong validation happens before that release decision.
+- `release-*` is an integration and release-candidate boundary;
+- `main` is the production code boundary.
 
-A later production incident exposed a second-order requirement in this model: Azure deployment waits for a successful completed `main` CI run. If each subsequent merge cancels the already-running `main` CI, a high merge rate can prevent any run from ever reaching the successful completion event that releases the backend. Vercel continues advancing from `main` in that situation, creating frontend/backend deployment drift even though every individual PR was green.
+The CI and repository protection model must preserve that distinction. A release branch must receive the same deterministic merge validation as normal production-bound work, but a release-branch CI run must never trigger production deployment by itself.
 
 ## Decision
 
-`main` is the single application production boundary.
+`main` remains the single application production boundary.
 
-Normal delivery is:
+Normal delivery is now:
 
-`rbj--<issue>-...` → pull request → `CI Gate` → explicit manual merge → `main` → production.
+`rbj--<issue>-...` → pull request → active `release-*` branch → release stabilization → pull request to `main` → production.
 
-The pull-request `CI Gate` owns deterministic repository validation before merge:
+For release 4.0.1, the active integration branch is `release-4.0.1`.
+
+### Feature and fix pull requests
+
+Feature/fix pull requests target the active `release-*` branch and must pass the unified `CI Gate` before merge.
+
+The pull-request `CI Gate` owns deterministic repository validation:
 
 - full backend Release build and test suite;
 - frontend no-new-lint regression checking;
@@ -32,17 +40,27 @@ The pull-request `CI Gate` owns deterministic repository validation before merge
 - frontend tests and production build; and
 - repository contract/documentation checks.
 
-Code scanning has one owner: GitHub CodeQL Default setup. The normal CI workflow must not add an advanced CodeQL configuration while Default setup is enabled. Whether code-scanning results block merge is repository security/ruleset configuration, not a second CI implementation.
+The same CI also runs after pushes to `release-*` so the integrated release candidate is continuously revalidated.
 
-A separate `release/**` candidate branch is not used for normal production delivery.
+### Promotion to production
 
-Vercel may deploy the merged frontend from `main`. Backend deployment starts only after the unified CI workflow has successfully revalidated the exact `main` SHA, and Azure deployment continues to use the `prod` environment, OIDC, bounded retries and health verification.
+A release reaches production only through an explicit pull request from the active release branch to `main`.
 
-CI concurrency must preserve that release path:
+`main` must not accept direct pushes. Its repository ruleset must require a pull request, block force pushes and require the expected validation before merge.
 
-- pull-request CI is disposable and may cancel an in-progress run when the same PR receives a newer commit;
-- an already-running `main` push CI must not be canceled by a later merge, because its successful completion is a production dependency;
-- `main` pushes remain in one CI concurrency group so GitHub can coalesce superseded pending runs to the newest pending revision while allowing the active run to finish and release backend delivery.
+After the release PR merges, CI runs again on the exact `main` SHA. Backend production deployment remains gated on a successful `CI` workflow run caused by a push to `main`. Release-branch CI is not a deployment trigger.
+
+Vercel production remains tied to `main`; a release branch is not a frontend production branch.
+
+### CI concurrency
+
+Pull-request CI is disposable and may cancel an in-progress run when the same PR receives a newer commit.
+
+Push CI on `release-*` and `main` is integration evidence and should be allowed to finish. In particular, an already-running `main` CI must not be canceled by a later merge because its successful completion is a backend production deployment dependency.
+
+### Code scanning and operational workflows
+
+GitHub CodeQL Default setup remains the code-scanning owner. The normal CI workflow must not introduce a duplicate advanced CodeQL setup while Default setup is active.
 
 Production infrastructure reconciliation and risk-based deployed Playwright scenarios remain separate operational workflows because they have different privileges and failure semantics from normal application delivery.
 
@@ -52,18 +70,35 @@ GitHub tags/releases may mark meaningful product versions, but they do not form 
 
 ### Positive
 
-- One branch has one meaning: merged `main` is production code.
-- Manual merge is the explicit release decision.
-- Validation moves before the production decision instead of behind a second branch.
-- Frontend and backend share the same code boundary.
-- Issue-specific, release-branch-only and duplicate code-scanning automation can be removed.
-- CI failures become actionable merge blockers instead of background release ceremony.
-- Frequent merges cannot repeatedly cancel the only main CI run capable of triggering Azure backend deployment.
+- `release-*` has one clear meaning: reviewed integration candidate, not production.
+- `main` keeps one clear meaning: production code boundary.
+- Multiple changes can be tested together before promotion without allowing release branches to deploy production directly.
+- Feature PRs and release promotion both remain explicit human merge decisions.
+- Backend and frontend continue to share the same production code boundary.
 
 ### Trade-offs
 
-- The `main` repository ruleset is a critical control and must require `CI Gate`, pull requests and no direct/force pushes.
-- Vercel can start the frontend deployment immediately after merge, so the production frontend build must remain in pull-request CI.
-- Backend is intentionally more conservative: it waits for a successful post-merge CI run for the exact `main` SHA before Azure deployment.
-- During a burst of merges, one active main CI run continues while superseded pending main runs may be replaced by a newer pending revision. This spends some CI time on an older accepted `main` SHA in exchange for guaranteeing forward progress of backend delivery.
-- Large or unusually risky changes can still require additional Playwright, infrastructure or operational evidence; the simplified branch model does not reduce risk-based testing requirements.
+- Release branches add one intentional promotion step compared with direct feature-to-main delivery.
+- Repository rulesets become critical controls on both the active release branch and `main`.
+- Branch ancestry can make dependent PR diffs temporarily include earlier release work; merge order must remain explicit where real dependencies exist.
+- CI must cover `release-*` while production deployment workflows must remain narrowly scoped to `main`.
+- Large or unusually risky releases can still require additional Playwright, infrastructure or operational evidence; the release branch does not reduce risk-based validation requirements.
+
+## Required repository protection
+
+The intended GitHub configuration is:
+
+### `main`
+
+- pull request required;
+- direct pushes blocked, including administrators unless an explicit emergency bypass policy is documented;
+- force pushes blocked;
+- required validation checks enforced before merge;
+- merge remains an explicit human action.
+
+### active `release-*`
+
+- pull request required for normal feature/fix delivery;
+- `CI Gate` required;
+- direct/force pushes blocked for normal development;
+- emergency bypasses, if any, must be explicit and auditable.
