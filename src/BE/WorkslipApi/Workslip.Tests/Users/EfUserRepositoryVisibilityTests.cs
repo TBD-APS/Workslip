@@ -32,7 +32,9 @@ public sealed class EfUserRepositoryVisibilityTests
         var count = await repository.GetCountByOrganizationIdAsync(organizationId, CancellationToken.None);
 
         Assert.Equal(2, count);
-        Assert.Equal([actor.Id, member.Id], users.Select(user => user.Id).Order().ToArray().Order().ToArray());
+        Assert.Equal(2, users.Count);
+        Assert.Contains(users, user => user.Id == actor.Id);
+        Assert.Contains(users, user => user.Id == member.Id);
         Assert.DoesNotContain(users, user => user.Id == internalTest.Id);
         Assert.DoesNotContain(users, user => user.Id == superadmin.Id);
     }
