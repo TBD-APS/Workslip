@@ -1,0 +1,21 @@
+name: WOR-420 documentation validation
+
+on:
+  push:
+    branches:
+      - rbj--420-docs-audit-cleanup
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    name: Documentation truth check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate documentation
+        run: python tools/docs/check_docs.py
