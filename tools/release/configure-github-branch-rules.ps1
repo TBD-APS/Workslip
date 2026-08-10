@@ -122,4 +122,4 @@ Set-RepositoryRuleset -Name 'Workslip release protection' -IncludedRefs @("refs/
 
 Write-Host 'Branch rules configured.'
 Write-Host "main: PR required, '$RequiredStatusCheck' required, squash only, deletion/force-push blocked, no bypass actors."
-Write-Host "$ReleasePattern: same protection for release integration branches."
+Write-Host "${ReleasePattern}: same protection for release integration branches."
