@@ -180,6 +180,22 @@ jobs:
           node --test tools/release/resolve-release-environment.test.mjs
           node tools/release/resolve-release-environment.mjs --environment production --require-runnable
 
+      - name: Validate GitHub branch rules script
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path './tools/release/configure-github-branch-rules.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+
       - name: Validate database migration sources
         shell: pwsh
         run: >-
