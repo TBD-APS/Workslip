@@ -7,17 +7,26 @@
 
 ## Principle
 
-Workslip uses one normal delivery path:
+Workslip uses a release-integration delivery path:
 
-`rbj--<issue>-...` branch → pull request → `CI Gate` → explicit manual merge → `main` → production.
+`rbj--<issue>-...` branch → pull request → `CI Gate` → explicit manual merge → active `release-*` branch → release PR → `main` → production.
 
-`main` is the production code boundary. A separate `release/**` candidate branch is not part of the active release process.
+`release-*` is an integration/release-candidate boundary. `main` remains the production code boundary.
 
 A workflow should exist only when it provides an actionable signal or performs a required operational task. Do not keep issue-specific, duplicated or routinely ignored automation.
 
-## Pull request CI
+## Pull request and release-branch CI
 
-`.github/workflows/frontend-validation.yml` is the unified `CI` workflow. It runs for every pull request to `main`, so every change gets the same merge signal rather than a collection of path-specific checks.
+`.github/workflows/frontend-validation.yml` is the unified `CI` workflow.
+
+It runs for:
+
+- pull requests targeting `main`;
+- pull requests targeting `release-*`;
+- pushes to `main`; and
+- pushes to `release-*`.
+
+This gives feature/fix PRs the same validation before they enter the release candidate, then revalidates the integrated release branch after merges, and finally revalidates the exact `main` production revision after promotion.
 
 The required merge signal is the `CI Gate` job. It succeeds only when these jobs succeed:
 
@@ -27,35 +36,45 @@ The required merge signal is the `CI Gate` job. It succeeds only when these jobs
 
 The full backend suite is blocking. Do not replace it with a filtered allowlist, skips or `continue-on-error` to make CI green; repair failing regression tests or production code instead.
 
-The frontend carries inherited ESLint debt. CI therefore compares the pull-request findings with the exact base revision and blocks new severity-2 errors without treating inherited findings as permission to grow the baseline.
+The frontend carries inherited ESLint debt. CI compares the current findings with the exact PR base or previous push revision and blocks new severity-2 errors without treating inherited findings as permission to grow the baseline.
 
 The branch-matched frontend client is generated from the backend in the same revision. The shared action is contract generation only; backend tests belong to the `Backend` job so they are not duplicated inside API generation.
+
+## Release integration
+
+Normal feature and fix PRs target the active `release-*` branch, currently `release-4.0.1`.
+
+The release branch is not production. It exists so multiple reviewed changes can be integrated and validated together before one explicit promotion to `main`.
+
+Dependent branches may contain ancestry from earlier work. When such PRs all target the release branch, merge them in dependency order so the later PR diff collapses as its parent work lands.
+
+A release is promoted through a pull request from the active release branch to `main`. That promotion is the final human release decision.
 
 ## Code scanning
 
 GitHub CodeQL **Default setup** is the repository's code-scanning owner.
 
-Do not add `github/codeql-action` jobs to the normal CI while Default setup is enabled. GitHub rejects advanced-configuration uploads when Default setup owns the repository, creating duplicate work and permanently red checks rather than additional protection.
+Do not add `github/codeql-action` jobs to the normal CI while Default setup is enabled. GitHub rejects advanced-configuration uploads when Default setup owns the repository, creating duplicate work and red checks rather than additional protection.
 
 Whether code-scanning findings are merge-blocking is repository security/ruleset state and must be verified in GitHub settings. CI workflow YAML must not duplicate that external control.
 
 ## Main verification
 
-The same `CI` workflow runs after a merge to `main`.
+The same `CI` workflow runs after a release PR merges to `main`.
 
-Core backend, frontend/API-contract and contract/documentation checks run again against the exact production revision. Code scanning remains owned by GitHub Default setup rather than being duplicated in the CI workflow.
+Core backend, frontend/API-contract and contract/documentation checks run again against the exact production revision. Code scanning remains owned by GitHub Default setup rather than being duplicated in CI.
 
-The post-merge `CI Gate` is the backend deployment trigger. This gives Azure an exact successful `main` SHA to build and deploy.
+The post-merge `main` `CI Gate` is the backend deployment trigger. A successful release-branch CI run never triggers production deployment.
 
-Frontend production does not wait for the post-merge GitHub CI run: Vercel is configured for Git deployments from `main`. This is why the pull-request `CI Gate` must be required before merge.
+Frontend production does not wait for the post-merge GitHub CI run: Vercel production remains configured from `main`. This is why both the release PR and `main` protection remain important controls.
 
 ## Production deployment
 
 ### Frontend
 
-`src/FE/vercel.json` allows Git deployment from `main` and disables other branches. Its ignored-build command lets Vercel skip a deployment when the configured frontend project root did not change.
+`src/FE/vercel.json` allows Git production deployment from `main` and disables other branches.
 
-Therefore an explicit merge to `main` is the frontend production release action.
+Therefore merging the release PR to `main` is the frontend production release action. A push or merge to `release-*` is not a production deployment action.
 
 ### Backend
 
@@ -72,7 +91,7 @@ The workflow:
 7. deploys with bounded retries; and
 8. requires the API `/health` endpoint to recover.
 
-There is no release-branch handoff between CI and deployment.
+There is deliberately no deployment trigger from `release-*`.
 
 ### Infrastructure and critical-flow testing
 
@@ -84,19 +103,36 @@ GitHub Pages remains an independent site/docs deployment concern.
 
 ## Repository protection
 
-The `main` ruleset must enforce the delivery model, not merely document it:
+Repository rulesets must enforce the delivery model, not merely document it.
+
+### `main`
 
 - pull request required;
-- `CI Gate` required;
 - direct pushes blocked;
 - force pushes blocked;
+- required validation checks enforced before merge;
 - merge remains an explicit human action.
 
-PR #439 proved that the workflow alone is insufficient: GitHub allowed a merge while `CI Gate` was red. Ruleset verification is therefore a required operational step before WOR-382 is complete.
+No normal development commit should be written directly to `main`. Production changes arrive by merging a reviewed release PR.
+
+### active `release-*`
+
+- pull request required for normal feature/fix delivery;
+- `CI Gate` required;
+- direct pushes blocked for normal development;
+- force pushes blocked.
+
+Ruleset configuration is external GitHub state and must be verified after workflow changes. Workflow YAML cannot itself prevent a repository administrator from pushing directly to a branch.
+
+## CI concurrency
+
+Pull-request runs are disposable and may cancel an in-progress run when the same PR receives a newer commit.
+
+Push CI on `release-*` and `main` is allowed to finish. This is particularly important for `main`, because a successful completed `main` run is a backend production deployment dependency.
 
 ## Releases and tags
 
-GitHub tags/releases are optional release-history markers for meaningful product versions. They do not control production deployment and should not recreate a second release pipeline.
+GitHub tags/releases are optional release-history markers for meaningful product versions. They do not control production deployment and should not create another deployment boundary.
 
 ## Security
 
