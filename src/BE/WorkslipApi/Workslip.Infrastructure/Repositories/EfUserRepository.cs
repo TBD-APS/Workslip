@@ -34,8 +34,9 @@ public sealed class EfUserRepository : IUserRepository
     {
         return await _dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);   
+            .FirstOrDefaultAsync(u => u.Id == id && u.OrganizationId == _currentUser.OrganizationId, cancellationToken);
     }
+
     public async Task<UserDataRow?> GetByEmailAsync(string email, CancellationToken cancellationToken) =>
         await _dbContext.Users
             .AsNoTracking()
@@ -54,12 +55,14 @@ public sealed class EfUserRepository : IUserRepository
             {
                 u.Id,
                 u.OrganizationId,
+                u.FilialId,
                 u.Email,
                 u.DisplayName,
                 u.Phone,
                 u.EntraEmail,
                 u.EntraId,
                 u.Role,
+                u.UserKind,
                 u.CreatedAt,
                 u.UpdatedAt,
                 MatchPriority = entraId != null && u.EntraId == entraId
@@ -78,12 +81,14 @@ public sealed class EfUserRepository : IUserRepository
         {
             Id = matched.Id,
             OrganizationId = matched.OrganizationId,
+            FilialId = matched.FilialId,
             Email = matched.Email,
             DisplayName = matched.DisplayName,
             Phone = matched.Phone,
             EntraEmail = matched.EntraEmail,
             EntraId = matched.EntraId,
             Role = matched.Role,
+            UserKind = matched.UserKind,
             CreatedAt = matched.CreatedAt,
             UpdatedAt = matched.UpdatedAt
         };
@@ -92,11 +97,23 @@ public sealed class EfUserRepository : IUserRepository
     public async Task<IReadOnlyList<UserDataRow>> GetByOrganizationIdAsync(Guid organizationId, int limit, int offset, string? search, string? sortBy, string? sortDirection, CancellationToken cancellationToken)
     {
         var isSuperadmin = string.Equals(_currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
-        var isCurrentOrganization = _currentUser.OrganizationId == organizationId;
         var query = _dbContext.Users
             .AsNoTracking()
-            .Where(u => u.OrganizationId == organizationId
-                && (isSuperadmin || (isCurrentOrganization && u.Role != Roles.Superadmin)));
+            .Where(u => u.OrganizationId == organizationId);
+
+        if (!isSuperadmin)
+        {
+            if (_currentUser.OrganizationId != organizationId)
+                return [];
+
+            var actorUserKind = await GetActorUserKindAsync(organizationId, cancellationToken);
+            if (!UserKinds.IsKnown(actorUserKind))
+                return [];
+
+            query = query.Where(u =>
+                u.Role != Roles.Superadmin
+                && u.UserKind == actorUserKind);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -130,9 +147,25 @@ public sealed class EfUserRepository : IUserRepository
     public async Task<int> GetCountByOrganizationIdAsync(Guid organizationId, CancellationToken cancellationToken)
     {
         var isSuperadmin = string.Equals(_currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
-        var isCurrentOrganization = _currentUser.OrganizationId == organizationId;
-        return await _dbContext.Users.CountAsync(u => u.OrganizationId == organizationId
-            && (isSuperadmin || (isCurrentOrganization && u.Role != Roles.Superadmin)), cancellationToken);
+        if (isSuperadmin)
+        {
+            return await _dbContext.Users.CountAsync(
+                u => u.OrganizationId == organizationId,
+                cancellationToken);
+        }
+
+        if (_currentUser.OrganizationId != organizationId)
+            return 0;
+
+        var actorUserKind = await GetActorUserKindAsync(organizationId, cancellationToken);
+        if (!UserKinds.IsKnown(actorUserKind))
+            return 0;
+
+        return await _dbContext.Users.CountAsync(
+            u => u.OrganizationId == organizationId
+                && u.Role != Roles.Superadmin
+                && u.UserKind == actorUserKind,
+            cancellationToken);
     }
 
     public async Task<Guid> CreateAsync(UserDataRow user, CancellationToken cancellationToken)
@@ -153,6 +186,7 @@ public sealed class EfUserRepository : IUserRepository
         existing.DisplayName = user.DisplayName;
         existing.Phone = user.Phone;
         existing.Role = user.Role;
+        existing.UserKind = user.UserKind;
         existing.UpdatedAt = user.UpdatedAt;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -228,6 +262,18 @@ public sealed class EfUserRepository : IUserRepository
 
         _dbContext.Users.Remove(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<string?> GetActorUserKindAsync(Guid organizationId, CancellationToken cancellationToken)
+    {
+        if (_currentUser.UserId is not Guid actorId)
+            return null;
+
+        return await _dbContext.Users
+            .AsNoTracking()
+            .Where(u => u.Id == actorId && u.OrganizationId == organizationId)
+            .Select(u => u.UserKind)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     private static string[] NormalizeEmailCandidates(IEnumerable<string> emailCandidates) =>
