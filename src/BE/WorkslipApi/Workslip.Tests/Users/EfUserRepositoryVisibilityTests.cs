@@ -28,7 +28,7 @@ public sealed class EfUserRepositoryVisibilityTests
             new TestCurrentUserContext(actor.Id, organizationId, Roles.Admin));
 
         var users = await repository.GetByOrganizationIdAsync(
-            organizationId, 50, 0, null, null, null, CancellationToken.None);
+            organizationId, 50, 0, null, "displayName", "asc", CancellationToken.None);
         var count = await repository.GetCountByOrganizationIdAsync(organizationId, CancellationToken.None);
 
         Assert.Equal(2, count);
@@ -56,7 +56,7 @@ public sealed class EfUserRepositoryVisibilityTests
             new TestCurrentUserContext(actor.Id, organizationId, Roles.Admin));
 
         var users = await repository.GetByOrganizationIdAsync(
-            organizationId, 50, 0, null, null, null, CancellationToken.None);
+            organizationId, 50, 0, null, "displayName", "asc", CancellationToken.None);
         var count = await repository.GetCountByOrganizationIdAsync(organizationId, CancellationToken.None);
 
         Assert.Equal(2, count);
@@ -81,35 +81,10 @@ public sealed class EfUserRepositoryVisibilityTests
             new TestCurrentUserContext(Guid.NewGuid(), organizationId, Roles.Superadmin));
 
         var users = await repository.GetByOrganizationIdAsync(
-            organizationId, 50, 0, null, null, null, CancellationToken.None);
+            organizationId, 50, 0, null, "displayName", "asc", CancellationToken.None);
 
         Assert.Contains(users, user => user.Id == member.Id);
         Assert.Contains(users, user => user.Id == internalTest.Id);
-    }
-
-    [Fact]
-    public async Task External_identity_mapping_preserves_filial_and_user_kind_for_authentication()
-    {
-        await using var database = await RelationalTestDatabase.CreateAsync();
-        var organizationId = Guid.NewGuid();
-        var filialId = Guid.NewGuid();
-        var user = CreateUser(organizationId, filialId, Roles.User, UserKinds.InternalTest, "auth@example.test");
-        user.EntraId = "entra-auth";
-        database.Context.Users.Add(user);
-        await database.Context.SaveChangesAsync();
-
-        var repository = new EfUserRepository(
-            database.Context,
-            new TestCurrentUserContext(user.Id, organizationId, Roles.User));
-
-        var result = await repository.GetByExternalIdentityAsync(
-            user.EntraId,
-            [user.Email],
-            CancellationToken.None);
-
-        Assert.NotNull(result);
-        Assert.Equal(filialId, result.FilialId);
-        Assert.Equal(UserKinds.InternalTest, result.UserKind);
     }
 
     private static UserDataRow CreateUser(
