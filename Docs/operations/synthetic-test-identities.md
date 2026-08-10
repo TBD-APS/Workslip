@@ -72,8 +72,10 @@ The four identities must be limited to the designated non-production/release-tes
 
 Email addresses and authentication artifacts are personal/security data. Limit access to repository/environment maintainers, do not expose them in source or artifacts, and follow the approved retention and access policy for GitHub variables and local shell history. This document records technical minimization controls, not proof of legal compliance.
 
-## Remaining validation and merge boundary
+## Validation boundary
 
-The helper's source tests cover the deterministic pre-send failure, the explicit headed/TTY gate, and OTC URL redaction. They do not prove deployed email delivery or OTC login.
+Source tests cover deterministic pre-send failure for non-interactive authenticated runs, the explicit headed/TTY gate, and OTC URL redaction. They do not prove deployed email delivery or OTC login.
 
-Before PR #403 can leave draft, run an authenticated scenario against the deployed release-test target, verify the real send and verify endpoints plus `/api/auth/me`, record browser/viewport and scenario outcome without addresses or codes, and confirm the resulting report, screenshots, console output, and network-failure summary contain no sensitive values. Until then the authenticated suite is **implemented but Playwright-unvalidated**.
+When an authenticated release-test flow is part of the required evidence, an operator with approved inbox access must run the selected scenario interactively against the allowed release-test target, verify the real send/verify endpoints plus `/api/auth/me`, and record only the browser/viewport/scenario outcome. Reports, screenshots, console output and network-failure summaries must remain free of addresses and codes.
+
+Until such deployed evidence exists for the change being validated, report the authenticated flow as **implemented but Playwright-unvalidated** rather than tying the limitation to a historical pull-request state.
