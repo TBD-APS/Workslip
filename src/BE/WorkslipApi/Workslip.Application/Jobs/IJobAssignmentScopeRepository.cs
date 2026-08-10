@@ -3,12 +3,14 @@ namespace Workslip.Application.Jobs;
 public sealed record JobAssignmentUserScope(
     Guid Id,
     Guid FilialId,
-    string Role);
+    string Role,
+    string UserKind);
 
 public interface IJobAssignmentScopeRepository
 {
     Task<Guid?> GetDefaultFilialIdAsync(Guid organizationId, CancellationToken cancellationToken);
     Task<Guid?> GetJobFilialIdAsync(Guid organizationId, Guid jobId, CancellationToken cancellationToken);
+    Task<string?> GetUserKindAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
     Task<IReadOnlyList<JobAssignmentUserScope>> GetUserScopesAsync(
         Guid organizationId,
         IReadOnlyList<Guid> userIds,
