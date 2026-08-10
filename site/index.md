@@ -8,7 +8,7 @@ description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
     <div>
       <p class="eyebrow">Digital arbejdsseddel</p>
       <h1>Mindre administration. Bedre overblik.</h1>
-      <p class="lead">Workslip samler opgaver, timer, materialer og godkendelser i én arbejdsgang for medarbejdere, ledere og administration.</p>
+      <p class="lead">Workslip samler opgaver, timer, noter og godkendelser i én arbejdsgang for medarbejdere, ledere og administration.</p>
       <div class="actions">
         <a class="button" href="{{ '/demo/' | relative_url }}">Se demo</a>
         <a class="button secondary" href="https://app.mrsoftware.dk/app">Åbn Workslip</a>
@@ -26,7 +26,7 @@ description: Saml planlægning, registrering og godkendelse af arbejde ét sted.
     <h2>Vigtige arbejdsgange</h2>
     <div class="grid">
       <article class="card"><h3>Planlægning</h3><p>Fordel opgaver og gør de nødvendige oplysninger tilgængelige for medarbejderen.</p></article>
-      <article class="card"><h3>Registrering</h3><p>Registrér timer, noter og materialer tæt på det udførte arbejde.</p></article>
+      <article class="card"><h3>Registrering</h3><p>Registrér timer og noter tæt på det udførte arbejde.</p></article>
       <article class="card"><h3>Godkendelse</h3><p>Gennemgå indsendte arbejdssedler og håndtér rettelser i et tydeligt statusflow.</p></article>
     </div>
   </div>
