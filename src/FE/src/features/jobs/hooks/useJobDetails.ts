@@ -454,6 +454,13 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     });
   };
 
+  const updateAllIrrelevantReason = (value: string) => {
+    updateDraft({
+      ...form,
+      work: { ...form.work, allIrrelevantReason: value },
+    });
+  };
+
   const updateAssignedUsers = (userIds: string[]) => {
     if (!jobId || !isAdmin) return;
     setAssignmentDraft({ jobId, userIds });
@@ -709,6 +716,7 @@ export function useJobDetailsState(jobId: string | undefined, options: { autoSav
     updateClosureFlags,
     toggleControlPoint,
     toggleCategoryIrrelevant,
+    updateAllIrrelevantReason,
     upsertWorksheet,
     deleteWorksheet,
     submitJob,
