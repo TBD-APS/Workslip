@@ -118,6 +118,18 @@ public sealed class JobAssignmentValidator(
             return JobAssignmentValidationResult.Valid();
         }
 
+        string? actorUserKind = null;
+        var isSuperadmin = string.Equals(currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
+        if (!isSuperadmin)
+        {
+            if (currentUser.UserId is not Guid actorId)
+                return JobAssignmentValidationResult.Unauthorized();
+
+            actorUserKind = await repository.GetUserKindAsync(organizationId, actorId, cancellationToken);
+            if (!UserKinds.IsKnown(actorUserKind))
+                return JobAssignmentValidationResult.Unauthorized();
+        }
+
         var users = await repository.GetUserScopesAsync(
             organizationId,
             normalizedUserIds,
@@ -128,10 +140,9 @@ public sealed class JobAssignmentValidator(
             return JobAssignmentValidationResult.InvalidAssignee();
         }
 
-        return users.All(user => JobAssignmentPolicy.CanReceiveAssignmentInFilial(
-                user.Role,
-                user.FilialId,
-                filialId))
+        return users.All(user =>
+                UserVisibilityPolicy.CanAccess(currentUser.Role, actorUserKind, user.Role, user.UserKind)
+                && JobAssignmentPolicy.CanReceiveAssignmentInFilial(user.Role, user.FilialId, filialId))
             ? JobAssignmentValidationResult.Valid()
             : JobAssignmentValidationResult.InvalidAssignee();
     }
