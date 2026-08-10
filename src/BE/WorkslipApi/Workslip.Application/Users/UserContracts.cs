@@ -70,7 +70,6 @@ public sealed record InviteTokenResponse(
     Guid Id,
     string Email,
     string? Role,
-    string UserKind,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
     bool Consumed,
