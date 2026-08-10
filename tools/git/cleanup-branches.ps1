@@ -15,8 +15,8 @@ function Test-ProtectedBranch {
 
     return $Branch -eq 'main' `
         -or $Branch -eq 'release' `
-        -or $Branch.StartsWith('release/', [StringComparison]::Ordinal) `
-        -or $Branch.StartsWith('release-', [StringComparison]::Ordinal)
+        -or $Branch.StartsWith('release/', [System.StringComparison]::Ordinal) `
+        -or $Branch.StartsWith('release-', [System.StringComparison]::Ordinal)
 }
 
 $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue |
@@ -47,9 +47,14 @@ if ($insideWorkTree -ne 'true') {
 }
 
 $remoteUrl = (Invoke-Git -Arguments @('remote', 'get-url', $Remote) | Select-Object -First 1).Trim()
-$currentBranch = (Invoke-Git -Arguments @('branch', '--show-current') | Select-Object -First 1).Trim()
-$remoteHeads = Invoke-Git -Arguments @('ls-remote', '--heads', $Remote)
+$currentBranchOutput = @(Invoke-Git -Arguments @('branch', '--show-current'))
+$currentBranch = if ($currentBranchOutput.Count -gt 0) {
+    ([string]$currentBranchOutput[0]).Trim()
+} else {
+    ''
+}
 
+$remoteHeads = Invoke-Git -Arguments @('ls-remote', '--heads', $Remote)
 $branches = @(
     foreach ($line in $remoteHeads) {
         if ($line -match 'refs/heads/(.+)$') {
@@ -57,6 +62,10 @@ $branches = @(
         }
     }
 ) | Sort-Object -Unique
+
+if ($branches -notcontains 'main') {
+    throw "Remote '$Remote' does not contain main. Refusing branch cleanup for $remoteUrl."
+}
 
 $protectedBranches = @(
     $branches | Where-Object { Test-ProtectedBranch -Branch $_ }
@@ -74,11 +83,7 @@ Write-Host "  Mode:   $(if ($Execute) { 'EXECUTE' } else { 'DRY RUN' })"
 Write-Host ''
 
 Write-Host 'KEEP - protected branches:' -ForegroundColor Green
-if ($protectedBranches.Count -eq 0) {
-    Write-Host '  (none found)'
-} else {
-    $protectedBranches | ForEach-Object { Write-Host "  KEEP   $_" }
-}
+$protectedBranches | ForEach-Object { Write-Host "  KEEP   $_" }
 
 Write-Host ''
 Write-Host 'DELETE - all other remote branches:' -ForegroundColor Yellow
