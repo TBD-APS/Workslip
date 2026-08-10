@@ -87,6 +87,7 @@ def error(path: Path, message: str, line: int = 1) -> None:
         relative = path.relative_to(ROOT).as_posix()
     except ValueError:
         relative = path.as_posix()
+    print(f"{relative}:{line}: {message}")
     print(f"::error file={relative},line={line}::{message}")
 
 
