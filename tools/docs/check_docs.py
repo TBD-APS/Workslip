@@ -19,8 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MAINTAINED_DOC_PATTERNS = (
     "README.md",
     "AGENTS.md",
-    "Docs/README.md",
-    "Docs/AGENTS.md",
+    "Docs/*.md",
     "Docs/agents/*.md",
     "Docs/api/*.md",
     "Docs/architecture/*.md",
@@ -29,6 +28,7 @@ MAINTAINED_DOC_PATTERNS = (
     "Docs/operations/*.md",
     "Docs/release/*.md",
     "Docs/testing/*.md",
+    "site/*.md",
     "src/FE/README.md",
     "src/FE/AGENTS.md",
     "src/BE/WorkslipApi/README.md",
@@ -36,6 +36,7 @@ MAINTAINED_DOC_PATTERNS = (
     "src/BE/WorkslipApi/Postman/README.md",
     "src/BE/infrastructure/README.md",
     "src/BE/infrastructure/AGENTS.md",
+    "src/BE/infrastructure/database/migrations/README.md",
 )
 
 ACTIVE_AGENT_FILES = (
@@ -50,6 +51,20 @@ RETIRED_ARTIFACT_PATTERNS = (
     "**/repomix-output.xml",
     "**/.repomixignore",
     ".github/workflows/update-repomix-after-release.yml",
+)
+
+RETIRED_DOCUMENTATION_PATTERNS = (
+    "Docs/superpowers/**/*.md",
+    "Docs/10-Projects/Workslip/*.md",
+    "src/docs/**/*.md",
+)
+
+RETIRED_DOCUMENTATION_PATHS = (
+    "Docs/agents/OPERATING_CONTRACT.md",
+    "Docs/api/endpoint-catalog.md",
+    "Docs/testing/full-stack-validation.md",
+    "Docs/release/documentation-gate.md",
+    "Docs/operations/go-live-production-data-cleanup.md",
 )
 
 INDEXED_DOC_SETS = (
@@ -166,6 +181,46 @@ def validate_retired_artifacts() -> int:
             seen.add(path)
             error(path, "Retired duplicated repository-snapshot artifact must not be reintroduced.")
             failures += 1
+    return failures
+
+
+def validate_retired_documentation() -> int:
+    failures = 0
+    seen: set[Path] = set()
+
+    for pattern in RETIRED_DOCUMENTATION_PATTERNS:
+        for path in ROOT.glob(pattern):
+            if not path.is_file() or path in seen:
+                continue
+            seen.add(path)
+            error(
+                path,
+                "Historical implementation plans/specs belong in Git/Linear history, not beside current documentation.",
+            )
+            failures += 1
+
+    for relative in RETIRED_DOCUMENTATION_PATHS:
+        path = ROOT / relative
+        if not path.is_file() or path in seen:
+            continue
+        seen.add(path)
+        error(path, "Superseded documentation must not be reintroduced as repository guidance.")
+        failures += 1
+
+    return failures
+
+
+def validate_docs_are_classified(documents: list[Path]) -> int:
+    maintained = {path.resolve() for path in documents}
+    failures = 0
+    for path in sorted((ROOT / "Docs").rglob("*.md")):
+        if not path.is_file() or path.resolve() in maintained:
+            continue
+        error(
+            path,
+            "Markdown under Docs/ must be part of the maintained documentation set; use Git/Linear for historical issue plans.",
+        )
+        failures += 1
     return failures
 
 
@@ -291,6 +346,8 @@ def main() -> int:
     failures = 0
     failures += validate_entrypoints()
     failures += validate_retired_artifacts()
+    failures += validate_retired_documentation()
+    failures += validate_docs_are_classified(documents)
     failures += sum(validate_markdown(path) for path in documents)
     failures += validate_directory_indexes()
     failures += validate_frontend_commands()
