@@ -54,9 +54,9 @@ RETIRED_ARTIFACT_PATTERNS = (
 )
 
 RETIRED_DOCUMENTATION_PATTERNS = (
-    "Docs/superpowers/**/*.md",
-    "Docs/10-Projects/Workslip/*.md",
-    "src/docs/**/*.md",
+    "Docs/superpowers/**/*",
+    "Docs/10-Projects/Workslip/**/*",
+    "src/docs/**/*",
 )
 
 RETIRED_DOCUMENTATION_PATHS = (
