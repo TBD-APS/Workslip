@@ -291,6 +291,7 @@ public sealed class PlatformIdentityBootstrapperRelationalTests
                     EntraEmail TEXT NOT NULL,
                     Phone TEXT NOT NULL,
                     Role TEXT NOT NULL,
+                    UserKind TEXT NOT NULL,
                     CreatedAt TEXT NOT NULL,
                     UpdatedAt TEXT NOT NULL,
                     FOREIGN KEY (OrganizationId) REFERENCES Organizations (Id)
