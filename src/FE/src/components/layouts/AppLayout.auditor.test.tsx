@@ -14,6 +14,7 @@ const auditor: UserViewModel = {
   phone: '',
   role: 'Auditor',
   roleDisplayName: 'Auditor',
+  userKind: 'Member',
   hoursThisWeek: null,
   hoursThisMonth: null,
   hoursBiweekly: null,
