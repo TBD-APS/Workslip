@@ -29,11 +29,12 @@ When documentation disagrees with implementation, fix the maintained documentati
 ## Branch and scope discipline
 
 - Never push directly to `main`.
+- Normal feature/fix pull requests target the active `release-*` branch. A release is promoted to production only through a separate pull request from that release branch to `main`.
 - One Linear issue per branch and pull request.
 - Branch: `rbj--<issue>-<description>`.
 - PR title: `RBJ-<issue>: <description>`.
 - Prefer small, cohesive PRs and squash merging.
-- Prefer sequential PRs from updated `main` when issues are independently mergeable. Use a stacked branch/PR only when there is a real code dependency that prevents independent review or validation.
+- Prefer sequential PRs from the updated active release branch when issues are independently mergeable. Use a stacked branch/PR only when there is a real code dependency that prevents independent review or validation.
 - Do not mix unrelated cleanup into feature work.
 - Improve nearby technical debt only when it is required for correctness, materially lowers risk, or removes duplication inside the task boundary.
 
