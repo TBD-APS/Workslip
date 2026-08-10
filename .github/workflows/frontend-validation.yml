@@ -2,20 +2,22 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - 'release-*'
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'release-*'
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  # PR runs are disposable when the same PR gets a newer commit. A running
-  # main push is different: Backend API deploy waits for a successful completed
-  # main CI run, so cancelling it on every subsequent merge can permanently
-  # starve Azure while Vercel keeps advancing. Keep the active main run alive;
-  # GitHub still coalesces older pending runs in this concurrency group.
+  # PR runs are disposable when the same PR gets a newer commit. Push runs on
+  # main and release branches are integration evidence and should be allowed to
+  # finish; the backend production deploy still listens only to successful main CI.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
