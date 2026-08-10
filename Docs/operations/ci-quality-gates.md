@@ -32,7 +32,7 @@ The required merge signal is the `CI Gate` job. It succeeds only when these jobs
 
 - `Backend` — full Release restore, build and backend test suite.
 - `Frontend + API contract` — no-new-errors ESLint ratchet, branch-matched OpenAPI/Orval generation, Vitest and production frontend build.
-- `Contracts + docs` — production release-policy checks, Playwright source checks, synthetic-auth tests, Postman JSON validation and `python tools/docs/check_docs.py`.
+- `Contracts + docs` — production release-policy checks, GitHub branch-rules script syntax, Playwright source checks, synthetic-auth tests, Postman JSON validation and `python tools/docs/check_docs.py`.
 
 The full backend suite is blocking. Do not replace it with a filtered allowlist, skips or `continue-on-error` to make CI green; repair failing regression tests or production code instead.
 
@@ -110,7 +110,8 @@ Repository rulesets must enforce the delivery model, not merely document it.
 - pull request required;
 - direct pushes blocked;
 - force pushes blocked;
-- required validation checks enforced before merge;
+- `CI Gate` required before merge;
+- squash merge is the normal merge method;
 - merge remains an explicit human action.
 
 No normal development commit should be written directly to `main`. Production changes arrive by merging a reviewed release PR.
@@ -120,9 +121,30 @@ No normal development commit should be written directly to `main`. Production ch
 - pull request required for normal feature/fix delivery;
 - `CI Gate` required;
 - direct pushes blocked for normal development;
-- force pushes blocked.
+- force pushes blocked;
+- creation of a new release branch is allowed before its first CI result exists.
 
-Ruleset configuration is external GitHub state and must be verified after workflow changes. Workflow YAML cannot itself prevent a repository administrator from pushing directly to a branch.
+The desired rulesets can be reconciled idempotently by a repository administrator from the repository root:
+
+```powershell
+pwsh ./tools/release/configure-github-branch-rules.ps1
+```
+
+Preview without writing:
+
+```powershell
+pwsh ./tools/release/configure-github-branch-rules.ps1 -WhatIf
+```
+
+The script requires an authenticated GitHub CLI session with repository Administration write permission. It configures repository rulesets named `Workslip main protection` and `Workslip release protection`, with no bypass actors.
+
+Verify the external GitHub state after applying it:
+
+```powershell
+gh api repos/rasm105k/Workslip-v2.0/rulesets
+```
+
+Ruleset configuration is external GitHub state. Workflow YAML and documentation do not themselves prevent a repository administrator from pushing directly to a branch; the active GitHub ruleset is the enforcement control.
 
 ## CI concurrency
 
