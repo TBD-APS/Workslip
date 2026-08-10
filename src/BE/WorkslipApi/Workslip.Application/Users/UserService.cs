@@ -40,6 +40,15 @@ public sealed class UserService(
             return Result<UserResponse>.Forbidden();
         }
 
+        var actorUserKind = IsCurrentActorSuperadmin()
+            ? UserKinds.Member
+            : await GetCurrentActorUserKindAsync(cancellationToken);
+        if (actorUserKind is null)
+        {
+            logger.LogWarning("User create denied: authenticated actor audience could not be resolved.");
+            return Result<UserResponse>.Unauthorized();
+        }
+
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
         var existing = await repository.GetByEmailAsync(normalizedEmail, cancellationToken);
@@ -51,7 +60,7 @@ public sealed class UserService(
 
         var entraUser = await entraService.CreateUserAsync(normalizedEmail, request.DisplayName, cancellationToken);
 
-        var user = BuildUserRow(normalizedEmail, request, entraUser, organizationId.Value);
+        var user = BuildUserRow(normalizedEmail, request, entraUser, organizationId.Value, actorUserKind);
         var userId = await repository.CreateAsync(user, cancellationToken);
         user.Id = userId;
 
@@ -83,6 +92,11 @@ public sealed class UserService(
             return Result<UserResponse>.Forbidden();
         }
 
+        if (!await CanAccessTargetAudienceAsync(user, cancellationToken))
+        {
+            return Result<UserResponse>.NotFound();
+        }
+
         return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
@@ -109,6 +123,11 @@ public sealed class UserService(
             return Result<UserDetailResponse>.Forbidden();
         }
 
+        if (!await CanAccessTargetAudienceAsync(user, cancellationToken))
+        {
+            return Result<UserDetailResponse>.NotFound();
+        }
+
         var assignedJobs = await repository.GetAssignedJobsAsync(organizationId.Value, userId, cancellationToken);
         var totalHours = await repository.GetTotalHoursAsync(organizationId.Value, userId, cancellationToken);
         var periodHours = await repository.GetPeriodHoursAsync(organizationId.Value, ComputeBiweeklyStart(), cancellationToken);
@@ -121,6 +140,7 @@ public sealed class UserService(
             user.DisplayName,
             user.Phone,
             user.Role,
+            user.UserKind,
             assignedJobs,
             totalHours,
             hours?.HoursThisWeek,
@@ -207,6 +227,11 @@ public sealed class UserService(
             return Result<UserResponse>.Forbidden();
         }
 
+        if (!await CanAccessTargetAudienceAsync(user, cancellationToken))
+        {
+            return Result<UserResponse>.NotFound();
+        }
+
         if (!string.IsNullOrEmpty(request.DisplayName))
             user.DisplayName = request.DisplayName;
 
@@ -222,6 +247,46 @@ public sealed class UserService(
 
         logger.LogInformation("User updated. UserId: {UserId}.", userId);
 
+        return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
+    }
+
+    public async Task<Result<UserResponse>> SetUserKindAsync(
+        Guid userId,
+        SetUserKindRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!IsCurrentActorSuperadmin())
+        {
+            return Result<UserResponse>.Forbidden();
+        }
+
+        var organizationId = currentUser.OrganizationId;
+        if (organizationId is null)
+        {
+            return Result<UserResponse>.Unauthorized();
+        }
+
+        var normalizedUserKind = UserKinds.Normalize(request.UserKind);
+        if (normalizedUserKind is null)
+        {
+            return Result<UserResponse>.Invalid(new ValidationError
+            {
+                Identifier = nameof(SetUserKindRequest.UserKind),
+                ErrorMessage = "UserKind skal være Member eller InternalTest."
+            });
+        }
+
+        var user = await repository.GetByIdAsync(userId, cancellationToken);
+        if (user is null)
+        {
+            return Result<UserResponse>.NotFound();
+        }
+
+        user.UserKind = normalizedUserKind;
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+        await repository.UpdateAsync(user, cancellationToken);
+
+        logger.LogInformation("User audience changed. UserId: {UserId}. UserKind: {UserKind}.", userId, normalizedUserKind);
         return Result<UserResponse>.Success(UserResponseBuilder.MapToResponse(user));
     }
 
@@ -248,6 +313,11 @@ public sealed class UserService(
             return Result.Forbidden();
         }
 
+        if (!await CanAccessTargetAudienceAsync(user, cancellationToken))
+        {
+            return Result.NotFound();
+        }
+
         await repository.DeleteAsync(userId, cancellationToken);
 
         logger.LogInformation("User deleted. UserId: {UserId}.", userId);
@@ -261,6 +331,24 @@ public sealed class UserService(
     private bool CanManageTarget(UserDataRow user) =>
         !IsSuperadminRole(user.Role) || IsCurrentActorSuperadmin();
 
+    private async Task<bool> CanAccessTargetAudienceAsync(UserDataRow user, CancellationToken cancellationToken)
+    {
+        if (IsCurrentActorSuperadmin())
+            return true;
+
+        var actorUserKind = await GetCurrentActorUserKindAsync(cancellationToken);
+        return UserVisibilityPolicy.CanAccess(currentUser.Role, actorUserKind, user.Role, user.UserKind);
+    }
+
+    private async Task<string?> GetCurrentActorUserKindAsync(CancellationToken cancellationToken)
+    {
+        if (currentUser.UserId is not Guid actorId)
+            return null;
+
+        var actor = await repository.GetAuthenticatedActorAsync(actorId, cancellationToken);
+        return UserKinds.Normalize(actor?.UserKind);
+    }
+
     private bool IsCurrentActorSuperadmin() =>
         string.Equals(currentUser.Role, Roles.Superadmin, StringComparison.OrdinalIgnoreCase);
 
@@ -272,7 +360,12 @@ public sealed class UserService(
             .Select(e => new ValidationError { Identifier = e.PropertyName, ErrorMessage = e.ErrorMessage })
             .ToList();
 
-    private static UserDataRow BuildUserRow(string normalizedEmail, CreateUserRequest request, CreateEntraUserResult entraUser, Guid organizationId) =>
+    private static UserDataRow BuildUserRow(
+        string normalizedEmail,
+        CreateUserRequest request,
+        CreateEntraUserResult entraUser,
+        Guid organizationId,
+        string userKind) =>
         new()
         {
             Id = Guid.NewGuid(),
@@ -283,6 +376,7 @@ public sealed class UserService(
             EntraId = entraUser.EntraUserId,
             Phone = request.Phone,
             Role = request.Role,
+            UserKind = userKind,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
