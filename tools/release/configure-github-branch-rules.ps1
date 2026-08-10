@@ -53,7 +53,7 @@ function New-BranchRulesetPayload {
             [ordered]@{
                 type = 'required_status_checks'
                 parameters = [ordered]@{
-                    do_not_enforce_on_create = $false
+                    do_not_enforce_on_create = $true
                     required_status_checks = @(
                         [ordered]@{ context = $RequiredStatusCheck }
                     )
