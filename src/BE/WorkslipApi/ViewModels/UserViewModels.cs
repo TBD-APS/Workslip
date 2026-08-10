@@ -11,6 +11,7 @@ public sealed record UserViewModel(
     string Phone,
     string Role,
     string RoleDisplayName,
+    string UserKind,
     decimal? HoursThisWeek,
     decimal? HoursThisMonth,
     decimal? HoursBiweekly);
@@ -36,6 +37,7 @@ public sealed record UserDetailViewModel(
     string Phone,
     string Role,
     string RoleDisplayName,
+    string UserKind,
     IReadOnlyList<AssignedJobViewModel> AssignedJobs,
     decimal? TotalHours,
     decimal? HoursThisWeek,
@@ -52,6 +54,7 @@ public static class UserViewModelBuilder
         user.Phone,
         user.Role,
         GetRoleDisplayName(user.Role),
+        user.UserKind,
         user.HoursThisWeek,
         user.HoursThisMonth,
         user.HoursBiweekly);
@@ -68,6 +71,7 @@ public static class UserViewModelBuilder
         detail.Phone,
         detail.Role,
         GetRoleDisplayName(detail.Role),
+        detail.UserKind,
         detail.AssignedJobs.Select(j => new AssignedJobViewModel(
             j.ReportId,
             j.ReportNumber,
