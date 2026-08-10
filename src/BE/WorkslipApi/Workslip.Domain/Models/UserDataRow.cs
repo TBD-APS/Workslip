@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Workslip.Domain;
 
 namespace Workslip.Domain.Models;
@@ -13,6 +14,7 @@ public sealed class UserDataRow
     public string EntraEmail { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    [MaxLength(32)]
     public string UserKind { get; set; } = UserKinds.Member;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
