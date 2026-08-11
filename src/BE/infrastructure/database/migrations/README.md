@@ -49,7 +49,7 @@ Run:
 pwsh ./src/BE/infrastructure/run-database-migrations.ps1 -Environment prod -ValidateOnly
 ```
 
-`-ValidateOnly` performs repository-level checks only. It does not authenticate to Azure or connect to SQL. The normal CI gate runs this validation for pull requests and `main`.
+`-ValidateOnly` performs repository-level checks only. It does not authenticate to Azure or connect to SQL. The unified CI workflow executes this validation whenever its `Contracts + docs` job runs; the workflow definition owns the exact branch/event coverage.
 
 ## Production execution
 
