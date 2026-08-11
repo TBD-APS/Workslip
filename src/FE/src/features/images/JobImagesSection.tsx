@@ -10,14 +10,12 @@ import {
   uploadJobImage,
   type ImageInfo,
 } from './imageApi';
+import { jobImageBlobQueryKey, jobImagesQueryKey } from './imageQueryKeys';
 import { useObjectUrl } from './useObjectUrl';
 import './images.css';
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
-export const jobImagesQueryKey = (jobId: string) => ['job-images', jobId] as const;
-const jobImageBlobQueryKey = (jobId: string, imageId: string) => ['job-image', jobId, imageId] as const;
 
 type JobImagesSectionProps = {
   jobId: string;
@@ -172,16 +170,11 @@ type JobImageTileProps = {
 
 function JobImageTile({ jobId, image, index, allowDelete, deleting, onDelete }: JobImageTileProps) {
   const tileRef = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === 'undefined');
 
   useEffect(() => {
     const element = tileRef.current;
-    if (!element || visible) return;
-
-    if (!('IntersectionObserver' in window)) {
-      setVisible(true);
-      return;
-    }
+    if (!element || visible || !('IntersectionObserver' in window)) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
