@@ -1,20 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
 import { User } from 'lucide-react';
-import { fetchProfileImageBlob } from './imageApi';
+import { useProfileImage } from './profileImageQuery';
 import { useObjectUrl } from './useObjectUrl';
 import './images.css';
-
-export const profileImageQueryKey = (userId: string) => ['profile-image', userId] as const;
-
-export function useProfileImage(userId: string | undefined) {
-  return useQuery({
-    queryKey: profileImageQueryKey(userId ?? ''),
-    queryFn: () => fetchProfileImageBlob(userId!),
-    enabled: Boolean(userId),
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
-}
 
 type ProfileAvatarProps = {
   userId: string | undefined;
