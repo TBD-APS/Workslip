@@ -2,7 +2,7 @@
 
 **Status:** Accepted  
 **Date:** 2026-08-08  
-**Issue:** WOR-367
+**Issue:** WOR-367, amended by WOR-410
 
 ## Context
 
@@ -11,6 +11,8 @@ Workslip production API startup now verifies database connectivity and does not 
 Future tenant-integrity and branch work requires reviewed schema/data changes. Those changes must be auditable, serialized and completed before application code that depends on them is deployed.
 
 The first rollout of this model exposed an operational gap: if the protected production bootstrap had not been reconciled before the backend deployment ran, the deployment failed closed as designed but production remained on the previous API binary. Frontend releases could therefore advance beyond the production API contract until an operator manually reconciled infrastructure and the migration identity.
+
+Local branch development has a different operational need. A branch may contain a new reviewed migration that the branch code already depends on. Requiring developers to remember a second manual migration command creates avoidable local version skew, but allowing general API-startup migrations would weaken the production safety boundary this ADR established.
 
 ## Decision
 
@@ -30,10 +32,26 @@ Production database migrations are an explicit deployment operation.
 - The migration identity receives only the database DDL/data roles required to perform reviewed migrations and SQL-server firewall management needed for the ephemeral GitHub runner connection.
 - The ordinary API runtime identity retains normal database read/write access and must not be a member of `db_ddladmin`.
 - The ordinary GitHub application-deployment identity may read the migration identity resource only to resolve its client ID; it does not inherit the migration identity's SQL permissions.
-- API startup remains limited to connectivity/readiness checks plus explicitly enabled Development-only seeding.
+- Production and staging API startup remain limited to connectivity/readiness checks. Development seeding remains a separate explicit opt-in.
 - If a production backend deployment fails and known bootstrap prerequisites are absent, a separate protected recovery workflow may use the existing production infrastructure identity to run the same authoritative production infrastructure reconciliation and migration-identity reconciliation used by the manual production workflow, then rerun only the failed backend deployment jobs.
 - The recovery workflow must no-op when the known bootstrap prerequisites are already present so unrelated backend deployment failures are not hidden, retried or turned into infrastructure mutations.
 - Recovery publishes a commit status for the failed production revision so the bootstrap decision/result can be inspected without relying on chat or runner-local logs alone.
+
+### Local Development exception
+
+`Development` startup may apply the same versioned migration files automatically only when the configured SQL connection string can be parsed and its server target is provably local. Accepted targets are limited to localhost/loopback, `.`, `(local)`, local SQL Server instances and LocalDB.
+
+The local startup runner preserves the production migration semantics that matter for correctness: lexical migration order, `dbo.WorkslipSchemaMigrations`, canonical SHA-256 verification, the narrow existing LF/CRLF checksum reconciliation, one transaction per migration and the database application lock. It does not create a second migration format or edit production migration history.
+
+This exception is intentionally fail-closed:
+
+- non-Development environments never use it;
+- remote or ambiguous Development SQL targets are skipped by default;
+- `Workslip:ApplyLocalMigrations=false` disables it;
+- `Workslip:ApplyLocalMigrations=true` acts as a strict assertion and fails startup when the target is not provably local;
+- OpenAPI generation remains database-free and does not evaluate or execute local migrations.
+
+This is a developer-workstation convenience, not a deployment mechanism. It does not change the production migration identity, workflow, permissions or release ordering.
 
 ## Operational rules
 
@@ -51,10 +69,12 @@ The production infrastructure identity remains deployment-only. Normal API runti
 
 ### Positive
 
-- The API runtime identity no longer carries schema-management rights.
+- The API runtime identity no longer carries production schema-management rights.
 - Schema changes are visible in deployment logs and happen before incompatible application code is released.
 - Concurrent production migration attempts are controlled.
-- Future schema work such as WOR-160 and WOR-364 has one durable rollout mechanism instead of adding startup mutation.
+- Future schema work such as WOR-160 and WOR-364 has one durable rollout mechanism instead of adding production startup mutation.
+- A developer switching to a branch with pending schema work can bring a local database forward by starting the API, reducing branch/code schema skew.
+- The local convenience cannot silently mutate Azure SQL or another remote database because target locality is verified before execution.
 - Operators can intentionally advance the production schema from reviewed `main` migrations without coupling that action to an API package deployment.
 - The manual migration path can repair its own missing dedicated migration identity without requiring a separate full infrastructure deployment first.
 - A missed production bootstrap no longer leaves production indefinitely on a stale API revision after later green `main` releases.
@@ -64,6 +84,8 @@ The production infrastructure identity remains deployment-only. Normal API runti
 
 ### Trade-offs
 
+- Development startup can now mutate schema, but only on a connection target verified as local. Developers still need a supported local SQL Server and a local connection string; this ADR does not provision one.
+- The local C# runner duplicates a small amount of migration execution mechanics from the production PowerShell runner. Both deliberately share the migration file/history/checksum contract; changes to that contract must keep the two implementations aligned.
 - The protected recovery workflow needs access to the existing production infrastructure OIDC identity, but only for the incomplete-bootstrap repair path; normal backend deployment and application runtime keep their narrower identities.
 - The manual production migration workflow also needs conditional access to the production infrastructure OIDC identity solely to create/reconcile the dedicated migration identity when that identity is absent; migration SQL still runs only as the dedicated migration identity.
 - The manual production migration workflow adds an explicit operator path that can advance schema before the matching application release; migrations therefore remain responsible for forward compatibility when that path is used.
