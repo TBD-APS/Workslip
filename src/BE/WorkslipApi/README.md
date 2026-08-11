@@ -99,7 +99,7 @@ the existing Graph integration, and reconciles only the platform organization an
 Superadmin rows. It does not run schema migrations, demo/reference-data seeding,
 hosted workers, or the HTTP server.
 
-`bootstrap-superadmins` is the only current Development-mode exception that may intentionally use remote SQL. Because the tracked Development baseline no longer points at production App Configuration, an operator must supply the approved App Configuration endpoint explicitly through an environment variable or command-line configuration and verify the resolved tenant/subscription/database before continuing.
+`bootstrap-superadmins` is the only current Development-mode exception that may intentionally use remote SQL. From an operator workstation, first verify the Azure CLI tenant, subscription and user, then supply the approved App Configuration endpoint through an environment variable or command-line argument. The repository does not check in a Development App Configuration endpoint. Treat any endpoint that points at production as an explicit operator choice and verify it before running bootstrap.
 
 ```powershell
 az login
@@ -149,7 +149,7 @@ Production/staging may use Azure App Configuration for shared non-secret runtime
 
 Infrastructure ownership and deployment details live in [`../infrastructure/README.md`](../infrastructure/README.md).
 
-Development/release-test endpoints (OpenAPI, Scalar and `/api/dev/*`) are registered only when the current release-testing policy enables them. `UseDeveloperExceptionPage` remains a Development-only concern. Treat the current release policy/configuration as authoritative rather than assuming those endpoints are always present.
+`/api/dev/*` and `UseDeveloperExceptionPage` are ASP.NET Development-only. OpenAPI and Scalar are controlled separately by the resolved release-testing policy and can be enabled outside Development only while that policy explicitly allows it. Treat the current release policy/configuration as authoritative rather than assuming any of these surfaces are always present.
 
 ## Authentication and tenancy
 
