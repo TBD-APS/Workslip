@@ -68,6 +68,7 @@ RETIRED_DOCUMENTATION_PATHS = (
     "Docs/release/documentation-gate.md",
     "Docs/release/documentation-waiver.md",
     "Docs/operations/go-live-production-data-cleanup.md",
+    "src/BE/infrastructure/GITHUB_INFRASTRUCTURE_OIDC.md",
 )
 
 INDEXED_DOC_SETS = (
