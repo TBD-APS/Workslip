@@ -40,6 +40,17 @@ public sealed class InfrastructureConfigurationTests
     }
 
     [Fact]
+    public void ConfigureInfrastructure_OpenApiGeneration_DoesNotRequireSql()
+    {
+        var args = new[] { $"--{DatabaseStartup.GenerateOpenApiOnlyKey}=true" };
+        var builder = CreateBuilder(Environments.Development, args);
+
+        builder.ConfigureInfrastructure(args);
+
+        Assert.True(builder.Configuration.GetValue<bool>(DatabaseStartup.GenerateOpenApiOnlyKey));
+    }
+
+    [Fact]
     public void ConfigureInfrastructure_ExplicitBootstrapInDevelopment_AllowsRemoteSqlWithDeveloperAzureIdentity()
     {
         var args = new[]
