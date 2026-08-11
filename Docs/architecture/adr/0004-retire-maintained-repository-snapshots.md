@@ -28,7 +28,7 @@ The documentation checker should validate selected high-value facts against thei
 - `repomix-output.xml` and its regeneration workflow are removed.
 - Dedicated snapshot-publisher credentials/ruleset bypass are no longer required and should be removed from GitHub settings if still configured.
 - Documentation and agent rules no longer treat Repomix as a lookup step or source of truth.
-- The manual API endpoint catalog becomes a historical pointer to endpoint source/OpenAPI.
+- The manual API endpoint catalog is removed from the maintained tree; Git/PR history retains the historical material when needed.
 - Historical references may remain for traceability but are not current guidance.
 
 This intentionally trades one convenient packed file for lower drift, lower privilege and simpler source-of-truth rules.
