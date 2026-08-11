@@ -6,7 +6,6 @@ param(
         'kls-lifecycle',
         'rejection-loop',
         'draft-recovery',
-        'notification-navigation',
         'role-tenant-isolation',
         'invitation-onboarding',
         'assignment-lifecycle',
@@ -177,7 +176,6 @@ function Invoke-DirectRun {
     $sourceFiles = @(
         'scripts/playwright-release-runner.mjs',
         'scripts/playwright-prod-smoke.mjs',
-        'scripts/playwright-notification-navigation.mjs',
         'scripts/playwright-critical-contract.mjs',
         'scripts/playwright-critical-domain.mjs',
         'scripts/playwright-scenarios-core.mjs',
@@ -242,7 +240,7 @@ function Invoke-WorkflowRun {
     }
 
     if ($Scenario -eq 'all-critical') {
-        Write-Warning 'Workflow-mode starter alle elleve matrix-jobs. Test public-smoke eller ét kritisk flow først.'
+        Write-Warning 'Workflow-mode starter alle ti matrix-jobs. Test public-smoke eller ét kritisk flow først.'
     }
 
     $eventPath = Join-Path ([System.IO.Path]::GetTempPath()) ("workslip-playwright-{0}.json" -f [Guid]::NewGuid())

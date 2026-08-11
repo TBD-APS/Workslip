@@ -79,17 +79,16 @@ The suite covers these selectable scenarios:
 2. `kls-lifecycle`
 3. `rejection-loop`
 4. `draft-recovery`
-5. `notification-navigation`
-6. `role-tenant-isolation`
-7. `invitation-onboarding`
-8. `assignment-lifecycle`
-9. `customer-lifecycle`
-10. `worksheet-integrity`
-11. `diverse-lifecycle`
+5. `role-tenant-isolation`
+6. `invitation-onboarding`
+7. `assignment-lifecycle`
+8. `customer-lifecycle`
+9. `worksheet-integrity`
+10. `diverse-lifecycle`
 
-`notification-navigation` logs in through the deployed UI, waits for the deployed service worker to control the mobile Chromium page, dispatches a standards-based synthetic `PushEvent` inside that worker, and verifies that the resulting notification click routes the existing app client to the requested authenticated route without opening an extra page. It also fails if API/authenticated routes enter a service-worker cache or if the runtime asset cache contains anything outside same-origin `/assets/` and `/fonts/` resources. It validates Workslip's push handler, notification creation, click handler, router acknowledgement, and cache isolation. Document-navigation and new-window fallbacks remain covered by the notification navigation unit tests. The browser scenario does not validate the operating-system notification tray or the external push provider transport.
+A former `notification-navigation` scenario was removed: as written, it never opened the deployed app, authenticated, registered a service worker, or dispatched a real `PushEvent` — it only imported `src/pwa/pushNotificationPayload.ts` and `src/pwa/notificationNavigation.ts` and called their exported functions directly in Node, which is exactly what `src/FE/src/pwa/pushNotificationPayload.test.ts` and `src/FE/src/pwa/notificationNavigation.test.ts` already cover as unit tests. It was labeled as a browser/service-worker critical flow but added no coverage beyond those unit tests. A real end-to-end replacement (real service-worker `PushEvent` dispatch, real `notificationclick` routing, real cache-isolation check against the deployed asset cache) is tracked as follow-up work rather than reintroduced here.
 
-`all-critical` expands into eleven independent GitHub Actions matrix jobs with `max-parallel: 4`. Each flow has its own browser process, report, screenshots where the scenario permits them, cleanup, result, and artifact. `public-smoke` remains a write-free availability check.
+`all-critical` expands into ten independent GitHub Actions matrix jobs with `max-parallel: 4`. Each flow has its own browser process, report, screenshots where the scenario permits them, cleanup, result, and artifact. `public-smoke` remains a write-free availability check.
 
 `src/FE/scripts/playwright-release-runner.mjs` is the required entry point. It rejects authenticated scenarios when the resolved target does not permit release-test access. Do not bypass it by invoking the underlying scenario orchestrator directly.
 
@@ -124,13 +123,9 @@ Before customer go-live, retained fixtures and cleanup failures must be reviewed
 
 The authenticated suite uses the deployed one-time-code controls and the four role-specific `WORKSLIP_SYNTHETIC_*_EMAIL` variables described in [`synthetic-test-identities.md`](synthetic-test-identities.md). There is currently no approved automated inbox reader, so non-interactive authenticated runs fail before sending mail. A local operator may explicitly enable a headed TTY run and enter each delivered code only in the visible browser. The scenarios never fall back to another authentication path or assumed user. Tokens are kept in memory and are never written to artifacts.
 
-Authenticated Playwright traces are not uploaded because they can contain authorization headers, request bodies, and personal data. Artifacts contain redacted JSON reports and selected screenshots. Login steps do not take screenshots. The `notification-navigation` scenario uploads only its redacted JSON report and does not capture authenticated screenshots.
+Authenticated Playwright traces are not uploaded because they can contain authorization headers, request bodies, and personal data. Artifacts contain redacted JSON reports and selected screenshots. Login steps do not take screenshots.
 
 The invitation scenario verifies the real UI through the Microsoft handoff. Completing Microsoft enrollment requires an isolated third-party identity session and is reported as a coverage limitation when no such session is available.
-
-## Known product gap
-
-The current rejection dialog and `ChangeJobStatusRequest` do not contain a rejection-reason field. The `rejection-loop` scenario verifies the status transition, correction, resubmission, approval, and history, but it cannot verify a reason that the product does not currently store. The product correction is tracked in WOR-292.
 
 ## Local Windows validation
 
@@ -153,7 +148,7 @@ During the documented pre-live phase, an authenticated production flow is allowe
 powershell -ExecutionPolicy Bypass -File .\tools\playwright\run-critical-local.ps1 `
   -Mode Direct `
   -Target Production `
-  -Scenario notification-navigation
+  -Scenario auth-session
 ```
 
 After the live switch, the same command is rejected. Use `-Target Staging` for authenticated/full flows.
