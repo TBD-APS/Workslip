@@ -18,7 +18,7 @@ bundle exec jekyll serve --livereload
 
 Open `http://localhost:4000`.
 
-`Gemfile.lock` is committed. Update dependencies intentionally with Bundler, commit the resulting lockfile and let CI verify that Gemfile and Gemfile.lock agree.
+`Gemfile.lock` is committed. Update dependencies intentionally with Bundler, commit the resulting lockfile and let the relevant repository validation verify that Gemfile and Gemfile.lock agree.
 
 ## Build and validation
 
@@ -33,9 +33,11 @@ python site/scripts/validate_output.py site/_site
 
 The validator checks required pages, one H1 and one `main-content` landmark per generated HTML page, plus local links and assets.
 
+There is currently no dedicated pull-request workflow that builds the Jekyll site. The normal documentation checker covers the maintained Markdown surface, while a site-affecting change still requires the local Jekyll build/output validation above until equivalent PR automation is introduced.
+
 ## Deployment
 
-Pull requests run `.github/workflows/site-validate.yml`. Merges to `main` that change `site/**` run `.github/workflows/pages.yml` and deploy through the protected `github-pages` environment.
+Pushes to `main` that change `site/**` or `.github/workflows/pages.yml` run `.github/workflows/pages.yml`. That workflow builds the Jekyll site with strict front matter, validates the generated output and deploys through the `github-pages` environment. It can also be started manually through `workflow_dispatch`.
 
 The canonical marketing-site domain is `https://mrsoftware.dk`. GitHub Pages must use **GitHub Actions** as its source, and the repository Pages setting must use `mrsoftware.dk` as the custom domain. DNS, HTTPS and rollback steps are documented in `Docs/operations/github-pages-domain-runbook.md`.
 

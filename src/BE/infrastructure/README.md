@@ -101,9 +101,9 @@ Production API connections use the user-assigned managed identity:
 Authentication=Active Directory Managed Identity;User Id=<managed-identity-client-id>
 ```
 
-`Azure:Sql:ConnectionString` is a Key Vault reference. It contains no SQL username or password. The SQL administrator password remains a deployment-only bootstrap credential in Key Vault secret `Azure--Sql--AdminPassword` and is used only by the controlled `sqlcmd` provisioning step.
+`Azure:Sql:ConnectionString` is a Key Vault reference. It contains no SQL username or password. The SQL administrator password remains a deployment-only bootstrap credential in Key Vault secret `Azure--Sql--AdminPassword` and is used only by controlled provisioning steps.
 
-The identity currently receives `db_datareader`, `db_datawriter` and `db_ddladmin`. `db_ddladmin` is temporary while schema initialization still runs at API startup; remove it with WOR-136 when migrations move to deployment.
+The ordinary API runtime identity has normal data read/write access and must **not** be a member of `db_ddladmin`. Production schema/data migrations are executed before API deployment by the dedicated `id-<company>-<environment>-migration` identity, which receives `db_ddladmin`, `db_datareader` and `db_datawriter` plus the narrow Azure SQL firewall-management permission required for the ephemeral runner connection. ADR 0006 and `database/migrations/README.md` own this boundary.
 
 ## Secret lifecycle
 
