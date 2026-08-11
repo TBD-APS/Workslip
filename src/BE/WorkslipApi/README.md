@@ -84,9 +84,10 @@ Superadmin rows. It does not run schema migrations, demo/reference-data seeding,
 hosted workers, or the HTTP server.
 
 From an operator workstation, first verify the Azure CLI tenant, subscription, user,
-and the configured App Configuration endpoint. The current Development settings use
-the production App Configuration endpoint; override it explicitly when targeting a
-different approved environment.
+and the App Configuration endpoint supplied through ignored local configuration,
+environment variables or command-line arguments. The repository does not check in a
+Development App Configuration endpoint. Treat any endpoint that points at production
+as an explicit operator choice and verify it before running bootstrap.
 
 ```powershell
 az login
