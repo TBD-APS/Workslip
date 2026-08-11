@@ -10,6 +10,7 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
 {
     private const string MigrationLockName = "Workslip.SchemaMigrations";
     private const string MigrationHistoryTable = "dbo.WorkslipSchemaMigrations";
+    private const string Wor385FilialTenantIntegrityMigrationId = "20260809_1145_wor385_filial_tenant_integrity";
 
     [GeneratedRegex(@"^\d{8}_\d{4}_[a-z0-9][a-z0-9_-]*$", RegexOptions.CultureInvariant)]
     private static partial Regex MigrationIdPattern();
@@ -134,6 +135,11 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
                         $"but this branch contains '{migration.Sha256}'. Applied migrations are immutable.");
                 }
 
+                await RepairLegacyLocalSchemaPrerequisitesAsync(
+                    connection,
+                    transaction,
+                    migration.Id,
+                    cancellationToken);
                 await ExecuteMigrationAsync(connection, transaction, migration, cancellationToken);
                 await RecordMigrationAsync(connection, transaction, migration, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
@@ -284,6 +290,53 @@ internal static partial class LocalDevelopmentDatabaseMigrationRunner
 
         if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
             throw new InvalidOperationException($"Local migration checksum reconciliation failed for '{migrationId}'.");
+    }
+
+    private static async Task RepairLegacyLocalSchemaPrerequisitesAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        string migrationId,
+        CancellationToken cancellationToken)
+    {
+        if (!migrationId.Equals(Wor385FilialTenantIntegrityMigrationId, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandTimeout = 120;
+        command.CommandText = """
+            DECLARE @repaired bit = 0;
+
+            IF OBJECT_ID(N'dbo.OrganizationFilials', N'U') IS NOT NULL
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM sys.key_constraints
+                   WHERE parent_object_id = OBJECT_ID(N'dbo.OrganizationFilials')
+                     AND name = N'AK_OrganizationFilials_OrganizationId_Id')
+            BEGIN
+                IF COL_LENGTH(N'dbo.OrganizationFilials', N'OrganizationId') IS NULL
+                   OR COL_LENGTH(N'dbo.OrganizationFilials', N'Id') IS NULL
+                BEGIN
+                    THROW 51410, 'Local WOR-385 compatibility repair requires dbo.OrganizationFilials.OrganizationId and Id.', 1;
+                END;
+
+                ALTER TABLE dbo.OrganizationFilials
+                    ADD CONSTRAINT AK_OrganizationFilials_OrganizationId_Id
+                    UNIQUE (OrganizationId, Id);
+
+                SET @repaired = 1;
+            END;
+
+            SELECT @repaired;
+            """;
+
+        var repaired = Convert.ToBoolean(await command.ExecuteScalarAsync(cancellationToken));
+        if (repaired)
+        {
+            Log.Warning(
+                "[STARTUP 08.1] Repaired legacy local schema prerequisite before migration: {MigrationId}",
+                migrationId);
+        }
     }
 
     private static async Task ExecuteMigrationAsync(
