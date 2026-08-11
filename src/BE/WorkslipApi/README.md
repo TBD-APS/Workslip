@@ -140,7 +140,7 @@ Use [`AGENTS.md`](AGENTS.md) for backend architecture rules. Application service
 
 Azure App Configuration owns non-secret runtime configuration. Secret values are resolved through Key Vault references/managed identity where configured. Infrastructure ownership and deployment details live in [`../infrastructure/README.md`](../infrastructure/README.md).
 
-Development/release-test endpoints (OpenAPI, Scalar and `/api/dev/*`) are registered only when the current release-testing policy enables them. `UseDeveloperExceptionPage` remains a Development-only concern. Treat the current release policy/configuration as authoritative rather than assuming those endpoints are always present.
+`/api/dev/*` and `UseDeveloperExceptionPage` are ASP.NET Development-only. OpenAPI and Scalar are controlled separately by the resolved release-testing policy and can be enabled outside Development only while that policy explicitly allows it. Treat the current release policy/configuration as authoritative rather than assuming any of these surfaces are always present.
 
 ## Authentication and tenancy
 
