@@ -56,6 +56,8 @@ RETIRED_ARTIFACT_PATTERNS = (
 RETIRED_DOCUMENTATION_PATTERNS = (
     "Docs/superpowers/**/*",
     "Docs/10-Projects/Workslip/**/*",
+    "Docs/50 - Docs/**/*",
+    "Docs/brugerguide-pwa/**/*",
     "src/docs/**/*",
 )
 
@@ -64,6 +66,7 @@ RETIRED_DOCUMENTATION_PATHS = (
     "Docs/api/endpoint-catalog.md",
     "Docs/testing/full-stack-validation.md",
     "Docs/release/documentation-gate.md",
+    "Docs/release/documentation-waiver.md",
     "Docs/operations/go-live-production-data-cleanup.md",
 )
 
@@ -198,7 +201,7 @@ def validate_retired_documentation() -> int:
             seen.add(path)
             error(
                 path,
-                "Historical implementation plans/specs belong in Git/Linear history, not beside current documentation.",
+                "Historical implementation plans/specs and retired documentation assets belong in Git/Linear history, not beside current documentation.",
             )
             failures += 1
 
