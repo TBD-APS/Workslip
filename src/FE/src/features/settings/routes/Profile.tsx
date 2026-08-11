@@ -6,7 +6,9 @@ import { notify } from '../../../lib/toast';
 import { useAuth } from '../../../providers/useAuth';
 import { usePatchApiAuthMe, getGetApiAuthMeQueryKey } from '../../../api/generated/auth/auth';
 import { deleteProfileImage, uploadProfileImage } from '../../images/imageApi';
-import { ProfileAvatar, profileImageQueryKey, useProfileImage } from '../../images/ProfileAvatar';
+import { profileImageQueryKey } from '../../images/imageQueryKeys';
+import { ProfileAvatar } from '../../images/ProfileAvatar';
+import { useProfileImage } from '../../images/profileImageQuery';
 
 const roleLabels: Record<string, string> = {
   Admin: 'Administrator',
