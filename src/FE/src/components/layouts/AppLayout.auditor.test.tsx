@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -36,19 +37,26 @@ function renderAuditor(initialPath: string) {
       data: auditor,
     },
   };
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
 
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <ThemeProvider>
-        <AuthContext.Provider value={value}>
-          <Routes>
-            <Route path="/app" element={<AppLayout />}>
-              <Route path="auditor" element={<div>Rapportoversigt</div>} />
-            </Route>
-          </Routes>
-        </AuthContext.Provider>
-      </ThemeProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <ThemeProvider>
+          <AuthContext.Provider value={value}>
+            <Routes>
+              <Route path="/app" element={<AppLayout />}>
+                <Route path="auditor" element={<div>Rapportoversigt</div>} />
+              </Route>
+            </Routes>
+          </AuthContext.Provider>
+        </ThemeProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
