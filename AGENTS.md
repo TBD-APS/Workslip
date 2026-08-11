@@ -46,7 +46,7 @@ When documentation disagrees with implementation, fix the maintained documentati
 For implementation batches, keep the execution loop short and deterministic:
 
 1. verify the problem against current source/runtime evidence;
-2. create or confirm the owning Linear issue and exact scope;
+2. confirm the owning Linear issue and exact scope for implementation work; do not create a new Linear issue unless explicitly requested;
 3. implement the smallest complete correction;
 4. add meaningful regression protection for the changed risk;
 5. run the required validation from [`Docs/agents/VALIDATION.md`](Docs/agents/VALIDATION.md);
