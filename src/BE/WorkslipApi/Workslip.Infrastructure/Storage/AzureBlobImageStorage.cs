@@ -39,7 +39,11 @@ public sealed class AzureBlobImageStorage : IImageStorage
         var prefix = JobImagePrefix(organizationId, jobId);
         var images = new List<ImageInfoResponse>();
 
-        await foreach (var blob in _container.GetBlobsAsync(prefix: prefix, cancellationToken: cancellationToken))
+        await foreach (var blob in _container.GetBlobsAsync(
+                           BlobTraits.None,
+                           BlobStates.None,
+                           prefix,
+                           cancellationToken))
         {
             var idText = blob.Name[prefix.Length..];
             if (!Guid.TryParseExact(idText, "N", out var imageId))
@@ -114,7 +118,11 @@ public sealed class AzureBlobImageStorage : IImageStorage
         CancellationToken cancellationToken)
     {
         var prefix = JobImagePrefix(organizationId, jobId);
-        await foreach (var blob in _container.GetBlobsAsync(prefix: prefix, cancellationToken: cancellationToken))
+        await foreach (var blob in _container.GetBlobsAsync(
+                           BlobTraits.None,
+                           BlobStates.None,
+                           prefix,
+                           cancellationToken))
         {
             await _container.DeleteBlobIfExistsAsync(blob.Name, cancellationToken: cancellationToken);
         }
