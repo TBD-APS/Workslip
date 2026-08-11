@@ -19,11 +19,45 @@ function Test-ProtectedBranch {
         -or $Branch.StartsWith('release-', [System.StringComparison]::Ordinal)
 }
 
+function Get-GitHubRepositoryFromRemoteUrl {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url
+    )
+
+    if ($Url -match '^https?://github\.com/([^/]+)/([^/]+)/?$') {
+        $owner = $Matches[1]
+        $repository = $Matches[2] -replace '\.git$', ''
+        return "$owner/$repository"
+    }
+
+    if ($Url -match '^git@github\.com:([^/]+)/(.+)$') {
+        $owner = $Matches[1]
+        $repository = $Matches[2] -replace '\.git$', ''
+        return "$owner/$repository"
+    }
+
+    if ($Url -match '^ssh://git@github\.com/([^/]+)/([^/]+)/?$') {
+        $owner = $Matches[1]
+        $repository = $Matches[2] -replace '\.git$', ''
+        return "$owner/$repository"
+    }
+
+    throw "Remote URL '$Url' is not a supported github.com repository URL. Refusing cleanup because open-PR protection cannot be verified."
+}
+
 $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue |
     Select-Object -First 1
 
 if ($null -eq $git) {
     throw 'git is required but was not found on PATH.'
+}
+
+$gh = Get-Command gh -CommandType Application -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+
+if ($null -eq $gh) {
+    throw 'GitHub CLI (gh) is required so branches with open pull requests can be protected. Install/authenticate gh before running cleanup.'
 }
 
 function Invoke-Git {
@@ -41,12 +75,62 @@ function Invoke-Git {
     return @($output)
 }
 
+function Invoke-Gh {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $output = & $gh.Source @Arguments 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $details = ($output | Out-String).Trim()
+        throw "gh $($Arguments -join ' ') failed. Refusing cleanup because open-PR protection could not be verified. $details"
+    }
+
+    return @($output)
+}
+
+function Get-OpenPullRequestBranches {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Repository
+    )
+
+    $jsonLines = Invoke-Gh -Arguments @(
+        'pr', 'list',
+        '--repo', $Repository,
+        '--state', 'open',
+        '--limit', '1000',
+        '--json', 'headRefName'
+    )
+
+    $json = ($jsonLines -join "`n").Trim()
+    if ([string]::IsNullOrWhiteSpace($json)) {
+        throw 'GitHub CLI returned no PR data. Refusing cleanup because open-PR protection could not be verified.'
+    }
+
+    try {
+        $pullRequests = @($json | ConvertFrom-Json -ErrorAction Stop)
+    }
+    catch {
+        throw "Could not parse GitHub PR data. Refusing cleanup. $($_.Exception.Message)"
+    }
+
+    return @(
+        $pullRequests |
+            ForEach-Object { [string]$_.headRefName } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Sort-Object -Unique
+    )
+}
+
 $insideWorkTree = (Invoke-Git -Arguments @('rev-parse', '--is-inside-work-tree') | Select-Object -First 1).Trim()
 if ($insideWorkTree -ne 'true') {
     throw 'Run this script from inside a Git worktree.'
 }
 
 $remoteUrl = (Invoke-Git -Arguments @('remote', 'get-url', $Remote) | Select-Object -First 1).Trim()
+$githubRepository = Get-GitHubRepositoryFromRemoteUrl -Url $remoteUrl
 $currentBranchOutput = @(Invoke-Git -Arguments @('branch', '--show-current'))
 $currentBranch = if ($currentBranchOutput.Count -gt 0) {
     ([string]$currentBranchOutput[0]).Trim()
@@ -67,26 +151,49 @@ if ($branches -notcontains 'main') {
     throw "Remote '$Remote' does not contain main. Refusing branch cleanup for $remoteUrl."
 }
 
+$openPullRequestBranches = @(Get-OpenPullRequestBranches -Repository $githubRepository)
+
 $protectedBranches = @(
     $branches | Where-Object { Test-ProtectedBranch -Branch $_ }
 )
 
+$openPullRequestBranchesOnRemote = @(
+    $branches |
+        Where-Object {
+            -not (Test-ProtectedBranch -Branch $_) -and
+            $openPullRequestBranches -contains $_
+        }
+)
+
 $branchesToDelete = @(
-    $branches | Where-Object { -not (Test-ProtectedBranch -Branch $_) }
+    $branches |
+        Where-Object {
+            -not (Test-ProtectedBranch -Branch $_) -and
+            $openPullRequestBranches -notcontains $_
+        }
 )
 
 Write-Host ''
 Write-Host 'Workslip branch cleanup' -ForegroundColor Cyan
-Write-Host "  Remote: $Remote"
-Write-Host "  URL:    $remoteUrl"
-Write-Host "  Mode:   $(if ($Execute) { 'EXECUTE' } else { 'DRY RUN' })"
+Write-Host "  Remote:     $Remote"
+Write-Host "  Repository: $githubRepository"
+Write-Host "  URL:        $remoteUrl"
+Write-Host "  Mode:       $(if ($Execute) { 'EXECUTE' } else { 'DRY RUN' })"
 Write-Host ''
 
 Write-Host 'KEEP - protected branches:' -ForegroundColor Green
 $protectedBranches | ForEach-Object { Write-Host "  KEEP   $_" }
 
 Write-Host ''
-Write-Host 'DELETE - all other remote branches:' -ForegroundColor Yellow
+Write-Host 'KEEP - branches with open pull requests:' -ForegroundColor Green
+if ($openPullRequestBranchesOnRemote.Count -eq 0) {
+    Write-Host '  (none)'
+} else {
+    $openPullRequestBranchesOnRemote | ForEach-Object { Write-Host "  KEEP   $_" }
+}
+
+Write-Host ''
+Write-Host 'DELETE - remote branches without an open pull request:' -ForegroundColor Yellow
 if ($branchesToDelete.Count -eq 0) {
     Write-Host '  (none)'
 } else {
@@ -94,8 +201,9 @@ if ($branchesToDelete.Count -eq 0) {
 }
 
 Write-Host ''
-Write-Host "Protected: $($protectedBranches.Count)"
-Write-Host "To delete: $($branchesToDelete.Count)"
+Write-Host "Protected by name:    $($protectedBranches.Count)"
+Write-Host "Protected by open PR: $($openPullRequestBranchesOnRemote.Count)"
+Write-Host "To delete:            $($branchesToDelete.Count)"
 
 if (-not $Execute) {
     Write-Host ''
@@ -116,6 +224,18 @@ if ($branchesToDelete.Count -eq 0) {
     Write-Host ''
     Write-Host 'Nothing to delete.' -ForegroundColor Green
     return
+}
+
+# Re-read PR state immediately before destructive work. If any deletion target
+# gained an open PR after the initial classification, abort and require a new run.
+$openPullRequestBranchesBeforeDelete = @(Get-OpenPullRequestBranches -Repository $githubRepository)
+$newlyProtectedBranches = @(
+    $branchesToDelete |
+        Where-Object { $openPullRequestBranchesBeforeDelete -contains $_ }
+)
+
+if ($newlyProtectedBranches.Count -gt 0) {
+    throw "Open PR state changed after classification. These branches are now protected: $($newlyProtectedBranches -join ', '). Re-run the cleanup."
 }
 
 Write-Host ''
@@ -157,6 +277,20 @@ if ($unexpectedRemaining.Count -gt 0) {
     throw "Post-check failed. These branches still exist on '$Remote': $($unexpectedRemaining -join ', ')"
 }
 
+$expectedPreservedBranches = @(
+    @($protectedBranches) + @($openPullRequestBranchesOnRemote) |
+        Sort-Object -Unique
+)
+
+$missingPreservedBranches = @(
+    $expectedPreservedBranches |
+        Where-Object { $remainingBranches -notcontains $_ }
+)
+
+if ($missingPreservedBranches.Count -gt 0) {
+    throw "Post-check failed. Expected preserved branches are missing from '$Remote': $($missingPreservedBranches -join ', ')"
+}
+
 Write-Host ''
 Write-Host "Cleanup complete. Deleted $($deletedBranches.Count) remote branches." -ForegroundColor Green
-Write-Host 'main and release branches were preserved.' -ForegroundColor Green
+Write-Host 'main, release branches, and branches with open pull requests were preserved.' -ForegroundColor Green
