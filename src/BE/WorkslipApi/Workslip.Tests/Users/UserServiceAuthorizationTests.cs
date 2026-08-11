@@ -5,6 +5,7 @@ using Workslip.Application.Users;
 using Workslip.Application.Users.Validators;
 using Workslip.Domain;
 using Workslip.Domain.Models;
+using Workslip.Tests.TestDoubles;
 using Xunit;
 
 namespace Workslip.Tests.Users;
@@ -118,6 +119,7 @@ public sealed class UserServiceAuthorizationTests
             new UpdateUserRequestValidator(),
             entra,
             new FakeCurrentUserContext(actorRole),
+            new NoOpImageStorage(),
             NullLogger<UserService>.Instance);
 
     private static UserDataRow CreateUser(string role) =>
