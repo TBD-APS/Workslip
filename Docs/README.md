@@ -34,6 +34,7 @@ Do not keep issue implementation plans, completed task specs or superseded runbo
 | Area | Document | State |
 |---|---|---|
 | Repository | [`../README.md`](../README.md) | Active |
+| Pull-request evidence | [`../.github/pull_request_template.md`](../.github/pull_request_template.md) | Active |
 | Agent rules | [`../AGENTS.md`](../AGENTS.md) | Active |
 | Documentation rules | [`AGENTS.md`](AGENTS.md) | Active |
 | Validation | [`agents/VALIDATION.md`](agents/VALIDATION.md) | Active |
@@ -68,6 +69,6 @@ Run:
 python tools/docs/check_docs.py
 ```
 
-The checker validates all Markdown under `Docs/` as an explicitly maintained surface, plus public site Markdown and key package/infrastructure READMEs. It checks local links, referenced npm scripts, retired artifacts/documentation paths, issue-status-dependent wording, API/architecture index coverage and exact duplicated agent rules. Historical issue-plan directories are rejected so they cannot silently return as a second source of truth.
+The checker validates all Markdown under `Docs/` as an explicitly maintained surface, plus the pull-request template, public site Markdown and key package/infrastructure READMEs. It checks local links, referenced npm scripts, retired artifacts/documentation paths, issue-status-dependent wording, API/architecture index coverage and exact duplicated agent rules. Historical issue-plan directories are rejected so they cannot silently return as a second source of truth.
 
 The checker is intentionally dependency-free and still cannot prove semantic correctness. Reviewers must verify technical claims against current code/config/tests and operational claims against the current workflow/infrastructure definition.
