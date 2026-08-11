@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MAINTAINED_DOC_PATTERNS = (
     "README.md",
     "AGENTS.md",
+    ".github/pull_request_template.md",
     "Docs/*.md",
     "Docs/agents/*.md",
     "Docs/api/*.md",
