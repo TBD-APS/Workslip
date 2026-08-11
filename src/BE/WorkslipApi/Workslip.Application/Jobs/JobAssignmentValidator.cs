@@ -20,7 +20,7 @@ public sealed record JobAssignmentValidationResult(
     public static JobAssignmentValidationResult JobNotFound() => new(JobAssignmentValidationStatus.JobNotFound);
     public static JobAssignmentValidationResult InvalidAssignee() => new(
         JobAssignmentValidationStatus.InvalidAssignee,
-        "Sager kan kun tildeles medarbejdere i samme filial eller administratoren selv.");
+        "Sager kan kun tildeles medarbejdere eller administratorer i samme filial.");
 }
 
 public interface IJobAssignmentValidator
@@ -130,9 +130,6 @@ public sealed class JobAssignmentValidator(
 
         return users.All(user => JobAssignmentPolicy.CanReceiveAssignmentInFilial(
                 user.Role,
-                user.Id,
-                currentUser.UserId,
-                currentUser.Role,
                 user.FilialId,
                 filialId))
             ? JobAssignmentValidationResult.Valid()
