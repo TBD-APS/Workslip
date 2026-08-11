@@ -57,7 +57,7 @@ $gh = Get-Command gh -CommandType Application -ErrorAction SilentlyContinue |
     Select-Object -First 1
 
 if ($null -eq $gh) {
-    throw 'GitHub CLI (gh) is required so branches with open pull requests can be protected. Install/authenticate gh before running cleanup.'
+    throw 'GitHub CLI (gh) is required so branches referenced by open pull requests can be protected. Install/authenticate gh before running cleanup.'
 }
 
 function Invoke-Git {
@@ -101,7 +101,7 @@ function Get-OpenPullRequestBranches {
         '--repo', $Repository,
         '--state', 'open',
         '--limit', '1000',
-        '--json', 'headRefName'
+        '--json', 'headRefName,baseRefName'
     )
 
     $json = ($jsonLines -join "`n").Trim()
@@ -118,7 +118,7 @@ function Get-OpenPullRequestBranches {
 
     return @(
         $pullRequests |
-            ForEach-Object { [string]$_.headRefName } |
+            ForEach-Object { @([string]$_.headRefName, [string]$_.baseRefName) } |
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
             Sort-Object -Unique
     )
@@ -185,7 +185,7 @@ Write-Host 'KEEP - protected branches:' -ForegroundColor Green
 $protectedBranches | ForEach-Object { Write-Host "  KEEP   $_" }
 
 Write-Host ''
-Write-Host 'KEEP - branches with open pull requests:' -ForegroundColor Green
+Write-Host 'KEEP - branches referenced by open pull requests:' -ForegroundColor Green
 if ($openPullRequestBranchesOnRemote.Count -eq 0) {
     Write-Host '  (none)'
 } else {
@@ -193,7 +193,7 @@ if ($openPullRequestBranchesOnRemote.Count -eq 0) {
 }
 
 Write-Host ''
-Write-Host 'DELETE - remote branches without an open pull request:' -ForegroundColor Yellow
+Write-Host 'DELETE - remote branches not protected by name or an open pull request:' -ForegroundColor Yellow
 if ($branchesToDelete.Count -eq 0) {
     Write-Host '  (none)'
 } else {
@@ -227,7 +227,8 @@ if ($branchesToDelete.Count -eq 0) {
 }
 
 # Re-read PR state immediately before destructive work. If any deletion target
-# gained an open PR after the initial classification, abort and require a new run.
+# becomes referenced by an open PR after the initial classification, abort and
+# require a new dry-run/execute cycle.
 $openPullRequestBranchesBeforeDelete = @(Get-OpenPullRequestBranches -Repository $githubRepository)
 $newlyProtectedBranches = @(
     $branchesToDelete |
@@ -278,7 +279,7 @@ if ($unexpectedRemaining.Count -gt 0) {
 }
 
 $expectedPreservedBranches = @(
-    @($protectedBranches) + @($openPullRequestBranchesOnRemote) |
+    (@($protectedBranches) + @($openPullRequestBranchesOnRemote)) |
         Sort-Object -Unique
 )
 
@@ -293,4 +294,4 @@ if ($missingPreservedBranches.Count -gt 0) {
 
 Write-Host ''
 Write-Host "Cleanup complete. Deleted $($deletedBranches.Count) remote branches." -ForegroundColor Green
-Write-Host 'main, release branches, and branches with open pull requests were preserved.' -ForegroundColor Green
+Write-Host 'main, release branches, and branches referenced by open pull requests were preserved.' -ForegroundColor Green
