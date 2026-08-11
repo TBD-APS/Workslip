@@ -1,6 +1,10 @@
 # Workslip database migrations
 
-Production schema and data migrations are applied explicitly during the protected backend deployment flow. The API runtime must never execute these files at startup.
+Production schema and data migrations are applied explicitly during the protected backend deployment flow. Production and staging API startup never execute these files.
+
+Local development has one narrow exception: when the API runs in `Development` and `Azure:Sql:ConnectionString` resolves to a provably local SQL Server target, startup applies pending versioned migrations before the normal connectivity check. The same migration files, IDs and checksum history are reused; there is no separate development migration format.
+
+Remote or ambiguous SQL targets are never auto-migrated. `Workslip:ApplyLocalMigrations=false` disables the local behavior. Setting `Workslip:ApplyLocalMigrations=true` is a strict assertion: startup fails if the target is not recognized as local rather than applying anything remotely.
 
 ## File contract
 
@@ -9,7 +13,22 @@ Production schema and data migrations are applied explicitly during the protecte
 - Each file is one transaction-safe T-SQL batch. `GO` separators are rejected by the runner.
 - The migration runner records the SHA-256 checksum in `dbo.WorkslipSchemaMigrations` and fails if an applied migration is later modified.
 - Migrations execute in lexical filename order and under a database application lock.
-- A failed migration is rolled back and blocks the API deployment.
+- A failed migration is rolled back and blocks the relevant startup/deployment operation.
+
+## Local development execution
+
+Supported local targets are deliberately narrow: `localhost`, IPv4/IPv6 loopback, `.`, `(local)`, SQL Server local instances such as `.\SQLEXPRESS`, and LocalDB. A machine name, Azure SQL hostname, LAN address or other remote/ambiguous target does not qualify.
+
+With a local SQL connection configured, ordinary Development startup is enough:
+
+```powershell
+cd src/BE/WorkslipApi
+dotnet run --launch-profile http
+```
+
+Startup applies only migrations missing from `dbo.WorkslipSchemaMigrations`. Re-running the same branch is idempotent. A checksum mismatch for an already-applied migration fails closed; the existing narrow LF/CRLF checksum reconciliation is preserved without rerunning migration SQL.
+
+Development seeding remains a separate explicit opt-in through `Workslip:SeedDevelopmentData`. Auto-migration does not enable seeding or Entra provisioning.
 
 ## Data and destructive changes
 

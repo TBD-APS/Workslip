@@ -85,7 +85,8 @@ try
             app.Services,
             app.Configuration,
             seedDevelopmentData,
-            seedDevelopmentEntraIdentities));
+            seedDevelopmentEntraIdentities,
+            app.Environment));
 
     RunStartupPhase(9, "Configure HTTP pipeline", () =>
     {
