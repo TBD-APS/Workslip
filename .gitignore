@@ -93,6 +93,9 @@ dev-dist/
 # Obsidian local/plugin state (notes stay tracked)
 Docs/.obsidian/
 
+# Retired customer export: real customer/person data must never be a docs fixture
+/Docs/customerdata.csv
+
 # Windows reserved names
 nul
 /src/FE/.antigravitycli/7bd990d5-3d8f-470e-80e3-cc52bf6e64db.json
