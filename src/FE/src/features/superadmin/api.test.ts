@@ -18,12 +18,7 @@ vi.mock('../../lib/axios', () => ({
 describe('Superadmin API', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('uses all organization endpoints from a mobile browser', async () => {
-    vi.stubGlobal('navigator', {
-      userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9)',
-      maxTouchPoints: 5,
-    });
-
+  it('calls every organization endpoint with the expected URL, method and trimmed input', async () => {
     const onboarding = {
       organization: {
         id: 'organization-id',
