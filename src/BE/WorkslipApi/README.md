@@ -27,6 +27,23 @@ Health check:
 curl http://localhost:5262/health
 ```
 
+### Branch-local database migrations
+
+When the API runs in `Development` and `Azure:Sql:ConnectionString` points to a provably local SQL Server target, startup automatically applies pending versioned migrations from `../infrastructure/database/migrations` before the normal database connectivity check. This keeps a developer's local schema aligned when switching to a branch that introduces database changes.
+
+The local path accepts only localhost/loopback, `.`, `(local)`, local SQL Server instances and LocalDB. Azure SQL, LAN hosts and other remote or ambiguous targets are never auto-migrated. Existing Azure-backed Development startup therefore remains non-mutating unless its SQL connection is explicitly overridden to a local database.
+
+`Workslip:ApplyLocalMigrations=false` disables local auto-migration. `Workslip:ApplyLocalMigrations=true` is a strict safety assertion: startup fails if the configured target is not recognized as local instead of applying migrations remotely.
+
+For example, on a machine with SQL Server LocalDB, keep the connection override in ignored local configuration or an environment variable:
+
+```powershell
+$env:Azure__Sql__ConnectionString='Server=(localdb)\MSSQLLocalDB;Database=WorkslipLocal;Integrated Security=true;TrustServerCertificate=true'
+dotnet run --launch-profile http
+```
+
+The migration history, checksum immutability, transaction and application-lock contract is shared with production migrations. Development auto-migration does not enable data seeding or Entra provisioning.
+
 ## Development database seeding
 
 Development seeding is explicit opt-in and is database-only by default. `Workslip:SeedDevelopmentData=true` seeds the existing synthetic Workslip development dataset without resolving or invoking the Entra Superadmin provisioning service.
@@ -134,7 +151,9 @@ Superadmin delegated organization access uses the existing server-side organizat
 
 ## Persistence and schema
 
-Persistence uses EF Core/SQL Server. Staging and production startup only verify database connectivity; they do not apply schema changes, backfill tenant data or run development seeding. Development database seeding requires the explicit `Workslip:SeedDevelopmentData` flag, and external Entra identity reconciliation additionally requires `Workslip:SeedDevelopmentEntraIdentities`. Schema changes require an explicit deployment operation, and new-tenant reference data is provisioned only during explicit organization onboarding. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
+Persistence uses EF Core/SQL Server. Staging and production startup only verify database connectivity; they do not apply schema changes, backfill tenant data or run development seeding. Production schema changes require the explicit protected deployment migration operation.
+
+Development startup may apply pending versioned migrations only when the configured SQL target is provably local, as described above. Development database seeding remains a separate explicit `Workslip:SeedDevelopmentData` opt-in, and external Entra identity reconciliation additionally requires `Workslip:SeedDevelopmentEntraIdentities`. New-tenant reference data is provisioned only during explicit organization onboarding. Treat changes to this area as production-sensitive and validate relational behaviour, concurrency and rollback explicitly.
 
 Do not infer SQL behaviour from EF in-memory tests.
 
