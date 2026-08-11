@@ -138,20 +138,16 @@ async function approveJobViaUi(session, jobId) {
   await response;
 }
 
-async function rejectJobViaUi(session, jobId) {
+async function rejectJobViaUi(session, jobId, rejectionNote = 'Mangler dokumentation for udført arbejde.') {
   await session.page.goto(`${APP_URL}/app/completed/${jobId}`, { waitUntil: 'domcontentloaded' });
   await session.page.getByRole('heading', { name: 'Sagsoverblik', exact: true }).waitFor({ state: 'visible', timeout: UI_TIMEOUT });
   await session.page.locator('button:visible').filter({ hasText: /^Afvis$/ }).last().click();
   const dialog = session.page.getByRole('dialog', { name: 'Afvis sag' });
   await dialog.waitFor({ state: 'visible', timeout: UI_TIMEOUT });
+  await dialog.locator('#rejection-note').fill(rejectionNote);
   const response = waitForApiResponse(session.page, 'POST', `/api/jobs/${jobId}/status`, [200]);
   await dialog.getByRole('button', { name: 'Afvis', exact: true }).click();
   await response;
-  session.scenarioReport.coverageNotes.push({
-    area: 'Rejection reason',
-    status: 'product-gap',
-    detail: 'The current rejection dialog and status contract contain no rejection-reason field.',
-  });
 }
 
 async function createCustomerViaUi(session) {
